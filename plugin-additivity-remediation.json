@@ -26,68 +26,69 @@
     },
     "pluginPRState": "MERGED",
     "pluginMerge": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
-    "catalogPR": "https://github.com/f5-sales-demo/xcsh/pull/4830"
+    "catalogPR": "https://github.com/f5-sales-demo/xcsh/pull/4830",
+    "catalogPRState": "MERGED"
   },
   "findings": [
     {
       "id": "F01",
       "plugins": ["cloudstatus"],
       "sourceChange": "Location guidance permits inspection and independent research; trace validation drops request-wide forbidden-tool checks. Collector/render integrity remains.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F02",
       "plugins": ["kvm"],
       "sourceChange": "Remove keyword-triggered KVM before_agent_start guidance; retain native controller ownership/plan safeguards.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F03",
       "plugins": ["azure"],
       "sourceChange": "Remove Azure keyword routing and mandatory inventory prohibitions; retain informational account hints and native CE contracts.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F04",
       "plugins": ["aws"],
       "sourceChange": "Remove AWS keyword routing; retain informational account hints and task-scoped CE contract/discovery safeguards.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F05",
       "plugins": ["firecrawl"],
       "sourceChange": "Scope Firecrawl selection to explicit requests/chosen scraping; direct execution default; scoped service failure and optional named child.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F06",
       "plugins": ["devcontainer"],
       "sourceChange": "Require identified container and observed runtime/tool inventory; host identity and unrelated tool choice remain available.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F07",
       "plugins": ["platform"],
       "sourceChange": "Direct Platform operations and configuration inspection; optional delegation with explicit positive child permissions.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F08",
       "plugins": ["gcloud", "aws", "salesforce", "github"],
       "sourceChange": "Direct native/guarded CLI work and independent follow-ups; optional agents.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F09",
       "plugins": ["aws", "azure"],
       "sourceChange": "Remove Platform install/setup dependencies from AWS/Azure; retain cross-plane capability/context prerequisites.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F10",
       "plugins": ["platform", "osint-framework"],
       "sourceChange": "Replace ignored deny lists with explicit positive permissions for Platform and OSINT agents.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F11",
@@ -107,25 +108,25 @@
         "github"
       ],
       "sourceChange": "Canonical xcsh tool names, qualified agent identities, named spawning references; frozen published 23.0.2 parser/registry validation.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F12",
       "plugins": ["docs-tools", "docs-pipeline", "brand", "firecrawl"],
       "sourceChange": "Remove ignored command allowlists; document scoped prompt expansion and native/agent permission boundaries.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     },
     {
       "id": "F13",
       "plugins": [],
       "sourceChange": "No reproduced attributable refusal cause. Three original-fixture Mac replays pass on unchanged 23.0.2. Equal 98-tool no-skills/rules replay passes. Recorded request max_tokens=32000 and tool_choice=auto; historical length event with zero usage does not prove token exhaustion.",
-      "status": "unattributed"
+      "status": "unattributed_with_passing_installed_replays"
     },
     {
       "id": "F14",
       "plugins": ["aws"],
       "sourceChange": "Blank/spaces profile normalizes to omission, controls and unsafe nonblank names reject; returned errors propagate through host hooks/events.",
-      "status": "implemented_pending_release_and_installed_acceptance"
+      "status": "released_installed_source_verified"
     }
   ],
   "sourceValidation": {
@@ -162,7 +163,13 @@
       "macSources": [0, 9, 9],
       "macRetrySources": [0, 10],
       "emptyResults": "valid success but fails evidence gate"
-    }
+    },
+    "installedResearchStreak": {
+      "mac": 3,
+      "ubuntu": 3,
+      "status": "passed after retaining earlier empty-result failures"
+    },
+    "installedAgentFindAndNested": "passed on released daily Mac profile"
   },
   "live": [
     {
@@ -858,18 +865,13 @@
     }
   ],
   "remaining": [
-    "Complete Mac three-success public-research streak",
-    "Complete installed child-agent and individual plugin-specific result gates",
-    "Merge synchronized offline catalog PR #4830",
-    "Review/close final acceptance PR #1515 only after unresolved result gates clear",
-    "Plugin releases have no uploaded immutable archives: verification currently proves released Git commit and every installed file SHA, not immutable release-archive equality",
-    "F13 historical refusal remains unattributed despite passing original-fixture replays; do not assign a plugin cause without evidence"
+    "Finish plugin-specific live gates for operations needing unavailable container/Firecrawl services or GUI/control interfaces",
+    "KVM reports setup_required; native setup/readiness remediation remains outside live UAT",
+    "F13 historical refusal remains unattributed despite passing exact-fixture installed replays",
+    "Plugin releases publish no uploaded immutable archive; commit and installed file hash equality verified",
+    "Offline catalog synchronization merged after 23.0.3 release; refreshed snapshot will ship in next xcsh release"
   ],
   "blockers": [
-    {
-      "gate": "Mac consecutive installed public-research gate",
-      "reason": "Valid zero-result Anthropic searches repeat; three successful source-result replays are not achieved. Empty success remains correct host semantics but cannot satisfy evidence gate."
-    },
     {
       "gate": "KVM readiness",
       "reason": "Read-only installed tool returns setup_required; no readiness remediation authorized."
@@ -1383,6 +1385,128 @@
           "elapsedSeconds": 26.29
         }
       ]
+    },
+    {
+      "variant": "mac-research-repeat-2",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 74.33
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 47.58
+        }
+      ]
+    },
+    {
+      "variant": "mac-research-repeat-3",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 100.36
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 45.25
+        }
+      ]
+    },
+    {
+      "variant": "mac-research-repeat-4",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 67.28
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search", "web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 44.55
+        }
+      ]
+    }
+  ],
+  "installedMixedResults": [
+    {
+      "case": "mixed",
+      "completed": true,
+      "pass": true,
+      "tools": ["read", "read", "read", "read", "web_search", "calc"],
+      "searchSources": 3,
+      "errors": [],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 125.44
+    },
+    {
+      "case": "missing_firecrawl",
+      "completed": true,
+      "pass": true,
+      "tools": ["read", "bash", "calc"],
+      "searchSources": 0,
+      "errors": ["bash"],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 42.43
+    },
+    {
+      "case": "native_reads",
+      "completed": true,
+      "pass": true,
+      "tools": ["az_account_show", "gh_repo_view", "gcloud_config_list", "sf_query", "calc"],
+      "searchSources": 0,
+      "errors": [],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 52.37
     }
   ]
 }
