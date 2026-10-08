@@ -19,6 +19,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-tools",
       "category": "productivity",
       "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
@@ -31,8 +32,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "sales-engineer",
@@ -43,6 +43,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/sales-engineer",
       "category": "productivity",
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
@@ -55,8 +56,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "docs-pipeline",
@@ -67,6 +67,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-pipeline",
       "category": "productivity",
       "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
@@ -79,8 +80,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "brand",
@@ -91,6 +91,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/brand",
       "category": "productivity",
       "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
@@ -103,8 +104,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "meddpicc",
@@ -115,6 +115,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/meddpicc",
       "category": "productivity",
       "keywords": [
@@ -137,8 +138,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "devcontainer",
@@ -149,6 +149,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/devcontainer",
       "category": "productivity",
       "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
@@ -161,8 +162,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "platform",
@@ -173,6 +173,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -199,8 +200,7 @@
         "setupRequired": true,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "osint-framework",
@@ -213,6 +213,7 @@
       "keywords": ["osint", "reconnaissance", "intelligence", "investigation", "security"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/osint-framework",
       "category": "security",
       "tags": ["osint", "recon", "security", "intelligence"],
@@ -223,8 +224,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "firecrawl",
@@ -235,6 +235,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/firecrawl",
       "category": "productivity",
       "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
@@ -247,8 +248,7 @@
         "setupRequired": true,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "salesforce",
@@ -301,6 +301,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/cloudstatus",
       "category": "productivity",
       "keywords": [
@@ -330,8 +331,7 @@
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "azure",
@@ -342,6 +342,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
@@ -355,8 +356,7 @@
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "aws",
@@ -367,6 +367,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
@@ -380,8 +381,7 @@
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "kvm",
@@ -392,6 +392,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/kvm",
       "category": "development",
       "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
@@ -411,8 +412,7 @@
         "setupAuthorization": "install",
         "collectedData": [],
         "pluginDependencies": ["platform"]
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "gcloud",
@@ -423,6 +423,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud"],
@@ -436,8 +437,7 @@
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "gitlab",
@@ -449,6 +449,7 @@
       "keywords": ["gitlab", "glab", "issues", "git"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gitlab",
       "category": "development",
       "tags": ["gitlab", "development", "cli", "xcsh-extension"],
@@ -461,8 +462,7 @@
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "github",
@@ -475,6 +475,7 @@
       "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/github",
       "category": "development",
       "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],
@@ -487,8 +488,7 @@
         "setupAuthorization": "install",
         "collectedData": ["accounts", "email", "identifiers", "sameAs"],
         "pluginDependencies": []
-      },
-      "minimumRuntimeVersion": "23.0.3"
+      }
     },
     {
       "name": "herdr",
