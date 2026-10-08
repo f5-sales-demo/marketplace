@@ -21,7 +21,6 @@ export interface DeployRequest {
   artifactDirectory?: string;
   receiptPath: string;
   planDigest?: string;
-  confirmation?: string;
   cwd: string;
   signal?: AbortSignal;
 }
@@ -460,11 +459,11 @@ export async function deploy(request: DeployRequest): Promise<{
   const receipt = readReceipt(path);
   if (receipt.namespace !== environment.namespace)
     throw new MigrationError('namespace', 'receipt namespace must equal XCSH_NAMESPACE');
-  if (request.action === 'apply') {
+  if (request.action === 'apply' || request.action === 'cleanup') {
     if (!request.planDigest || request.planDigest !== receipt.plan_digest)
-      throw new MigrationError('confirmation', 'planDigest must exactly match the receipt');
-    if (request.confirmation !== `APPLY ${receipt.plan_digest}`)
-      throw new MigrationError('confirmation', 'exact APPLY confirmation is required');
+      throw new MigrationError('receipt', 'planDigest must exactly match the receipt');
+  }
+  if (request.action === 'apply') {
     const reclassified: PlannedResource[] = [];
     for (const item of receipt.resources) reclassified.push(await classify(environment, item.desired, request.signal));
     if (planDigest(receipt.artifact_hashes, receipt.contract, receipt.namespace, reclassified) !== receipt.plan_digest)
@@ -504,8 +503,6 @@ export async function deploy(request: DeployRequest): Promise<{
     if (receipt.outcomes.some((item) => item.status === 'drift'))
       throw new MigrationError('verification', 'live resources differ from the deployment plan');
   } else {
-    if (request.confirmation !== `CLEANUP ${receipt.plan_digest}`)
-      throw new MigrationError('confirmation', 'exact CLEANUP confirmation is required');
     receipt.outcomes = [];
     for (const item of [...receipt.resources].reverse()) {
       const live = await get(environment, item, request.signal);

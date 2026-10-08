@@ -15,30 +15,8 @@ interface ExtensionApi {
   typebox: { Type: TypeFactory };
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
-  integrations: { register<T>(definition: unknown): unknown };
-  on?(
-    event: 'before_agent_start' | 'before_provider_request' | 'agent_end',
-    handler: (event: {
-      prompt?: string;
-      systemPrompt?: string;
-      payload?: unknown;
-    }) =>
-      | { systemPrompt?: string; [key: string]: unknown }
-      | undefined
-      | Promise<{ systemPrompt?: string; [key: string]: unknown } | undefined>,
-  ): void;
+  integrations: { register(definition: unknown): unknown };
 }
-
-const ASM_REQUEST = /\b(?:asm|application security manager|xcify|asm[-_]migration)\b/i;
-const ASM_ROUTER_PROMPT = `You are the dedicated ASM migration router.
-For validation, require an input type and path, call asm_migration_validate exactly once, return its native text, and stop.
-For conversion, require policyPath, signaturesPath, namespace, and outputDirectory, call asm_migration_convert exactly once, return its native text, and stop.
-For deployment, call asm_migration_deploy exactly once. Plan requires artifactDirectory and receiptPath; apply requires receiptPath, planDigest, and exact confirmation; verify requires receiptPath; cleanup requires receiptPath and exact confirmation.
-Pass targetName, allowPartial, or overwrite only when explicitly requested. If required values are missing, ask only for them and call no tool.
-Never infer values from files, memory, or examples. Never accept or request credentials as arguments; the native deployment tool reads its environment. Never call todo_write, read, write, edit, find, grep, bash, python, task, web, or any other tool.
-Never inspect inputs, outputs, plugin source, or runtime files. Never pre-validate or post-validate a conversion.
-If the request asks for source inspection, shell use, direct network use, or credentials, refuse those actions and call no tool.
-The native tool result is self-sufficient; do not supplement or reinterpret it.`;
 
 function contractText(contract: ContractIdentity): string {
   return [
@@ -84,9 +62,9 @@ const factory = async (pi: ExtensionApi) => {
     name: 'ASM Migration',
     plugin: 'asm-migration',
     kind: 'local',
-    dependencies: ['platform'],
+    dependencies: [],
     setup: {
-      pluginDependencies: ['platform'],
+      pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
       steps: [],
@@ -97,45 +75,6 @@ const factory = async (pi: ExtensionApi) => {
         ? { state: 'ready' }
         : { state: 'setup_required', reason: 'dependency_missing' };
     },
-  });
-  // Extension factories are session-scoped, and xcsh serializes turns within a session.
-  let asmTurnActive = false;
-  pi.on?.('before_agent_start', async (event) => {
-    asmTurnActive = Boolean(event.prompt && ASM_REQUEST.test(event.prompt));
-    if (!asmTurnActive) return undefined;
-    return { systemPrompt: ASM_ROUTER_PROMPT };
-  });
-  pi.on?.('agent_end', () => {
-    asmTurnActive = false;
-    return undefined;
-  });
-  pi.on?.('before_provider_request', (event) => {
-    if (!asmTurnActive || !event.payload || typeof event.payload !== 'object') return undefined;
-    const payload = event.payload as Record<string, unknown>;
-    if (!Array.isArray(payload.tools)) return undefined;
-    const allowedNames = new Set(['asm_migration_validate', 'asm_migration_convert', 'asm_migration_deploy']);
-    const tools = payload.tools.filter((tool) => {
-      if (!tool || typeof tool !== 'object') return false;
-      const candidate = tool as { name?: unknown; function?: { name?: unknown } };
-      const name = candidate.name ?? candidate.function?.name;
-      return typeof name === 'string' && allowedNames.has(name);
-    });
-    const choice = payload.tool_choice;
-    const choiceName =
-      choice &&
-      typeof choice === 'object' &&
-      'function' in choice &&
-      typeof choice.function === 'object' &&
-      choice.function !== null &&
-      'name' in choice.function &&
-      typeof choice.function.name === 'string'
-        ? choice.function.name
-        : undefined;
-    // xcsh 20.22.3's OpenAI-completions adapter observes payload mutations but
-    // does not consume a replacement object returned by the payload callback.
-    payload.tools = tools;
-    if (choiceName && !allowedNames.has(choiceName)) payload.tool_choice = 'auto';
-    return undefined;
   });
   // xcsh supplies TypeBox at runtime; this avoids a runtime dependency import.
   const Type = pi.typebox.Type;
@@ -267,8 +206,9 @@ const factory = async (pi: ExtensionApi) => {
         Type.String({ description: 'Four-file conversion directory; required only for plan' }),
       ),
       receiptPath: Type.String({ description: 'Receipt path outside the conversion directory' }),
-      planDigest: Type.Optional(Type.String({ description: 'Exact plan digest; required for apply' })),
-      confirmation: Type.Optional(Type.String({ description: 'Exact APPLY or CLEANUP confirmation' })),
+      planDigest: Type.Optional(
+        Type.String({ description: 'Exact receipt plan digest; required for apply and cleanup' }),
+      ),
     }),
     async execute(
       _id: string,
@@ -277,7 +217,6 @@ const factory = async (pi: ExtensionApi) => {
         artifactDirectory?: string;
         receiptPath: string;
         planDigest?: string;
-        confirmation?: string;
       },
       signal: AbortSignal | undefined,
       _update: unknown,

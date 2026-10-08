@@ -1,7 +1,7 @@
 {
   "name": "asm-migration",
   "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -29,9 +29,9 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["asm_migration"],
-    "requirements": ["ASM migration runtime dependencies", "F5 Distributed Cloud Platform integration"],
+    "requirements": ["Bun runtime"],
     "setupRequired": true,
     "collectedData": [],
-    "pluginDependencies": ["platform"]
+    "pluginDependencies": []
   }
 }

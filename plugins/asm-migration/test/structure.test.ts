@@ -19,42 +19,29 @@ test('manifest versions and public names agree', () => {
   expect(updater).not.toMatch(/gh release view v\d/);
 });
 
-test('commands and skill route through native tools', () => {
-  const validate = readFileSync(resolve(root, 'commands/validate.md'), 'utf8');
-  const convert = readFileSync(resolve(root, 'commands/convert.md'), 'utf8');
-  const deploy = readFileSync(resolve(root, 'commands/deploy.md'), 'utf8');
-  const skill = readFileSync(resolve(root, 'skills/asm-migration/SKILL.md'), 'utf8');
-  expect(validate).toContain('asm_migration_validate');
-  expect(validate).toContain('exactly once');
-  expect(validate).toContain('Do not call');
-  expect(convert).toContain('asm_migration_convert');
-  expect(convert).toContain('ask only for the missing');
-  expect(convert).toContain('exactly once');
-  expect(convert).toContain('Do not call');
-  expect(deploy).toContain('asm_migration_deploy');
-  expect(deploy).toContain('exactly once');
-  expect(skill).toContain('exactly one native tool');
-  expect(skill).toContain('never infer');
-  expect(skill).toContain('Refuse without calling any tool');
-  for (const instructions of [validate, convert, deploy, skill]) {
-    expect(instructions).toContain('deployment');
-    expect(instructions).toContain('network');
+test('commands and skill provide additive capability guidance', () => {
+  const files = ['commands/validate.md', 'commands/convert.md', 'commands/deploy.md', 'skills/asm-migration/SKILL.md'];
+  for (const file of files) {
+    const guidance = readFileSync(resolve(root, file), 'utf8');
+    expect(guidance).not.toMatch(
+      /allowed_tools|exactly once|exactly one native tool|Refuse without|never infer|verbatim|Do not call|Do not create a fifth|APPLY <|CLEANUP </i,
+    );
+    expect(guidance).toContain('context');
+    expect(guidance).toContain('inspect');
   }
+  const skill = readFileSync(resolve(root, files[3]!), 'utf8');
+  expect(skill).toContain('preferred');
+  expect(skill).toContain('untrusted');
   expect(skill).toContain('unsuitable for deployment');
-  expect(skill).toContain('Do not create a fifth output file');
-  expect(skill).toContain('guarded, receipt-backed live deployment lifecycle');
-  expect(skill).not.toContain('no live deployment capability');
-  expect(validate).toContain('allowed_tools:\n  - asm_migration_validate');
-  expect(convert).toContain('allowed_tools:\n  - asm_migration_convert');
+  expect(skill).toContain('additional');
+  const manifest = JSON.parse(readFileSync(resolve(root, '.xcsh-plugin/plugin.json'), 'utf8'));
+  expect(manifest.lifecycle.pluginDependencies).toEqual([]);
 });
 
 test('extension runtime is bundled and offline', () => {
   const index = readFileSync(resolve(root, 'src/index.ts'), 'utf8');
   const runtime = readFileSync(resolve(root, 'dist/runtime.js'), 'utf8');
-  expect(index).toContain("pi.on?.('before_agent_start'");
-  expect(index).toContain("pi.on?.('agent_end'");
-  expect(index).toContain("pi.on?.('before_provider_request'");
-  expect(index).toContain('dedicated ASM migration router');
+  expect(index).not.toMatch(/before_agent_start|agent_end|before_provider_request|ASM_ROUTER_PROMPT/);
   expect(index).toContain('../dist/runtime.js');
   expect(runtime.length).toBeGreaterThan(100_000);
   for (const forbidden of ['fetch(', 'http.request', 'https.request', 'child_process', 'Bun.spawn('])
@@ -73,9 +60,9 @@ test('contract digest and bundled runtime are current', () => {
   expect(check.exitCode).toBe(0);
 });
 
-test('UAT specification preserves 18 conversion and 20 deployment cases', () => {
+test('UAT specification covers additive tasks and deployment cases', () => {
   const spec = JSON.parse(readFileSync(resolve(root, 'uat/scenarios.json'), 'utf8'));
-  expect(spec.cases).toHaveLength(38);
+  expect(spec.cases.length).toBeGreaterThan(38);
   expect(spec.cases.filter((item: { id: string }) => item.id.startsWith('deploy-'))).toHaveLength(20);
   const generated = Bun.spawnSync(['bun', 'scripts/generate-uat-prompts.ts'], { cwd: root, stdout: 'pipe' });
   expect(generated.exitCode).toBe(0);
@@ -84,9 +71,9 @@ test('UAT specification preserves 18 conversion and 20 deployment cases', () => 
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
-  expect(rows.filter((item) => item.style !== 'heldout')).toHaveLength(114);
+  expect(rows.filter((item) => item.style !== 'heldout')).toHaveLength(spec.cases.length * 3);
   expect(rows.filter((item) => item.style === 'heldout')).toHaveLength(20);
-  expect(new Set(rows.map((item) => item.prompt)).size).toBe(134);
+  expect(new Set(rows.map((item) => item.prompt)).size).toBe(spec.cases.length * 3 + 20);
   expect(rows.every((item) => item.prompt.includes('/private/tmp'))).toBeFalse();
   expect(rows.some((item) => item.prompt.includes('/tmp/asm-migration-uat'))).toBeTrue();
   const custom = Bun.spawnSync(['bun', 'scripts/generate-uat-prompts.ts'], {

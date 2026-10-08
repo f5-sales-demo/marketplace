@@ -1185,6 +1185,19 @@ describe('provider integration lifecycle', () => {
     }
   });
 
+  it('keeps ASM conversion ready without Platform or XC credentials', async () => {
+    const [asm] = await definitionsFor('asm-migration', true);
+    expect(asm.dependencies).toEqual([]);
+    expect(asm.setup?.pluginDependencies).toEqual([]);
+    expect(asm.setup?.requiredEnvironment).toEqual([]);
+    const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({ exitCode: 0 } as ReturnType<typeof Bun.spawnSync>);
+    try {
+      expect(await asm.probe()).toEqual({ state: 'ready' });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
   it('registers cloudstatus Regional Edge policy through scoped advisories', async () => {
     const cloudstatus = await definitionsFor('cloudstatus');
     expect(cloudstatus.advisories).toHaveLength(1);

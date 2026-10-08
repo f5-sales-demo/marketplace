@@ -294,7 +294,7 @@ and this project adheres to
   when the user explicitly requests public endpoints. No legacy alias is provided
   ([#1306](https://github.com/f5-sales-demo/marketplace/issues/1306)).
 
-- **`asm-migration`** bumped to v2.0.10
+- **`asm-migration`** v2.1.1 — migration tools coexist with Salesforce, research, and project work. Remove ASM prompt replacement, tool filtering, restrictive command guidance, and the unused Platform dependency. Apply and cleanup use the receipt plan digest under normal xcsh authorization without confirmation phrases; native artifact, ownership, drift, and credential protections remain.
 
 - **`asm-migration`** v2.0.5 — updates the development-only `bun-types`
   dependency to v1.4.0.

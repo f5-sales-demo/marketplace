@@ -13,7 +13,6 @@ export type ErrorCategory =
   | 'artifact'
   | 'namespace'
   | 'ownership'
-  | 'confirmation'
   | 'stale_plan'
   | 'verification';
 
