@@ -5,14 +5,10 @@ description: >-
   and CI/CD monitoring. Executes gh CLI commands with professional mastery.
   Skills delegate to this agent to perform authenticated gh operations securely.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # GitHub CLI Operator Agent

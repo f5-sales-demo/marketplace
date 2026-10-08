@@ -13,11 +13,6 @@ tools:
   - github_worktree_cleanup
   - gh_exec
   - gh_run_watch
-disallowedTools:
-  - Bash
-  - Write
-  - Edit
-  - Agent
 ---
 
 # GitHub Operations Agent

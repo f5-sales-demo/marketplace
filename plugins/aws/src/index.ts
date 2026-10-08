@@ -88,7 +88,7 @@ const factory: ExtensionFactory = async (pi) => {
     plugin: 'aws',
     kind: 'network',
     setup: {
-      pluginDependencies: ['platform'],
+      pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [

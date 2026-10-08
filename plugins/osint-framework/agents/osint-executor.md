@@ -6,7 +6,9 @@ description: >-
   structured results. Never runs without an explicit target.
   Used for focused single-tool execution when the full investigator
   workflow is not needed.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - bash
 ---
 
 # OSINT Executor Agent

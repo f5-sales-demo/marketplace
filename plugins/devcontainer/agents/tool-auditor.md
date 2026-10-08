@@ -9,12 +9,11 @@ description: >-
   Does NOT create issues, branches, commits, PRs, or perform any
   mutative GitHub operations. All mutative Git/GitHub operations are
   the exclusive responsibility of github:github-ops.
-disallowedTools: Write, Edit, Agent
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Tool Auditor Agent

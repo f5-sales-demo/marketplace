@@ -4,7 +4,12 @@ description: >-
   Autonomous REST API agent for F5 XC platform management.
   Executes cURL + jq sequences for resource CRUD, token
   validation, and configuration operations. Direct execution is the default; this agent is available for optional delegation.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - find
+  - grep
+  - bash
+  - xcsh_api
 ---
 
 # API Operator Agent

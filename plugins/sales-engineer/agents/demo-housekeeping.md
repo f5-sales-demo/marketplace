@@ -10,10 +10,10 @@ description: >-
   Git/GitHub operations are the exclusive responsibility of
   github:github-ops.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Demo Housekeeping Agent

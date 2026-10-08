@@ -8,8 +8,8 @@ extract_frontmatter() {
   awk '/^---$/{n++; next} n==1' "$1"
 }
 
-# T2.1 — each agent file has frontmatter with disallowedTools or explicit tools list
-test_agent_has_disallowed_tools() {
+# T2.1 — each agent file has frontmatter with explicit tools or explicit tools list
+test_agent_has_explicit_tools() {
   for agent_file in "$PLUGIN_ROOT"/agents/*.md; do
     [ -f "$agent_file" ] || continue
     local name
@@ -20,7 +20,7 @@ test_agent_has_disallowed_tools() {
     # Either disallowedTools OR a tools list is acceptable
     # (researcher agents with Agent tool don't need disallowedTools)
     echo "$fm" | grep -qE 'disallowedTools:|tools:' || {
-      echo "$name: missing disallowedTools or tools in frontmatter"
+      echo "$name: missing explicit tools or tools in frontmatter"
       return 1
     }
   done

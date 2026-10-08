@@ -1,7 +1,5 @@
 ---
 description: Start a local Docker dev server to preview docs
-allowed_tools:
-  - Bash
 ---
 
 # Preview documentation

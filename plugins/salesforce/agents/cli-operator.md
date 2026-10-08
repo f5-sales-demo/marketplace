@@ -5,14 +5,10 @@ description: >-
   and deployment. Executes sf CLI commands with safety guardrails.
   Direct execution is the default; this agent is available for optional delegation.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Salesforce CLI Operator Agent

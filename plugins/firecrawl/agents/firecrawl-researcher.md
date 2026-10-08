@@ -6,11 +6,13 @@ description: >-
   structured report with citations. Delegates search+scrape to the
   firecrawl-operator agent and handles the reasoning/synthesis layer.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
+  - task
+spawns:
+  - firecrawl:firecrawl-operator
 ---
 
 # Firecrawl Researcher

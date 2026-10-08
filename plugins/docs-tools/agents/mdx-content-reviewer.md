@@ -2,9 +2,9 @@
 name: mdx-content-reviewer
 description: Review MDX content files for the f5-sales-demo documentation pipeline. Checks for bare < characters, unescaped {}, broken image references, incomplete frontmatter, invalid imports, and component attribute issues. Use this skill when the user asks to review MDX, check docs, validate content, lint MDX files, mentions MDX errors or build failures, or wants to check documentation quality before committing. Also use when working in any f5-sales-demo content repository's docs/ directory.
 tools:
-  - Read
-  - Glob
-  - Grep
+  - read
+  - find
+  - grep
 ---
 
 # MDX Content Reviewer Agent

@@ -4,14 +4,10 @@ description: >-
   Autonomous AWS CLI agent for cloud infrastructure query and management.
   Executes aws CLI commands securely with read-first safety controls.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # AWS CLI Operator Agent

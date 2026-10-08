@@ -11,12 +11,12 @@ description: >-
   or perform any Git workflow operations. All Git workflow operations
   are the exclusive responsibility of github:github-ops.
 tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - write
+  - edit
+  - bash
+  - find
+  - grep
 ---
 
 # Container Maintainer Agent

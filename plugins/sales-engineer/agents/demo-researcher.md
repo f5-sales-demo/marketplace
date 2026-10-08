@@ -2,11 +2,10 @@
 name: demo-researcher
 description: Read-only research agent that finds verified answers with citations for demo Q&A and subject matter expert conversations
 tools:
-  - Read
-  - Glob
-  - Grep
-  - WebFetch
-  - WebSearch
+  - read
+  - find
+  - grep
+  - web_search
 ---
 
 # Demo Researcher

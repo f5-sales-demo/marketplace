@@ -119,28 +119,28 @@ test_auth_not_user_invocable() {
   }
 }
 
-# T1.7 — cli-operator.md frontmatter has correct tools and disallowedTools
+# T1.7 — cli-operator.md frontmatter has correct explicit positive permissions
 test_agent_tools() {
   local agent="$PLUGIN_ROOT/agents/cli-operator.md"
   local fm
   fm=$(extract_frontmatter "$agent")
 
-  for tool in Read Bash Glob Grep; do
+  for tool in read bash find grep; do
     echo "$fm" | grep -qF "  - $tool" || {
       echo "cli-operator missing allowed tool: $tool"
       return 1
     }
   done
 
-  echo "$fm" | grep -q 'disallowedTools:' || {
-    echo "cli-operator missing disallowedTools"
+  if echo "$fm" | grep -q 'disallowedTools:'; then
+    echo "ignored disallowedTools remains"
     return 1
-  }
-  for tool in Write Edit Agent; do
-    echo "$fm" | grep -qF "  - $tool" || {
-      echo "cli-operator missing disallowed tool: $tool"
+  fi
+  for tool in write edit task; do
+    if echo "$fm" | grep -qF "  - $tool"; then
+      echo "unexpected tool permission: $tool"
       return 1
-    }
+    fi
   done
 }
 

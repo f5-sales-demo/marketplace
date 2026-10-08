@@ -1,0 +1,7 @@
+{
+  "name": "marketplace-agent-validation",
+  "private": true,
+  "dependencies": {
+    "@f5-sales-demo/xcsh": "23.0.2"
+  }
+}

@@ -1,11 +1,11 @@
 {
   "name": "firecrawl",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Local self-hosted firecrawl web scraping via local firecrawl API",
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Firecrawl",
-    "version": "1.2.1",
+    "version": "1.2.3",
     "extensions": [
       "extensions/integration.ts"
     ]

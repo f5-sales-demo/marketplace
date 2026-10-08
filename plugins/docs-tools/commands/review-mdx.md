@@ -1,11 +1,6 @@
 ---
 description: Review MDX content files for common errors and style compliance
 argument-hint: "[path-or-glob]"
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - Bash
 ---
 
 # Review MDX content

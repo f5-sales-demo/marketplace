@@ -5,14 +5,10 @@ description: >-
   and pipeline monitoring. Executes glab CLI commands with safety
   guardrails. Direct execution is the default; optionally delegate substantial tasks.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # GitLab CLI Operator Agent

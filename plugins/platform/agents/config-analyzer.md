@@ -7,7 +7,10 @@ description: >-
   feature enablement, mode transitions, and best practices.
   Reads reference files for schema knowledge but never executes
   API calls. Direct execution is the default; this agent is available for optional delegation.
-disallowedTools: Write, Edit, Agent, Bash
+tools:
+  - read
+  - find
+  - grep
 ---
 
 # Config Analyzer Agent

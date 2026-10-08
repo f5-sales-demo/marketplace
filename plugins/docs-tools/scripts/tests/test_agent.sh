@@ -19,7 +19,7 @@ test_mdx_content_reviewer_frontmatter() {
     return 1
   }
 
-  for tool in Read Glob Grep; do
+  for tool in read find grep; do
     echo "$fm" | grep -qF "  - $tool" || {
       echo "mdx-content-reviewer missing allowed tool: $tool"
       return 1

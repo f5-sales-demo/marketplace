@@ -10,12 +10,11 @@ description: >-
   or perform any mutative GitHub operations.
   All mutative Git/GitHub operations are the exclusive responsibility
   of github:github-ops.
-disallowedTools: Write, Edit, Agent
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Container Introspector Agent

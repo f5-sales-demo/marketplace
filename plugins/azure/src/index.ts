@@ -59,7 +59,7 @@ const factory: ExtensionFactory = async (pi) => {
     plugin: 'azure',
     kind: 'network',
     setup: {
-      pluginDependencies: ['platform'],
+      pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [

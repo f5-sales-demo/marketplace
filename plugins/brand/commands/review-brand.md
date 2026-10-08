@@ -1,6 +1,5 @@
 ---
 description: Review content for F5 brand compliance — colors, typography, logos, icons, accessibility, and terminology
-allowed-tools: Read, Grep, Glob, Bash
 argument-hint: "[path-or-glob]"
 ---
 

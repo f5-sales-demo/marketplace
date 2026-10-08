@@ -36,6 +36,11 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
   exit 1
 fi
 
+# Agent declarations are checked against an exact published xcsh parser and registry.
+(cd scripts/agent-validation-runtime && bun install --frozen-lockfile) || exit 1
+XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/package.json" \
+  bun scripts/validate-agent-permissions.ts || exit 1
+
 bun test tests/integration-lifecycle.test.ts || {
   echo "FATAL: marketplace integration lifecycle tests failed" >&2
   exit 1

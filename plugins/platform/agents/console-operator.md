@@ -4,7 +4,9 @@ description: >-
   Autonomous browser automation agent for F5 XC console
   operations. Executes MCP tool sequences for authentication,
   navigation, and form interactions. Direct execution is the default; this agent is available for optional delegation.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - puppeteer
 ---
 
 # Console Operator Agent

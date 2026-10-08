@@ -2,14 +2,10 @@
 name: pipeline-operator
 description: Read-only agent for inspecting documentation pipeline configuration and running preview builds
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 You are the pipeline-operator agent for the docs-pipeline plugin.

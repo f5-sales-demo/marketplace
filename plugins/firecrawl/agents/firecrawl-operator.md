@@ -6,12 +6,11 @@ description: >-
   for scrape, batch scrape, crawl, map, search, extract, and llms.txt
   operations. Returns structured markdown, HTML, metadata, and link
   data. Direct execution is the default; this agent is available for optional delegation.
-disallowedTools: Write, Edit, Agent
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Firecrawl Operator Agent

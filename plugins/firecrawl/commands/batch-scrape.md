@@ -1,9 +1,6 @@
 ---
 description: Batch scrape multiple URLs at once using local firecrawl
 argument-hint: "<url1> <url2> [<url3>...] [--format markdown,html]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Batch scrape
