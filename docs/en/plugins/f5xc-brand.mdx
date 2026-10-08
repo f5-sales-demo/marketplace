@@ -3,61 +3,44 @@ title: F5 brand
 description: Review colors, typography, logos, icons, terminology, and accessibility against F5 brand guidance.
 sidebar:
   order: 4
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Review colors, typography, logos, icons, terminology, and accessibility against F5 brand guidance.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
+<Badge text="Documentation and web" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `brand`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Content or visual assets to review.
 - The applicable F5 brand references.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install brand@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Review an asset
 
-Run `/brand:review-brand` with a path or file pattern. The `reviewer` skill
-reports inconsistencies; `guardian` provides brand standards, and
-`visual-content` guides the creation of visual assets.
+Run `/brand:review-brand` with the asset path or a bounded file pattern. Ask for specific color, typography, logo, terminology, and accessibility findings, then correct the reported inconsistencies.
 
-Use `brand-operator` for a scoped review that needs reference lookups. Check
+Use the applicable brand references to resolve reported inconsistencies. Check
 accessibility as part of the content review, including contrast, readable text,
 and meaningful image descriptions.
 
-## Verify
+## Check the result
 
 Reopen the changed artifact at its intended size. Confirm the approved logo,
 colors, typography, and readable contrast.
 
-## Clean up
+## Next steps
 
-Remove disposable previews and unused asset variants. Retain approved source
-assets in their intended repository.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Documentation tools](/marketplace/en/plugins/f5xc-docs-tools/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/agents)

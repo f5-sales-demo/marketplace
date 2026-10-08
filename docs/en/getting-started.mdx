@@ -1,12 +1,14 @@
 ---
 title: Get started
-description: Register the marketplace, install a plugin, and verify xcsh readiness.
+description: Check the built-in marketplace, install a plugin, and verify xcsh readiness.
 sidebar:
   order: 2
+prev: false
+next: false
 ---
 
-Install a marketplace plugin and check that it is ready for your task. Allow
-about 5 minutes for a content plugin; account or desktop setup takes longer.
+Install a marketplace plugin and check that it is ready for your task. Use the
+[plugin catalog](/marketplace/en/plugins/) to choose a workflow and identifier.
 
 ## Prerequisites
 
@@ -19,15 +21,26 @@ The [plugin catalog](/marketplace/en/plugins/) links those requirements.
 Run shell commands below in your terminal. Run slash commands inside an
 interactive xcsh session.
 
-## Register the marketplace
+## Check the marketplace
+
+Current xcsh installations include the built-in marketplace. Check it first:
 
 ```bash
-xcsh plugin marketplace add f5-sales-demo/marketplace
 xcsh plugin marketplace list
 ```
 
-Confirm that `f5-sales-demo-marketplace` is enabled. Register the source once
-for the intended user environment.
+Confirm that `f5-sales-demo-marketplace` is present and enabled. If it is
+disabled, enable it:
+
+```bash
+xcsh plugin marketplace enable f5-sales-demo-marketplace
+```
+
+Register the source only if it is missing from the intended user environment:
+
+```bash
+xcsh plugin marketplace add f5-sales-demo/marketplace
+```
 
 ## Install a plugin
 
@@ -49,8 +62,16 @@ scope is `user`. Review dependencies and any direct-install setup before it runs
 
 ## Complete setup
 
-Content plugins need no integration setup. For integrated plugins, inspect
-readiness and follow their page's instructions. For example:
+| Plugin mode | Readiness |
+| --- | --- |
+| Content | Guidance loads without integration setup. |
+| On demand | Live evidence needs access to sources when invoked. |
+| Integrated | Account or runtime probes report setup requirements. |
+
+Installing files and preparing an integration are separate steps. A reviewed
+direct install may authorize bounded setup for plugins that declare it.
+Dependency installs and upgrades can still require human setup. For an
+integrated plugin, inspect readiness and follow its article. For example:
 
 ```bash
 xcsh plugin status salesforce
@@ -106,27 +127,42 @@ upgrading a plugin that manages persisted plans or receipts.
 Finish the plugin's resource cleanup before removing its files. Uninstalling
 doesn't destroy cloud resources, stop existing sessions, or revoke provider credentials.
 
+### Disable or re-enable a plugin
+
+```bash
+xcsh plugin disable docs-tools@f5-sales-demo-marketplace
+xcsh plugin enable docs-tools@f5-sales-demo-marketplace
+```
+
+Use disable to stop loading a plugin while keeping its files installed.
+
 ### Remove a plugin
 
 ```bash
 xcsh plugin uninstall docs-tools@f5-sales-demo-marketplace
 ```
 
-Use the same `--scope project` if you installed into project scope. Remove the
-marketplace registration only when you no longer need it:
+Use the same `--scope project` if you installed into project scope.
+
+### Disable the built-in marketplace
 
 ```bash
-xcsh plugin marketplace remove f5-sales-demo-marketplace
+xcsh plugin marketplace disable f5-sales-demo-marketplace
 ```
+
+The built-in marketplace cannot be removed. Disabling it also disables its
+installed plugins. Enabling the marketplace again leaves those plugins disabled
+until you explicitly re-enable each one. Non-built-in sources can be removed
+with `xcsh plugin marketplace remove <MARKETPLACE_NAME>`.
 
 ## Troubleshoot readiness
 
 | Symptom | Next step |
 | --- | --- |
-| Marketplace is missing | Register it again and check `marketplace list`. |
+| Marketplace is missing or disabled | Check `marketplace list`; register only if missing or enable if disabled. |
 | Plugin files are installed but tools are missing | Start a fresh session and check `plugin list`. |
 | Integration reports `setup_required` | Follow its human setup flow and resolve the reported requirement. |
 | Status says no integration is registered | Check the identifier, installation, and enabled state; content plugins have no integration. |
 | Account or project differs from the target | Select the intended context before proceeding. |
 
-See [Reference](/marketplace/en/reference/) for manifest and readiness details.
+Choose your [next plugin task](/marketplace/en/plugins/).

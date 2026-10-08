@@ -3,47 +3,36 @@ title: Herdr
 description: Install the stable F5 Herdr fork and work with its terminal workspaces, tabs, panes, and agents.
 sidebar:
   order: 18
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Install the stable F5 Herdr fork and work with its terminal workspaces, tabs, panes, and agents.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Desktop" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `herdr`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - A supported 64-bit Linux, macOS, or Windows host.
 - HTTPS access to the stable F5 Herdr manifest and release.
 - A managed pane or explicit live pairing for terminal control.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install herdr@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status herdr
-xcsh plugin setup herdr
-```
+## Inspect the intended panes
 
-## Use the plugin
+From a managed Herdr pane or an explicitly paired worker, run the commands below. Confirm the server and current pane, then ask to inspect live tabs and panes using `--current` or a returned identifier.
 
 Setup installs the stable F5 distribution from verified release evidence.
 Installation doesn't bind an external worker to a terminal session.
-
-Inside a managed pane, discover the installed surface:
 
 ```bash
 herdr --help
@@ -60,21 +49,19 @@ Check named server capabilities before using advanced commands. For graphics,
 inspect the pane's advertised support rather than assuming the outer terminal's
 capabilities.
 
-## Verify
+## Check the result
 
 Confirm the installed binary and stable release evidence. From the intended
 pane or paired worker, check server status and live pane identity. Plugin
 readiness alone doesn't prove a control lease.
 
-## Clean up
+## Finish the task
 
 Close only panes or sessions you created for the task. Keep existing servers
 and user sessions running; plugin removal doesn't authorize stopping them.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Ghostty](/marketplace/en/plugins/ghostty/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr/skills)

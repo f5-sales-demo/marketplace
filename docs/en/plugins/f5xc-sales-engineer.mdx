@@ -3,63 +3,49 @@ title: Sales engineer
 description: Prepare, execute, and present F5 Distributed Cloud demos with evidence for each result.
 sidebar:
   order: 2
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Prepare, execute, and present F5 Distributed Cloud demos with evidence for each result.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
+<Badge text="Sales" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `sales-engineer`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - An authorized demo environment.
 - Product guidance in `DEMO_PRODUCT_EXPERTISE.md`.
 - Demo procedures in `docs/demo/index.mdx` and its phase pages.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install sales-engineer@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Prepare the documented demo
 
-Ask to prepare or run a demo. The `persona` skill routes the request;
-`demo-ops` checks the environment, `demo-executor` follows the documented
-build, attack, and mitigation phases, and `presenter` explains the result.
-The `subject-matter-expert` skill answers questions from cited product material.
+Open the demo repository and ask: “Read `DEMO_PRODUCT_EXPERTISE.md` and `docs/demo/index.mdx`, check readiness, and prepare the documented demo.” Follow its build, attack, and mitigation procedures; explain each result using the recorded evidence.
 
-`demo-researcher` gathers references. `demo-housekeeping` checks readiness and
-teardown. Use the demo repository's procedures to select exact commands and
-resource names.
+Use the demo repository’s procedures to select exact commands and resource names. Check its readiness gates before each phase and cite product guidance when explaining the results.
 
-## Verify
+## Check the result
 
 Check each phase against its documented evidence gates. Record the deployed
 behavior, mitigation result, and unresolved questions in the debrief.
 
-## Clean up
+## Finish the task
 
 Follow the demo repository's teardown procedure. Confirm that owned resources
 are removed and billing has stopped before ending the session.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Platform](/marketplace/en/plugins/f5xc-platform/)
+- [MEDDPICC](/marketplace/en/plugins/f5xc-meddpicc/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/agents)

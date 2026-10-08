@@ -6,6 +6,6 @@
       "paths": ["plugins/**"]
     }
   ],
-  "promote": ["index*", "overview*", "getting-started*"],
+  "promote": ["index*", "getting-started*", "plugins/index*"],
   "demote": ["changelog*", "reference*"]
 }

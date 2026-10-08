@@ -3,44 +3,39 @@ title: F5 Distributed Cloud Platform
 description: Configure Secure Mesh Site v2 and inspect F5 Distributed Cloud API and console behavior.
 sidebar:
   order: 7
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Configure Secure Mesh Site v2 and inspect F5 Distributed Cloud API and console behavior.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Cloud" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `platform`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Access to the intended F5 Distributed Cloud tenant.
 - `XCSH_API_URL`, `XCSH_API_TOKEN`, and `XCSH_TENANT` in the active context or environment.
 - An attached supported browser connection for console workflows.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install platform@f5-sales-demo-marketplace
 ```
 
-Platform setup opens the context wizard in the xcsh terminal user interface.
-Run this inside an interactive xcsh session:
+Configure the active context inside interactive xcsh:
 
 ```text
 /plugin setup platform
 ```
 
-The shell command `xcsh plugin setup platform` cannot open this wizard. The
-wizard configures the active context; keep credentials in its protected input.
+The shell setup command cannot open the context wizard. Keep credentials in its protected input.
 
-## Use the plugin
+## Inspect site capabilities and status
+
+After selecting the active context, run `/platform:check-api-token`. Ask `f5xc_ce_v2_capabilities` for supported site capabilities and `f5xc_ce_v2_status` for an existing site in that context. Confirm the target before planning changes.
 
 | Task | Native tool |
 | --- | --- |
@@ -54,34 +49,22 @@ instances, addressing, and Border Gateway Protocol (BGP) peers. Provider-specifi
 compute work belongs in [AWS](/marketplace/en/plugins/f5xc-aws/),
 [Azure](/marketplace/en/plugins/f5xc-azure/), or [KVM](/marketplace/en/plugins/kvm/).
 
-Use `api-operations` and `api-auth` for application programming interface (API)
-work, `config-analysis` for configuration review, and the `console-*` skills
-for browser authentication, discovery, inspection, navigation, and execution.
-The index skills route requests to `api-operator`, `console-operator`, or
-`config-analyzer`. Pass prior findings explicitly when asking a fresh analyzer
-agent a follow-up question.
+For console workflows, use an attached supported browser connection and inspect the current console state before requesting changes.
 
 Bootstrap checkout returns a session-bound `f5xc-ce://` reference. Let the
 provider tool consume it; keep token material out of prompts, plans, and reports.
 Legacy cloud-site and shared-token workflows aren't part of this interface.
 
-## Verify
+## Check the result
 
 Run `/platform:check-api-token` for authentication verification. Inspect
 `f5xc_ce_v2_status` for the expected site, registration, health, interfaces,
 BGP peers, and routes. Configured environment values alone don't prove API access.
 
-## Clean up
+## Next steps
 
-Use the owning provider's approved teardown plan to remove site resources.
-Verify site absence and retain only secret-free evidence.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [AWS](/marketplace/en/plugins/f5xc-aws/)
+- [Azure](/marketplace/en/plugins/f5xc-azure/)
+- [KVM](/marketplace/en/plugins/kvm/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/agents)

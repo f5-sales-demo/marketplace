@@ -3,44 +3,32 @@ title: Xorg
 description: Observe and control an Ubuntu Xorg desktop through structured xorgctl operations.
 sidebar:
   order: 21
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Observe and control an Ubuntu Xorg desktop through structured xorgctl operations.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Desktop" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `xorg`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/xorg/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Ubuntu 24.04 with passwordless `sudo` for reviewed setup.
 - A supported Xorg desktop and access to the intended display.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install xorg@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status xorg
-xcsh plugin setup xorg
-```
+## Observe and verify a desktop action
 
-A reviewed direct install can authorize bounded setup. Dependency installation
-and upgrades don't grant that setup authorization.
-
-## Use the plugin
+Ask `xorg_desktop` to inspect the intended Xorg session and its live windows. Select the window, request one bounded action, and observe the resulting window or accessibility state. Repeat observation before the next action.
 
 The `xorg-display` skill and `xorg_desktop` tool use the public
 `xorgctl --json` interface. Follow observe, resolve, act, and verify when
@@ -52,21 +40,19 @@ control, accessibility observation, virtual devices, and isolated console
 operations use the generic desktop interface. Select the intended session
 explicitly when several desktops exist.
 
-## Verify
+## Check the result
 
 Check integration status and inspect the selected desktop. Verify the
 resulting window or accessibility state after each action; input submission
 alone doesn't establish completion.
 
-## Clean up
+## Finish the task
 
 Release task-owned input leases and stop isolated desktops or workers you
 created. Leave unrelated applications and existing display sessions running.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Ghostty](/marketplace/en/plugins/ghostty/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/xorg/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/xorg/skills)

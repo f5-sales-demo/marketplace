@@ -3,61 +3,47 @@ title: Documentation pipeline
 description: Find the repository that owns a documentation change, then author and preview the content.
 sidebar:
   order: 3
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Find the repository that owns a documentation change, then author and preview the content.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
+<Badge text="Documentation and web" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `docs-pipeline`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - A documentation repository in the F5 sales-demo fleet.
 - Docker for the local preview workflow.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install docs-pipeline@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Find ownership and preview a page
 
-Use `pipeline-navigator` to locate configuration ownership across
-`docs-control`, `docs-theme`, `docs-builder`, and `docs-icons`. It also explains
-the release dispatch chain and managed-file reconciliation.
+Ask which repository owns the change you need: page content, navigation, build configuration, or managed workflow. Provide the affected file and intended result. Then run `/docs-pipeline:preview-docs` in the content repository.
+
+Content belongs in its source repository; shared navigation and typography belong in `docs-theme`, builds in `docs-builder`, and managed workflows in `docs-control`. Resolve ownership before editing.
 
 Use `content-author` for page structure and MDX conventions. Run
 `/docs-pipeline:preview-docs` for a local container preview, or
 `/docs-pipeline:docs-pipeline-status` to inspect pipeline readiness.
 
-## Verify
+## Check the result
 
 Build the changed content and open its rendered pages. For publication,
 confirm that the deployment used the intended content commit.
 
-## Clean up
+## Next steps
 
-Stop the preview container you started. Preserve authored files and review
-evidence; remove only disposable preview output.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Documentation tools](/marketplace/en/plugins/f5xc-docs-tools/)
+- [Contribute a plugin](/marketplace/en/contributing/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/agents)

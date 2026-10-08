@@ -2,7 +2,9 @@
 title: Contribute a plugin
 description: Add or update a marketplace plugin and keep its documentation aligned with source.
 sidebar:
-  order: 6
+  order: 3
+prev: false
+next: false
 ---
 
 Add a plugin with a canonical manifest and a concise documentation page, then
@@ -14,9 +16,6 @@ verify it through the repository's contribution workflow.
 - A detailed issue with objective acceptance criteria.
 - The repository's [contribution rules](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
   and [style guide](https://github.com/f5-sales-demo/marketplace/blob/main/STYLE_GUIDE.md).
-
-Allow about 15 minutes to register and document a plugin after implementation.
-Plugin development and live acceptance depend on its runtime.
 
 ## Register the plugin
 
@@ -43,14 +42,15 @@ Use the same `Badge` components for category and lifecycle. Let the shared
 Starlight theme control typography, color, spacing, and navigation. Keep current
 version numbers in manifests and releases so page badges don't drift.
 
-Use these sections in order:
+Choose sections that serve the plugin’s task. Include its outcome, necessary
+requirements, exact install command, one concrete first task, expected results,
+and contextual next steps. Add operational setup, tables, resource teardown,
+or private-file guidance when the workflow requires them.
 
-- Prerequisites
-- Set up
-- Use the plugin
-- Verify
-- Clean up
-- Related resources
+Use `prev: false` and `next: false` for independent plugin articles. End with
+related workflows and a catalog return link. Keep shared installation, restart,
+upgrade, disable, and uninstall guidance in [Get started](/marketplace/en/getting-started/).
+Keep packaging details in [Reference](/marketplace/en/reference/).
 
 Lead with the task outcome. Use sentence-case headings, active voice, short
 paragraphs, and one action per numbered step. Use tables for task comparisons
@@ -77,13 +77,6 @@ has one primary catalog link and that commands match packaged definitions.
 
 ## Submit the change
 
-Use a fresh issue-numbered branch and worktree from fetched `origin/main`.
-Open a completed pull request with `Closes #<ISSUE_NUMBER>` and validation
-evidence. Follow required checks and branch repair through merge; for docs
-changes, verify the merged Pages deployment.
-
-## Clean up
-
-Inspect tracked and ignored files before retiring the task worktree. Remove
-only confirmed-merged local branches and disposable verification output.
-Preserve unrelated work and any private runtime material still required.
+Follow the repository’s [contribution workflow](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
+for the issue, branch, pull request, required checks, merge, and worktree cleanup.
+For documentation changes, verify the published revision and rendered pages.

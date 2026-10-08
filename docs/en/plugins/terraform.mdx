@@ -3,6 +3,8 @@ title: Terraform
 description: Author, test, and troubleshoot infrastructure as code using current provider contracts.
 sidebar:
   order: 20
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
@@ -11,34 +13,23 @@ Author, test, and troubleshoot infrastructure as code using current provider con
 
 <Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `terraform`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Terraform CLI.
 - Access to the relevant HashiCorp Registry provider documentation.
 - A working directory with the intended Terraform configuration.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install terraform@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status terraform
-xcsh plugin setup terraform
-```
+## Validate a configuration
 
-## Use the plugin
+Open the intended Terraform directory and ask to author a resource or diagnose a specific error using the current provider documentation. Review the provider constraints, then run `terraform fmt -check` and `terraform validate` after initializing the project.
 
 | Task | Skill |
 | --- | --- |
@@ -54,21 +45,21 @@ and keep provider credentials outside configuration.
 Ask for authoring, testing, or troubleshooting in ordinary language. The plugin
 provides these skills and CLI readiness; it has no plugin-specific slash command.
 
-## Verify
+## Check the result
 
 Run `terraform fmt -check` and `terraform validate` in the project directory.
 Run relevant `terraform test` cases, then inspect a plan against the intended
 account and workspace before any apply.
 
-## Clean up
+## Finish the task
 
 Destroy only resources you created for testing, using a reviewed plan. Keep
 state in its protected backend and remove disposable local plan files.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [AWS](/marketplace/en/plugins/f5xc-aws/)
+- [Azure](/marketplace/en/plugins/f5xc-azure/)
+- [KVM](/marketplace/en/plugins/kvm/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform/skills)

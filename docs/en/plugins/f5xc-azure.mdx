@@ -3,44 +3,33 @@ title: Azure
 description: Inspect Azure resources and plan F5 Distributed Cloud Customer Edge deployments.
 sidebar:
   order: 12
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Inspect Azure resources and plan F5 Distributed Cloud Customer Edge deployments.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Cloud" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `azure`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Azure CLI, `az`, authenticated to the intended AzureCloud subscription.
 - The Platform plugin with F5 Distributed Cloud authentication.
 - An authorized lab or demo target.
 
-Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install azure@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status azure
-xcsh plugin setup azure
-```
+## Inspect resources and plan a site
 
-## Use the plugin
+Confirm the subscription with `az_account_show` and inspect resources with `az_resource_list` or `azure_ce_inventory`. Run `azure_compute_discover`, then request an `azure_ce_plan`. Review exact images, node count, cost, ownership, and routing before apply.
 
 | Task | Native tool |
 | --- | --- |
@@ -72,23 +61,20 @@ destruction requires `XCSH_CE_ALLOW_DESTROY=1`. Bootstrap material travels throu
 a one-use Platform reference, outside plans and reports. Retired Azure-specific
 compatibility variables and schema-v1 plans aren't supported.
 
-## Verify
+## Check the result
 
 Use `azure_ce_status`, `f5xc_ce_v2_status`, and passive
 `azure_ce_diagnose`. Confirm node count, registration, health, peer state,
 effective routes, and the checkpoint against the approved plan.
 
-## Clean up
+## Finish the task
 
 Create and approve a `teardown` plan. Confirm that routing is drained,
 recorded brownfield associations are restored, and only owned Azure and F5
 resources are removed.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Platform](/marketplace/en/plugins/f5xc-platform/)
+- [Customer Edge reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure/skills/azure-ce/)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure/skills)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure/agents)

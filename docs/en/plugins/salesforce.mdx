@@ -3,43 +3,34 @@ title: Salesforce
 description: Discover accounts, query Salesforce, and report pipeline evidence from the selected organization.
 sidebar:
   order: 10
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Discover accounts, query Salesforce, and report pipeline evidence from the selected organization.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Sales" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `salesforce`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - xcsh 22.4.6 or later.
 - Salesforce command-line interface (CLI), `sf`.
 - An authenticated default organization with API access.
-- The intended My Domain login URL, if your organization requires one.
+- The intended [My Domain login URL](#set-up-a-login-domain), if your organization requires one.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install salesforce@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status salesforce
-xcsh plugin setup salesforce
-```
+## Inspect an organization and query pipeline
 
-## Use the plugin
+Ask `sf_org_display` to confirm the intended organization, then use `sf_describe` to discover the opportunity fields you need. Request a bounded `sf_query` or `sf_pipeline_report`, such as open opportunities grouped by close quarter.
 
 | Task | Native tool |
 | --- | --- |
@@ -52,8 +43,14 @@ xcsh plugin setup salesforce
 Discover fields before querying custom objects. `sf_describe` matches API names
 and labels, returns active picklist values, and identifies child relationships.
 Ask for open opportunities grouped by close quarter or for account-team coverage
-in ordinary language. The authentication and index skills route work to the
-`cli-operator` agent; optional development skills are installed separately.
+in ordinary language.
+
+## Check the result
+
+Check integration status and use `sf_org_display` to confirm the intended
+organization. Run a bounded query and compare the report with its source records.
+
+## Set up a login domain
 
 Setup reviews `SF_ORG_INSTANCE_URL` first, then the CLI's `org-instance-url`
 configuration, and otherwise uses `https://login.salesforce.com`. It normalizes
@@ -65,22 +62,8 @@ Setup reuses a working host CLI. Missing CLI installation follows the reviewed
 host-specific route. Authentication runs from human setup, rather than a
 model-callable tool.
 
-## Verify
+## Next steps
 
-Check integration status and use `sf_org_display` to confirm the intended
-organization. Run a bounded query and compare the report with its source records.
-
-## Clean up
-
-Remove private report exports according to your organization's retention
-policy. Uninstalling the plugin leaves Salesforce CLI sessions and credentials
-in their provider-managed storage.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [MEDDPICC](/marketplace/en/plugins/f5xc-meddpicc/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/skills)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/agents)
