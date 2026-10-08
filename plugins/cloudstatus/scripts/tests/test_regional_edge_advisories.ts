@@ -240,7 +240,7 @@ for (const text of ['F5 Regional Edge map', 'Do not research Regional Edges', 'Q
 }
 
 it('quoted collector commands do not activate render correlation', () => {
- const guard = runtime();
- guard.call('bash', { command: `echo ${mapCollector.command}` });
- expect(guard.call('render_map', { locations: [] })).toBeUndefined();
+  const guard = runtime();
+  guard.call('bash', { command: `echo ${mapCollector.command}` });
+  expect(guard.call('render_map', { locations: [] })).toBeUndefined();
 });
