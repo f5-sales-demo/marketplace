@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-// Use an exact installed published runtime, including its actual parser and tool factories.
+// Use an exact installed published runtime, including its actual parser and registry declaration.
 const runtimePackage = process.env.XCSH_VALIDATION_PACKAGE;
 if (!runtimePackage) throw new Error('Set XCSH_VALIDATION_PACKAGE to the published xcsh package.json');
 const runtimeRoot = path.dirname(runtimePackage);
