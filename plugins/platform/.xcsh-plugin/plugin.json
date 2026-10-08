@@ -32,24 +32,14 @@
         "crud",
         "spec-aware"
       ],
-      "tags": [
-        "console",
-        "browser",
-        "automation",
-        "f5xc",
-        "api",
-        "platform",
-        "openapi"
-      ],
+      "tags": ["console", "browser", "automation", "f5xc", "api", "platform", "openapi"],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     }
   },
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["platform"],
-    "requirements": [
-      "F5 Distributed Cloud API URL and token environment variables"
-    ],
+    "requirements": ["F5 Distributed Cloud API URL and token environment variables"],
     "setupRequired": true,
     "collectedData": [],
     "pluginDependencies": []

@@ -67,14 +67,7 @@
       },
       "source": "./plugins/docs-pipeline",
       "category": "productivity",
-      "keywords": [
-        "docs",
-        "pipeline",
-        "astro",
-        "starlight",
-        "content",
-        "authoring"
-      ],
+      "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
       "tags": ["docs", "pipeline", "content", "f5xc"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
@@ -97,13 +90,7 @@
       },
       "source": "./plugins/brand",
       "category": "productivity",
-      "keywords": [
-        "brand",
-        "design-system",
-        "colors",
-        "typography",
-        "accessibility"
-      ],
+      "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
       "tags": ["brand", "design", "visual-identity", "f5xc"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
@@ -159,14 +146,7 @@
       },
       "source": "./plugins/devcontainer",
       "category": "productivity",
-      "keywords": [
-        "devcontainer",
-        "tools",
-        "catalog",
-        "cli",
-        "inventory",
-        "container"
-      ],
+      "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
       "tags": ["devcontainer", "tools", "catalog", "f5xc"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
@@ -204,22 +184,12 @@
         "crud",
         "spec-aware"
       ],
-      "tags": [
-        "console",
-        "browser",
-        "automation",
-        "f5xc",
-        "api",
-        "platform",
-        "openapi"
-      ],
+      "tags": ["console", "browser", "automation", "f5xc", "api", "platform", "openapi"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["platform"],
-        "requirements": [
-          "F5 Distributed Cloud API URL and token environment variables"
-        ],
+        "requirements": ["F5 Distributed Cloud API URL and token environment variables"],
         "setupRequired": true,
         "collectedData": [],
         "pluginDependencies": []
@@ -233,13 +203,7 @@
         "name": "f5-sales-demo"
       },
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework",
-      "keywords": [
-        "osint",
-        "reconnaissance",
-        "intelligence",
-        "investigation",
-        "security"
-      ],
+      "keywords": ["osint", "reconnaissance", "intelligence", "investigation", "security"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "source": "./plugins/osint-framework",
@@ -265,16 +229,7 @@
       },
       "source": "./plugins/firecrawl",
       "category": "productivity",
-      "keywords": [
-        "firecrawl",
-        "scrape",
-        "crawl",
-        "web-scraping",
-        "markdown",
-        "self-hosted",
-        "local",
-        "open-source"
-      ],
+      "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
       "tags": ["firecrawl", "scraping", "web", "local"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
@@ -362,9 +317,7 @@
       "lifecycle": {
         "mode": "on_demand",
         "integrations": ["cloudstatus"],
-        "requirements": [
-          "Network access when a cloud-status command is invoked"
-        ],
+        "requirements": ["Network access when a cloud-status command is invoked"],
         "setupRequired": false,
         "collectedData": [],
         "pluginDependencies": []
@@ -381,14 +334,7 @@
       },
       "source": "./plugins/azure",
       "category": "development",
-      "keywords": [
-        "azure",
-        "az",
-        "cloud",
-        "f5xc",
-        "customer-edge",
-        "secure-mesh-site"
-      ],
+      "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
       "tags": ["azure", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
@@ -412,26 +358,14 @@
       },
       "source": "./plugins/aws",
       "category": "development",
-      "keywords": [
-        "aws",
-        "amazon",
-        "cloud",
-        "f5xc",
-        "customer-edge",
-        "secure-mesh-site",
-        "tgw",
-        "nlb"
-      ],
+      "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
       "tags": ["aws", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["aws"],
-        "requirements": [
-          "AWS CLI",
-          "AWS credentials or an authenticated SSO profile"
-        ],
+        "requirements": ["AWS CLI", "AWS credentials or an authenticated SSO profile"],
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": ["platform"]
@@ -448,16 +382,7 @@
       },
       "source": "./plugins/kvm",
       "category": "development",
-      "keywords": [
-        "kvm",
-        "libvirt",
-        "qemu",
-        "f5xc",
-        "customer-edge",
-        "secure-mesh-site",
-        "home-lan",
-        "terraform"
-      ],
+      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
       "tags": ["kvm", "libvirt", "f5xc", "customer-edge", "xcsh-extension"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
@@ -494,10 +419,7 @@
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["gcloud"],
-        "requirements": [
-          "Google Cloud CLI",
-          "An authenticated Google Cloud account"
-        ],
+        "requirements": ["Google Cloud CLI", "An authenticated Google Cloud account"],
         "setupRequired": true,
         "collectedData": ["accounts"],
         "pluginDependencies": []
@@ -535,17 +457,7 @@
         "name": "f5-sales-demo"
       },
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",
-      "keywords": [
-        "github",
-        "gh",
-        "git",
-        "pr",
-        "issues",
-        "ci",
-        "workflow",
-        "git-sops",
-        "github-ops"
-      ],
+      "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "source": "./plugins/github",
@@ -628,15 +540,7 @@
       },
       "source": "./plugins/terraform",
       "category": "development",
-      "keywords": [
-        "terraform",
-        "hcl",
-        "iac",
-        "devops",
-        "hashicorp",
-        "testing",
-        "troubleshooting"
-      ],
+      "keywords": ["terraform", "hcl", "iac", "devops", "hashicorp", "testing", "troubleshooting"],
       "tags": ["terraform", "iac", "devops", "f5xc"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "lifecycle": {
@@ -699,11 +603,7 @@
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["zoom"],
-        "requirements": [
-          "Ubuntu 24.04 amd64",
-          "Zoom Workplace 7.2.1.5760",
-          "Xorg, Herdr, and Ghostty plugins"
-        ],
+        "requirements": ["Ubuntu 24.04 amd64", "Zoom Workplace 7.2.1.5760", "Xorg, Herdr, and Ghostty plugins"],
         "setupRequired": true,
         "collectedData": [],
         "pluginDependencies": ["xorg", "herdr", "ghostty"]

@@ -29,17 +29,7 @@
       },
       "source": "./plugins/github",
       "category": "development",
-      "keywords": [
-        "github",
-        "gh",
-        "git",
-        "pr",
-        "issues",
-        "ci",
-        "workflow",
-        "git-sops",
-        "github-ops"
-      ],
+      "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
       "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",

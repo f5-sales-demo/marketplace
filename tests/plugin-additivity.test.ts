@@ -18,11 +18,28 @@ test.each([
   for (const factory of [aws, azure, kvm]) {
     const handlers = new Map<string, (...args: any[]) => any>();
     const api = {
-      typebox: { Type }, setLabel() {}, registerTool() {}, settings: { get() {} },
-      integrations: { register() { return { get: async () => ({ state: 'ready', value: {
-        Account: 'synthetic', Arn: 'synthetic', id: 'synthetic', name: 'synthetic',
-      } }) }; } },
-      on(name: string, handler: (...args: any[]) => any) { handlers.set(name, handler); },
+      typebox: { Type },
+      setLabel() {},
+      registerTool() {},
+      settings: { get() {} },
+      integrations: {
+        register() {
+          return {
+            get: async () => ({
+              state: 'ready',
+              value: {
+                Account: 'synthetic',
+                Arn: 'synthetic',
+                id: 'synthetic',
+                name: 'synthetic',
+              },
+            }),
+          };
+        },
+      },
+      on(name: string, handler: (...args: any[]) => any) {
+        handlers.set(name, handler);
+      },
       logger: { debug() {} },
     };
     await factory(api as never);

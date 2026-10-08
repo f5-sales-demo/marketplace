@@ -26,10 +26,7 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["gcloud"],
-    "requirements": [
-      "Google Cloud CLI",
-      "An authenticated Google Cloud account"
-    ],
+    "requirements": ["Google Cloud CLI", "An authenticated Google Cloud account"],
     "setupRequired": true,
     "collectedData": ["accounts"],
     "pluginDependencies": []

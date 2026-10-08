@@ -17,16 +17,7 @@
       "category": "productivity",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
-      "keywords": [
-        "firecrawl",
-        "scrape",
-        "crawl",
-        "web-scraping",
-        "markdown",
-        "self-hosted",
-        "local",
-        "open-source"
-      ],
+      "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
       "tags": ["firecrawl", "scraping", "web", "local"],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     }

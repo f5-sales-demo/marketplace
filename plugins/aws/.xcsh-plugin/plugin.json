@@ -15,16 +15,7 @@
       },
       "source": "./plugins/aws",
       "category": "development",
-      "keywords": [
-        "aws",
-        "amazon",
-        "cloud",
-        "f5xc",
-        "customer-edge",
-        "secure-mesh-site",
-        "tgw",
-        "nlb"
-      ],
+      "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
       "tags": ["aws", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
@@ -35,10 +26,7 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["aws"],
-    "requirements": [
-      "AWS CLI",
-      "AWS credentials or an authenticated SSO profile"
-    ],
+    "requirements": ["AWS CLI", "AWS credentials or an authenticated SSO profile"],
     "setupRequired": true,
     "collectedData": ["accounts"],
     "pluginDependencies": ["platform"]
