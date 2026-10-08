@@ -192,6 +192,7 @@ FACTUAL = {"intent": "factual", "collector": "location"}
 
 class LocationPromptTraceTests(unittest.TestCase):
     """Locationprompttracetests."""
+
     verifier: ModuleType
 
     @classmethod
