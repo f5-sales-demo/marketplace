@@ -37,7 +37,7 @@ the exact Dockerfile changes needed. This is non-negotiable.
 
 ## Tools
 
-You have access to: `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `write`, `edit`, `bash`, `find`, `grep`.
 
 ## Paths
 
@@ -434,7 +434,7 @@ it permanent. The change will be included in the next container build.
 
 #### Step 3 — Remove from Tool Catalog
 
-1. Find the entry: `Grep` for `## <tool-name>` across reference files
+1. Find the entry: `grep` for `## <tool-name>` across reference files
 2. Remove the full entry (from `## tool-name` to the next level-two heading or EOF)
 
 #### Step 4 — Create GitHub issue
@@ -492,7 +492,7 @@ gh search repos <keyword> --limit 10 --json fullName,description,stargazersCount
 For each result:
 
 - Check if installed: `which <name>` or `command -v <name>`
-- Check if in catalog: `Grep` across reference files
+- Check if in catalog: `grep` across reference files
 
 #### Step 3 — Report
 

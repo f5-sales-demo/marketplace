@@ -28,9 +28,9 @@ and this project adheres to
 
 - **`github`** bumped to v3.1.5
 
-- **`firecrawl`** bumped to v1.2.4
+- **`firecrawl`** bumped to v1.2.5
 
-- **`devcontainer`** bumped to v1.2.4
+- **`devcontainer`** bumped to v1.2.5
 
 - **`cloudstatus`** bumped to v1.7.1
 

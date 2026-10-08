@@ -9,3 +9,6 @@ without `task` cannot spawn. Direct execution is the default.
 
 AWS and Azure authentication and reads work independently of Platform. Only
 cross-plane Customer Edge operations require Platform capability and context.
+
+Agent names are plugin-qualified (for example, `aws:cli-operator`) because xcsh
+resolves exact names. Child references in `spawns` use those same identities.

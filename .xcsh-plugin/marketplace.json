@@ -138,7 +138,7 @@
     {
       "name": "devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
       "license": "Apache-2.0",
       "author": {
@@ -221,7 +221,7 @@
     {
       "name": "firecrawl",
       "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
       "author": {

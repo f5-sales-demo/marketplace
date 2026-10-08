@@ -35,9 +35,9 @@ the API and return structured results.
 
 ## Tools
 
-You have access to: `Read`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `bash`, `find`, `grep`.
 
-You do **NOT** have `Write`, `Edit`, or `Agent`. You are execution-only.
+You do **NOT** have `write`, `edit`, or `task`. You are execution-only.
 
 ## Protocol Index
 

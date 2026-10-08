@@ -28,9 +28,9 @@ guess — every claim is backed by data you fetched in this session.
 
 ## Tools
 
-You have access to: `Read`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `bash`, `find`, `grep`.
 
-You do **NOT** have `Edit` or `Write`. You are read-only.
+You do **NOT** have `edit` or `write`. You are read-only.
 
 ## Core Facts
 

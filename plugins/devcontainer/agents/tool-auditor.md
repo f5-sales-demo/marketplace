@@ -29,9 +29,9 @@ You do **not** modify any files. You read and compare, then report.
 
 ## Tools
 
-You have access to: `Read`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `bash`, `find`, `grep`.
 
-You do **NOT** have `Edit` or `Write`. You cannot modify files.
+You do **NOT** have `edit` or `write`. You cannot modify files.
 Your output is a structured drift report for the calling session
 to act on.
 

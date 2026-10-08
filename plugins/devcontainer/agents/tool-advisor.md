@@ -1,6 +1,6 @@
 ---
 name: devcontainer:tool-advisor
-description: Reads the devcontainer tool catalog and returns tool recommendations with purpose, quick-start commands, and authentication requirements for any CLI tool question
+description: Reads the devcontainer tool catalog and returns tool recommendations with purpose, quick-start commands, and authentication requirements for an explicitly identified container tool question
 tools:
   - read
   - find
@@ -19,7 +19,7 @@ files and return structured recommendations.
 
 ## Tools
 
-You have access to: `Read`, `Glob`.
+You have access to: `read`, `find`.
 
 ## Input
 
