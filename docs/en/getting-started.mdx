@@ -62,8 +62,16 @@ scope is `user`. Review dependencies and any direct-install setup before it runs
 
 ## Complete setup
 
-Content plugins need no integration setup. For integrated plugins, inspect
-readiness and follow their page's instructions. For example:
+| Plugin mode | Readiness |
+| --- | --- |
+| Content | Guidance loads without integration setup. |
+| On demand | Live evidence needs access to sources when invoked. |
+| Integrated | Account or runtime probes report setup requirements. |
+
+Installing files and preparing an integration are separate steps. A reviewed
+direct install may authorize bounded setup for plugins that declare it.
+Dependency installs and upgrades can still require human setup. For an
+integrated plugin, inspect readiness and follow its article. For example:
 
 ```bash
 xcsh plugin status salesforce
