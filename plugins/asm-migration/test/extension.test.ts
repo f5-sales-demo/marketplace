@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { Type } from '@sinclair/typebox';
 import factory from '../src/index';
 
-test('registers both native tools and returns structured results', async () => {
+test('registers all three native tools and returns structured results', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
     integrations: { register() {} },
@@ -55,6 +55,14 @@ test('registers both native tools and returns structured results', async () => {
     for (const filename of ['config-pack.json', 'warnings.json', 'report.json', 'manifest.json'])
       expect(converted.content[0].text).toContain(filename);
     expect(converted.content[0].text).toContain('operator review before deployment');
+    const validated = await tools[0]!.execute(
+      'three',
+      { inputPath: join(outputRoot, 'output/config-pack.json'), inputType: 'config-pack' },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    expect(validated.details.valid).toBe(true);
   } finally {
     rmSync(outputRoot, { recursive: true, force: true });
   }
@@ -158,69 +166,53 @@ test('returns stable macOS guidance for symlinked output', async () => {
   }
 });
 
-test('isolates ASM provider requests to native tools without session-global state', async () => {
-  const handlers = new Map<string, (event: Record<string, unknown>) => unknown>();
-  await factory({
-    integrations: { register() {} },
+test('preserves host prompts, all tools, and tool choices across mixed and ordinary turns', async () => {
+  const handlers = new Map<string, (event: any) => any>();
+  const integrations: any[] = [];
+  const tools: any[] = [];
+  const host = {
+    integrations: {
+      register(definition: unknown) {
+        integrations.push(definition);
+      },
+    },
     typebox: { Type },
     setLabel() {},
-    registerTool() {},
-    on(event, handler) {
+    registerTool(tool: unknown) {
+      tools.push(tool);
+    },
+    on(event: string, handler: (event: any) => any) {
       handlers.set(event, handler);
     },
-  });
-  const beforeAgentStart = handlers.get('before_agent_start');
-  const agentEnd = handlers.get('agent_end');
-  expect(beforeAgentStart).toBeDefined();
-  expect(agentEnd).toBeDefined();
-  const routed = (await beforeAgentStart!({
-    prompt: 'Convert this ASM policy with asm-migration',
-    systemPrompt: 'general assistant',
-  })) as { systemPrompt?: string };
-  expect(routed?.systemPrompt).toContain('dedicated ASM migration router');
-  expect(routed?.systemPrompt).toContain('call no tool');
-  expect(routed?.systemPrompt).toContain('Never call todo_write');
-  const beforeProviderRequest = handlers.get('before_provider_request');
-  expect(beforeProviderRequest).toBeDefined();
-  const payload = {
-    tools: [
-      { type: 'function', function: { name: 'todo_write' } },
-      { type: 'function', function: { name: 'read' } },
-      { type: 'function', function: { name: 'asm_migration_validate' } },
-      { type: 'function', function: { name: 'asm_migration_convert' } },
-    ],
-    tool_choice: { type: 'function', function: { name: 'read' } } as unknown,
   };
-  expect(await beforeProviderRequest!({ payload })).toBeUndefined();
-  expect(payload).toEqual({
-    tools: [
-      { type: 'function', function: { name: 'asm_migration_validate' } },
-      { type: 'function', function: { name: 'asm_migration_convert' } },
-    ],
-    tool_choice: 'auto',
-  });
-  await agentEnd!({});
-  expect(
-    await beforeProviderRequest!({
-      payload: {
-        messages: [{ role: 'developer', content: 'general assistant' }],
-        tools: [{ type: 'function', function: { name: 'read' } }],
+  await factory(host);
+  expect(integrations[0].dependencies).toEqual([]);
+  expect(integrations[0].setup.pluginDependencies).toEqual([]);
+  expect(tools[2].parameters.properties).not.toHaveProperty('confirmation');
+  expect(tools[2].parameters.properties.planDigest.description).toContain('apply and cleanup');
+  const inventory = ['sf_query', 'web_search', 'read', 'find', 'bash', ...tools.map((t) => t.name)];
+  for (const prompt of [
+    'Search Salesforce for ASM migration opportunities',
+    'Research ASM publicly, then inspect the plugin source',
+    'Find the ASM policy and signatures in this project',
+    'Convert ASM then validate the generated pack',
+    'Explain a TypeScript type',
+  ]) {
+    for (const shape of ['nested', 'flat']) {
+      const event = { prompt, systemPrompt: 'Host instructions and existing context' };
+      const originalEvent = structuredClone(event);
+      expect(await handlers.get('before_agent_start')?.(event)).toBeUndefined();
+      expect(event).toEqual(originalEvent);
+      const payload = {
+        tools: inventory.map((name) => (shape === 'nested' ? { type: 'function', function: { name } } : { name })),
         tool_choice: { type: 'function', function: { name: 'read' } },
-      },
-    }),
-  ).toBeUndefined();
-  expect(
-    await beforeAgentStart!({
-      prompt: 'Explain a TypeScript type',
-      systemPrompt: 'general assistant',
-    }),
-  ).toBeUndefined();
-  expect(
-    await beforeProviderRequest!({
-      payload: {
-        tools: [{ type: 'function', function: { name: 'read' } }],
-        tool_choice: { type: 'function', function: { name: 'read' } },
-      },
-    }),
-  ).toBeUndefined();
+        messages: [{ role: 'system', content: event.systemPrompt }],
+      };
+      const originalPayload = structuredClone(payload);
+      expect(await handlers.get('before_provider_request')?.({ payload })).toBeUndefined();
+      expect(payload).toEqual(originalPayload);
+      await handlers.get('agent_end')?.({});
+    }
+  }
+  expect(handlers.size).toBe(0);
 });

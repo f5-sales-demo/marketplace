@@ -106,7 +106,7 @@ describe('deployment lifecycle', () => {
       action: 'apply',
       receiptPath,
       planDigest: planned.planDigest,
-      confirmation: `APPLY ${planned.planDigest}`,
+
       cwd: root,
     });
     expect(mock.calls.filter((call) => call.startsWith('POST')).map((call) => call.split('/').at(-1))).toEqual([
@@ -115,9 +115,9 @@ describe('deployment lifecycle', () => {
       'service_policys',
     ]);
     await deploy({ action: 'verify', receiptPath, cwd: root });
-    await deploy({ action: 'cleanup', receiptPath, confirmation: `CLEANUP ${planned.planDigest}`, cwd: root });
+    await deploy({ action: 'cleanup', receiptPath, planDigest: planned.planDigest, cwd: root });
     expect(mock.resources.size).toBe(0);
-    await deploy({ action: 'cleanup', receiptPath, confirmation: `CLEANUP ${planned.planDigest}`, cwd: root });
+    await deploy({ action: 'cleanup', receiptPath, planDigest: planned.planDigest, cwd: root });
     expect(mock.resources.size).toBe(0);
   });
 
@@ -144,7 +144,7 @@ describe('deployment lifecycle', () => {
         action: 'apply',
         receiptPath,
         planDigest: planned.planDigest,
-        confirmation: `APPLY ${planned.planDigest}`,
+
         cwd: root,
       }),
     ).rejects.toThrow('HTTP 400');
@@ -154,7 +154,7 @@ describe('deployment lifecycle', () => {
     expect(receipt.rollback.outcomes).toHaveLength(2);
   });
 
-  test('rejects foreign ownership, namespace mismatch, receipt tampering, and missing confirmation', async () => {
+  test('rejects foreign ownership, namespace mismatch, receipt tampering, and missing or mismatched digests', async () => {
     const root = temporary();
     const mock = server('foreign');
     configure(mock.url);
@@ -182,9 +182,13 @@ describe('deployment lifecycle', () => {
     mock.resources.clear();
     const receiptPath = join(root, 'receipt.json');
     const planned = await deploy({ action: 'plan', artifactDirectory: directory, receiptPath, cwd: root });
-    await expect(deploy({ action: 'apply', receiptPath, planDigest: planned.planDigest, cwd: root })).rejects.toThrow(
-      'confirmation',
-    );
+    const callsBefore = mock.calls.length;
+    for (const action of ['apply', 'cleanup'] as const) {
+      for (const planDigest of [undefined, 'b'.repeat(64)]) {
+        await expect(deploy({ action, receiptPath, planDigest, cwd: root })).rejects.toThrow('planDigest');
+        expect(mock.calls.length).toBe(callsBefore);
+      }
+    }
     chmodSync(receiptPath, 0o600);
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     receipt.namespace = OTHER_EXAMPLE_NAMESPACE;
@@ -237,16 +241,16 @@ describe('deployment lifecycle', () => {
       action: 'apply',
       receiptPath,
       planDigest: planned.planDigest,
-      confirmation: `APPLY ${planned.planDigest}`,
+
       cwd: root,
     });
-    await deploy({ action: 'cleanup', receiptPath, confirmation: `CLEANUP ${planned.planDigest}`, cwd: root });
+    await deploy({ action: 'cleanup', receiptPath, planDigest: planned.planDigest, cwd: root });
     expect(mock.resources.get(key)?.spec as Record<string, unknown>).toEqual({ monitoring: {} });
     expect(mock.resources.get(key)).not.toHaveProperty('server_default', 'discard');
     const repeated = await deploy({
       action: 'cleanup',
       receiptPath,
-      confirmation: `CLEANUP ${planned.planDigest}`,
+      planDigest: planned.planDigest,
       cwd: root,
     });
     expect(repeated.outcomes.find((item) => item.kind === 'app_firewall')?.status).toBe('already_restored');
@@ -268,7 +272,7 @@ describe('deployment lifecycle', () => {
         action: 'apply',
         receiptPath,
         planDigest: planned.planDigest,
-        confirmation: `APPLY ${planned.planDigest}`,
+
         cwd: root,
       }),
     ).rejects.toThrow('live state changed');
@@ -279,7 +283,7 @@ describe('deployment lifecycle', () => {
       action: 'apply',
       receiptPath: freshPath,
       planDigest: fresh.planDigest,
-      confirmation: `APPLY ${fresh.planDigest}`,
+
       cwd: root,
     });
     const freshReceipt = JSON.parse(readFileSync(freshPath, 'utf8'));
@@ -292,7 +296,7 @@ describe('deployment lifecycle', () => {
     });
     await expect(deploy({ action: 'verify', receiptPath: freshPath, cwd: root })).rejects.toThrow('differ');
     await expect(
-      deploy({ action: 'cleanup', receiptPath: freshPath, confirmation: `CLEANUP ${fresh.planDigest}`, cwd: root }),
+      deploy({ action: 'cleanup', receiptPath: freshPath, planDigest: fresh.planDigest, cwd: root }),
     ).rejects.toThrow('cleanup drift');
   });
 

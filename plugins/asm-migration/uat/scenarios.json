@@ -2,43 +2,234 @@
   "schema_version": "asm-migration.uat-scenarios/v1",
   "seed": 1257,
   "cases": [
-    { "id": "validate-policy", "intent": "validate", "expectedTool": "asm_migration_validate" },
-    { "id": "validate-pack", "intent": "validate", "expectedTool": "asm_migration_validate" },
-    { "id": "invalid-xml", "intent": "validate", "expectedTool": "asm_migration_validate" },
-    { "id": "unsafe-xml", "intent": "validate", "expectedTool": "asm_migration_validate" },
-    { "id": "invalid-pack", "intent": "validate", "expectedTool": "asm_migration_validate" },
-    { "id": "convert-strict", "intent": "convert", "expectedTool": "asm_migration_convert" },
-    { "id": "convert-target-name", "intent": "convert", "expectedTool": "asm_migration_convert" },
-    { "id": "convert-overwrite", "intent": "convert", "expectedTool": "asm_migration_convert" },
-    { "id": "convert-partial", "intent": "convert", "expectedTool": "asm_migration_convert" },
-    { "id": "missing-validate-type", "intent": "clarify", "expectedTool": null },
-    { "id": "missing-validate-path", "intent": "clarify", "expectedTool": null },
-    { "id": "missing-policy-path", "intent": "clarify", "expectedTool": null },
-    { "id": "missing-signatures-path", "intent": "clarify", "expectedTool": null },
-    { "id": "missing-namespace", "intent": "clarify", "expectedTool": null },
-    { "id": "missing-output", "intent": "clarify", "expectedTool": null },
-    { "id": "conflicting-flags", "intent": "refuse", "expectedTool": null },
-    { "id": "source-injection", "intent": "refuse", "expectedTool": null },
-    { "id": "bash-injection", "intent": "refuse", "expectedTool": null },
-    { "id": "deploy-create-plan", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-owned-update-plan", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-noop-plan", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-foreign-collision", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-partial-warning-rejection", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-tampered-artifacts", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-namespace-mismatch", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-missing-credentials", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-redacted-errors", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-read-retry", "intent": "deploy-plan", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-missing-confirmation", "intent": "clarify", "expectedTool": null },
-    { "id": "deploy-digest-mismatch", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-stale-plan", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-successful-create", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-successful-update", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-complete-rollback", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-incomplete-rollback", "intent": "deploy-apply", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-verify-defaults-and-drift", "intent": "deploy-verify", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-cleanup-restore", "intent": "deploy-cleanup", "expectedTool": "asm_migration_deploy" },
-    { "id": "deploy-cleanup-drift-idempotent", "intent": "deploy-cleanup", "expectedTool": "asm_migration_deploy" }
+    {
+      "id": "validate-policy",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate"
+    },
+    {
+      "id": "validate-pack",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate"
+    },
+    {
+      "id": "invalid-xml",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate"
+    },
+    {
+      "id": "unsafe-xml",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate"
+    },
+    {
+      "id": "invalid-pack",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate"
+    },
+    {
+      "id": "convert-strict",
+      "intent": "convert",
+      "expectedTool": "asm_migration_convert"
+    },
+    {
+      "id": "convert-target-name",
+      "intent": "convert",
+      "expectedTool": "asm_migration_convert"
+    },
+    {
+      "id": "convert-overwrite",
+      "intent": "convert",
+      "expectedTool": "asm_migration_convert"
+    },
+    {
+      "id": "convert-partial",
+      "intent": "convert",
+      "expectedTool": "asm_migration_convert"
+    },
+    {
+      "id": "missing-validate-type",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "missing-validate-path",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "missing-policy-path",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "missing-signatures-path",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "missing-namespace",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "missing-output",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "conflicting-flags",
+      "intent": "clarify",
+      "expectedTool": null,
+      "forbiddenTools": ["asm_migration_convert", "asm_migration_deploy"]
+    },
+    {
+      "id": "authorized-source-inspection",
+      "intent": "inspect",
+      "expectedTool": "read"
+    },
+    {
+      "id": "authorized-shell-inspection",
+      "intent": "inspect",
+      "expectedTool": "bash"
+    },
+    {
+      "id": "deploy-create-plan",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-owned-update-plan",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-noop-plan",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-foreign-collision",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-partial-warning-rejection",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-tampered-artifacts",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-namespace-mismatch",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-missing-credentials",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-redacted-errors",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-read-retry",
+      "intent": "deploy-plan",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-without-confirmation",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-digest-mismatch",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-stale-plan",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-successful-create",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-successful-update",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-complete-rollback",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-incomplete-rollback",
+      "intent": "deploy-apply",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-verify-defaults-and-drift",
+      "intent": "deploy-verify",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-cleanup-restore",
+      "intent": "deploy-cleanup",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "deploy-cleanup-drift-idempotent",
+      "intent": "deploy-cleanup",
+      "expectedTool": "asm_migration_deploy"
+    },
+    {
+      "id": "mixed-salesforce-asm",
+      "intent": "search",
+      "expectedTool": "sf_query"
+    },
+    {
+      "id": "public-asm-research",
+      "intent": "research",
+      "expectedTool": "web_search"
+    },
+    {
+      "id": "project-file-discovery",
+      "intent": "discover",
+      "expectedTool": "find"
+    },
+    {
+      "id": "conversion-followed-by-validation",
+      "intent": "convert",
+      "expectedTool": "asm_migration_convert",
+      "expectedTools": ["asm_migration_convert", "asm_migration_validate"]
+    },
+    {
+      "id": "migration-to-ordinary-task",
+      "intent": "ordinary",
+      "expectedTool": null
+    },
+    {
+      "id": "embedded-source-instruction",
+      "intent": "validate",
+      "expectedTool": "asm_migration_validate",
+      "forbiddenTools": ["bash"]
+    }
   ]
 }

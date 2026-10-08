@@ -15,7 +15,7 @@ Convert BIG-IP Application Security Manager policies offline, then deploy review
 
 ## Requirements
 
-- Bun and the Platform integration.
+- Bun for local conversion and validation. No Platform plugin or XC credentials are needed.
 - A BIG-IP Application Security Manager (ASM) XML policy and signature mapping.
 - A namespace and a non-symlinked output directory.
 - For deployment, `XCSH_API_URL`, `XCSH_API_TOKEN`, `XCSH_USERNAME`, and `XCSH_NAMESPACE` in protected local configuration.
@@ -30,7 +30,13 @@ Check readiness and complete [integration setup](/marketplace/en/getting-started
 
 ## Validate and convert a policy
 
-Run `/asm-migration:validate` for the selected policy and signature mapping, then `/asm-migration:convert` with the namespace and output directory. Inspect the report and warnings and validate the generated pack before requesting a deployment plan.
+Discover inputs from project files and established context, asking for missing or
+ambiguous values. These capabilities coexist with Salesforce searches, public
+research, source inspection, validation, and other authorized tasks. Native tools
+are the preferred implementation; additional requested files may accompany the
+four managed artifacts.
+
+Run `/asm-migration:validate` for the selected policy, then `/asm-migration:convert` with the namespace and output directory. Inspect the report and warnings and validate the generated pack before requesting a deployment plan.
 
 | Task | Command or native tool |
 | --- | --- |
@@ -43,9 +49,13 @@ Conversion is offline and writes `config-pack.json`, `warnings.json`,
 signature mapping uses `asm-migration.signatures/v1`; generated packs use
 `asm-migration.config-pack/v1`.
 
-Deployment validates all four artifacts and uses digest-bound confirmation.
+Deployment validates all four artifacts and requires the exact receipt `planDigest` for apply and cleanup.
 Keep the receipt outside the conversion directory. Incomplete output cannot
 be deployed; old packs that fail the current contract need reconversion.
+Apply and cleanup follow xcsh’s normal user-authorization rules without an extra
+confirmation phrase. Native operations retain ownership, drift, contract, receipt,
+credential-redaction, HTTPS, and API-origin checks. Missing prerequisites or failures
+affect that operation and allow troubleshooting and unrelated work.
 The deployment tool contacts the configured API origin and reads credentials
 from the environment. On macOS, use `/private/tmp` or another normal directory;
 `/tmp` is a symlink and is rejected.
@@ -57,7 +67,7 @@ Run deployment `verify` against its receipt and confirm the intended objects.
 
 ## Finish the task
 
-Run receipt-backed deployment `cleanup` with its exact confirmation. Verify
+Run receipt-backed deployment `cleanup` with its receipt `planDigest`. Verify
 owned resource absence before removing private artifacts and receipts.
 
 ## Next steps
