@@ -2,11 +2,9 @@
 
 **Status: in progress.** Source changes are validated; released installed acceptance remains open.
 
-Host fixes merged in [xcsh #4827](https://github.com/f5-sales-demo/xcsh/pull/4827). Release [23.0.3 /
-#4828](https://github.com/f5-sales-demo/xcsh/pull/4828) has merged; tag exists and native artifacts are pending. Combined plugin changes are in
+Host fixes merged in [xcsh #4827](https://github.com/f5-sales-demo/xcsh/pull/4827). Release [23.0.3 release](https://github.com/f5-sales-demo/xcsh/pull/4828) has merged; tag exists and native artifacts are pending. Combined plugin changes are in
 [marketplace #1514](https://github.com/f5-sales-demo/marketplace/pull/1514); publication waits for the
-verified host release. Acceptance is tracked in [#1513](https://github.com/f5-sales-
-demo/marketplace/issues/1513).
+verified host release. Acceptance is tracked in [#1513](https://github.com/f5-sales-demo/marketplace/issues/1513).
 
 Validation: 10,100 host tests passed, 562 skipped, zero failed; 100 focused search/error tests passed.
 TypeScript, documentation quality, 29 documentation tests, full frozen plugin suites and published xcsh agent
