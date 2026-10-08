@@ -32,7 +32,7 @@ and this project adheres to
 
 - **`devcontainer`** bumped to v1.2.5
 
-- **`cloudstatus`** bumped to v1.7.1
+- **`cloudstatus`** bumped to v1.7.2
 
 - **`azure`** bumped to v4.4.4
 

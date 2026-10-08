@@ -17,14 +17,17 @@ import sys
 import tempfile
 import unittest
 import zlib
-from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 PLUGIN_ROOT = pathlib.Path(__file__).resolve().parents[2]
 VERIFIER_PATH = PLUGIN_ROOT / "benchmarks/verify-location-prompt-trace.py"
 
 
 def load_verifier() -> ModuleType:
+    """Load verifier."""
     spec = importlib.util.spec_from_file_location(
         "cloudstatus_location_trace", VERIFIER_PATH
     )
@@ -37,12 +40,14 @@ def load_verifier() -> ModuleType:
 
 
 def trace(*events: dict[str, Any]) -> str:
+    """Trace."""
     return "\n".join(json.dumps(event) for event in events)
 
 
 def start(
     name: str, input_value: dict[str, Any], call_id: str | None = None
 ) -> dict[str, Any]:
+    """Start."""
     return {
         "type": "tool_execution_start",
         "toolCallId": call_id or f"{name}-call",
@@ -52,11 +57,13 @@ def start(
 
 
 def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    """Png chunk."""
     crc = binascii.crc32(chunk_type + data) & 0xFFFFFFFF
     return struct.pack(">I", len(data)) + chunk_type + data + struct.pack(">I", crc)
 
 
 def valid_png(width: int = 2, height: int = 3) -> bytes:
+    """Valid png."""
     rows = b"".join(b"\x00" + (b"\x00\x00\x00\xff" * width) for _ in range(height))
     return b"".join(
         (
@@ -78,6 +85,7 @@ def render_result(
     width: int = 2,
     height: int = 3,
 ) -> dict[str, Any]:
+    """Render result."""
     payload = valid_png(width, height) if image is None else image
     digest = hashlib.sha256(payload).hexdigest()
     if details is None:
@@ -130,6 +138,7 @@ MAP_LOCATIONS = [
 
 
 def collector_result(locations: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Collector result."""
     return {
         "type": "tool_execution_end",
         "toolCallId": "bash-call",
@@ -162,6 +171,7 @@ def collector_result(locations: list[dict[str, Any]] | None = None) -> dict[str,
 
 
 def workflow(*render_events: dict[str, Any]) -> str:
+    """Workflow."""
     return trace(
         start("read", {"path": "skill://cloudstatus/location"}),
         start(
@@ -181,25 +191,30 @@ FACTUAL = {"intent": "factual", "collector": "location"}
 
 
 class LocationPromptTraceTests(unittest.TestCase):
+    """Locationprompttracetests."""
     verifier: ModuleType
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Setupclass."""
         cls.verifier = load_verifier()
 
     def assert_error(self, result: dict[str, Any], fragment: str) -> None:
+        """Assert error."""
         self.assertFalse(result["pass"])
         self.assertTrue(
             any(fragment in error for error in result["errors"]), result["errors"]
         )
 
     def test_visual_trace_requires_one_successful_render_pair(self) -> None:
+        """Test visual trace requires one successful render pair."""
         result = self.verifier.evaluate_trace(VISUAL, workflow(render_result()))
         self.assertTrue(result["pass"], result["errors"])
         self.assertEqual(result["receipt"]["claims"]["valid_png"], True)
         self.assertEqual(result["receipt"]["image"]["dimensions"], [2, 3])
 
     def test_visual_trace_requires_exact_collector_hydration(self) -> None:
+        """Test visual trace requires exact collector hydration."""
         copied = workflow(render_result()).replace(
             '"label": "Example Regional Edge"',
             '"label": "model-altered"',
@@ -211,6 +226,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         )
 
     def test_accepts_canonical_colon_skill_uri(self) -> None:
+        """Test accepts canonical colon skill uri."""
         colon_uri = workflow(render_result()).replace(
             "skill://cloudstatus/location", "skill://cloudstatus:location", 1
         )
@@ -218,12 +234,14 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assertTrue(result["pass"], result["errors"])
 
     def test_rejects_render_start_without_completion(self) -> None:
+        """Test rejects render start without completion."""
         self.assert_error(
             self.verifier.evaluate_trace(VISUAL, workflow()),
             "successful render_map start/completion pair",
         )
 
     def test_rejects_mismatched_and_duplicate_completion_ids(self) -> None:
+        """Test rejects mismatched and duplicate completion ids."""
         mismatched = self.verifier.evaluate_trace(
             VISUAL, workflow(render_result(call_id="other-call"))
         )
@@ -234,6 +252,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assert_error(duplicate, "duplicate render_map completion")
 
     def test_rejects_errored_text_only_and_missing_descriptor_results(self) -> None:
+        """Test rejects errored text only and missing descriptor results."""
         errored = self.verifier.evaluate_trace(
             VISUAL, workflow(render_result(is_error=True))
         )
@@ -262,6 +281,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         )
 
     def test_rejects_invalid_base64_png_structure_and_crc(self) -> None:
+        """Test rejects invalid base64 png structure and crc."""
         invalid_base64 = self.verifier.evaluate_trace(
             VISUAL, workflow(render_result(image_data="%%%"))
         )
@@ -280,6 +300,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assert_error(invalid_crc, "PNG CRC")
 
     def test_rejects_dimensions_byte_count_and_sha_mismatches(self) -> None:
+        """Test rejects dimensions byte count and sha mismatches."""
         dimensions = render_result()
         dimensions["result"]["details"]["descriptor"]["width"] = 99
         self.assert_error(
@@ -303,6 +324,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         )
 
     def test_factual_trace_succeeds_without_render_or_image(self) -> None:
+        """Test factual trace succeeds without render or image."""
         result = self.verifier.evaluate_trace(
             FACTUAL,
             trace(
@@ -317,6 +339,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assertEqual(result["receipt"]["claims"]["zero_image_generation"], True)
 
     def test_factual_trace_rejects_any_render_or_image(self) -> None:
+        """Test factual trace rejects any render or image."""
         result = self.verifier.evaluate_trace(
             FACTUAL,
             trace(
@@ -332,6 +355,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assert_error(result, "factual scenario returned image content")
 
     def test_rejects_duplicate_collector_forbidden_tools_and_wrong_order(self) -> None:
+        """Test rejects duplicate collector forbidden tools and wrong order."""
         result = self.verifier.evaluate_trace(
             VISUAL,
             trace(
@@ -363,6 +387,7 @@ class LocationPromptTraceTests(unittest.TestCase):
         )
 
     def test_cli_writes_compact_receipt_and_png_without_base64(self) -> None:
+        """Test cli writes compact receipt and png without base64."""
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             scenarios = root / "scenarios.json"
@@ -403,6 +428,7 @@ class LocationPromptTraceTests(unittest.TestCase):
             self.assertNotIn("data", parsed)
 
     def test_uat_runner_retains_receipt_and_png_in_requested_artifact_dir(self) -> None:
+        """Test uat runner retains receipt and png in requested artifact dir."""
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             artifact_dir = root / "artifacts"
@@ -440,6 +466,7 @@ class LocationPromptTraceTests(unittest.TestCase):
             self.assertNotIn(encoded, receipt.read_text(encoding="utf-8"))
 
     def test_exact_address_map_regression_is_a_visual_collector_scenario(self) -> None:
+        """Test exact address map regression is a visual collector scenario."""
         scenarios = json.loads(
             (PLUGIN_ROOT / "benchmarks/location-prompt-scenarios.json").read_text(
                 encoding="utf-8"
