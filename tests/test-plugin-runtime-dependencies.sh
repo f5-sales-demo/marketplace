@@ -125,6 +125,8 @@ fi
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
+mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
+
 cat >"$BAD_INSTALL/plugins/aws/scripts/tests/run-tests.sh" <<'EOF'
 #!/usr/bin/env bash
 touch "$RUNNER_TEST_MARKER"
@@ -134,9 +136,10 @@ mkdir -p "$BAD_INSTALL/test-bin"
 cat >"$BAD_INSTALL/test-bin/bun" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "${1:-}" = "test" ]; then
+if [ "${1:-}" = "test" ] || [ "${1:-}" = "scripts/validate-agent-permissions.ts" ]; then
   exit 0
 fi
+if [ "${2:-}" = "--frozen-lockfile" ] && [[ "$PWD" = */scripts/agent-validation-runtime ]]; then exit 0; fi
 [ "${PUPPETEER_SKIP_DOWNLOAD:-}" = "1" ]
 [ "${1:-}" = "install" ]
 case " $* " in

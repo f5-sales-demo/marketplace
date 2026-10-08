@@ -42,7 +42,15 @@ for (const plugin of await readdir(pluginRoot)) {
     for (const tool of tools) {
       // Native plugin names must actually occur in native declarations, never invented aliases.
       if (!knownTools.has(tool)) {
-        const result = Bun.spawnSync(['rg', '-U', '-l', '--glob', '*.ts', `name[: =]+["']${tool}["']|tool\\(\\s*["']${tool}["']`, path.join(pluginRoot, plugin, 'src')]);
+        const result = Bun.spawnSync([
+          'rg',
+          '-U',
+          '-l',
+          '--glob',
+          '*.ts',
+          `name[: =]+["']${tool}["']|tool\\(\\s*["']${tool}["']`,
+          path.join(pluginRoot, plugin, 'src'),
+        ]);
         if (result.exitCode !== 0) errors.push(`${name}: unknown tool ${tool}`);
       }
     }
