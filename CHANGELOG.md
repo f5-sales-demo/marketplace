@@ -10,6 +10,34 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`osint-framework`** bumped to v1.0.11
+
+- **`meddpicc`** bumped to v7.6.4
+
+- **`docs-tools`** bumped to v1.1.9
+
+- **`docs-pipeline`** bumped to v1.0.9
+
+- **`brand`** bumped to v1.0.9
+
+- **`salesforce`** bumped to v2.0.5
+
+- **`platform`** bumped to v6.0.5
+
+- **`kvm`** bumped to v3.0.5
+
+- **`github`** bumped to v3.1.5
+
+- **`firecrawl`** bumped to v1.2.5
+
+- **`devcontainer`** bumped to v1.2.5
+
+- **`cloudstatus`** bumped to v1.7.5
+
+- **`azure`** bumped to v4.4.4
+
+- **`aws`** bumped to v2.1.4
+
 - **`meddpicc`** v7.6.1 adds overview and command help to the CLI.
   Use `--help`, `-h`, or `help`, or request help for one command.
   Invalid and mixed help requests fail before inputs are read or outputs
@@ -162,7 +190,7 @@ and this project adheres to
   defer KVM setup until Platform is authenticated instead of launching the
   controller prematurely and reporting a generic install-step failure.
 
-- **`sales-engineer`** bumped to v1.0.12
+- **`sales-engineer`** bumped to v1.0.15
 
 - **`cloudstatus`** v1.7.0 — replaces the session-wide Regional Edge blocker with
   exact-capability, request-scoped advisories that never replace requested tool results (#1372).
@@ -239,13 +267,13 @@ and this project adheres to
   for profile reads and collector registration. Legacy loader and direct-file fallbacks are removed
   ([#1336](https://github.com/f5-sales-demo/marketplace/issues/1336)).
 
-- **`gitlab`** bumped to v1.2.7
+- **`gitlab`** bumped to v1.3.4
 
 - **`github`** v2.1.1 — loads tool schemas exclusively from xcsh's host-provided TypeBox API, so
   clean marketplace-cache installs no longer depend on an absent plugin-local `node_modules` tree
   ([#1349](https://github.com/f5-sales-demo/marketplace/issues/1349)).
 
-- **`gcloud`** bumped to v1.2.8
+- **`gcloud`** bumped to v1.3.4
 
 - **`azure`** v4.3.3 — reads the provider-neutral Customer Edge automation contract from the
   renamed Multi-Cloud Networking Pages endpoint
@@ -609,6 +637,7 @@ and this project adheres to
 
   Latent today, in the same way #929 was: localisation (#925) is what makes it live, where 192
   model-authored strings per locale meet punctuation that is unremarkable in prose.
+
 - **`salesforce`** v1.3.6 — the pipeline report is built from the org's discovered schema
   rather than one org's custom fields. Behaviour on an org that has those fields is unchanged;
   every other org gets a report instead of an empty one.
@@ -639,15 +668,15 @@ and this project adheres to
 - **`meddpicc`** v7.2.0 — the locale is decided once, early, from every input. `generate` takes
   `--locale`. English output is unchanged, because English is still what everything resolves to.
 
-  It used to be decided inside `workbookProperties`, which runs *after* the sheet is laid out, and from
+  It used to be decided inside `workbookProperties`, which runs _after_ the sheet is laid out, and from
   one input: `metadata.locale`. So nothing in planning could know the locale, the refusal for an
   unsupported one arrived after all the layout work, and a rep whose machine is in Japanese had no way to
   ask for anything else.
 
   - **Precedence**: `--locale` > `metadata.locale` > `MEDDPICC_LOCALE` > `LC_ALL` > `LC_MESSAGES` > `LANG`
     > macOS `AppleLocale` > `en`. That is POSIX order for the language of user-facing messages, which is
-    what a workbook's text is: `LC_ALL` overrides everything, `LC_MESSAGES` governs the message category,
-    `LANG` is the default for every category.
+    > what a workbook's text is: `LC_ALL` overrides everything, `LC_MESSAGES` governs the message category,
+    > `LANG` is the default for every category.
   - **Normalization**: `fr_CA.UTF-8@euro` → `fr-ca` → French, once French ships. Canonical form is the
     lowercase slug — `pt-br`, `zh-cn` — matching the schema enum and i18n-core's `slug`, not BCP-47's
     `pt-BR`, because two spellings of one locale is how a workbook records one nothing recognises.
@@ -668,6 +697,7 @@ and this project adheres to
   - **Not in this change**: the locale is not yet threaded into `planWorkbook`. It has nothing to do there
     until translated strings exist, and a parameter nothing reads would be speculative. It lands with the
     loader.
+
 - **`salesforce`** v1.3.5 — schema is discovered at runtime instead of guessed, and a rejected column
   now says which one. Three defects compounded into a query the agent could not recover from.
 
@@ -722,8 +752,8 @@ and this project adheres to
   differs only in the recorded engine version, and the resolved formulas still read `"Green"` and
   `"Unknown"` exactly as before.
 
-  `generate.ts` has a `FORMULA_WORDS` table for one purpose, and says so: *"One source of truth for a
-  spelling that appears in two places — the cell and the formula that counts it."* Three formulas did
+  `generate.ts` has a `FORMULA_WORDS` table for one purpose, and says so: _"One source of truth for a
+  spelling that appears in two places — the cell and the formula that counts it."_ Three formulas did
   the thing that comment forbids — `scoreRating` emitted `"Green"`/`"Yellow"`/`"Red"`, and the two
   sentiment tallies matched `"Unknown"` and `"Negative"` — while `xlsx.ts` held a third copy of the
   rating words in its conditional-format rules, beside two presets that already routed through
@@ -830,7 +860,7 @@ and this project adheres to
     as an oracle and asked the same question as the new one over every combination each rule can see —
     all 96 an element rule has, and every shape the five collection sections can take. Exhaustive rather
     than random, so no seed can miss a case.
-  - **Excel is asked directly**: all thirteen statuses agree with the engine on the example deal *and*
+  - **Excel is asked directly**: all thirteen statuses agree with the engine on the example deal _and_
     on the partly-qualified fixture, and setting an element's score to 0 in Excel moves its status from
     Complete to Partial — what the engine says about the same deal with that score changed, computed by
     the engine rather than written down here.
@@ -882,7 +912,7 @@ and this project adheres to
 
   - **Every element name carries its schema definition as a note.** Asserted the way the issue asked:
     the same spec with the note flag removed produces byte-identical row geometry, and the acceptance
-    test asks *Excel* for the text on each of the eight cells and compares it against the schema — a
+    test asks _Excel_ for the text on each of the eight cells and compares it against the schema — a
     note that does not survive the file being opened is worth nothing.
   - **A classic note is four parts that have to agree.** The text, a legacy VML drawing to position
     it, the worksheet's own relationships, and two content-type declarations; `legacyDrawing` goes
@@ -908,7 +938,7 @@ and this project adheres to
     So a row of four short pairs lines up with a row of two wide ones. `check-spec` enforces it, which
     is the part that keeps it true — the alignment is now a rule, not a tidy-up.
   - **The Qualification rows were three times taller than they needed to be.** Measured rather than
-    guessed: Notes held up to 543 characters in the *narrowest* column on the sheet, 27.8 characters
+    guessed: Notes held up to 543 characters in the _narrowest_ column on the sheet, 27.8 characters
     wide, wrapping to twenty lines. Widest content now gets the widest column, and the tallest row went
     from 366pt to 141pt — all eight elements fit on a screen where two and a half did.
   - **The per-element definition column is gone.** It was the same eight paragraphs in every workbook,
@@ -943,7 +973,7 @@ and this project adheres to
   What that cost, and what it bought:
 
   - **No Excel Tables.** Stacked sections cannot share one set of column widths, so the sheet merges
-    to get per-section widths — and Excel silently *drops* a table whose range contains a merged
+    to get per-section widths — and Excel silently _drops_ a table whose range contains a merged
     cell. The writer's table support is gone rather than left unused: a path the design forbids is an
     invitation, and the failure mode is quiet. Sort and filter go with it; keyed references,
     conditional formats and dropdowns are unaffected, because the formulas were always plain ranges.
@@ -971,7 +1001,7 @@ and this project adheres to
 
 - **`meddpicc`** v4.3.1 — the Excel UAT can see the sheet, and its error-value check can fail.
 
-  Everything the UAT asserted proved the workbook *computes*. Nothing could see it, and the current
+  Everything the UAT asserted proved the workbook _computes_. Nothing could see it, and the current
   work is about how it looks: a column too narrow for its header, text clipped by a row height, a
   banner stopping short of the edge — all of these passed every assertion. So it now screenshots each
   sheet through `screencapture`, verifies every image, and prints where to look. No baselines are
@@ -1012,11 +1042,11 @@ and this project adheres to
     sheet were never captured while the stage still reported PASS. The Qualification sheet's `Notes`
     column was invisible. Both axes are paginated now, and when the per-sheet cap bites it names what
     was left out instead of implying that was the whole sheet.
-  - Pagination was measured from Excel's *current* visible range, before the window was resized to the
+  - Pagination was measured from Excel's _current_ visible range, before the window was resized to the
     capture rectangle. Measuring a window that is about to be made smaller overestimates how much
     fits, so the page count came out too low and the bottom of a sheet went uncaptured while the stage
     reported PASS. The window is placed first, then measured.
-  - Verifying an image's dimensions says nothing about *what* is in it: `screencapture` records a
+  - Verifying an image's dimensions says nothing about _what_ is in it: `screencapture` records a
     screen rectangle, not a window. It now insists Excel is the frontmost application, and rejects a
     capture under 20 KB, since a blank or unpainted frame compresses to almost nothing while a
     spreadsheet screenshot is hundreds of kilobytes. Neither rules out a notification banner sitting
@@ -1074,7 +1104,7 @@ and this project adheres to
   269-character header. It is now truncated with an ellipsis, in whole encoded units so a cut can
   never split a `&&` pair and leave a dangling `&` to swallow what follows it.
 
-  And truncating the *joined* string was not good enough either — a third pass caught that. The parts
+  And truncating the _joined_ string was not good enough either — a third pass caught that. The parts
   are ordered account-then-deal, so a 300-character account name consumed the whole budget and emitted
   a header with no deal name in it, which makes every deal for that account print identically.
   `PrintSetup.header` now takes parts and shares the budget across them, with a part that does not
@@ -1133,7 +1163,7 @@ and this project adheres to
   the AppleScript's errors** — which is what had made the round-trip block fail about one run in
   three. Three consecutive runs, seven blocks each, green.
 
-  The review caught the dangerous version of that cleanup: my first fix closed *every* open workbook
+  The review caught the dangerous version of that cleanup: my first fix closed _every_ open workbook
   with `saving no`, which on the machine that runs this would have discarded unsaved changes in the
   operator's own spreadsheets. A test has no business touching a document it did not create, so it
   closes only the four names it ever produces, each wrapped so an absent one is a no-op. Verified by
@@ -1151,13 +1181,13 @@ and this project adheres to
   The rule that makes settling it safe: **resolve only when the value being dropped carries no
   information the kept value lacks.**
 
-  | case | resolution |
-  | --- | --- |
-  | the values are deep-equal | keep either — nothing is lost |
-  | the legacy value is empty | keep the current one |
-  | the current value is empty | move the legacy one across |
-  | both are objects | merge key by key, recursing with these same rules |
-  | both non-empty and different | still a **conflict**, still refused |
+  | case                         | resolution                                        |
+  | ---------------------------- | ------------------------------------------------- |
+  | the values are deep-equal    | keep either — nothing is lost                     |
+  | the legacy value is empty    | keep the current one                              |
+  | the current value is empty   | move the legacy one across                        |
+  | both are objects             | merge key by key, recursing with these same rules |
+  | both non-empty and different | still a **conflict**, still refused               |
 
   `0` and `false` are not empty: a zero score and a "no" are answers, and treating them as absence
   would overwrite them with whatever the other side held. **Lists are never merged** — two non-empty
@@ -1176,7 +1206,7 @@ and this project adheres to
   on being ignored. Reaching that failure from inside the code written to prevent it is exactly what
   happened during this change: `isEmpty` had also treated a recursively-blank object as empty, and
   mutation testing said that branch was unobservable, so I removed it. It was unobservable in the
-  merged *values* and not in the *reports* — with `{}` now falling to the merge, a disjoint key was
+  merged _values_ and not in the _reports_ — with `{}` now falling to the merge, a disjoint key was
   copied across with no line against it, and `validate` accepted the unmigrated file. Found by the
   review. Fixed at the root: every key taken from the legacy side is named, and a settled field
   always emits at least one line, so "a legacy key was removed" and "something was reported" cannot
@@ -1187,13 +1217,13 @@ and this project adheres to
   carry one company's names. `engine/cli.ts migrate <deal.json> --apply` moves an existing deal
   across.
 
-  | was | is |
-  | --- | --- |
-  | `threeWhys.f5` / `whyF5` | `threeWhys.us` / `whyUs` |
-  | `stakeholders[].viewOfF5` | `stakeholders[].sentiment` |
-  | `stakeholders[].f5Owner` | `stakeholders[].relationshipOwner` |
-  | `team.f5` | `team.internal` |
-  | `metadata.revenue.pAndIplusAcvx` | `metadata.revenue.subscription` |
+  | was                              | is                                 |
+  | -------------------------------- | ---------------------------------- |
+  | `threeWhys.f5` / `whyF5`         | `threeWhys.us` / `whyUs`           |
+  | `stakeholders[].viewOfF5`        | `stakeholders[].sentiment`         |
+  | `stakeholders[].f5Owner`         | `stakeholders[].relationshipOwner` |
+  | `team.f5`                        | `team.internal`                    |
+  | `metadata.revenue.pAndIplusAcvx` | `metadata.revenue.subscription`    |
 
   `whyUs` is not only de-branded, it is more correct: "Why anything? Why us? Why now?" is the
   canonical Three Whys wording. The workbook labels follow — "Why us?", "Sentiment", "Relationship
@@ -1262,7 +1292,7 @@ and this project adheres to
   what it actually checks now.
 
   Stated plainly, because it is the cost of this change: there is no longer any way to produce a
-  document that *looks like* the F5 Deal Review Sheet. Anyone who needs that exact artefact for
+  document that _looks like_ the F5 Deal Review Sheet. Anyone who needs that exact artefact for
   an exec review fills it in by hand. The generated workbook is not a lookalike — it was designed
   from the schema and covers the same material plus the 0-4 scoring the F5 sheet had nowhere to
   put.
@@ -1275,10 +1305,10 @@ and this project adheres to
   to be open.
 
 - **`meddpicc`** v2.7.0 — the workbook reads back. `engine/cli.ts read <workbook.xlsx> --deal
-  <deal.json>` reports what the spreadsheet proposes changing, and `--apply` writes it.
+<deal.json>` reports what the spreadsheet proposes changing, and `--apply` writes it.
 
   **Read, diff, propose — never overwrite.** The JSON stays the source of truth, so a cell that
-  differs is a *proposal*, printed with its old and new value. Nothing is written without
+  differs is a _proposal_, printed with its old and new value. Nothing is written without
   `--apply`, and `--apply` writes only a deal that validates: a partly-applied file would be
   worse than none. The run's exit code follows the outcome, so a script can gate on it.
 
@@ -1313,8 +1343,8 @@ and this project adheres to
 
   - **Excel rewrites the file when it saves.** The generator writes strings inline
     (`t="inlineStr"`); Excel re-saves the same text through `sharedStrings.xml` as `t="s"`.
-    Measured: with shared strings unresolved, opening the workbook and saving it *without
-    editing anything* produced 86 phantom proposals and 18 rejections. Every unit test passed.
+    Measured: with shared strings unresolved, opening the workbook and saving it _without
+    editing anything_ produced 86 phantom proposals and 18 rejections. Every unit test passed.
   - **A date cell can only hold a day.** `2026-06-30T09:15:00Z` in the JSON against `2026-06-30`
     in the sheet is not an edit, so dates are compared as serials. Compared as text, the reader
     would have cried wolf on every read until nobody read it.
@@ -1353,7 +1383,7 @@ and this project adheres to
   sheet formatted eight team rows and dropped the rest.
 
   **Conditional formatting** from a curated set of named presets — `score` (0-1 red, 2 amber,
-  3-4 green), `ragText`, `statusText` and `overdueDate`. `ragText` colours the rating *word*
+  3-4 green), `ragText`, `statusText` and `overdueDate`. `ragText` colours the rating _word_
   rather than re-deriving the engine's brackets from a percentage, so the colours cannot drift
   from `computeScore` by a rounding step.
 

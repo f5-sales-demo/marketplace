@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import regionalEdgeAdvisories from '../../extensions/regional-edge-advisories';
 
-type Advisory = { code: string; message: string; severity?: 'info' | 'warning' };
+type Advisory = {
+  code: string;
+  message: string;
+  severity?: 'info' | 'warning';
+};
 type Matcher = (event: {
   toolCallId: string;
   toolName: string;
@@ -40,7 +44,11 @@ function runtime() {
     warnings,
     call(toolName: string, input: Record<string, unknown> = {}, toolCallId?: string) {
       nextToolCall += 1;
-      return matcher?.({ toolCallId: toolCallId ?? `call-${nextToolCall}`, toolName, input });
+      return matcher?.({
+        toolCallId: toolCallId ?? `call-${nextToolCall}`,
+        toolName,
+        input,
+      });
     },
     event(name: string, event: Record<string, unknown> = {}) {
       return handlers.get(name)?.(event);
@@ -113,7 +121,7 @@ function codes(value: ReturnType<ReturnType<typeof runtime>['call']>): string[] 
 
 describe('Cloudstatus Regional Edge advisories', () => {
   it('registers only exact Regional Edge workflow capabilities', () => {
-    expect(runtime().capabilities).toEqual(['read', 'task', 'web_search', 'bash', 'render_map']);
+    expect(runtime().capabilities).toEqual(['read', 'bash', 'render_map']);
   });
 
   it('correlates successful registry evidence without changing the requested render', () => {
@@ -133,7 +141,7 @@ describe('Cloudstatus Regional Edge advisories', () => {
       ['web_search', { query: 'F5 Regional Edge locations' }],
     ] as const) {
       const value = guard.call(toolName, input);
-      expect(codes(value)).toContain('cloudstatus.registry_source_recommended');
+      expect(codes(value)).toEqual([]);
       expect(value).not.toHaveProperty('block');
     }
   });
@@ -218,4 +226,21 @@ describe('Cloudstatus Regional Edge advisories', () => {
       ]),
     );
   });
+});
+
+for (const text of ['F5 Regional Edge map', 'Do not research Regional Edges', 'Quoted: "Regional Edges"']) {
+  it(`does not correlate prompt or inspection as collection: ${text}`, () => {
+    const guard = runtime();
+    guard.event('input', { text });
+    guard.call('read', locationSkill);
+    guard.call('web_search', { query: text });
+    guard.call('task', { prompt: text });
+    expect(guard.call('render_map', { locations: [] })).toBeUndefined();
+  });
+}
+
+it('quoted collector commands do not activate render correlation', () => {
+  const guard = runtime();
+  guard.call('bash', { command: `echo ${mapCollector.command}` });
+  expect(guard.call('render_map', { locations: [] })).toBeUndefined();
 });

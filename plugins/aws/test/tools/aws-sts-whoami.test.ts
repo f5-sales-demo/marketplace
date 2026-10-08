@@ -62,3 +62,33 @@ describe('aws_sts_whoami input validation', () => {
     }
   });
 });
+
+it.each([undefined, '', '   '])('uses default identity for omitted/blank profile: %j', async (profile) => {
+  const calls: string[][] = [];
+  const tool = createAwsStsWhoamiTool({ typebox: mockTypebox }, () => ({
+    exec: async (command: string, args: string[]) => {
+      calls.push([command, ...args]);
+      return {
+        stdout: JSON.stringify({ Account: 'synthetic', Arn: 'synthetic', UserId: 'synthetic' }),
+        stderr: '',
+        exitCode: 0,
+      };
+    },
+  }));
+  const result = await tool.execute('fixture', { profile }, undefined, null, { cwd: '/tmp' });
+  expect(result.isError).not.toBe(true);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).not.toContain('--profile');
+  expect(result.details.identity).toBeTruthy();
+});
+
+it.each(['\n', '\t', 'bad profile', '-unsafe', 'x;echo y'])('rejects unsafe profile: %j', async (profile) => {
+  let called = false;
+  const tool = createAwsStsWhoamiTool({ typebox: mockTypebox }, () => {
+    called = true;
+    return stubExec();
+  });
+  const result = await tool.execute('fixture', { profile }, undefined, null, { cwd: '/tmp' });
+  expect(result.isError).toBe(true);
+  expect(called).toBe(false);
+});

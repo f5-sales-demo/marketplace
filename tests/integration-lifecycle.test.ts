@@ -1203,7 +1203,7 @@ describe('provider integration lifecycle', () => {
     expect(cloudstatus.advisories).toHaveLength(1);
     expect(cloudstatus.advisories[0]).toMatchObject({
       id: 'cloudstatus.regional-edge',
-      capabilities: ['read', 'task', 'web_search', 'bash', 'render_map'],
+      capabilities: ['read', 'bash', 'render_map'],
     });
   });
 

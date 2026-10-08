@@ -1,9 +1,6 @@
 ---
 description: Discover all URLs on a site using local firecrawl
 argument-hint: "<url> [--search <query>] [--subdomains]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Map site URLs

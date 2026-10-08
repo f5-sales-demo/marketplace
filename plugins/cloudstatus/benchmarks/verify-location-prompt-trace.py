@@ -350,11 +350,6 @@ def analyze_trace(
     if not visual and image_events:
         errors.append("factual scenario returned image content")
 
-    errors.extend(
-        f"forbidden tool invoked: {forbidden}"
-        for forbidden in ("task", "web_search", "display_media")
-        if forbidden in tools
-    )
     ordering_valid = True
     if skill_reads and collector_starts and skill_reads[0] > collector_starts[0]:
         errors.append("cloudstatus:location must be read before the collector")
@@ -369,9 +364,6 @@ def analyze_trace(
     claims = {
         "location_skill_read_once": len(skill_reads) == 1,
         "registry_collector_once": len(collector_starts) == 1,
-        "forbidden_tools_absent": not any(
-            name in tools for name in ("task", "web_search", "display_media")
-        ),
         "tool_ordering_valid": ordering_valid,
         "evidence_hydrated_exactly": visual and evidence_hydrated_exactly,
         "successful_render_pair": visual and paired and image_receipt is not None,

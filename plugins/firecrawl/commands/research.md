@@ -1,9 +1,6 @@
 ---
 description: Research a question by searching the web, scraping results, and synthesizing an answer with citations
 argument-hint: "<question> [--limit <n>] [--domains site1.com,site2.com]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Research a question

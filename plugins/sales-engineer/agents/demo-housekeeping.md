@@ -1,5 +1,5 @@
 ---
-name: demo-housekeeping
+name: sales-engineer:demo-housekeeping
 description: >-
   Autonomous agent for demo Prepare (pre-meeting verification/cleanup)
   and Teardown (post-meeting deletion) stages.
@@ -10,10 +10,10 @@ description: >-
   Git/GitHub operations are the exclusive responsibility of
   github:github-ops.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Demo Housekeeping Agent

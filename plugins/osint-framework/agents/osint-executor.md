@@ -1,12 +1,14 @@
 ---
-name: osint-executor
+name: osint-framework:osint-executor
 description: >-
   CLI tool execution agent for OSINT operations. Runs installed
   reconnaissance CLI tools against specified targets and returns
   structured results. Never runs without an explicit target.
   Used for focused single-tool execution when the full investigator
   workflow is not needed.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - bash
 ---
 
 # OSINT Executor Agent

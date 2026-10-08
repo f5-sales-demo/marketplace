@@ -5,27 +5,33 @@ description: >-
   user's request involves the platform API but does not
   clearly match a specific skill trigger, this skill
   determines the correct skill to invoke. API operations
-  delegate to the api-operator subagent; configuration
-  analysis delegates to the config-analyzer subagent.
-  Both keep large JSON payloads out of the main session.
+  optionally delegate to the api-operator subagent; configuration
+  analysis may optionally use config-analyzer.
+  Direct execution is the default.
 user-invocable: false
 ---
 
 **Canonical skill URI**: `skill://platform:api-index`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # API Index — Intent Router
 
 Routes API-related requests to the correct skill and ensures
-all API operations are delegated to the `api-operator`
-subagent.
+API operations execute directly. Optional delegation to `api-operator`
+is available.
 
-## Critical: Subagent Delegation
+## Direct execution and optional delegation
 
-**Never run large curl/API sequences in the main session.**
-API JSON responses can be verbose. All API operations must
-be delegated to the `api-operator` agent:
+Execute the requested task directly with available tools. For large payloads,
+optional delegation is available:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="platform:api-operator",
   description="<short task description>",
@@ -34,22 +40,22 @@ Agent(
 ```
 
 The agent reads the skill reference files itself and executes
-autonomously. The main session only receives the result.
+autonomously. Review results and continue independent authorized work.
 
 ## Routing Table
 
-| User Intent | Target Skill |
-| ----------- | ------------ |
-| "check token", "validate token" | `api-auth` |
-| "list namespaces" | `api-auth` (uses namespace list for validation) |
-| "list", "get", "create", "update", "delete" + resource | `api-operations` |
-| "deploy", "set up", "provision" + resource | `api-operations` (workflow mode) |
-| "cURL", "API call" + custom request | Direct delegation to `api-operator` |
-| User provides JSON config + asks question about it | `config-analysis` |
-| "analyze", "review", "audit", "explain", "inspect" + config/JSON | `config-analysis` |
-| "is [feature] enabled/disabled", "what mode", "security posture" | `config-analysis` |
-| "how to change/enable/disable/add/remove" + config context | `config-analysis` |
-| "what does this config do", "show me the settings" | `config-analysis` |
+| User Intent                                                      | Target Skill                                    |
+| ---------------------------------------------------------------- | ----------------------------------------------- |
+| "check token", "validate token"                                  | `api-auth`                                      |
+| "list namespaces"                                                | `api-auth` (uses namespace list for validation) |
+| "list", "get", "create", "update", "delete" + resource           | `api-operations`                                |
+| "deploy", "set up", "provision" + resource                       | `api-operations` (workflow mode)                |
+| "cURL", "API call" + custom request                              | Direct tools or optional `api-operator`         |
+| User provides JSON config + asks question about it               | `config-analysis`                               |
+| "analyze", "review", "audit", "explain", "inspect" + config/JSON | `config-analysis`                               |
+| "is [feature] enabled/disabled", "what mode", "security posture" | `config-analysis`                               |
+| "how to change/enable/disable/add/remove" + config context       | `config-analysis`                               |
+| "what does this config do", "show me the settings"               | `config-analysis`                               |
 
 ## How to Route
 
@@ -63,8 +69,8 @@ autonomously. The main session only receives the result.
    this LB", "delete that pool"). Analysis requests target a
    provided config ("is WAF enabled on this?", "explain this
    config", "what violations are disabled?").
-4. Spawn the appropriate agent with the matched task
-5. Relay the agent's result to the user
+4. Execute directly or optionally delegate the matched task
+5. Verify the result and respond
 
 ## Available Skills (read by the agent)
 

@@ -13,12 +13,13 @@
     {
       "name": "docs-tools",
       "description": "MDX content validation and review tools for f5-sales-demo docs repos",
-      "version": "1.1.6",
+      "version": "1.1.9",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-tools",
       "category": "productivity",
       "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
@@ -36,12 +37,13 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.12",
+      "version": "1.0.15",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/sales-engineer",
       "category": "productivity",
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
@@ -59,12 +61,13 @@
     {
       "name": "docs-pipeline",
       "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
-      "version": "1.0.6",
+      "version": "1.0.9",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-pipeline",
       "category": "productivity",
       "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
@@ -82,12 +85,13 @@
     {
       "name": "brand",
       "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
-      "version": "1.0.6",
+      "version": "1.0.9",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/brand",
       "category": "productivity",
       "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
@@ -105,12 +109,13 @@
     {
       "name": "meddpicc",
       "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
-      "version": "7.6.1",
+      "version": "7.6.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/meddpicc",
       "category": "productivity",
       "keywords": [
@@ -138,12 +143,13 @@
     {
       "name": "devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-      "version": "1.2.0",
+      "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/devcontainer",
       "category": "productivity",
       "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
@@ -161,12 +167,13 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "6.0.1",
+      "version": "6.0.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -198,7 +205,7 @@
     {
       "name": "osint-framework",
       "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
-      "version": "1.0.8",
+      "version": "1.0.11",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -206,6 +213,7 @@
       "keywords": ["osint", "reconnaissance", "intelligence", "investigation", "security"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/osint-framework",
       "category": "security",
       "tags": ["osint", "recon", "security", "intelligence"],
@@ -221,12 +229,13 @@
     {
       "name": "firecrawl",
       "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
-      "version": "1.2.0",
+      "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/firecrawl",
       "category": "productivity",
       "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
@@ -244,7 +253,7 @@
     {
       "name": "salesforce",
       "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
-      "version": "2.0.1",
+      "version": "2.0.5",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -265,7 +274,7 @@
       ],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
-      "minimumRuntimeVersion": "22.4.6",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/salesforce",
       "category": "development",
       "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
@@ -286,12 +295,13 @@
     {
       "name": "cloudstatus",
       "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-      "version": "1.7.0",
+      "version": "1.7.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/cloudstatus",
       "category": "productivity",
       "keywords": [
@@ -326,12 +336,13 @@
     {
       "name": "azure",
       "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "4.4.0",
+      "version": "4.4.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
@@ -344,18 +355,19 @@
         "requirements": ["Azure CLI", "An authenticated Azure account"],
         "setupRequired": true,
         "collectedData": ["accounts"],
-        "pluginDependencies": ["platform"]
+        "pluginDependencies": []
       }
     },
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "2.1.0",
+      "version": "2.1.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
@@ -368,18 +380,19 @@
         "requirements": ["AWS CLI", "AWS credentials or an authenticated SSO profile"],
         "setupRequired": true,
         "collectedData": ["accounts"],
-        "pluginDependencies": ["platform"]
+        "pluginDependencies": []
       }
     },
     {
       "name": "kvm",
       "description": "Dual-NIC KVM Secure Mesh Site v2 with isolated SLO, home-LAN SLI, inside VIP, and rollback-protected host preparation",
-      "version": "3.0.4",
+      "version": "3.0.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/kvm",
       "category": "development",
       "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
@@ -404,12 +417,13 @@
     {
       "name": "gcloud",
       "description": "Google Cloud CLI integration — container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
-      "version": "1.3.0",
+      "version": "1.3.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud"],
@@ -428,13 +442,14 @@
     {
       "name": "gitlab",
       "description": "GitLab CLI integration with shared lifecycle readiness, profile discovery, and issue management tools",
-      "version": "1.3.0",
+      "version": "1.3.4",
       "author": {
         "name": "f5-sales-demo"
       },
       "keywords": ["gitlab", "glab", "issues", "git"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gitlab",
       "category": "development",
       "tags": ["gitlab", "development", "cli", "xcsh-extension"],
@@ -452,7 +467,7 @@
     {
       "name": "github",
       "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-      "version": "3.1.1",
+      "version": "3.1.5",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -460,6 +475,7 @@
       "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/github",
       "category": "development",
       "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],

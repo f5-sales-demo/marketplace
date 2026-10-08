@@ -1,5 +1,5 @@
 ---
-name: github-ops
+name: github:github-ops
 description: >-
   GitHub lifecycle operator for independently preparing, publishing, monitoring,
   repairing, and cleaning repository work.
@@ -13,11 +13,6 @@ tools:
   - github_worktree_cleanup
   - gh_exec
   - gh_run_watch
-disallowedTools:
-  - Bash
-  - Write
-  - Edit
-  - Agent
 ---
 
 # GitHub Operations Agent

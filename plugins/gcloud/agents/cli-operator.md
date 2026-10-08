@@ -1,20 +1,14 @@
 ---
-name: cli-operator
+name: gcloud:cli-operator
 description: >-
   Autonomous Google Cloud CLI agent for project management and
   infrastructure queries. Executes gcloud CLI commands with safety
-  guardrails. Skills MUST delegate to this agent -- never run gcloud
-  commands in the main session. This keeps the main session context
-  lean since gcloud CLI output can be verbose.
+  guardrails. Direct execution is the default; this agent is available for optional delegation.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Google Cloud CLI Operator Agent
@@ -59,12 +53,15 @@ session.
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
+
 <the exact gcloud command run>
 
 ### Output Summary
+
 <key findings, formatted for readability>
 
 ### Issues
+
 <any errors, warnings, or items needing attention>
 ```
 

@@ -1,17 +1,13 @@
 ---
-name: cli-operator
+name: azure:cli-operator
 description: >-
   Autonomous Azure CLI agent for cloud infrastructure query and management.
   Executes az CLI commands securely with read-first safety controls.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Azure CLI Operator Agent

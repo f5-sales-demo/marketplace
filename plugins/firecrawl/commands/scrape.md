@@ -1,9 +1,6 @@
 ---
 description: Scrape a URL and extract content as markdown using local firecrawl
 argument-hint: "<url> [--format markdown,html,links] [--wait <ms>]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Scrape a URL

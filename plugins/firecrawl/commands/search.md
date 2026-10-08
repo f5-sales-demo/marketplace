@@ -1,9 +1,6 @@
 ---
 description: Search the web and optionally scrape results using local firecrawl
 argument-hint: "<query> [--limit <n>] [--scrape]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Search the web

@@ -18,7 +18,9 @@ interface AzureExtensionApi extends PluginInterface {
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
   integrations: {
-    register<T>(definition: unknown): { get(signal?: AbortSignal): Promise<IntegrationSnapshot<T>> };
+    register<T>(definition: unknown): {
+      get(signal?: AbortSignal): Promise<IntegrationSnapshot<T>>;
+    };
   };
   on?(event: string, handler: unknown): void;
   logger: { debug(message: string): void };
@@ -48,50 +50,6 @@ export function azureInstallArgv(platform = process.platform): string[] {
   return ['sudo', 'apt-get', 'install', '--yes', 'azure-cli'];
 }
 
-export type AzureCePromptIntent = 'none' | 'deployment' | 'inventory';
-
-export function classifyAzureCePrompt(prompt: string): AzureCePromptIntent {
-  const normalized = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-  const azureContext = /\bazure\b|\bmarketplace\b/.test(normalized);
-  const ceContext =
-    /\bcustomer edge\b|\bf5 ce\b|\bxc ce\b|\bsecure mesh\b|\bce site\b|\bce node\b|\bce image\b/.test(normalized) ||
-    /\bf5\b.*\b(distributed cloud|xc|edge|appliance|route server|bgp)\b/.test(normalized) ||
-    /\bdistributed cloud\b.*\b(node|edge|appliance|azure|marketplace)\b/.test(normalized);
-  if (!azureContext || !ceContext) return 'none';
-  if (
-    /\b(deploy|provision|plan|recommend|resize|replace|repair|delete|remove|tear down|teardown|configure|change|update|migrate)\b/.test(
-      normalized,
-    )
-  )
-    return 'deployment';
-  if (/\bcreate\b/.test(normalized) && !/\bdid\b.*\bcreate\b/.test(normalized)) return 'deployment';
-  if (
-    /\b(existing|inventory|inventorize|list|show|which|what|owned|owner|ownership|created by|activity|footprint|currently|active|running|stopped|remnant)\b/.test(
-      normalized,
-    )
-  )
-    return 'inventory';
-  return 'deployment';
-}
-
-export function isAzureCePrompt(prompt: string): boolean {
-  return classifyAzureCePrompt(prompt) !== 'none';
-}
-
-export const AZURE_CE_RESEARCH_GATE = [
-  'AZURE CUSTOMER EDGE ROUTE: Use the azure:azure-ce workflow for this request.',
-  'Before any recommendation or azure_ce_plan call, use web_search to retrieve and read the dedicated f5xc-ce-automation/v1 contract from f5-sales-demo.github.io, the current official F5 Secure Mesh Site v2 Azure deployment guide from docs.cloud.f5.com, and Microsoft Marketplace image and subscription-aware VM SKU guidance from learn.microsoft.com.',
-  'Then call az_account_show and azure_compute_discover. Omit publisher, offer, plan, version, and vmSize unless the user explicitly pinned them; live discovery must enumerate those values.',
-  'Require the validated shared-contract identity and normalized digest, the azure-cli-live provider-source receipts, and the discovery artifact. Never guess identifiers, use generic az_exec for CE research, plan before discovery, or mutate without approval.',
-].join('\n');
-
-export const AZURE_CE_INVENTORY_GATE = [
-  'AZURE CUSTOMER EDGE INVENTORY ROUTE: Use the azure:azure-ce workflow for this existing-state request.',
-  'Call az_account_show, then azure_ce_inventory. The inventory tool owns Resource Graph paging, VM instance-view state, Activity Log evidence, correlation, classification, and the canonical artifact.',
-  'Do not use web_search, generic delegation, az_exec, azure_compute_discover, azure_ce_plan, deployment research, or any mutation tool.',
-  'Caller association is evidence, never an ownership claim. Keep Azure runtime, platform state, routing evidence, and traffic health independent.',
-].join('\n');
-
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Azure');
 
@@ -101,7 +59,7 @@ const factory: ExtensionFactory = async (pi) => {
     plugin: 'azure',
     kind: 'network',
     setup: {
-      pluginDependencies: ['platform'],
+      pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [
@@ -121,7 +79,12 @@ const factory: ExtensionFactory = async (pi) => {
           timeoutMs: 300_000,
         },
       ],
-      verification: [{ argv: ['az', 'account', 'show', '--output', 'json'], timeoutMs: 30_000 }],
+      verification: [
+        {
+          argv: ['az', 'account', 'show', '--output', 'json'],
+          timeoutMs: 30_000,
+        },
+      ],
     },
     async probe() {
       const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -131,7 +94,11 @@ const factory: ExtensionFactory = async (pi) => {
         const rawError = new TextDecoder().decode(result.stderr);
         const error = rawError.toLowerCase();
         if (/rate limit|too many requests|throttl|429/.test(error))
-          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+          return {
+            state: 'rate_limited',
+            reason: 'rate_limited',
+            retryAfterMs: retryAfterMsFromHeaders(rawError),
+          };
         if (error.includes('expired')) return { state: 'setup_required', reason: 'expired' };
         if (error.includes('denied') || error.includes('forbidden'))
           return { state: 'unavailable', reason: 'permission_denied' };
@@ -209,8 +176,7 @@ const factory: ExtensionFactory = async (pi) => {
   }
 
   if (typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (event: { prompt?: string }, _ctx: { cwd: string }) => {
-      const ceIntent = classifyAzureCePrompt(String(event?.prompt ?? ''));
+    pi.on('before_agent_start', async (_event: { prompt?: string }, _ctx: { cwd: string }) => {
       const accountLines: string[] = [];
       try {
         if (!azAvailable) throw new Error('az CLI unavailable');
@@ -229,24 +195,13 @@ const factory: ExtensionFactory = async (pi) => {
           );
         }
       } catch {
-        // The research gate must still be injected when account observation fails.
+        // Account observation is informational and does not constrain the request.
       }
-      const gate =
-        ceIntent === 'inventory'
-          ? AZURE_CE_INVENTORY_GATE
-          : ceIntent === 'deployment'
-            ? AZURE_CE_RESEARCH_GATE
-            : undefined;
-      const content = [...(gate ? [gate] : []), ...accountLines].join('\n');
+      const content = accountLines.join('\n');
       if (!content) return;
       return {
         message: {
-          customType:
-            ceIntent === 'inventory'
-              ? 'azure_ce_inventory_gate'
-              : ceIntent === 'deployment'
-                ? 'azure_ce_research_gate'
-                : 'azure_hint',
+          customType: 'azure_hint',
           content,
           display: false,
         },

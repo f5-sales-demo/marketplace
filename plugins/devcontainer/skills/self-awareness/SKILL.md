@@ -1,26 +1,30 @@
 ---
 name: self-awareness
 description: >-
-  Container identity and self-diagnosis. Activates when asked who you are,
-  what version, where you come from, your build info, self-diagnosis, health
-  check, container history, recent changes, contributors, or any existential
-  question about identity, origin, or container state.
+  Inspect identity, build, history, or health of an explicitly identified devcontainer. Verify the target container and runtime before reporting its identity; host or assistant identity requests do not select this skill.
 user-invocable: false
 ---
 
 **Canonical skill URI**: `skill://devcontainer:self-awareness`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # Container Self-Awareness
 
 This skill provides live introspection of the running container by
 querying the GitHub API, local build metadata, and runtime state.
-Delegate to the container-introspector agent to preserve main context.
+Optionally delegate to the container-introspector agent to preserve main context.
 
-## Delegation Protocol
+## Direct execution and optional delegation
 
-When this skill activates, delegate immediately:
+When this skill activates, execute directly; optionally delegate:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="devcontainer:container-introspector",
   description="[identity/diagnosis/history]: [summarize question in 5 words]",
@@ -28,14 +32,12 @@ Agent(
 )
 ```
 
-Wait for the agent's response and relay it directly to the user.
+Complete the requested operation and verify usable results before responding.
+If delegated, review the result and integrate it with independent work.
 
-## When to activate
+## Target and inventory
 
-- "who are you" / "what are you" / "where do you come from"
-- "what version" / "when were you born" / "what build"
-- "self-diagnosis" / "health check" / "self-test"
-- "what changed recently" / "show me the Git log"
-- "who built this" / "who are the contributors"
-- "what's your source" / "show me your blueprint"
-- Any existential or introspective question about the container
+Use only when the request identifies a container. Observe its runtime identity
+and executable inventory directly before asserting installed tools, user,
+capabilities, or version. A catalog describes expected tools; discrepancies
+remain visible. Independent host work continues if the container is unavailable.

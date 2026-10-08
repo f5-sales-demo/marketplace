@@ -14,7 +14,12 @@ export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: strin
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
-    profile: Type.Optional(Type.String({ description: 'Named AWS profile to use' })),
+    profile: Type.Optional(
+      Type.String({
+        description:
+          'Named AWS profile. Omit, use an empty string, or use spaces for the existing default profile. Control characters and unsafe nonblank names are rejected.',
+      }),
+    ),
   });
 
   return {
@@ -31,7 +36,8 @@ export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: strin
     ) {
       const base = { tool: 'aws_sts_whoami' as const };
 
-      if (params.profile !== undefined && !RESOURCE_NAME_PATTERN.test(params.profile)) {
+      const profile = params.profile !== undefined && /^ *$/.test(params.profile) ? undefined : params.profile;
+      if (profile !== undefined && !RESOURCE_NAME_PATTERN.test(profile)) {
         return errorResult(
           `Error: invalid profile "${params.profile}". Only alphanumeric characters, dots, underscores, colons, slashes, and hyphens are allowed.`,
           base,
@@ -40,7 +46,7 @@ export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: strin
 
       const api = makeApi(ctx.cwd);
       const args = ['sts', 'get-caller-identity'];
-      if (params.profile) args.push('--profile', params.profile);
+      if (profile) args.push('--profile', profile);
 
       try {
         const raw = await execAwsJson<Record<string, unknown>>(api, args, signal);

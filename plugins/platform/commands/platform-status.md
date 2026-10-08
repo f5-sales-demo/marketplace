@@ -5,9 +5,9 @@ description: >-
 
 # Platform status
 
-Delegate to the `platform:api-operator` agent to check platform readiness.
+Optionally delegate to the `platform:api-operator` agent to check platform readiness.
 
-## Delegation
+## Optional delegation
 
 Spawn the `platform:api-operator` agent with the following instructions:
 

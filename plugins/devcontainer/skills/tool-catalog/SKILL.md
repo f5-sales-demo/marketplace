@@ -1,29 +1,30 @@
 ---
 name: tool-catalog
 description: >-
-  Container tool knowledge base — knows every CLI tool installed in this
-  devcontainer, organized by category. Activates when the user asks which
-  tool to use, how to use a tool, whether something is installed, or needs
-  help with tasks like sending email, scanning networks, converting files,
-  managing cloud resources, automating browsers, or any operation that
-  requires choosing the right installed CLI. Also activates when you need
-  to determine which command-line tool is appropriate for a task.
+  Recommend tools for an explicitly identified devcontainer. Compare the catalog with observed runtime inventory before claiming tools are installed. Ordinary host tool selection stays with host capabilities.
 user-invocable: false
 ---
 
 **Canonical skill URI**: `skill://devcontainer:tool-catalog`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # Devcontainer Tool Catalog
 
-This container has 300+ tools pre-installed. Do NOT suggest installing
-tools — check the catalog first. Delegate lookups to the tool-advisor
-agent to preserve main context.
+The catalog describes expected tools. Verify the identified container
+using runtime inspection; execute lookups directly by reading references.
+Optional tool-advisor delegation is available for large catalog searches.
 
-## Delegation Protocol
+## Direct execution and optional delegation
 
-When this skill activates, delegate to the tool-advisor agent immediately:
+When this skill activates, optionally delegate to the tool-advisor agent immediately:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="devcontainer:tool-advisor",
   description="Look up tools for: [summarize user's question in 5 words]",
@@ -31,23 +32,22 @@ Agent(
 )
 ```
 
-Wait for the agent's response and relay it directly to the user.
+Complete the requested operation and verify usable results before responding.
+If delegated, review the result and integrate it with independent work.
 
-## When to activate
+## Target and inventory
 
-- "which tool should I use to..."
-- "how do I [send email / scan a site / capture packets / deploy to AWS / ...]"
-- "is [tool-name] installed?"
-- "what CLI can I use to..."
-- Any task requiring a command-line tool decision
+Use only when the request identifies a container. Observe its runtime identity
+and executable inventory directly before asserting installed tools, user,
+capabilities, or version. A catalog describes expected tools; discrepancies
+remain visible. Independent host work continues if the container is unavailable.
 
 ## Important Notes
 
-- All tools are pre-installed — do not suggest `apt install` or `pip install`
-  unless the user explicitly wants to add something new
+- Tool availability must be observed; install only within separately authorized setup scope
 - Some security tools require elevated capabilities (NET_RAW, NET_ADMIN)
   which are granted via docker-compose.yml
-- The container runs as user `vscode` — some tools may need `sudo`
+- Observe the actual container user and required capabilities
 - For tool drift detection (catalog vs Dockerfile), use the
   `devcontainer:tool-auditor` agent
 - To install, remove, or search for tools (and update the Dockerfile

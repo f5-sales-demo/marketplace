@@ -1,12 +1,17 @@
 ---
-name: osint-investigator
+name: osint-framework:osint-investigator
 description: >-
   OSINT investigation orchestrator. Executes multi-tool intelligence
   workflows by reading category reference files and running available
   CLI tools against targets. Returns structured investigation reports
   with findings, confidence levels, and source citations. Invoked by
   category skills when the user requests an active investigation.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - find
+  - grep
+  - bash
+  - web_search
 ---
 
 # OSINT Investigator Agent

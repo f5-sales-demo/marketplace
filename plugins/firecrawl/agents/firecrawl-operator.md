@@ -1,19 +1,16 @@
 ---
-name: firecrawl-operator
+name: firecrawl:firecrawl-operator
 description: >-
   Autonomous web scraping agent for the local self-hosted firecrawl
   instance. Executes curl + jq sequences against http://localhost:3002
   for scrape, batch scrape, crawl, map, search, extract, and llms.txt
   operations. Returns structured markdown, HTML, metadata, and link
-  data. Skills MUST delegate to this agent — never run firecrawl API
-  calls in the main session. This keeps the main session context lean
-  since scrape payloads can be very large.
-disallowedTools: Write, Edit, Agent
+  data. Direct execution is the default; this agent is available for optional delegation.
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Firecrawl Operator Agent
@@ -38,25 +35,25 @@ the API and return structured results.
 
 ## Tools
 
-You have access to: `Read`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `bash`, `find`, `grep`.
 
-You do **NOT** have `Write`, `Edit`, or `Agent`. You are execution-only.
+You do **NOT** have `write`, `edit`, or `task`. You are execution-only.
 
 ## Protocol Index
 
-| Protocol | Endpoint | Method | Type |
-| ---------- | ---------- | -------- | ------ |
-| HEALTH | `GET /` | Sync | Pre-flight check |
-| SCRAPE | `POST /v1/scrape` | Sync | Single URL extraction |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async | Multi-URL extraction |
-| CRAWL | `POST /v1/crawl` | Async | Multi-page site crawl |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync | Cancel running crawl |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync | List active crawl jobs |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync | Get crawl error details |
-| MAP | `POST /v1/map` | Sync | Discover site URLs |
-| SEARCH | `POST /v1/search` | Sync | Web search with scraping |
-| EXTRACT | `POST /v1/extract` | Async | LLM-powered structured extraction |
-| LLMSTXT | `POST /v1/llmstxt` | Async | Generate llms.txt for a site |
+| Protocol     | Endpoint                   | Method | Type                              |
+| ------------ | -------------------------- | ------ | --------------------------------- |
+| HEALTH       | `GET /`                    | Sync   | Pre-flight check                  |
+| SCRAPE       | `POST /v1/scrape`          | Sync   | Single URL extraction             |
+| BATCH_SCRAPE | `POST /v1/batch/scrape`    | Async  | Multi-URL extraction              |
+| CRAWL        | `POST /v1/crawl`           | Async  | Multi-page site crawl             |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id`     | Sync   | Cancel running crawl              |
+| CRAWL_ACTIVE | `GET /v1/crawl/active`     | Sync   | List active crawl jobs            |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync   | Get crawl error details           |
+| MAP          | `POST /v1/map`             | Sync   | Discover site URLs                |
+| SEARCH       | `POST /v1/search`          | Sync   | Web search with scraping          |
+| EXTRACT      | `POST /v1/extract`         | Async  | LLM-powered structured extraction |
+| LLMSTXT      | `POST /v1/llmstxt`         | Async  | Generate llms.txt for a site      |
 
 ---
 
@@ -112,13 +109,13 @@ curl -sf --max-time 60 http://localhost:3002/v1/scrape \
 
 **Optional parameters:**
 
-| Parameter | Type | Default | Purpose |
-| ------------- | -------- | --------- | --------- |
-| `onlyMainContent` | boolean | true | Strip nav/footer/sidebar |
-| `includeTags` | string[] | — | Only keep these HTML tags |
-| `excludeTags` | string[] | — | Remove these HTML tags |
-| `waitFor` | integer | 0 | Wait ms for JS rendering |
-| `timeout` | integer | 30000 | Request timeout ms |
+| Parameter         | Type     | Default | Purpose                   |
+| ----------------- | -------- | ------- | ------------------------- |
+| `onlyMainContent` | boolean  | true    | Strip nav/footer/sidebar  |
+| `includeTags`     | string[] | —       | Only keep these HTML tags |
+| `excludeTags`     | string[] | —       | Remove these HTML tags    |
+| `waitFor`         | integer  | 0       | Wait ms for JS rendering  |
+| `timeout`         | integer  | 30000   | Request timeout ms        |
 
 ### Scrape: Parse and report
 
@@ -128,12 +125,15 @@ curl -sf --max-time 60 http://localhost:3002/v1/scrape \
 **Status:** <statusCode> | **Title:** <title> | **Content-Type:** <contentType>
 
 ### Content
+
 <markdown content>
 
 ### Metadata
+
 <metadata details>
 
 ### Links Found
+
 <link count and list if requested>
 ```
 
@@ -181,11 +181,11 @@ curl -sf --max-time 30 http://localhost:3002/v1/batch/scrape \
 
 **Parameters:**
 
-| Parameter | Type | Required | Purpose |
-| ------------- | -------- | ---------- | --------- |
-| `urls` | string[] | yes | List of URLs to scrape |
-| `formats` | string[] | no | Output formats (default: Markdown) |
-| `onlyMainContent` | boolean | no | Strip nav/footer (default: true) |
+| Parameter         | Type     | Required | Purpose                            |
+| ----------------- | -------- | -------- | ---------------------------------- |
+| `urls`            | string[] | yes      | List of URLs to scrape             |
+| `formats`         | string[] | no       | Output formats (default: Markdown) |
+| `onlyMainContent` | boolean  | no       | Strip nav/footer (default: true)   |
 
 **Response:**
 
@@ -278,15 +278,15 @@ curl -sf --max-time 30 http://localhost:3002/v1/crawl \
 
 **Parameters:**
 
-| Parameter | Type | Default | Purpose |
-| ------------- | -------- | --------- | --------- |
-| `limit` | integer | 10 | Max pages to crawl |
-| `maxDepth` | integer | — | Maximum link depth |
-| `includePaths` | string[] | — | URL path patterns to include |
-| `excludePaths` | string[] | — | URL path patterns to exclude |
-| `allowSubdomains` | boolean | false | Follow subdomain links |
-| `allowExternalLinks` | boolean | false | Follow external links |
-| `ignoreSitemap` | boolean | false | Skip sitemap discovery |
+| Parameter            | Type     | Default | Purpose                      |
+| -------------------- | -------- | ------- | ---------------------------- |
+| `limit`              | integer  | 10      | Max pages to crawl           |
+| `maxDepth`           | integer  | —       | Maximum link depth           |
+| `includePaths`       | string[] | —       | URL path patterns to include |
+| `excludePaths`       | string[] | —       | URL path patterns to exclude |
+| `allowSubdomains`    | boolean  | false   | Follow subdomain links       |
+| `allowExternalLinks` | boolean  | false   | Follow external links        |
+| `ignoreSitemap`      | boolean  | false   | Skip sitemap discovery       |
 
 **Response:**
 
@@ -383,8 +383,8 @@ Report as a table:
 ```markdown
 ## Active Crawl Jobs
 
-| ID | URL | Created | Limit |
-|----|-----|---------|-------|
+| ID   | URL   | Created      | Limit   |
+| ---- | ----- | ------------ | ------- |
 | <id> | <url> | <created_at> | <limit> |
 ```
 
@@ -423,11 +423,11 @@ curl -sf --max-time 30 http://localhost:3002/v1/map \
 
 **Parameters:**
 
-| Parameter | Type | Default | Purpose |
-| ------------- | -------- | --------- | --------- |
-| `search` | string | — | Filter URLs by keyword |
-| `includeSubdomains` | boolean | false | Include subdomain URLs |
-| `limit` | integer | 5000 | Max URLs to return |
+| Parameter           | Type    | Default | Purpose                |
+| ------------------- | ------- | ------- | ---------------------- |
+| `search`            | string  | —       | Filter URLs by keyword |
+| `includeSubdomains` | boolean | false   | Include subdomain URLs |
+| `limit`             | integer | 5000    | Max URLs to return     |
 
 **Response:**
 
@@ -474,14 +474,14 @@ curl -sf --max-time 30 http://localhost:3002/v1/search \
 
 **Parameters:**
 
-| Parameter | Type | Default | Purpose |
-| ------------- | -------- | --------- | --------- |
-| `query` | string | required | Search query |
-| `limit` | integer | 5 | Max results (up to 100) |
-| `lang` | string | — | Language code (e.g., "en") |
-| `country` | string | — | Country code (e.g., "us") |
-| `tbs` | string | — | Time filter: `qdr:h` (hour), `qdr:d` (day), `qdr:w` (week), `qdr:m` (month), `qdr:y` (year) |
-| `scrapeOptions` | object | — | Options for scraping results (formats, onlyMainContent, etc.) |
+| Parameter       | Type    | Default  | Purpose                                                                                     |
+| --------------- | ------- | -------- | ------------------------------------------------------------------------------------------- |
+| `query`         | string  | required | Search query                                                                                |
+| `limit`         | integer | 5        | Max results (up to 100)                                                                     |
+| `lang`          | string  | —        | Language code (e.g., "en")                                                                  |
+| `country`       | string  | —        | Country code (e.g., "us")                                                                   |
+| `tbs`           | string  | —        | Time filter: `qdr:h` (hour), `qdr:d` (day), `qdr:w` (week), `qdr:m` (month), `qdr:y` (year) |
+| `scrapeOptions` | object  | —        | Options for scraping results (formats, onlyMainContent, etc.)                               |
 
 **Response:**
 
@@ -507,10 +507,10 @@ With `scrapeOptions`, each result also includes `markdown`, `html`, etc.
 
 **Results found:** <count>
 
-1. **[<title>](<url>)**
+1. **[<title>](url)**
    <description>
 
-2. **[<title>](<url>)**
+2. **[<title>](url)**
    <description>
 ```
 
@@ -549,12 +549,12 @@ curl -sf --max-time 30 http://localhost:3002/v1/extract \
 
 **Parameters:**
 
-| Parameter | Type | Required | Purpose |
-| ------------- | -------- | ---------- | --------- |
-| `urls` | string[] | yes | URLs to extract from (supports wildcards like `example.com/*`) |
-| `prompt` | string | no* | Natural language description of what to extract |
-| `schema` | object | no* | JSON schema defining output structure |
-| `enableWebSearch` | boolean | no | Expand beyond specified URLs |
+| Parameter         | Type     | Required | Purpose                                                        |
+| ----------------- | -------- | -------- | -------------------------------------------------------------- |
+| `urls`            | string[] | yes      | URLs to extract from (supports wildcards like `example.com/*`) |
+| `prompt`          | string   | no*      | Natural language description of what to extract                |
+| `schema`          | object   | no*      | JSON schema defining output structure                          |
+| `enableWebSearch` | boolean  | no       | Expand beyond specified URLs                                   |
 
 *At least one of `prompt` or `schema` is required.
 
@@ -642,11 +642,11 @@ curl -sf --max-time 30 http://localhost:3002/v1/llmstxt \
 
 **Parameters:**
 
-| Parameter | Type | Required | Purpose |
-| ------------- | -------- | ---------- | --------- |
-| `url` | string | yes | Target site URL |
-| `maxUrls` | integer | no | Max URLs to process |
-| `showFullText` | boolean | no | Include full content in output |
+| Parameter      | Type    | Required | Purpose                        |
+| -------------- | ------- | -------- | ------------------------------ |
+| `url`          | string  | yes      | Target site URL                |
+| `maxUrls`      | integer | no       | Max URLs to process            |
+| `showFullText` | boolean | no       | Include full content in output |
 
 **Response:**
 

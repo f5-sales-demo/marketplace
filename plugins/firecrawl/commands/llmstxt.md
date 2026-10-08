@@ -1,9 +1,6 @@
 ---
 description: Generate an llms.txt file for a website using local firecrawl
 argument-hint: "<url>"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Generate llms.txt

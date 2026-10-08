@@ -19,7 +19,7 @@ test_demo_housekeeping_frontmatter() {
     return 1
   }
 
-  for tool in Read Bash Glob Grep; do
+  for tool in read bash find grep; do
     echo "$fm" | grep -qF "  - $tool" || {
       echo "demo-housekeeping missing allowed tool: $tool"
       return 1
@@ -38,7 +38,7 @@ test_demo_researcher_frontmatter() {
     return 1
   }
 
-  for tool in Read Glob Grep; do
+  for tool in read find grep; do
     echo "$fm" | grep -qF "  - $tool" || {
       echo "demo-researcher missing allowed tool: $tool"
       return 1

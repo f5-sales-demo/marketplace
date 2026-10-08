@@ -12,6 +12,12 @@ user-invocable: false
 
 **Canonical skill URI**: `skill://salesforce:salesforce-index`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # Salesforce Intent Router
 
 Route the user's request to the correct skill or agent.
@@ -28,7 +34,7 @@ Keywords: "login", "authenticate", "connect org", "sf org", "org list",
 - Org status check → delegate to `salesforce:cli-operator` agent:
 
   ```text
-  Agent(
+  task(
     subagent_type="salesforce:cli-operator",
     description="Check Salesforce org status",
     prompt="Run sf org list --json and sf org display --json for the default org. Report which orgs are authenticated and their status."
@@ -63,9 +69,10 @@ will activate automatically — no explicit delegation needed.
 ### CLI Operations (not covered by afv-library)
 
 For direct sf CLI operations like listing metadata types, running SOQL
-queries, or inspecting org limits, delegate to the cli-operator agent:
+queries, or inspecting org limits, optionally delegate to the cli-operator agent:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="salesforce:cli-operator",
   description="<brief description of the operation>",

@@ -6,14 +6,14 @@ argument-hint: "[api-url]"
 # Check API token
 
 Delegate token validation to the `api-operator` subagent.
-Do NOT run large API sequences in the main session — API
-JSON payloads can be verbose and must stay in the subagent.
+Execute directly with the available host tools. Delegation is optional.
 
-## Delegation
+## Optional delegation
 
 Spawn the `platform:api-operator` agent with:
 
 ```text
+Optional delegation prompt:
 Agent(
   subagent_type="platform:api-operator",
   description="Validate F5 XC API token",

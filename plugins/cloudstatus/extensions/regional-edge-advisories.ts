@@ -2,11 +2,10 @@ import { createHash } from 'node:crypto';
 import type { ExtensionAPI } from '@f5-sales-demo/xcsh';
 
 const LOCATION_SKILL = /cloudstatus(?:[:/])location\b/i;
-const REGIONAL_EDGE = /\bregional\s+edges?\b/i;
 const COLLECTOR =
   /^\s*python3\s+skill:\/\/cloudstatus:network-intelligence\/scripts\/network_lookup\.py\s+(locations\s+--format\s+map-v1|location)\s+"\$CLOUDSTATUS_QUERY"\s*$/;
 const COLLECTOR_INTENT = /cloudstatus:network-intelligence\/scripts\/network_lookup\.py\s+locations?\b/;
-const CAPABILITIES = ['read', 'task', 'web_search', 'bash', 'render_map'] as const;
+const CAPABILITIES = ['read', 'bash', 'render_map'] as const;
 
 type WorkflowState = {
   active: boolean;
@@ -44,7 +43,12 @@ interface AdvisoryApi {
 }
 
 function freshState(active = false): WorkflowState {
-  return { active, skillRead: false, collector: undefined, renderToolCallId: undefined };
+  return {
+    active,
+    skillRead: false,
+    collector: undefined,
+    renderToolCallId: undefined,
+  };
 }
 
 function inputText(input: Record<string, unknown>): string {
@@ -178,7 +182,9 @@ function collectorResult(
   kind: 'map' | 'factual',
 ): { mapLocations?: unknown[]; reason?: string } {
   if (content.length !== 1 || content[0]?.type !== 'text' || typeof content[0].text !== 'string') {
-    return { reason: 'registry collector did not return exactly one JSON text result' };
+    return {
+      reason: 'registry collector did not return exactly one JSON text result',
+    };
   }
   let parsed: unknown;
   try {
@@ -188,29 +194,42 @@ function collectorResult(
   }
   const payload = record(parsed);
   if (!payload || (payload.status !== 'complete' && payload.status !== 'partial')) {
-    return { reason: 'registry collector returned an unavailable or invalid evidence status' };
+    return {
+      reason: 'registry collector returned an unavailable or invalid evidence status',
+    };
   }
   for (const field of ['sources', 'inferences', 'errors']) {
-    if (!Array.isArray(payload[field])) return { reason: `registry collector omitted the ${field} evidence array` };
+    if (!Array.isArray(payload[field]))
+      return {
+        reason: `registry collector omitted the ${field} evidence array`,
+      };
   }
   if (typeof payload.observed_at !== 'string' || typeof payload.query !== 'string') {
-    return { reason: 'registry collector omitted its query or observation timestamp' };
+    return {
+      reason: 'registry collector omitted its query or observation timestamp',
+    };
   }
   if (kind === 'map') {
     if (payload.schema !== 'cloudstatus.locations/v1' || !Array.isArray(payload.map_locations)) {
-      return { reason: 'registry collector returned an invalid cloudstatus.locations/v1 envelope' };
+      return {
+        reason: 'registry collector returned an invalid cloudstatus.locations/v1 envelope',
+      };
     }
     if (
       !Array.isArray(payload.evidence) ||
       !Array.isArray(payload.unresolved_locations) ||
       !payload.map_locations.every(validMapLocation)
     ) {
-      return { reason: 'registry collector returned invalid renderable or unresolved location evidence' };
+      return {
+        reason: 'registry collector returned invalid renderable or unresolved location evidence',
+      };
     }
     return { mapLocations: payload.map_locations };
   }
   if (payload.operation !== 'location' || !record(payload.facts)) {
-    return { reason: 'registry collector returned an invalid factual location envelope' };
+    return {
+      reason: 'registry collector returned an invalid factual location envelope',
+    };
   }
   return {};
 }
@@ -239,25 +258,17 @@ export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
     match(event) {
       const text = inputText(event.input);
       if (event.toolName === 'read' && LOCATION_SKILL.test(text)) {
-        state.active = true;
         state.skillRead = true;
         return undefined;
-      }
-
-      if ((event.toolName === 'task' || event.toolName === 'web_search') && REGIONAL_EDGE.test(text)) {
-        state.active = true;
-        return warning(
-          'cloudstatus.registry_source_recommended',
-          'Use cloudstatus:location and its direct registry collector for authoritative Regional Edge evidence.',
-        );
       }
 
       if (event.toolName === 'bash') {
         const command = String(event.input.command ?? '');
         if (!COLLECTOR_INTENT.test(command)) return undefined;
-        state.active = true;
         const findings: Advisory[] = [];
         const match = command.match(COLLECTOR);
+        if (!match) return undefined;
+        state.active = true;
         if (!state.skillRead) {
           findings.push(
             warning(
@@ -265,15 +276,6 @@ export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
               'Read cloudstatus:location before invoking the registry collector.',
             ),
           );
-        }
-        if (!match) {
-          findings.push(
-            warning(
-              'cloudstatus.registry_collector_recommended',
-              'Use the direct network_lookup.py location collector with the documented argv.',
-            ),
-          );
-          return findings;
         }
         if (state.collector) {
           findings.push(
@@ -346,9 +348,7 @@ export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
   pi.on('session_start', reset);
   pi.on('session_switch', reset);
   pi.on('turn_end', reset);
-  pi.on('input', (event) => {
-    state = freshState(REGIONAL_EDGE.test(event.text));
-  });
+  pi.on('input', reset);
   pi.on('tool_result', (event) => {
     if (!state.active) return;
     if (

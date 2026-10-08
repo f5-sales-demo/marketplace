@@ -1,14 +1,16 @@
 ---
-name: config-analyzer
+name: platform:config-analyzer
 description: >-
   Read-only configuration analysis agent for F5 XC platform
   resources. Analyzes customer JSON configurations against
   resource profiles to answer questions about security posture,
   feature enablement, mode transitions, and best practices.
   Reads reference files for schema knowledge but never executes
-  API calls. Skills MUST delegate to this agent — never analyze
-  large JSON configs in the main session.
-disallowedTools: Write, Edit, Agent, Bash
+  API calls. Direct execution is the default; this agent is available for optional delegation.
+tools:
+  - read
+  - find
+  - grep
 ---
 
 # Config Analyzer Agent
@@ -47,17 +49,17 @@ When given a task, follow this sequence:
 Determine the resource type from the JSON structure. Common
 indicators:
 
-| JSON Indicators | Resource Type | Domain |
-| --------------- | ------------- | ------ |
-| `spec.detection_settings` + `spec.signature_selection_setting` | app_firewall | virtual |
-| `spec.domains` + `spec.advertise_*` or `spec.http`/`spec.https` | http_loadbalancer | virtual |
-| `spec.listen_port` + `spec.dns_volterra_managed` | tcp_loadbalancer | virtual |
-| `spec.origin_servers` | origin_pool | virtual |
-| `spec.dns_type` or `spec.primary` | dns_zone | DNS |
-| `spec.rule_list` or `spec.legacy_rule_list` | service_policy | virtual |
-| `spec.health_check_port` or `spec.http_health_check` | healthcheck | virtual |
-| `spec.certificate_url` or `spec.private_key` | certificate | certificates |
-| `spec.cloud_credentials` + `spec.aws_vpc_site` | aws_vpc_site | cloud_infrastructure |
+| JSON Indicators                                                 | Resource Type     | Domain               |
+| --------------------------------------------------------------- | ----------------- | -------------------- |
+| `spec.detection_settings` + `spec.signature_selection_setting`  | app_firewall      | virtual              |
+| `spec.domains` + `spec.advertise_*` or `spec.http`/`spec.https` | http_loadbalancer | virtual              |
+| `spec.listen_port` + `spec.dns_volterra_managed`                | tcp_loadbalancer  | virtual              |
+| `spec.origin_servers`                                           | origin_pool       | virtual              |
+| `spec.dns_type` or `spec.primary`                               | dns_zone          | DNS                  |
+| `spec.rule_list` or `spec.legacy_rule_list`                     | service_policy    | virtual              |
+| `spec.health_check_port` or `spec.http_health_check`            | healthcheck       | virtual              |
+| `spec.certificate_url` or `spec.private_key`                    | certificate       | certificates         |
+| `spec.cloud_credentials` + `spec.aws_vpc_site`                  | aws_vpc_site      | cloud_infrastructure |
 
 If the resource type is ambiguous, use Glob and Grep to search
 `skills/api-operations/references/resources/` for field names

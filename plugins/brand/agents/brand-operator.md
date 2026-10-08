@@ -1,15 +1,11 @@
 ---
-name: brand-operator
+name: brand:brand-operator
 description: Read-only agent for analyzing files against F5 brand compliance guidelines
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-disallowedTools:
-  - Write
-  - Edit
-  - Agent
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 You are the brand-operator agent for the F5 brand plugin.

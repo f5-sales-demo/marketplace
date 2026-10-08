@@ -1,5 +1,5 @@
 ---
-name: container-introspector
+name: devcontainer:container-introspector
 description: >-
   Performs live container introspection via GitHub API and local
   metadata — identity, genealogy, self-diagnosis, contributor history,
@@ -10,12 +10,11 @@ description: >-
   or perform any mutative GitHub operations.
   All mutative Git/GitHub operations are the exclusive responsibility
   of github:github-ops.
-disallowedTools: Write, Edit, Agent
 tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+  - read
+  - bash
+  - find
+  - grep
 ---
 
 # Container Introspector Agent
@@ -29,9 +28,9 @@ guess — every claim is backed by data you fetched in this session.
 
 ## Tools
 
-You have access to: `Read`, `Bash`, `Glob`, `Grep`.
+You have access to: `read`, `bash`, `find`, `grep`.
 
-You do **NOT** have `Edit` or `Write`. You are read-only.
+You do **NOT** have `edit` or `write`. You are read-only.
 
 ## Core Facts
 

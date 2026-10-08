@@ -51,24 +51,6 @@ export function awsInstallArgv(platform = process.platform): string[] {
   return ['sudo', 'apt-get', 'install', '--yes', 'awscli'];
 }
 
-export function isAwsCePrompt(prompt: string): boolean {
-  const normalized = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-  const awsContext = /\baws\b|\bamazon\b|\bec2\b|\btgw\b|\btransit gateway\b/.test(normalized);
-  const ceContext =
-    /\bcustomer edge\b|\bf5 ce\b|\bxc ce\b|\bsecure mesh\b|\bce site\b|\bce node\b|\bce image\b/.test(normalized) ||
-    /\bf5\b.*\b(distributed cloud|xc|edge|appliance|marketplace|bgp)\b/.test(normalized) ||
-    /\bdistributed cloud\b.*\b(node|edge|appliance|aws|marketplace)\b/.test(normalized);
-  return awsContext && ceContext;
-}
-
-export const AWS_CE_RESEARCH_GATE = [
-  'AWS CUSTOMER EDGE ROUTE: Use the aws:aws-ce workflow for this request.',
-  'Before recommendations or aws_ce_plan, use web_search to retrieve the dedicated f5xc-ce-automation/v1 contract, the current official F5 Secure Mesh Site v2 AWS guide, and current AWS Marketplace, EC2, AMI policy, quota, NLB, and Transit Gateway documentation.',
-  'Then call aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover in that order. Live discovery must enumerate all regions and pin the exact regional SSM AMI and version.',
-  'Require the validated shared-contract identity/digest, provider-source receipts, current Marketplace agreement, platform capability evidence, and discovery artifact. Never use generic aws_exec for CE research, plan before discovery, automate initial legal acceptance, mutate during research, or fall back to a legacy AWS site type.',
-  'Treat TGW Connect as release-blocked unless both current F5 documentation and f5xc_ce_v2_capabilities advertise an explicit supported SMSv2 GRE/BGP schema.',
-].join('\n');
-
 /**
  * Wrap a factory tool so any error that still propagates out of its execute()
  * is converted into a structured error result carrying details.errorType.
@@ -88,7 +70,10 @@ export function withErrorType<T extends { name: string; execute: (...args: never
       } catch (err) {
         const name = (err as { name?: string } | null | undefined)?.name;
         if (name === 'AbortError' || name === 'ToolAbortError') throw err;
-        return errorResult(renderError(err), { tool: tool.name, errorType: detectErrorType(err) });
+        return errorResult(renderError(err), {
+          tool: tool.name,
+          errorType: detectErrorType(err),
+        });
       }
     }) as T['execute'],
   };
@@ -103,7 +88,7 @@ const factory: ExtensionFactory = async (pi) => {
     plugin: 'aws',
     kind: 'network',
     setup: {
-      pluginDependencies: ['platform'],
+      pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [
@@ -114,7 +99,12 @@ const factory: ExtensionFactory = async (pi) => {
         },
         { kind: 'login', argv: ['aws', 'sso', 'login'], timeoutMs: 300_000 },
       ],
-      verification: [{ argv: ['aws', 'sts', 'get-caller-identity', '--output', 'json'], timeoutMs: 30_000 }],
+      verification: [
+        {
+          argv: ['aws', 'sts', 'get-caller-identity', '--output', 'json'],
+          timeoutMs: 30_000,
+        },
+      ],
     },
     async probe() {
       const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -124,7 +114,11 @@ const factory: ExtensionFactory = async (pi) => {
         const rawError = new TextDecoder().decode(result.stderr);
         const error = rawError.toLowerCase();
         if (/rate limit|rate exceeded|too many requests|throttl|429/.test(error))
-          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+          return {
+            state: 'rate_limited',
+            reason: 'rate_limited',
+            retryAfterMs: retryAfterMsFromHeaders(rawError),
+          };
         if (error.includes('expired') || error.includes('sso token'))
           return { state: 'setup_required', reason: 'expired' };
         if (error.includes('denied') || error.includes('unauthorized'))
@@ -150,7 +144,14 @@ const factory: ExtensionFactory = async (pi) => {
           : 'unknown';
       return {
         facts: {
-          accounts: [{ provider: 'aws', identifier: value.Arn, principalType, accountId: value.Account }],
+          accounts: [
+            {
+              provider: 'aws',
+              identifier: value.Arn,
+              principalType,
+              accountId: value.Account,
+            },
+          ],
         },
         observations: [],
       };
@@ -195,8 +196,7 @@ const factory: ExtensionFactory = async (pi) => {
 
   // Context injection: provide AWS identity to agents
   if (awsAvailable && typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (event: { prompt?: string }, _ctx: { cwd: string }) => {
-      const ceRequest = isAwsCePrompt(String(event?.prompt ?? ''));
+    pi.on('before_agent_start', async (_event: { prompt?: string }, _ctx: { cwd: string }) => {
       try {
         const snapshot = await integration.get();
         if (snapshot.state !== 'ready' || !snapshot.value) return;
@@ -211,16 +211,13 @@ const factory: ExtensionFactory = async (pi) => {
         ]
           .filter(Boolean)
           .join('\n');
-        const content = [...(ceRequest ? [AWS_CE_RESEARCH_GATE] : []), ...(lines ? [lines] : [])].join('\n');
+        const content = lines;
         if (!content) return;
         return {
-          message: { customType: ceRequest ? 'aws_ce_research_gate' : 'aws_hint', content, display: false },
+          message: { customType: 'aws_hint', content, display: false },
         };
       } catch {
-        if (!ceRequest) return;
-        return {
-          message: { customType: 'aws_ce_research_gate', content: AWS_CE_RESEARCH_GATE, display: false },
-        };
+        return;
       }
     });
   }

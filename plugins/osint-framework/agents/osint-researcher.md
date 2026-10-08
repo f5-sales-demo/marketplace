@@ -1,11 +1,15 @@
 ---
-name: osint-researcher
+name: osint-framework:osint-researcher
 description: >-
   Read-only OSINT research agent. Searches the tool catalog to find
   the right tools for a given task. Does not execute tools — only
   recommends and explains. Used by osint-catalog and category skills
   for tool discovery and recommendation.
-disallowedTools: Write, Edit, Agent
+tools:
+  - read
+  - find
+  - grep
+  - web_search
 ---
 
 # OSINT Researcher Agent

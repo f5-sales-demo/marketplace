@@ -1,9 +1,6 @@
 ---
 description: Extract structured data from URLs using LLM-powered extraction via local firecrawl
 argument-hint: "<url> [<prompt>] [--schema <json>]"
-allowed_tools:
-  - Bash
-  - Agent
 ---
 
 # Extract structured data
