@@ -1,0 +1,1512 @@
+{
+  "schema": "plugin-additivity-remediation/v1",
+  "status": "in_progress",
+  "audit": {
+    "plugin-additivity-audit.md": "ecda1e86751ed70aabdd34ef6338c27c70be70f489d270d82be19b9bb76ae31e",
+    "plugin-additivity-audit.json": "a77cc674d70c295db1a9357f2fe174a3524f339195741efb467c0acfa02624c8"
+  },
+  "sourceBases": {
+    "marketplace": "fdfaa1cf3b20b574ea489352ac0a79055050fe2e",
+    "xcsh": "aa278eecbd560345b7571f285d77c88608b2cf01"
+  },
+  "delivery": {
+    "hostPR": "https://github.com/f5-sales-demo/xcsh/pull/4827",
+    "hostMerge": "3fffb6906",
+    "hostReleasePR": "https://github.com/f5-sales-demo/xcsh/pull/4828",
+    "hostReleaseTarget": "23.0.3",
+    "pluginPR": "https://github.com/f5-sales-demo/marketplace/pull/1514",
+    "acceptanceIssue": "https://github.com/f5-sales-demo/marketplace/issues/1513",
+    "hostReleasePRState": "MERGED",
+    "hostTag": "v23.0.3",
+    "hostArtifactStatus": "published immutable and full release pipeline passed",
+    "acceptancePR": "https://github.com/f5-sales-demo/marketplace/pull/1515",
+    "hostInstalledVersions": {
+      "mac": "23.0.3",
+      "ubuntu": "23.0.3"
+    },
+    "pluginPRState": "MERGED",
+    "pluginMerge": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+    "catalogPR": "https://github.com/f5-sales-demo/xcsh/pull/4830",
+    "catalogPRState": "MERGED"
+  },
+  "findings": [
+    {
+      "id": "F01",
+      "plugins": ["cloudstatus"],
+      "sourceChange": "Location guidance permits inspection and independent research; trace validation drops request-wide forbidden-tool checks. Collector/render integrity remains.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F02",
+      "plugins": ["kvm"],
+      "sourceChange": "Remove keyword-triggered KVM before_agent_start guidance; retain native controller ownership/plan safeguards.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F03",
+      "plugins": ["azure"],
+      "sourceChange": "Remove Azure keyword routing and mandatory inventory prohibitions; retain informational account hints and native CE contracts.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F04",
+      "plugins": ["aws"],
+      "sourceChange": "Remove AWS keyword routing; retain informational account hints and task-scoped CE contract/discovery safeguards.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F05",
+      "plugins": ["firecrawl"],
+      "sourceChange": "Scope Firecrawl selection to explicit requests/chosen scraping; direct execution default; scoped service failure and optional named child.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F06",
+      "plugins": ["devcontainer"],
+      "sourceChange": "Require identified container and observed runtime/tool inventory; host identity and unrelated tool choice remain available.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F07",
+      "plugins": ["platform"],
+      "sourceChange": "Direct Platform operations and configuration inspection; optional delegation with explicit positive child permissions.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F08",
+      "plugins": ["gcloud", "aws", "salesforce", "github"],
+      "sourceChange": "Direct native/guarded CLI work and independent follow-ups; optional agents.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F09",
+      "plugins": ["aws", "azure"],
+      "sourceChange": "Remove Platform install/setup dependencies from AWS/Azure; retain cross-plane capability/context prerequisites.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F10",
+      "plugins": ["platform", "osint-framework"],
+      "sourceChange": "Replace ignored deny lists with explicit positive permissions for Platform and OSINT agents.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F11",
+      "plugins": [
+        "docs-tools",
+        "sales-engineer",
+        "docs-pipeline",
+        "brand",
+        "meddpicc",
+        "devcontainer",
+        "firecrawl",
+        "aws",
+        "azure",
+        "gcloud",
+        "gitlab",
+        "salesforce",
+        "github"
+      ],
+      "sourceChange": "Canonical xcsh tool names, qualified agent identities, named spawning references; frozen published 23.0.2 parser/registry validation.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F12",
+      "plugins": ["docs-tools", "docs-pipeline", "brand", "firecrawl"],
+      "sourceChange": "Remove ignored command allowlists; document scoped prompt expansion and native/agent permission boundaries.",
+      "status": "released_installed_source_verified"
+    },
+    {
+      "id": "F13",
+      "plugins": [],
+      "sourceChange": "No reproduced attributable refusal cause. Three original-fixture Mac replays pass on unchanged 23.0.2. Equal 98-tool no-skills/rules replay passes. Recorded request max_tokens=32000 and tool_choice=auto; historical length event with zero usage does not prove token exhaustion.",
+      "status": "unattributed_with_passing_installed_replays"
+    },
+    {
+      "id": "F14",
+      "plugins": ["aws"],
+      "sourceChange": "Blank/spaces profile normalizes to omission, controls and unsafe nonblank names reject; returned errors propagate through host hooks/events.",
+      "status": "released_installed_source_verified"
+    }
+  ],
+  "sourceValidation": {
+    "hostTests": {
+      "pass": 10100,
+      "skip": 562,
+      "fail": 0,
+      "total": 10662
+    },
+    "hostFocusedSearchErrorTests": {
+      "pass": 100,
+      "fail": 0
+    },
+    "hostTypes": "passed",
+    "hostDocsQuality": "passed",
+    "hostDocsQualityTests": {
+      "pass": 29
+    },
+    "pluginFrozenSuites": "passed",
+    "publishedAgentValidation": {
+      "runtime": "23.0.2",
+      "agents": 27,
+      "status": "passed"
+    },
+    "auditTypeBoxImportErrors": "not reproduced after supported frozen dependency preparation",
+    "combinedExtensionProbe": {
+      "runtimeExtensions": 17,
+      "cases": 102,
+      "hostMutations": 0,
+      "hardBlocks": 0
+    },
+    "sourceLiveSearch": {
+      "ubuntuSources": [1, 6, 7],
+      "macSources": [0, 9, 9],
+      "macRetrySources": [0, 10],
+      "emptyResults": "valid success but fails evidence gate"
+    },
+    "installedResearchStreak": {
+      "mac": 3,
+      "ubuntu": 3,
+      "status": "passed after retaining earlier empty-result failures"
+    },
+    "installedAgentFindAndNested": "passed on released daily Mac profile"
+  },
+  "live": [
+    {
+      "variant": "baseline",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 56.58
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": false,
+          "tools": ["web_search", "web_search", "read", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 68.0
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 51.78
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": false,
+          "tools": ["aws_sts_whoami", "aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": ["aws_sts_whoami", "aws_sts_whoami"],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 39.7
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 39.16
+        }
+      ]
+    },
+    {
+      "variant": "no-skills-rules",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 57.49
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 32.69
+        }
+      ]
+    },
+    {
+      "variant": "original-baseline",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 50.24
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 36.95
+        }
+      ]
+    },
+    {
+      "variant": "original-observed",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 53.22
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 35.19
+        }
+      ]
+    },
+    {
+      "variant": "original-third",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 55.59
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 30.71
+        }
+      ]
+    },
+    {
+      "variant": "child-find",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "delegated_find",
+          "completed": true,
+          "pass": true,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 91.24
+        }
+      ]
+    },
+    {
+      "variant": "nested-permissions",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "nested",
+          "completed": true,
+          "pass": false,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 72.1,
+          "note": "Child did not delegate; initial scorer too permissive. Superseded by explicit nested replay."
+        }
+      ]
+    },
+    {
+      "variant": "nested-explicit",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "nested",
+          "completed": true,
+          "pass": true,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 110.14
+        }
+      ]
+    },
+    {
+      "variant": "aws-source-refreshed",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 40,
+      "cases": [
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.06
+        }
+      ]
+    },
+    {
+      "variant": "aws-source-no-platform",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 40,
+      "cases": [
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": false,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": ["aws_sts_whoami"],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.62
+        }
+      ]
+    },
+    {
+      "variant": "azure-source-no-platform",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 44,
+      "cases": [
+        {
+          "case": "azure_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["az_account_show"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 33.24
+        }
+      ]
+    }
+  ],
+  "releases": [
+    {
+      "plugin": "docs-tools",
+      "version": "1.1.9",
+      "tag": "docs-tools/v1.1.9",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "sales-engineer",
+      "version": "1.0.15",
+      "tag": "sales-engineer/v1.0.15",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "docs-pipeline",
+      "version": "1.0.9",
+      "tag": "docs-pipeline/v1.0.9",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "brand",
+      "version": "1.0.9",
+      "tag": "brand/v1.0.9",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 20,
+      "mismatches": []
+    },
+    {
+      "plugin": "meddpicc",
+      "version": "7.6.4",
+      "tag": "meddpicc/v7.6.4",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "devcontainer",
+      "version": "1.2.5",
+      "tag": "devcontainer/v1.2.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 28,
+      "mismatches": []
+    },
+    {
+      "plugin": "platform",
+      "version": "6.0.5",
+      "tag": "platform/v6.0.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 191,
+      "mismatches": []
+    },
+    {
+      "plugin": "osint-framework",
+      "version": "1.0.11",
+      "tag": "osint-framework/v1.0.11",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "firecrawl",
+      "version": "1.2.5",
+      "tag": "firecrawl/v1.2.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 24,
+      "mismatches": []
+    },
+    {
+      "plugin": "salesforce",
+      "version": "2.0.5",
+      "tag": "salesforce/v2.0.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 74,
+      "mismatches": []
+    },
+    {
+      "plugin": "cloudstatus",
+      "version": "1.7.5",
+      "tag": "cloudstatus/v1.7.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 33,
+      "mismatches": []
+    },
+    {
+      "plugin": "azure",
+      "version": "4.4.4",
+      "tag": "azure/v4.4.4",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 91,
+      "mismatches": []
+    },
+    {
+      "plugin": "aws",
+      "version": "2.1.4",
+      "tag": "aws/v2.1.4",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 71,
+      "mismatches": []
+    },
+    {
+      "plugin": "kvm",
+      "version": "3.0.5",
+      "tag": "kvm/v3.0.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 30,
+      "mismatches": []
+    },
+    {
+      "plugin": "gcloud",
+      "version": "1.3.4",
+      "tag": "gcloud/v1.3.4",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 47,
+      "mismatches": []
+    },
+    {
+      "plugin": "gitlab",
+      "version": "1.3.4",
+      "tag": "gitlab/v1.3.4",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 51,
+      "mismatches": []
+    },
+    {
+      "plugin": "github",
+      "version": "3.1.5",
+      "tag": "github/v3.1.5",
+      "commit": "aa0c20efa2f154f81e93b6f8ef5ed97e87ed89ed",
+      "published": true,
+      "immutable": false,
+      "releaseAssets": 0,
+      "sourceFiles": 58,
+      "mismatches": []
+    }
+  ],
+  "installedReceipts": [
+    {
+      "plugin": "docs-tools",
+      "version": "1.1.9",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "sales-engineer",
+      "version": "1.0.15",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "docs-pipeline",
+      "version": "1.0.9",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "brand",
+      "version": "1.0.9",
+      "files": 20,
+      "mismatches": []
+    },
+    {
+      "plugin": "meddpicc",
+      "version": "7.6.4",
+      "files": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "devcontainer",
+      "version": "1.2.5",
+      "files": 28,
+      "mismatches": []
+    },
+    {
+      "plugin": "platform",
+      "version": "6.0.5",
+      "files": 191,
+      "mismatches": []
+    },
+    {
+      "plugin": "osint-framework",
+      "version": "1.0.11",
+      "files": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "firecrawl",
+      "version": "1.2.5",
+      "files": 24,
+      "mismatches": []
+    },
+    {
+      "plugin": "salesforce",
+      "version": "2.0.5",
+      "files": 74,
+      "mismatches": []
+    },
+    {
+      "plugin": "cloudstatus",
+      "version": "1.7.5",
+      "files": 33,
+      "mismatches": []
+    },
+    {
+      "plugin": "azure",
+      "version": "4.4.4",
+      "files": 91,
+      "mismatches": []
+    },
+    {
+      "plugin": "aws",
+      "version": "2.1.4",
+      "files": 71,
+      "mismatches": []
+    },
+    {
+      "plugin": "gcloud",
+      "version": "1.3.4",
+      "files": 47,
+      "mismatches": []
+    },
+    {
+      "plugin": "gitlab",
+      "version": "1.3.4",
+      "files": 51,
+      "mismatches": []
+    },
+    {
+      "plugin": "github",
+      "version": "3.1.5",
+      "files": 58,
+      "mismatches": []
+    },
+    {
+      "plugin": "asm-migration",
+      "version": "2.1.1",
+      "files": 39,
+      "mismatches": []
+    },
+    {
+      "plugin": "docs-tools",
+      "version": "1.1.9",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "sales-engineer",
+      "version": "1.0.15",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "docs-pipeline",
+      "version": "1.0.9",
+      "files": 15,
+      "mismatches": []
+    },
+    {
+      "plugin": "brand",
+      "version": "1.0.9",
+      "files": 20,
+      "mismatches": []
+    },
+    {
+      "plugin": "meddpicc",
+      "version": "7.6.4",
+      "files": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "devcontainer",
+      "version": "1.2.5",
+      "files": 28,
+      "mismatches": []
+    },
+    {
+      "plugin": "platform",
+      "version": "6.0.5",
+      "files": 191,
+      "mismatches": []
+    },
+    {
+      "plugin": "osint-framework",
+      "version": "1.0.11",
+      "files": 99,
+      "mismatches": []
+    },
+    {
+      "plugin": "firecrawl",
+      "version": "1.2.5",
+      "files": 24,
+      "mismatches": []
+    },
+    {
+      "plugin": "salesforce",
+      "version": "2.0.5",
+      "files": 74,
+      "mismatches": []
+    },
+    {
+      "plugin": "cloudstatus",
+      "version": "1.7.5",
+      "files": 33,
+      "mismatches": []
+    },
+    {
+      "plugin": "azure",
+      "version": "4.4.4",
+      "files": 91,
+      "mismatches": []
+    },
+    {
+      "plugin": "aws",
+      "version": "2.1.4",
+      "files": 71,
+      "mismatches": []
+    },
+    {
+      "plugin": "kvm",
+      "version": "3.0.5",
+      "files": 30,
+      "mismatches": []
+    },
+    {
+      "plugin": "gcloud",
+      "version": "1.3.4",
+      "files": 47,
+      "mismatches": []
+    },
+    {
+      "plugin": "gitlab",
+      "version": "1.3.4",
+      "files": 51,
+      "mismatches": []
+    },
+    {
+      "plugin": "github",
+      "version": "3.1.5",
+      "files": 58,
+      "mismatches": []
+    },
+    {
+      "plugin": "asm-migration",
+      "version": "2.1.1",
+      "files": 39,
+      "mismatches": []
+    }
+  ],
+  "remaining": [
+    "Finish plugin-specific live gates for operations needing unavailable container/Firecrawl services or GUI/control interfaces",
+    "KVM reports setup_required; native setup/readiness remediation remains outside live UAT",
+    "F13 historical refusal remains unattributed despite passing exact-fixture installed replays",
+    "Plugin releases publish no uploaded immutable archive; commit and installed file hash equality verified",
+    "Offline catalog synchronization merged after 23.0.3 release; refreshed snapshot will ship in next xcsh release"
+  ],
+  "blockers": [
+    {
+      "gate": "KVM readiness",
+      "reason": "Read-only installed tool returns setup_required; no readiness remediation authorized."
+    }
+  ],
+  "privacy": "Raw traces and authenticated results remain private. Public report includes synthetic requests, counts, sanitized statuses and artifact receipts only. No credentials, model-route identity, account identifiers or raw payloads included.",
+  "hostRelease": {
+    "assets": [
+      {
+        "digest": "sha256:268f20e2a14ca7ae61b5e66a8a87277d39b553150d898d040aff1854b96cec82",
+        "name": "pi_natives.darwin-arm64.node",
+        "size": 104394032
+      },
+      {
+        "digest": "sha256:df668f6076228fda08d1a76f320075f256d5edb28207eb9cbef2d0307053b9a8",
+        "name": "pi_natives.darwin-x64-baseline.node",
+        "size": 106152640
+      },
+      {
+        "digest": "sha256:d3714805582330e80f3f47a3bf8a4e8e8e203872269db1515c2023d9d31b978d",
+        "name": "pi_natives.darwin-x64-modern.node",
+        "size": 106259856
+      },
+      {
+        "digest": "sha256:f45ce7c91d45f734f1926f6ea82df072c6d62d09df5b2417de90acf7d0fe8fda",
+        "name": "pi_natives.linux-arm64.node",
+        "size": 107544464
+      },
+      {
+        "digest": "sha256:e2b6df5ca0d18202eb7ccc9e33463a40a36190047fd0e93fc7336ec92e355ffb",
+        "name": "pi_natives.linux-arm64.node.sha256",
+        "size": 94
+      },
+      {
+        "digest": "sha256:46666dfaf67f6288f8b05a98bedb5e74eb3249c3582b7099411b9ac89975f033",
+        "name": "pi_natives.linux-x64-baseline.node",
+        "size": 109647216
+      },
+      {
+        "digest": "sha256:f6757a9d8ee0a69a31f6f5b6e34d669cfaf67d512006a1f1ff73e229a729a57a",
+        "name": "pi_natives.linux-x64-baseline.node.sha256",
+        "size": 101
+      },
+      {
+        "digest": "sha256:bb6bcff0542aeebaaf6a9f8683a74f505159802e36cc0469c0f14b4b95d041a5",
+        "name": "pi_natives.linux-x64-modern.node",
+        "size": 109671720
+      },
+      {
+        "digest": "sha256:66d8ab03367d5b9286c31abe77a1f95d9070874558a8bdf438630ec7a2aacc90",
+        "name": "pi_natives.linux-x64-modern.node.sha256",
+        "size": 99
+      },
+      {
+        "digest": "sha256:b49867d10f246c3177484cc0d1c952ad60e309b0e3b2983864841e898d8480b7",
+        "name": "pi_natives.win32-x64-baseline.node",
+        "size": 105748992
+      },
+      {
+        "digest": "sha256:fe982e8882d8831ce4ecc00d1e1a19dd83c21f6cd7b75fa7e66d903e72ceb86f",
+        "name": "pi_natives.win32-x64-modern.node",
+        "size": 105789952
+      },
+      {
+        "digest": "sha256:07a9d02d404589e98653285731e44d4c89a514eb14ba9d1c77d25a82885f0e03",
+        "name": "xcsh-darwin-arm64",
+        "size": 407000032
+      },
+      {
+        "digest": "sha256:27e3335b2ede1c04f258873e9f421e67ba99e22562a2eda96fb63779f75b4130",
+        "name": "xcsh-darwin-arm64.pkg",
+        "size": 155338604
+      },
+      {
+        "digest": "sha256:584644c335f9e235bc59db4116f723c2d11f469cf95bf0fb0228b66b8fcab9da",
+        "name": "xcsh-darwin-arm64.provenance.json",
+        "size": 1205
+      },
+      {
+        "digest": "sha256:2ce963833721ff66325f82d5d5d9537d761dd118e96598a4f22af9ba86b57eb9",
+        "name": "xcsh-darwin-arm64.zip",
+        "size": 155347464
+      },
+      {
+        "digest": "sha256:0e685af06ec29f45ca420016391e3f268ed3dc5fdba2e7b9d6aa698dd8ea7487",
+        "name": "xcsh-darwin-x64",
+        "size": 522950656
+      },
+      {
+        "digest": "sha256:c1464ac01012540287c0a30ac8b0c7e112c0fd8caccceea04688390b8ad010ef",
+        "name": "xcsh-darwin-x64.pkg",
+        "size": 188653036
+      },
+      {
+        "digest": "sha256:778e78c5cfeb081cc101002f1a3efe210d0998c38515aeb7c70a6db99ec6467f",
+        "name": "xcsh-darwin-x64.provenance.json",
+        "size": 1709
+      },
+      {
+        "digest": "sha256:cfc348f2c8015a0869bb3d52e37225b3916af61afccb05cb71a3265005a5b98b",
+        "name": "xcsh-darwin-x64.zip",
+        "size": 188706687
+      },
+      {
+        "digest": "sha256:e444769308ef3940f111dfcb9b711a8e73ddc70ad8d4c054572f6776f55239d6",
+        "name": "xcsh-linux-arm64",
+        "size": 426494248
+      },
+      {
+        "digest": "sha256:689978db60087a5d6d06716a933148107e71074da24760b62761e0c20aa64734",
+        "name": "xcsh-linux-arm64.provenance.json",
+        "size": 712
+      },
+      {
+        "digest": "sha256:5518df613e7ba270f90ed45706cef2bc1b53502ebdcd7d5a8c7059b603a0ffa9",
+        "name": "xcsh-linux-arm64.provenance.json.sha256",
+        "size": 99
+      },
+      {
+        "digest": "sha256:144f8cf3a3beba21971c2e3807abd9bab7c98d1ee1e1621b1b32a09f040b0c7f",
+        "name": "xcsh-linux-arm64.sha256",
+        "size": 83
+      },
+      {
+        "digest": "sha256:cf3d5a53e1328aacde456c2c47358788cc0d164f12821eb2e696ea8e63e6c25e",
+        "name": "xcsh-linux-x64",
+        "size": 538330592
+      },
+      {
+        "digest": "sha256:55a2a5dc54b305013218da2636cb400183c962760e3554d9be617345b7b5cb65",
+        "name": "xcsh-linux-x64.provenance.json",
+        "size": 896
+      },
+      {
+        "digest": "sha256:5dc50737ed7b1639bf929549a31345eb0544cc6f1ccc5d70856314cc876bab31",
+        "name": "xcsh-linux-x64.provenance.json.sha256",
+        "size": 97
+      },
+      {
+        "digest": "sha256:deec79e0970b7bdcf8cee3017b800e061aef22b500be251365faf40d2af444b9",
+        "name": "xcsh-linux-x64.sha256",
+        "size": 81
+      },
+      {
+        "digest": "sha256:8434203fb5abd5b0ecf774780decc7b66a8d864884a9e4744d9a479eead1d392",
+        "name": "xcsh-windows-x64.exe",
+        "size": 535326208
+      }
+    ],
+    "draft": false,
+    "immutable": true,
+    "tag_name": "v23.0.3"
+  },
+  "installedReplays": [
+    {
+      "variant": "mac-released-1",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 161.59
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 53.5
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 129.61
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 85.55
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 35.57
+        }
+      ]
+    },
+    {
+      "variant": "mac-released-2",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 108.78
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 45.85
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 111.83
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 79.78
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 42.64
+        }
+      ]
+    },
+    {
+      "variant": "mac-released-3",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 81.03
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": false,
+          "tools": ["web_search", "read", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 257.69
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 160.41
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 39.33
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 35.67
+        }
+      ]
+    },
+    {
+      "variant": "ubuntu-released-1",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": null,
+      "registeredInventoryPreserved": null,
+      "choiceStatePreserved": null,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.65
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search", "web_search"],
+          "searchSources": 3,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 57.17
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 1,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 37.65
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "read", "aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 24.52
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 24.82
+        }
+      ]
+    },
+    {
+      "variant": "ubuntu-released-2",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": null,
+      "registeredInventoryPreserved": null,
+      "choiceStatePreserved": null,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.49
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 2,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 36.85
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 1,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 42.89
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 27.46
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 27.1
+        }
+      ]
+    },
+    {
+      "variant": "ubuntu-released-3",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": null,
+      "registeredInventoryPreserved": null,
+      "choiceStatePreserved": null,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 32.51
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 4,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 42.83
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 1,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 37.16
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 27.35
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 26.29
+        }
+      ]
+    },
+    {
+      "variant": "mac-research-repeat-2",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 74.33
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 47.58
+        }
+      ]
+    },
+    {
+      "variant": "mac-research-repeat-3",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 100.36
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 45.25
+        }
+      ]
+    },
+    {
+      "variant": "mac-research-repeat-4",
+      "version": "xcsh/23.0.3",
+      "inventoryPreserved": true,
+      "registeredToolCount": 103,
+      "registeredInventoryPreserved": true,
+      "choiceStatePreserved": true,
+      "cases": [
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 67.28
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search", "web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 44.55
+        }
+      ]
+    }
+  ],
+  "installedMixedResults": [
+    {
+      "case": "mixed",
+      "completed": true,
+      "pass": true,
+      "tools": ["read", "read", "read", "read", "web_search", "calc"],
+      "searchSources": 3,
+      "errors": [],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 125.44
+    },
+    {
+      "case": "missing_firecrawl",
+      "completed": true,
+      "pass": true,
+      "tools": ["read", "bash", "calc"],
+      "searchSources": 0,
+      "errors": ["bash"],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 42.43
+    },
+    {
+      "case": "native_reads",
+      "completed": true,
+      "pass": true,
+      "tools": ["az_account_show", "gh_repo_view", "gcloud_config_list", "sf_query", "calc"],
+      "searchSources": 0,
+      "errors": [],
+      "stopReasons": ["toolUse", "toolUse", "stop"],
+      "elapsedSeconds": 52.37
+    }
+  ]
+}
