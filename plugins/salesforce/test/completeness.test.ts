@@ -245,3 +245,79 @@ test('a different target org discovers its own identity and schema before report
   expect(queries).not.toContain('005000000000001');
   expect(JSON.stringify(result.details)).not.toContain('Wrong org territory');
 });
+
+test('renewal summaries query and preserve owner, stage and next step', async () => {
+  const report = await generatePipelineReport(
+    {
+      userIds: ['005000000000001'],
+      quarterStart: '2026-10-01',
+      quarterEnd: '2026-12-31',
+      capabilities: { opportunityFields: ['Id', 'Name', 'Amount', 'Renewal__c', 'Product_Segmentation__c'] },
+    },
+    async (query) => {
+      if (query.includes('SUM(Amount)')) return [{ total: 0 }];
+      if (!query.includes('Renewal__c = true')) return [];
+      return [
+        {
+          Id: '006000000000001',
+          Name: 'Example renewal',
+          Account: { Name: 'Example' },
+          Amount: 100,
+          Product_Segmentation__c: 'XC',
+          ...(query.includes('Owner.Name') ? { Owner: { Name: 'Example owner' } } : {}),
+          ...(query.includes('StageName') ? { StageName: 'Technical validation' } : {}),
+          ...(query.includes('NextStep') ? { NextStep: 'Confirm renewal terms' } : {}),
+        },
+      ];
+    },
+  );
+  expect(report.topRenewals?.[0]?.ownerName).toBe('Example owner');
+  expect(report.topRenewals?.[0]?.stage).toBe('Technical validation');
+  expect(report.topRenewals?.[0]?.nextStep).toBe('Confirm renewal terms');
+});
+
+test('pipeline presentation separates record currencies and does not publish a combined monetary total', async () => {
+  const report = await generatePipelineReport(
+    {
+      userIds: ['005000000000001'],
+      quarterStart: '2026-10-01',
+      quarterEnd: '2026-12-31',
+      capabilities: { opportunityFields: ['CurrencyIsoCode'] },
+    },
+    async (query) => {
+      if (query.includes('SUM(')) return [{ total: 0 }];
+      if (!query.includes('FROM Opportunity ') || !query.includes('IsClosed = false')) return [];
+      return [
+        {
+          Id: '006000000000001',
+          Account: { Name: 'Example' },
+          Name: 'Example CAD',
+          Amount: 100,
+          CurrencyIsoCode: 'CAD',
+        },
+        {
+          Id: '006000000000002',
+          Account: { Name: 'Example' },
+          Name: 'Example USD',
+          Amount: 200,
+          CurrencyIsoCode: 'USD',
+        },
+      ];
+    },
+  );
+  expect(report.currencyBreakdown?.map((group) => [group.currency, group.netNew.totals.other])).toEqual([
+    ['CAD', 100],
+    ['USD', 200],
+  ]);
+  const text = renderPipelineReport(report, '');
+  expect(text).toContain('Currency: CAD');
+  expect(text).toContain('Currency: USD');
+  expect(text).not.toContain('300.00');
+  const view = presentTool({ name: 'sf_pipeline_report' }).presentation.result(
+    { content: [], details: { pipelineReport: report } },
+    { expanded: false },
+    {},
+  );
+  expect(view.summary).toContain('CAD / USD');
+  expect(JSON.stringify(view.sections)).not.toContain('300.00');
+});

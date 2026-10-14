@@ -145,8 +145,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
       description: 'Verified account',
     }),
     await invoke('sf_query', {
-      query:
-        `SELECT Name, Account.Name, Amount, CurrencyIsoCode, StageName, CloseDate, LastModifiedDate, Owner.Name, NextStep, IsClosed, IsWon, Id FROM Opportunity WHERE AccountId = '${fixtureAccountId}'`,
+      query: `SELECT Name, Account.Name, Amount, CurrencyIsoCode, StageName, CloseDate, LastModifiedDate, Owner.Name, NextStep, IsClosed, IsWon, Id FROM Opportunity WHERE AccountId = '${fixtureAccountId}'`,
       description: 'Recent customer opportunities',
       target_org: 'synthetic',
     }),

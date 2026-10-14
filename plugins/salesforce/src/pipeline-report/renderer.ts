@@ -36,6 +36,19 @@ function fmtQuarterDate(dateStr: string): string {
 }
 
 export function renderPipelineReport(data: PipelineReportData, _instanceUrl: string): string {
+  if (data.currencyBreakdown && data.currencyBreakdown.length > 1) {
+    return [
+      '# Pipeline report by currency',
+      'Amounts remain separate. No combined monetary total is valid. Fiscal-year aggregate bookings have an independently unverified currency basis.',
+      ...(data.fyBookedTotal !== undefined
+        ? [`FY aggregate bookings: ${fmtCurrency(data.fyBookedTotal)} (currency unverified)`]
+        : []),
+      ...data.currencyBreakdown.map(
+        (group) =>
+          `## Currency: ${group.currency}\n\n${renderPipelineReport({ ...data, ...group, currencyBreakdown: undefined, fyBookedTotal: undefined }, _instanceUrl)}`,
+      ),
+    ].join('\n\n');
+  }
   const lines: string[] = [];
 
   lines.push('# F5 Distributed Cloud Pipeline Report');
@@ -55,7 +68,9 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
       `**Open opportunity scope:** CloseDate >= ${data.openScopeStart} (includes dates outside this quarter).`,
     );
   lines.push(
-    '**Amounts:** reported Salesforce values; currency and conversion basis are unverified. Do not interpret as USD or combine different currencies.',
+    data.currency
+      ? `**Amounts:** ${data.currency}, as returned on the records. Fiscal-year aggregate currency is independently unverified.`
+      : '**Amounts:** reported Salesforce values; currency and conversion basis are unverified. Do not interpret as USD or combine different currencies.',
   );
   lines.push(`**Line items:** ${data.lineItemCount} | **SKUs:** ${data.skusFound.length}`);
   lines.push('');

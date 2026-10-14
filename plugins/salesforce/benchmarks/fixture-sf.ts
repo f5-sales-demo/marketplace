@@ -72,7 +72,7 @@ const schema = {
     { childSObject: 'OpportunityLineItem', relationshipName: 'OpportunityLineItems', field: 'OpportunityId' },
   ],
 };
-let result;
+let result: unknown;
 if (args.includes('--version')) {
   console.log('sf synthetic acceptance CLI');
   process.exit(0);

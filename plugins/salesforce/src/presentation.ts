@@ -2,7 +2,12 @@ import { flattenRecord } from './sf/formatters';
 
 type ViewSection =
   | { kind: 'fields'; title?: string; values: Record<string, unknown> }
-  | { kind: 'table'; title?: string; columns: { key: string; label?: string }[]; rows: Record<string, unknown>[] }
+  | {
+      kind: 'table';
+      title?: string;
+      columns: { key: string; label?: string; align?: 'left' | 'right' }[];
+      rows: Record<string, unknown>[];
+    }
   | { kind: 'markdown'; text: string }
   | { kind: 'code'; text: string };
 type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
@@ -48,8 +53,20 @@ function sections(value: unknown, title?: string): ViewSection[] {
         columns: [...new Set(value.flatMap((row) => Object.keys(row)))].map((key) => ({
           key,
           label: labels[key] ?? key,
+          align: ['Amount', 'amount', 'platform', 'shape', 'other', 'quotaTotal'].includes(key)
+            ? ('right' as const)
+            : undefined,
         })),
-        rows: value,
+        rows: value.map((row) =>
+          Object.fromEntries(
+            Object.entries(row).map(([key, cell]) => [
+              key,
+              typeof cell === 'number' && ['Amount', 'amount', 'platform', 'shape', 'other', 'quotaTotal'].includes(key)
+                ? cell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
+                : cell,
+            ]),
+          ),
+        ),
       },
     ];
   }
@@ -140,6 +157,38 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
         if (details?.pipelineReport) {
           const report = details.pipelineReport as Record<string, unknown>;
           const { sourceQueries, ...summaries } = report;
+          if (Array.isArray(report.currencyBreakdown) && report.currencyBreakdown.length > 1) {
+            return {
+              summary: `Pipeline report · ${report.currencyBreakdown.map((group: { currency: string }) => group.currency).join(' / ')} · separate totals`,
+              warnings: [
+                'Currencies remain separate. Combined monetary totals are not valid.',
+                ...(Array.isArray(report.unavailable) ? report.unavailable.map(String) : []),
+                ...(Array.isArray(report.anomalies)
+                  ? report.anomalies.map((anomaly: { message: string }) => anomaly.message)
+                  : []),
+              ],
+              sections: report.currencyBreakdown.flatMap((group: { currency: string }) => [
+                { kind: 'fields' as const, title: `${group.currency} figures`, values: { currency: group.currency } },
+                ...presentTool({ name: 'sf_pipeline_report' }).presentation.result(
+                  {
+                    content: [],
+                    details: {
+                      pipelineReport: {
+                        ...report,
+                        ...group,
+                        sourceQueries: undefined,
+                        currencyBreakdown: undefined,
+                        anomalies: [],
+                        unavailable: [],
+                      },
+                    },
+                  },
+                  options,
+                  args,
+                ).sections,
+              ]),
+            };
+          }
           return {
             summary: `Pipeline report · ${String((report.netNew as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} net new · ${String((report.booked as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} booked · ${String((report.renewals as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} renewals`,
             warnings: [

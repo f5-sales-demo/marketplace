@@ -77,6 +77,7 @@ function parseLineItem(record: Record<string, unknown>, rules: SkuClassification
   const skuName = (product.Name ?? '') as string;
 
   return {
+    currency: typeof opp.CurrencyIsoCode === 'string' ? opp.CurrencyIsoCode : undefined,
     opportunityId: (opp.Id ?? '') as string,
     accountName: (acct.Name ?? '') as string,
     territory: plan.territoryField ? readPath(opp, plan.territoryField) : '',
@@ -472,6 +473,7 @@ export async function generatePipelineReport(
   // Every org-specific field below is named by the plan, never assumed. A field the org does
   // not have is simply absent from the SELECT — naming one fails the entire query.
   const plan = planPipelineQueries(options.capabilities ?? {});
+  const hasCurrency = options.capabilities?.opportunityFields?.includes('CurrencyIsoCode');
 
   const fields = [
     'Product2.Name',
@@ -488,6 +490,7 @@ export async function generatePipelineReport(
     'Opportunity.LastActivityDate',
     'Opportunity.Owner.Name',
     'Opportunity.NextStep',
+    hasCurrency ? 'Opportunity.CurrencyIsoCode' : undefined,
   ]
     .filter((f): f is string => Boolean(f))
     .join(', ');
@@ -522,6 +525,11 @@ export async function generatePipelineReport(
     plan.territoryField,
     'CloseDate',
     'Name',
+    'StageName',
+    'Owner.Name',
+    'NextStep',
+    'LastActivityDate',
+    hasCurrency ? 'CurrencyIsoCode' : undefined,
   ]
     .filter((f): f is string => Boolean(f))
     .join(', ');
@@ -597,7 +605,8 @@ export async function generatePipelineReport(
       if (id) renewalIds.add(id);
     }
     const oppFields =
-      'Id, Name, Account.Name, Amount, ForecastCategoryName, StageName, CloseDate, LastActivityDate, Owner.Name, IsClosed, IsWon';
+      'Id, Name, Account.Name, Amount, ForecastCategoryName, StageName, CloseDate, LastActivityDate, Owner.Name, IsClosed, IsWon' +
+      (hasCurrency ? ', CurrencyIsoCode' : '');
     const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
     const oppDateFilter = staleCutoff
       ? `CloseDate >= ${staleCutoff}`
@@ -623,6 +632,7 @@ export async function generatePipelineReport(
         if (amt <= 0) continue;
         const owner = (r.Owner as Record<string, unknown> | undefined)?.Name;
         items.push({
+          currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
           opportunityId: id,
           accountName: acct,
           territory: '',
@@ -701,6 +711,7 @@ export async function generatePipelineReport(
     }
 
     renewalItems.push({
+      currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
       opportunityId: id,
       accountName: acct,
       territory: terr,
@@ -710,6 +721,10 @@ export async function generatePipelineReport(
       category,
       closeDate: (r.CloseDate as string) ?? undefined,
       oppName: (r.Name as string) ?? undefined,
+      stage: (r.StageName as string) ?? undefined,
+      ownerName: (r.Owner as { Name?: string } | undefined)?.Name,
+      nextStep: (r.NextStep as string) ?? undefined,
+      lastActivityDate: (r.LastActivityDate as string) ?? undefined,
     });
   }
 
@@ -720,6 +735,33 @@ export async function generatePipelineReport(
   }
   // Detect anomalies
   const anomalies = detectAnomalies(netNewItems, bookedItems, renewalItems, skuClassification);
+  const currencies = [
+    ...new Set([...netNewItems, ...bookedItems, ...renewalItems].map((item) => item.currency ?? 'unverified')),
+  ].sort();
+  const currencyBreakdown = currencies.map((currency) => {
+    const selected = (items: LineItemRecord[]) => items.filter((item) => (item.currency ?? 'unverified') === currency);
+    const netNew = selected(netNewItems),
+      booked = selected(bookedItems),
+      renewals = selected(renewalItems);
+    return {
+      currency,
+      netNew: aggregateLineItems(netNew),
+      booked: aggregateLineItems(booked),
+      renewals: aggregateLineItems(renewals),
+      forecast: buildForecast(netNew),
+      topDeals: buildTopDeals(netNew),
+      topRenewals: buildTopDeals(renewals),
+      closeDistribution: buildCloseDistribution(netNew),
+      renewalDistribution: buildCloseDistribution(renewals),
+    };
+  });
+  if (currencies.length > 1)
+    anomalies.push({
+      severity: 'warning',
+      category: 'mixed_currencies',
+      message:
+        'Returned records span currencies. Use the separate currency tables; combined monetary totals are not valid.',
+    });
   if (oliRecords.length === 0 && (netNewItems.length || bookedItems.length))
     anomalies.push({
       severity: 'warning',
@@ -750,5 +792,7 @@ export async function generatePipelineReport(
     recentChanges: parseHistoryRecords(historyRecords),
     unavailable: plan.unavailable,
     sourceQueries,
+    currency: currencies.length === 1 && currencies[0] !== 'unverified' ? currencies[0] : undefined,
+    currencyBreakdown,
   };
 }
