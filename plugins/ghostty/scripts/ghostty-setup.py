@@ -334,9 +334,9 @@ def _install_apt(package: str) -> None:
 def _find_executable() -> str | None:
     found = shutil.which("ghostty")
     if found:
-        return str(pathlib.Path(found).resolve())
+        return str(pathlib.Path(found).absolute())
     snap = pathlib.Path("/snap/bin/ghostty")
-    return str(snap.resolve()) if snap.exists() else None
+    return str(snap) if snap.exists() else None
 
 
 def _dpkg_identity(

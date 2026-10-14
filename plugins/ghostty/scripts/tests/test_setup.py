@@ -46,6 +46,35 @@ class ReleasedVersionTests(unittest.TestCase):
         self.assertNotEqual(payload.get("reason"), "plugin_version_mismatch")
 
 
+class SnapInvocationTests(unittest.TestCase):
+    def test_snap_launcher_keeps_ghostty_invocation_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            dispatcher = root / "snap"
+            dispatcher.write_text("#!/bin/sh\n")
+            dispatcher.chmod(0o755)
+            launcher = root / "ghostty"
+            launcher.symlink_to(dispatcher)
+
+            def command(
+                argv: list[str], **_kwargs: object
+            ) -> subprocess.CompletedProcess[str]:
+                if argv == [str(launcher), "+version"]:
+                    return subprocess.CompletedProcess(argv, 0, "Ghostty 1.3.1", "")
+                return subprocess.CompletedProcess(argv, 1, "", "")
+
+            with (
+                patch.object(setup.shutil, "which", return_value=str(launcher)),
+                patch.object(setup, "_command", side_effect=command) as execute,
+            ):
+                installed = setup.inspect_installation()
+            self.assertIsNotNone(installed)
+            self.assertEqual(installed.executable, str(launcher))
+            self.assertEqual(
+                execute.call_args_list[0].args[0], [str(launcher), "+version"]
+            )
+
+
 class PlatformAndInstallTests(unittest.TestCase):
     def test_ubuntu_2404_architectures_map_to_published_names(self):
         os_release = 'ID=ubuntu\nVERSION_ID="24.04"\n'
