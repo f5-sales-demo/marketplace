@@ -43,7 +43,7 @@
     "mode": "integrated",
     "integrations": ["salesforce"],
     "requirements": [
-      "xcsh 22.4.6 or later (shared host/software API)",
+      "xcsh 23.4.2 or later (shared themed tool presentation)",
       "Salesforce CLI",
       "An authenticated default Salesforce org"
     ],
@@ -51,5 +51,5 @@
     "collectedData": ["accounts", "identifiers", "business_profile"],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.4.1"
+  "minimumRuntimeVersion": "23.4.2"
 }

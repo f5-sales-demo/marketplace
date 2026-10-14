@@ -1,6 +1,8 @@
 # Plugin presentation acceptance
 
-The full 23-plugin catalog requires xcsh 23.4.1. Executable plugins provide
+The full 23-plugin catalog uses the shared presentation API introduced in xcsh
+23.4.1. The complete Salesforce pilot requires xcsh 23.4.2, including the shared
+XC-API-style thin frames. Executable plugins provide
 presentation data; xcsh owns terminal layout, preview policy, theme and fallback
 rendering. Content and integration plugins use the shared message and lifecycle
 surfaces.
@@ -28,6 +30,11 @@ The shared renderer's regression suite and synthetic ANSI captures are in
 renderer failures, Unicode, tables and lifecycle/setup controls.
 
 ## Salesforce acceptance
+
+The 14 synthetic scenarios in `plugins/salesforce/benchmarks/prompts.json` cover
+project evidence, account ambiguity, opportunity details, all six tools, partial
+results, unavailable orgs and the read-only guard. Use the fixture Salesforce CLI
+for those scenarios; it does not provision or modify infrastructure.
 
 Use identical model, theme, Salesforce context and viewport for installed,
 Bun development and packaged comparisons. Live reads:

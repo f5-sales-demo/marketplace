@@ -13,6 +13,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 EXPECTED_XCSH="23.4.1"
+EXPECTED_SALESFORCE_XCSH="23.4.2"
 EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
@@ -109,7 +110,11 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
-  expected_xcsh_range=">=$EXPECTED_XCSH"
+  if [ "$plugin" = "salesforce" ]; then
+    expected_xcsh="$EXPECTED_SALESFORCE_XCSH"
+    expected_pi_utils="$EXPECTED_SALESFORCE_XCSH"
+  fi
+  expected_xcsh_range=">=$expected_xcsh"
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
     "$expected_xcsh_range" "$plugin xcsh peer range"
   require_json_value "$package_json" '.devDependencies["@sinclair/typebox"]' \
@@ -122,7 +127,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   fi
 
   if [ "$plugin" = "salesforce" ]; then
-    require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$EXPECTED_XCSH" "Salesforce pinned development runtime"
+    require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$EXPECTED_SALESFORCE_XCSH" "Salesforce pinned development runtime"
   fi
 
   require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"

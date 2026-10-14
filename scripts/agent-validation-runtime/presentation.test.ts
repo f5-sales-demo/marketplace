@@ -95,7 +95,10 @@ describe('full marketplace presentation through installed-plugin discovery', () 
       for (const plugin of catalog.plugins) {
         const manifest = await Bun.file(join(root, plugin.source, '.xcsh-plugin', 'plugin.json')).json();
         expect(manifest.lifecycle).toBeDefined();
-        expect(manifest.minimumRuntimeVersion).toBe(runtime.version);
+        const minimumRuntime = plugin.name === 'salesforce' ? '23.4.2' : '23.4.1';
+        expect(manifest.minimumRuntimeVersion).toBe(minimumRuntime);
+        expect(plugin.minimumRuntimeVersion).toBe(minimumRuntime);
+        expect(runtime.version).toBe('23.4.2');
         const message = new CustomMessageComponent({
           customType: plugin.name,
           content: `**${plugin.name}**\n\n| Status | Total |\n| --- | ---: |\n| ready | 0 |`,
