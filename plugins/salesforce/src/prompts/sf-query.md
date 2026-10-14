@@ -15,12 +15,25 @@ Use for ad-hoc data queries, account intelligence, and one-off investigations.
 When asked to analyze local project files and find account opportunities, complete the evidence chain:
 
 1. Read relevant account briefs, source registers and qualification documents. Extract the legal customer name, jurisdiction, aliases and any recorded Salesforce account ID. Cite local filenames; distinguish historical documents from current Salesforce facts. Do not send whole private files to Salesforce.
-2. Verify the account in the selected org using its ID when available, or search by name and aliases. Escape SOQL string literals (backslashes and apostrophes). Compare returned names and available identifiers to the project evidence. An acronym alone is insufficient. If multiple plausible accounts remain, show the candidates and obtain disambiguation before reporting one account's opportunities as the answer.
+2. Verify the account in the selected org using its ID when available, or search by name and aliases. Escape
+   SOQL string literals (backslashes and apostrophes). Compare returned names and available identifiers to the
+   project evidence. An acronym alone is insufficient. If multiple plausible accounts remain, show the
+   candidates and obtain disambiguation before reporting one account's opportunities as the answer.
 3. Query opportunities by verified AccountId. A specific customer investigation is account-scoped, not automatically restricted to the user's OpportunityTeamMember records. Keep org and account scope consistent across describe and query calls.
-4. Define "recent" explicitly. When unspecified, use LastModifiedDate in the last 90 days as an initial window, report that assumption, and distinguish created, modified, activity and close dates. If no matches appear, state zero for that window and optionally widen it with an explicit new scope. Future close dates alone do not establish recency; do not silently filter away closed opportunities unless requested.
-5. Establish Distributed Cloud relevance from opportunity names plus discovered product/segmentation fields or related product line items. Inspect relevant schema with sf_describe first; only query filterable fields in WHERE. Do not equate every account opportunity or Amount with XC revenue. Label name-only inference, missing line items and unresolved product attribution. Do not invent a custom field or SKU.
+4. Define "recent" explicitly. When unspecified, use LastModifiedDate in the last 90 days as an initial
+   window, report that assumption, and distinguish created, modified, activity and close dates. If no matches
+   appear, state zero for that window and optionally widen it with an explicit new scope. Future close dates
+   alone do not establish recency; do not silently filter away closed opportunities unless requested.
+5. Establish Distributed Cloud relevance from opportunity names plus discovered product/segmentation fields or
+   related product line items. Inspect relevant schema with sf_describe first; only query filterable fields in
+   WHERE. Do not equate every account opportunity or Amount with XC revenue. Label name-only inference,
+   missing line items and unresolved product attribution. Do not invent a custom field or SKU.
 6. Return opportunity name/link, stage, amount with verified currency, owner, close date, recency date, and product evidence when available. Confirm CurrencyIsoCode through describe before selecting it; for single-currency orgs, inspect the org currency or label currency unverified. Keep different currencies separate. Preserve zero, false and null: null means not populated, not zero or no risk.
-7. End with coverage: files reviewed, verified account/org, date window, returned record count, query LIMIT or incomplete pages, product evidence and unresolved questions. A complete API page with LIMIT is complete only within that query. Zero results is not proof that no opportunity exists outside the queried scope. Recover schema errors by describing and retrying a confirmed field; report permission/network failures as unavailable, never as zero.
+7. End with coverage: files reviewed, verified account/org, date window, returned record count, query LIMIT or
+   incomplete pages, product evidence and unresolved questions. A complete API page with LIMIT is complete
+   only within that query. Zero results is not proof that no opportunity exists outside the queried scope.
+   Recover schema errors by describing and retrying a confirmed field; report permission/network failures as
+   unavailable, never as zero.
 
 Keep the answer focused on the customer's request. Multiline strings are JSON-escaped in model-facing tables; render their line breaks as readable prose or separate lines in the answer, without literal escape sequences or HTML tags. Do not replace an account investigation with a generic personal pipeline report, and do not propose record changes unless requested.
 

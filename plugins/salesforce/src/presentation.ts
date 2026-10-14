@@ -37,6 +37,19 @@ function incompleteChildren(value: unknown): boolean {
   return Object.values(value).some(incompleteChildren);
 }
 
+function commandSections(args: unknown): ViewSection[] {
+  const argv = (args as { args?: string[] })?.args;
+  if (!Array.isArray(argv)) return [];
+  return [
+    {
+      kind: 'code',
+      text: ['sf', ...argv]
+        .map((arg) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "'\\''")}'`))
+        .join(' '),
+    },
+  ];
+}
+
 /** Domain data only: xcsh owns terminal layout, preview policy and the active theme. */
 function sections(value: unknown, title?: string): ViewSection[] {
   if (value === undefined) return [];
@@ -90,25 +103,19 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
         const params = args as { args?: string[] };
         return {
           summary: tool.label ?? tool.name,
-          sections:
-            tool.name === 'sf_exec' && Array.isArray(params?.args)
-              ? [
-                  {
-                    kind: 'code' as const,
-                    text: ['sf', ...params.args]
-                      .map((arg) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "'\\''")}'`))
-                      .join(' '),
-                  },
-                ]
-              : sections(args),
+          sections: tool.name === 'sf_exec' && Array.isArray(params?.args) ? commandSections(args) : sections(args),
         };
       },
       result: (result: Result, options: { expanded: boolean }, args: unknown): View => {
+        const command = tool.name === 'sf_exec' ? commandSections(args) : [];
         if (result.isError)
           return {
-            sections: result.content
-              .filter((block) => block.type === 'text')
-              .map((block) => ({ kind: 'markdown' as const, text: block.text ?? '' })),
+            sections: [
+              ...result.content
+                .filter((block) => block.type === 'text')
+                .map((block) => ({ kind: 'markdown' as const, text: block.text ?? '' })),
+              ...command,
+            ],
           };
         const details = result.details as Record<string, unknown> | undefined;
         if (details?.queryResult) {
@@ -167,31 +174,46 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
                   ? report.anomalies.map((anomaly: { message: string }) => anomaly.message)
                   : []),
               ],
-              sections: report.currencyBreakdown.flatMap((group: { currency: string }) => [
-                { kind: 'fields' as const, title: `${group.currency} figures`, values: { currency: group.currency } },
-                ...presentTool({ name: 'sf_pipeline_report' }).presentation.result(
-                  {
-                    content: [],
-                    details: {
-                      pipelineReport: {
-                        ...report,
-                        ...group,
-                        sourceQueries: undefined,
-                        currencyBreakdown: undefined,
-                        anomalies: [],
-                        unavailable: [],
+              sections: [
+                ...(report.fyBookedTotal !== undefined
+                  ? [
+                      {
+                        kind: 'fields' as const,
+                        title: 'FY aggregate bookings',
+                        values: { reportedAmount: report.fyBookedTotal, currency: 'unverified' },
+                      },
+                    ]
+                  : []),
+                ...report.currencyBreakdown.flatMap((group: { currency: string }) => [
+                  { kind: 'fields' as const, title: `${group.currency} figures`, values: { currency: group.currency } },
+                  ...presentTool({ name: 'sf_pipeline_report' }).presentation.result(
+                    {
+                      content: [],
+                      details: {
+                        pipelineReport: {
+                          ...report,
+                          ...group,
+                          sourceQueries: undefined,
+                          currencyBreakdown: undefined,
+                          fyBookedTotal: undefined,
+                          anomalies: [],
+                          unavailable: [],
+                        },
                       },
                     },
-                  },
-                  options,
-                  args,
-                ).sections,
-              ]),
+                    options,
+                    args,
+                  ).sections,
+                ]),
+              ],
             };
           }
           return {
             summary: `Pipeline report · ${String((report.netNew as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} net new · ${String((report.booked as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} booked · ${String((report.renewals as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} renewals`,
             warnings: [
+              ...(report.fyBookedTotal !== undefined
+                ? ['FY aggregate booking currency is independently unverified.']
+                : []),
               ...(Array.isArray(report.unavailable) ? report.unavailable.map(String) : []),
               ...(Array.isArray(report.anomalies)
                 ? report.anomalies.map((anomaly: { message: string }) => anomaly.message)
@@ -220,11 +242,13 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
                       values: {
                         generated: report.generated,
                         quarter: report.quarter,
+                        openScopeStart: report.openScopeStart,
+                        currency: report.currency ?? 'unverified',
                         scope: 'OpportunityTeamMember membership',
                         teamMembers: report.teamMembers,
                         territories: report.territories,
                         lineItemCount: report.lineItemCount,
-                        fyBookedTotal: report.fyBookedTotal,
+                        ...(report.fyBookedTotal !== undefined ? { fyBookedTotal: report.fyBookedTotal } : {}),
                       },
                     },
                     ...sections(report.forecast, 'Forecast'),
@@ -326,6 +350,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
               ...view,
               warnings: [...(view.warnings ?? []), ...(envelope.warnings ?? [])],
               sections: [
+                ...command,
                 ...view.sections,
                 ...result.content
                   .filter((other) => other !== block && other.type === 'text')
@@ -353,15 +378,18 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
             })
             .filter(Boolean)
             .join(', '),
-          sections: result.content
-            .filter((block) => block.type === 'text')
-            .flatMap((block) => {
-              try {
-                return sections(JSON.parse(block.text ?? ''));
-              } catch {
-                return [{ kind: 'markdown' as const, text: block.text ?? '(no output)' }];
-              }
-            }),
+          sections: [
+            ...command,
+            ...result.content
+              .filter((block) => block.type === 'text')
+              .flatMap((block) => {
+                try {
+                  return sections(JSON.parse(block.text ?? ''));
+                } catch {
+                  return [{ kind: 'markdown' as const, text: block.text ?? '(no output)' }];
+                }
+              }),
+          ],
         };
       },
     },

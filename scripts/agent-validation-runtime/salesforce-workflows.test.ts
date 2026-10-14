@@ -167,6 +167,8 @@ test('project account lookup, ambiguity, opportunities and scope render through 
     for (const theme of ['xcsh-dark', 'xcsh-light']) {
       expect((await setTheme(theme)).success).toBe(true);
       for (const { tool, result, args } of cases) {
+        if (!String((args as { query?: string }).query ?? '').includes('DefinitelyMissingDemoField__c'))
+          expect(result.isError).not.toBe(true);
         const view = component(tool, result, args);
         for (const width of [40, 76, 120, 153]) {
           const collapsed = plain(view.render(width));
@@ -188,7 +190,8 @@ test('project account lookup, ambiguity, opportunities and scope render through 
           }
           if (tool.name === 'sf_describe') expect(expanded).toContain('SyntheticProduct64__c');
           if (tool.name === 'sf_org_display') expect(expanded).not.toContain('SYNTHETIC_SECRET_SENTINEL');
-          if (tool.name === 'sf_pipeline_report') expect(expanded).toContain('FINAL_OPPORTUNITY');
+          if (tool.name === 'sf_pipeline_report')
+            expect(expanded.replace(/[\s│|]/g, '')).toContain('FINAL_OPPORTUNITY');
           view.setExpanded(false);
         }
       }
