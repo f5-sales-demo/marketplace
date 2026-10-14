@@ -62,7 +62,7 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
           instanceUrl: String(raw.instanceUrl ?? ''),
           connectedStatus: String(raw.connectedStatus ?? 'Connected'),
           alias: raw.alias ? String(raw.alias) : undefined,
-          isDefault: false,
+          ...(typeof raw.isDefaultUsername === 'boolean' ? { isDefault: raw.isDefaultUsername } : {}),
           isSandbox: Boolean(raw.isSandbox ?? false),
         };
 

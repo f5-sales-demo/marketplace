@@ -103,6 +103,16 @@ test('help command failure remains an error', async () => {
   expect(result.content[0].text).toContain('Unknown command');
 });
 
+test('org display does not invent a false default-org flag when the CLI omits it', async () => {
+  const tool = createSfOrgDisplayTool(pi, () => ({
+    exec: async () =>
+      raw({ username: 'example@example.com', instanceUrl: 'https://example.com', id: '00D000000000000' }),
+  }));
+  const result = await tool.execute('org-default-evidence', {}, undefined, undefined, context);
+  expect(result.isError).not.toBe(true);
+  expect(result.details.orgs?.[0]?.isDefault).toBeUndefined();
+});
+
 test('pipeline failures and partial pages never report successful zero totals', async () => {
   configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000001' } }));
   configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
