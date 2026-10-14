@@ -38,7 +38,7 @@ test_plugin_metadata_is_consistent() {
     echo "marketplace version is $marketplace_version"
     return 1
   }
-  jq -e '.peerDependencies["@f5-sales-demo/xcsh"] == ">=21.38.1"' "$package_json" >/dev/null
+  jq -e '.peerDependencies["@f5-sales-demo/xcsh"] == ">=23.4.1"' "$package_json" >/dev/null
 }
 
 test_expected_runtime_files_exist() {

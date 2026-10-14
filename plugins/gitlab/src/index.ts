@@ -1,4 +1,5 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import { presentTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface GitLabUser {
@@ -132,11 +133,11 @@ const factory: ExtensionFactory = async (pi) => {
     const { createGlabSearchTool } = await import('./tools/glab-search');
     const { createGlabHelpTool } = await import('./tools/glab-help');
     const { createGlabExecTool } = await import('./tools/glab-exec');
-    pi.registerTool(withErrorType(createGlabIssueListTool(pi)));
-    pi.registerTool(withErrorType(createGlabIssueViewTool(pi)));
-    pi.registerTool(withErrorType(createGlabSearchTool(pi)));
-    pi.registerTool(withErrorType(createGlabHelpTool(pi)));
-    pi.registerTool(withErrorType(createGlabExecTool(pi)));
+    pi.registerTool(presentTool(withErrorType(createGlabIssueListTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGlabIssueViewTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGlabSearchTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGlabHelpTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGlabExecTool(pi))));
   }
 
   if (glabAvailable && typeof pi.on === 'function') {

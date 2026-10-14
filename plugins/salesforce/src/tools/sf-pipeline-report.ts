@@ -104,7 +104,7 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
       const profile = await readPersonFacts();
       const sfContext = await loadSalesforceContext();
 
-      const userId = profile.identifiers?.salesforceId;
+      const userId = profile.identifiers?.salesforceId ?? sfContext?.userId;
       if (!userId) {
         return {
           content: [

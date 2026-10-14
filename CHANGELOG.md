@@ -10,6 +10,52 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`docs-tools`** v1.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`sales-engineer`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`docs-pipeline`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`brand`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`meddpicc`** v7.7.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`devcontainer`** v1.3.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`platform`** v6.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`osint-framework`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`firecrawl`** v1.3.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`salesforce`** v2.1.0 adds immediate aggregate values, aligned pipeline tables, readable errors and exact command previews; pipeline identity falls back to the authenticated context. Requires xcsh 23.4.1 (#1524, #1525).
+
+- **`cloudstatus`** v1.8.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`azure`** v4.5.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`aws`** v2.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`kvm`** v3.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`gcloud`** v1.4.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`gitlab`** v1.4.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`github`** v3.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`herdr`** v1.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`asm-migration`** v2.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`terraform`** v2.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`xorg`** v1.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`zoom`** v1.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
+- **`ghostty`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
+
 - **`osint-framework`** bumped to v1.0.11
 
 - **`meddpicc`** bumped to v7.6.4

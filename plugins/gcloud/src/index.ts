@@ -1,4 +1,5 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import { presentTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface GcloudContext {
@@ -158,12 +159,12 @@ const factory: ExtensionFactory = async (pi) => {
     const { createGcloudExecTool } = await import('./tools/gcloud-exec');
     const { createGcloudHelpTool } = await import('./tools/gcloud-help');
 
-    pi.registerTool(withErrorType(createGcloudConfigListTool(pi)));
-    pi.registerTool(withErrorType(createGcloudProjectsListTool(pi)));
-    pi.registerTool(withErrorType(createGcloudComputeInstancesListTool(pi)));
-    pi.registerTool(withErrorType(createGcloudStorageBucketsListTool(pi)));
-    pi.registerTool(withErrorType(createGcloudExecTool(pi)));
-    pi.registerTool(withErrorType(createGcloudHelpTool(pi)));
+    pi.registerTool(presentTool(withErrorType(createGcloudConfigListTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGcloudProjectsListTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGcloudComputeInstancesListTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGcloudStorageBucketsListTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGcloudExecTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createGcloudHelpTool(pi))));
   }
 
   // Before agent start: inject gcloud config context

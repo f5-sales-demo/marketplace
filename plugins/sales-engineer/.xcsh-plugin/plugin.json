@@ -1,7 +1,7 @@
 {
   "name": "sales-engineer",
-  "description": "Sales Engineer persona framework for F5 XC demo repositories \u2014 demo execution, environment operations, presentation, Q&A, post-session debrief",
-  "version": "1.0.15",
+  "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
+  "version": "1.1.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
   "license": "Apache-2.0",
   "author": {
@@ -30,5 +30,5 @@
     "collectedData": [],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.0.3"
+  "minimumRuntimeVersion": "23.4.1"
 }

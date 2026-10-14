@@ -1,4 +1,5 @@
 import type { PluginInterface } from './az/types';
+import { presentTool } from './presentation';
 
 interface IntegrationSnapshot<T> {
   state: 'ready' | 'setup_required' | 'unavailable' | 'degraded' | 'rate_limited' | 'error';
@@ -158,21 +159,21 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAzureCeDiagnoseTool } = await import('./tools/azure-ce-diagnose');
     const { createAzureCloudInitAnalyzeTool } = await import('./tools/azure-cloud-init-analyze');
 
-    pi.registerTool(createAzAccountShowTool(pi));
-    pi.registerTool(createAzGroupListTool(pi));
-    pi.registerTool(createAzResourceListTool(pi));
-    pi.registerTool(createAzVmListTool(pi));
-    pi.registerTool(createAzResourceGraphQueryTool(pi));
-    pi.registerTool(createAzActivityLogListTool(pi));
-    pi.registerTool(createAzureCeInventoryTool(pi));
-    pi.registerTool(createAzExecTool(pi));
-    pi.registerTool(createAzHelpTool(pi));
-    pi.registerTool(createAzureComputeDiscoverTool(pi));
-    pi.registerTool(createAzureCePlanTool(pi));
-    pi.registerTool(createAzureCeApplyTool(pi));
-    pi.registerTool(createAzureCeStatusTool(pi));
-    pi.registerTool(createAzureCeDiagnoseTool(pi));
-    pi.registerTool(createAzureCloudInitAnalyzeTool(pi));
+    pi.registerTool(presentTool(createAzAccountShowTool(pi)));
+    pi.registerTool(presentTool(createAzGroupListTool(pi)));
+    pi.registerTool(presentTool(createAzResourceListTool(pi)));
+    pi.registerTool(presentTool(createAzVmListTool(pi)));
+    pi.registerTool(presentTool(createAzResourceGraphQueryTool(pi)));
+    pi.registerTool(presentTool(createAzActivityLogListTool(pi)));
+    pi.registerTool(presentTool(createAzureCeInventoryTool(pi)));
+    pi.registerTool(presentTool(createAzExecTool(pi)));
+    pi.registerTool(presentTool(createAzHelpTool(pi)));
+    pi.registerTool(presentTool(createAzureComputeDiscoverTool(pi)));
+    pi.registerTool(presentTool(createAzureCePlanTool(pi)));
+    pi.registerTool(presentTool(createAzureCeApplyTool(pi)));
+    pi.registerTool(presentTool(createAzureCeStatusTool(pi)));
+    pi.registerTool(presentTool(createAzureCeDiagnoseTool(pi)));
+    pi.registerTool(presentTool(createAzureCloudInitAnalyzeTool(pi)));
   }
 
   if (typeof pi.on === 'function') {

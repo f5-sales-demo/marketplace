@@ -17,6 +17,9 @@ import {
   parseZoomToolInput,
 } from '../plugins/zoom/extensions/integration';
 
+const xorgVersion = (
+  await Bun.file(join(import.meta.dir, '..', 'plugins', 'xorg', '.xcsh-plugin', 'plugin.json')).json()
+).version as string;
 const originalZoomStateDirectory = process.env.XCSH_ZOOM_STATE_DIR;
 const zoomStateDirectory = mkdtempSync(join(tmpdir(), 'xcsh-zoom-test-state-'));
 process.env.XCSH_ZOOM_STATE_DIR = zoomStateDirectory;
@@ -1255,7 +1258,7 @@ describe('provider integration lifecycle', () => {
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.9' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: xorgVersion })],
         timeoutMs: 900000,
       },
     ]);
@@ -1267,7 +1270,7 @@ describe('provider integration lifecycle', () => {
           'setup',
           'status',
           '--params',
-          JSON.stringify({ expected_version: '1.1.9' }),
+          JSON.stringify({ expected_version: xorgVersion }),
         ],
         timeoutMs: 30000,
       },
@@ -1282,7 +1285,9 @@ describe('provider integration lifecycle', () => {
           stderr: new Uint8Array(),
         } as ReturnType<typeof Bun.spawnSync>;
       calls.push(command);
-      const result = command.includes('capabilities') ? { version: '1.1.9' } : { state: 'ready', version: '1.1.9' };
+      const result = command.includes('capabilities')
+        ? { version: xorgVersion }
+        : { state: 'ready', version: xorgVersion };
       return {
         exitCode: 0,
         stdout: new TextEncoder().encode(JSON.stringify({ ok: true, result })),
@@ -1293,7 +1298,7 @@ describe('provider integration lifecycle', () => {
       expect(await definition.probe()).toMatchObject({ state: 'ready' });
       expect(calls).toEqual([
         [installedLauncher, '--json', 'capabilities'],
-        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.9' })],
+        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: xorgVersion })],
       ]);
     } finally {
       spawn.mockRestore();
@@ -1306,7 +1311,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.1.9' }),
+      JSON.stringify({ expected_version: xorgVersion }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1318,8 +1323,12 @@ describe('provider integration lifecycle', () => {
       };
     };
     expect(payload.ok).toBe(true);
-    expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.1.9');
+    if (process.platform === 'linux') expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
+    else {
+      expect(payload.result.platform).toEqual({ id: 'unknown', version_id: 'unknown' });
+      expect(payload.result.state).toBe('degraded');
+    }
+    expect(payload.result.version).toBe(xorgVersion);
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
@@ -1954,4 +1963,46 @@ describe('provider integration lifecycle', () => {
       spawn.mockRestore();
     }
   });
+});
+
+describe('catalog tool presentation mappings', () => {
+  for (const plugin of [
+    'salesforce',
+    'platform',
+    'aws',
+    'azure',
+    'gcloud',
+    'github',
+    'gitlab',
+    'kvm',
+    'asm-migration',
+    'xorg',
+    'zoom',
+  ]) {
+    it(`${plugin} maps all registered tools without runtime renderer imports`, async () => {
+      const definitions = await definitionsFor(plugin, true);
+      expect(definitions.tools.length).toBeGreaterThan(0);
+      if (plugin === 'salesforce') expect(definitions.tools).toHaveLength(6);
+      for (const tool of definitions.tools) {
+        const presentation = (
+          tool as typeof tool & { presentation: { call(args: unknown): unknown; result(result: unknown): unknown } }
+        ).presentation;
+        expect(presentation).toBeDefined();
+        expect(presentation.call({ count: 0, enabled: false })).toBeDefined();
+        expect(
+          presentation.result({
+            content: [{ type: 'text', text: '{"records":[{"total":0,"enabled":false,"missing":null}]}' }],
+          }),
+        ).toBeDefined();
+        expect(
+          JSON.stringify(
+            presentation.result({
+              isError: true,
+              content: [{ type: 'text', text: 'Corrective guidance for a synthetic invalid field' }],
+            }),
+          ),
+        ).toContain('Corrective guidance');
+      }
+    });
+  }
 });

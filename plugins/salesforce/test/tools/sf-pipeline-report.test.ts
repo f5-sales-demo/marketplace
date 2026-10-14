@@ -73,3 +73,31 @@ describe('sf_pipeline_report execute — validation', () => {
     }
   });
 });
+
+it('uses the verified integration user ID when the legacy profile identifier is absent', async () => {
+  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
+  const calls: string[][] = [];
+  const tool = createSfPipelineReportTool(mockPi, () => ({
+    exec: async (_command, args) => {
+      calls.push(args);
+      return { stdout: JSON.stringify({ status: 0, result: { records: [] } }), stderr: '', exitCode: 0 };
+    },
+  }));
+  const result = await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });
+  expect(result.isError).not.toBe(true);
+  expect(calls.flat().join(' ')).toContain('005000000000001');
+});
+it('keeps an explicit profile identifier ahead of the integration identity', async () => {
+  configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000002' } }));
+  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
+  const calls: string[][] = [];
+  const tool = createSfPipelineReportTool(mockPi, () => ({
+    exec: async (_command, args) => {
+      calls.push(args);
+      return { stdout: JSON.stringify({ status: 0, result: { records: [] } }), stderr: '', exitCode: 0 };
+    },
+  }));
+  await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });
+  expect(calls.flat().join(' ')).toContain('005000000000002');
+  expect(calls.flat().join(' ')).not.toContain('005000000000001');
+});

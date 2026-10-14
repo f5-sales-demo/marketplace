@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import { presentTool } from './presentation';
 
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
@@ -14,7 +15,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.1.9';
+const VERSION = '1.2.0';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
@@ -70,29 +71,31 @@ export default function xorgIntegration(pi: ExtensionApi) {
       }
     },
   });
-  pi.registerTool({
-    name: 'xorg_desktop',
-    label: 'Xorg desktop',
-    description:
-      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Setup readiness is reported by setup/status. Supported discovery includes window/list, inspect/accessibility, screenshot/screenshot, and input/batch.',
-    parameters: pi.typebox.Type.Object({
-      session: pi.typebox.Type.Optional(pi.typebox.Type.String()),
-      command: pi.typebox.Type.String(),
-      action: pi.typebox.Type.String(),
-      params: pi.typebox.Type.Record(pi.typebox.Type.String(), pi.typebox.Type.Unknown()),
+  pi.registerTool(
+    presentTool({
+      name: 'xorg_desktop',
+      label: 'Xorg desktop',
+      description:
+        'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Setup readiness is reported by setup/status. Supported discovery includes window/list, inspect/accessibility, screenshot/screenshot, and input/batch.',
+      parameters: pi.typebox.Type.Object({
+        session: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+        command: pi.typebox.Type.String(),
+        action: pi.typebox.Type.String(),
+        params: pi.typebox.Type.Record(pi.typebox.Type.String(), pi.typebox.Type.Unknown()),
+      }),
+      async execute(
+        _toolCallId: string,
+        input: { session?: string; command: string; action?: string; params?: Record<string, unknown> },
+      ) {
+        const r = invoke(input.session, [
+          input.command,
+          ...(input.action ? [input.action] : []),
+          '--params',
+          JSON.stringify(input.params ?? {}),
+        ]);
+        const details = { exitCode: r.exitCode, output: new TextDecoder().decode(r.stdout) };
+        return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
+      },
     }),
-    async execute(
-      _toolCallId: string,
-      input: { session?: string; command: string; action?: string; params?: Record<string, unknown> },
-    ) {
-      const r = invoke(input.session, [
-        input.command,
-        ...(input.action ? [input.action] : []),
-        '--params',
-        JSON.stringify(input.params ?? {}),
-      ]);
-      const details = { exitCode: r.exitCode, output: new TextDecoder().decode(r.stdout) };
-      return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
-    },
-  });
+  );
 }
