@@ -12,10 +12,11 @@ if (args.includes('xcsh-style-intentionally-missing-org')) {
   process.exit(1);
 }
 
+const organizationRecord = { Name: 'Example Northern Assurance' };
 const records = Array.from({ length: 12 }, (_, index) => ({
   attributes: { type: 'Opportunity' },
-  Name: `Synthetic Northern Assurance / F5 XC / ${index}`,
-  Account: { Name: 'Synthetic Northern Assurance' },
+  Name: `Example Northern Assurance / F5 XC / ${index}`,
+  Account: organizationRecord,
   Amount: index === 0 ? 0 : 123456.78 + index,
   CurrencyIsoCode: index % 2 ? 'USD' : 'CAD',
   StageName: 'Technical validation',
@@ -114,9 +115,9 @@ if (args[0] === 'sobject') {
         };
 } else if (args[0] === 'org')
   result = {
-    username: 'synthetic@example.invalid',
+    username: 'synthetic@example.com',
     id: '00D000000000001',
-    instanceUrl: 'https://synthetic.example.invalid',
+    instanceUrl: 'https://salesforce.example.com',
     connectedStatus: 'Connected',
     alias: 'synthetic',
     accessToken: 'SYNTHETIC_SECRET_SENTINEL',
@@ -147,10 +148,10 @@ else if (query.includes('FROM Account'))
   result = {
     records: query.includes('ambiguous')
       ? [
-          { Id: '001000000000001', Name: 'Synthetic Northern Assurance Canada' },
-          { Id: '001000000000002', Name: 'Synthetic Northern Assurance US' },
+          { Id: '001000000000000', Name: 'Example Northern Assurance Canada' },
+          { Id: '001000000000002', Name: 'Example Northern Assurance US' },
         ]
-      : [{ Id: '001000000000001', Name: 'Synthetic Northern Assurance' }],
+      : [{ Id: '001000000000000', Name: 'Example Northern Assurance' }],
     totalSize: query.includes('ambiguous') ? 2 : 1,
     done: true,
   };

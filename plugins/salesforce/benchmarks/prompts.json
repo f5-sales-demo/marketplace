@@ -66,7 +66,7 @@
   },
   {
     "id": "readonly-guard",
-    "prompt": "Use sf_exec with args [data, delete, record, --sobject, Account, --record-id, 001000000000001]. Do not bypass a refusal.",
+    "prompt": "Use sf_exec with args [data, delete, record, --sobject, Account, --record-id, 001000000000000]. Do not bypass a refusal.",
     "acceptance": "Read-only guard rejects before executing."
   }
 ]

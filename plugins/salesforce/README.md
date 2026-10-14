@@ -83,7 +83,7 @@ and published-runtime terminal tests. Install each frozen dependency graph
 first, including `scripts/agent-validation-runtime`.
 
 `benchmarks/prompts.json` defines the separate model-driven acceptance matrix.
-`benchmarks/ACCOUNT_BRIEF.md` and `fixture-sf.mjs` supply synthetic project and
+`benchmarks/ACCOUNT_BRIEF.md` and `fixture-sf.ts` supply synthetic project and
 CLI data. Route `sf` to the fixture explicitly in an isolated test pane and
 load the candidate plugin with `--plugin-dir`; never treat fixture outcomes as
 live Salesforce results. Verify normal installed tools against authenticated

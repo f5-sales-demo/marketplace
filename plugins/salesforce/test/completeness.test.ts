@@ -218,7 +218,7 @@ test('a different target org discovers its own identity and schema before report
     exec: async (_command, args) => {
       calls.push(args);
       if (args[0] === 'org')
-        return raw({ username: 'synthetic@example.invalid', instanceUrl: 'https://second.example.invalid' });
+        return raw({ username: 'synthetic@example.com', instanceUrl: 'https://second.example.com' });
       if (args[0] === 'sobject') return raw({ name: args[3], fields: [{ name: 'Id' }], childRelationships: [] });
       const query = args[args.indexOf('--query') + 1] ?? '';
       return raw({
