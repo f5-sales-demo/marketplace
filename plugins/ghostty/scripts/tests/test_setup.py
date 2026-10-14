@@ -25,15 +25,21 @@ FIXTURE_SPEC.loader.exec_module(fixture)
 
 class ReleasedVersionTests(unittest.TestCase):
     def test_setup_identity_matches_shipped_plugin_version(self):
-        version = json.loads((SCRIPT.parents[1] / "package.json").read_text())["version"]
+        version = json.loads((SCRIPT.parents[1] / "package.json").read_text())[
+            "version"
+        ]
         self.assertEqual(setup.PLUGIN_VERSION, version)
 
     def test_released_version_reaches_readiness_probe(self):
-        version = json.loads((SCRIPT.parents[1] / "package.json").read_text())["version"]
+        version = json.loads((SCRIPT.parents[1] / "package.json").read_text())[
+            "version"
+        ]
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(
                 ["python3", str(SCRIPT), "status", version],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
                 env={**os.environ, "XDG_STATE_HOME": directory},
             )
         payload = json.loads(result.stdout)
