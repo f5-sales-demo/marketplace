@@ -1,3 +1,4 @@
+import { presentTool } from './presentation';
 import {
   type ControllerInvoker,
   controllerEnvironment,
@@ -62,7 +63,7 @@ const factory = async (pi: KvmExtensionApi, invokeController: ControllerInvoker 
     },
   });
   if (typeof pi.registerTool === 'function')
-    for (const tool of createKvmSmsv2Tools(pi, invokeController)) pi.registerTool(tool);
+    for (const tool of createKvmSmsv2Tools(pi, invokeController)) pi.registerTool(presentTool(tool));
 };
 
 export default factory;

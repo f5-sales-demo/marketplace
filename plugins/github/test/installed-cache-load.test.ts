@@ -34,7 +34,7 @@ describe('installed marketplace cache', () => {
     );
     expect(installedPackage.xcsh?.version).toBe(installedPackage.version);
     expect(installedManifest.version).toBe(installedPackage.version);
-    expect(installedPackage.peerDependencies?.['@f5-sales-demo/xcsh']).toBe('>=21.39.1');
+    expect(installedPackage.peerDependencies?.['@f5-sales-demo/xcsh']).toBe('>=23.4.1');
 
     const moduleUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'gh.ts')).href;
     const workflowUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'github-workflow.ts')).href;

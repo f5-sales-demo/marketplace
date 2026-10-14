@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-kvm",
-  "version": "3.0.5",
+  "version": "3.1.0",
   "description": "KVM dual-NIC home-LAN lifecycle tools for F5 Secure Mesh Site v2",
   "main": "src/index.ts",
   "scripts": {
@@ -10,18 +10,19 @@
   },
   "xcsh": {
     "name": "KVM SMSv2",
-    "version": "3.0.5",
+    "version": "3.1.0",
     "extensions": [
       "src/index.ts"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=21.39.1"
+    "@f5-sales-demo/xcsh": ">=23.4.1"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@f5-sales-demo/xcsh": "23.4.1"
   },
   "license": "Apache-2.0"
 }

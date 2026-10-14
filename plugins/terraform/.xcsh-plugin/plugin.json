@@ -1,7 +1,7 @@
 {
   "name": "terraform",
   "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
   "license": "Apache-2.0",
   "author": {
@@ -29,5 +29,6 @@
     "setupRequired": true,
     "collectedData": [],
     "pluginDependencies": []
-  }
+  },
+  "minimumRuntimeVersion": "23.4.1"
 }

@@ -172,7 +172,7 @@ class SetupTests(unittest.TestCase):
 
     def test_accessibility_is_configured_without_a_desktop_shell(self):
         stale = {
-            "HOME": "/home/tester",
+            "HOME": "/home/example",
             "XDG_RUNTIME_DIR": "/run/user/999",
             "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/999/bus",
         }
@@ -196,7 +196,7 @@ class SetupTests(unittest.TestCase):
             ],
             check=True,
             env={
-                "HOME": "/home/tester",
+                "HOME": "/home/example",
                 "XDG_RUNTIME_DIR": "/run/user/502",
                 "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/502/bus",
             },
@@ -204,7 +204,7 @@ class SetupTests(unittest.TestCase):
 
     def test_accessibility_status_uses_the_same_normalized_user_bus(self):
         with (
-            patch.dict(setup.os.environ, {"HOME": "/home/tester"}, clear=True),
+            patch.dict(setup.os.environ, {"HOME": "/home/example"}, clear=True),
             patch.object(setup.os, "getuid", return_value=502),
             patch.object(
                 setup,
@@ -224,7 +224,7 @@ class SetupTests(unittest.TestCase):
                 "toolkit-accessibility",
             ],
             env={
-                "HOME": "/home/tester",
+                "HOME": "/home/example",
                 "XDG_RUNTIME_DIR": "/run/user/502",
                 "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/502/bus",
             },
@@ -935,7 +935,10 @@ class SetupTests(unittest.TestCase):
             "owned": True,
             "env": {"DISPLAY": ":121", "XAUTHORITY": "/state/Xauthority"},
         }
-        with patch.object(sessions, "run") as run:
+        with (
+            patch.object(sessions, "run") as run,
+            patch.object(sessions.pathlib.Path, "exists", return_value=False),
+        ):
             sessions._publish_activation_environment(config)
 
         run.assert_called_once_with(

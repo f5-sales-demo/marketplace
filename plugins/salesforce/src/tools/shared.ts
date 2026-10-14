@@ -14,6 +14,7 @@ export interface SfToolDetails {
   orgs?: SfOrg[];
   queryResult?: SfQueryResult;
   queryDescription?: string;
+  described?: import('../sf/describe').SfSObjectDescription;
   pipelineReport?: PipelineReportData;
   errorType?: SfErrorType;
 }

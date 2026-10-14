@@ -1,7 +1,7 @@
 {
   "name": "github",
   "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-  "version": "3.1.5",
+  "version": "3.2.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -46,5 +46,5 @@
     "collectedData": ["accounts", "email", "identifiers", "sameAs"],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.0.3"
+  "minimumRuntimeVersion": "23.4.1"
 }

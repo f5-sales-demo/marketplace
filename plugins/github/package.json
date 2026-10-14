@@ -1,7 +1,7 @@
 {
   "name": "@f5-sales-demo/xcsh-github",
-  "version": "3.1.5",
-  "description": "GitHub CLI integration for xcsh — native tools for repos, issues, PRs, diffs, Actions, and search",
+  "version": "3.2.0",
+  "description": "GitHub CLI integration for xcsh \u2014 native tools for repos, issues, PRs, diffs, Actions, and search",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
@@ -9,18 +9,19 @@
   },
   "xcsh": {
     "name": "GitHub",
-    "version": "3.1.5",
+    "version": "3.2.0",
     "description": "GitHub CLI integration",
     "extensions": [
       "src/index.ts"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=21.39.1"
+    "@f5-sales-demo/xcsh": ">=23.4.1"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
-    "bun-types": "^1.4.2"
+    "bun-types": "^1.4.2",
+    "@f5-sales-demo/xcsh": "23.4.1"
   },
   "license": "Apache-2.0"
 }

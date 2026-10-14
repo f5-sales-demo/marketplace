@@ -65,7 +65,7 @@ export function createSfDescribeTool(pi: PluginHost, makeApi: (cwd: string) => S
         const result = await execSfJson(api, args, signal);
         const described = normalizeDescribe(result.result);
         if (!described.name) described.name = sobject;
-        return textResult(formatDescribe(described, params.match), base);
+        return textResult(formatDescribe(described, params.match), { ...base, described });
       } catch (err) {
         const errorType = detectErrorType(err);
         const message = err instanceof Error ? err.message : String(err);

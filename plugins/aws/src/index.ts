@@ -1,4 +1,5 @@
 import type { PluginInterface } from './aws/types';
+import { presentTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface IntegrationSnapshot<T> {
@@ -181,17 +182,17 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAwsCeDiagnoseTool } = await import('./tools/aws-ce-diagnose');
     const { createAwsCloudInitAnalyzeTool } = await import('./tools/aws-cloud-init-analyze');
 
-    pi.registerTool(withErrorType(createAwsStsWhoamiTool(pi)));
-    pi.registerTool(withErrorType(createAwsS3LsTool(pi)));
-    pi.registerTool(withErrorType(createAwsEc2DescribeInstancesTool(pi)));
-    pi.registerTool(withErrorType(createAwsExecTool(pi)));
-    pi.registerTool(withErrorType(createAwsHelpTool(pi)));
-    pi.registerTool(withErrorType(createAwsComputeDiscoverTool(pi)));
-    pi.registerTool(withErrorType(createAwsCePlanTool(pi)));
-    pi.registerTool(withErrorType(createAwsCeApplyTool(pi)));
-    pi.registerTool(withErrorType(createAwsCeStatusTool(pi)));
-    pi.registerTool(withErrorType(createAwsCeDiagnoseTool(pi)));
-    pi.registerTool(withErrorType(createAwsCloudInitAnalyzeTool(pi)));
+    pi.registerTool(presentTool(withErrorType(createAwsStsWhoamiTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsS3LsTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsEc2DescribeInstancesTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsExecTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsHelpTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsComputeDiscoverTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCePlanTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeApplyTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeStatusTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeDiagnoseTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCloudInitAnalyzeTool(pi))));
   }
 
   // Context injection: provide AWS identity to agents

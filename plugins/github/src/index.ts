@@ -1,5 +1,6 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 import { detectGhErrorType } from './gh/exec';
+import { presentTool } from './presentation';
 import { renderError, ToolAbortError } from './utils/tool-errors';
 
 interface GitHubUser {
@@ -222,60 +223,64 @@ const factory: ExtensionFactory = async (pi) => {
         ctx: { cwd: string },
       ) => ReturnType<ToolInstance['execute']>;
 
-      pi.registerTool({
-        name: instance.name,
-        label: instance.label,
-        description: instance.description,
-        parameters: instance.parameters,
-        async execute(
-          toolCallId: string,
-          params: Record<string, unknown>,
-          signal: AbortSignal | undefined,
-          onUpdate: unknown,
-          ctx: { cwd: string },
-        ) {
-          // Update session cwd from context
-          sessionProxy.cwd = ctx?.cwd ?? process.cwd();
-          try {
-            // biome-ignore lint/suspicious/noExplicitAny: bridging xcsh internal types
-            return await originalExecute(toolCallId, params, signal, onUpdate as any, ctx as any);
-          } catch (err) {
-            if (err instanceof ToolAbortError) throw err;
-            return {
-              content: [{ type: 'text' as const, text: renderError(err) }],
-              isError: true,
-              details: { errorType: detectGhErrorType(err) },
-            };
-          }
-        },
-      });
+      pi.registerTool(
+        presentTool({
+          name: instance.name,
+          label: instance.label,
+          description: instance.description,
+          parameters: instance.parameters,
+          async execute(
+            toolCallId: string,
+            params: Record<string, unknown>,
+            signal: AbortSignal | undefined,
+            onUpdate: unknown,
+            ctx: { cwd: string },
+          ) {
+            // Update session cwd from context
+            sessionProxy.cwd = ctx?.cwd ?? process.cwd();
+            try {
+              // biome-ignore lint/suspicious/noExplicitAny: bridging xcsh internal types
+              return await originalExecute(toolCallId, params, signal, onUpdate as any, ctx as any);
+            } catch (err) {
+              if (err instanceof ToolAbortError) throw err;
+              return {
+                content: [{ type: 'text' as const, text: renderError(err) }],
+                isError: true,
+                details: { errorType: detectGhErrorType(err) },
+              };
+            }
+          },
+        }),
+      );
     }
 
     const { createGitHubWorkflowTools } = await import('./tools/github-workflow');
     for (const workflowTool of createGitHubWorkflowTools(pi.typebox, sessionProxy)) {
       const execute = workflowTool.execute.bind(workflowTool);
-      pi.registerTool({
-        ...workflowTool,
-        async execute(
-          toolCallId: string,
-          params: Record<string, unknown>,
-          signal: AbortSignal | undefined,
-          _onUpdate: unknown,
-          ctx: { cwd: string },
-        ) {
-          sessionProxy.cwd = ctx?.cwd ?? process.cwd();
-          try {
-            return await execute(toolCallId, params, signal);
-          } catch (err) {
-            if (err instanceof ToolAbortError) throw err;
-            return {
-              content: [{ type: 'text' as const, text: renderError(err) }],
-              isError: true,
-              details: { errorType: detectGhErrorType(err) },
-            };
-          }
-        },
-      });
+      pi.registerTool(
+        presentTool({
+          ...workflowTool,
+          async execute(
+            toolCallId: string,
+            params: Record<string, unknown>,
+            signal: AbortSignal | undefined,
+            _onUpdate: unknown,
+            ctx: { cwd: string },
+          ) {
+            sessionProxy.cwd = ctx?.cwd ?? process.cwd();
+            try {
+              return await execute(toolCallId, params, signal);
+            } catch (err) {
+              if (err instanceof ToolAbortError) throw err;
+              return {
+                content: [{ type: 'text' as const, text: renderError(err) }],
+                isError: true,
+                details: { errorType: detectGhErrorType(err) },
+              };
+            }
+          },
+        }),
+      );
     }
   }
 

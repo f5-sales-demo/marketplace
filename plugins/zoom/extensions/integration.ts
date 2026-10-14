@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { presentTool } from './presentation';
 
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
@@ -1116,26 +1117,28 @@ export default function zoomIntegration(pi: ExtensionApi) {
       }
     },
   });
-  pi.registerTool({
-    name: 'zoom_meeting',
-    label: 'Zoom meeting',
-    description:
-      'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. Every matching join selects xcsh Camera and verifies video on. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
-    parameters: pi.typebox.Type.Object({
-      action: pi.typebox.Type.Union(actions.map((action) => pi.typebox.Type.Literal(action))),
-      invitation_url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
-      meeting_id: pi.typebox.Type.Optional(pi.typebox.Type.String()),
-      state: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+  pi.registerTool(
+    presentTool({
+      name: 'zoom_meeting',
+      label: 'Zoom meeting',
+      description:
+        'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. Every matching join selects xcsh Camera and verifies video on. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
+      parameters: pi.typebox.Type.Object({
+        action: pi.typebox.Type.Union(actions.map((action) => pi.typebox.Type.Literal(action))),
+        invitation_url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+        meeting_id: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+        state: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+      }),
+      async execute(
+        _toolCallId: string,
+        input: { action?: string; invitation_url?: string; meeting_id?: string; state?: string },
+      ) {
+        const parsed = parseZoomToolInput(input);
+        const details = call(parsed.action, parsed.args);
+        return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
+      },
     }),
-    async execute(
-      _toolCallId: string,
-      input: { action?: string; invitation_url?: string; meeting_id?: string; state?: string },
-    ) {
-      const parsed = parseZoomToolInput(input);
-      const details = call(parsed.action, parsed.args);
-      return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
-    },
-  });
+  );
   pi.registerCommand('zoom', {
     description: 'Join or control Zoom Workplace deterministically',
     handler: createZoomCommandHandler(),

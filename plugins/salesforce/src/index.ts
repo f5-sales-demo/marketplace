@@ -1,6 +1,7 @@
 import { mapSalesforceToProfile } from './context/profile-mapper';
 import type { SalesforceContext, UserProfile } from './context/salesforce-context';
 import { prepareLoginUrl } from './login-url';
+import { presentTool } from './presentation';
 import type { PluginHost } from './tools/plugin-host';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, makeExecApi, renderError } from './tools/shared';
@@ -223,7 +224,7 @@ const factory = async (pi: CanonicalExtensionAPI) => {
       createSfHelpTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
       createSfExecTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
     ])
-      pi.registerTool(withErrorType(tool));
+      pi.registerTool(presentTool(withErrorType(tool)));
 
     pi.on('before_agent_start', async () => {
       const { buildSalesforceHint } = await import('./context/salesforce-context');

@@ -45,15 +45,15 @@ else
   pass "a broad xcsh peer range fails"
 fi
 
-OLD_GITHUB_ADVISORY_API="$WORK/old-github-advisory-api"
-copy_runtime_state "$OLD_GITHUB_ADVISORY_API"
-jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=21.38.0"' \
-  "$OLD_GITHUB_ADVISORY_API/plugins/github/package.json" >"$OLD_GITHUB_ADVISORY_API/package.json.tmp"
-mv "$OLD_GITHUB_ADVISORY_API/package.json.tmp" "$OLD_GITHUB_ADVISORY_API/plugins/github/package.json"
-if REPO_ROOT="$OLD_GITHUB_ADVISORY_API" bash "$CHECK" >/dev/null 2>&1; then
-  fail "a GitHub peer range predating the advisory API must fail"
+OLD_PRESENTATION_API="$WORK/old-github-advisory-api"
+copy_runtime_state "$OLD_PRESENTATION_API"
+jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=23.3.3"' \
+  "$OLD_PRESENTATION_API/plugins/github/package.json" >"$OLD_PRESENTATION_API/package.json.tmp"
+mv "$OLD_PRESENTATION_API/package.json.tmp" "$OLD_PRESENTATION_API/plugins/github/package.json"
+if REPO_ROOT="$OLD_PRESENTATION_API" bash "$CHECK" >/dev/null 2>&1; then
+  fail "a GitHub peer range predating the presentation API must fail"
 else
-  pass "a GitHub peer range predating the advisory API fails"
+  pass "a GitHub peer range predating the presentation API fails"
 fi
 
 BAD_RUNTIME_IMPORT="$WORK/bad-runtime-import"
@@ -69,7 +69,7 @@ fi
 
 BAD_LOCK="$WORK/bad-lock"
 copy_runtime_state "$BAD_LOCK"
-sed 's/@anthropic-ai\/sdk@0\.115\.0/@anthropic-ai\/sdk@0.78.0/' \
+sed 's/@anthropic-ai\/sdk@0\.124\.0/@anthropic-ai\/sdk@0.78.0/' \
   "$BAD_LOCK/plugins/azure/bun.lock" >"$BAD_LOCK/bun.lock.tmp"
 mv "$BAD_LOCK/bun.lock.tmp" "$BAD_LOCK/plugins/azure/bun.lock"
 if REPO_ROOT="$BAD_LOCK" bash "$CHECK" >/dev/null 2>&1; then
@@ -80,7 +80,7 @@ fi
 
 MIXED_LOCK="$WORK/mixed-lock"
 copy_runtime_state "$MIXED_LOCK"
-sed 's/"@anthropic-ai\/sdk@0\.115\.0"/"@anthropic-ai\/sdk@0.115.0", "@anthropic-ai\/sdk@0.78.0"/' \
+sed 's/"@anthropic-ai\/sdk@0\.124\.0"/"@anthropic-ai\/sdk@0.124.0", "@anthropic-ai\/sdk@0.78.0"/' \
   "$MIXED_LOCK/plugins/azure/bun.lock" >"$MIXED_LOCK/bun.lock.tmp"
 mv "$MIXED_LOCK/bun.lock.tmp" "$MIXED_LOCK/plugins/azure/bun.lock"
 if REPO_ROOT="$MIXED_LOCK" bash "$CHECK" >/dev/null 2>&1; then
@@ -110,11 +110,11 @@ mkdir -p \
   "$AWS_NODE_MODULES/@agentclientprotocol/sdk" \
   "$AWS_NODE_MODULES/@google/genai" \
   "$AWS_NODE_MODULES/bun-types"
-printf '{"version":"20.2.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
-printf '{"version":"20.2.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
-printf '{"version":"0.115.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
-printf '{"version":"1.3.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
-printf '{"version":"2.15.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
+printf '{"version":"23.4.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"23.4.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"0.124.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
+printf '{"version":"1.4.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
+printf '{"version":"2.21.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
 printf '{"version":"1.4.2"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
 if REPO_ROOT="$MISSING_TYPEBOX" bash "$CHECK" >/dev/null 2>&1; then
   fail "a physical installation missing TypeBox must fail"
@@ -158,23 +158,11 @@ mkdir -p \
   node_modules/@google/genai \
   node_modules/@sinclair/typebox \
   node_modules/bun-types
-xcsh_version="20.2.7"
-pi_utils_version="20.2.7"
-anthropic_version="0.115.0"
-acp_version="1.3.0"
-google_genai_version="2.15.0"
-if [ "${PWD##*/}" = "github" ] || [ "${PWD##*/}" = "salesforce" ]; then
-  anthropic_version="0.123.0"
-  acp_version="1.4.0"
-  google_genai_version="2.21.0"
-fi
-if [ "${PWD##*/}" = "github" ]; then
-  xcsh_version="21.39.1"
-  pi_utils_version="21.39.1"
-elif [ "${PWD##*/}" = "salesforce" ]; then
-  xcsh_version="22.4.6"
-  pi_utils_version="22.4.6"
-fi
+xcsh_version="23.4.1"
+pi_utils_version="23.4.1"
+anthropic_version="0.124.0"
+acp_version="1.4.0"
+google_genai_version="2.21.0"
 printf '{"version":"%s"}\n' "$xcsh_version" >node_modules/@f5-sales-demo/xcsh/package.json
 printf '{"version":"%s"}\n' "$pi_utils_version" >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
