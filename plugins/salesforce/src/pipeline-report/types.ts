@@ -18,6 +18,7 @@ export const DEFAULT_SKU_CLASSIFICATION: SkuClassification = {
 export const DEFAULT_SKU_PREFIXES = ['F5-V-O', 'F5-XC', 'F5-FAS', 'F5-SHP', 'F5-UTIL', 'F5-CST', 'F5-ELA'];
 
 export interface LineItemRecord {
+  currency?: string;
   opportunityId: string;
   accountName: string;
   territory: string;
@@ -45,6 +46,9 @@ export interface PipelineReportOptions {
   orgAlias?: string;
   quarterStart: string;
   quarterEnd: string;
+  /** Exact selected-org Year period boundaries, including custom fiscal calendars. */
+  fiscalYearStart?: string;
+  fiscalYearEnd?: string;
   /** Stale cutoff for in-play pipeline. Defaults to quarterEnd (in-quarter only).
    * Set to 12 months ago to show all non-stale open pipeline regardless of close quarter. */
   staleCutoff?: string;
@@ -65,6 +69,7 @@ export interface PipelineReportOptions {
 }
 
 export interface AccountRow {
+  currency?: string;
   name: string;
   territory: string;
   platform: number;
@@ -119,7 +124,25 @@ export interface CloseMonthBucket {
 }
 
 export interface PipelineReportData {
+  /** Returned record currency. Aggregate FY bookings have a separate, unverified currency basis. */
+  currency?: string;
+  /** Per-currency figures are authoritative when record currencies differ. */
+  currencyBreakdown?: Array<{
+    currency: string;
+    netNew: SectionData;
+    booked: SectionData;
+    renewals: SectionData;
+    forecast: ForecastSummary;
+    topDeals: DealSummary[];
+    topRenewals: DealSummary[];
+    closeDistribution: CloseMonthBucket[];
+    renewalDistribution: CloseMonthBucket[];
+  }>;
+  /** Full query evidence retained for expanded inspection, including records outside top-N summaries. */
+  sourceQueries?: { query: string; records: Record<string, unknown>[] }[];
   generated: string;
+  /** Inclusive CloseDate lower bound for open pipeline, which may span multiple quarters. */
+  openScopeStart?: string;
   quarter: { start: string; end: string };
   /** Territory coverage for display */
   territories: string[];

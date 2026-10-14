@@ -253,7 +253,7 @@
     {
       "name": "salesforce",
       "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -274,7 +274,7 @@
       ],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
-      "minimumRuntimeVersion": "23.4.1",
+      "minimumRuntimeVersion": "23.4.2",
       "source": "./plugins/salesforce",
       "category": "development",
       "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
@@ -283,7 +283,7 @@
         "mode": "integrated",
         "integrations": ["salesforce"],
         "requirements": [
-          "xcsh 22.4.6 or later (shared host/software API)",
+          "xcsh 23.4.2 or later (shared themed tool presentation)",
           "Salesforce CLI",
           "An authenticated default Salesforce org"
         ],

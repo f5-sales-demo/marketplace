@@ -22,20 +22,23 @@ import { DEFAULT_SKU_CLASSIFICATION, DEFAULT_SKU_PREFIXES } from './types';
 // ---------------------------------------------------------------------------
 
 async function runSfQuery(soql: string, orgAlias?: string): Promise<Record<string, unknown>[]> {
-  try {
-    const cmd = orgAlias
-      ? $`sf data query --query ${soql} --json --target-org ${orgAlias}`
-      : $`sf data query --query ${soql} --json`;
-    const result = await cmd.quiet().nothrow();
-    if (result.exitCode !== 0) return [];
-    const parsed = JSON.parse(result.stdout.toString()) as {
-      result?: { records?: Record<string, unknown>[] };
-    };
-    return parsed.result?.records ?? [];
-  } catch {
-    // Silently swallow — the caller handles empty results
-    return [];
-  }
+  const cmd = orgAlias
+    ? $`sf data query --query ${soql} --json --target-org ${orgAlias}`
+    : $`sf data query --query ${soql} --json`;
+  const result = await cmd.quiet().nothrow();
+  if (result.exitCode !== 0)
+    throw new Error(
+      result.stderr.toString() || result.stdout.toString() || 'Salesforce query failed; totals are not verified.',
+    );
+  const parsed = JSON.parse(result.stdout.toString()) as {
+    status?: number;
+    message?: string;
+    result?: { records?: Record<string, unknown>[]; done?: boolean };
+  };
+  if (parsed.status !== 0 || !Array.isArray(parsed.result?.records))
+    throw new Error(parsed.message || 'Invalid Salesforce response; totals are not verified.');
+  if (parsed.result.done === false) throw new Error('Incomplete Salesforce query; totals are not verified.');
+  return parsed.result.records;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +77,7 @@ function parseLineItem(record: Record<string, unknown>, rules: SkuClassification
   const skuName = (product.Name ?? '') as string;
 
   return {
+    currency: typeof opp.CurrencyIsoCode === 'string' ? opp.CurrencyIsoCode : undefined,
     opportunityId: (opp.Id ?? '') as string,
     accountName: (acct.Name ?? '') as string,
     territory: plan.territoryField ? readPath(opp, plan.territoryField) : '',
@@ -124,9 +128,9 @@ function aggregateLineItems(items: LineItemRecord[]): SectionData {
     accountMap.set(item.accountName, existing);
   }
 
-  // Only include accounts with quota-eligible value (platform or shape > 0)
+  // Preserve unclassified amounts as Other; quota eligibility remains separate.
   const filtered = [...accountMap]
-    .filter(([, v]) => v.totals.platform + v.totals.shape > 0)
+    .filter(([, v]) => v.totals.platform + v.totals.shape + v.totals.other > 0)
     .map(
       ([name, v]): AccountRow => ({
         name,
@@ -441,7 +445,13 @@ export async function generatePipelineReport(
   options: PipelineReportOptions,
   queryFn?: SfQueryFn,
 ): Promise<PipelineReportData> {
-  const query: SfQueryFn = queryFn ?? runSfQuery;
+  const sourceQueries: { query: string; records: Record<string, unknown>[] }[] = [];
+  const executeQuery: SfQueryFn = queryFn ?? runSfQuery;
+  const query: SfQueryFn = async (soql, org) => {
+    const records = await executeQuery(soql, org);
+    sourceQueries.push({ query: soql, records });
+    return records;
+  };
   const {
     userIds,
     orgAlias,
@@ -463,6 +473,7 @@ export async function generatePipelineReport(
   // Every org-specific field below is named by the plan, never assumed. A field the org does
   // not have is simply absent from the SELECT — naming one fails the entire query.
   const plan = planPipelineQueries(options.capabilities ?? {});
+  const hasCurrency = options.capabilities?.opportunityFields?.includes('CurrencyIsoCode');
 
   const fields = [
     'Product2.Name',
@@ -479,6 +490,7 @@ export async function generatePipelineReport(
     'Opportunity.LastActivityDate',
     'Opportunity.Owner.Name',
     'Opportunity.NextStep',
+    hasCurrency ? 'Opportunity.CurrencyIsoCode' : undefined,
   ]
     .filter((f): f is string => Boolean(f))
     .join(', ');
@@ -513,6 +525,11 @@ export async function generatePipelineReport(
     plan.territoryField,
     'CloseDate',
     'Name',
+    'StageName',
+    'Owner.Name',
+    'NextStep',
+    'LastActivityDate',
+    hasCurrency ? 'CurrencyIsoCode' : undefined,
   ]
     .filter((f): f is string => Boolean(f))
     .join(', ');
@@ -532,10 +549,12 @@ export async function generatePipelineReport(
   const qMonth = qStartDate.getMonth() + 1; // 1-12
   const qYear = qStartDate.getFullYear();
   const fyStartYear = qMonth >= fyStartMonth ? qYear : qYear - 1;
-  const fyStart = `${fyStartYear}-${String(fyStartMonth).padStart(2, '0')}-01`;
+  const fyStart = options.fiscalYearStart ?? `${fyStartYear}-${String(fyStartMonth).padStart(2, '0')}-01`;
   // A year that opens in January ends in the same calendar year; one that opens later is
   // labelled by the year it ends in, which is the common convention.
-  const fyLabel = `FY${(fyStartMonth === 1 ? fyStartYear : fyStartYear + 1) % 100}`;
+  const fyLabel = options.fiscalYearEnd
+    ? `FY${Number(options.fiscalYearEnd.slice(0, 4)) % 100}`
+    : `FY${(fyStartMonth === 1 ? fyStartYear : fyStartYear + 1) % 100}`;
   const todayStr = new Date().toISOString().slice(0, 10);
   const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
   const fyBookedQuery = `SELECT SUM(Amount) total FROM Opportunity WHERE ${oppTeamScope} AND IsWon = true AND CloseDate >= ${fyStart} AND CloseDate <= ${todayStr}`;
@@ -586,7 +605,8 @@ export async function generatePipelineReport(
       if (id) renewalIds.add(id);
     }
     const oppFields =
-      'Id, Name, Account.Name, Amount, ForecastCategoryName, StageName, CloseDate, LastActivityDate, Owner.Name, IsClosed, IsWon';
+      'Id, Name, Account.Name, Amount, ForecastCategoryName, StageName, CloseDate, LastActivityDate, Owner.Name, IsClosed, IsWon' +
+      (hasCurrency ? ', CurrencyIsoCode' : '');
     const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
     const oppDateFilter = staleCutoff
       ? `CloseDate >= ${staleCutoff}`
@@ -612,13 +632,14 @@ export async function generatePipelineReport(
         if (amt <= 0) continue;
         const owner = (r.Owner as Record<string, unknown> | undefined)?.Name;
         items.push({
+          currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
           opportunityId: id,
           accountName: acct,
           territory: '',
           forecast: fc,
           skuName: 'Opportunity-level',
           fyb: amt,
-          category: 'platform',
+          category: 'other',
           closeDate: (r.CloseDate as string) ?? undefined,
           oppName: (r.Name as string) ?? undefined,
           stage: (r.StageName as string) ?? undefined,
@@ -690,6 +711,7 @@ export async function generatePipelineReport(
     }
 
     renewalItems.push({
+      currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
       opportunityId: id,
       accountName: acct,
       territory: terr,
@@ -699,6 +721,10 @@ export async function generatePipelineReport(
       category,
       closeDate: (r.CloseDate as string) ?? undefined,
       oppName: (r.Name as string) ?? undefined,
+      stage: (r.StageName as string) ?? undefined,
+      ownerName: (r.Owner as { Name?: string } | undefined)?.Name,
+      nextStep: (r.NextStep as string) ?? undefined,
+      lastActivityDate: (r.LastActivityDate as string) ?? undefined,
     });
   }
 
@@ -709,9 +735,44 @@ export async function generatePipelineReport(
   }
   // Detect anomalies
   const anomalies = detectAnomalies(netNewItems, bookedItems, renewalItems, skuClassification);
+  const currencies = [
+    ...new Set([...netNewItems, ...bookedItems, ...renewalItems].map((item) => item.currency ?? 'unverified')),
+  ].sort();
+  const currencyBreakdown = currencies.map((currency) => {
+    const selected = (items: LineItemRecord[]) => items.filter((item) => (item.currency ?? 'unverified') === currency);
+    const netNew = selected(netNewItems),
+      booked = selected(bookedItems),
+      renewals = selected(renewalItems);
+    return {
+      currency,
+      netNew: aggregateLineItems(netNew),
+      booked: aggregateLineItems(booked),
+      renewals: aggregateLineItems(renewals),
+      forecast: buildForecast(netNew),
+      topDeals: buildTopDeals(netNew),
+      topRenewals: buildTopDeals(renewals),
+      closeDistribution: buildCloseDistribution(netNew),
+      renewalDistribution: buildCloseDistribution(renewals),
+    };
+  });
+  if (currencies.length > 1)
+    anomalies.push({
+      severity: 'warning',
+      category: 'mixed_currencies',
+      message:
+        'Returned records span currencies. Use the separate currency tables; combined monetary totals are not valid.',
+    });
+  if (oliRecords.length === 0 && (netNewItems.length || bookedItems.length))
+    anomalies.push({
+      severity: 'warning',
+      category: 'unverified_product_classification',
+      message:
+        'Opportunity-level fallback amounts have no SKU evidence. Product classification and quota eligibility are unverified; amounts appear under Other.',
+    });
 
   return {
     generated: new Date().toISOString(),
+    openScopeStart: staleCutoff ?? quarterStart,
     quarter: { start: quarterStart, end: quarterEnd },
     territories: options.confirmedTerritories ?? [],
     teamMembers: options.teamMemberNames ?? [],
@@ -726,9 +787,12 @@ export async function generatePipelineReport(
     topRenewals: renewalItems.length > 0 ? buildTopDeals(renewalItems) : undefined,
     closeDistribution: buildCloseDistribution(netNewItems),
     renewalDistribution: renewalItems.length > 0 ? buildCloseDistribution(renewalItems) : undefined,
-    fyBookedTotal: fyBookedTotal > 0 ? fyBookedTotal : undefined,
+    fyBookedTotal,
     fyLabel,
     recentChanges: parseHistoryRecords(historyRecords),
     unavailable: plan.unavailable,
+    sourceQueries,
+    currency: currencies.length === 1 && currencies[0] !== 'unverified' ? currencies[0] : undefined,
+    currencyBreakdown,
   };
 }

@@ -113,11 +113,16 @@ export function detectSfError(message: string, exitCode: number, query?: string,
 }
 
 export function parseSfJsonOutput(raw: string): SfJsonResult {
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as SfJsonResult;
+    parsed = JSON.parse(raw);
   } catch {
     throw new SfExecError('Failed to parse sf CLI JSON output', 1);
   }
+  if (!parsed || typeof parsed !== 'object' || typeof (parsed as SfJsonResult).status !== 'number') {
+    throw new SfExecError('Invalid sf CLI JSON response: numeric status is required', 1);
+  }
+  return parsed as SfJsonResult;
 }
 
 export interface SfExecApi {
@@ -131,17 +136,37 @@ export async function execSfJson(
   query?: string,
 ): Promise<SfJsonResult> {
   const result = await api.exec('sf', [...args, '--json'], { signal });
+  if (!result.stdout.trim() && result.exitCode !== 0) {
+    throw detectSfError(result.stderr || 'Salesforce CLI returned no output', result.exitCode, query);
+  }
   const parsed = parseSfJsonOutput(result.stdout);
-  if (parsed.status !== 0 && parsed.message !== undefined) {
-    throw detectSfError(parsed.message, parsed.status, query, parsed.name);
+  if (parsed.status !== 0 || result.exitCode !== 0) {
+    throw detectSfError(
+      parsed.message || result.stderr || `Salesforce command failed (${parsed.name ?? parsed.status})`,
+      parsed.status || result.exitCode,
+      query,
+      parsed.name,
+    );
   }
   return parsed;
 }
 
 export async function execSfRaw(api: SfExecApi, args: string[], signal?: AbortSignal): Promise<SfRawResult> {
   const result = await api.exec('sf', args, { signal });
+  const queryIndex = args.indexOf('--query');
+  const query = queryIndex >= 0 ? args[queryIndex + 1] : args.find((arg) => arg.startsWith('--query='))?.slice(8);
   if (result.exitCode !== 0) {
-    throw detectSfError(result.stderr || result.stdout, result.exitCode);
+    if (args.includes('--json')) {
+      let parsed: SfJsonResult | undefined;
+      try {
+        parsed = parseSfJsonOutput(result.stdout);
+      } catch {
+        /* Retain raw CLI diagnostics. */
+      }
+      if (parsed)
+        throw detectSfError(parsed.message || result.stderr || result.stdout, result.exitCode, query, parsed.name);
+    }
+    throw detectSfError(result.stderr || result.stdout, result.exitCode, query);
   }
   return result;
 }

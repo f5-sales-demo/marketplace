@@ -3,7 +3,7 @@ name: salesforce-index
 description: >-
   Top-level intent router for Salesforce operations. Routes auth requests
   to salesforce-auth, org management to the cli-operator agent, and
-  development tasks (Apex, Flow, LWC, SOQL, metadata, deployment) to the
+  account/opportunity intelligence to native tools, and development tasks (Apex, Flow, LWC, metadata, deployment) to the
   official forcedotcom/afv-library skills. Use when the user mentions
   Salesforce, sf CLI, orgs, or any Salesforce development topic but the
   request does not clearly match a specific skill trigger.
@@ -40,6 +40,16 @@ Keywords: "login", "authenticate", "connect org", "sf org", "org list",
     prompt="Run sf org list --json and sf org display --json for the default org. Report which orgs are authenticated and their status."
   )
   ```
+
+### Account and opportunity intelligence
+
+For project-file analysis, customer account discovery, recent opportunities,
+product relevance, qualification or ad-hoc SOQL, use `sf_query` and
+`sf_describe` directly. Discover them when they are not active. Follow
+sf_query's project/account evidence chain: verify the account, keep org scope,
+define recency, confirm custom schema and product evidence, preserve currencies,
+and report coverage and uncertainty. Use `sf_pipeline_report` for the user's
+team pipeline rather than a specific customer investigation.
 
 ### Salesforce Development (afv-library skills)
 
@@ -82,7 +92,7 @@ Agent(
 
 ## Important Notes
 
-- The forcedotcom/afv-library provides 30 Salesforce development skills
-  that are already installed and activate automatically
+- The optional forcedotcom/afv-library supplies Salesforce development skills.
+  Verify that the relevant skill is installed before invoking it
 - This plugin adds container-specific auth and org management on top
 - Always check org authentication status before development operations

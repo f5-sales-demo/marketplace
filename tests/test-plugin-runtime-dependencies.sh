@@ -160,6 +160,10 @@ mkdir -p \
   node_modules/bun-types
 xcsh_version="23.4.1"
 pi_utils_version="23.4.1"
+if [ "${PWD##*/}" = "salesforce" ]; then
+  xcsh_version="23.4.2"
+  pi_utils_version="23.4.2"
+fi
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"

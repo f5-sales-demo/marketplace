@@ -5,7 +5,7 @@ import { formatOrgDetail } from '../sf/formatters';
 import type { SfOrg } from '../sf/types';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -46,6 +46,14 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
       try {
         const result = await execSfJson(api, args, signal);
         const raw = result.result as Record<string, unknown>;
+        if (
+          !raw ||
+          typeof raw.username !== 'string' ||
+          !raw.username ||
+          typeof raw.instanceUrl !== 'string' ||
+          !raw.instanceUrl
+        )
+          throw new Error('Invalid Salesforce org response: authenticated identity is not verified.');
 
         // SECURITY: only extract whitelisted fields
         const org: SfOrg = {
@@ -54,12 +62,13 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
           instanceUrl: String(raw.instanceUrl ?? ''),
           connectedStatus: String(raw.connectedStatus ?? 'Connected'),
           alias: raw.alias ? String(raw.alias) : undefined,
-          isDefault: false,
+          ...(typeof raw.isDefaultUsername === 'boolean' ? { isDefault: raw.isDefaultUsername } : {}),
           isSandbox: Boolean(raw.isSandbox ?? false),
         };
 
         return textResult(formatOrgDetail(org), { ...base, orgs: [org] });
       } catch (err) {
+        rethrowCancellation(err);
         const errorType = detectErrorType(err);
         const message = err instanceof Error ? err.message : String(err);
         return errorResult(message, { ...base, errorType });

@@ -84,7 +84,8 @@ describe('generatePipelineReport — an org without the custom schema', () => {
     const data = await generatePipelineReport({ ...BASE, capabilities }, fn);
     expect(data.netNew.accounts.length).toBe(1);
     expect(data.netNew.accounts[0].name).toBe('Example Corp');
-    expect(data.netNew.totals.platform).toBe(120000);
+    expect(data.netNew.totals.platform).toBe(0);
+    expect(data.netNew.totals.other).toBe(120000);
   });
 
   it('records the sections it could not build, rather than omitting them silently', async () => {

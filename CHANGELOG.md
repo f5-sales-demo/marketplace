@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.2.0 completes the six-tool pilot: account-evidence query guidance, complete expanded schema/CLI/report data, scoped and aligned tables, explicit zeros and unavailable states, selected-org fiscal periods, progress/cancellation, and strict synthetic registration/TUI acceptance (#1533).
+
 - **`ghostty`** v1.1.2 preserves package-manager launcher invocation paths, allowing existing Snap Ghostty installations to verify correctly (#1531).
 
 - **`ghostty`** v1.1.1 derives integration and setup receipt identity from its shipped package version, fixing released-version setup rejection (#1529).

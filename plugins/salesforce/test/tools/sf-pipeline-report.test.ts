@@ -80,7 +80,24 @@ it('uses the verified integration user ID when the legacy profile identifier is 
   const tool = createSfPipelineReportTool(mockPi, () => ({
     exec: async (_command, args) => {
       calls.push(args);
-      return { stdout: JSON.stringify({ status: 0, result: { records: [] } }), stderr: '', exitCode: 0 };
+      return {
+        stdout: JSON.stringify({
+          status: 0,
+          result: {
+            records: args.includes(
+              "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
+            )
+              ? [
+                  { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
+                  { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
+                ]
+              : [],
+            done: true,
+          },
+        }),
+        stderr: '',
+        exitCode: 0,
+      };
     },
   }));
   const result = await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });
@@ -94,7 +111,24 @@ it('keeps an explicit profile identifier ahead of the integration identity', asy
   const tool = createSfPipelineReportTool(mockPi, () => ({
     exec: async (_command, args) => {
       calls.push(args);
-      return { stdout: JSON.stringify({ status: 0, result: { records: [] } }), stderr: '', exitCode: 0 };
+      return {
+        stdout: JSON.stringify({
+          status: 0,
+          result: {
+            records: args.includes(
+              "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
+            )
+              ? [
+                  { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
+                  { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
+                ]
+              : [],
+            done: true,
+          },
+        }),
+        stderr: '',
+        exitCode: 0,
+      };
     },
   }));
   await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });

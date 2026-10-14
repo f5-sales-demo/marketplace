@@ -4,7 +4,7 @@ export interface SfOrg {
   orgId: string;
   instanceUrl: string;
   connectedStatus: string;
-  isDefault: boolean;
+  isDefault?: boolean;
   isSandbox: boolean;
 }
 

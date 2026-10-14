@@ -1,15 +1,15 @@
 import type { AccountRow, DataAnomaly, PipelineReportData, SectionData } from './types';
 
 function fmtCurrency(val: number): string {
-  if (!Number.isFinite(val) || val === 0) return '\u2014';
+  if (!Number.isFinite(val)) return 'unavailable';
   return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtCompact(val: number): string {
-  if (!Number.isFinite(val) || val === 0) return '\u2014';
-  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-  if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
-  return `$${val.toFixed(0)}`;
+  if (!Number.isFinite(val)) return 'unavailable';
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
+  return `${val.toFixed(0)}`;
 }
 
 function renderAnomalies(anomalies: DataAnomaly[]): string {
@@ -35,36 +35,43 @@ function fmtQuarterDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-/** Derive F5 fiscal quarter label from quarter start date.
- *  F5 fiscal year starts November 1: Q1=Nov–Jan, Q2=Feb–Apr, Q3=May–Jul, Q4=Aug–Oct. */
-function fmtFiscalQuarter(startDateStr: string): string {
-  const d = new Date(`${startDateStr}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return '';
-  const m = d.getMonth(); // 0-indexed
-  const y = d.getFullYear();
-  if (m >= 10) return `FY${(y + 1) % 100} Q1`;
-  if (m <= 0) return `FY${y % 100} Q1`;
-  if (m <= 3) return `FY${y % 100} Q2`;
-  if (m <= 6) return `FY${y % 100} Q3`;
-  return `FY${y % 100} Q4`;
-}
-
 export function renderPipelineReport(data: PipelineReportData, _instanceUrl: string): string {
+  if (data.currencyBreakdown && data.currencyBreakdown.length > 1) {
+    return [
+      '# Pipeline report by currency',
+      'Amounts remain separate. No combined monetary total is valid. Fiscal-year aggregate bookings have an independently unverified currency basis.',
+      ...(data.fyBookedTotal !== undefined
+        ? [`FY aggregate bookings: ${fmtCurrency(data.fyBookedTotal)} (currency unverified)`]
+        : []),
+      ...data.currencyBreakdown.map(
+        (group) =>
+          `## Currency: ${group.currency}\n\n${renderPipelineReport({ ...data, ...group, currencyBreakdown: undefined, fyBookedTotal: undefined }, _instanceUrl)}`,
+      ),
+    ].join('\n\n');
+  }
   const lines: string[] = [];
 
   lines.push('# F5 Distributed Cloud Pipeline Report');
   lines.push('');
   lines.push(`**Generated:** ${new Date(data.generated).toLocaleString()}`);
-  const fq = fmtFiscalQuarter(data.quarter.start);
   const dateRange = `${fmtQuarterDate(data.quarter.start)} \u2014 ${fmtQuarterDate(data.quarter.end)}`;
-  lines.push(`**Quarter:** ${fq ? `${fq} (${dateRange})` : dateRange}`);
+  lines.push(`**Quarter:** ${dateRange}`);
   if (data.territories.length > 0) {
     lines.push(`**Territories:** ${data.territories.join(' | ')}`);
   }
   if (data.teamMembers.length > 0) {
     lines.push(`**Team:** ${data.teamMembers.join(' + ')}`);
   }
-  lines.push(`**Model:** FYB (Net New) + True ACV (Renewals) | In-quarter scope`);
+  lines.push('**Scope:** OpportunityTeamMember membership; booked uses the quarter dates.');
+  if (data.openScopeStart)
+    lines.push(
+      `**Open opportunity scope:** CloseDate >= ${data.openScopeStart} (includes dates outside this quarter).`,
+    );
+  lines.push(
+    data.currency
+      ? `**Amounts:** ${data.currency}, as returned on the records. Fiscal-year aggregate currency is independently unverified.`
+      : '**Amounts:** reported Salesforce values; currency and conversion basis are unverified. Do not interpret as USD or combine different currencies.',
+  );
   lines.push(`**Line items:** ${data.lineItemCount} | **SKUs:** ${data.skusFound.length}`);
   lines.push('');
 
@@ -79,9 +86,9 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
   if (data.booked.quotaTotal > 0) {
     summaryParts.push(`Booked: ${fmtCompact(data.booked.quotaTotal)}`);
   } else {
-    summaryParts.push('Booked: $0');
+    summaryParts.push('Booked: 0');
   }
-  if (data.fyBookedTotal && data.fyLabel) {
+  if (data.fyBookedTotal !== undefined && data.fyLabel) {
     summaryParts.push(`${data.fyLabel} YTD Booked: ${fmtCompact(data.fyBookedTotal)}`);
   }
   if (summaryParts.length > 0) {
@@ -90,18 +97,17 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
   }
 
   // Render a section as a combined Platform + Shape table.
-  // Two columns per row ensures zero-value cells produce em-dash,
-  // which the quality check looks for with /\|\s*\u2014\s*\|/.
+  // Retain zero values and Other amounts; an unclassified amount is not an empty pipeline.
   function renderBiSection(title: string, section: SectionData): string {
     if (section.accounts.length === 0) return '';
-    const rows = section.accounts.filter((r) => r.platform + r.shape > 0);
+    const rows = section.accounts.filter((r) => r.platform + r.shape + r.other > 0);
     if (rows.length === 0) return '';
 
     const lines: string[] = [];
     lines.push(`### ${title}`);
     lines.push('');
-    lines.push('| Account | Platform (Distributed Cloud) | Point (Shape + DI) |');
-    lines.push('|:---|---:|---:|');
+    lines.push('| Account | Platform (Distributed Cloud) | Point (Shape + DI) | Other / unclassified |');
+    lines.push('|:---|---:|---:|---:|');
 
     // Group by territory for sub-headers
     const byTerritory = new Map<string, AccountRow[]>();
@@ -114,6 +120,7 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
 
     const platTotal = rows.reduce((s, r) => s + r.platform, 0);
     const shapeTotal = rows.reduce((s, r) => s + r.shape, 0);
+    const otherTotal = rows.reduce((s, r) => s + r.other, 0);
 
     for (const [territory, territoryRows] of byTerritory) {
       if (byTerritory.size > 1) {
@@ -123,10 +130,14 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
         );
       }
       for (const row of territoryRows) {
-        lines.push(`| ${row.name} | ${fmtCurrency(row.platform)} | ${fmtCurrency(row.shape)} |`);
+        lines.push(
+          `| ${row.name} | ${fmtCurrency(row.platform)} | ${fmtCurrency(row.shape)} | ${fmtCurrency(row.other)} |`,
+        );
       }
     }
-    lines.push(`| **Total** | **${fmtCurrency(platTotal)}** | **${fmtCurrency(shapeTotal)}** |`);
+    lines.push(
+      `| **Total** | **${fmtCurrency(platTotal)}** | **${fmtCurrency(shapeTotal)}** | **${fmtCurrency(otherTotal)}** |`,
+    );
     lines.push('');
 
     const quotaLabel = `**${title} Quota Total (Platform + Point):** ${fmtCompact(section.quotaTotal)}`;
@@ -140,7 +151,7 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
   } else {
     lines.push('## Closed \u2014 Booked This Quarter');
     lines.push('');
-    lines.push('No deals closed this quarter.');
+    lines.push('0 returned booked records in this team and quarter scope.');
     lines.push('');
   }
 
@@ -150,7 +161,7 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
   } else {
     lines.push('## Open Pipeline \u2014 Net New');
     lines.push('');
-    lines.push('No open net new pipeline this quarter.');
+    lines.push('0 returned open pipeline records in the stated team/date scope.');
     lines.push('');
   }
 
@@ -160,7 +171,11 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
   } else {
     lines.push('## Open Pipeline \u2014 Renewals');
     lines.push('');
-    lines.push('No open renewals this quarter.');
+    lines.push(
+      data.unavailable?.some((note) => /Renewals section/i.test(note))
+        ? 'Renewals unavailable: the org schema cannot separate them. No zero-renewal conclusion is verified.'
+        : '0 returned renewal records in the stated team/date scope.',
+    );
     lines.push('');
   }
 
@@ -249,7 +264,7 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
     lines.push('## Renewal Timing \u2014 by Close Month');
     lines.push('');
     lines.push('| Month | Deals | Amount |');
-    lines.push('|:---|---:|---:|');
+    lines.push('|:---|---:|---:|---:|');
     let rTotal = 0;
     let rOpps = 0;
     for (const b of data.renewalDistribution) {
