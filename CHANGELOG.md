@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.1.1 derives integration and setup receipt identity from its shipped package version, fixing released-version setup rejection (#1529).
+
 - **`docs-tools`** v1.2.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
 
 - **`sales-engineer`** v1.1.0 inherits xcsh's shared presentation and themed lifecycle output; requires xcsh 23.4.1 (#1524).
