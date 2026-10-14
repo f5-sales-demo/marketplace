@@ -98,16 +98,8 @@ export function flattenRecord(record: Record<string, unknown>): Record<string, u
       continue;
     }
 
-    if (value === null) {
-      continue;
-    }
-
-    if (typeof value === 'object' && !Array.isArray(value)) {
-      const nested = value as Record<string, unknown>;
-      for (const [nestedKey, nestedValue] of Object.entries(nested)) {
-        if (nestedKey === 'attributes') {
-          continue;
-        }
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length) {
+      for (const [nestedKey, nestedValue] of Object.entries(flattenRecord(value as Record<string, unknown>))) {
         result[`${key}.${nestedKey}`] = nestedValue;
       }
       continue;
@@ -141,7 +133,13 @@ export function formatQueryResults(result: SfQueryResult): string {
   const rows = flatRecords.map((record) => {
     const cells = allColumns.map((col) => {
       const val = record[col];
-      return val === null || val === undefined ? '' : String(val);
+      const text =
+        typeof val === 'string' && !/[\r\n]/.test(val)
+          ? val
+          : val === undefined
+            ? '(not returned)'
+            : JSON.stringify(val);
+      return (text ?? String(val)).replaceAll('|', '\\|');
     });
     return `| ${cells.join(' | ')} |`;
   });

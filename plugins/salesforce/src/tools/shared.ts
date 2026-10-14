@@ -31,6 +31,10 @@ export function errorResult(text: string, details: SfToolDetails) {
   return { content: [{ type: 'text' as const, text }], isError: true, details };
 }
 
+export function rethrowCancellation(err: unknown): void {
+  if (err instanceof Error && (err.name === 'AbortError' || err.name === 'ToolAbortError')) throw err;
+}
+
 export function detectErrorType(err: unknown): SfErrorType {
   if (err instanceof SfAuthError) return 'auth_required';
   if (err instanceof SfSessionExpiredError) return 'session_expired';

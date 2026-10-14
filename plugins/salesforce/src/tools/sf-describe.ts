@@ -4,7 +4,7 @@ import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN, SOBJECT_NAME_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -63,10 +63,13 @@ export function createSfDescribeTool(pi: PluginHost, makeApi: (cwd: string) => S
       try {
         const api = makeApi(ctx.cwd);
         const result = await execSfJson(api, args, signal);
+        if (!result.result || !Array.isArray((result.result as { fields?: unknown }).fields))
+          throw new Error('Invalid Salesforce describe response: field catalog is missing. Schema is not verified.');
         const described = normalizeDescribe(result.result);
         if (!described.name) described.name = sobject;
         return textResult(formatDescribe(described, params.match), { ...base, described });
       } catch (err) {
+        rethrowCancellation(err);
         const errorType = detectErrorType(err);
         const message = err instanceof Error ? err.message : String(err);
         return errorResult(message, { ...base, errorType });

@@ -1,12 +1,41 @@
+import { flattenRecord } from './sf/formatters';
+
 type ViewSection =
   | { kind: 'fields'; title?: string; values: Record<string, unknown> }
   | { kind: 'table'; title?: string; columns: { key: string; label?: string }[]; rows: Record<string, unknown>[] }
   | { kind: 'markdown'; text: string }
   | { kind: 'code'; text: string };
 type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
+type View = { summary?: string; warnings?: string[]; sections: ViewSection[] };
+
+const labels: Record<string, string> = {
+  Id: 'Record ID',
+  Name: 'Name',
+  'Account.Name': 'Account',
+  'Owner.Name': 'Owner',
+  Amount: 'Amount',
+  CurrencyIsoCode: 'Currency',
+  StageName: 'Stage',
+  CloseDate: 'Close date',
+  CreatedDate: 'Created',
+  LastModifiedDate: 'Last modified',
+  LastActivityDate: 'Last activity',
+  ForecastCategoryName: 'Forecast',
+  NextStep: 'Next step',
+  IsClosed: 'Closed',
+  IsWon: 'Won',
+};
+
+function incompleteChildren(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  if (!Array.isArray(value) && (value as { done?: boolean }).done === false) return true;
+  return Object.values(value).some(incompleteChildren);
+}
 
 /** Domain data only: xcsh owns terminal layout, preview policy and the active theme. */
 function sections(value: unknown, title?: string): ViewSection[] {
+  if (value === undefined) return [];
+  if (Array.isArray(value) && value.length === 0) return [{ kind: 'fields', title, values: { count: 0 } }];
   if (
     Array.isArray(value) &&
     value.length &&
@@ -16,7 +45,10 @@ function sections(value: unknown, title?: string): ViewSection[] {
       {
         kind: 'table',
         title,
-        columns: [...new Set(value.flatMap((row) => Object.keys(row)))].map((key) => ({ key })),
+        columns: [...new Set(value.flatMap((row) => Object.keys(row)))].map((key) => ({
+          key,
+          label: labels[key] ?? key,
+        })),
         rows: value,
       },
     ];
@@ -54,7 +86,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
               : sections(args),
         };
       },
-      result: (result: Result, _options: { expanded: boolean }, args: unknown) => {
+      result: (result: Result, options: { expanded: boolean }, args: unknown): View => {
         if (result.isError)
           return {
             sections: result.content
@@ -64,27 +96,52 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
         const details = result.details as Record<string, unknown> | undefined;
         if (details?.queryResult) {
           const query = details.queryResult as { records: Record<string, unknown>[]; totalSize: number; done: boolean };
-          const records = query.records.map(({ attributes: _attributes, ...record }) => record);
+          const records = query.records.map(flattenRecord);
           const aggregate =
-            records.length === 1
+            records.length === 1 &&
+            ((query.records[0]?.attributes as { type?: string } | undefined)?.type === 'AggregateResult' ||
+              (!('Id' in records[0]!) &&
+                !('Name' in records[0]!) &&
+                Object.values(records[0]!).every((value) => value === null || typeof value !== 'object')))
               ? Object.entries(records[0] ?? {})
                   .filter(([, value]) => value === null || typeof value !== 'object')
                   .map(([key, value]) => `${key} = ${String(value)}`)
                   .join(', ')
               : '';
           return {
-            summary: aggregate || `${query.totalSize} rows`,
-            warnings: query.done ? [] : ['Results are incomplete. Use sf data export bulk for the full dataset.'],
+            summary:
+              aggregate ||
+              `${records.length} records returned${query.totalSize !== records.length ? ` (${query.totalSize} reported)` : ''}`,
+            warnings: [
+              ...(!query.done
+                ? ['Results are incomplete. Counts and conclusions apply only to returned records.']
+                : []),
+              ...(incompleteChildren(query.records)
+                ? ['Related records are incomplete; inspect the child-query scope before drawing conclusions.']
+                : []),
+            ],
             sections: [
-              { kind: 'fields' as const, values: { totalSize: query.totalSize, done: query.done } },
+              {
+                kind: 'fields' as const,
+                title: 'Query scope',
+                values: {
+                  scope: details.queryDescription ?? 'Ad hoc query',
+                  org: (args as { target_org?: string })?.target_org ?? 'CLI default org',
+                  returned: records.length,
+                  totalSize: query.totalSize,
+                  done: query.done,
+                  query: (args as { query?: string })?.query,
+                },
+              },
               ...sections(records, String(details.queryDescription ?? 'Query results')),
             ],
           };
         }
         if (details?.pipelineReport) {
           const report = details.pipelineReport as Record<string, unknown>;
+          const { sourceQueries, ...summaries } = report;
           return {
-            summary: 'Pipeline report',
+            summary: `Pipeline report · ${String((report.netNew as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} net new · ${String((report.booked as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} booked · ${String((report.renewals as { quotaTotal?: number } | undefined)?.quotaTotal ?? 'unavailable')} renewals`,
             warnings: [
               ...(Array.isArray(report.unavailable) ? report.unavailable.map(String) : []),
               ...(Array.isArray(report.anomalies)
@@ -94,7 +151,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
             sections: [
               {
                 kind: 'table' as const,
-                title: 'Pipeline summary ($)',
+                title: 'Pipeline summary (reported amounts)',
                 columns: ['section', 'platform', 'shape', 'other', 'quotaTotal'].map((key) => ({ key })),
                 rows: ['netNew', 'booked', 'renewals'].map((key) => {
                   const section = report[key] as { totals?: Record<string, number>; quotaTotal?: number } | undefined;
@@ -105,7 +162,40 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
                   };
                 }),
               },
-              ...sections(report),
+              ...(options.expanded
+                ? sections(summaries)
+                : [
+                    {
+                      kind: 'fields' as const,
+                      title: 'Report scope',
+                      values: {
+                        generated: report.generated,
+                        quarter: report.quarter,
+                        scope: 'OpportunityTeamMember membership',
+                        teamMembers: report.teamMembers,
+                        territories: report.territories,
+                        lineItemCount: report.lineItemCount,
+                        fyBookedTotal: report.fyBookedTotal,
+                      },
+                    },
+                    ...sections(report.forecast, 'Forecast'),
+                    ...sections((report.netNew as { accounts?: unknown } | undefined)?.accounts, 'Net new by account'),
+                    ...sections((report.booked as { accounts?: unknown } | undefined)?.accounts, 'Booked by account'),
+                    ...sections(
+                      (report.renewals as { accounts?: unknown } | undefined)?.accounts,
+                      'Renewals by account',
+                    ),
+                    ...sections(report.topDeals, 'Top deals'),
+                    ...sections(report.topRenewals, 'Top renewals'),
+                  ]),
+              ...(options.expanded && Array.isArray(sourceQueries)
+                ? sourceQueries.flatMap(
+                    (source: { query: string; records: Record<string, unknown>[] }, index: number) => [
+                      { kind: 'code' as const, title: `Source query ${index + 1}`, text: source.query },
+                      ...sections(source.records.map(flattenRecord), 'Complete source records'),
+                    ],
+                  )
+                : []),
             ],
           };
         }
@@ -122,7 +212,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
           const fields = described.fields.filter((field) =>
             match
               ? field.name.toLowerCase().includes(match) || field.label.toLowerCase().includes(match)
-              : !field.custom,
+              : options.expanded || !field.custom,
           );
           const relationships = match
             ? described.childRelationships.filter(
@@ -130,14 +220,70 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T)
                   rel.childSObject.toLowerCase().includes(match) ||
                   (rel.relationshipName ?? '').toLowerCase().includes(match),
               )
-            : [];
+            : options.expanded
+              ? described.childRelationships
+              : [];
           return {
             summary: `${described.name}: ${fields.length} matching fields (${described.fields.length} total)`,
             warnings: !match
               ? ['Custom fields and child relationships are available in expanded details; pass match to select them.']
               : [],
-            sections: sections({ fields, childRelationships: relationships }),
+            sections: [
+              {
+                kind: 'table' as const,
+                title: 'Fields',
+                columns: ['name', 'label', 'type', 'notes'].map((key) => ({
+                  key,
+                  label: { name: 'Field', label: 'Label', type: 'Type', notes: 'Notes' }[key],
+                })),
+                rows: fields.map((field) => {
+                  const data = field as unknown as Record<string, unknown>;
+                  return {
+                    name: field.name,
+                    label: field.label,
+                    type: data.type,
+                    notes: Object.entries(data)
+                      .filter(([key]) => !['name', 'label', 'type'].includes(key))
+                      .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
+                      .join('\n'),
+                  };
+                }),
+              },
+              ...sections(relationships, 'Child relationships'),
+            ],
           };
+        }
+        if (tool.name === 'sf_exec') {
+          const argv = (args as { args?: string[] })?.args ?? [];
+          for (const block of result.content) {
+            if (block.type !== 'text') continue;
+            let envelope: { result?: { records?: Record<string, unknown>[] }; warnings?: string[] };
+            try {
+              envelope = JSON.parse(block.text ?? '');
+            } catch {
+              continue;
+            }
+            if (!Array.isArray(envelope?.result?.records)) continue;
+            const valueAfter = (flag: string) =>
+              argv.includes(flag)
+                ? argv[argv.indexOf(flag) + 1]
+                : argv.find((arg) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1);
+            const view = presentTool({ name: 'sf_query' }).presentation.result(
+              { content: [], details: { queryResult: envelope.result, queryDescription: 'CLI query' } },
+              options,
+              { query: valueAfter('--query'), target_org: valueAfter('--target-org') ?? valueAfter('-o') },
+            );
+            return {
+              ...view,
+              warnings: [...(view.warnings ?? []), ...(envelope.warnings ?? [])],
+              sections: [
+                ...view.sections,
+                ...result.content
+                  .filter((other) => other !== block && other.type === 'text')
+                  .map((other) => ({ kind: 'markdown' as const, text: other.text ?? '' })),
+              ],
+            };
+          }
         }
         return {
           summary: result.content

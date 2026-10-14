@@ -5,7 +5,7 @@ import { deriveQueryLabel, formatQueryResults } from '../sf/formatters';
 import type { SfQueryResult } from '../sf/types';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -50,6 +50,7 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
       const api = makeApi(ctx.cwd);
       const queryDescription = params.description ?? deriveQueryLabel(params.query);
       const base = { tool: 'sf_query' as const, action: 'query', queryDescription };
+      if (!params.query?.trim()) return errorResult('Error: a nonempty SOQL query is required.', base);
 
       if (params.target_org && !ORG_ALIAS_PATTERN.test(params.target_org)) {
         return errorResult(
@@ -66,9 +67,11 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
       try {
         const result = await execSfJson(api, args, signal, params.query);
         const queryData = result.result as SfQueryResult<Record<string, unknown>>;
+        if (!queryData || !Array.isArray(queryData.records))
+          throw new Error('Invalid Salesforce query response: records array is missing. No result count is verified.');
         const queryResult: SfQueryResult = {
-          totalSize: queryData.totalSize ?? 0,
-          done: queryData.done ?? true,
+          totalSize: queryData.totalSize ?? queryData.records.length,
+          done: queryData.done ?? false,
           records: queryData.records ?? [],
         };
 
@@ -79,6 +82,7 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
         }
         return textResult(output, { ...base, queryResult });
       } catch (err) {
+        rethrowCancellation(err);
         const errorType = detectErrorType(err);
         const message = err instanceof Error ? err.message : String(err);
         return errorResult(message, { ...base, errorType });

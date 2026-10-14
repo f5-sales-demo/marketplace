@@ -45,6 +45,9 @@ export interface PipelineReportOptions {
   orgAlias?: string;
   quarterStart: string;
   quarterEnd: string;
+  /** Exact selected-org Year period boundaries, including custom fiscal calendars. */
+  fiscalYearStart?: string;
+  fiscalYearEnd?: string;
   /** Stale cutoff for in-play pipeline. Defaults to quarterEnd (in-quarter only).
    * Set to 12 months ago to show all non-stale open pipeline regardless of close quarter. */
   staleCutoff?: string;
@@ -119,7 +122,11 @@ export interface CloseMonthBucket {
 }
 
 export interface PipelineReportData {
+  /** Full query evidence retained for expanded inspection, including records outside top-N summaries. */
+  sourceQueries?: { query: string; records: Record<string, unknown>[] }[];
   generated: string;
+  /** Inclusive CloseDate lower bound for open pipeline, which may span multiple quarters. */
+  openScopeStart?: string;
   quarter: { start: string; end: string };
   /** Territory coverage for display */
   territories: string[];

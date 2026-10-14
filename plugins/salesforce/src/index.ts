@@ -164,7 +164,13 @@ const factory = async (pi: CanonicalExtensionAPI) => {
         timeout: 30_000,
       });
       if (org.code !== 0) {
-        const rawError = org.stderr;
+        let rawError = org.stderr;
+        try {
+          const errorPayload = JSON.parse(org.stdout) as { message?: string; name?: string };
+          rawError = [rawError, errorPayload.name, errorPayload.message].filter(Boolean).join('\n');
+        } catch {
+          /* CLI process failures can have plain stderr only. */
+        }
         const error = rawError.toLowerCase();
         if (/rate limit|too many requests|request_limit_exceeded|429/.test(error))
           return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };

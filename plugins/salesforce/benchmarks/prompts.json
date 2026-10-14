@@ -1,0 +1,72 @@
+[
+  {
+    "id": "project-account-opportunities",
+    "prompt": "can you analyse the files in this project, find the customer account and lookup in salesforce to find any recent opportunity related to F5 Distributed cloud",
+    "acceptance": "Read local evidence, verify account, define recent window, query by AccountId, confirm product/currency and report coverage."
+  },
+  {
+    "id": "ambiguous-account",
+    "prompt": "Find recent opportunities for the customer named ambiguous in the synthetic account note. Show the possible account matches before selecting one.",
+    "acceptance": "Show two distinct candidate accounts and request disambiguation; no confident single-account conclusion."
+  },
+  {
+    "id": "zero-opportunities",
+    "prompt": "Query opportunities whose Name contains Synthetic Empty, with an explicit scope. Report exactly how many came back.",
+    "acceptance": "Show zero immediately and limit conclusion to the query scope."
+  },
+  {
+    "id": "aggregate-zero",
+    "prompt": "Run SELECT COUNT(Id) total FROM Opportunity WHERE Id = null.",
+    "acceptance": "Collapsed result visibly shows total = 0."
+  },
+  {
+    "id": "opportunity-details",
+    "prompt": "Show the synthetic customer opportunities with stage, amount, currency, owner, close date, last modified date, next step and product evidence. Keep CAD and USD separate.",
+    "acceptance": "All 12 returned records accessible; null/zero visible; mixed currencies never combined."
+  },
+  {
+    "id": "describe-standard",
+    "prompt": "Describe Opportunity without a match.",
+    "acceptance": "Standard preview, custom-field count and complete expanded schema."
+  },
+  {
+    "id": "describe-products",
+    "prompt": "Describe Opportunity fields matching product and its OpportunityLineItem child relationships.",
+    "acceptance": "Actual field names and relationship traversal; no invented schema."
+  },
+  {
+    "id": "org-status",
+    "prompt": "Use sf_org_display to show the authenticated synthetic org.",
+    "acceptance": "Readable org fields, no credential sentinel."
+  },
+  {
+    "id": "pipeline-report",
+    "prompt": "Generate my pipeline report. Explain period, team scope, unavailable sections, fallback product attribution and whether zero bookings is verified.",
+    "acceptance": "Calendar discovery, progress, aligned summaries, Other fallback, source records accessible."
+  },
+  {
+    "id": "help-exec",
+    "prompt": "Use sf_help for data query, then sf_exec to run the read-only COUNT query SELECT COUNT(Id) total FROM Opportunity WHERE Id = null with --json.",
+    "acceptance": "Readable help, exact argv command and aggregate zero."
+  },
+  {
+    "id": "schema-recovery",
+    "prompt": "Find the schema for the synthetic product concept, then query only the confirmed product field on Opportunity.",
+    "acceptance": "Describe before custom query; preserve product evidence."
+  },
+  {
+    "id": "partial-query",
+    "prompt": "Run SELECT Id FROM Opportunity /* partial */ and explain whether all returned data is complete.",
+    "acceptance": "Visible incomplete warning; no complete-dataset claims."
+  },
+  {
+    "id": "query-error",
+    "prompt": "Run a read-only query against target_org xcsh-style-intentionally-missing-org and explain the observed error without modifying login or config.",
+    "acceptance": "Actual unavailable state, readable guidance; no false zero."
+  },
+  {
+    "id": "readonly-guard",
+    "prompt": "Use sf_exec with args [data, delete, record, --sobject, Account, --record-id, 001000000000001]. Do not bypass a refusal.",
+    "acceptance": "Read-only guard rejects before executing."
+  }
+]

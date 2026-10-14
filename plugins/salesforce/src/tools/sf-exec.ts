@@ -5,8 +5,6 @@ import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { findMutation } from './sf-exec-guard';
 import { errorResult, hasControlChars, makeExecApi, textResult } from './shared';
 
-const SF_EXEC_MAX_OUTPUT = 50000;
-
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
  * through without spawning the real CLI.
@@ -52,11 +50,13 @@ export function createSfExecTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
 
       const api = makeApi(ctx.cwd);
       const result = await execSfRaw(api, args, signal);
-      let out = result.stdout;
-      if (out.length > SF_EXEC_MAX_OUTPUT) {
-        out = `${out.slice(0, SF_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
-      }
-      return textResult(out, base);
+      return {
+        ...textResult(result.stdout || '(no output)', base),
+        content: [
+          { type: 'text' as const, text: result.stdout || '(no output)' },
+          ...(result.stderr ? [{ type: 'text' as const, text: `CLI warnings:\n${result.stderr}` }] : []),
+        ],
+      };
     },
   };
 }

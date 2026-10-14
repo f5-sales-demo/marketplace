@@ -184,11 +184,11 @@ describe('flattenRecord', () => {
     expect(flat['Account.Name']).toBe('Example Corp');
   });
 
-  it('skips null values', () => {
+  it('preserves null values', () => {
     const record = { Name: 'Deal', Amount: null };
     const flat = flattenRecord(record);
     expect(flat.Name).toBe('Deal');
-    expect('Amount' in flat).toBe(false);
+    expect(flat.Amount).toBeNull();
   });
 
   it('keeps arrays as-is', () => {

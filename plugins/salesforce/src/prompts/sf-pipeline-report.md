@@ -23,5 +23,9 @@ FY-to-date booked total vs quota (when quota is set in user profile).
 Data quality anomalies: slipped close dates, stalled deals (no activity >30 days), missing territories, urgent renewals closing within 30 days, unclassified SKUs.
 Recent pipeline changes (last 7 days) from OpportunityFieldHistory.
 
-After the tool returns, present the report as-is. Do not re-query Salesforce to fill in gaps — the report already contains all available data. If the report shows zero pipeline, mention that the user may need to read `xcsh://salesforce?refresh=true` to refresh their team membership context.
+Report the verified fiscal-quarter dates and OpportunityTeamMember scope. Territory labels provide context; they do not imply that every territory opportunity was queried. The report discovers the selected org's fiscal calendar and schema. Failed or incomplete queries return an error instead of unverified totals.
+
+Present the report's totals, scope, unavailable sections and anomalies. Opportunity-level fallback amounts have no SKU evidence and appear under Other; do not count them as Distributed Cloud or quota-eligible revenue. Zero FY bookings is a valid result. Full source queries and returned records are available in expanded details, including rows outside the top-deal summaries. Amount units and currencies must be stated from available evidence; do not infer USD from a dollar symbol.
+
+If a report fails, explain the error and appropriate recovery. If a verified report shows zero, state zero within its team, period and product scope. Do not suggest refreshing credentials or context as though zero itself proves a failure.
 </instruction>
