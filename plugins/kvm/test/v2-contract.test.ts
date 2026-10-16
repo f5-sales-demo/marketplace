@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import kvmExtension from '../src/index';
 import { controllerEnvironment, createKvmSmsv2Tools, parseControllerEnvelope } from '../src/tools';
 
@@ -89,7 +90,7 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
 
 test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('3.1.0');
+  expect(manifest.version).toBe('3.2.0');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
 });
@@ -105,6 +106,7 @@ test('uses the active XCSH namespace instead of a tenant-specific application de
     },
   );
   await kvmExtension({
+    presentation,
     typebox: { Type: Type as never },
     setLabel: () => {},
     registerTool: () => {},
@@ -135,6 +137,7 @@ test('registers setup steps within the xcsh integration timeout contract', async
     },
   );
   await kvmExtension({
+    presentation,
     typebox: { Type: Type as never },
     setLabel: () => {},
     registerTool: () => {},
@@ -168,6 +171,7 @@ test('integration setup remains required until the owned deployment is accepted'
   );
   await kvmExtension(
     {
+      presentation,
       typebox: { Type: Type as never },
       setLabel: () => {},
       registerTool: () => {},
@@ -219,6 +223,7 @@ test('integration readiness probe uses the active xcsh context environment', asy
   );
   await kvmExtension(
     {
+      presentation,
       typebox: { Type: Type as never },
       setLabel: () => {},
       registerTool: () => {},

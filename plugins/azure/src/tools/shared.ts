@@ -24,6 +24,8 @@ export type AzToolName =
   | 'az_help';
 
 export interface AzToolDetails {
+  fullOutput?: string;
+  modelPreviewTruncated?: boolean;
   tool: AzToolName;
   action?: string;
   subscriptions?: AzSubscription[];

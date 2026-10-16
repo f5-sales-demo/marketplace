@@ -1,3 +1,5 @@
+import './content-workflows.test';
+import './suite-workflows.test';
 import './salesforce-workflows.test';
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -70,7 +72,7 @@ describe('full marketplace presentation through installed-plugin discovery', () 
         expect(data).toContain('false');
         expect(data).toContain('null');
         expect(output.content[0].text).toContain('"total":0');
-        const tool = wrapRegisteredTool(registered, {} as ExtensionRunner);
+        const tool = wrapRegisteredTool(registered, { createContext: () => ({}) } as ExtensionRunner);
         for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
           await initTheme(false, preset);
           for (const name of ['xcsh-dark', 'xcsh-light']) {
@@ -92,13 +94,55 @@ describe('full marketplace presentation through installed-plugin discovery', () 
           }
         }
       }
+      // Execute every advertised tool with unavailable dependencies. Required inputs remain
+      // absent deliberately; writes, cloud access, meetings and desktop input cannot run.
+      const failedSpawn = spyOn(Bun, 'spawn').mockImplementation(() => {
+        throw new Error('Synthetic dependency unavailable');
+      });
+      const failedSync = spyOn(Bun, 'spawnSync').mockReturnValue({
+        exitCode: 1,
+        stdout: new Uint8Array(),
+        stderr: new TextEncoder().encode('Synthetic dependency unavailable'),
+      } as never);
+      const unavailableFetch = spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Synthetic network unavailable'));
+      const executed = new Set<string>();
+      try {
+        for (const registered of tools) {
+          const tool = wrapRegisteredTool(registered, {
+            createContext: () => ({ cwd: home, hasUI: false, ui: { notify() {}, confirm: async () => false } }),
+          } as never);
+          let result: any;
+          try {
+            result = await tool.execute('suite-unavailable', {}, undefined);
+          } catch (error) {
+            result = {
+              isError: true,
+              content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+            };
+          }
+          expect(result.content?.length, tool.name).toBeGreaterThan(0);
+          executed.add(tool.name);
+          const component = new ToolExecutionComponent(tool.name, {}, {}, tool, { requestRender() {} } as never);
+          component.updateResult(result);
+          component.setExpanded(true);
+          expect(
+            component.render(40).every((line) => visibleWidth(line) <= 40),
+            tool.name,
+          ).toBe(true);
+        }
+      } finally {
+        unavailableFetch.mockRestore();
+        failedSync.mockRestore();
+        failedSpawn.mockRestore();
+      }
+      expect(executed.size).toBe(tools.length);
       for (const plugin of catalog.plugins) {
         const manifest = await Bun.file(join(root, plugin.source, '.xcsh-plugin', 'plugin.json')).json();
         expect(manifest.lifecycle).toBeDefined();
-        const minimumRuntime = plugin.name === 'salesforce' ? '23.4.2' : '23.4.1';
+        const minimumRuntime = '23.5.1';
         expect(manifest.minimumRuntimeVersion).toBe(minimumRuntime);
         expect(plugin.minimumRuntimeVersion).toBe(minimumRuntime);
-        expect(runtime.version).toBe('23.4.2');
+        expect(runtime.version).toBe(minimumRuntime);
         const message = new CustomMessageComponent({
           customType: plugin.name,
           content: `**${plugin.name}**\n\n| Status | Total |\n| --- | ---: |\n| ready | 0 |`,

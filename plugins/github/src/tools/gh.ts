@@ -144,7 +144,8 @@ class ToolResultBuilder<TDetails extends { meta?: OutputMeta }> {
     return this;
   }
 
-  sourceUrl(_value: string): this {
+  sourceUrl(value: string): this {
+    Object.assign(this.#details, { sourceUrl: value });
     return this;
   }
 
@@ -521,6 +522,13 @@ interface GhHelpInput {
 }
 
 export interface GhToolDetails {
+  fullOutput?: string;
+  modelPreviewTruncated?: boolean;
+  data?: unknown;
+  items?: GhSearchResult[];
+  query?: string;
+  limit?: number;
+  sourceUrl?: string;
   errorType?: GhErrorType;
   tool?: string;
   meta?: OutputMeta;
@@ -1571,6 +1579,7 @@ export class GhRepoViewTool implements AgentTool<typeof ghRepoViewSchema, GhTool
       });
       return buildTextResult(formatRepoView(data, { repo, branch }), data.url, {
         tool: 'gh_repo_view',
+        data,
         repo: repo ?? data.nameWithOwner,
       });
     });
@@ -1611,6 +1620,7 @@ export class GhIssueViewTool implements AgentTool<typeof ghIssueViewSchema, GhTo
       });
       return buildTextResult(formatIssueView(data, { issue, repo, comments: includeComments }), data.url, {
         tool: 'gh_issue_view',
+        data,
       });
     });
   }
@@ -1657,6 +1667,7 @@ export class GhPrViewTool implements AgentTool<typeof ghPrViewSchema, GhToolDeta
       }
       return buildTextResult(formatPrView(data, { pr, repo, comments: includeComments }), data.url, {
         tool: 'gh_pr_view',
+        data,
       });
     });
   }
@@ -1948,6 +1959,10 @@ export class GhSearchIssuesTool implements AgentTool<typeof ghSearchIssuesSchema
       });
       return buildTextResult(formatSearchResults('issues', query, repo, items), undefined, {
         tool: 'gh_search_issues',
+        items,
+        query,
+        repo,
+        limit,
       });
     });
   }
@@ -1985,6 +2000,10 @@ export class GhSearchPrsTool implements AgentTool<typeof ghSearchPrsSchema, GhTo
       });
       return buildTextResult(formatSearchResults('pull requests', query, repo, items), undefined, {
         tool: 'gh_search_prs',
+        items,
+        query,
+        repo,
+        limit,
       });
     });
   }
@@ -2090,10 +2109,15 @@ export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
         });
       }
       let out = result.stdout || result.stderr;
+      const fullOutput = out;
       if (out.length > GH_EXEC_MAX_OUTPUT) {
         out = `${out.slice(0, GH_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
       }
-      return buildTextResult(out, undefined, { tool: 'gh_exec' });
+      return buildTextResult(out, undefined, {
+        tool: 'gh_exec',
+        fullOutput,
+        modelPreviewTruncated: out !== fullOutput,
+      });
     });
   }
 }

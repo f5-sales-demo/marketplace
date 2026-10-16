@@ -16,6 +16,7 @@ import {
   parseZoomCommand,
   parseZoomToolInput,
 } from '../plugins/zoom/extensions/integration';
+import { presentation } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/presentation';
 
 const xorgVersion = (
   await Bun.file(join(import.meta.dir, '..', 'plugins', 'xorg', '.xcsh-plugin', 'plugin.json')).json()
@@ -92,6 +93,7 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
     { get: (target, property) => Reflect.get(target, property) ?? (() => ({})) },
   );
   const pi = {
+    presentation,
     setLabel() {},
     logger: { debug() {} },
     typebox: { Type: typeFactory },
@@ -1985,21 +1987,34 @@ describe('catalog tool presentation mappings', () => {
       if (plugin === 'salesforce') expect(definitions.tools).toHaveLength(6);
       for (const tool of definitions.tools) {
         const presentation = (
-          tool as typeof tool & { presentation: { call(args: unknown): unknown; result(result: unknown): unknown } }
+          tool as typeof tool & {
+            presentation: {
+              call(args: unknown, options: unknown): unknown;
+              result(result: unknown, options: unknown, args: unknown): unknown;
+            };
+          }
         ).presentation;
         expect(presentation).toBeDefined();
-        expect(presentation.call({ count: 0, enabled: false })).toBeDefined();
+        expect(presentation.call({ count: 0, enabled: false }, { expanded: false, isPartial: false })).toBeDefined();
         expect(
-          presentation.result({
-            content: [{ type: 'text', text: '{"records":[{"total":0,"enabled":false,"missing":null}]}' }],
-          }),
+          presentation.result(
+            {
+              content: [{ type: 'text', text: '{"records":[{"total":0,"enabled":false,"missing":null}]}' }],
+            },
+            { expanded: false, isPartial: false },
+            {},
+          ),
         ).toBeDefined();
         expect(
           JSON.stringify(
-            presentation.result({
-              isError: true,
-              content: [{ type: 'text', text: 'Corrective guidance for a synthetic invalid field' }],
-            }),
+            presentation.result(
+              {
+                isError: true,
+                content: [{ type: 'text', text: 'Corrective guidance for a synthetic invalid field' }],
+              },
+              { expanded: false, isPartial: false },
+              {},
+            ),
           ),
         ).toContain('Corrective guidance');
       }

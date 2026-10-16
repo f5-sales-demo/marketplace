@@ -110,8 +110,8 @@ mkdir -p \
   "$AWS_NODE_MODULES/@agentclientprotocol/sdk" \
   "$AWS_NODE_MODULES/@google/genai" \
   "$AWS_NODE_MODULES/bun-types"
-printf '{"version":"23.4.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
-printf '{"version":"23.4.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
 printf '{"version":"0.124.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
 printf '{"version":"1.4.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
 printf '{"version":"2.21.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
@@ -158,12 +158,8 @@ mkdir -p \
   node_modules/@google/genai \
   node_modules/@sinclair/typebox \
   node_modules/bun-types
-xcsh_version="23.4.1"
-pi_utils_version="23.4.1"
-if [ "${PWD##*/}" = "salesforce" ]; then
-  xcsh_version="23.4.2"
-  pi_utils_version="23.4.2"
-fi
+xcsh_version="23.5.1"
+pi_utils_version="23.5.1"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"

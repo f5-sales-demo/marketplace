@@ -21,6 +21,8 @@ export type AwsErrorType =
   | 'exec_error';
 
 export interface AwsToolDetails {
+  fullOutput?: string;
+  modelPreviewTruncated?: boolean;
   tool: string;
   action?: string;
   identity?: AwsIdentity;

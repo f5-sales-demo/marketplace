@@ -52,10 +52,11 @@ export function createGlabExecTool(pi: PluginHost, makeApi: (cwd: string) => Gla
       const api = makeApi(ctx.cwd);
       const result = await execGlab(api, args, signal);
       let out = result.stdout;
+      const fullOutput = out;
       if (out.length > GLAB_EXEC_MAX_OUTPUT) {
         out = `${out.slice(0, GLAB_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
       }
-      return textResult(out, { tool: 'glab_exec' });
+      return textResult(out, { tool: 'glab_exec', fullOutput, modelPreviewTruncated: out !== fullOutput });
     },
   };
 }

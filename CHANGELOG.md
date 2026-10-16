@@ -10,6 +10,75 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`docs-tools`** v1.3.0 uses the shared themed command and skill surfaces, qualified with shipped content.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`sales-engineer`** v1.2.0 uses the shared themed command and skill surfaces, qualified with shipped
+  content. Requires xcsh 23.5.1 (#1537).
+
+- **`docs-pipeline`** v1.2.0 uses the shared themed command and skill surfaces, qualified with shipped
+  content. Requires xcsh 23.5.1 (#1537).
+
+- **`brand`** v1.2.0 uses the shared themed command and skill surfaces, qualified with shipped content.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`meddpicc`** v7.8.0 uses the shared themed command and skill surfaces, qualified with shipped content.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`devcontainer`** v1.4.0 uses the shared themed lifecycle surfaces with consistent setup and unavailable-
+  host output. Requires xcsh 23.5.1 (#1537).
+
+- **`platform`** v6.2.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`osint-framework`** v1.2.0 uses the shared themed command and skill surfaces, qualified with shipped
+  content. Requires xcsh 23.5.1 (#1537).
+
+- **`firecrawl`** v1.4.0 uses the shared themed lifecycle surfaces with consistent setup and unavailable-host
+  output. Requires xcsh 23.5.1 (#1537).
+
+- **`salesforce`** v2.3.0 reuses shared conversion, tables, and command formatting while preserving scoped
+  pipeline and currency logic. Requires xcsh 23.5.1 (#1537).
+
+- **`cloudstatus`** v1.9.0 uses the shared themed advisory surface, qualified with actual advisory matching.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`azure`** v4.6.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`aws`** v2.3.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`kvm`** v3.2.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`gcloud`** v1.5.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`gitlab`** v1.5.0 adds shared scoped result profiles and reports unavailable or partial search evidence
+  truthfully. Requires xcsh 23.5.1 (#1537).
+
+- **`github`** v3.3.0 adds shared scoped result profiles, structured search records, and complete displayed
+  command output. Requires xcsh 23.5.1 (#1537).
+
+- **`herdr`** v1.3.0 uses the shared themed lifecycle surfaces with consistent setup and unavailable-host
+  output. Requires xcsh 23.5.1 (#1537).
+
+- **`asm-migration`** v2.3.0 adds shared scoped result profiles, readable collections, and complete expanded
+  data. Requires xcsh 23.5.1 (#1537).
+
+- **`terraform`** v2.3.0 uses the shared themed lifecycle surfaces with consistent setup and unavailable-host
+  output. Requires xcsh 23.5.1 (#1537).
+
+- **`xorg`** v1.3.0 adds shared scoped result profiles, readable collections, and complete expanded data.
+  Requires xcsh 23.5.1 (#1537).
+
+- **`zoom`** v1.3.0 adds shared host result profiles and readable command messages, including explicit failure
+  warnings. Requires xcsh 23.5.1 (#1537).
+
+- **`ghostty`** v1.2.0 uses the shared themed lifecycle surfaces with consistent setup and unavailable-host
+  output. Requires xcsh 23.5.1 (#1537).
+
 - **`salesforce`** v2.2.0 completes the six-tool pilot: account-evidence query guidance, complete expanded schema/CLI/report data, scoped and aligned tables, explicit zeros and unavailable states, selected-org fiscal periods, progress/cancellation, and strict synthetic registration/TUI acceptance (#1533).
 
 - **`ghostty`** v1.1.2 preserves package-manager launcher invocation paths, allowing existing Snap Ghostty installations to verify correctly (#1531).

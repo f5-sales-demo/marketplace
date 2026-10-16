@@ -1,8 +1,9 @@
 import { HttpCeV2Driver } from './ce/driver';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import type { PlatformToolApi, PlatformToolContext } from './types';
 
 interface PlatformExtensionApi extends PlatformToolApi {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
   integrations: { register<_T>(definition: unknown): unknown };
@@ -27,6 +28,7 @@ function activeContextEnvironment(
 }
 
 const factory: ExtensionFactory = async (pi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('F5 Distributed Cloud Platform');
   let sessionSettings: PlatformToolContext['settings'];
   const observeSession = (_event: unknown, context: PlatformToolContext) => {

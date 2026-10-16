@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import { Type } from '@sinclair/typebox';
 import factory from '../src/index';
 
@@ -9,6 +10,7 @@ test('registers all three native tools and returns structured results', async ()
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
     integrations: { register() {} },
+    presentation,
     typebox: { Type },
     setLabel(label: string) {
       expect(label).toBe('ASM Migration');
@@ -72,6 +74,7 @@ test('returns stable categories without stack traces or input contents', async (
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
     integrations: { register() {} },
+    presentation,
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -95,6 +98,7 @@ test('reports every config-pack issue with contract paths', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
     integrations: { register() {} },
+    presentation,
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -132,6 +136,7 @@ test('returns stable macOS guidance for symlinked output', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
     integrations: { register() {} },
+    presentation,
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -176,6 +181,7 @@ test('preserves host prompts, all tools, and tool choices across mixed and ordin
         integrations.push(definition);
       },
     },
+    presentation,
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {

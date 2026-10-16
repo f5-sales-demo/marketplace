@@ -6,9 +6,14 @@ import type { GlabIssue, GlabProject } from '../glab/types';
 // Shared types
 // ---------------------------------------------------------------------------
 
-export type GlabErrorType = 'auth_required' | 'not_found' | 'rate_limited' | 'exec_error';
+export type GlabErrorType = 'auth_required' | 'not_found' | 'rate_limited' | 'exec_error' | 'setup_required';
 
 export interface GlabToolDetails {
+  fullOutput?: string;
+  modelPreviewTruncated?: boolean;
+  partial?: boolean;
+  warnings?: string[];
+  sources?: { rest: boolean; graphql: boolean };
   tool?: 'glab_issue_list' | 'glab_issue_view' | 'glab_search' | 'glab_help' | 'glab_exec';
   items?: GlabIssue[];
   issue?: GlabIssue;

@@ -70,10 +70,11 @@ export function createGcloudExecTool(pi: PluginInterface, makeApi: (cwd: string)
           });
         }
         let output = result.stdout;
+        const fullOutput = output;
         if (output.length > MAX_OUTPUT_LENGTH) {
           output = `${output.slice(0, MAX_OUTPUT_LENGTH)}\n\n[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
         }
-        return textResult(output, base);
+        return textResult(output, { ...base, fullOutput, modelPreviewTruncated: output !== fullOutput });
       } catch (err) {
         return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
           ...base,
