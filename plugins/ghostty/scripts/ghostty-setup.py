@@ -827,7 +827,12 @@ def main() -> int:
     except (OSError, SetupError) as error:
         print(
             json.dumps(
-                {"reason": str(error), "state": "setup_required"},
+                {
+                    "reason": str(error),
+                    "state": "unavailable"
+                    if str(error).startswith("unsupported_platform:")
+                    else "setup_required",
+                },
                 sort_keys=True,
                 separators=(",", ":"),
             )

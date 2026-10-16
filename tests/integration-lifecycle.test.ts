@@ -2021,3 +2021,43 @@ describe('catalog tool presentation mappings', () => {
     });
   }
 });
+
+describe('Ghostty unsupported host readiness', () => {
+  for (const reason of [
+    'unsupported_platform:os_release_unavailable',
+    'unsupported_platform:requires_ubuntu_24.04_amd64_or_arm64',
+  ]) {
+    it(`classifies ${reason} as unavailable and skips install-authorized setup`, async () => {
+      const definition = (await definitionsFor('ghostty'))[0]!;
+      const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
+        exitCode: 1,
+        stdout: new TextEncoder().encode(JSON.stringify({ state: 'unavailable', reason })),
+      } as ReturnType<typeof Bun.spawnSync>);
+      try {
+        const snapshot = await definition.probe();
+        expect(snapshot).toMatchObject({ state: 'unavailable', reason });
+        const { executeInstallAuthorizedSetup } = await import(
+          '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/integrations/setup'
+        );
+        let setupRuns = 0;
+        const result = await executeInstallAuthorizedSetup({
+          plugin: 'ghostty',
+          lifecycle: { setupRequired: true, setupAuthorization: 'install' },
+          trigger: 'direct-install',
+          handles: [
+            { id: 'ghostty', plugin: 'ghostty', setupPlan: definition.setup, get: async () => snapshot },
+          ] as never,
+          run: async () => {
+            setupRuns++;
+            throw new Error('Unsupported hosts must never execute setup');
+          },
+        });
+        expect(result).toMatchObject({ state: 'unavailable', reason });
+        expect(setupRuns).toBe(0);
+        expect(spawn).toHaveBeenCalledTimes(1);
+      } finally {
+        spawn.mockRestore();
+      }
+    });
+  }
+});

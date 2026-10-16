@@ -19,6 +19,7 @@ export default function ghosttyIntegration(pi: { integrations: { register(defini
       const r = Bun.spawnSync(['python3', setup, 'status', PLUGIN_VERSION], { stdout: 'pipe' });
       try {
         const value = JSON.parse(new TextDecoder().decode(r.stdout));
+        if (value.state === 'unavailable') return { state: 'unavailable', reason: value.reason, value };
         return r.exitCode === 0 && value.state === 'ready'
           ? { state: 'ready', value }
           : { state: 'setup_required', reason: value.reason ?? 'setup_required', value };
