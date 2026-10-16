@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
-import { presentTool } from '../src/presentation';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
+import { presentTool as enrichTool } from '../src/presentation';
 
-const options = { expanded: false };
+const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, presentation);
+
+const options = { expanded: false, isPartial: false };
 test('query aggregates retain zero and incomplete-result guidance in the summary', () => {
   const tool = presentTool({ name: 'sf_query', label: 'Salesforce query' });
   const view = tool.presentation.result(
@@ -16,9 +19,12 @@ test('exec displays a readable exact command and exposes zero JSON aggregates', 
   const tool = presentTool({ name: 'sf_exec' });
   expect(
     JSON.stringify(
-      tool.presentation.call({
-        args: ['data', 'query', '--query', "SELECT Id FROM Opportunity WHERE Name = 'synthetic'"],
-      }),
+      tool.presentation.call(
+        {
+          args: ['data', 'query', '--query', "SELECT Id FROM Opportunity WHERE Name = 'synthetic'"],
+        },
+        options,
+      ),
     ),
   ).toContain('sf data query --query');
   const view = tool.presentation.result(

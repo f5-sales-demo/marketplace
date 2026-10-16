@@ -3,6 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { visibleWidth } from '@f5-sales-demo/pi-tui';
+import { presentation } from '@f5-sales-demo/xcsh';
 import { Type } from '@sinclair/typebox';
 import {
   configurePersonProfile,
@@ -65,6 +66,7 @@ let integration: any;
 beforeAll(async () => {
   await initTheme(false, 'unicode');
   await factory({
+    presentation,
     typebox: { Type },
     host: { findExecutable: () => executable },
     software: { prepareSetup: async (_recipe: unknown, plan: unknown) => plan },

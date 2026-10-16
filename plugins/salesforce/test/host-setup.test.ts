@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import * as typebox from '@sinclair/typebox';
 import {
   configurePersonProfile,
@@ -120,6 +121,7 @@ it('in-flight context cancellation reaches every child and rejects discovery', a
 it('registers six tools with the resolved executable', async () => {
   const names: string[] = [];
   await factory({
+    presentation,
     typebox,
     host: { findExecutable: () => '/opt/homebrew/bin/sf' },
     software: { prepareSetup: async (_recipe, plan) => plan },

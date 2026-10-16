@@ -2,7 +2,7 @@ import type { GlabExecApi } from '../glab/exec';
 import { execGlab, GlabAuthError } from '../glab/exec';
 import glabHelpDescription from '../prompts/glab-help.md' with { type: 'text' };
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { errorResult, makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
 // Lowercase letters, spaces, and hyphens only. This blocks shell metacharacters
 // and flag smuggling at the top level; the per-part `-` guard below then rejects
@@ -55,7 +55,8 @@ export function createGlabHelpTool(pi: PluginHost, makeApi: (cwd: string) => Gla
         const output = result.stdout || result.stderr;
         return textResult(output || `No help output for "glab ${commandPath}".`, { tool: 'glab_help' });
       } catch (err) {
-        if (err instanceof GlabAuthError) return textResult((err as Error).message);
+        if (err instanceof GlabAuthError)
+          return errorResult((err as Error).message, { tool: 'glab_help', errorType: detectErrorType(err) });
         throw err;
       }
     },

@@ -16,6 +16,7 @@ import {
   parseZoomCommand,
   parseZoomToolInput,
 } from '../plugins/zoom/extensions/integration';
+import { presentation } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/presentation';
 
 const xorgVersion = (
   await Bun.file(join(import.meta.dir, '..', 'plugins', 'xorg', '.xcsh-plugin', 'plugin.json')).json()
@@ -92,6 +93,7 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
     { get: (target, property) => Reflect.get(target, property) ?? (() => ({})) },
   );
   const pi = {
+    presentation,
     setLabel() {},
     logger: { debug() {} },
     typebox: { Type: typeFactory },
@@ -1985,23 +1987,76 @@ describe('catalog tool presentation mappings', () => {
       if (plugin === 'salesforce') expect(definitions.tools).toHaveLength(6);
       for (const tool of definitions.tools) {
         const presentation = (
-          tool as typeof tool & { presentation: { call(args: unknown): unknown; result(result: unknown): unknown } }
+          tool as typeof tool & {
+            presentation: {
+              call(args: unknown, options: unknown): unknown;
+              result(result: unknown, options: unknown, args: unknown): unknown;
+            };
+          }
         ).presentation;
         expect(presentation).toBeDefined();
-        expect(presentation.call({ count: 0, enabled: false })).toBeDefined();
+        expect(presentation.call({ count: 0, enabled: false }, { expanded: false, isPartial: false })).toBeDefined();
         expect(
-          presentation.result({
-            content: [{ type: 'text', text: '{"records":[{"total":0,"enabled":false,"missing":null}]}' }],
-          }),
+          presentation.result(
+            {
+              content: [{ type: 'text', text: '{"records":[{"total":0,"enabled":false,"missing":null}]}' }],
+            },
+            { expanded: false, isPartial: false },
+            {},
+          ),
         ).toBeDefined();
         expect(
           JSON.stringify(
-            presentation.result({
-              isError: true,
-              content: [{ type: 'text', text: 'Corrective guidance for a synthetic invalid field' }],
-            }),
+            presentation.result(
+              {
+                isError: true,
+                content: [{ type: 'text', text: 'Corrective guidance for a synthetic invalid field' }],
+              },
+              { expanded: false, isPartial: false },
+              {},
+            ),
           ),
         ).toContain('Corrective guidance');
+      }
+    });
+  }
+});
+
+describe('Ghostty unsupported host readiness', () => {
+  for (const reason of [
+    'unsupported_platform:os_release_unavailable',
+    'unsupported_platform:requires_ubuntu_24.04_amd64_or_arm64',
+  ]) {
+    it(`classifies ${reason} as unavailable and skips install-authorized setup`, async () => {
+      const definition = (await definitionsFor('ghostty'))[0]!;
+      const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
+        exitCode: 1,
+        stdout: new TextEncoder().encode(JSON.stringify({ state: 'unavailable', reason })),
+      } as ReturnType<typeof Bun.spawnSync>);
+      try {
+        const snapshot = await definition.probe();
+        expect(snapshot).toMatchObject({ state: 'unavailable', reason });
+        const { executeInstallAuthorizedSetup } = await import(
+          '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/integrations/setup'
+        );
+        let setupRuns = 0;
+        const result = await executeInstallAuthorizedSetup({
+          plugin: 'ghostty',
+          lifecycle: { setupRequired: true, setupAuthorization: 'install' },
+          trigger: 'direct-install',
+          handles: [
+            { id: 'ghostty', plugin: 'ghostty', setupPlan: definition.setup, get: async () => snapshot },
+          ] as never,
+          run: async () => {
+            setupRuns++;
+            throw new Error('Unsupported hosts must never execute setup');
+          },
+        });
+        expect(result).toMatchObject({ state: 'unavailable', reason });
+        expect(setupRuns).toBe(0);
+        expect(spawn).toHaveBeenCalledTimes(1);
+      } finally {
+        spawn.mockRestore();
       }
     });
   }

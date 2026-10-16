@@ -6,7 +6,7 @@ import { executeGraphQL } from '../glab/graphql';
 import type { GlabIssue, GraphQLIssueNode } from '../glab/types';
 import glabSearchDescription from '../prompts/glab-search.md' with { type: 'text' };
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -42,11 +42,16 @@ export function createGlabSearchTool(pi: PluginHost, makeApi: (cwd: string) => G
       const api = makeApi(ctx.cwd);
       const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
-        return textResult('No GitLab project configured. Run: xcsh plugin setup gitlab');
+        return errorResult('No GitLab project configured. Run: xcsh plugin setup gitlab', {
+          errorType: 'setup_required',
+        });
       }
 
       const limit = Math.min(params.limit ?? 20, 100);
       let issues: GlabIssue[] = [];
+      let restSucceeded = false;
+      let graphqlSucceeded = false;
+      const warnings: string[] = [];
 
       const restArgs = [
         'issue',
@@ -66,16 +71,27 @@ export function createGlabSearchTool(pi: PluginHost, makeApi: (cwd: string) => G
 
       try {
         issues = await execGlabJson<GlabIssue[]>(api, restArgs, signal);
+        restSucceeded = true;
       } catch (err) {
-        if (err instanceof GlabAuthError) return textResult((err as Error).message);
+        if (signal?.aborted) throw err;
+        if (err instanceof GlabAuthError)
+          return errorResult((err as Error).message, { errorType: detectErrorType(err) });
+        warnings.push('REST issue search unavailable; returned evidence may be incomplete.');
       }
 
       let graphqlNodes: GraphQLIssueNode[] = [];
       try {
         graphqlNodes = await executeGraphQL(api, project, params.query, limit, signal, params.state);
-      } catch {
-        // GraphQL unavailable — use REST results only
+        graphqlSucceeded = true;
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        warnings.push('GraphQL comment search unavailable; returned evidence covers REST only.');
       }
+      if (!restSucceeded && !graphqlSucceeded)
+        return errorResult(
+          'GitLab search unavailable: REST and GraphQL failed. No verified result count is available.',
+          { errorType: 'exec_error' },
+        );
 
       if (graphqlNodes.length > 0) {
         const seenIids = new Set(issues.map((i) => i.iid));
@@ -109,6 +125,9 @@ export function createGlabSearchTool(pi: PluginHost, makeApi: (cwd: string) => G
 
       return textResult(formatIssueTable(issues), {
         tool: 'glab_search',
+        partial: warnings.length > 0,
+        warnings,
+        sources: { rest: restSucceeded, graphql: graphqlSucceeded },
         items: issues,
         total: issues.length,
         project,

@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-salesforce",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Salesforce pipeline intelligence for xcsh \u2014 native tools, context discovery, pipeline reports",
   "main": "src/index.ts",
   "scripts": {
@@ -9,21 +9,21 @@
   },
   "xcsh": {
     "name": "Salesforce",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Salesforce pipeline intelligence",
     "extensions": [
       "src/index.ts"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/pi-utils": ">=23.4.2",
-    "@f5-sales-demo/xcsh": ">=23.4.2"
+    "@f5-sales-demo/pi-utils": ">=23.5.1",
+    "@f5-sales-demo/xcsh": ">=23.5.1"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.2",
-    "@f5-sales-demo/xcsh": "23.4.2",
-    "@f5-sales-demo/pi-utils": "23.4.2"
+    "@f5-sales-demo/xcsh": "23.5.1",
+    "@f5-sales-demo/pi-utils": "23.5.1"
   },
   "license": "Apache-2.0"
 }

@@ -1,9 +1,10 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 
 interface ExtensionApi {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   integrations: { register<_T>(definition: unknown): unknown };
   typebox: {
     Type: {
@@ -14,6 +15,12 @@ interface ExtensionApi {
       Optional(schema: unknown): unknown;
     };
   };
+  sendMessage?(message: {
+    customType: string;
+    content: string;
+    display: boolean;
+    presentation: { summary?: string; warnings?: string[]; sections: ReturnType<ExtensionApi['presentation']['data']> };
+  }): void;
   registerTool(definition: unknown): void;
   registerCommand(
     name: string,
@@ -1030,7 +1037,7 @@ export const call = (action: Action, args: string[]) => {
   }
   if (action === 'status' || action === 'awareness') {
     const windowList = publicXorgCall(session, 'window', 'list', {});
-    if (windowList.exitCode) return { windowList };
+    if (windowList.exitCode) return { exitCode: windowList.exitCode, windowList };
     try {
       const windowEnvelope = JSON.parse(windowList.output) as { result?: { windows?: WindowItem[] } };
       const windows = windowEnvelope.result?.windows ?? [];
@@ -1079,19 +1086,24 @@ export const call = (action: Action, args: string[]) => {
   return publicXorgCall(session, 'input', 'batch', { steps: [{ action: 'key', key: shortcuts[action] }] });
 };
 export const createZoomCommandHandler =
-  (execute: (action: Action, args: string[]) => Record<string, unknown> = call) =>
+  (
+    execute: (action: Action, args: string[]) => Record<string, unknown> = call,
+    display?: (result: Record<string, unknown>) => void,
+  ) =>
   async (args: string, ctx: ZoomCommandContext) => {
     try {
       const parsed = parseZoomCommand(args);
       const result = execute(parsed.action, parsed.args);
       const exitCode = typeof result.exitCode === 'number' ? result.exitCode : 1;
       const { evidence: _evidence, ...visibleResult } = result;
-      ctx.ui.notify(JSON.stringify(visibleResult, null, 2), exitCode === 0 ? 'info' : 'error');
+      if (display) display(visibleResult);
+      else ctx.ui.notify(JSON.stringify(visibleResult, null, 2), exitCode === 0 ? 'info' : 'error');
     } catch (error) {
       ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error');
     }
   };
 export default function zoomIntegration(pi: ExtensionApi) {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.integrations.register({
     id: 'zoom',
     name: 'Zoom Workplace',
@@ -1135,12 +1147,27 @@ export default function zoomIntegration(pi: ExtensionApi) {
       ) {
         const parsed = parseZoomToolInput(input);
         const details = call(parsed.action, parsed.args);
-        return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
+        return { content: [{ type: 'text', text: JSON.stringify(details) }], details, isError: details.exitCode !== 0 };
       },
     }),
   );
   pi.registerCommand('zoom', {
     description: 'Join or control Zoom Workplace deterministically',
-    handler: createZoomCommandHandler(),
+    handler: createZoomCommandHandler(
+      call,
+      pi.sendMessage
+        ? (result) =>
+            pi.sendMessage!({
+              customType: 'zoom',
+              content: JSON.stringify(result),
+              display: true,
+              presentation: {
+                summary: result.exitCode === 0 ? 'Zoom command result' : 'Zoom command failed',
+                warnings: result.exitCode === 0 ? [] : ['Zoom command failed; inspect the returned diagnostics.'],
+                sections: pi.presentation.data(result),
+              },
+            })
+        : undefined,
+    ),
   });
 }

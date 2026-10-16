@@ -1,9 +1,13 @@
 import { afterEach, expect, test } from 'bun:test';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import { Type } from '@sinclair/typebox';
 import { configurePersonProfile, configureSalesforceContext } from '../src/context/salesforce-context';
 import { generatePipelineReport } from '../src/pipeline-report/generator';
 import { renderPipelineReport } from '../src/pipeline-report/renderer';
-import { presentTool } from '../src/presentation';
+import { presentTool as enrichTool } from '../src/presentation';
+
+const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, presentation);
+
 import { execSfJson } from '../src/sf/exec';
 import { formatQueryResults } from '../src/sf/formatters';
 import { createSfDescribeTool } from '../src/tools/sf-describe';
@@ -35,8 +39,8 @@ test('expanded describe exposes custom fields, relationships and complete pickli
       },
     },
   };
-  const collapsed = tool.presentation.result(result, { expanded: false }, {});
-  const expanded = tool.presentation.result(result, { expanded: true }, {});
+  const collapsed = tool.presentation.result(result, { expanded: false, isPartial: false }, {});
+  const expanded = tool.presentation.result(result, { expanded: true, isPartial: false }, {});
   expect(collapsed.warnings?.join(' ')).toContain('expanded');
   expect(JSON.stringify(expanded.sections)).toContain('Product__c');
   expect(JSON.stringify(expanded.sections)).toContain('OpportunityLineItems');
@@ -325,7 +329,7 @@ test('pipeline presentation separates record currencies and does not publish a c
   expect(text).not.toContain('300.00');
   const view = presentTool({ name: 'sf_pipeline_report' }).presentation.result(
     { content: [], details: { pipelineReport: report } },
-    { expanded: false },
+    { expanded: false, isPartial: false },
     {},
   );
   expect(view.summary).toContain('CAD / USD');

@@ -1,17 +1,7 @@
 /**
- * The xcsh plugin-host surface, as this plugin uses it.
- *
- * xcsh publishes the full contract as `ExtensionAPI` in `@f5-sales-demo/xcsh` — see
- * `packages/coding-agent/src/extensibility/extensions/types.ts`. This mirrors only the
- * members the GitLab tools actually touch, because the plugin deliberately carries no
- * runtime dependencies (its devDependencies are `@sinclair/typebox` and `bun-types`), and
- * pulling the whole agent in to name three parameters would be a poor trade.
- *
- * It exists because these parameters were typed `any`, which the governed Biome gate
- * rejects (`lint/suspicious/noExplicitAny`) — and rightly: `pi: any` means a typo in a host
- * call is discovered at runtime, in a demo. If the plugin ever takes `@f5-sales-demo/xcsh`
- * as a dependency, replace this with `import type { ExtensionAPI }` and delete the file;
- * the member names below are deliberately identical so the swap is mechanical.
+ * Execution services used by the GitLab tools. Member names match the injected xcsh host.
+ * Shared presentation types come from `@f5-sales-demo/xcsh/presentation`; this narrow
+ * interface keeps unrelated application and corpus types out of plugin compilation.
  */
 
 /** Progress callback handed to a tool's `execute`. Unused by these tools, hence `unknown`. */
@@ -31,7 +21,7 @@ export interface ToolContext {
  */
 export interface PluginHost {
   /** TypeBox re-export, used to declare tool parameter schemas. */
-  typebox: { Type: unknown };
+  typebox: { Type: typeof import('@sinclair/typebox').Type };
   /** Structured logger. */
   logger: { debug: (message: string, ...args: unknown[]) => void };
   /** Run a child process on the host's behalf. */
@@ -48,7 +38,6 @@ export interface PluginHost {
   registerTool: (tool: unknown) => void;
   /** Register a slash command. Feature-detected in `index.ts`. */
   registerCommand?: (name: string, definition: unknown) => void;
-  /** Register a status line entry. Feature-detected in `index.ts`. */
   /** Subscribe to a host lifecycle event. Feature-detected in `index.ts`. */
   on?: (event: string, handler: (event: unknown, ctx: ToolContext) => unknown) => void;
 }

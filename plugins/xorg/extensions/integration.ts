@@ -1,8 +1,9 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 
 interface ExtensionApi {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   integrations: { register<_T>(definition: unknown): unknown };
   typebox: {
     Type: {
@@ -15,12 +16,13 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync([INSTALLED_XORGCTL, ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.integrations.register({
     id: 'xorg',
     name: 'Xorg desktop',
@@ -93,8 +95,15 @@ export default function xorgIntegration(pi: ExtensionApi) {
           '--params',
           JSON.stringify(input.params ?? {}),
         ]);
-        const details = { exitCode: r.exitCode, output: new TextDecoder().decode(r.stdout) };
-        return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
+        const output = new TextDecoder().decode(r.stdout);
+        let observation: unknown;
+        try {
+          observation = JSON.parse(output);
+        } catch {
+          observation = undefined;
+        }
+        const details = { exitCode: r.exitCode, output, observation };
+        return { content: [{ type: 'text', text: JSON.stringify(details) }], details, isError: r.exitCode !== 0 };
       },
     }),
   );

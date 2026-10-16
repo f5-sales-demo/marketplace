@@ -1,6 +1,6 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 import { detectGhErrorType } from './gh/exec';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import { renderError, ToolAbortError } from './utils/tool-errors';
 
 interface GitHubUser {
@@ -93,6 +93,7 @@ export function probeGitHubUser() {
 }
 
 const factory: ExtensionFactory = async (pi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('GitHub');
   const integrations = (pi as typeof pi & IntegrationApi).integrations;
   let ghAvailable = false;

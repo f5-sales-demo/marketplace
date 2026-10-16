@@ -14,6 +14,8 @@ import type { GcloudBucket, GcloudConfig, GcloudInstance, GcloudProject, GcloudR
 export type GcloudErrorType = 'auth_required' | 'session_expired' | 'not_found' | 'permission_denied' | 'exec_error';
 
 export interface GcloudToolDetails {
+  fullOutput?: string;
+  modelPreviewTruncated?: boolean;
   tool: string;
   action?: string;
   config?: GcloudConfig;

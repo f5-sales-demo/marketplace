@@ -1,5 +1,5 @@
 import type { PluginInterface } from './az/types';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 
 interface IntegrationSnapshot<T> {
   state: 'ready' | 'setup_required' | 'unavailable' | 'degraded' | 'rate_limited' | 'error';
@@ -15,6 +15,7 @@ interface AzureAccount {
 }
 
 interface AzureExtensionApi extends PluginInterface {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
@@ -52,6 +53,7 @@ export function azureInstallArgv(platform = process.platform): string[] {
 }
 
 const factory: ExtensionFactory = async (pi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('Azure');
 
   const integration = pi.integrations.register<AzureAccount>({

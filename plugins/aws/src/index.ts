@@ -1,5 +1,5 @@
 import type { PluginInterface } from './aws/types';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface IntegrationSnapshot<T> {
@@ -16,6 +16,7 @@ interface AwsIdentity {
 }
 
 interface AwsExtensionApi extends PluginInterface {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
@@ -81,6 +82,7 @@ export function withErrorType<T extends { name: string; execute: (...args: never
 }
 
 const factory: ExtensionFactory = async (pi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('AWS');
 
   const integration = pi.integrations.register<AwsIdentity>({

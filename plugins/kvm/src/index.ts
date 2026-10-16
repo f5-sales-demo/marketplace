@@ -1,4 +1,4 @@
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import {
   type ControllerInvoker,
   controllerEnvironment,
@@ -8,6 +8,7 @@ import {
 } from './tools';
 
 interface KvmExtensionApi {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
@@ -17,6 +18,7 @@ interface KvmExtensionApi {
 }
 
 const factory = async (pi: KvmExtensionApi, invokeController: ControllerInvoker = defaultInvokeController) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('KVM SMSv2');
   pi.integrations.register({
     id: 'kvm',

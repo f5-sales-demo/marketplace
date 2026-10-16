@@ -1,5 +1,6 @@
-import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
-import { presentTool } from './presentation';
+import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
+import { presentTool as enrichTool } from './presentation';
+import type { PluginHost } from './tools/plugin-host';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface GitLabUser {
@@ -55,9 +56,16 @@ export function withErrorType<T extends { execute: (...args: never[]) => Promise
   };
 }
 
-const factory: ExtensionFactory = async (pi) => {
+type GitLabHost = PluginHost &
+  IntegrationApi & {
+    presentation: PresentationAPI;
+    on: NonNullable<PluginHost['on']>;
+  };
+
+const factory = async (pi: GitLabHost) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('GitLab');
-  (pi as typeof pi & IntegrationApi).integrations.register<GitLabUser>({
+  pi.integrations.register<GitLabUser>({
     id: 'gitlab',
     name: 'GitLab',
     plugin: 'gitlab',

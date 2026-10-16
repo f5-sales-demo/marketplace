@@ -5,7 +5,7 @@ import { formatIssueTable } from '../glab/formatters';
 import type { GlabIssue } from '../glab/types';
 import glabIssueListDescription from '../prompts/glab-issue-list.md' with { type: 'text' };
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -62,7 +62,9 @@ export function createGlabIssueListTool(pi: PluginHost, makeApi: (cwd: string) =
       const api = makeApi(ctx.cwd);
       const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
-        return textResult('No GitLab project configured. Run: xcsh plugin setup gitlab');
+        return errorResult('No GitLab project configured. Run: xcsh plugin setup gitlab', {
+          errorType: 'setup_required',
+        });
       }
 
       const args = ['issue', 'list', '--output', 'json', '--repo', project];
@@ -85,7 +87,8 @@ export function createGlabIssueListTool(pi: PluginHost, makeApi: (cwd: string) =
           project,
         });
       } catch (err) {
-        if (err instanceof GlabAuthError) return textResult((err as Error).message);
+        if (err instanceof GlabAuthError)
+          return errorResult((err as Error).message, { errorType: detectErrorType(err) });
         throw err;
       }
     },

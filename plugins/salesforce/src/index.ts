@@ -45,6 +45,7 @@ export function withErrorType<T extends { name?: string; execute: (...args: neve
 
 /** Required injected services; plugins carry no runtime import of the agent package. */
 interface CanonicalExtensionAPI extends PluginHost {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   host: { findExecutable(name: string): string | undefined };
   software: {
     prepareSetup(
@@ -230,7 +231,7 @@ const factory = async (pi: CanonicalExtensionAPI) => {
       createSfHelpTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
       createSfExecTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
     ])
-      pi.registerTool(presentTool(withErrorType(tool)));
+      pi.registerTool(presentTool(withErrorType(tool), pi.presentation));
 
     pi.on('before_agent_start', async () => {
       const { buildSalesforceHint } = await import('./context/salesforce-context');

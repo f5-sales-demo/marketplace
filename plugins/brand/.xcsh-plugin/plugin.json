@@ -1,7 +1,7 @@
 {
   "name": "brand",
   "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
   "license": "Apache-2.0",
   "author": {
@@ -30,5 +30,5 @@
     "collectedData": [],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.4.1"
+  "minimumRuntimeVersion": "23.5.1"
 }

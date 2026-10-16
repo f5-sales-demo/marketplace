@@ -1,5 +1,5 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 interface GcloudContext {
@@ -65,6 +65,7 @@ export function withErrorType<T extends { name: string; execute: (...args: never
 }
 
 const factory: ExtensionFactory = async (pi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('GCloud');
   const integration = (pi as typeof pi & GcloudIntegrationApi).integrations.register<GcloudContext>({
     id: 'gcloud',

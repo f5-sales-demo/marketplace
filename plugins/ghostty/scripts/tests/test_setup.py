@@ -76,6 +76,37 @@ class SnapInvocationTests(unittest.TestCase):
 
 
 class PlatformAndInstallTests(unittest.TestCase):
+    def test_status_distinguishes_unsupported_hosts_from_missing_setup(self):
+        for reason, expected_state in [
+            ("unsupported_platform:os_release_unavailable", "unavailable"),
+            ("setup_receipt_missing", "setup_required"),
+        ]:
+            with (
+                patch.object(
+                    setup, "verify_ready", side_effect=setup.SetupError(reason)
+                ),
+                patch.object(
+                    setup,
+                    "_paths",
+                    return_value=(
+                        pathlib.Path("example-config"),
+                        pathlib.Path("example-root"),
+                        pathlib.Path("example-receipt"),
+                    ),
+                ),
+                patch.object(
+                    setup.sys,
+                    "argv",
+                    ["ghostty-setup.py", "status", setup.PLUGIN_VERSION],
+                ),
+                patch("builtins.print") as emitted,
+            ):
+                self.assertEqual(setup.main(), 1)
+                self.assertEqual(
+                    json.loads(emitted.call_args.args[0]),
+                    {"reason": reason, "state": expected_state},
+                )
+
     def test_ubuntu_2404_architectures_map_to_published_names(self):
         os_release = 'ID=ubuntu\nVERSION_ID="24.04"\n'
         self.assertEqual(

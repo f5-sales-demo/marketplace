@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
+import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import platformExtension from '../src/index';
 
 const originalFetch = globalThis.fetch;
@@ -37,6 +38,7 @@ test('native capability execution reads the active context from its session, not
       }
     | undefined;
   await platformExtension({
+    presentation,
     typebox: { Type: new Proxy({}, { get: () => () => ({}) }) as never },
     setLabel: () => {},
     registerTool: (tool: unknown) => {
@@ -68,6 +70,7 @@ test('platform readiness reads the active xcsh context contract', async () => {
   };
   const Type = new Proxy({}, { get: () => () => ({}) });
   await platformExtension({
+    presentation,
     typebox: { Type: Type as never },
     settings: { get: (key: string) => (key === 'bash.environment' ? environment : undefined) },
     setLabel: () => {},
@@ -89,6 +92,7 @@ test('platform observes active context switches and explicit environment precede
   let active: Record<string, string> = {};
   let probe: (() => Promise<{ state: string }>) | undefined;
   await platformExtension({
+    presentation,
     typebox: { Type: new Proxy({}, { get: () => () => ({}) }) as never },
     settings: { get: () => active },
     setLabel: () => {},

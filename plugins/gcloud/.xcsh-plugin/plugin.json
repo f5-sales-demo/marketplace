@@ -1,7 +1,7 @@
 {
   "name": "gcloud",
   "description": "Google Cloud CLI integration — container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
   "license": "Apache-2.0",
   "author": {
@@ -31,5 +31,5 @@
     "collectedData": ["accounts"],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.4.1"
+  "minimumRuntimeVersion": "23.5.1"
 }

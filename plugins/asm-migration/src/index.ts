@@ -1,6 +1,6 @@
 // @ts-expect-error dist/runtime.js is a committed artifact generated from src/runtime.ts.
 import { convertInput, deploy, validateInput } from '../dist/runtime.js';
-import { presentTool } from './presentation';
+import { presentTool as enrichTool } from './presentation';
 import type { ContractIdentity, ContractIssue, ConversionWarning } from './types';
 
 interface TypeFactory {
@@ -13,6 +13,7 @@ interface TypeFactory {
 }
 
 interface ExtensionApi {
+  presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   typebox: { Type: TypeFactory };
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
@@ -57,6 +58,7 @@ function errorResult(tool: string, error: unknown) {
 }
 
 const factory = async (pi: ExtensionApi) => {
+  const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('ASM Migration');
   pi.integrations.register({
     id: 'asm_migration',
