@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.1 refines all six tool presentations: readable command and SOQL context once,
+  precision-preserving query metrics and prioritized records, compact schema capabilities, explicit org
+  identity evidence, ordered CLI help, and fiscal/team-first currency-separated pipeline summaries.
+  Complete arguments, metadata, records, logs and source evidence remain expandable. Requires xcsh
+  23.5.1 (#1547).
+
 - **`docs-tools`** v1.3.0 uses the shared themed command and skill surfaces, qualified with shipped content.
   Requires xcsh 23.5.1 (#1537).
 

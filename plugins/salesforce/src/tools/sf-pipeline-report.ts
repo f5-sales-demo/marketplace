@@ -2,6 +2,7 @@ import { loadSalesforceContext, readPersonFacts } from '../context/salesforce-co
 import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/generator';
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
+import { DEFAULT_SKU_CLASSIFICATION, DEFAULT_SKU_PREFIXES } from '../pipeline-report/types';
 import sfPipelineReportDescription from '../prompts/sf-pipeline-report.md' with { type: 'text' };
 import { normalizeDescribe } from '../sf/describe';
 import type { SfExecApi } from '../sf/exec';
@@ -223,7 +224,16 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
 
         return {
           content: [{ type: 'text' as const, text: report }],
-          details: { ...base, pipelineReport: data },
+          details: {
+            ...base,
+            pipelineReport: data,
+            pipelineEvidence: {
+              ...options,
+              calendar,
+              skuClassification: options.skuClassification ?? DEFAULT_SKU_CLASSIFICATION,
+              skuPrefixes: options.skuPrefixes ?? DEFAULT_SKU_PREFIXES,
+            },
+          },
         };
       } catch (err) {
         if (err instanceof Error && (err.name === 'AbortError' || err.name === 'ToolAbortError')) throw err;

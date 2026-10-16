@@ -7,7 +7,7 @@ and keyboard controls.
 
 ## Prerequisites
 
-- xcsh 23.4.1 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
+- xcsh 23.5.1 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
   Missing CLI setup uses Homebrew without sudo on macOS or a verified official
   per-user archive on Linux. An unsupported host or unavailable package reports
   readiness guidance instead of claiming success.
@@ -55,10 +55,23 @@ The model-facing schema response is a bounded discovery preview with explicit
 withheld counts. Expanded terminal output exposes every returned field and
 relationship when no match is selected, or every matching item for a match.
 
-Query previews expose counts, org and scope; aggregates show zero immediately.
+Query previews show purpose, returned count, completeness, org and readable SOQL once.
+Names/subjects, related entities, status, amounts/currency and dates lead record columns.
+Technical IDs move to expanded details only when another useful identifier is returned,
+with the omitted-column count. Aggregate metrics distinguish counts from amounts, preserve
+source precision and numeric strings, and never infer an absent currency.
 Expanded results retain every returned record, nested field and argument.
 The CLI execution path retains complete stdout and warning output. Long and
 multiline values wrap using xcsh's shared width-aware tables and active theme.
+
+Describe previews put labels, exact API names, readable types and filter/group capabilities
+first. Custom fields, complete picklists, reference targets, relationships and normalized
+metadata stay expandable. Org status, environment and default flags use only reported
+whitelisted identity evidence; missing values remain explicit. Help orders command purpose,
+usage, required inputs, optional flags and examples, retaining unfamiliar sections on expansion.
+CLI execution recognizes query/search, schema, org, limits and export/resume status; other
+structured output uses a labeled generic fallback. Literal code, logs and help stay readable,
+and exact argv, shell quoting, complete output and diagnostics stay expandable.
 
 ## Pipeline reports
 
@@ -84,7 +97,7 @@ first, including `scripts/agent-validation-runtime`.
 
 `benchmarks/prompts.json` defines the separate model-driven acceptance matrix.
 `benchmarks/ACCOUNT_BRIEF.md` and `fixture-sf.ts` supply synthetic project and
-CLI data. Route `sf` to the fixture explicitly in an isolated test pane and
+CLI data, including ten Tasks, count/amount aggregates and Event schema. Route `sf` to the fixture explicitly in an isolated test pane and
 load the candidate plugin with `--plugin-dir`; never treat fixture outcomes as
 live Salesforce results. Verify normal installed tools against authenticated
 Salesforce separately on the host that holds the credentials. Keep real

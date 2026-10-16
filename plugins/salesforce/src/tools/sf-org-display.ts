@@ -1,3 +1,4 @@
+import { safeIdentity } from '../presentation/org';
 import sfOrgDisplayDescription from '../prompts/sf-org-display.md' with { type: 'text' };
 import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
@@ -66,7 +67,12 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
           isSandbox: Boolean(raw.isSandbox ?? false),
         };
 
-        return textResult(formatOrgDetail(org), { ...base, orgs: [org] });
+        return textResult(formatOrgDetail(org), {
+          ...base,
+          orgs: [org],
+          orgEvidence: safeIdentity(raw),
+          cliWarnings: result.warnings ?? [],
+        });
       } catch (err) {
         rethrowCancellation(err);
         const errorType = detectErrorType(err);

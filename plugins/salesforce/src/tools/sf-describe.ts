@@ -67,7 +67,12 @@ export function createSfDescribeTool(pi: PluginHost, makeApi: (cwd: string) => S
           throw new Error('Invalid Salesforce describe response: field catalog is missing. Schema is not verified.');
         const described = normalizeDescribe(result.result);
         if (!described.name) described.name = sobject;
-        return textResult(formatDescribe(described, params.match), { ...base, described });
+        return textResult(formatDescribe(described, params.match), {
+          ...base,
+          described,
+          describeEvidence: result.result,
+          cliWarnings: result.warnings ?? [],
+        });
       } catch (err) {
         rethrowCancellation(err);
         const errorType = detectErrorType(err);

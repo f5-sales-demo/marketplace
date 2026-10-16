@@ -253,7 +253,7 @@
     {
       "name": "salesforce",
       "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -283,7 +283,7 @@
         "mode": "integrated",
         "integrations": ["salesforce"],
         "requirements": [
-          "xcsh 23.4.2 or later (shared themed tool presentation)",
+          "xcsh 23.5.1 or later (shared themed tool presentation)",
           "Salesforce CLI",
           "An authenticated default Salesforce org"
         ],

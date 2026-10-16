@@ -1,5 +1,8 @@
+import { aggregateRecord, eventSchema, queryHelp, taskRecords } from './presentation-fixtures';
+
 const args = process.argv.slice(2);
-const query = args[args.indexOf('--query') + 1] ?? '';
+const queryIndex = args.findIndex((a) => a === '--query' || a === '-q');
+const query = queryIndex < 0 ? '' : args[queryIndex + 1];
 if (args.includes('xcsh-style-intentionally-missing-org')) {
   console.log(
     JSON.stringify({
@@ -78,41 +81,45 @@ if (args.includes('--version')) {
   process.exit(0);
 }
 if (args.includes('--help')) {
-  console.log('Synthetic Salesforce CLI help: sf data query --query SOQL');
+  console.log(queryHelp);
   process.exit(0);
 }
 if (args[0] === 'sobject') {
   const name = args[args.indexOf('--sobject') + 1];
   result =
-    name === 'Account'
-      ? {
-          name: 'Account',
-          fields: ['Id', 'Name', 'Website', 'BillingCountry'].map((name) => ({
-            name,
-            label: name,
-            type: 'string',
-            custom: false,
-            filterable: true,
-            groupable: true,
-          })),
-          childRelationships: [{ childSObject: 'Opportunity', relationshipName: 'Opportunities', field: 'AccountId' }],
-        }
-      : {
-          ...schema,
-          name,
-          fields: [
-            ...schema.fields,
-            {
-              name: 'AccountId',
-              label: 'Account',
-              type: 'reference',
+    name === 'Event'
+      ? eventSchema
+      : name === 'Account'
+        ? {
+            name: 'Account',
+            fields: ['Id', 'Name', 'Website', 'BillingCountry'].map((name) => ({
+              name,
+              label: name,
+              type: 'string',
               custom: false,
               filterable: true,
               groupable: true,
-              referenceTo: ['Account'],
-            },
-          ],
-        };
+            })),
+            childRelationships: [
+              { childSObject: 'Opportunity', relationshipName: 'Opportunities', field: 'AccountId' },
+            ],
+          }
+        : {
+            ...schema,
+            name,
+            fields: [
+              ...schema.fields,
+              {
+                name: 'AccountId',
+                label: 'Account',
+                type: 'reference',
+                custom: false,
+                filterable: true,
+                groupable: true,
+                referenceTo: ['Account'],
+              },
+            ],
+          };
 } else if (args[0] === 'org')
   result = {
     username: 'synthetic@example.com',
@@ -142,6 +149,9 @@ else if (query.includes('FROM Period'))
     done: true,
     totalSize: 1,
   };
+else if (query.includes('FROM Task')) result = { records: taskRecords, totalSize: taskRecords.length, done: true };
+else if (query.includes('COUNT(') && query.includes('SUM('))
+  result = { records: [aggregateRecord], totalSize: 1, done: true };
 else if (query.includes('COUNT('))
   result = { records: [{ attributes: { type: 'AggregateResult' }, total: 0 }], totalSize: 1, done: true };
 else if (query.includes('FROM Account'))

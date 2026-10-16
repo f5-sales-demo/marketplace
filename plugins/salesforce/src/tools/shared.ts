@@ -17,6 +17,11 @@ export interface SfToolDetails {
   described?: import('../sf/describe').SfSObjectDescription;
   pipelineReport?: PipelineReportData;
   errorType?: SfErrorType;
+  cliWarnings?: string[];
+  queryEvidence?: unknown;
+  describeEvidence?: unknown;
+  orgEvidence?: Record<string, unknown>;
+  pipelineEvidence?: unknown;
 }
 
 // ---------------------------------------------------------------------------

@@ -148,7 +148,7 @@ export async function execSfJson(
       parsed.name,
     );
   }
-  return parsed;
+  return result.stderr ? { ...parsed, warnings: [...(parsed.warnings ?? []), result.stderr] } : parsed;
 }
 
 export async function execSfRaw(api: SfExecApi, args: string[], signal?: AbortSignal): Promise<SfRawResult> {

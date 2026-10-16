@@ -80,7 +80,12 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
           output +=
             '\n\n**Warning**: Results are incomplete. The query returned more records than the API limit. Use `sf data export bulk` for the full dataset.';
         }
-        return textResult(output, { ...base, queryResult });
+        return textResult(output, {
+          ...base,
+          queryResult,
+          queryEvidence: queryData,
+          cliWarnings: result.warnings ?? [],
+        });
       } catch (err) {
         rethrowCancellation(err);
         const errorType = detectErrorType(err);
