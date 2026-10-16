@@ -58,7 +58,10 @@ export function createSfHelpTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
       const output = result.stdout || result.stderr;
       if (result.exitCode !== 0)
         return errorResult(output || `Salesforce help failed (exit ${result.exitCode}).`, base);
-      return textResult(output || `No help output for "sf ${commandPath}".`, base);
+      return textResult(output || `No help output for "sf ${commandPath}".`, {
+        ...base,
+        cliWarnings: result.stdout && result.stderr ? [result.stderr] : [],
+      });
     },
   };
 }

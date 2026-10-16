@@ -168,6 +168,17 @@ describe('parseSfJsonOutput', () => {
 });
 
 describe('execSfJson', () => {
+  it('retains successful stderr warnings alongside JSON warnings', async () => {
+    const result = await execSfJson(
+      mockApi({
+        stdout: '{"status":0,"result":{},"warnings":["JSON warning"]}',
+        stderr: 'Stderr warning',
+        exitCode: 0,
+      }),
+      ['data', 'query'],
+    );
+    expect(result.warnings).toEqual(['JSON warning', 'Stderr warning']);
+  });
   it('returns parsed result for successful command', async () => {
     const api = mockApi({
       stdout: '{"status":0,"result":{"totalSize":5}}',

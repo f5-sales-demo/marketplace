@@ -8,11 +8,16 @@ const options = { expanded: false, isPartial: false };
 test('query aggregates retain zero and incomplete-result guidance in the summary', () => {
   const tool = presentTool({ name: 'sf_query', label: 'Salesforce query' });
   const view = tool.presentation.result(
-    { content: [], details: { queryResult: { records: [{ total: 0 }], totalSize: 1, done: false } } },
+    {
+      content: [],
+      details: {
+        queryResult: { records: [{ attributes: { type: 'AggregateResult' }, total: 0 }], totalSize: 1, done: false },
+      },
+    },
     options,
     {},
   );
-  expect(view.summary).toBe('total = 0');
+  expect(JSON.stringify(view.sections)).toContain('"Value":"0"');
   expect(view.warnings?.join(' ')).toContain('incomplete');
 });
 test('exec displays a readable exact command and exposes zero JSON aggregates', () => {
@@ -26,7 +31,7 @@ test('exec displays a readable exact command and exposes zero JSON aggregates', 
         options,
       ),
     ),
-  ).toContain('sf data query --query');
+  ).toContain('sf data query');
   const view = tool.presentation.result(
     {
       content: [
@@ -37,9 +42,9 @@ test('exec displays a readable exact command and exposes zero JSON aggregates', 
       ],
     },
     options,
-    {},
+    { args: ['data', 'query', '--query', 'SELECT COUNT(Id) total FROM Opportunity'] },
   );
-  expect(view.summary).toBe('total = 0');
+  expect(JSON.stringify(view.sections)).toContain('"Value":"0"');
 });
 test('describe applies its requested match while retaining total scope', () => {
   const tool = presentTool({ name: 'sf_describe' });

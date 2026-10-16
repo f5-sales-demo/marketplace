@@ -6,6 +6,14 @@ import { visibleWidth } from '@f5-sales-demo/pi-tui';
 import { presentation } from '@f5-sales-demo/xcsh';
 import { Type } from '@sinclair/typebox';
 import {
+  aggregateQuery,
+  aggregateRecord,
+  eventSchema,
+  queryHelp,
+  taskQuery,
+  taskRecords,
+} from '../../plugins/salesforce/benchmarks/presentation-fixtures';
+import {
   configurePersonProfile,
   configureSalesforceContext,
   configureSalesforceExecutor,
@@ -56,7 +64,7 @@ const schema = {
 // This fixture never reads a real CLI, environment credential, or customer file.
 writeFileSync(
   executable,
-  `#!${process.execPath}\nconst args = process.argv.slice(2);\nconst query = args[args.indexOf('--query') + 1] ?? '';\nconst records = ${JSON.stringify(records)};\nconst schema = ${JSON.stringify(schema)};\nlet result;\nif (args.includes('--help')) { console.log('Synthetic Salesforce CLI help: sf data query --query SOQL'); process.exit(0); }\nif (args[0] === 'sobject') result = schema;\nelse if (args[0] === 'org') result = { username: 'synthetic@example.com', id: '00D000000000001', instanceUrl: 'https://salesforce.example.com', connectedStatus: 'Connected', alias: 'synthetic', accessToken: 'SYNTHETIC_SECRET_SENTINEL' };\nelse if (query.includes('DefinitelyMissingDemoField__c')) { console.log(JSON.stringify({status:1,name:'INVALID_FIELD',message: "No such column DefinitelyMissingDemoField__c on Opportunity"})); process.exit(1); }\nelse if (query.includes('FROM Period')) result = { records: [{ Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' }, { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' }], done: true, totalSize: 1 };\nelse if (query.includes('COUNT(')) result = { records: [{ attributes: {type:'AggregateResult'}, total: 0 }], totalSize: 1, done: true };\nelse if (query.includes('FROM Account')) result = { records: query.includes('ambiguous') ? [{Id:'001000000000000',Name:'Example Northern Assurance Canada'},{Id:'001000000000002',Name:'Example Northern Assurance US'}] : [{Id:'001000000000000',Name:'Example Northern Assurance'}], totalSize: query.includes('ambiguous') ? 2 : 1, done:true };\nelse if (query.includes('SUM(')) result = { records:[{total:0}],totalSize:1,done:true };\nelse if (query.includes('FROM OpportunityLineItem') || query.includes('IsWon = true') || query.includes('Renewal')) result = { records:[],totalSize:0,done:true };\nelse result = { records: query.includes('Id = null') ? [] : records, totalSize: query.includes('Id = null') ? 0 : records.length, done: !query.includes('partial') };\nconsole.log(JSON.stringify({status:0,result}));\n`,
+  `#!${process.execPath}\nconst args = process.argv.slice(2);\nconst q = args.findIndex(a => a === '--query' || a === '-q'); const query = q < 0 ? '' : args[q + 1];\nconst records = ${JSON.stringify(records)};\nconst schema = ${JSON.stringify(schema)};\nlet result;\nif (args.includes('--help')) { console.log(${JSON.stringify(queryHelp)}); process.exit(0); }\nif (args[0] === 'sobject') result = args.includes('Event') ? ${JSON.stringify(eventSchema)} : schema;\nelse if (args[0] === 'org') result = { username: 'synthetic@example.com', id: '00D000000000001', instanceUrl: 'https://salesforce.example.com', connectedStatus: 'Connected', alias: 'synthetic', accessToken: 'SYNTHETIC_SECRET_SENTINEL' };\nelse if (query.includes('DefinitelyMissingDemoField__c')) { console.log(JSON.stringify({status:1,name:'INVALID_FIELD',message: "No such column DefinitelyMissingDemoField__c on Opportunity"})); process.exit(1); }\nelse if (query.includes('FROM Period')) result = { records: [{ Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' }, { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' }], done: true, totalSize: 1 };\nelse if (query.includes('FROM Task')) result = {records:${JSON.stringify(taskRecords)},done:true,totalSize:10};\nelse if (query.includes('COUNT(') && query.includes('SUM(')) result = {records:[${JSON.stringify(aggregateRecord)}],done:true,totalSize:1};\nelse if (query.includes('COUNT(')) result = { records: [{ attributes: {type:'AggregateResult'}, total: 0 }], totalSize: 1, done: true };\nelse if (query.includes('FROM Account')) result = { records: query.includes('ambiguous') ? [{Id:'001000000000000',Name:'Example Northern Assurance Canada'},{Id:'001000000000002',Name:'Example Northern Assurance US'}] : [{Id:'001000000000000',Name:'Example Northern Assurance'}], totalSize: query.includes('ambiguous') ? 2 : 1, done:true };\nelse if (query.includes('SUM(')) result = { records:[{total:0}],totalSize:1,done:true };\nelse if (query.includes('FROM OpportunityLineItem') || query.includes('IsWon = true') || query.includes('Renewal')) result = { records:[],totalSize:0,done:true };\nelse result = { records: query.includes('Id = null') ? [] : records, totalSize: query.includes('Id = null') ? 0 : records.length, done: !query.includes('partial') };\nconsole.log(JSON.stringify({status:0,result}));\n`,
 );
 chmodSync(executable, 0o700);
 
@@ -138,6 +146,10 @@ test('project account lookup, ambiguity, opportunities and scope render through 
     '# Example Northern Assurance\nCanadian insurer. Investigate recent Distributed Cloud opportunities. Local dates are not Salesforce facts.',
   );
   const cases = [
+    await invoke('sf_exec', { args: ['data', 'query', '-q', taskQuery, '-o', 'synthetic', '--json'] }),
+    await invoke('sf_query', { query: taskQuery, target_org: 'synthetic' }),
+    await invoke('sf_query', { query: aggregateQuery }),
+    await invoke('sf_describe', { sobject: 'Event' }),
     await invoke('sf_query', {
       query: "SELECT Id, Name FROM Account WHERE Name LIKE '%ambiguous%'",
       description: 'Account candidates',
@@ -173,12 +185,34 @@ test('project account lookup, ambiguity, opportunities and scope render through 
           expect(result.isError).not.toBe(true);
         const view = component(tool, result, args);
         for (const width of [40, 76, 120, 153]) {
-          const collapsed = plain(view.render(width));
-          if (tool.name === 'sf_query' && (args as any).query.includes('COUNT('))
-            expect(collapsed).toContain('total = 0');
+          const collapsedLines = view.render(width);
+          expect(collapsedLines.every((line) => visibleWidth(line) <= width)).toBe(true);
+          const collapsed = plain(collapsedLines);
+          if (
+            tool.name === 'sf_query' &&
+            (args as any).query.includes('COUNT(') &&
+            (args as any).query !== aggregateQuery
+          )
+            expect(collapsed.replace(/[\s│|]/g, '')).toContain('Opportunitycount');
           if (tool.name === 'sf_query' && (args as any).query.includes('partial'))
             expect(collapsed).toContain('incomplete');
           if (result.isError) expect(collapsed).toContain('No such column');
+          if ((args as any).query === taskQuery || (args as any).args?.includes(taskQuery)) {
+            expect(collapsed).toContain('7 more rows');
+            expect(collapsed).not.toContain('Prepare demo 3');
+            expect((collapsed.match(/SELECT/g) ?? []).length).toBe(1);
+            expect(collapsed).not.toContain('--json');
+          }
+          if ((args as any).query === aggregateQuery) {
+            expect(collapsed).toContain('1,234');
+            expect(collapsed).toContain('9,876,543.2100');
+            expect(collapsed).toContain('Amount currency was not returned');
+          }
+          if ((args as any).sobject === 'Event') {
+            expect(collapsed).toContain('20 fields');
+            expect(collapsed).toContain('Date/time');
+            expect(collapsed).not.toContain('INACTIVE_EVIDENCE');
+          }
           view.setExpanded(true);
           const lines = view.render(width);
           expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
@@ -190,7 +224,12 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(expanded).toContain('false');
             expect(expanded).not.toContain('[object Object]');
           }
-          if (tool.name === 'sf_describe') expect(expanded).toContain('SyntheticProduct64__c');
+          if ((args as any).query === taskQuery || (args as any).args?.includes(taskQuery))
+            expect(expanded).toContain('Prepare demo 9');
+          if (tool.name === 'sf_describe')
+            expect(expanded).toContain(
+              (args as any).sobject === 'Event' ? 'INACTIVE_EVIDENCE' : 'SyntheticProduct64__c',
+            );
           if (tool.name === 'sf_org_display') expect(expanded).not.toContain('SYNTHETIC_SECRET_SENTINEL');
           if (tool.name === 'sf_pipeline_report')
             expect(expanded.replace(/[\s│|]/g, '')).toContain('FINAL_OPPORTUNITY');

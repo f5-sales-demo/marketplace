@@ -1,5 +1,20 @@
 [
   {
+    "id": "ten-tasks",
+    "prompt": "Use sf_exec once with args [\"data\", \"query\", \"--query\", \"SELECT Subject, Status, ActivityDate FROM Task ORDER BY ActivityDate LIMIT 10\", \"--target-org\", \"synthetic-demo\", \"--json\"]. Report the returned count.",
+    "acceptance": "One readable operation/target/query, three Task preview rows, seven additional records, all ten expandable."
+  },
+  {
+    "id": "count-amount",
+    "prompt": "Use sf_query once for SELECT COUNT(Id) opportunityCount, SUM(Amount) reportedAmount FROM Opportunity. Report the two metrics and whether currency was returned.",
+    "acceptance": "Count 1,234, amount 9,876,543.2100, explicit unavailable currency, readable SOQL once."
+  },
+  {
+    "id": "event-schema",
+    "prompt": "Use sf_describe once for Event without a match. Report catalog counts and query capabilities of Subject, StartDateTime and Description.",
+    "acceptance": "Event has 20 fields and 3 child relationships; standard preview shows readable types and compact filter/group capabilities; complete picklists and references are expandable."
+  },
+  {
     "id": "project-account-opportunities",
     "prompt": "can you analyse the files in this project, find the customer account and lookup in salesforce to find any recent opportunity related to F5 Distributed cloud",
     "acceptance": "Read local evidence, verify account, define recent window, query by AccountId, confirm product/currency and report coverage."
@@ -17,7 +32,7 @@
   {
     "id": "aggregate-zero",
     "prompt": "Run SELECT COUNT(Id) total FROM Opportunity WHERE Id = null.",
-    "acceptance": "Collapsed result visibly shows total = 0."
+    "acceptance": "Collapsed metric table visibly shows Opportunity count = 0."
   },
   {
     "id": "opportunity-details",
