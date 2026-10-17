@@ -1,4 +1,4 @@
-import { loadSalesforceContext, readPersonFacts } from '../context/salesforce-context';
+import { enrichSalesforceContext, loadSalesforceContext, readPersonFacts } from '../context/salesforce-context';
 import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/generator';
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
@@ -125,6 +125,10 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
         const differentOrg = Boolean(
           params.target_org && params.target_org !== sfContext?.orgAlias && params.target_org !== sfContext?.username,
         );
+        if (!differentOrg && sfContext?.discoveryPending) {
+          onUpdate?.({ content: [{ type: 'text', text: 'Discovering pipeline scope and schema.' }], details: base });
+          sfContext = await enrichSalesforceContext(sfContext, signal);
+        }
         // A different target org must never reuse another org's IDs, custom schema or territories.
         if (differentOrg && params.target_org) {
           const api = makeApi(ctx.cwd);
@@ -190,7 +194,7 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
         const selfName = [profile.givenName, profile.familyName].filter(Boolean).join(' ').trim();
         const teamMemberNames = partnerName && selfName ? [selfName, partnerName] : selfName ? [selfName] : undefined;
 
-        const orgAlias = params.target_org ?? sfContext?.orgAlias;
+        const orgAlias = params.target_org || sfContext?.orgAlias || sfContext?.username;
 
         const queryFn = buildQueryFn(makeApi, ctx.cwd, orgAlias, signal, onUpdate);
         const calendar = await queryFn(

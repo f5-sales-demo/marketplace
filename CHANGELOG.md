@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.4 resolves authenticated identity before optional report discovery, preventing
+  profile collection deadlines from discarding a valid connection. Pipeline reports discover and cache
+  schema and territory scope on demand for the verified org. Requires xcsh 23.5.1 (#1555).
+
 - **`salesforce`** v2.3.3 uses native terminal, query, metadata, connection and reference icons from the
   active xcsh theme. All six tools use concise contextual layouts with one runnable command, retained
   scope, currency, warnings and omission details, and complete expanded evidence. Requires xcsh 23.5.1
