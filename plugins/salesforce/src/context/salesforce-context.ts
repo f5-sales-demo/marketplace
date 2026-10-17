@@ -217,7 +217,8 @@ const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 // ---------------------------------------------------------------------------
 
 export async function loadSalesforceContext(): Promise<SalesforceContext | null> {
-  return salesforceContextGet ? salesforceContextGet() : null;
+  const context = salesforceContextGet ? await salesforceContextGet() : null;
+  return context ? (enrichedContexts.get(context) ?? context) : null;
 }
 
 export function salesforceContextIsStale(ctx: SalesforceContext): boolean {

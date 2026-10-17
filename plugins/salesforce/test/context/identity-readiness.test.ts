@@ -1,10 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 import {
+  buildSalesforceHint,
   configurePersonProfile,
   configureSalesforceContext,
   configureSalesforceExecutor,
   enrichSalesforceContext,
+  loadSalesforceContext,
   seedSalesforceContext,
 } from '../../src/context/salesforce-context';
 import { createSfPipelineReportTool } from '../../src/tools/sf-pipeline-report';
@@ -66,6 +68,7 @@ test('default pipeline lazily discovers and retains schema and territory scope f
   configurePersonProfile(async () => ({}));
   const seed = { ...identity, orgAlias: undefined };
   configureSalesforceContext(async () => seed);
+  expect(buildSalesforceHint(seed)).toBeUndefined();
   const discoveryCalls: string[][] = [];
   configureSalesforceExecutor(async (args) => {
     discoveryCalls.push([...args]);
@@ -106,6 +109,8 @@ test('default pipeline lazily discovers and retains schema and territory scope f
   expect(discoveryCalls.some((args) => args[0] === 'org')).toBe(false);
   expect(reportCalls.flat().join(' ')).toContain(identity.userId);
   expect(reportCalls.every((args) => args.includes(identity.username))).toBe(true);
+  expect((await loadSalesforceContext())?.discoveryPending).toBe(false);
+  expect(buildSalesforceHint(await loadSalesforceContext())).toBeDefined();
   const count = discoveryCalls.length;
   await tool.execute('cached-report', { target_org: '' }, undefined, undefined, { cwd: '/tmp' });
   expect(discoveryCalls).toHaveLength(count);

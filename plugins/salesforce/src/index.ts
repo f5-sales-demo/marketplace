@@ -236,10 +236,8 @@ const factory = async (pi: CanonicalExtensionAPI) => {
       pi.registerTool(presentTool(withErrorType(tool), pi.presentation, symbols.resolve));
 
     pi.on('before_agent_start', async () => {
-      const { buildSalesforceHint } = await import('./context/salesforce-context');
-      const snapshot = await integration.get();
-      if (snapshot.state !== 'ready' || !snapshot.value) return;
-      const hint = buildSalesforceHint(snapshot.value);
+      const { buildSalesforceHint, loadSalesforceContext } = await import('./context/salesforce-context');
+      const hint = buildSalesforceHint(await loadSalesforceContext());
       if (!hint) return;
       const lines = [
         `Pipeline: ${hint.pipelineTotal} (${hint.dealCount} deals, ${hint.accountCount} accounts)`,

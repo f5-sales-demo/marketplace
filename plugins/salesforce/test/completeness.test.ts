@@ -226,7 +226,9 @@ test('a different target org discovers its own identity and schema before report
         partner: { id: '005000000000003' },
       }) as never,
   );
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'first-org', discoveryPending: true }) as never);
+  configureSalesforceContext(
+    async () => ({ userId: '005000000000001', orgAlias: 'first-org', discoveryPending: true }) as never,
+  );
   const calls: string[][] = [];
   const tool = createSfPipelineReportTool(pi, () => ({
     exec: async (_command, args) => {

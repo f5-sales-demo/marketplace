@@ -158,13 +158,14 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
               ),
             ),
           );
+          if (!opportunity || !lineItem) throw new Error('Target Salesforce org schema is unavailable.');
           sfContext = {
             userId: user.records?.[0]?.Id ?? '',
             username: org.username,
             instanceUrl: org.instanceUrl ?? '',
             orgAlias: params.target_org,
-            opportunityFields: opportunity!.fields.map((f) => f.name),
-            lineItemFields: lineItem!.fields.map((f) => f.name),
+            opportunityFields: opportunity.fields.map((f) => f.name),
+            lineItemFields: lineItem.fields.map((f) => f.name),
             collectedAt: new Date().toISOString(),
           };
         }
