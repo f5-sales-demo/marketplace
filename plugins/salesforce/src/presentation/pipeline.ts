@@ -38,26 +38,20 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       },
       'Report scope',
     ),
-    fields(
-      {
-        'Open pipeline from': report.openScopeStart ?? 'Not returned',
-        Org: args.target_org ?? scope.orgAlias ?? 'CLI default org (identity not returned)',
-        Team:
-          Array.isArray(report.teamMembers) && report.teamMembers.length
-            ? report.teamMembers.join(', ')
-            : 'Names not returned; inspect membership queries',
-        Territories:
-          Array.isArray(report.territories) && report.territories.length
-            ? report.territories.join(', ')
-            : 'No territory scope reported',
-        Scope: 'OpportunityTeamMember membership; territory scope where supported (see source queries)',
-      },
-      'Team and target',
-    ),
-    fields(
-      { 'Line items': value(report.lineItemCount), Generated: report.generated ?? 'Not returned' },
-      'Report scope',
-    ),
+    fields({
+      'Line items': value(report.lineItemCount),
+      'Open pipeline from': report.openScopeStart ?? 'Not returned',
+      Org: args.target_org ?? scope.orgAlias ?? 'CLI default org (identity not returned)',
+      Team:
+        Array.isArray(report.teamMembers) && report.teamMembers.length
+          ? report.teamMembers.join(', ')
+          : 'Names not returned; inspect membership queries',
+      Territories:
+        Array.isArray(report.territories) && report.territories.length
+          ? report.territories.join(', ')
+          : 'No territory scope reported',
+      Scope: 'OpportunityTeamMember membership; territory scope where supported (see source queries)',
+    }),
   ];
   for (const group of groups.length ? groups : [{ ...report, currency: report.currency ?? 'unverified' }]) {
     const currency = String(group.currency ?? 'unverified');
@@ -121,6 +115,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     );
   if (options.expanded) {
     sections.push(
+      fields({ Generated: report.generated ?? 'Not returned' }, 'Metadata'),
       ...data(p, report.recentChanges, 'Recent changes'),
       ...data(p, report.anomalies, 'Classification and anomaly evidence'),
     );
@@ -129,7 +124,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         copyableCommand(
           p,
           toolArgv('sf_query', { query: source.query, target_org: args.target_org ?? scope.orgAlias })!,
-          `Source query ${i + 1} · copy and run`,
+          `Source query ${i + 1}`,
         ),
         ...data(p, source.records, 'Complete source records'),
       );
@@ -137,10 +132,11 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     sections.push(...evidence(p, result, args));
   } else
     sections.push(
-      hint('Expand for remaining breakdowns, changes, classification evidence and complete source queries / records'),
+      hint(
+        `${rows(report.sourceQueries).length} source queries, complete source records, changes and classification evidence in expanded details`,
+      ),
     );
   return {
-    summary: `Pipeline report · ${report.fyLabel ?? 'Fiscal period not returned'} · ${currencies.join(' / ') || report.currency || 'currency unverified'}`,
     warnings,
     sections,
   };

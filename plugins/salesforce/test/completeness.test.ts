@@ -332,6 +332,7 @@ test('pipeline presentation separates record currencies and does not publish a c
     { expanded: false, isPartial: false },
     {},
   );
-  expect(view.summary).toContain('CAD / USD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · CAD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · USD');
   expect(JSON.stringify(view.sections)).not.toContain('300.00');
 });

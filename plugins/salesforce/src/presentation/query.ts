@@ -139,20 +139,17 @@ export function queryView(
         }))
       : undefined;
   return {
-    summary: `${purpose} · ${value(raw.length)} ${aggregate ? 'aggregate rows' : 'records'} returned${!raw.length ? ' · No records found' : ''}`,
+    summary: `${purpose} · ${value(raw.length)} ${aggregate ? 'aggregate rows' : 'records'} returned`,
     warnings,
     sections: [
       ...context(operation, args),
       ...(soql
         ? [code(formatSoql(soql), operation === 'sf data search' ? 'SOSL' : 'SOQL')]
         : [fields({ Query: 'Not returned' })]),
-      ...(metricRows
-        ? [table(p, metricRows, 'Aggregate metrics')]
-        : [table(p, records, aggregate ? 'Grouped aggregates' : purpose, visible, metricLabels)]),
+      ...(metricRows ? [table(p, metricRows, undefined)] : [table(p, records, undefined, visible, metricLabels)]),
       ...(!options.expanded && omitted.length
         ? [hint(`${omitted.length} columns in expanded details: ${omitted.map(label).join(', ')}`)]
         : []),
-      ...(!options.expanded && raw.length > 3 ? [hint('Expand for complete records and exact command')] : []),
       ...(options.expanded
         ? [
             fields(
@@ -162,7 +159,7 @@ export function queryView(
                 Complete: query.done,
                 'Next page': record(details.queryEvidence).nextRecordsUrl ?? query.nextRecordsUrl ?? 'Not returned',
               },
-              'Pagination evidence',
+              'Pagination',
             ),
             ...evidence(p, result, args),
           ]

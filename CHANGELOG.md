@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.3 uses native terminal, query, metadata, connection and reference icons from the
+  active xcsh theme. All six tools use concise contextual layouts with one runnable command, retained
+  scope, currency, warnings and omission details, and complete expanded evidence. Requires xcsh 23.5.1
+  (#1551).
+
 - **`salesforce`** v2.3.2 makes generated CLI commands directly copyable and runnable, including required
   arguments and shell-safe quoting. Explicit continuations preserve exact argv across narrow terminal
   views; pipeline source queries are runnable on expansion. Requires xcsh 23.5.1 (#1549).
