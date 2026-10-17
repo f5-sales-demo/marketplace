@@ -22,6 +22,12 @@ const capabilities: AwsCeF5Capabilities = {
 };
 const ownerPlanSha256 = 'a'.repeat(64);
 
+it('gates whole-site power plans for both engines until service withdrawal and restoration exist', () => {
+  for (const engine of ['native', 'terraform'] as const)
+    for (const operation of ['start', 'stop'] as const)
+      expect(() => compileAwsCePlan(intent({ engine, operation }), observation())).toThrow('service withdrawal');
+});
+
 function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] {
   const zones = nodeCount === 1 ? ['us-east-1a'] : ['us-east-1a', 'us-east-1b', 'us-east-1c'];
   return Array.from({ length: count }, (_, index) => ({

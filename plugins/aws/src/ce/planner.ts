@@ -7,6 +7,7 @@ import {
   AWS_CE_PROVIDER_LOCK_SHA256,
   AWS_CE_TERRAFORM_PROVIDER_VERSION,
   AWS_CE_TERRAFORM_VERSION,
+  assertAwsWholeSitePowerSupported,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
 import { interfaceSecurityGroups } from './interface-security';
@@ -908,29 +909,8 @@ function compileActions(
     }
     return actions;
   }
+  assertAwsWholeSitePowerSupported(intent);
   const ownedInstances = orderedOwnedInstances(observation, intent.topology.nodeCount);
-  if (intent.operation === 'start' || intent.operation === 'stop') {
-    if (ownedInstances.length !== intent.topology.nodeCount)
-      fail(`${intent.operation} requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);
-    for (const instance of ownedInstances)
-      add({
-        phase: 'nodes',
-        kind: intent.operation === 'start' ? 'instance-start' : 'instance-stop',
-        description: `${intent.operation} ${instance.id}`,
-        command: 'aws',
-        args: [
-          'ec2',
-          intent.operation === 'start' ? 'start-instances' : 'stop-instances',
-          '--instance-ids',
-          instance.id,
-          ...base,
-        ],
-        resourceId: instance.id,
-        mutates: true,
-        destructive: intent.operation === 'stop',
-      });
-    return actions;
-  }
   if (intent.operation === 'resize') {
     if (ownedInstances.length !== intent.topology.nodeCount)
       fail(`resize requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);

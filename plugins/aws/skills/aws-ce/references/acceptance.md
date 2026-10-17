@@ -32,7 +32,8 @@ Upstream physical-interface qualification is tracked in
 - Implement reviewed static TGW cutover and measured recovery. Existing failover execution
   covers TGW Connect; per-AZ static route rendering alone does not establish failover.
 - Add whole-site service withdrawal and restoration to stop/start plans. Current EC2 power
-  actions do not contain those stages and must not be described as coordinated traffic handling.
+  actions do not contain those stages. Whole-site power planning and application, including
+  previously saved plans, remain gated until the coordinated lifecycle is implemented.
 - Qualify rolling resize/replacement with physical health and measured traffic for both engines.
   Keep software/OS operations gated by the current supported F5 contract.
 - Expand independent inventory beyond EC2 site/ownership tags and interface correlations.

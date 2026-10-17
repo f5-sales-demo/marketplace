@@ -14,7 +14,7 @@ and this project adheres to
 
 - **`platform`** v7.0.0 consumes verified API v12.0.9 bootstrap and telemetry, exposes the shared CE service, and separates native operations from Terraform resource state.
 
-- **`aws`** v3.0.0 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts.
+- **`aws`** v3.0.1 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts. Whole-site stop/start is gated until coordinated service withdrawal and restoration are implemented.
 
 - **`salesforce`** v2.3.4 resolves authenticated identity before optional report discovery, preventing
   profile collection deadlines from discarding a valid connection. Pipeline reports discover and cache

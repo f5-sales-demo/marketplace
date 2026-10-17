@@ -24,6 +24,7 @@ import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
+import { assertAwsWholeSitePowerSupported } from './execution-contract';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
 import { collectAwsNetworkHealth } from './network-health';
@@ -117,6 +118,7 @@ export function assertAwsApplyAllowed(
   if (request.planId !== plan.planId) throw new Error('The requested AWS CE plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested AWS CE plan hash does not match');
+  assertAwsWholeSitePowerSupported(plan.intent);
   if (!request.hasUI && !request.authorized && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
     throw new Error('Headless AWS CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
   if (

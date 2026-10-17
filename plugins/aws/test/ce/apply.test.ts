@@ -8,6 +8,7 @@ import {
   isAwsBrownfieldRestoreConverged,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
+import { verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
@@ -48,6 +49,29 @@ const intent: AwsCeIntent = {
   routes: [],
   brownfield: { resourceIds: [], routeTableIds: [], transitGatewayRouteTableIds: [] },
 };
+
+it('previously persisted whole-site power plans cannot bypass the lifecycle gate with authorization', () => {
+  for (const engine of ['native', 'terraform'] as const)
+    for (const operation of ['start', 'stop'] as const) {
+      const plan = compileAwsCePlan({ ...intent, engine }, observation);
+      plan.intent.operation = operation;
+      const { planId: _planId, planSha256: _planSha256, ...draft } = plan;
+      plan.planSha256 = canonicalSha256(draft);
+      plan.planId = `aws-ce-${plan.planSha256.slice(0, 24)}`;
+      verifyAwsCePlan(plan);
+      expect(() =>
+        assertAwsApplyAllowed(plan, {
+          planId: plan.planId,
+          planSha256: plan.planSha256,
+          executionEngine: engine,
+          hasUI: true,
+          authorized: true,
+          destructionAuthorized: true,
+          env: { XCSH_CE_HEADLESS_MUTATIONS: '1', XCSH_CE_ALLOW_DESTROY: '1' },
+        }),
+      ).toThrow('service withdrawal');
+    }
+});
 const capabilities = {
   smsv2ContractVersion: 'v2' as const,
   supportedProviders: ['aws' as const],

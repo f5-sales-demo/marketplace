@@ -3192,6 +3192,12 @@ var init_create_recovery = __esm(() => {
 });
 
 // plugins/aws/src/ce/execution-contract.ts
+function assertAwsWholeSitePowerSupported(intent) {
+  if (intent.operation === 'start' || intent.operation === 'stop')
+    throw new Error(
+      `Whole-site ${intent.operation} is unavailable until reviewed service withdrawal, restoration and traffic gates are implemented; use the owning-engine selected-node failover workflow only for its supported topology`,
+    );
+}
 var AWS_CE_TERRAFORM_VERSION = '1.16.5',
   AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0',
   AWS_CE_PROVIDER_LOCK_SHA256 = 'c4fbed57d353b4b7ee92bcdd16be57a9674dc3e70b41332ab0b866db7e7a9ede';
@@ -4239,29 +4245,8 @@ function compileActions(intent, observation, restorationById) {
     }
     return actions;
   }
+  assertAwsWholeSitePowerSupported(intent);
   const ownedInstances = orderedOwnedInstances(observation, intent.topology.nodeCount);
-  if (intent.operation === 'start' || intent.operation === 'stop') {
-    if (ownedInstances.length !== intent.topology.nodeCount)
-      fail(`${intent.operation} requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);
-    for (const instance of ownedInstances)
-      add({
-        phase: 'nodes',
-        kind: intent.operation === 'start' ? 'instance-start' : 'instance-stop',
-        description: `${intent.operation} ${instance.id}`,
-        command: 'aws',
-        args: [
-          'ec2',
-          intent.operation === 'start' ? 'start-instances' : 'stop-instances',
-          '--instance-ids',
-          instance.id,
-          ...base,
-        ],
-        resourceId: instance.id,
-        mutates: true,
-        destructive: intent.operation === 'stop',
-      });
-    return actions;
-  }
   if (intent.operation === 'resize') {
     if (ownedInstances.length !== intent.topology.nodeCount)
       fail(`resize requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);
@@ -8788,6 +8773,7 @@ function assertAwsApplyAllowed(plan, request) {
   if (request.planId !== plan.planId) throw new Error('The requested AWS CE plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested AWS CE plan hash does not match');
+  assertAwsWholeSitePowerSupported(plan.intent);
   if (!request.hasUI && !request.authorized && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
     throw new Error('Headless AWS CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
   if (
@@ -9711,6 +9697,7 @@ import { readFile as readFile3 } from 'node:fs/promises';
 
 function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
   verifyAwsCePlan(plan);
+  assertAwsWholeSitePowerSupported(plan.intent);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Terraform foundation requires a Terraform deployment plan');
   const intent = plan.intent;

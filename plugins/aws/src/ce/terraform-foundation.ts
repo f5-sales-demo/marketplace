@@ -4,6 +4,7 @@ import {
   AWS_CE_PROVIDER_LOCK_SHA256,
   AWS_CE_TERRAFORM_PROVIDER_VERSION,
   AWS_CE_TERRAFORM_VERSION,
+  assertAwsWholeSitePowerSupported,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
 import { interfaceSecurityGroups } from './interface-security';
@@ -25,6 +26,7 @@ const literal = terraformLiteral;
 /** Network/compute stage; XC registration and routing are subsequent lifecycle stages. */
 export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: Record<string, string> = {}): string {
   verifyAwsCePlan(plan);
+  assertAwsWholeSitePowerSupported(plan.intent);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Terraform foundation requires a Terraform deployment plan');
   const intent = plan.intent;
