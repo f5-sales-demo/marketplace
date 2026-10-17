@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.5 renders formatted Describe, Org and Pipeline evidence as Markdown in expanded
+  views, preserving literal commands, arbitrary CLI output and complete metadata. Requires xcsh 23.5.1
+  (#1557).
+
 - **`salesforce`** v2.3.4 resolves authenticated identity before optional report discovery, preventing
   profile collection deadlines from discarding a valid connection. Pipeline reports discover and cache
   schema and territory scope on demand for the verified org. Requires xcsh 23.5.1 (#1555).
