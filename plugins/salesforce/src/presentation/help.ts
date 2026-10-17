@@ -1,6 +1,6 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args, Options, Result, View } from './shared';
-import { code, fields, hint, texts } from './shared';
+import { code, fields, texts } from './shared';
 
 export function helpView(_p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const text = texts(result).join('\n');
@@ -45,9 +45,7 @@ export function helpView(_p: PresentationAPI, result: Result, options: Options, 
         ? [code(optional.join('\n'), 'Optional flags')]
         : [fields({ Flags: 'Not returned' }, 'Optional flags')]),
       ...(sections.EXAMPLES ? [code(sections.EXAMPLES.join('\n').trim(), 'Examples')] : []),
-      ...(options.expanded
-        ? [code(text, 'Complete help text')]
-        : [hint('Expand for complete help text, including additional sections')]),
+      ...(options.expanded ? [code(text, 'CLI output')] : []),
     ],
   };
 }

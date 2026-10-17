@@ -1,5 +1,4 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
-import { copyableCommand } from './command';
 
 export type Section = ReturnType<PresentationAPI['data']>[number];
 export type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
@@ -66,7 +65,7 @@ export function value(value: unknown, numeric = false): unknown {
 export function table(
   p: PresentationAPI,
   data: Args[],
-  title: string,
+  title: string | undefined,
   keys?: string[],
   labels?: Record<string, string>,
 ): Section {
@@ -192,12 +191,10 @@ export function formatSoql(query: string): string {
   });
   return output;
 }
-export function evidence(p: PresentationAPI, result: Result, args: Args, argv?: string[]): Section[] {
+export function evidence(p: PresentationAPI, result: Result, _args: Args, _argv?: string[]): Section[] {
   return [
-    ...(argv
-      ? [copyableCommand(p, ['sf', ...argv], 'Exact command · copy and run'), ...p.data(argv, 'Exact argv')]
-      : p.data(args, 'Exact arguments')),
-    ...texts(result).map((text) => code(text, 'Complete CLI output')),
-    ...(result.details === undefined ? [] : p.data(result.details, 'Complete evidence')),
+    // Expanded call arguments are already rendered and labeled by xcsh.
+    ...texts(result).map((text) => code(text, 'CLI output')),
+    ...(result.details === undefined ? [] : p.data(result.details, 'Metadata')),
   ];
 }

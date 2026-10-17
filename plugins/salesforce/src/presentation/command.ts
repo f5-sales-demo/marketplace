@@ -10,7 +10,7 @@ const width = (text: string) =>
       .split('\n')
       .map((line) => [...line].reduce((n, c) => n + (c === '\t' ? 8 : c.charCodeAt(0) > 127 ? 2 : 1), 0)),
   );
-export function copyableCommand(p: PresentationAPI, argv: readonly string[], title = 'Command · copy and run') {
+export function copyableCommand(p: PresentationAPI, argv: readonly string[], title?: string) {
   const quote = (arg: string) => p.command([arg]).text;
   const argumentsText = argv.map((arg) => {
     if (width(quote(arg)) <= 24) return quote(arg);

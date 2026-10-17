@@ -45,7 +45,11 @@ test('all direct tools show their complete executable command once in the defaul
       { expanded: false, isPartial: false },
       args,
     );
-    expect(result.sections?.filter((section) => section.title === 'Command · copy and run')).toHaveLength(1);
+    expect(
+      result.sections?.filter(
+        (section) => section.kind === 'code' && section.text === copyableCommand(presentation, argv!).text,
+      ),
+    ).toHaveLength(1);
     expect(result.sections?.some((section) => section.kind === 'fields' && 'Command' in section.values)).toBe(false);
     expect(result.sections?.some((section) => ['SOQL', 'SOSL', 'Query'].includes(section.title ?? ''))).toBe(false);
   }

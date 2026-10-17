@@ -61,13 +61,9 @@ export function describeView(
   const preview = match || options.expanded ? selected : selected.filter((f) => !f.custom);
   const rawFields = rows(record(details.describeEvidence).fields);
   return {
-    summary: `${described.name ?? args.sobject ?? 'Object'} · ${all.length} fields · ${relationships.length} child relationships${match ? ` · ${selected.length} matching fields (${all.length} total) · ${selectedRels.length} matching relationships` : ''}`,
     sections: [
       ...context(operation, args),
-      fields({
-        Object: described.name ?? args.sobject,
-        ...(match ? { Filter: args.match } : { Preview: 'standard fields' }),
-      }),
+      ...(match ? [fields({ Filter: args.match })] : []),
       ...(match && !selected.length && !selectedRels.length
         ? [hint('No matching fields or child relationships. Try a shorter or different filter.')]
         : []),
@@ -81,7 +77,7 @@ export function describeView(
                 type: types[String(field.type)] ?? field.type,
                 queryUse: queryUse(rawFields.find((r) => r.name === field.name) ?? field),
               })),
-              'Fields',
+              match ? 'Matching fields' : options.expanded ? 'Fields' : 'Standard fields',
               ['label', 'name', 'type', 'queryUse'],
               { label: 'Label', name: 'API name', type: 'Type', queryUse: 'Query use' },
             ),
@@ -91,10 +87,10 @@ export function describeView(
       ...(!options.expanded
         ? [
             hint(
-              `${all.filter((f) => f.custom).length} custom fields, complete picklists and ${relationships.length} relationships in expanded details${match ? '; complete catalog also retained' : ''}`,
+              `${match ? `${all.length - selected.length} fields outside filter` : `${selected.length - preview.length} custom fields omitted`}; complete picklists and ${relationships.length - (match ? selectedRels.length : 0)} relationships in expanded details${match ? `; full catalog of ${all.length} fields retained` : ''}`,
             ),
           ]
-        : [...data(p, selected, 'Complete selected field metadata'), ...evidence(p, result, args)]),
+        : [...data(p, selected, 'Selected field metadata'), ...evidence(p, result, args)]),
     ],
   };
 }

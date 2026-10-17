@@ -65,7 +65,8 @@ test('describe applies its requested match while retaining total scope', () => {
     options,
     { match: 'Id' },
   );
-  expect(view.summary).toContain('1 matching fields (2 total)');
+  expect(JSON.stringify(view.sections)).toContain('Matching fields');
+  expect(JSON.stringify(view.sections)).toContain('full catalog of 2 fields retained');
   expect(JSON.stringify(view.sections)).toContain('Identifier');
   expect(JSON.stringify(view.sections)).not.toContain('Synthetic__c');
 });
