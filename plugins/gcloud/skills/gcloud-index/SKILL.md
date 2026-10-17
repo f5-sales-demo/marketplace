@@ -24,6 +24,12 @@ Route the user's request to the correct skill or agent.
 
 ## Routing Rules
 
+### F5 Customer Edge
+
+For GCP CE deployment, HA, routing, native/Terraform lifecycle, upgrades,
+replacement, repair, failover or teardown, invoke `gcloud:gcp-ce` before generic
+Compute routing. Preserve the chosen engine and report unavailable contract gates.
+
 ### Authentication and Account Management
 
 Keywords: "login", "authenticate", "gcloud auth", "connect gcp",

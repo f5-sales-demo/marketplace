@@ -159,6 +159,7 @@ const factory: ExtensionFactory = async (pi) => {
     const { createGcloudStorageBucketsListTool } = await import('./tools/gcloud-storage-buckets-list');
     const { createGcloudExecTool } = await import('./tools/gcloud-exec');
     const { createGcloudHelpTool } = await import('./tools/gcloud-help');
+    const { createGcpCeTools } = await import('./tools/gcp-ce');
 
     pi.registerTool(presentTool(withErrorType(createGcloudConfigListTool(pi))));
     pi.registerTool(presentTool(withErrorType(createGcloudProjectsListTool(pi))));
@@ -166,6 +167,7 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(presentTool(withErrorType(createGcloudStorageBucketsListTool(pi))));
     pi.registerTool(presentTool(withErrorType(createGcloudExecTool(pi))));
     pi.registerTool(presentTool(withErrorType(createGcloudHelpTool(pi))));
+    for (const tool of createGcpCeTools(pi)) pi.registerTool(presentTool(withErrorType(tool)));
   }
 
   // Before agent start: inject gcloud config context
