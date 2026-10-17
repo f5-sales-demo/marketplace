@@ -9,9 +9,12 @@ export function configureSalesforceExecutor(executor?: SalesforceExecutor): void
 }
 async function runSalesforce(args: readonly string[]): Promise<SfRawResult> {
   if (!salesforceExecutor) throw new Error('Salesforce host executor is unavailable');
-  return salesforceExecutor(args, discoveryScope.getStore());
+  discoveryScope.getStore()?.throwIfAborted();
+  const target = discoveryOrgScope.getStore();
+  return salesforceExecutor(target ? [...args, '--target-org', target] : args, discoveryScope.getStore());
 }
 const discoveryScope = new AsyncLocalStorage<AbortSignal>();
+const discoveryOrgScope = new AsyncLocalStorage<string>();
 
 // ---------------------------------------------------------------------------
 // Canonical xcsh person profile access supplied by the extension API.
@@ -19,6 +22,7 @@ const discoveryScope = new AsyncLocalStorage<AbortSignal>();
 
 let personProfileGet: (() => Promise<UserProfile>) | undefined;
 let salesforceContextGet: (() => Promise<SalesforceContext | null>) | undefined;
+let enrichedContexts = new WeakMap<SalesforceContext, SalesforceContext>();
 
 export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
   personProfileGet = get;
@@ -26,6 +30,7 @@ export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
 
 export function configureSalesforceContext(get?: () => Promise<SalesforceContext | null>): void {
   salesforceContextGet = get;
+  enrichedContexts = new WeakMap();
 }
 
 export async function readPersonFacts(): Promise<UserProfile> {
@@ -95,6 +100,8 @@ export interface DiscoveredSku {
 }
 
 export interface SalesforceContext {
+  /** Identity is ready; report scope and schema will be discovered on demand. */
+  discoveryPending?: boolean;
   // Identity
   userId: string;
   username: string;
@@ -210,7 +217,8 @@ const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 // ---------------------------------------------------------------------------
 
 export async function loadSalesforceContext(): Promise<SalesforceContext | null> {
-  return salesforceContextGet ? salesforceContextGet() : null;
+  const context = salesforceContextGet ? await salesforceContextGet() : null;
+  return context ? (enrichedContexts.get(context) ?? context) : null;
 }
 
 export function salesforceContextIsStale(ctx: SalesforceContext): boolean {
@@ -583,29 +591,46 @@ async function discoverRoleAndTeam(userId: string): Promise<Partial<SalesforceCo
 // Main discovery
 // ---------------------------------------------------------------------------
 
-export async function discoverSalesforceContext(signal?: AbortSignal): Promise<SalesforceContext | null> {
+export async function discoverSalesforceContext(
+  signal?: AbortSignal,
+  identity?: SalesforceContext,
+): Promise<SalesforceContext | null> {
   const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000);
   bounded.throwIfAborted();
-  return discoveryScope.run(bounded, () => discoverContext());
+  return discoveryScope.run(bounded, () => discoverContext(identity));
 }
-async function discoverContext(): Promise<SalesforceContext | null> {
+async function discoverIdentity(): Promise<SalesforceContext | null> {
   if (!salesforceExecutor) return null;
+  const orgInfo = await getOrgInfo();
+  discoveryScope.getStore()?.throwIfAborted();
+  if (!orgInfo) return null;
 
-  // OpportunityLineItem is described alongside Opportunity so the pipeline report can
-  // feature-detect its value fields instead of assuming one org's custom schema.
-  const [orgInfo, described, describedLineItem] = await Promise.all([
-    getOrgInfo(),
+  const escapedUsername = orgInfo.username.replace(/'/g, "\\'");
+  const currentUser = await runSfQuery(`SELECT Id, UserType FROM User WHERE Username = '${escapedUsername}' LIMIT 1`);
+  const userId = String(currentUser[0]?.Id ?? '');
+  if (!userId) return null;
+  discoveryScope.getStore()?.throwIfAborted();
+  return {
+    userId,
+    username: orgInfo.username,
+    userType: typeof currentUser[0]?.UserType === 'string' ? currentUser[0].UserType : undefined,
+    instanceUrl: orgInfo.instanceUrl,
+    orgAlias: orgInfo.alias || undefined,
+    collectedAt: new Date().toISOString(),
+    discoveryPending: true,
+  };
+}
+
+async function discoverContext(identity?: SalesforceContext): Promise<SalesforceContext | null> {
+  const base = identity ?? (await discoverIdentity());
+  if (!base) return null;
+  const { userId } = base;
+  // Report discovery has its own caller deadline, separate from profile readiness.
+  const [described, describedLineItem] = await Promise.all([
     describeSObject('Opportunity'),
     describeSObject('OpportunityLineItem'),
   ]);
   discoveryScope.getStore()?.throwIfAborted();
-  if (!orgInfo) return null;
-
-  const profile = await readPersonFacts();
-  const escapedUsername = orgInfo.username.replace(/'/g, "\\'");
-  const currentUser = await runSfQuery(`SELECT Id, UserType FROM User WHERE Username = '${escapedUsername}' LIMIT 1`);
-  const userId = profile.identifiers?.salesforceId ?? String(currentUser[0]?.Id ?? '');
-  if (!userId) return null;
 
   const results = await Promise.all([
     discoverTerritories(userId, described).catch(() => ({})),
@@ -620,11 +645,8 @@ async function discoverContext(): Promise<SalesforceContext | null> {
   ]);
 
   const merged: SalesforceContext = {
-    userId,
-    username: orgInfo.username,
-    userType: typeof currentUser[0]?.UserType === 'string' ? currentUser[0].UserType : undefined,
-    instanceUrl: orgInfo.instanceUrl,
-    orgAlias: orgInfo.alias || undefined,
+    ...base,
+    discoveryPending: false,
     opportunityFields: described?.fields.map((f) => f.name),
     lineItemFields: describedLineItem?.fields.map((f) => f.name),
     collectedAt: new Date().toISOString(),
@@ -638,7 +660,23 @@ async function discoverContext(): Promise<SalesforceContext | null> {
 }
 
 export async function seedSalesforceContext(signal?: AbortSignal): Promise<SalesforceContext | null> {
-  return discoverSalesforceContext(signal);
+  const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000);
+  bounded.throwIfAborted();
+  return discoveryScope.run(bounded, discoverIdentity);
+}
+
+export async function enrichSalesforceContext(
+  context: SalesforceContext,
+  signal?: AbortSignal,
+): Promise<SalesforceContext> {
+  signal?.throwIfAborted();
+  if (!context.discoveryPending) return context;
+  const cached = enrichedContexts.get(context);
+  if (cached) return cached;
+  const enriched = await discoveryOrgScope.run(context.username, () => discoverSalesforceContext(signal, context));
+  if (!enriched) throw new Error('Salesforce report context discovery is unavailable.');
+  enrichedContexts.set(context, enriched);
+  return enriched;
 }
 
 // ---------------------------------------------------------------------------
