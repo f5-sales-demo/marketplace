@@ -280,6 +280,11 @@ test('schema error recovery and failed/empty renderers retain readable results',
 
 // Exercise copied command text after the actual renderer has applied every supported layout.
 test('copyable command survives terminal reflow and preserves exact arguments', async () => {
+  // Bash is required on CI; exercise Zsh as well wherever it is installed.
+  // Authenticated release acceptance separately requires both shells on Mac and Ubuntu.
+  const bash = Bun.which('bash');
+  expect(bash).not.toBeNull();
+  const shells = [bash!, Bun.which('zsh')].filter((shell): shell is string => shell !== null);
   const argv = [
     'sf',
     'data',
@@ -299,7 +304,7 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
         for (const width of [40, 76, 120, 153]) {
           const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
           const copied = plain(component.render(width - 10));
-          for (const shell of ['/bin/bash', '/bin/zsh']) {
+          for (const shell of shells) {
             const child = Bun.spawn([shell, '-f', '-c', `sf() { printf '%s\\0' "$@"; };\n${copied}`], {
               stdout: 'pipe',
               stderr: 'pipe',
