@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
+  readiness planning to the Google Cloud plugin, with topology, sizing and engine
+  validation. Lifecycle mutation remains unavailable pending qualified GCP API
+  mappings and shared Platform/Terraform integration (#1559).
+
 - **`salesforce`** v2.3.5 renders formatted Describe, Org and Pipeline evidence as Markdown in expanded
   views, preserving literal commands, arbitrary CLI output and complete metadata. Requires xcsh 23.5.1
   (#1557).

@@ -4,7 +4,7 @@ import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 export function presentTool<T extends { name: string; label?: string }>(tool: T, p: PresentationAPI) {
   return p.withPresentation(tool, {
     command: 'gcloud',
-    scopeKeys: ['project', 'filter', 'zone', 'region', 'limit'],
+    scopeKeys: ['project', 'filter', 'zone', 'region', 'limit', 'deploymentName', 'engine'],
     collections: ['projects', 'instances', 'buckets'],
     labels: Object.fromEntries([
       ['projectId', 'Project ID'],
