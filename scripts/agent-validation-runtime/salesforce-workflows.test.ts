@@ -19,6 +19,8 @@ import {
   configureSalesforceExecutor,
 } from '../../plugins/salesforce/src/context/salesforce-context';
 import factory from '../../plugins/salesforce/src/index';
+import { copyableCommand } from '../../plugins/salesforce/src/presentation/command';
+import { PluginViewComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/plugin-view';
 import { ToolExecutionComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/tool-execution';
 import { initTheme, setSymbolPreset, setTheme } from './node_modules/@f5-sales-demo/xcsh/src/modes/theme/theme';
 
@@ -201,7 +203,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(collapsed).toContain('7 more rows');
             expect(collapsed).not.toContain('Prepare demo 3');
             expect((collapsed.match(/SELECT/g) ?? []).length).toBe(1);
-            expect(collapsed).not.toContain('--json');
+            expect(collapsed).toContain('--json');
           }
           if ((args as any).query === aggregateQuery) {
             expect(collapsed).toContain('1,234');
@@ -256,5 +258,39 @@ test('schema error recovery and failed/empty renderers retain readable results',
     const view = component(tool, failed.result, failed.args);
     view.setExpanded(true);
     expect(plain(view.render(76))).toContain('No such column');
+  }
+});
+
+// Exercise copied command text after the actual renderer has applied every supported layout.
+test('copyable command survives terminal reflow and preserves exact arguments', async () => {
+  const argv = [
+    'sf',
+    'data',
+    'query',
+    '--query',
+    "SELECT Subject FROM Task WHERE Subject = 'literal \\' quote $HOME 北方' LIMIT 10",
+    '--target-org',
+    'demo',
+    '--json',
+  ];
+  const section = copyableCommand(presentation, argv);
+  for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
+    await setSymbolPreset(preset);
+    for (const theme of ['xcsh-dark', 'xcsh-light']) {
+      await setTheme(theme);
+      for (const expanded of [false, true]) {
+        for (const width of [40, 76, 120, 153]) {
+          const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
+          const copied = plain(component.render(width - 10));
+          const child = Bun.spawn(['/bin/bash', '-f', '-c', `sf() { printf '%s\\0' "$@"; };\n${copied}`], {
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          const output = await new Response(child.stdout).text();
+          expect(await child.exited).toBe(0);
+          expect(output.split('\0').slice(0, -1)).toEqual(argv.slice(1));
+        }
+      }
+    }
   }
 });
