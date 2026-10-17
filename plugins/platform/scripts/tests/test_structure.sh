@@ -96,10 +96,10 @@ test_expected_files_exist() {
   done
 }
 
-# T1.8 — Platform 6.x exposes only provider-neutral Secure Mesh Site v2 CE tools
-test_platform_v6_ce_contract() {
-  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 6.* ]] || {
-    echo "Provider-neutral Secure Mesh Site v2 contract requires Platform 6.x"
+# T1.8 — Platform 7.x exposes only provider-neutral Secure Mesh Site v2 CE tools
+test_platform_v7_ce_contract() {
+  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 7.* ]] || {
+    echo "Provider-neutral Secure Mesh Site v2 contract requires Platform 7.x"
     return 1
   }
   for tool in f5xc_ce_v2_capabilities f5xc_ce_v2_site f5xc_ce_v2_bootstrap f5xc_ce_v2_status; do

@@ -1,0 +1,3 @@
+export const AWS_CE_TERRAFORM_VERSION = '1.16.5';
+export const AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0';
+export const AWS_CE_PROVIDER_LOCK_SHA256 = 'c4fbed57d353b4b7ee92bcdd16be57a9674dc3e70b41332ab0b866db7e7a9ede';

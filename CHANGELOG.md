@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v3.0.0 adds the isolated saved-plan runner and provider-owned F5 resource stages, with restricted journals and exact-state recovery.
+
+- **`platform`** v7.0.0 consumes verified API v12.0.9 bootstrap and telemetry, exposes the shared CE service, and separates native operations from Terraform resource state.
+
+- **`aws`** v3.0.0 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts.
+
 - **`salesforce`** v2.3.1 refines all six tool presentations: readable command and SOQL context once,
   precision-preserving query metrics and prioritized records, compact schema capabilities, explicit org
   identity evidence, ordered CLI help, and fiscal/team-first currency-separated pipeline summaries.

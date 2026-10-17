@@ -24,8 +24,8 @@ const kvmImageResolution = {
   >,
   publication: {
     repository: 'f5-sales-demo/api-specs-enriched' as const,
-    tag: 'v7.0.9' as const,
-    commit: '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab' as const,
+    tag: 'v12.0.9' as const,
+    commit: 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc' as const,
     asset: 'openapi.json' as const,
     sha256: `sha256:${'a'.repeat(64)}`,
   },

@@ -1,0 +1,2100 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "commit": "5ce68bff35b444e5af967433ad3d14ca96a1ffe0",
+    "source": "docs/specifications/api/sites.json",
+    "sourceSha256": "825c5091658dd215c60686ecc7fb2150710c3705d7b48ce4444e74279816620a",
+    "scope": "request schema only; no runtime acceptance"
+  },
+  "schemas": {
+    "viewssecuremesh_site_v2CreateSpecType": {
+      "type": "object",
+      "x-ves-oneof-field-advanced_delivery_choice": "[\"disable_advanced_delivery\",\"enable_advanced_delivery\"]",
+      "x-ves-oneof-field-blocked_services_choice": "[\"block_all_services\",\"blocked_services\"]",
+      "x-ves-oneof-field-enterprise_proxy_choice": "[\"custom_proxy\",\"f5_proxy\"]",
+      "x-ves-oneof-field-forward_proxy_choice": "[\"active_forward_proxy_policies\",\"no_forward_proxy\"]",
+      "x-ves-oneof-field-log_anonymization_choice": "[\"disable_log_anonymization\",\"enable_log_anonymization\"]",
+      "x-ves-oneof-field-logs_receiver_choice": "[\"log_receiver_with_net\",\"logs_streaming_disabled\"]",
+      "x-ves-oneof-field-management_network_choice": "[\"disable_management_network\",\"enable_management_network\"]",
+      "x-ves-oneof-field-network_policy_choice": "[\"active_enhanced_firewall_policies\",\"no_network_policy\"]",
+      "x-ves-oneof-field-node_ha_choice": "[\"disable_ha\",\"enable_ha\"]",
+      "x-ves-oneof-field-provider_choice": "[\"aws\",\"azure\",\"baremetal\",\"equinix\",\"gcp\",\"kvm\",\"nutanix\",\"oci\",\"openshift_virtualization\",\"openstack\",\"vmware\"]",
+      "x-ves-oneof-field-proxy_bypass_choice": "[\"custom_proxy_bypass\",\"no_proxy_bypass\"]",
+      "x-ves-oneof-field-s2s_connectivity_sli_choice": "[\"dc_cluster_group_sli\",\"no_s2s_connectivity_sli\"]",
+      "x-ves-oneof-field-s2s_connectivity_slo_choice": "[\"dc_cluster_group_slo\",\"no_s2s_connectivity_slo\",\"site_mesh_group_on_slo\"]",
+      "x-ves-oneof-field-url_categorization_choice": "[\"disable_url_categorization\",\"enable_url_categorization\"]",
+      "properties": {
+        "active_enhanced_firewall_policies": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_firewallActiveEnhancedFirewallPoliciesType"
+            }
+          ]
+        },
+        "active_forward_proxy_policies": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_firewallActiveForwardProxyPoliciesType"
+            }
+          ]
+        },
+        "admin_user_credentials": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsAdminUserCredentialsType"
+            }
+          ]
+        },
+        "aws": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2AWSProviderType"
+            }
+          ]
+        },
+        "azure": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2AzureProviderType"
+            }
+          ]
+        },
+        "baremetal": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2BaremetalProviderType"
+            }
+          ]
+        },
+        "block_all_services": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "blocked_services": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/fleetBlockedServicesListType"
+            }
+          ]
+        },
+        "custom_proxy": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2CustomProxy"
+            }
+          ]
+        },
+        "custom_proxy_bypass": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2CustomProxyBypassSettings"
+            }
+          ]
+        },
+        "dc_cluster_group_sli": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ]
+        },
+        "dc_cluster_group_slo": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ]
+        },
+        "disable_advanced_delivery": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "disable_ha": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "disable_log_anonymization": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "disable_management_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "disable_url_categorization": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "dns_ntp_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2DNSNTPServerConfig"
+            }
+          ]
+        },
+        "enable_advanced_delivery": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_ha": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_log_anonymization": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_management_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_url_categorization": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "equinix": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2EquinixProviderType"
+            }
+          ]
+        },
+        "f5_proxy": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "gcp": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2GCPProviderType"
+            }
+          ]
+        },
+        "kvm": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2KVMProviderType"
+            }
+          ]
+        },
+        "load_balancing": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2LoadBalancingSettingsType"
+            }
+          ]
+        },
+        "local_vrf": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2LocalVRFSettingType"
+            }
+          ]
+        },
+        "log_receiver_with_net": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2LogReceiverWithNet"
+            }
+          ]
+        },
+        "logs_streaming_disabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_forward_proxy": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_network_policy": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_proxy_bypass": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_s2s_connectivity_sli": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_s2s_connectivity_slo": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "nutanix": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NutanixProviderType"
+            }
+          ]
+        },
+        "oci": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2OCIProviderType"
+            }
+          ]
+        },
+        "offline_survivability_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsOfflineSurvivabilityModeType"
+            }
+          ]
+        },
+        "openshift_virtualization": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2OpenShiftProviderType"
+            }
+          ]
+        },
+        "openstack": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2OpenstackProviderType"
+            }
+          ]
+        },
+        "performance_enhancement_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsPerformanceEnhancementModeType"
+            }
+          ]
+        },
+        "re_select": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsRegionalEdgeSelection"
+            }
+          ]
+        },
+        "segment_vrf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/securemesh_site_v2SegmentVRFSettingType"
+          }
+        },
+        "site_mesh_group_on_slo": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2SiteMeshGroupType"
+            }
+          ]
+        },
+        "software_settings": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2SoftwareSettingsType"
+            }
+          ]
+        },
+        "tunnel_dead_timeout": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tunnel_type": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaSiteToSiteTunnelType"
+            }
+          ]
+        },
+        "upgrade_settings": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2UpgradeSettingsType"
+            }
+          ]
+        },
+        "vmware": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2VMwareProviderType"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2VMwareProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2NodeList": {
+      "type": "object",
+      "properties": {
+        "node_list": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/components/schemas/viewssecuremesh_site_v2Node"
+          }
+        }
+      }
+    },
+    "viewssecuremesh_site_v2Node": {
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+          "minLength": 1
+        },
+        "interface_list": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/components/schemas/securemesh_site_v2Interface"
+          }
+        },
+        "public_ip": {
+          "type": "string",
+          "maxLength": 256,
+          "nullable": true
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 1024,
+          "enum": ["Control", "Worker"]
+        }
+      }
+    },
+    "securemesh_site_v2Interface": {
+      "type": "object",
+      "x-ves-oneof-field-address_choice": "[\"dhcp_client\", \"dhcp_server\", \"no_ipv4_address\", \"static_ip\"]",
+      "x-ves-oneof-field-interface_choice": "[\"bond_interface\",\"ethernet_interface\",\"vlan_interface\"]",
+      "x-ves-oneof-field-ipv6_address_choice": "[\"ipv6_auto_config\",\"no_ipv6_address\",\"static_ipv6_address\"]",
+      "x-ves-oneof-field-monitoring_choice": "[\"monitor\",\"monitor_disabled\"]",
+      "x-ves-oneof-field-site_to_site_connectivity_interface_choice": "[\"site_to_site_connectivity_interface_disabled\",\"site_to_site_connectivity_interface_enabled\"]",
+      "properties": {
+        "bond_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/fleetFleetBondDeviceType"
+            }
+          ]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 21
+        },
+        "dhcp_client": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "ethernet_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewssecuremesh_site_v2EthernetInterfaceType"
+            }
+          ]
+        },
+        "ipv6_auto_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigType"
+            }
+          ]
+        },
+        "labels": {
+          "type": "object"
+        },
+        "monitor": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceLinkQualityMonitorConfig"
+            }
+          ]
+        },
+        "monitor_disabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "mtu": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "network_option": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsNetworkSelectType"
+            }
+          ]
+        },
+        "no_ipv4_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_ipv6_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "site_to_site_connectivity_interface_disabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "site_to_site_connectivity_interface_enabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "static_ip": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceStaticIpParametersNodeType"
+            }
+          ]
+        },
+        "static_ipv6_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceStaticIPParametersType"
+            }
+          ]
+        },
+        "vlan_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2VlanInterfaceType"
+            }
+          ]
+        },
+        "dhcp_server": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPServerParametersType"
+            }
+          ]
+        },
+        "is_management": {
+          "type": "boolean",
+          "readOnly": true
+        },
+        "is_primary": {
+          "type": "boolean",
+          "readOnly": true
+        }
+      }
+    },
+    "network_interfaceDHCPServerParametersType": {
+      "type": "object",
+      "x-ves-oneof-field-interfaces_addressing_choice": "[\"automatic_from_end\",\"automatic_from_start\",\"interface_ip_map\"]",
+      "properties": {
+        "automatic_from_end": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "automatic_from_start": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "dhcp_networks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/components/schemas/network_interfaceDHCPNetworkType"
+          }
+        },
+        "fixed_ip_map": {
+          "type": "object"
+        },
+        "interface_ip_map": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPType"
+            }
+          ]
+        },
+        "dhcp_option82_tag": {
+          "type": "string"
+        }
+      }
+    },
+    "network_interfaceDHCPInterfaceIPType": {
+      "type": "object",
+      "properties": {
+        "interface_ip_map": {
+          "type": "object"
+        }
+      }
+    },
+    "network_interfaceDHCPNetworkType": {
+      "type": "object",
+      "x-ves-oneof-field-dns_choice": "[\"dns_address\",\"same_as_dgw\"]",
+      "x-ves-oneof-field-gateway_choice": "[\"dgw_address\",\"first_address\",\"last_address\"]",
+      "x-ves-oneof-field-network_prefix_choice": "[\"network_prefix\"]",
+      "properties": {
+        "dgw_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "dns_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "first_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "last_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "network_prefix": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "pool_settings": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPPoolSettingType"
+            }
+          ]
+        },
+        "pools": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/components/schemas/network_interfaceDHCPPoolType"
+          }
+        },
+        "same_as_dgw": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "ioschemaEmpty": {
+      "type": "object"
+    },
+    "network_interfaceDHCPPoolType": {
+      "type": "object",
+      "properties": {
+        "end_ip": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "start_ip": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "exclude": {
+          "type": "boolean"
+        }
+      }
+    },
+    "network_interfaceDHCPPoolSettingType": {
+      "type": "string",
+      "enum": ["INCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS", "EXCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS"]
+    },
+    "securemesh_site_v2VlanInterfaceType": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "vlan_id": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1,
+          "maximum": 4095
+        }
+      }
+    },
+    "network_interfaceStaticIPParametersType": {
+      "type": "object",
+      "x-ves-oneof-field-network_prefix_choice": "[\"cluster_static_ip\",\"node_static_ip\"]",
+      "properties": {
+        "cluster_static_ip": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceStaticIpParametersClusterType"
+            }
+          ]
+        },
+        "node_static_ip": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceStaticIpParametersNodeType"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceStaticIpParametersNodeType": {
+      "type": "object",
+      "properties": {
+        "default_gw": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "ip_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "dns_server": {
+          "type": "string"
+        }
+      }
+    },
+    "network_interfaceStaticIpParametersClusterType": {
+      "type": "object",
+      "properties": {
+        "interface_ip_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "viewsNetworkSelectType": {
+      "type": "object",
+      "x-ves-oneof-field-network_choice": "[\"segment_network\",\"site_local_inside_network\",\"site_local_network\"]",
+      "properties": {
+        "site_local_inside_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "site_local_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceLinkQualityMonitorConfig": {
+      "type": "object"
+    },
+    "network_interfaceIPV6AutoConfigType": {
+      "type": "object",
+      "x-ves-oneof-field-autoconfig_choice": "[\"host\",\"router\"]",
+      "properties": {
+        "host": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "router": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigRouterType"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceIPV6AutoConfigRouterType": {
+      "type": "object",
+      "x-ves-oneof-field-address_choice": "[\"network_prefix\",\"stateful\"]",
+      "properties": {
+        "dns_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceIPV6DnsConfig"
+            }
+          ]
+        },
+        "network_prefix": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "stateful": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPIPV6StatefulServer"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceDHCPIPV6StatefulServer": {
+      "type": "object",
+      "x-ves-oneof-field-interfaces_addressing_choice": "[\"automatic_from_end\",\"automatic_from_start\",\"interface_ip_map\"]",
+      "properties": {
+        "automatic_from_end": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "automatic_from_start": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "dhcp_networks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/components/schemas/network_interfaceDHCPIPV6NetworkType"
+          }
+        },
+        "fixed_ip_map": {
+          "type": "object"
+        },
+        "interface_ip_map": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPV6Type"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceDHCPInterfaceIPV6Type": {
+      "type": "object",
+      "properties": {
+        "interface_ip_map": {
+          "type": "object"
+        }
+      }
+    },
+    "network_interfaceDHCPIPV6NetworkType": {
+      "type": "object",
+      "x-ves-oneof-field-network_prefix_choice": "[\"network_prefix\"]",
+      "properties": {
+        "network_prefix": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "pool_settings": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceDHCPPoolSettingType"
+            }
+          ]
+        },
+        "pools": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/components/schemas/network_interfaceDHCPIPV6PoolType"
+          }
+        }
+      }
+    },
+    "network_interfaceDHCPIPV6PoolType": {
+      "type": "object",
+      "properties": {
+        "end_ip": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "start_ip": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "network_interfaceIPV6DnsConfig": {
+      "type": "object",
+      "x-ves-oneof-field-dns_choice": "[\"configured_list\",\"local_dns\"]",
+      "properties": {
+        "configured_list": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceIPV6DnsList"
+            }
+          ]
+        },
+        "local_dns": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/network_interfaceIPV6LocalDnsAddress"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceIPV6LocalDnsAddress": {
+      "type": "object",
+      "x-ves-oneof-field-local_dns_choice": "[\"configured_address\",\"first_address\",\"last_address\"]",
+      "properties": {
+        "configured_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "first_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "last_address": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "network_interfaceIPV6DnsList": {
+      "type": "object",
+      "properties": {
+        "dns_list": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "viewssecuremesh_site_v2EthernetInterfaceType": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "mac": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "fleetFleetBondDeviceType": {
+      "type": "object",
+      "x-ves-oneof-field-lacp_choice": "[\"active_backup\",\"lacp\"]",
+      "properties": {
+        "active_backup": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "devices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "lacp": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/fleetBondLacpType"
+            }
+          ]
+        },
+        "link_polling_interval": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "link_up_delay": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+        }
+      }
+    },
+    "fleetBondLacpType": {
+      "type": "object",
+      "properties": {
+        "rate": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "securemesh_site_v2UpgradeSettingsType": {
+      "type": "object",
+      "properties": {
+        "kubernetes_upgrade_drain": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsKubernetesUpgradeDrain"
+            }
+          ]
+        }
+      }
+    },
+    "viewsKubernetesUpgradeDrain": {
+      "type": "object",
+      "x-ves-oneof-field-kubernetes_upgrade_drain_enable_choice": "[\"disable_upgrade_drain\",\"enable_upgrade_drain\"]",
+      "properties": {
+        "disable_upgrade_drain": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_upgrade_drain": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsKubernetesUpgradeDrainConfig"
+            }
+          ]
+        }
+      }
+    },
+    "viewsKubernetesUpgradeDrainConfig": {
+      "type": "object",
+      "x-ves-oneof-field-drain_max_unavailable_choice": "[\"drain_max_unavailable_node_count\", \"drain_max_unavailable_node_percentage\"]",
+      "x-ves-oneof-field-vega_upgrade_mode_toggle_choice": "[\"disable_vega_upgrade_mode\",\"enable_vega_upgrade_mode\"]",
+      "properties": {
+        "disable_vega_upgrade_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "drain_max_unavailable_node_count": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "drain_node_timeout": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "enable_vega_upgrade_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "drain_max_unavailable_node_percentage": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "schemaSiteToSiteTunnelType": {
+      "type": "string",
+      "enum": ["SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL", "SITE_TO_SITE_TUNNEL_IPSEC", "SITE_TO_SITE_TUNNEL_SSL"]
+    },
+    "securemesh_site_v2SoftwareSettingsType": {
+      "type": "object",
+      "properties": {
+        "os": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsOperatingSystemType"
+            }
+          ]
+        },
+        "sw": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsVolterraSoftwareType"
+            }
+          ]
+        }
+      }
+    },
+    "viewsVolterraSoftwareType": {
+      "type": "object",
+      "x-ves-oneof-field-volterra_sw_version_choice": "[\"default_sw_version\",\"volterra_software_version\"]",
+      "properties": {
+        "default_sw_version": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "volterra_software_version": {
+          "type": "string",
+          "maxLength": 20
+        }
+      }
+    },
+    "viewsOperatingSystemType": {
+      "type": "object",
+      "x-ves-oneof-field-operating_system_version_choice": "[\"default_os_version\",\"operating_system_version\"]",
+      "properties": {
+        "default_os_version": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "operating_system_version": {
+          "type": "string",
+          "maxLength": 20
+        }
+      }
+    },
+    "securemesh_site_v2SiteMeshGroupType": {
+      "type": "object",
+      "x-ves-oneof-field-site_mesh_group_choice": "[\"no_site_mesh_group\",\"site_mesh_group\"]",
+      "x-ves-oneof-field-site_mesh_group_ip_choice": "[\"sm_connection_public_ip\",\"sm_connection_pvt_ip\"]",
+      "properties": {
+        "no_site_mesh_group": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "site_mesh_group": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ]
+        },
+        "sm_connection_public_ip": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "sm_connection_pvt_ip": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "schemaviewsObjectRefType": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "tenant": {
+          "type": "string",
+          "maxLength": 64,
+          "readOnly": true,
+          "minLength": 12
+        }
+      }
+    },
+    "securemesh_site_v2SegmentVRFSettingType": {
+      "type": "object",
+      "properties": {
+        "segment_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2SegmentNetworkConfiguration"
+            }
+          ]
+        },
+        "segment_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaObjectRefType"
+            }
+          ]
+        }
+      }
+    },
+    "ioschemaObjectRefType": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 1024,
+          "readOnly": true,
+          "minLength": 12
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 6
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "tenant": {
+          "type": "string",
+          "maxLength": 1024,
+          "readOnly": true,
+          "minLength": 12
+        },
+        "uid": {
+          "type": "string",
+          "maxLength": 1024,
+          "readOnly": true,
+          "minLength": 36,
+          "format": "uuid"
+        }
+      }
+    },
+    "securemesh_site_v2SegmentNetworkConfiguration": {
+      "type": "object",
+      "x-ves-oneof-field-static_route_choice": "[\"no_static_routes\",\"static_routes\"]",
+      "x-ves-oneof-field-static_v6_route_choice": "[\"no_v6_static_routes\",\"static_v6_routes\"]",
+      "properties": {
+        "nameserver": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "no_static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_v6_static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "secondary_nameserver": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2StaticRoutesListType"
+            }
+          ]
+        },
+        "static_v6_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/virtual_networkStaticV6RoutesListType"
+            }
+          ]
+        }
+      }
+    },
+    "virtual_networkStaticV6RoutesListType": {
+      "type": "object",
+      "properties": {
+        "static_routes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/components/schemas/virtual_networkStaticV6RouteViewType"
+          }
+        }
+      }
+    },
+    "virtual_networkStaticV6RouteViewType": {
+      "type": "object",
+      "x-ves-oneof-field-next_hop_choice": "[\"default_gateway\",\"ip_address\",\"node_interface\"]",
+      "properties": {
+        "attrs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/components/schemas/schemaRouteAttrType"
+          }
+        },
+        "default_gateway": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "ip_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "ip_prefixes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "string"
+          }
+        },
+        "node_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaNodeInterfaceType"
+            }
+          ]
+        }
+      }
+    },
+    "schemaNodeInterfaceType": {
+      "type": "object",
+      "properties": {
+        "list": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/components/schemas/schemaNodeInterfaceInfo"
+          }
+        }
+      }
+    },
+    "schemaNodeInterfaceInfo": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/components/schemas/ioschemaObjectRefType"
+          }
+        },
+        "node": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "schemaRouteAttrType": {
+      "type": "string",
+      "enum": [
+        "ROUTE_ATTR_NO_OP",
+        "ROUTE_ATTR_ADVERTISE",
+        "ROUTE_ATTR_INSTALL_HOST",
+        "ROUTE_ATTR_INSTALL_FORWARDING",
+        "ROUTE_ATTR_MERGE_ONLY"
+      ]
+    },
+    "securemesh_site_v2StaticRoutesListType": {
+      "type": "object",
+      "properties": {
+        "static_routes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/components/schemas/virtual_networkStaticRouteViewType"
+          }
+        }
+      }
+    },
+    "virtual_networkStaticRouteViewType": {
+      "type": "object",
+      "x-ves-oneof-field-next_hop_choice": "[\"default_gateway\",\"ip_address\",\"node_interface\"]",
+      "properties": {
+        "attrs": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/components/schemas/schemaRouteAttrType"
+          }
+        },
+        "default_gateway": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "ip_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "ip_prefixes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "string"
+          }
+        },
+        "node_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaNodeInterfaceType"
+            }
+          ]
+        }
+      }
+    },
+    "viewsRegionalEdgeSelection": {
+      "type": "object",
+      "x-ves-oneof-field-re_selection_choice": "[\"geo_proximity\", \"specific_geography\", \"specific_re\"]",
+      "properties": {
+        "geo_proximity": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "specific_re": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsSpecificRE"
+            }
+          ]
+        },
+        "specific_geography": {
+          "type": "string"
+        }
+      }
+    },
+    "viewsSpecificRE": {
+      "type": "object",
+      "properties": {
+        "backup_re": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "primary_re": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    },
+    "viewsPerformanceEnhancementModeType": {
+      "type": "object",
+      "x-ves-oneof-field-perf_mode_choice": "[\"perf_mode_l3_enhanced\",\"perf_mode_l7_enhanced\"]",
+      "properties": {
+        "perf_mode_l3_enhanced": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsL3PerformanceEnhancementType"
+            }
+          ]
+        },
+        "perf_mode_l7_enhanced": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsL7PerformanceEnhancementType"
+            }
+          ]
+        }
+      }
+    },
+    "viewsL7PerformanceEnhancementType": {
+      "type": "object",
+      "x-ves-oneof-field-perf_mode_choice": "[\"jumbo_disabled\",\"jumbo_enabled\"]",
+      "properties": {
+        "jumbo_disabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "jumbo_enabled": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "viewsL3PerformanceEnhancementType": {
+      "type": "object",
+      "x-ves-oneof-field-perf_mode_choice": "[\"jumbo\",\"no_jumbo\"]",
+      "properties": {
+        "jumbo": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_jumbo": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2OpenstackProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2OpenShiftProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "viewsOfflineSurvivabilityModeType": {
+      "type": "object",
+      "x-ves-oneof-field-offline_survivability_mode_choice": "[\"enable_offline_survivability_mode\",\"no_offline_survivability_mode\"]",
+      "properties": {
+        "enable_offline_survivability_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_offline_survivability_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2OCIProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2NutanixProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2LogReceiverWithNet": {
+      "type": "object",
+      "x-ves-oneof-field-network_choice": "[\"use_management_network\",\"use_slo_sli\"]",
+      "properties": {
+        "log_receiver": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ]
+        },
+        "use_management_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "use_slo_sli": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2LocalVRFSettingType": {
+      "type": "object",
+      "x-ves-oneof-field-sli_choice": "[\"default_sli_config\",\"sli_config\"]",
+      "x-ves-oneof-field-slo_choice": "[\"default_config\",\"slo_config\"]",
+      "properties": {
+        "default_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "default_sli_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "sli_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2VirtualNetworkConfiguration"
+            }
+          ]
+        },
+        "slo_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2VirtualNetworkConfiguration"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2VirtualNetworkConfiguration": {
+      "type": "object",
+      "x-ves-oneof-field-static_route_choice": "[\"no_static_routes\",\"static_routes\"]",
+      "x-ves-oneof-field-static_v6_route_choice": "[\"no_v6_static_routes\",\"static_v6_routes\"]",
+      "properties": {
+        "labels": {
+          "type": "object"
+        },
+        "nameserver": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "no_static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "no_v6_static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "secondary_nameserver": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "static_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2StaticRoutesListType"
+            }
+          ]
+        },
+        "static_v6_routes": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/virtual_networkStaticV6RoutesListType"
+            }
+          ]
+        },
+        "vip": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "securemesh_site_v2LoadBalancingSettingsType": {
+      "type": "object",
+      "properties": {
+        "vip_vrrp_mode": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaVipVrrpType"
+            }
+          ]
+        }
+      }
+    },
+    "schemaVipVrrpType": {
+      "type": "string",
+      "enum": ["VIP_VRRP_INVALID", "VIP_VRRP_ENABLE", "VIP_VRRP_DISABLE"]
+    },
+    "securemesh_site_v2KVMProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2GCPProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2EquinixProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2DNSNTPServerConfig": {
+      "type": "object",
+      "x-ves-oneof-field-dns_server_choice": "[\"custom_dns\",\"f5_dns_default\"]",
+      "x-ves-oneof-field-ntp_server_choice": "[\"custom_ntp\",\"f5_ntp_default\"]",
+      "properties": {
+        "custom_dns": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2CustomDNSSettings"
+            }
+          ]
+        },
+        "custom_ntp": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2CustomNTPSettings"
+            }
+          ]
+        },
+        "f5_dns_default": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "f5_ntp_default": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2CustomNTPSettings": {
+      "type": "object",
+      "properties": {
+        "ntp_servers": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securemesh_site_v2CustomDNSSettings": {
+      "type": "object",
+      "properties": {
+        "dns_servers": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securemesh_site_v2CustomProxyBypassSettings": {
+      "type": "object",
+      "properties": {
+        "proxy_bypass": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      }
+    },
+    "securemesh_site_v2CustomProxy": {
+      "type": "object",
+      "x-ves-oneof-field-use_for_re_tunnel_choice": "[\"disable_re_tunnel\",\"enable_re_tunnel\"]",
+      "properties": {
+        "disable_re_tunnel": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "enable_re_tunnel": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "password": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaSecretType"
+            }
+          ]
+        },
+        "proxy_ip_address": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "proxy_port": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "schemaSecretType": {
+      "type": "object",
+      "x-ves-oneof-field-secret_info_oneof": "[\"blindfold_secret_info\",\"clear_secret_info\"]",
+      "properties": {
+        "blindfold_secret_info": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaBlindfoldSecretInfoType"
+            }
+          ]
+        },
+        "clear_secret_info": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaClearSecretInfoType"
+            }
+          ]
+        }
+      }
+    },
+    "schemaClearSecretInfoType": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 3
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 131072,
+          "format": "uri"
+        }
+      }
+    },
+    "schemaBlindfoldSecretInfoType": {
+      "type": "object",
+      "properties": {
+        "decryption_provider": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 4
+        },
+        "store_provider": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "fleetBlockedServicesListType": {
+      "type": "object",
+      "properties": {
+        "blocked_service": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/fleetBlockedServices"
+          }
+        }
+      }
+    },
+    "fleetBlockedServices": {
+      "type": "object",
+      "x-ves-oneof-field-blocked_services_value_type_choice": "[\"dns\",\"ssh\",\"web_user_interface\"]",
+      "properties": {
+        "dns": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "network_type": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaVirtualNetworkType"
+            }
+          ]
+        },
+        "ssh": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        },
+        "web_user_interface": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ]
+        }
+      }
+    },
+    "schemaVirtualNetworkType": {
+      "type": "string",
+      "enum": [
+        "VIRTUAL_NETWORK_SITE_LOCAL",
+        "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE",
+        "VIRTUAL_NETWORK_PER_SITE",
+        "VIRTUAL_NETWORK_PUBLIC",
+        "VIRTUAL_NETWORK_GLOBAL",
+        "VIRTUAL_NETWORK_SITE_SERVICE",
+        "VIRTUAL_NETWORK_VER_INTERNAL",
+        "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE",
+        "VIRTUAL_NETWORK_IP_AUTO",
+        "VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK",
+        "VIRTUAL_NETWORK_SRV6_NETWORK",
+        "VIRTUAL_NETWORK_IP_FABRIC",
+        "VIRTUAL_NETWORK_SEGMENT",
+        "VIRTUAL_NETWORK_MANAGEMENT"
+      ]
+    },
+    "securemesh_site_v2BaremetalProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2AzureProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "securemesh_site_v2AWSProviderType": {
+      "type": "object",
+      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+      "properties": {
+        "not_managed": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+            }
+          ]
+        }
+      }
+    },
+    "viewsAdminUserCredentialsType": {
+      "type": "object",
+      "properties": {
+        "admin_password": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaSecretType"
+            }
+          ]
+        },
+        "ssh_key": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      }
+    },
+    "network_firewallActiveForwardProxyPoliciesType": {
+      "type": "object",
+      "properties": {
+        "forward_proxy_policies": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/components/schemas/schemaviewsObjectRefType"
+          }
+        }
+      }
+    },
+    "network_firewallActiveEnhancedFirewallPoliciesType": {
+      "type": "object",
+      "properties": {
+        "enhanced_firewall_policies": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/components/schemas/schemaviewsObjectRefType"
+          }
+        }
+      }
+    }
+  }
+}

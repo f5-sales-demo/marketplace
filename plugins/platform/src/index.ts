@@ -1,4 +1,10 @@
 import { HttpCeV2Driver } from './ce/driver';
+import {
+  type CeEventBus,
+  createCePlatformService,
+  registerCePlatformService,
+  requestTerraformResourceMutation,
+} from './ce/service';
 import { presentTool as enrichTool } from './presentation';
 import type { PlatformToolApi, PlatformToolContext } from './types';
 
@@ -6,6 +12,7 @@ interface PlatformExtensionApi extends PlatformToolApi {
   presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
+  events?: CeEventBus;
   integrations: { register<_T>(definition: unknown): unknown };
   settings?: { get(key: string): unknown };
   on?: (event: 'session_start' | 'context', handler: (event: unknown, context: PlatformToolContext) => void) => void;
@@ -67,6 +74,15 @@ const factory: ExtensionFactory = async (pi) => {
       }
     },
   });
+  if (pi.events)
+    registerCePlatformService(
+      pi.events,
+      createCePlatformService(
+        () => activeContextEnvironment(pi, sessionSettings),
+        undefined,
+        (contextName, tenantOrigin) => requestTerraformResourceMutation(pi.events!, contextName, tenantOrigin),
+      ),
+    );
   if (typeof pi.registerTool !== 'function') return;
   const { createF5xcCeV2SiteTool } = await import('./tools/f5xc-ce-v2-site');
   const { createF5xcCeV2BootstrapTool } = await import('./tools/f5xc-ce-v2-bootstrap');
