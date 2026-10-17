@@ -226,7 +226,9 @@ test('a different target org discovers its own identity and schema before report
         partner: { id: '005000000000003' },
       }) as never,
   );
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'first-org' }) as never);
+  configureSalesforceContext(
+    async () => ({ userId: '005000000000001', orgAlias: 'first-org', discoveryPending: true }) as never,
+  );
   const calls: string[][] = [];
   const tool = createSfPipelineReportTool(pi, () => ({
     exec: async (_command, args) => {
@@ -332,6 +334,7 @@ test('pipeline presentation separates record currencies and does not publish a c
     { expanded: false, isPartial: false },
     {},
   );
-  expect(view.summary).toContain('CAD / USD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · CAD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · USD');
   expect(JSON.stringify(view.sections)).not.toContain('300.00');
 });

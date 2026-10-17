@@ -225,3 +225,7 @@ output can be verbose.
 The 30 Salesforce development skills from `forcedotcom/afv-library` are
 installed separately and activate automatically for Apex, Flow, LWC,
 SOQL, metadata, Agentforce, and deployment tasks.
+
+Generated command blocks include the full CLI arguments and can be copied into Bash or Zsh.
+Explicit line continuations keep the command valid in narrow terminal views. Copy the complete
+command block; returned CLI usage/help remains its original template text.

@@ -1,12 +1,14 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
+import { copyableCommand, toolArgv } from './presentation/command';
 import { describeView } from './presentation/describe';
 import { commandContext, execView } from './presentation/exec';
 import { helpView } from './presentation/help';
+import { decorate, type SymbolResolver } from './presentation/icons';
 import { orgView } from './presentation/org';
 import { pipelineView } from './presentation/pipeline';
 import { queryView } from './presentation/query';
 import type { Args, Options, Result, View } from './presentation/shared';
-import { code, context, evidence, formatSoql, record, texts } from './presentation/shared';
+import { code, context, evidence, record, texts } from './presentation/shared';
 
 const adapters = {
   sf_exec: execView,
@@ -16,41 +18,60 @@ const adapters = {
   sf_help: helpView,
   sf_pipeline_report: pipelineView,
 };
-export function presentTool<T extends { name: string; label?: string }>(tool: T, p: PresentationAPI) {
+export function presentTool<T extends { name: string; label?: string }>(
+  tool: T,
+  p: PresentationAPI,
+  symbols: SymbolResolver = () => undefined,
+) {
+  const styled = (view: View, family?: string) =>
+    decorate(
+      view,
+      symbols,
+      tool.name === 'sf_org_display' || family === 'org display'
+        ? 'icon.host'
+        : tool.name === 'sf_query' || family === 'data query' || family === 'data search'
+          ? 'lang.sql'
+          : undefined,
+    );
   return p.withPresentation(tool, {
     call: (input: unknown, options: Options): View => {
       const args = record(input);
       if (options.expanded)
-        return {
-          summary: tool.label ?? tool.name,
-          sections: evidence(p, { content: [] }, args, tool.name === 'sf_exec' ? commandContext(args).argv : undefined),
-        };
+        // The host labels expanded call arguments; the result owns the runnable block.
+        return { sections: p.data(tool.name === 'sf_exec' ? commandContext(args).argv : args) };
       if (tool.name === 'sf_exec') {
         const c = commandContext(args);
-        return {
-          sections: [
-            ...context(c.operation, c.params),
-            ...(c.params.query ? [code(formatSoql(c.params.query), 'Query')] : []),
-          ],
-        };
+        return styled({
+          sections: [copyableCommand(p, ['sf', ...c.argv]), ...context(c.operation, c.params)],
+        });
       }
-      return { summary: tool.label ?? tool.name, sections: p.data(args) };
+      const argv = toolArgv(tool.name, args);
+      return styled({
+        sections: argv ? [copyableCommand(p, argv), ...context('', args)] : p.data(args),
+      });
     },
     result: (result: Result, options: Options, input: unknown): View => {
       const args: Args = record(input);
+      const argv = toolArgv(tool.name, args);
       if (result.isError && tool.name !== 'sf_exec')
-        return {
+        return styled({
           summary: 'Salesforce operation failed',
           sections: [
+            ...(argv ? [copyableCommand(p, argv)] : []),
             ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
             ...(options.expanded ? evidence(p, result, args) : []),
           ],
-        };
+        });
       const adapter = adapters[tool.name as keyof typeof adapters];
       const view = adapter ? adapter(p, result, options, args) : { sections: evidence(p, result, args) };
+      if (argv)
+        view.sections = [
+          copyableCommand(p, argv),
+          ...view.sections.filter((section) => !['SOQL', 'SOSL', 'Query'].includes(section.title ?? '')),
+        ];
       const warnings = record(result.details).cliWarnings;
       if (Array.isArray(warnings)) view.warnings = [...(view.warnings ?? []), ...warnings.map(String)];
-      return view;
+      return styled(view, tool.name === 'sf_exec' ? commandContext(args).family : undefined);
     },
   });
 }

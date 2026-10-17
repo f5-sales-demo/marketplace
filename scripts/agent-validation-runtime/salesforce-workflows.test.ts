@@ -19,8 +19,10 @@ import {
   configureSalesforceExecutor,
 } from '../../plugins/salesforce/src/context/salesforce-context';
 import factory from '../../plugins/salesforce/src/index';
+import { copyableCommand } from '../../plugins/salesforce/src/presentation/command';
+import { PluginViewComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/plugin-view';
 import { ToolExecutionComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/tool-execution';
-import { initTheme, setSymbolPreset, setTheme } from './node_modules/@f5-sales-demo/xcsh/src/modes/theme/theme';
+import { initTheme, setSymbolPreset, setTheme, theme } from './node_modules/@f5-sales-demo/xcsh/src/modes/theme/theme';
 
 const fixtureAccountId = '001000000000000';
 const directory = mkdtempSync(join(tmpdir(), 'salesforce-workflow-'));
@@ -98,7 +100,20 @@ beforeAll(async () => {
     exec: async () => ({ stdout: '', stderr: 'network unavailable', code: 1 }),
     registerTool: (tool: any) => tools.push(tool),
     setLabel() {},
-    on() {},
+    on(event: string, handler: any) {
+      if (event === 'session_start')
+        handler(
+          {},
+          {
+            hasUI: true,
+            ui: {
+              get theme() {
+                return theme;
+              },
+            },
+          },
+        );
+    },
     logger: { debug() {} },
   } as never);
 });
@@ -201,7 +216,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(collapsed).toContain('7 more rows');
             expect(collapsed).not.toContain('Prepare demo 3');
             expect((collapsed.match(/SELECT/g) ?? []).length).toBe(1);
-            expect(collapsed).not.toContain('--json');
+            expect(collapsed).toContain('--json');
           }
           if ((args as any).query === aggregateQuery) {
             expect(collapsed).toContain('1,234');
@@ -209,7 +224,8 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(collapsed).toContain('Amount currency was not returned');
           }
           if ((args as any).sobject === 'Event') {
-            expect(collapsed).toContain('20 fields');
+            expect(collapsed).toContain('Standard fields');
+            expect(collapsed).toContain('17 custom fields omitted');
             expect(collapsed).toContain('Date/time');
             expect(collapsed).not.toContain('INACTIVE_EVIDENCE');
           }
@@ -217,6 +233,9 @@ test('project account lookup, ambiguity, opportunities and scope render through 
           const lines = view.render(width);
           expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
           const expanded = plain(lines);
+          expect((expanded.match(/Arguments/g) ?? []).length).toBe(1);
+          if (!result.isError && (tool.name === 'sf_query' || tool.name === 'sf_exec'))
+            expect((expanded.match(/sf data query/g) ?? []).length).toBe(1);
           if ((args as any).description === 'Recent customer opportunities') {
             expect(expanded).toContain('FINAL_OPPORTUNITY');
             expect(expanded).toContain('Synthetic parent');
@@ -238,7 +257,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
       }
     }
   }
-});
+}, 60_000);
 
 test('schema error recovery and failed/empty renderers retain readable results', async () => {
   const failed = await invoke('sf_query', { query: 'SELECT DefinitelyMissingDemoField__c FROM Opportunity' });
@@ -256,5 +275,65 @@ test('schema error recovery and failed/empty renderers retain readable results',
     const view = component(tool, failed.result, failed.args);
     view.setExpanded(true);
     expect(plain(view.render(76))).toContain('No such column');
+  }
+});
+
+// Exercise copied command text after the actual renderer has applied every supported layout.
+test('copyable command survives terminal reflow and preserves exact arguments', async () => {
+  // Bash is required on CI; exercise Zsh as well wherever it is installed.
+  // Authenticated release acceptance separately requires both shells on Mac and Ubuntu.
+  const bash = Bun.which('bash');
+  expect(bash).not.toBeNull();
+  const shells = [bash!, Bun.which('zsh')].filter((shell): shell is string => shell !== null);
+  const argv = [
+    'sf',
+    'data',
+    'query',
+    '--query',
+    "SELECT Subject FROM Task WHERE Subject = 'literal \\' quote $HOME 北方' LIMIT 10",
+    '--target-org',
+    'demo',
+    '--json',
+  ];
+  const section = copyableCommand(presentation, argv);
+  for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
+    await setSymbolPreset(preset);
+    for (const theme of ['xcsh-dark', 'xcsh-light']) {
+      await setTheme(theme);
+      for (const expanded of [false, true]) {
+        for (const width of [40, 76, 120, 153]) {
+          const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
+          const copied = plain(component.render(width - 10));
+          for (const shell of shells) {
+            const child = Bun.spawn([shell, '-f', '-c', `sf() { printf '%s\\0' "$@"; };\n${copied}`], {
+              stdout: 'pipe',
+              stderr: 'pipe',
+            });
+            const output = await new Response(child.stdout).text();
+            expect(await child.exited).toBe(0);
+            expect(output.split('\0').slice(0, -1)).toEqual(argv.slice(1));
+          }
+        }
+      }
+    }
+  }
+});
+
+test('existing tool output follows live host theme and symbol switches', async () => {
+  const { tool, result, args } = await invoke('sf_query', { query: 'SELECT COUNT(Id) total FROM Opportunity' });
+  const view = component(tool, result, args);
+  for (const preset of ['nerd', 'unicode', 'ascii'] as const) {
+    await setSymbolPreset(preset);
+    for (const name of ['xcsh-light', 'xcsh-dark']) {
+      await setTheme(name);
+      for (const expanded of [false, true]) {
+        view.setExpanded(expanded);
+        const presented = tool.presentation.result(result, { expanded, isPartial: false }, args);
+        expect(presented.sections[0].title).toBe(theme.symbol('icon.extensionSlashCommand'));
+        expect(presented.summary).toStartWith(theme.symbol('lang.sql'));
+        expect(plain(view.render(76))).toContain(theme.symbol('icon.extensionSlashCommand'));
+        expect(plain(view.render(76))).toContain(theme.symbol('lang.sql'));
+      }
+    }
   }
 });

@@ -39,7 +39,9 @@ export const event = {
 test('describe uses compact standard preview, truthful counts and full filtered metadata', () => {
   const result = { content: [], details: { described: event } };
   const output = view('sf_describe', result, { sobject: 'Event' });
-  expect(output.summary).toContain('Event · 20 fields · 3 child relationships');
+  expect(output.summary).toBeUndefined();
+  expect(JSON.stringify(output)).toContain('Standard fields');
+  expect(JSON.stringify(output)).toContain('17 custom fields omitted');
   expect(output.warnings).not.toContain('Custom fields');
   const text = JSON.stringify(output);
   expect(text).toContain('Date/time');
@@ -82,9 +84,11 @@ test('org display reports missing evidence explicitly and whitelists identity', 
     },
   };
   const output = view('sf_org_display', result);
-  expect(JSON.stringify(output)).toContain('Status not returned');
-  expect(JSON.stringify(output)).toContain('Environment not returned');
-  expect(JSON.stringify(output)).toContain('Default not returned');
+  expect(output.summary).toBe('Not returned');
+  expect(output.sections?.find((s) => s.kind === 'fields' && 'Environment' in s.values)?.values).toMatchObject({
+    Environment: 'Not returned',
+    Default: 'Not returned',
+  });
   expect(JSON.stringify(output)).not.toContain('Connected');
   expect(JSON.stringify(output)).not.toContain('SECRET_SENTINEL');
   expect(JSON.stringify(view('sf_org_display', result, {}, true))).not.toContain('SECRET_SENTINEL');
@@ -186,9 +190,9 @@ test('exec query shows operation and readable SOQL once, exact evidence only on 
   expect(collapsed.summary).toContain('10 records returned');
   expect(collapsed.warnings).toContain('Synthetic CLI warning');
   const text = JSON.stringify(collapsed);
-  expect(text).toContain('sf data query');
+  expect(text).toContain('sf data:query');
   expect(text).toContain('synthetic-demo');
-  expect(text).not.toContain('--json');
+  expect(text).toContain('--json');
   expect(
     collapsed.sections?.filter((s) => s.kind === 'table').flatMap((s) => s.columns.map((c) => c.key)),
   ).not.toContain('Id');
@@ -261,7 +265,8 @@ test('query distinguishes aggregates from ordinary scalar rows and preserves pre
     },
     { query: 'SELECT StageName, SUM(Amount) total FROM Opportunity GROUP BY StageName' },
   );
-  expect(JSON.stringify(grouped)).toContain('Grouped aggregates');
+  expect(grouped.summary).toContain('2 aggregate rows returned');
+  expect(grouped.sections?.find((s) => s.kind === 'table')?.title).toBeUndefined();
   expect(JSON.stringify(grouped)).toContain('Reported amount');
 });
 test('SOQL formatting only changes whitespace tokens outside literals', () => {

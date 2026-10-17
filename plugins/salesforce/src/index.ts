@@ -2,6 +2,7 @@ import { mapSalesforceToProfile } from './context/profile-mapper';
 import type { SalesforceContext, UserProfile } from './context/salesforce-context';
 import { prepareLoginUrl } from './login-url';
 import { presentTool } from './presentation';
+import { type PresentationContext, sessionSymbols } from './presentation/icons';
 import type { PluginHost } from './tools/plugin-host';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, makeExecApi, renderError } from './tools/shared';
@@ -114,6 +115,7 @@ const providerSetup = {
   verification: [{ argv: ['sf', 'org', 'display', '--json'], timeoutMs: 30_000 }],
 } as const;
 const factory = async (pi: CanonicalExtensionAPI) => {
+  const symbols = sessionSymbols();
   if (!pi.host || !pi.software)
     throw new Error('Salesforce plugin requires xcsh 22.4.6 or later with the host/software API');
   if (!pi.personProfile || typeof pi.personProfile.get !== 'function') {
@@ -231,13 +233,11 @@ const factory = async (pi: CanonicalExtensionAPI) => {
       createSfHelpTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
       createSfExecTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
     ])
-      pi.registerTool(presentTool(withErrorType(tool), pi.presentation));
+      pi.registerTool(presentTool(withErrorType(tool), pi.presentation, symbols.resolve));
 
     pi.on('before_agent_start', async () => {
-      const { buildSalesforceHint } = await import('./context/salesforce-context');
-      const snapshot = await integration.get();
-      if (snapshot.state !== 'ready' || !snapshot.value) return;
-      const hint = buildSalesforceHint(snapshot.value);
+      const { buildSalesforceHint, loadSalesforceContext } = await import('./context/salesforce-context');
+      const hint = buildSalesforceHint(await loadSalesforceContext());
       if (!hint) return;
       const lines = [
         `Pipeline: ${hint.pipelineTotal} (${hint.dealCount} deals, ${hint.accountCount} accounts)`,
@@ -255,7 +255,8 @@ const factory = async (pi: CanonicalExtensionAPI) => {
     });
   }
 
-  pi.on('session_start', () => {
+  pi.on('session_start', (_event: unknown, ctx: PresentationContext) => {
+    symbols.bind(ctx);
     if (!sfAvailable) pi.logger.debug('Salesforce: sf CLI not found');
   });
 };

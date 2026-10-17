@@ -5,7 +5,7 @@ import { helpView } from './help';
 import { orgView } from './org';
 import { queryView } from './query';
 import type { Args, Options, Result, View } from './shared';
-import { code, context, data, evidence, flag, hint, record, rows, table, texts } from './shared';
+import { code, context, data, evidence, flag, record, rows, table, texts } from './shared';
 
 // Presentation inventory mirrors every allowlisted command family; it does not authorize execution.
 export const commandFamilies = [
@@ -164,9 +164,11 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
         ...(parsed
           ? data(p, payload ?? decoded, 'Generic CLI result')
           : blocks.filter((t) => !t.startsWith('CLI warnings:\n')).map((t) => code(t, 'Literal CLI output'))),
-        hint('Expand for exact command, complete output and diagnostics'),
       ],
     };
-  if (options.expanded) view.sections.push(...evidence(p, result, args, argv));
+  if (options.expanded) {
+    view.sections = view.sections.filter((s) => !/^(Arguments|CLI output|Metadata)(\.|$)/.test(s.title ?? ''));
+    view.sections.push(...evidence(p, result, args, argv));
+  }
   return view;
 }

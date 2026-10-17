@@ -65,7 +65,7 @@ export function value(value: unknown, numeric = false): unknown {
 export function table(
   p: PresentationAPI,
   data: Args[],
-  title: string,
+  title: string | undefined,
   keys?: string[],
   labels?: Record<string, string>,
 ): Section {
@@ -106,11 +106,10 @@ export function flag(argv: string[], ...names: string[]): string | undefined {
   }
   return undefined;
 }
-export function context(operation: string, args: Args): Section[] {
+export function context(_operation: string, args: Args): Section[] {
   return [
     fields({
-      Command: operation,
-      Org: args.target_org ?? 'CLI default org (identity not returned)',
+      ...(args.target_org ? {} : { Org: 'CLI default org (identity not returned)' }),
       ...(args.use_tooling_api ? { API: 'Tooling' } : {}),
       ...(args.all_rows ? { Records: 'Includes deleted records' } : {}),
       ...(args.options && Object.keys(record(args.options)).length ? { Options: args.options } : {}),
@@ -192,12 +191,10 @@ export function formatSoql(query: string): string {
   });
   return output;
 }
-export function evidence(p: PresentationAPI, result: Result, args: Args, argv?: string[]): Section[] {
+export function evidence(p: PresentationAPI, result: Result, _args: Args, _argv?: string[]): Section[] {
   return [
-    ...(argv
-      ? [p.command(['sf', ...argv], 'Exact command'), ...p.data(argv, 'Exact argv')]
-      : p.data(args, 'Exact arguments')),
-    ...texts(result).map((text) => code(text, 'Complete CLI output')),
-    ...(result.details === undefined ? [] : p.data(result.details, 'Complete evidence')),
+    // Expanded call arguments are already rendered and labeled by xcsh.
+    ...texts(result).map((text) => code(text, 'CLI output')),
+    ...(result.details === undefined ? [] : p.data(result.details, 'Metadata')),
   ];
 }

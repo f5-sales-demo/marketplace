@@ -107,8 +107,23 @@ it('an unavailable discovery executor never starts commands', async () => {
 it('in-flight context cancellation reaches every child and rejects discovery', async () => {
   const controller = new AbortController();
   let launched = 0;
-  configureSalesforceExecutor(async (_argv, signal) => {
+  configureSalesforceExecutor(async (argv, signal) => {
     launched++;
+    if (argv[0] === 'org')
+      return {
+        stdout: JSON.stringify({
+          status: 0,
+          result: { username: 'user@example.com', instanceUrl: 'https://example.com' },
+        }),
+        stderr: '',
+        exitCode: 0,
+      };
+    if (argv[0] === 'data')
+      return {
+        stdout: JSON.stringify({ status: 0, result: { records: [{ Id: '005000000000001' }] } }),
+        stderr: '',
+        exitCode: 0,
+      };
     return new Promise((resolve) => {
       signal?.addEventListener('abort', () => resolve({ stdout: '', stderr: '', exitCode: -1 }));
       if (launched === 3) controller.abort();

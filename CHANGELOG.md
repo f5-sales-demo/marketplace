@@ -16,6 +16,19 @@ and this project adheres to
 
 - **`aws`** v3.0.0 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts.
 
+- **`salesforce`** v2.3.4 resolves authenticated identity before optional report discovery, preventing
+  profile collection deadlines from discarding a valid connection. Pipeline reports discover and cache
+  schema and territory scope on demand for the verified org. Requires xcsh 23.5.1 (#1555).
+
+- **`salesforce`** v2.3.3 uses native terminal, query, metadata, connection and reference icons from the
+  active xcsh theme. All six tools use concise contextual layouts with one runnable command, retained
+  scope, currency, warnings and omission details, and complete expanded evidence. Requires xcsh 23.5.1
+  (#1551).
+
+- **`salesforce`** v2.3.2 makes generated CLI commands directly copyable and runnable, including required
+  arguments and shell-safe quoting. Explicit continuations preserve exact argv across narrow terminal
+  views; pipeline source queries are runnable on expansion. Requires xcsh 23.5.1 (#1549).
+
 - **`salesforce`** v2.3.1 refines all six tool presentations: readable command and SOQL context once,
   precision-preserving query metrics and prioritized records, compact schema capabilities, explicit org
   identity evidence, ordered CLI help, and fiscal/team-first currency-separated pipeline summaries.
