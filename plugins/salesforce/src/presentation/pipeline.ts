@@ -1,6 +1,7 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
+import { copyableCommand, toolArgv } from './command';
 import type { Args, Options, Result, Section, View } from './shared';
-import { code, data, evidence, fields, formatSoql, hint, record, rows, table, value } from './shared';
+import { data, evidence, fields, hint, record, rows, table, value } from './shared';
 
 export function pipelineView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const details = record(result.details),
@@ -125,7 +126,11 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     );
     rows(report.sourceQueries).forEach((source, i) => {
       sections.push(
-        code(formatSoql(String(source.query ?? 'Not returned')), `Source query ${i + 1}`),
+        copyableCommand(
+          p,
+          toolArgv('sf_query', { query: source.query, target_org: args.target_org ?? scope.orgAlias })!,
+          `Source query ${i + 1} · copy and run`,
+        ),
         ...data(p, source.records, 'Complete source records'),
       );
     });

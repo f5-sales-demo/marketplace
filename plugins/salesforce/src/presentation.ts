@@ -1,4 +1,5 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
+import { copyableCommand, toolArgv } from './presentation/command';
 import { describeView } from './presentation/describe';
 import { commandContext, execView } from './presentation/exec';
 import { helpView } from './presentation/help';
@@ -6,7 +7,7 @@ import { orgView } from './presentation/org';
 import { pipelineView } from './presentation/pipeline';
 import { queryView } from './presentation/query';
 import type { Args, Options, Result, View } from './presentation/shared';
-import { code, context, evidence, formatSoql, record, texts } from './presentation/shared';
+import { code, context, evidence, record, texts } from './presentation/shared';
 
 const adapters = {
   sf_exec: execView,
@@ -28,26 +29,34 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
       if (tool.name === 'sf_exec') {
         const c = commandContext(args);
         return {
-          sections: [
-            ...context(c.operation, c.params),
-            ...(c.params.query ? [code(formatSoql(c.params.query), 'Query')] : []),
-          ],
+          sections: [copyableCommand(p, ['sf', ...c.argv]), ...context(c.operation, c.params)],
         };
       }
-      return { summary: tool.label ?? tool.name, sections: p.data(args) };
+      const argv = toolArgv(tool.name, args);
+      return {
+        summary: tool.label ?? tool.name,
+        sections: argv ? [copyableCommand(p, argv), ...context('', args)] : p.data(args),
+      };
     },
     result: (result: Result, options: Options, input: unknown): View => {
       const args: Args = record(input);
+      const argv = toolArgv(tool.name, args);
       if (result.isError && tool.name !== 'sf_exec')
         return {
           summary: 'Salesforce operation failed',
           sections: [
+            ...(argv ? [copyableCommand(p, argv)] : []),
             ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
             ...(options.expanded ? evidence(p, result, args) : []),
           ],
         };
       const adapter = adapters[tool.name as keyof typeof adapters];
       const view = adapter ? adapter(p, result, options, args) : { sections: evidence(p, result, args) };
+      if (argv)
+        view.sections = [
+          copyableCommand(p, argv),
+          ...view.sections.filter((section) => !['SOQL', 'SOSL', 'Query'].includes(section.title ?? '')),
+        ];
       const warnings = record(result.details).cliWarnings;
       if (Array.isArray(warnings)) view.warnings = [...(view.warnings ?? []), ...warnings.map(String)];
       return view;

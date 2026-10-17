@@ -110,7 +110,7 @@ test('help orders purpose, usage, required inputs, optional flags and examples a
   const output = view('sf_help', result, { command_path: 'data query' });
   expect(output.summary).toBe('Execute a SOQL query.');
   const titles = output.sections?.map((s) => s.title).filter(Boolean);
-  expect(titles).toEqual(['Usage', 'Required inputs', 'Optional flags', 'Examples']);
+  expect(titles).toEqual(['Command · copy and run', 'Usage', 'Required inputs', 'Optional flags', 'Examples']);
   expect(JSON.stringify(output)).not.toContain('FINAL_HELP_EVIDENCE');
   expect(JSON.stringify(view('sf_help', result, {}, true))).toContain('FINAL_HELP_EVIDENCE');
   const literal = 'unfamiliar | literal\n  keep spacing 北方';
@@ -186,9 +186,9 @@ test('exec query shows operation and readable SOQL once, exact evidence only on 
   expect(collapsed.summary).toContain('10 records returned');
   expect(collapsed.warnings).toContain('Synthetic CLI warning');
   const text = JSON.stringify(collapsed);
-  expect(text).toContain('sf data query');
+  expect(text).toContain('sf data:query');
   expect(text).toContain('synthetic-demo');
-  expect(text).not.toContain('--json');
+  expect(text).toContain('--json');
   expect(
     collapsed.sections?.filter((s) => s.kind === 'table').flatMap((s) => s.columns.map((c) => c.key)),
   ).not.toContain('Id');
