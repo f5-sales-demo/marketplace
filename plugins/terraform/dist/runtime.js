@@ -1,38 +1,5 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-// plugins/terraform/extensions/integration.ts
-function terraformInstallArgv(platform = process.platform) {
-  if (platform === 'darwin') return ['brew', 'install', 'terraform'];
-  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
-  return ['sudo', 'apt-get', 'install', '--yes', 'terraform'];
-}
-function terraformIntegration(pi) {
-  pi.integrations.register({
-    id: 'terraform',
-    name: 'Terraform',
-    plugin: 'terraform',
-    kind: 'local',
-    setup: {
-      pluginDependencies: [],
-      requiredEnvironment: [],
-      profileFields: [],
-      steps: [
-        {
-          kind: 'install',
-          argv: terraformInstallArgv(),
-          timeoutMs: 300000,
-        },
-      ],
-      verification: [{ argv: ['terraform', 'version'], timeoutMs: 30000 }],
-    },
-    async probe() {
-      return Bun.spawnSync(['terraform', 'version']).exitCode === 0
-        ? { state: 'ready' }
-        : { state: 'setup_required', reason: 'cli_missing' };
-    },
-  });
-}
-
 // plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -218,6 +185,39 @@ var publishedAssets = Object.freeze({
 
 // plugins/platform/src/ce/service.ts
 var CE_TERRAFORM_RESOURCE_CHANNEL = 'xcsh:ce-terraform:v1:resource-mutation';
+
+// plugins/terraform/extensions/integration.ts
+function terraformInstallArgv(platform = process.platform) {
+  if (platform === 'darwin') return ['brew', 'install', 'terraform'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'terraform'];
+}
+function terraformIntegration(pi) {
+  pi.integrations.register({
+    id: 'terraform',
+    name: 'Terraform',
+    plugin: 'terraform',
+    kind: 'local',
+    setup: {
+      pluginDependencies: [],
+      requiredEnvironment: [],
+      profileFields: [],
+      steps: [
+        {
+          kind: 'install',
+          argv: terraformInstallArgv(),
+          timeoutMs: 300000,
+        },
+      ],
+      verification: [{ argv: ['terraform', 'version'], timeoutMs: 30000 }],
+    },
+    async probe() {
+      return Bun.spawnSync(['terraform', 'version']).exitCode === 0
+        ? { state: 'ready' }
+        : { state: 'setup_required', reason: 'cli_missing' };
+    },
+  });
+}
 
 // plugins/terraform/src/f5-resources.ts
 // plugins/terraform/src/provider-lock.ts

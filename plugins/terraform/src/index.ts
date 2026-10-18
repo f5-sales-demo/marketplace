@@ -1,6 +1,6 @@
-import terraformIntegration from '../extensions/integration';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import { CE_TERRAFORM_RESOURCE_CHANNEL, type CeEventBus } from '../../platform/src/ce/service';
+import terraformIntegration from '../extensions/integration';
 import { executeF5TerraformResource } from './f5-resources';
 import { createCeTerraformService, registerCeTerraformService, requestPlatform } from './service';
 
