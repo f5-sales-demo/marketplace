@@ -48,15 +48,21 @@ Read [provider contract](references/provider-contract.md) before planning and
    observe registration, physical interface identity and global health. Candidate
    labels do not prove ledger ownership. Routing, application traffic, HA health
    and independent absence remain separate unqualified gates.
-6. For teardown of an existing disposable native single-node deployment, supply
+6. For teardown of an existing disposable single-node deployment, supply
    its explicit project, region, deployment name and persisted F5 context to
    `gcp_ce_teardown`, or use `gcp_ce_plan` with `operation=teardown`. Review the
    saved plan, then supply its exact `approvedPlanHash` to `gcp_ce_apply` with
    `operation=teardown`. The supported profile has two interfaces, external IP
    egress, no ingress and no destination routes. Six exact cloud ledger identities
    and the owned site/token binding are required. Authorization survives
-   interruption; changed identities and reappeared objects fail closed. Terraform
-   teardown and other topologies remain unavailable through these tools.
+   interruption; changed identities and reappeared objects fail closed. Explicit
+   Terraform selection uses the candidate saved-plan teardown path. It requires
+   stored session inputs and original Platform identity recorded after the exact
+   creation plan completed. Missing ledgers cannot be replaced with labels or
+   caller assertions. Partial interrupted application remains pending until
+   independently reconciled. Final Terraform evidence requires an empty current
+   destroy plan and fresh absence checks. Installed live cloud teardown through
+   the Terraform candidate and other topologies remain unqualified.
 
 When executable support is qualified, concrete billable, intrusive diagnostic
 and teardown plans must be reviewed before required approvals. Immutable SLO

@@ -866,6 +866,25 @@ class TerraformRunner {
       return selected;
     });
   }
+  async assertApplied(receipt) {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join2(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'applied' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.engine !== 'terraform' ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest(await privateRead(join2(directory, 'saved.tfplan')))
+      )
+        throw new Error('Exact applied Terraform receipt required for ownership capture');
+    });
+  }
   async readPlannedResourceIds(receipt, addresses, env, signal) {
     if (
       !addresses.length ||
@@ -1028,6 +1047,10 @@ function createCeTerraformService(platform) {
         await shared.storage(owner);
       };
       return {
+        async assertApplied(receipt) {
+          await checkOwner();
+          return runner.assertApplied(receipt);
+        },
         async readConfigurationSha256() {
           await checkOwner();
           return runner.readConfigurationSha256();

@@ -63,7 +63,7 @@ an explicit Terraform choice must match the intent.
 
 The plan contains no executable actions. Immutable API v12.1.3 includes GCP
 schema and observational mappings with both-engine single-node boot evidence.
-Public deployment, upgrade, failover and Terraform teardown remain unavailable
+Public deployment, upgrade and failover remain unavailable
 pending full integration. Their tools report these gaps before mutation.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
@@ -107,6 +107,19 @@ destination routes. It rechecks all six cloud identities and the owned XC
 site/token binding before deleting, preserves authorization across interruption,
 and verifies fresh absence. Installed qualification covers synthetic Compute
 resources and live XC cleanup; installed live GCP cloud teardown remains pending.
+
+An explicit Terraform engine uses the candidate owning-engine teardown path.
+It requires stored session inputs and original Platform identities recorded after
+the exact creation plan completed. The destroy review projects named nonsensitive
+state fields and rechecks live cloud, site and token identity. It applies only
+the reviewed saved binary, preserves authorization across interruption and
+requires an empty current destroy plan plus independent absence. A partial lost
+apply remains pending until its outcome is independently reconciled.
+
+Installed Terraform qualification verified Platform identity capture, a no-change
+follow-up plan, exact owned site/token destroy and independent absence without
+creating a GCP VM or network. Full installed live cloud teardown remains pending.
+Older deployments without the required original ledgers cannot be silently adopted.
 
 For an existing ledger-owned deployment, status and diagnostics with explicit
 region and its persisted `platformContext` use shared Platform observations.

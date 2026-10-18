@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** adds candidate Terraform teardown through the owning plan/apply
+  lifecycle, with stored session inputs, original Platform identity, exact saved
+  destroy projection, interrupted outcome reconciliation and final absence checks.
+  Installed XC identity capture passed; full live cloud teardown remains pending (#1559).
+- **`terraform`** attests exact completed saved plans before post-apply ownership
+  capture. **`platform`** provides scoped site/token identity observations and a
+  private Terraform execution context without exporting bootstrap material (#1559).
 - **`gcloud`** automatically prepares missing `alpha` and `beta` command groups
   before commands and help, with noninteractive installation, coordinated
   preparation, verification and explicit component-manager failures (#1559).

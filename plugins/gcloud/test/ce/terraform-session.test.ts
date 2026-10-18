@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CePlatformService } from '../../../platform/src/ce/service';
-import { openGcpTerraformSession } from '../../src/ce/terraform-session';
+import { openGcpTerraformSession, resumeGcpTerraformSession } from '../../src/ce/terraform-session';
 import { intent } from './fixtures';
 
 const roots: string[] = [];
@@ -51,6 +51,8 @@ it('prepares GCP configuration through shared restricted session and resumes exa
   };
   expect(saved.intent).toEqual(inputs().intent);
   expect(saved.platformContext).toBe(inputs().intent.platformContext);
+  const current = await resumeGcpTerraformSession(platform, inputs().intent);
+  expect(await current.readConfigurationSha256?.()).toBe(digest);
 });
 it('rejects wrong owning engine, changed lock or unpinned provider before storage access', async () => {
   let calls = 0;

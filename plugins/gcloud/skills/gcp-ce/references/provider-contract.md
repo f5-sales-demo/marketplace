@@ -76,3 +76,14 @@ Usage confirmed `ENABLED`. Subsequent project consent inspection returned
 `Method not found.` The consumer reports this as `method_unavailable`, without
 exposing raw provider responses. No Marketplace consent was granted. Successful
 live grant and its use as a deployment prerequisite remain unqualified.
+
+The Terraform teardown candidate uses the owning shared runner and exact saved
+binary. Original site UID and token identity hash are recorded only after the
+runner attests that the exact creation plan completed. The token provider's `uid`
+contains sensitive bootstrap material and is excluded from ownership projection.
+Only named nonsensitive state fields are selected for the destroy review, and
+live cloud/Platform identities are rechecked before application. Stored session
+inputs preserve provider locks, context and engine across resume. Lost applies
+require independent absence evidence; partial outcomes never authorize blind
+reapplication. Final reconciliation requires a current empty destroy plan.
+Full installed live GCP cloud teardown remains unqualified for this candidate.

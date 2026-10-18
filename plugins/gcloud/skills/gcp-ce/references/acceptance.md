@@ -3,8 +3,17 @@
 Current status: discovery/readiness, owned observations and narrow native teardown.
 Native and Terraform deployment,
 bootstrap, upgrades, repair, replacement, failover, interruption recovery,
-restoration and Terraform teardown remain unavailable through public tools.
+restoration remain unavailable through public tools. Terraform teardown has a
+candidate owning-engine plan/apply path with installed live cloud acceptance pending.
 Full parity is unclaimed.
+
+Installed Terraform Platform identity qualification created one disposable XC
+site and node-bound token through the isolated shared runner. Exact applied-plan
+attestation preceded recording the original site UID and token identity hash.
+The follow-up plan contained only no-op actions; reviewed saved destroy, two
+independent API absence reads and a final empty destroy plan passed. Private
+staging was removed. No GCP VM or network was created. This qualifies identity
+capture and runner integration, with full live cloud teardown still unqualified.
 
 The installed `gcp_marketplace_agreement` tool correctly reported the disabled
 Consumer Procurement API and Google's cloud-terms prerequisite on explicit

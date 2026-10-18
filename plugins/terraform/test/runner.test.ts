@@ -96,6 +96,17 @@ test('reads only the exact private configuration revision for lifecycle translat
   await expect(runner.readConfiguration(hash(configuration))).rejects.toThrow();
 });
 
+test('post-apply ownership capture requires the exact completed saved plan and rejects superseded or forged receipts', async () => {
+  const { runner } = await fixture();
+  const receipt = await runner.plan({});
+  await expect(runner.assertApplied(receipt)).rejects.toThrow('applied');
+  await runner.apply(receipt, {});
+  await runner.assertApplied(receipt);
+  await expect(runner.assertApplied({ ...receipt, planSha256: 'b'.repeat(64) })).rejects.toThrow('applied');
+  await runner.plan({});
+  await expect(runner.assertApplied(receipt)).rejects.toThrow('applied');
+});
+
 test('projects resource IDs privately from the exact saved plan and rejects sensitive IDs', async () => {
   const resource = {
     address: 'aws_instance.ce',

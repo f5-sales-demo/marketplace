@@ -15,7 +15,7 @@ export interface GcpTerraformInputs {
 export async function openGcpTerraformSession(
   platform: CePlatformService,
   inputs: GcpTerraformInputs,
-  resume = false,
+  resume: boolean | 'current' = false,
 ): Promise<TerraformSession> {
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
@@ -78,6 +78,26 @@ export async function openGcpTerraformSession(
     }
     if (prior !== undefined) throw new Error('Existing GCP Terraform deployment must resume');
     await store.write('gcp-terraform-input-identity.json', identity);
+    await store.write('gcp-terraform-session-inputs.json', { schemaVersion: 1, inputs: structuredClone(inputs) });
   }
   return createCeTerraformService(async () => platform).open(owner, deployment, resume);
+}
+
+/** Resume from the owning deployment's private inputs; callers cannot supply replacement locks or context. */
+export async function resumeGcpTerraformSession(platform: CePlatformService, intent: GcpCeIntent) {
+  if (intent.engine !== 'terraform') throw new Error('Terraform session cannot change owning engine');
+  const store = await platform.storage({
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: 'terraform',
+    account: intent.project,
+    region: intent.region,
+  });
+  const saved = (await store.read('gcp-terraform-session-inputs.json')) as {
+    schemaVersion?: number;
+    inputs?: GcpTerraformInputs;
+  };
+  if (saved.schemaVersion !== 1 || !saved.inputs || fingerprint(saved.inputs.intent) !== fingerprint(intent))
+    throw new Error('Persisted Terraform session inputs unavailable or changed');
+  return openGcpTerraformSession(platform, saved.inputs, 'current');
 }

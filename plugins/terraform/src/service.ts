@@ -5,6 +5,8 @@ import { type Deployment, type PlanReceipt, type TerraformActionIntent, Terrafor
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Optional on older installed runners; required before recording post-apply ownership. */
+  assertApplied?(receipt: PlanReceipt): Promise<void>;
   /** Current private configuration identity, used to reconcile an interrupted revision. */
   readConfigurationSha256?(): Promise<string>;
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
@@ -71,6 +73,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async assertApplied(receipt) {
+          await checkOwner();
+          return runner.assertApplied(receipt);
+        },
         async readConfigurationSha256() {
           await checkOwner();
           return runner.readConfigurationSha256();

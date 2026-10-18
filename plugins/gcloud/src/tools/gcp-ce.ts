@@ -16,6 +16,8 @@ import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
 import { collectGcpLaunchPreflight } from '../ce/preflight';
 import { createGcpPreflightPort } from '../ce/preflight-port';
+import { resumeGcpTerraformSession } from '../ce/terraform-session';
+import { applyGcpTerraformTeardown, planGcpTerraformTeardown } from '../ce/terraform-teardown';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
 import { validateIntent, validateScope } from '../ce/validation';
 import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
@@ -56,6 +58,7 @@ export function createGcpCeTools(
   getPlatform: () => Promise<CePlatformService> = () => platformService(pi),
   preflight = collectGcpLaunchPreflight,
   policy = readGcpCePolicy,
+  terraformSession = resumeGcpTerraformSession,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -74,11 +77,11 @@ export function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Return a non-executable deployment readiness plan, or an exact owned native teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
+      'Return a non-executable deployment readiness plan, or an exact owning-engine teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
     ],
     [
       'gcp_ce_apply',
-      'Apply an exact reviewed native single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Other mutations report unavailable.',
+      'Apply an exact reviewed owning-engine single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Terraform requires original Platform identity and saved-plan ledgers. Other mutations report unavailable.',
     ],
     [
       'gcp_ce_status',
@@ -92,7 +95,7 @@ export function createGcpCeTools(
     ['gcp_ce_failover', 'Report GCP failover availability; no outage is induced without a qualified reviewed plan.'],
     [
       'gcp_ce_teardown',
-      'Prepare a native single-node teardown plan from exact deployment ownership. Apply only with its approvedPlanHash; labels alone never authorize deletion.',
+      'Prepare a single-node teardown plan from exact deployment and owning-engine ledgers. Apply only with its approvedPlanHash; labels alone never authorize deletion.',
     ],
   ];
   return definitions.map(([tool, description]) => ({
@@ -215,7 +218,7 @@ export function createGcpCeTools(
         ) {
           if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
             throw new Error('Planning tool cannot apply teardown authorization');
-          if ((params.engine ?? 'native') !== 'native') throw new Error('Teardown cannot change owning engine');
+          const engine = params.engine ?? 'native';
           if (
             !params.region ||
             !params.deploymentName ||
@@ -228,11 +231,13 @@ export function createGcpCeTools(
           const store = await platform.storage({
             deploymentId: params.deploymentName,
             provider: 'gcp',
-            engine: 'native',
+            engine,
             account: params.project,
             region: params.region,
           });
-          const saved = (await store.read('gcp-deployment-intent.json')) as { intent?: GcpCeIntent };
+          const saved = (await store.read(
+            engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+          )) as { intent?: GcpCeIntent };
           const intent = saved.intent;
           if (
             !intent ||
@@ -240,11 +245,60 @@ export function createGcpCeTools(
             intent.region !== params.region ||
             intent.deploymentName !== params.deploymentName ||
             intent.platformContext !== params.platformContext ||
-            intent.engine !== 'native'
+            intent.engine !== engine
           )
             throw new Error('Persisted teardown intent differs');
           const boundary = await contract(undefined, signal);
           const receipt = await policy();
+          if (engine === 'terraform') {
+            if (!platform.gcpObservations) throw new Error('Scoped Terraform Platform observations unavailable');
+            const observations = await platform.gcpObservations(
+              {
+                deploymentId: intent.deploymentName,
+                provider: 'gcp',
+                engine,
+                account: intent.project,
+                region: intent.region,
+              },
+              intent.platformContext,
+              signal,
+            );
+            if (!observations.teardown || !observations.terraformEnvironment)
+              throw new Error('Qualified Terraform teardown channels unavailable');
+            const session = await terraformSession(platform, intent);
+            const credentials = await observations.terraformEnvironment();
+            const access = await api.exec(
+              'gcloud',
+              ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'],
+              { signal },
+            );
+            if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
+              throw new Error('Scoped Terraform Google authentication unavailable');
+            const runtime = {
+              store,
+              session,
+              api,
+              observePlatform: observations.teardown,
+              environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
+            };
+            if (params.approvedPlanHash) {
+              const evidence = await applyGcpTerraformTeardown(
+                runtime,
+                intent,
+                boundary,
+                receipt,
+                params.approvedPlanHash,
+                signal,
+                () => {
+                  mutationAttempted = true;
+                },
+              );
+              return result(tool, { availability: 'candidate-terraform-teardown', ...evidence, mutationAttempted });
+            }
+            if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform hash required');
+            const plan = await planGcpTerraformTeardown(runtime, intent, boundary, receipt, signal);
+            return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+          }
           if (params.approvedPlanHash) {
             const evidence = await applyGcpDeploymentTeardown(
               platform,

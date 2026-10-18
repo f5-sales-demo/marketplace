@@ -5,15 +5,24 @@ import type { GcloudExecApi } from '../gcloud/exec';
 import { GCP_CE_API_RELEASE, type GcpCeContractBoundary } from './contract';
 import { fingerprint } from './discovery';
 import { applyGcpNativeTeardown } from './native-teardown';
-import { assertGcpResourceOwnership, type GcpResourceIdentity, readGcpResourceInventory } from './ownership';
+import {
+  assertGcpResourceOwnership,
+  type GcpResourceIdentity,
+  readGcpResourceInventory,
+  validateGcpResourceIdentity,
+} from './ownership';
 import type { GcpPolicyReceipt } from './policy';
 import { planGcpOwnedTeardown } from './teardown-plan';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
-function profile(intent: GcpCeIntent, contract: GcpCeContractBoundary) {
+export function assertGcpTeardownProfile(
+  intent: GcpCeIntent,
+  contract: GcpCeContractBoundary,
+  engine: 'native' | 'terraform' = 'native',
+) {
   validateIntent(intent);
-  if (intent.engine !== 'native') throw new Error('Teardown requires owning engine native');
+  if (intent.engine !== engine) throw new Error(`Teardown requires owning engine ${engine}`);
   if (!contract.singleNodeLifecycle || fingerprint(contract.release) !== fingerprint(GCP_CE_API_RELEASE))
     throw new Error('Qualified immutable teardown contract required');
   if (
@@ -50,7 +59,7 @@ async function storage(platform: CePlatformService, intent: GcpCeIntent) {
     throw new Error('Persisted teardown deployment context differs');
   return store;
 }
-function topology(intent: GcpCeIntent, resources: GcpResourceIdentity[]) {
+export function assertGcpTeardownTopology(intent: GcpCeIntent, resources: GcpResourceIdentity[]) {
   const node = intent.sites[0].nodes[0],
     site = intent.sites[0].name;
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
@@ -72,7 +81,14 @@ function topology(intent: GcpCeIntent, resources: GcpResourceIdentity[]) {
   )
     throw new Error('Complete disposable teardown topology required');
 }
-async function observe(api: GcloudExecApi, resource: GcpResourceIdentity, signal?: AbortSignal) {
+export async function observeGcpTeardownResource(
+  api: GcloudExecApi,
+  resource: GcpResourceIdentity,
+  signal?: AbortSignal,
+) {
+  validateGcpResourceIdentity(resource);
+  if (!['instance', 'disk', 'network', 'subnetwork'].includes(resource.kind))
+    throw new Error('Qualified disposable teardown resource kind required');
   const parts = resource.selfLink.split('/'),
     scope = parts[7],
     location = parts[8],
@@ -101,7 +117,7 @@ async function observe(api: GcloudExecApi, resource: GcpResourceIdentity, signal
   const result = JSON.parse(response.stdout) as { id: string; selfLink: string };
   return { id: String(result.id), selfLink: result.selfLink };
 }
-function policyFresh(policy: GcpPolicyReceipt) {
+export function assertGcpTeardownPolicyFresh(policy: GcpPolicyReceipt) {
   const age = Date.now() - Date.parse(policy.observedAt);
   if (
     policy.identity !== 'f5xc-ce-automation-policy/v2' ||
@@ -120,13 +136,13 @@ export async function planGcpDeploymentTeardown(
   policy: GcpPolicyReceipt,
   signal?: AbortSignal,
 ) {
-  profile(intent, contract);
-  policyFresh(policy);
+  assertGcpTeardownProfile(intent, contract);
+  assertGcpTeardownPolicyFresh(policy);
   signal?.throwIfAborted();
   if (!platform.gcpLifecycle) throw new Error('Qualified shared teardown lifecycle unavailable');
   const store = await storage(platform, intent),
     resources = await readGcpResourceInventory(store, intent);
-  topology(intent, resources);
+  assertGcpTeardownTopology(intent, resources);
   const cloud = planGcpOwnedTeardown(resources, {
     project: intent.project,
     region: intent.region,
@@ -135,7 +151,7 @@ export async function planGcpDeploymentTeardown(
   });
   const sources = [];
   for (const resource of resources) {
-    const live = await observe(api, resource, signal);
+    const live = await observeGcpTeardownResource(api, resource, signal);
     if (!live) throw new Error('Initial teardown planning requires complete live inventory');
     await assertGcpResourceOwnership(store, resource, live);
     sources.push({ source: resource.selfLink, sha256: fingerprint(live) });
@@ -187,8 +203,8 @@ export async function applyGcpDeploymentTeardown(
   signal?: AbortSignal,
   onMutation?: () => void,
 ) {
-  profile(intent, contract);
-  policyFresh(policy);
+  assertGcpTeardownProfile(intent, contract);
+  assertGcpTeardownPolicyFresh(policy);
   signal?.throwIfAborted();
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash) || !platform.gcpLifecycle)
     throw new Error('Exact reviewed teardown authorization required');
@@ -196,6 +212,13 @@ export async function applyGcpDeploymentTeardown(
   const plan = (await store.read(`gcp-reviewed-${approvedHash.slice(7)}.json`)) as GcpDeploymentTeardownPlan;
   const { planHash, ...body } = plan;
   if (
+    plan.schemaVersion !== 1 ||
+    plan.operation !== 'teardown' ||
+    plan.engine !== 'native' ||
+    plan.project !== intent.project ||
+    plan.region !== intent.region ||
+    plan.deploymentName !== intent.deploymentName ||
+    plan.platformContext !== intent.platformContext ||
     planHash !== approvedHash ||
     fingerprint(body) !== approvedHash ||
     plan.intentFingerprint !== fingerprint(intent) ||
@@ -216,7 +239,7 @@ export async function applyGcpDeploymentTeardown(
   const release = await acquireProcessLock(join(store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(store, intent);
-    topology(intent, resources);
+    assertGcpTeardownTopology(intent, resources);
     if (
       fingerprint(plan.cloud.resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink))) !==
       fingerprint(resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink)))
@@ -224,7 +247,7 @@ export async function applyGcpDeploymentTeardown(
       throw new Error('Reviewed teardown inventory differs');
     // Validate all resources before the first deletion, including later dependency targets.
     for (const resource of resources) {
-      const live = await observe(api, resource, signal);
+      const live = await observeGcpTeardownResource(api, resource, signal);
       if (live) await assertGcpResourceOwnership(store, resource, live);
     }
     const lifecycle = await platform.gcpLifecycle(
@@ -275,7 +298,8 @@ export async function applyGcpDeploymentTeardown(
     if (!site.absent) return { state: 'pending', phase: 'site-deletion', planHash: approvedHash };
     // Fresh absence reads after cloud and platform teardown; no label-based deletion.
     for (const resource of resources)
-      if (await observe(api, resource, signal)) throw new Error('Independent cloud absence check failed');
+      if (await observeGcpTeardownResource(api, resource, signal))
+        throw new Error('Independent cloud absence check failed');
     const absence = await lifecycle.observeTeardown(plan.platform.tokenName, signal);
     if (!absence.siteAbsent || !absence.tokenAbsent) throw new Error('Independent platform absence check failed');
     const evidence = {

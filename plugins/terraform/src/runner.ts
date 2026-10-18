@@ -749,6 +749,26 @@ export class TerraformRunner {
       return selected;
     });
   }
+  /** Confirm the exact saved binary completed before a cloud adapter records post-apply ownership. */
+  async assertApplied(receipt: PlanReceipt): Promise<void> {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'applied' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.engine !== 'terraform' ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan')))
+      )
+        throw new Error('Exact applied Terraform receipt required for ownership capture');
+    });
+  }
   /** Private lifecycle identity projection from the exact saved plan; never a conversational summary. */
   async readPlannedResourceIds(
     receipt: PlanReceipt,
