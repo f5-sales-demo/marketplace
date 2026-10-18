@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Type } from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import { translateGcpNativeCompute } from '../../src/ce/compute-plan';
 import { GCP_CE_API_RELEASE } from '../../src/ce/contract';
 import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../../src/ce/deployment-teardown';
 import { fingerprint } from '../../src/ce/discovery';
@@ -122,6 +123,53 @@ async function fixture() {
   };
   return { i, store, platform, api, boundary, policy, resources, live, mutations: () => mutations };
 }
+it('reviews and cleans interrupted native creation using completed journal identities only', async () => {
+  const f = await fixture();
+  const cloud = translateGcpNativeCompute(f.i);
+  const partial = f.resources.filter((resource) => resource.kind === 'network' || resource.kind === 'subnetwork');
+  await f.store.write('gcp-resources.json', {
+    schemaVersion: 1,
+    project: f.i.project,
+    deploymentName: f.i.deploymentName,
+    engine: 'native',
+    resources: partial,
+  });
+  await f.store.write(`gcp-create-${cloud.sha256.slice(7)}.json`, {
+    planHash: cloud.sha256,
+    actions: Object.fromEntries(
+      cloud.actions.filter((action) => action.kind !== 'instance').map((action) => [action.id, { state: 'done' }]),
+    ),
+  });
+  f.live.clear();
+  for (const resource of partial) f.live.set(resource.selfLink, resource);
+  const plan = await planGcpDeploymentTeardown(f.platform, f.api, f.i, f.boundary, f.policy);
+  expect(plan.cloud.resources).toHaveLength(4);
+  expect(f.mutations()).toBe(0);
+  const evidence = await applyGcpDeploymentTeardown(f.platform, f.api, f.i, plan.planHash, f.boundary, f.policy);
+  expect(evidence.state).toBe('done');
+  expect(f.live.size).toBe(0);
+});
+
+it('refuses partial teardown with an ambiguous create or an unjournaled ledger identity', async () => {
+  const f = await fixture();
+  const cloud = translateGcpNativeCompute(f.i);
+  const resource = f.resources.find((resource) => resource.kind === 'network');
+  await f.store.write('gcp-resources.json', {
+    schemaVersion: 1,
+    project: f.i.project,
+    deploymentName: f.i.deploymentName,
+    engine: 'native',
+    resources: [resource],
+  });
+  for (const actions of [
+    { 'network-outside': { state: 'done' }, 'subnetwork-outside': { state: 'submitting' } },
+    { 'network-inside': { state: 'done' } },
+  ]) {
+    await f.store.write(`gcp-create-${cloud.sha256.slice(7)}.json`, { planHash: cloud.sha256, actions });
+    await expect(planGcpDeploymentTeardown(f.platform, f.api, f.i, f.boundary, f.policy)).rejects.toThrow();
+  }
+  expect(f.mutations()).toBe(0);
+});
 it('creates a persisted reviewable teardown without mutation and binds exact cloud/site/token identities', async () => {
   const f = await fixture();
   const plan = await planGcpDeploymentTeardown(f.platform, f.api, f.i, f.boundary, f.policy);

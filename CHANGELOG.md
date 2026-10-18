@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** adds an explicit native single-node deployment plan/apply candidate
+  with server-collected prerequisites, persisted overall review, unchanged corporate
+  funding/BYOL bindings and durable authorization for asynchronous resume. Completed
+  creation journal resources support partial native cleanup; fresh public installed
+  and live deployment acceptance remains pending (#1559).
+
 - **`gcloud`** binds native and Terraform billable execution to confirmed corporate
   funding and the unchanged existing billing association. The pinned BYOL product
   supports exact document authorization for access/use separately from procurement

@@ -37,6 +37,19 @@ function fixture() {
   };
   return { i, store, contract, site };
 }
+it('observes absent platform objects before site creation and refuses unjournaled existing objects', async () => {
+  const f = fixture();
+  let live: Record<string, unknown> | null = null;
+  const driver = new GcpPlatformLifecycle(f.store, f.i, f.contract, {
+    read: async () => live,
+    mutate: async () => {
+      throw new Error('must not mutate');
+    },
+  });
+  expect(await driver.observeTeardown('node-a-token')).toMatchObject({ siteAbsent: true, tokenAbsent: true });
+  live = f.site;
+  await expect(driver.observeTeardown('node-a-token')).rejects.toThrow('checkpoint');
+});
 it('lost site create response is reconciled from owned identity without duplicate mutation', async () => {
   const f = fixture();
   let live: unknown = null,

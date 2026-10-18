@@ -24,6 +24,7 @@ export async function applyGcpNativeDeployment(
   gates: GcpQualificationGates,
   signal?: AbortSignal,
   funding = collectCurrentGcpCorporateFunding,
+  onMutation?: () => void,
 ) {
   const plan = translateGcpNativeCompute(intent);
   assertGcpLaunchGates(gates, approvedHash);
@@ -82,62 +83,77 @@ export async function applyGcpNativeDeployment(
     };
     const lifecycle = await platform.gcpLifecycle(owner, intent.platformContext, signal);
     const driver = createGcpNativeCreationDriver(api, shared, store.directory, intent);
-    return await applyGcpNativeCreation(shared, intent, approvedHash, driver, signal, async (_action, signal) => {
-      await lifecycle.store.exclusive(() => lifecycle.ensureSite(signal));
-      const site = intent.sites[0],
-        node = site.nodes[0],
-        tokenName = `${node.name}-token`;
-      if (tokenName.length > 63) throw new Error('Node name leaves no token suffix space');
-      const bootstrapOwner = {
-        project: intent.project,
-        deploymentName: intent.deploymentName,
-        siteName: site.name,
-        nodeName: node.name,
-        engine: 'native' as const,
-      };
-      const key = `gcp-bootstrap-plan-${node.name}.json`;
-      let bootstrap: import('./bootstrap-issue').GcpBootstrapIssuePlan | undefined;
-      try {
-        bootstrap = (await store.read(key)) as typeof bootstrap;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
-      if (!bootstrap) {
-        const body = {
-          schemaVersion: 1 as const,
-          owner: bootstrapOwner,
-          tokenName,
-          expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-          contractDigest: gates.apiContract.sha256,
+    const trackedDriver = {
+      ...driver,
+      submit: async (...args: Parameters<typeof driver.submit>) => {
+        onMutation?.();
+        return driver.submit(...args);
+      },
+    };
+    return await applyGcpNativeCreation(
+      shared,
+      intent,
+      approvedHash,
+      trackedDriver,
+      signal,
+      async (_action, signal) => {
+        onMutation?.();
+        await lifecycle.store.exclusive(() => lifecycle.ensureSite(signal));
+        const site = intent.sites[0],
+          node = site.nodes[0],
+          tokenName = `${node.name}-token`;
+        if (tokenName.length > 63) throw new Error('Node name leaves no token suffix space');
+        const bootstrapOwner = {
+          project: intent.project,
+          deploymentName: intent.deploymentName,
+          siteName: site.name,
+          nodeName: node.name,
+          engine: 'native' as const,
         };
-        bootstrap = { ...body, sha256: fingerprint(body) };
-        await store.write(key, bootstrap);
-      }
-      await issueGcpBootstrap(
-        shared,
-        bootstrap,
-        bootstrap.sha256,
-        gates.apiContract.sha256,
-        lifecycle.bootstrapDriver(),
-        signal,
-      );
-      const materialKey = `gcp-bootstrap-material-${node.name}.json`;
-      let staged: unknown;
-      try {
-        staged = await store.read(materialKey);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
-      if (!staged) {
-        const userData = await checkoutGcpBootstrap(shared, bootstrapOwner);
-        await store.write(materialKey, {
-          ...bootstrapOwner,
-          expiresAt: bootstrap.expiresAt,
-          userData,
-          consumed: false,
-        });
-      }
-    });
+        const key = `gcp-bootstrap-plan-${node.name}.json`;
+        let bootstrap: import('./bootstrap-issue').GcpBootstrapIssuePlan | undefined;
+        try {
+          bootstrap = (await store.read(key)) as typeof bootstrap;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        if (!bootstrap) {
+          const body = {
+            schemaVersion: 1 as const,
+            owner: bootstrapOwner,
+            tokenName,
+            expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+            contractDigest: gates.apiContract.sha256,
+          };
+          bootstrap = { ...body, sha256: fingerprint(body) };
+          await store.write(key, bootstrap);
+        }
+        await issueGcpBootstrap(
+          shared,
+          bootstrap,
+          bootstrap.sha256,
+          gates.apiContract.sha256,
+          lifecycle.bootstrapDriver(),
+          signal,
+        );
+        const materialKey = `gcp-bootstrap-material-${node.name}.json`;
+        let staged: unknown;
+        try {
+          staged = await store.read(materialKey);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        if (!staged) {
+          const userData = await checkoutGcpBootstrap(shared, bootstrapOwner);
+          await store.write(materialKey, {
+            ...bootstrapOwner,
+            expiresAt: bootstrap.expiresAt,
+            userData,
+            consumed: false,
+          });
+        }
+      },
+    );
   } finally {
     await release();
   }

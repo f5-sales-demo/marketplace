@@ -4,10 +4,18 @@ The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset
 against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc`.
 It declares GCP schema mappings and observational registration/interface joins,
 with single-node boot, registration and physical interface evidence for both
-engines. Public deployment and broader lifecycle tools remain unavailable; narrow
+engines. Public native single-node deployment has a reviewed plan/apply candidate,
+with fresh installed/live acceptance pending. Terraform deployment and broader
+lifecycle tools remain unavailable; narrow
 teardown qualification is recorded below. The readiness plan
 binds the current verified `f5xc-ce-automation-policy/v2` receipt when available;
-it contains zero executable actions and requests no approval.
+it contains zero executable actions and requests no approval. Explicit native
+`operation=deploy` instead saves an overall reviewed plan that binds exact intent,
+translation, immutable contract, current policy, server-collected preflight,
+corporate funding and BYOL authorization. Apply refuses changed bindings and
+persists authorization across original asynchronous-operation reconciliation.
+Completed journal resources support partial native cleanup; ambiguous creation
+requires exact outcome reconciliation. Neither path infers routing or traffic.
 
 Shared Platform CE service and Terraform runner work is tracked by marketplace
 issue #1326 and draft PR #1327. GCP must reuse restricted storage, authorization,

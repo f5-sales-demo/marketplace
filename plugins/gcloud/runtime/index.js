@@ -2009,6 +2009,266 @@ var init_byol_terms = __esm(() => {
   init_validation();
 });
 
+// plugins/gcloud/src/ce/compute-plan.ts
+function assertComputeOnly(intent) {
+  if (
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Compute translation cannot configure ingress or destination routes');
+}
+function translateGcpNativeCompute(intent) {
+  validateIntent(intent);
+  if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
+  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
+    throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
+  const actions = [];
+  const networks = new Map();
+  for (const site of intent.sites)
+    for (const node of site.nodes)
+      for (const nic of node.interfaces) {
+        const prior = networks.get(nic.network);
+        if (prior && (prior.subnet !== nic.subnet || prior.cidr !== nic.cidr))
+          throw new Error('Shared network identity has conflicting subnet intent');
+        networks.set(nic.network, { subnet: nic.subnet, cidr: nic.cidr });
+      }
+  const scope = `--project=${intent.project}`;
+  for (const [network, subnet] of networks) {
+    actions.push({
+      id: `network-${network}`,
+      kind: 'network',
+      argv: [
+        'compute',
+        'networks',
+        'create',
+        network,
+        scope,
+        '--subnet-mode=custom',
+        '--bgp-routing-mode=REGIONAL',
+        '--quiet',
+        '--format=json',
+      ],
+      dependencies: [],
+    });
+    actions.push({
+      id: `subnetwork-${subnet.subnet}`,
+      kind: 'subnetwork',
+      argv: [
+        'compute',
+        'networks',
+        'subnets',
+        'create',
+        subnet.subnet,
+        scope,
+        `--region=${intent.region}`,
+        `--network=${network}`,
+        `--range=${subnet.cidr}`,
+        '--quiet',
+        '--format=json',
+      ],
+      dependencies: [`network-${network}`],
+    });
+  }
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const argv = [
+        'compute',
+        'instances',
+        'create',
+        node.name,
+        scope,
+        `--zone=${node.zone}`,
+        `--machine-type=${intent.machineType}`,
+        `--image=${intent.image.name}`,
+        '--image-project=f5-7626-networks-public',
+        `--boot-disk-size=${intent.diskGiB}GB`,
+        '--boot-disk-type=pd-balanced',
+        '--can-ip-forward',
+        '--no-service-account',
+        '--no-scopes',
+        `--labels=xcsh-deployment=${intent.deploymentName},xcsh-engine=native,xcsh-site=${site.name},xcsh-node=${node.name}`,
+      ];
+      for (const nic of node.interfaces)
+        argv.push(
+          `--network-interface=network=${nic.network},subnet=${nic.subnet}${nic.index === 0 ? '' : ',no-address'}`,
+        );
+      argv.push('--metadata=VmDnsSetting=ZonePreferred', '--async', '--quiet', '--format=json');
+      actions.push({
+        id: `instance-${node.name}`,
+        kind: 'instance',
+        argv,
+        dependencies: node.interfaces.map((nic) => `subnetwork-${nic.subnet}`),
+        sensitiveInput: 'restricted-node-metadata-file',
+      });
+    }
+  if (new Set(actions.map((a) => a.id)).size !== actions.length) throw new Error('GCP action identities collide');
+  return { schemaVersion: 1, engine: 'native', executable: false, actions, sha256: fingerprint({ intent, actions }) };
+}
+function translateGcpTerraformCompute(intent, googleProviderVersion) {
+  validateIntent(intent);
+  if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
+  if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
+  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
+    throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
+  const networks = {},
+    subnets = {},
+    instances = {};
+  const variable = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      for (const nic of node.interfaces) {
+        networks[nic.network.replaceAll('-', '_')] = {
+          name: nic.network,
+          project: intent.project,
+          auto_create_subnetworks: false,
+          routing_mode: 'REGIONAL',
+        };
+        const key = nic.subnet.replaceAll('-', '_');
+        const subnet = {
+          name: nic.subnet,
+          project: intent.project,
+          region: intent.region,
+          ip_cidr_range: nic.cidr,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+        };
+        if (subnets[key] && fingerprint(subnets[key]) !== fingerprint(subnet))
+          throw new Error('Subnet identity has conflicting intent');
+        subnets[key] = subnet;
+      }
+      const key = node.name.replaceAll('-', '_');
+      variable[`${key}_user_data`] = {
+        type: 'string',
+        sensitive: true,
+        description: 'Restricted node-bound one-use bootstrap; never export as an output',
+      };
+      instances[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        machine_type: intent.machineType,
+        can_ip_forward: true,
+        boot_disk: [
+          {
+            auto_delete: true,
+            initialize_params: [{ image: intent.image.selfLink, size: intent.diskGiB, type: 'pd-balanced' }],
+          },
+        ],
+        network_interface: node.interfaces.map((nic) => ({
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+          subnetwork: `\${google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}.id}`,
+          ...(nic.index === 0 ? { access_config: [{}] } : {}),
+        })),
+        labels: {
+          'xcsh-deployment': intent.deploymentName,
+          'xcsh-engine': 'terraform',
+          'xcsh-site': site.name,
+          'xcsh-node': node.name,
+        },
+        metadata: { VmDnsSetting: 'ZonePreferred', 'user-data': `\${var.${key}_user_data}` },
+      };
+    }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
+      },
+      provider: { google: [{ project: intent.project, region: intent.region }] },
+      variable,
+      resource: {
+        google_compute_network: networks,
+        google_compute_subnetwork: subnets,
+        google_compute_instance: instances,
+      },
+    },
+  };
+}
+function translateGcpTerraformSiteCompute(intent, versions) {
+  for (const version of Object.values(versions))
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
+  const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const sites = {};
+  const tokens = {};
+  const instances = cloud.configuration.resource.google_compute_instance;
+  for (const site of intent.sites) {
+    const siteKey = site.name.replaceAll('-', '_');
+    sites[siteKey] = {
+      name: site.name,
+      namespace: 'system',
+      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
+      gcp: { not_managed: {} },
+      ...(intent.initialVersions
+        ? {
+            software_settings: {
+              sw: { volterra_software_version: intent.initialVersions.software },
+              os: { operating_system_version: intent.initialVersions.os },
+            },
+          }
+        : {}),
+      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
+      disable_management_network: {},
+      block_all_services: {},
+      no_network_policy: {},
+      no_forward_proxy: {},
+      f5_proxy: {},
+      no_proxy_bypass: {},
+      logs_streaming_disabled: {},
+      no_s2s_connectivity_sli: {},
+      no_s2s_connectivity_slo: {},
+      disable_url_categorization: {},
+      local_vrf: { default_config: {}, default_sli_config: {} },
+    };
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
+      tokens[key] = {
+        name: `${node.name}-token`,
+        namespace: 'system',
+        type: 1,
+        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
+        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
+      };
+      const userData = `#cloud-config
+write_files:
+  - path: /etc/vpm/user_data
+    permissions: "0600"
+    owner: root
+    content: |
+      token: \${xcsh_token.${key}.content}
+`;
+      instances[key].metadata = {
+        VmDnsSetting: 'ZonePreferred',
+        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
+      };
+    }
+  }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_version: `= ${versions.terraform}`,
+        required_providers: {
+          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
+          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
+        },
+      },
+      provider: { ...cloud.configuration.provider, xcsh: [{}] },
+      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
+    },
+  };
+}
+var init_compute_plan = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
 // plugins/gcloud/src/ce/ownership.ts
 function validateGcpResourceIdentity(resource) {
   if (
@@ -2055,6 +2315,32 @@ async function readGcpResourceInventory(store, scope) {
 }
 function sameScope(a, b) {
   return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
+}
+async function recordGcpResource(store, resource) {
+  validateGcpResourceIdentity(resource);
+  let ledger;
+  try {
+    ledger = await store.read('gcp-resources.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    ledger = {
+      schemaVersion: 1,
+      project: resource.project,
+      deploymentName: resource.deploymentName,
+      engine: resource.engine,
+      resources: [],
+    };
+  }
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, resource) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ledger scope differs');
+  if (ledger.resources.length) await readGcpResourceInventory(store, resource);
+  const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
+  if (prior && fingerprint(prior) !== fingerprint(resource))
+    throw new Error('GCP resource identity changed; explicit replacement required');
+  if (!prior) {
+    ledger.resources.push(structuredClone(resource));
+    await store.write('gcp-resources.json', ledger);
+  }
 }
 async function assertGcpResourceOwnership(store, expected, observed) {
   validateGcpResourceIdentity(expected);
@@ -2299,6 +2585,50 @@ function assertGcpTeardownTopology(intent, resources) {
   )
     throw new Error('Complete disposable teardown topology required');
 }
+async function assertNativeCleanupTopology(store, intent, resources) {
+  if (resources.length === 6) return assertGcpTeardownTopology(intent, resources);
+  const cloud = translateGcpNativeCompute(intent);
+  const checkpoint = await store.read(`gcp-create-${cloud.sha256.slice(7)}.json`);
+  if (
+    checkpoint.planHash !== cloud.sha256 ||
+    !checkpoint.actions ||
+    !resources.length ||
+    Object.entries(checkpoint.actions).some(
+      ([id, action]) => action.state !== 'done' || !cloud.actions.some((a) => a.id === id),
+    )
+  )
+    throw new Error('Partial cleanup requires reconciled creation journal');
+  const node = intent.sites[0].nodes[0];
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const expected = cloud.actions
+    .filter((action) => checkpoint.actions?.[action.id]?.state === 'done')
+    .map((action) => {
+      if (action.dependencies.some((id) => checkpoint.actions?.[id]?.state !== 'done'))
+        throw new Error('Creation journal dependency differs');
+      const name = action.argv[action.kind === 'subnetwork' ? 4 : 3];
+      const scope =
+        action.kind === 'instance'
+          ? `zones/${node.zone}/instances`
+          : action.kind === 'network'
+            ? 'global/networks'
+            : `regions/${intent.region}/subnetworks`;
+      return `${prefix}/${scope}/${name}`;
+    });
+  const disks = resources.filter((resource) => resource.kind === 'disk');
+  const hasInstance = expected.includes(`${prefix}/zones/${node.zone}/instances/${node.name}`);
+  if (
+    disks.length !== (hasInstance ? 1 : 0) ||
+    resources.length !== expected.length + disks.length ||
+    expected.some((link) => resources.filter((resource) => resource.selfLink === link).length !== 1) ||
+    disks.some(
+      (disk) =>
+        disk.nodeName !== node.name ||
+        disk.siteName !== intent.sites[0].name ||
+        !disk.selfLink.startsWith(`${prefix}/zones/${node.zone}/disks/`),
+    )
+  )
+    throw new Error('Partial cleanup ledger differs from completed creation journal');
+}
 async function observeGcpTeardownResource(api, resource, signal) {
   validateGcpResourceIdentity(resource);
   if (!['instance', 'disk', 'network', 'subnetwork'].includes(resource.kind))
@@ -2349,7 +2679,7 @@ async function planGcpDeploymentTeardown(platform, api, intent, contract, policy
   if (!platform.gcpLifecycle) throw new Error('Qualified shared teardown lifecycle unavailable');
   const store = await storage(platform, intent),
     resources = await readGcpResourceInventory(store, intent);
-  assertGcpTeardownTopology(intent, resources);
+  await assertNativeCleanupTopology(store, intent, resources);
   const cloud = planGcpOwnedTeardown(resources, {
     project: intent.project,
     region: intent.region,
@@ -2436,7 +2766,7 @@ async function applyGcpDeploymentTeardown(platform, api, intent, approvedHash, c
   const release = await acquireProcessLock(join4(store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(store, intent);
-    assertGcpTeardownTopology(intent, resources);
+    await assertNativeCleanupTopology(store, intent, resources);
     if (
       fingerprint(plan.cloud.resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink))) !==
       fingerprint(resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink)))
@@ -2516,12 +2846,1531 @@ async function applyGcpDeploymentTeardown(platform, api, intent, approvedHash, c
 }
 var init_deployment_teardown = __esm(() => {
   init_process_lock();
+  init_compute_plan();
   init_contract();
   init_discovery();
   init_native_teardown();
   init_ownership();
   init_teardown_plan();
   init_validation();
+});
+
+// plugins/gcloud/src/ce/native-operation.ts
+function valid(binding) {
+  if (binding.engine !== 'native') throw new Error('GCP native reconciliation requires owning engine native');
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(binding.project) ||
+    [binding.zone !== undefined, binding.region !== undefined, binding.global === true].filter(Boolean).length !== 1 ||
+    (binding.zone !== undefined && !/^[a-z]+(?:-[a-z]+)+\d-[a-z]$/.test(binding.zone)) ||
+    (binding.region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(binding.region))
+  )
+    throw new Error('Explicit GCP operation scope required');
+  for (const name of [binding.deploymentName, binding.actionId])
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP operation binding');
+}
+function scopePath(binding) {
+  return binding.zone ? `zones/${binding.zone}` : binding.region ? `regions/${binding.region}` : 'global';
+}
+function parseOperation(value, binding) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed GCP operation');
+  const row = value;
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${binding.project}/${scopePath(binding)}/operations/`;
+  if (typeof row.name !== 'string' || !/^operation-[a-z0-9-]+$/.test(row.name) || row.selfLink !== prefix + row.name)
+    throw new Error('GCP operation identity mismatch');
+  if (!['PENDING', 'RUNNING', 'DONE'].includes(String(row.status))) throw new Error('Unknown GCP operation state');
+  const error = row.error;
+  if (error && (!Array.isArray(error.errors) || error.errors.length === 0))
+    throw new Error('Malformed GCP operation failure');
+  const errors = (error?.errors ?? []).map((item) =>
+    typeof item.code === 'string' && /^[A-Z0-9_]+$/.test(item.code) ? item.code : 'UNKNOWN_OPERATION_ERROR',
+  );
+  return { name: row.name, status: String(row.status), errors };
+}
+function filename(binding) {
+  return `gcp-operation-${binding.actionId}.json`;
+}
+async function recordGcpOperation(store, binding, response) {
+  valid(binding);
+  const operation = parseOperation(response, binding);
+  const checkpoint = {
+    schemaVersion: 1,
+    binding: structuredClone(binding),
+    operationName: operation.name,
+    state: operation.status === 'DONE' ? (operation.errors.length ? 'failed' : 'done') : 'pending',
+    errorCodes: operation.errors,
+  };
+  let previous;
+  try {
+    previous = await store.read(filename(binding));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (previous) {
+    if (
+      previous.schemaVersion !== 1 ||
+      fingerprint(previous.binding) !== fingerprint(binding) ||
+      previous.operationName !== checkpoint.operationName
+    )
+      throw new Error('Operation checkpoint identity cannot be overwritten');
+    if (!['pending', 'done', 'failed'].includes(previous.state))
+      throw new Error('Malformed operation checkpoint state');
+    if (previous.state !== 'pending' && fingerprint(previous) !== fingerprint(checkpoint))
+      throw new Error('Terminal operation evidence cannot change');
+  }
+  await store.write(filename(binding), checkpoint);
+  return checkpoint;
+}
+async function reconcileGcpOperation(store, api, binding, signal) {
+  valid(binding);
+  const checkpoint = await store.read(filename(binding));
+  if (
+    checkpoint?.schemaVersion !== 1 ||
+    fingerprint(checkpoint.binding) !== fingerprint(binding) ||
+    !/^operation-[a-z0-9-]+$/.test(checkpoint.operationName)
+  )
+    throw new Error('Operation checkpoint ownership differs');
+  if (checkpoint.state === 'done' || checkpoint.state === 'failed') return checkpoint;
+  if (checkpoint.state !== 'pending') throw new Error('Malformed operation checkpoint state');
+  if (signal?.aborted) throw new Error('GCP operation observation cancelled');
+  const args = [
+    'compute',
+    'operations',
+    'describe',
+    checkpoint.operationName,
+    `--project=${binding.project}`,
+    ...(binding.zone ? [`--zone=${binding.zone}`] : binding.region ? [`--region=${binding.region}`] : ['--global']),
+    '--format=json(name,selfLink,status,error.errors.code)',
+  ];
+  const output = await api.exec('gcloud', args, { signal });
+  if (output.exitCode !== 0) throw new Error('GCP operation observation failed');
+  let value;
+  try {
+    value = JSON.parse(output.stdout);
+  } catch {
+    throw new Error('Malformed GCP operation response');
+  }
+  const operation = parseOperation(value, binding);
+  if (operation.name !== checkpoint.operationName) throw new Error('GCP operation identity changed');
+  return recordGcpOperation(store, binding, value);
+}
+var init_native_operation = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-create-driver.ts
+import { lstat as lstat4, realpath as realpath2, rm as rm2, writeFile as writeFile2 } from 'node:fs/promises';
+import { join as join5 } from 'node:path';
+
+function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
+  const plan = translateGcpNativeCompute(intent);
+  const admit = (action) => {
+    if (!plan.actions.some((expected) => fingerprint(expected) === fingerprint(action)))
+      throw new Error('Cloud creation action differs from translated plan');
+    const node = intent.sites.flatMap((site) => site.nodes).find((node) => action.id === `instance-${node.name}`);
+    const site = intent.sites.find((site) => site.nodes.some((n) => n.name === node?.name));
+    const name = action.argv[action.kind === 'subnetwork' ? 4 : 3];
+    return { node, site, name };
+  };
+  const binding = (action, executionId) => {
+    const { node } = admit(action);
+    return {
+      project: intent.project,
+      deploymentName: intent.deploymentName,
+      engine: 'native',
+      actionId: executionId,
+      ...(action.kind === 'instance'
+        ? { zone: node?.zone }
+        : action.kind === 'subnetwork'
+          ? { region: intent.region }
+          : { global: true }),
+    };
+  };
+  const observe = async (action, signal) => {
+    const { node, site, name } = admit(action);
+    const args =
+      action.kind === 'subnetwork'
+        ? ['compute', 'networks', 'subnets', 'describe', name, `--region=${intent.region}`]
+        : [
+            'compute',
+            action.kind === 'instance' ? 'instances' : 'networks',
+            'describe',
+            name,
+            ...(node ? [`--zone=${node.zone}`] : []),
+          ];
+    const result = await api.exec(
+      'gcloud',
+      [...args, `--project=${intent.project}`, '--format=json(id,selfLink,name,labels)'],
+      { signal },
+    );
+    if (result.exitCode !== 0) {
+      if (/\b404\b|was not found|not found/i.test(result.stderr)) return null;
+      throw new Error('Scoped cloud creation observation failed');
+    }
+    let row;
+    try {
+      row = JSON.parse(result.stdout);
+    } catch {
+      throw new Error('Malformed creation observation');
+    }
+    if (row.name !== name || typeof row.id !== 'string' || typeof row.selfLink !== 'string')
+      throw new Error('Creation observation identity differs');
+    if (
+      node &&
+      (row.labels?.['xcsh-deployment'] !== intent.deploymentName ||
+        row.labels['xcsh-engine'] !== 'native' ||
+        row.labels['xcsh-node'] !== node.name ||
+        row.labels['xcsh-site'] !== site?.name)
+    )
+      throw new Error('Created VM ownership labels differ');
+    return {
+      id: row.id,
+      selfLink: row.selfLink,
+      kind: action.kind,
+      project: intent.project,
+      deploymentName: intent.deploymentName,
+      engine: 'native',
+      ...(node ? { nodeName: node.name, siteName: site?.name } : {}),
+    };
+  };
+  return {
+    observe,
+    async submit(action, executionId, signal) {
+      const { node, site } = admit(action);
+      if (!/^create-[a-f0-9]{40}$/.test(executionId)) throw new Error('Exact creation execution ID required');
+      let metadataPath;
+      const args = [...action.argv];
+      try {
+        if (node) {
+          if ((await realpath2(privateDirectory)) !== privateDirectory)
+            throw new Error('Private bootstrap directory differs');
+          const stat = await lstat4(privateDirectory);
+          if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || stat.mode & 63)
+            throw new Error('Private bootstrap directory ownership differs');
+          const material = await store.read(`gcp-bootstrap-material-${node.name}.json`);
+          if (
+            material.nodeName !== node.name ||
+            material.project !== intent.project ||
+            material.deploymentName !== intent.deploymentName ||
+            material.siteName !== site?.name ||
+            material.engine !== 'native' ||
+            !Number.isFinite(Date.parse(material.expiresAt)) ||
+            Date.parse(material.expiresAt) <= Date.now() ||
+            material.consumed ||
+            typeof material.userData !== 'string' ||
+            !material.userData.startsWith(`#cloud-config
+`)
+          )
+            throw new Error('Bound staged bootstrap unavailable');
+          metadataPath = join5(privateDirectory, `bootstrap-${executionId}.private`);
+          await writeFile2(metadataPath, material.userData, { flag: 'wx', mode: 384 });
+          await store.write(`gcp-bootstrap-material-${node.name}.json`, {
+            nodeName: node.name,
+            project: material.project,
+            deploymentName: material.deploymentName,
+            siteName: material.siteName,
+            engine: material.engine,
+            expiresAt: material.expiresAt,
+            userData: '',
+            consumed: true,
+          });
+          args.push(`--metadata-from-file=user-data=${metadataPath}`);
+        }
+        signal?.throwIfAborted();
+        const result = await api.exec('gcloud', args, { signal });
+        if (result.exitCode !== 0) throw new Error('Cloud creation outcome requires reconciliation');
+        let response;
+        try {
+          response = JSON.parse(result.stdout);
+        } catch {
+          throw new Error('Creation operation receipt unavailable');
+        }
+        const row = Array.isArray(response) ? response[0] : response;
+        if (action.kind !== 'instance') {
+          await store.write(`gcp-create-completed-${executionId}.json`, {
+            actionFingerprint: fingerprint(action),
+            completed: true,
+          });
+          return { completedCommand: true };
+        }
+        await recordGcpOperation(store, binding(action, executionId), row);
+        return { operationRecorded: true };
+      } finally {
+        if (metadataPath) await rm2(metadataPath, { force: true });
+      }
+    },
+    async reconcile(action, executionId, _receipt, signal) {
+      if (action.kind !== 'instance') {
+        const completed = await store.read(`gcp-create-completed-${executionId}.json`);
+        if (completed.actionFingerprint !== fingerprint(action) || completed.completed !== true)
+          throw new Error('Ambiguous creation requires a completed command receipt');
+        return (await observe(action, signal)) ? 'done' : 'pending';
+      }
+      let recorded;
+      try {
+        recorded = await store.read(`gcp-operation-${executionId}.json`);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      if (!recorded) throw new Error('Ambiguous creation needs exact operation receipt reconciliation');
+      const outcome = await reconcileGcpOperation(store, api, binding(action, executionId), signal);
+      if (outcome.state === 'done' && action.kind === 'instance') {
+        const { node, site } = admit(action);
+        if (!node || !site) throw new Error('Exact node binding required');
+        const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/${node.zone}`;
+        const vmResult = await api.exec(
+          'gcloud',
+          [
+            'compute',
+            'instances',
+            'describe',
+            node.name,
+            `--project=${intent.project}`,
+            `--zone=${node.zone}`,
+            '--format=json(id,selfLink,disks)',
+          ],
+          { signal },
+        );
+        if (vmResult.exitCode !== 0) throw new Error('Boot disk ownership observation unavailable');
+        const vm = JSON.parse(vmResult.stdout);
+        const boots = vm.disks?.filter((d) => d.boot === true) ?? [];
+        if (
+          vm.selfLink !== `${prefix}/instances/${node.name}` ||
+          boots.length !== 1 ||
+          !boots[0].source?.startsWith(`${prefix}/disks/`)
+        )
+          throw new Error('Exact owned boot disk link required');
+        const diskName = boots[0].source.split('/').at(-1);
+        if (!/^[a-z][a-z0-9-]{0,62}$/.test(diskName)) throw new Error('Invalid boot disk name');
+        const diskResult = await api.exec(
+          'gcloud',
+          [
+            'compute',
+            'disks',
+            'describe',
+            diskName,
+            `--project=${intent.project}`,
+            `--zone=${node.zone}`,
+            '--format=json(id,selfLink,users)',
+          ],
+          { signal },
+        );
+        if (diskResult.exitCode !== 0) throw new Error('Boot disk identity observation unavailable');
+        const disk = JSON.parse(diskResult.stdout);
+        if (disk.selfLink !== boots[0].source || disk.users?.length !== 1 || disk.users[0] !== vm.selfLink)
+          throw new Error('Boot disk attachment ownership differs');
+        await recordGcpResource(store, {
+          id: disk.id,
+          selfLink: disk.selfLink,
+          kind: 'disk',
+          project: intent.project,
+          deploymentName: intent.deploymentName,
+          siteName: site.name,
+          nodeName: node.name,
+          engine: 'native',
+        });
+      }
+      return outcome.state;
+    },
+  };
+}
+var init_native_create_driver = __esm(() => {
+  init_compute_plan();
+  init_discovery();
+  init_native_operation();
+  init_ownership();
+});
+
+// plugins/gcloud/src/ce/bootstrap.ts
+function formatGcpUserData(binding, now = Date.now()) {
+  for (const name of [binding.deploymentName, binding.siteName, binding.nodeName]) {
+    if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error('Invalid GCP bootstrap binding');
+  }
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(binding.jwt))
+    throw new Error('Invalid site-bound JWT syntax');
+  const expiry = Date.parse(binding.expiresAt);
+  if (!Number.isFinite(expiry) || expiry <= now || expiry - now > 24 * 60 * 60 * 1000)
+    throw new Error('Bootstrap expiry must be within 24 hours');
+  return [
+    '#cloud-config',
+    'write_files:',
+    '  - path: /etc/vpm/user_data',
+    '    permissions: "0600"',
+    '    owner: root',
+    '    content: |',
+    `      token: ${binding.jwt}`,
+    '',
+  ].join(`
+`);
+}
+
+// plugins/gcloud/src/ce/bootstrap-checkout.ts
+function ownerEqual(a, b) {
+  return ['project', 'deploymentName', 'siteName', 'nodeName', 'engine'].every((field) => a[field] === b[field]);
+}
+function valid2(owner) {
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(owner.project) || !['native', 'terraform'].includes(owner.engine))
+    throw new Error('Invalid bootstrap ownership');
+  for (const name of [owner.deploymentName, owner.siteName, owner.nodeName])
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid bootstrap ownership');
+}
+function path(owner) {
+  return `gcp-bootstrap-${owner.nodeName}.json`;
+}
+async function storeGcpBootstrap(store, owner, binding) {
+  valid2(owner);
+  if (
+    binding.deploymentName !== owner.deploymentName ||
+    binding.siteName !== owner.siteName ||
+    binding.nodeName !== owner.nodeName
+  )
+    throw new Error('Bootstrap deployment/site/node binding differs');
+  formatGcpUserData(binding);
+  await store.exclusive(async () => {
+    let prior;
+    try {
+      prior = await store.read(path(owner));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (prior !== undefined)
+      throw new Error('Bootstrap already issued; explicit revocation and new node identity required');
+    const record = {
+      schemaVersion: 1,
+      owner: structuredClone(owner),
+      expiresAt: binding.expiresAt,
+      jwt: binding.jwt,
+      state: 'issued',
+    };
+    await store.write(path(owner), record);
+  });
+}
+async function checkoutGcpBootstrap(store, owner, now = Date.now()) {
+  valid2(owner);
+  return store.exclusive(async () => {
+    const record = await store.read(path(owner));
+    if (record?.schemaVersion !== 1 || !ownerEqual(record.owner, owner) || record.state !== 'issued')
+      throw new Error('Bootstrap unavailable for this deployment/site/node/engine');
+    const material = formatGcpUserData({ ...owner, jwt: record.jwt, expiresAt: record.expiresAt }, now);
+    await store.write(path(owner), { ...record, jwt: '', state: 'consumed' });
+    return material;
+  });
+}
+var init_bootstrap_checkout = () => {};
+
+// plugins/gcloud/src/ce/bootstrap-issue.ts
+function token(value, plan) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed bound registration token');
+  const row = value;
+  if (
+    row.metadata?.name !== plan.tokenName ||
+    row.metadata.namespace !== 'system' ||
+    row.metadata.labels?.['xcsh-deployment'] !== plan.owner.deploymentName ||
+    row.metadata.labels['xcsh-engine'] !== plan.owner.engine ||
+    row.metadata.labels['xcsh-node'] !== plan.owner.nodeName ||
+    row.spec?.site_name !== plan.owner.siteName ||
+    ![1, 'JWT'].includes(row.spec.type) ||
+    typeof row.spec.content !== 'string'
+  )
+    throw new Error('Registration token ownership differs');
+  return row.spec.content;
+}
+async function issueUnlocked(store, plan, approvedHash, qualifiedContractDigest, driver, signal) {
+  const { sha256, ...body } = plan;
+  if (
+    plan.schemaVersion !== 1 ||
+    sha256 !== fingerprint(body) ||
+    approvedHash !== sha256 ||
+    plan.owner.engine !== 'native' ||
+    !/^sha256:[a-f0-9]{64}$/.test(qualifiedContractDigest) ||
+    qualifiedContractDigest !== plan.contractDigest ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(plan.tokenName)
+  )
+    throw new Error('Reviewed native bootstrap contract/authorization differs');
+  signal?.throwIfAborted();
+  formatGcpUserData({ ...plan.owner, jwt: 'fixtureheader.fixturepayload.fixturesignature', expiresAt: plan.expiresAt });
+  const checkpointName = `gcp-bootstrap-issue-${sha256.slice(7)}.json`;
+  let checkpoint;
+  try {
+    checkpoint = await store.read(checkpointName);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (
+    checkpoint &&
+    (checkpoint.planHash !== sha256 || !['prepared', 'submitting', 'issued'].includes(checkpoint.state))
+  )
+    throw new Error('Bootstrap issuance checkpoint differs');
+  if (checkpoint?.state === 'issued') return { issued: true, nodeName: plan.owner.nodeName, replay: false };
+  await driver.assertSiteOwnership(plan.owner, signal);
+  let response = await driver.readToken(plan.tokenName, signal);
+  if (!checkpoint && response !== null) throw new Error('Existing registration token is not owned by this issuance');
+  if (checkpoint?.state === 'submitting' && response === null)
+    throw new Error('Ambiguous bootstrap submission requires reconciliation');
+  if (response === null) {
+    checkpoint = { state: 'submitting', planHash: sha256 };
+    await store.write(checkpointName, checkpoint);
+    signal?.throwIfAborted();
+    response = await driver.createToken(plan.tokenName, plan.owner, signal);
+  }
+  const jwt = token(response, plan);
+  let stored;
+  try {
+    stored = await store.read(`gcp-bootstrap-${plan.owner.nodeName}.json`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (!stored) await storeGcpBootstrap(store, plan.owner, { ...plan.owner, jwt, expiresAt: plan.expiresAt });
+  else if (
+    (stored.state !== 'issued' && stored.state !== 'consumed') ||
+    fingerprint(stored.owner) !== fingerprint(plan.owner) ||
+    stored.expiresAt !== plan.expiresAt ||
+    (stored.state === 'issued' && stored.jwt !== jwt) ||
+    (stored.state === 'consumed' && stored.jwt !== '')
+  )
+    throw new Error('Stored bootstrap state differs');
+  await store.write(checkpointName, { state: 'issued', planHash: sha256 });
+  return { issued: true, nodeName: plan.owner.nodeName, replay: false };
+}
+async function issueGcpBootstrap(store, plan, approvedHash, qualifiedContractDigest, driver, signal) {
+  return store.exclusive(() =>
+    issueUnlocked(
+      {
+        read: (name) => store.read(name),
+        write: (name, value) => store.write(name, value),
+        exclusive: async (fn) => fn(),
+      },
+      plan,
+      approvedHash,
+      qualifiedContractDigest,
+      driver,
+      signal,
+    ),
+  );
+}
+var init_bootstrap_issue = __esm(() => {
+  init_bootstrap_checkout();
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-create.ts
+async function applyGcpNativeCreation(store, intent, reviewedHash, driver, signal, beforeInstance) {
+  const plan = translateGcpNativeCompute(intent);
+  if (reviewedHash !== plan.sha256) throw new Error('Reviewed native creation plan differs');
+  signal?.throwIfAborted();
+  return store.exclusive(async () => {
+    const name = `gcp-create-${plan.sha256.slice(7)}.json`;
+    let checkpoint;
+    try {
+      checkpoint = await store.read(name);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      checkpoint = { planHash: plan.sha256, actions: {} };
+    }
+    if (
+      checkpoint.planHash !== reviewedHash ||
+      !checkpoint.actions ||
+      typeof checkpoint.actions !== 'object' ||
+      Array.isArray(checkpoint.actions) ||
+      Object.keys(checkpoint.actions).some((id) => !plan.actions.some((action) => action.id === id))
+    )
+      throw new Error('Native creation checkpoint differs');
+    for (const action of plan.actions) {
+      signal?.throwIfAborted();
+      const prior = checkpoint.actions[action.id];
+      if (prior && !['submitting', 'pending', 'done', 'failed'].includes(prior.state))
+        throw new Error('Invalid creation checkpoint state');
+      if (action.dependencies.some((id) => checkpoint.actions[id]?.state !== 'done'))
+        return { state: 'pending', actionId: action.id };
+      if (prior?.state === 'failed') throw new Error('Creation failed; reviewed repair plan required');
+      const executionId = `create-${fingerprint({ plan: plan.sha256, action: action.id }).slice(7, 47)}`;
+      if (prior?.state === 'done') {
+        const observed = await driver.observe(action, signal);
+        if (!observed) throw new Error('Created resource disappeared');
+        await assertGcpResourceOwnership(store, observed, observed);
+        continue;
+      }
+      if (!prior) {
+        if (await driver.observe(action, signal)) throw new Error('Preexisting cloud resource collision');
+        if (action.kind === 'instance') await beforeInstance?.(action, signal);
+        checkpoint.actions[action.id] = { state: 'submitting' };
+        await store.write(name, checkpoint);
+        signal?.throwIfAborted();
+        const receipt = await driver.submit(action, executionId, signal);
+        checkpoint.actions[action.id] = { state: 'pending', receipt };
+        await store.write(name, checkpoint);
+      }
+      const current = checkpoint.actions[action.id];
+      const result = await driver.reconcile(action, executionId, current.receipt, signal);
+      if (result !== 'done') {
+        if (result === 'failed') {
+          current.state = 'failed';
+          await store.write(name, checkpoint);
+        }
+        return { state: result, actionId: action.id };
+      }
+      const observed = await driver.observe(action, signal);
+      if (
+        !observed ||
+        observed.project !== intent.project ||
+        observed.deploymentName !== intent.deploymentName ||
+        observed.engine !== 'native' ||
+        observed.kind !== action.kind
+      )
+        throw new Error('Created cloud identity differs');
+      const node = intent.sites.flatMap((site) => site.nodes).find((node) => action.id === `instance-${node.name}`);
+      const resourceName = action.argv[action.kind === 'subnetwork' ? 4 : 3];
+      const scope =
+        action.kind === 'instance'
+          ? `zones/${node?.zone}`
+          : action.kind === 'subnetwork'
+            ? `regions/${intent.region}`
+            : 'global';
+      const collection =
+        action.kind === 'instance' ? 'instances' : action.kind === 'subnetwork' ? 'subnetworks' : 'networks';
+      if (
+        observed.selfLink !==
+        `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${collection}/${resourceName}`
+      )
+        throw new Error('Created resource is not the exact planned identity');
+      await recordGcpResource(store, observed);
+      current.state = 'done';
+      await store.write(name, checkpoint);
+    }
+    return { state: 'done', planHash: plan.sha256 };
+  });
+}
+var init_native_create = __esm(() => {
+  init_compute_plan();
+  init_discovery();
+  init_ownership();
+});
+
+// plugins/gcloud/src/ce/preflight-port.ts
+function createGcpPreflightPort(api, project, fetcher = fetch) {
+  validateScope(project);
+  let credential;
+  const request = async (path, body, signal) => {
+    const compute = `/compute/v1/projects/${project}`;
+    const publisher = '/compute/v1/projects/f5-7626-networks-public/global';
+    const iam = `/cloudresourcemanager/v1/projects/${project}:testIamPermissions`;
+    const suffix = path.startsWith(compute) ? path.slice(compute.length) : undefined;
+    const allowedCompute =
+      suffix !== undefined &&
+      /^(?:|\/regions\/[a-z]+(?:-[a-z]+)+\d|\/zones\/[a-z]+(?:-[a-z]+)+\d-[a-z](?:\/machineTypes\/[a-z][a-z0-9-]{0,62})?)$/.test(
+        suffix,
+      );
+    const allowedPublisher =
+      path.startsWith(publisher) && /^\/(?:images|licenses)\/[a-z][a-z0-9-]{0,62}$/.test(path.slice(publisher.length));
+    if (!allowedCompute && !allowedPublisher && path !== iam)
+      throw new Error('Preflight request escaped explicit project scope');
+    if ((path === iam) !== (body !== undefined)) throw new Error('Preflight request method differs');
+    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+    combined.throwIfAborted();
+    if (!credential) {
+      const result = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${project}`, '--quiet'], {
+        signal: combined,
+      });
+      if (result.exitCode !== 0 || !result.stdout.trim() || /\s/.test(result.stdout.trim()))
+        throw new Error('GCP preflight authentication unavailable');
+      credential = result.stdout.trim();
+    }
+    combined.throwIfAborted();
+    const url =
+      path === iam
+        ? `https://cloudresourcemanager.googleapis.com/v1/projects/${project}:testIamPermissions`
+        : `https://compute.googleapis.com${path}`;
+    const response = await fetcher(url, {
+      method: body ? 'POST' : 'GET',
+      redirect: 'error',
+      signal: combined,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${credential}`,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok || !response.body) throw new Error('GCP preflight source unavailable');
+    const reader = response.body.getReader(),
+      chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > 4 * 1024 * 1024) throw new Error('GCP preflight response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    try {
+      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+    } catch {
+      throw new Error('GCP preflight response malformed');
+    }
+  };
+  return {
+    query: request,
+    async policy(requestedProject, constraint, signal) {
+      if (
+        requestedProject !== project ||
+        ![
+          'compute.vmExternalIpAccess',
+          'compute.trustedImageProjects',
+          'compute.requireShieldedVm',
+          'compute.restrictNonConfidentialComputing',
+          'compute.disableSerialPortAccess',
+        ].includes(constraint)
+      )
+        throw new Error('Preflight policy escaped explicit scope');
+      signal?.throwIfAborted();
+      const result = await api.exec(
+        'gcloud',
+        [
+          'org-policies',
+          'describe',
+          `constraints/${constraint}`,
+          `--project=${project}`,
+          '--effective',
+          '--format=json',
+        ],
+        { signal },
+      );
+      signal?.throwIfAborted();
+      if (result.exitCode !== 0) throw new Error('GCP effective policy unavailable');
+      try {
+        return JSON.parse(result.stdout);
+      } catch {
+        throw new Error('GCP effective policy malformed');
+      }
+    },
+  };
+}
+var init_preflight_port = __esm(() => {
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/qualification-gates.ts
+function assertGcpLaunchGates(gates, reviewedHash) {
+  if (
+    gates.schemaVersion !== 1 ||
+    gates.approvalPlanHash !== reviewedHash ||
+    !/^sha256:[a-f0-9]{64}$/.test(reviewedHash)
+  )
+    throw new Error('Reviewed launch identity differs');
+  if (
+    gates.apiContract.publication !== 'immutable-release' ||
+    gates.apiContract.gcpMapping !== 'available' ||
+    !/^sha256:[a-f0-9]{64}$/.test(gates.apiContract.sha256)
+  )
+    throw new Error('Immutable qualified GCP API mapping required before launch');
+  if (
+    gates.policy.identity !== 'f5xc-ce-automation-policy/v2' ||
+    gates.policy.verified !== true ||
+    !/^sha256:[a-f0-9]{64}$/.test(gates.policy.sha256)
+  )
+    throw new Error('Current verified CE policy required before launch');
+  if (
+    !gates.sharedRuntime ||
+    !gates.exactImageVerified ||
+    !gates.iamVerified ||
+    !gates.quotaVerified ||
+    !gates.organizationPolicyVerified ||
+    !['accepted', 'not-required', 'authorized-for-access-or-use'].includes(gates.legalAcceptance)
+  )
+    throw new Error('Launch prerequisites remain unavailable');
+  if (gates.engine === 'terraform' && !gates.providerLocksVerified)
+    throw new Error('Exact Terraform provider locks required');
+}
+var init_qualification_gates = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-deploy.ts
+import { join as join6 } from 'node:path';
+
+async function applyGcpNativeDeployment(
+  platform,
+  api,
+  intent,
+  approvedHash,
+  gates,
+  signal,
+  funding = collectCurrentGcpCorporateFunding,
+  onMutation,
+) {
+  const plan = translateGcpNativeCompute(intent);
+  assertGcpLaunchGates(gates, approvedHash);
+  if (
+    intent.engine !== 'native' ||
+    plan.sha256 !== approvedHash ||
+    gates.project !== intent.project ||
+    gates.region !== intent.region ||
+    gates.engine !== 'native' ||
+    gates.apiContract.sha256 !== GCP_CE_API_RELEASE.contractDigest ||
+    !platform.gcpLifecycle
+  )
+    throw new Error('Native deployment ownership/qualified contract differs');
+  if (!gates.fundingReceipt) throw new Error('Reviewed corporate funding binding required');
+  assertGcpCorporateFundingCurrent(gates.fundingReceipt, intent.project, gates.fundingReceipt.billingAccountName);
+  const currentFunding = await funding(api, intent.project, signal);
+  assertGcpCorporateFundingCurrent(currentFunding, intent.project, gates.fundingReceipt.billingAccountName);
+  if (currentFunding.policySha256 !== gates.fundingReceipt.policySha256)
+    throw new Error('Corporate funding policy changed after launch review');
+  const owner = {
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: 'native',
+    account: intent.project,
+    region: intent.region,
+  };
+  const store = await platform.storage(owner);
+  const release = await acquireProcessLock(join6(store.directory, '.gcp-deployment-lock'));
+  try {
+    if (intent.image.name.endsWith('-byol') || gates.legalAcceptance === 'authorized-for-access-or-use')
+      await assertGcpByolAuthorization(
+        intent,
+        { query: createGcpPreflightPort(api, intent.project).query, document: fetchGcpByolDocument },
+        currentFunding,
+        store,
+        signal,
+      );
+    const identity = {
+      intent: structuredClone(intent),
+      intentFingerprint: fingerprint(intent),
+      platformContext: intent.platformContext,
+    };
+    let saved;
+    try {
+      saved = await store.read('gcp-deployment-intent.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (saved && fingerprint(saved) !== fingerprint(identity))
+      throw new Error('Persisted native deployment intent differs');
+    if (!saved) await store.write('gcp-deployment-intent.json', identity);
+    const shared = {
+      read: (name) => store.read(name),
+      write: (name, value) => store.write(name, value),
+      exclusive: async (fn) => fn(),
+    };
+    const lifecycle = await platform.gcpLifecycle(owner, intent.platformContext, signal);
+    const driver = createGcpNativeCreationDriver(api, shared, store.directory, intent);
+    const trackedDriver = {
+      ...driver,
+      submit: async (...args) => {
+        onMutation?.();
+        return driver.submit(...args);
+      },
+    };
+    return await applyGcpNativeCreation(
+      shared,
+      intent,
+      approvedHash,
+      trackedDriver,
+      signal,
+      async (_action, signal) => {
+        onMutation?.();
+        await lifecycle.store.exclusive(() => lifecycle.ensureSite(signal));
+        const site = intent.sites[0],
+          node = site.nodes[0],
+          tokenName = `${node.name}-token`;
+        if (tokenName.length > 63) throw new Error('Node name leaves no token suffix space');
+        const bootstrapOwner = {
+          project: intent.project,
+          deploymentName: intent.deploymentName,
+          siteName: site.name,
+          nodeName: node.name,
+          engine: 'native',
+        };
+        const key = `gcp-bootstrap-plan-${node.name}.json`;
+        let bootstrap;
+        try {
+          bootstrap = await store.read(key);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+        if (!bootstrap) {
+          const body = {
+            schemaVersion: 1,
+            owner: bootstrapOwner,
+            tokenName,
+            expiresAt: new Date(Date.now() + 60 * 60000).toISOString(),
+            contractDigest: gates.apiContract.sha256,
+          };
+          bootstrap = { ...body, sha256: fingerprint(body) };
+          await store.write(key, bootstrap);
+        }
+        await issueGcpBootstrap(
+          shared,
+          bootstrap,
+          bootstrap.sha256,
+          gates.apiContract.sha256,
+          lifecycle.bootstrapDriver(),
+          signal,
+        );
+        const materialKey = `gcp-bootstrap-material-${node.name}.json`;
+        let staged;
+        try {
+          staged = await store.read(materialKey);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+        if (!staged) {
+          const userData = await checkoutGcpBootstrap(shared, bootstrapOwner);
+          await store.write(materialKey, {
+            ...bootstrapOwner,
+            expiresAt: bootstrap.expiresAt,
+            userData,
+            consumed: false,
+          });
+        }
+      },
+    );
+  } finally {
+    await release();
+  }
+}
+var init_native_deploy = __esm(() => {
+  init_process_lock();
+  init_bootstrap_checkout();
+  init_bootstrap_issue();
+  init_byol_terms();
+  init_compute_plan();
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_native_create();
+  init_native_create_driver();
+  init_preflight_port();
+  init_qualification_gates();
+});
+
+// plugins/gcloud/src/ce/planner.ts
+function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight, fundingReceipt, byolAuthorization) {
+  validateIntent(intent);
+  if (fundingReceipt)
+    assertGcpCorporateFundingCurrent(fundingReceipt, intent.project, fundingReceipt.billingAccountName);
+  if (byolAuthorization) {
+    const { authorizationHash, ...authorizationBody } = byolAuthorization;
+    if (
+      authorizationHash !== fingerprint(authorizationBody) ||
+      byolAuthorization.state !== 'authorized-for-access-or-use' ||
+      byolAuthorization.binding.intentFingerprint !== fingerprint(intent) ||
+      !fundingReceipt ||
+      byolAuthorization.fundingPolicySha256 !== fundingReceipt.policySha256 ||
+      byolAuthorization.billingAccountName !== fundingReceipt.billingAccountName
+    )
+      throw new Error('BYOL authorization does not match readiness intent/funding');
+  }
+  if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
+    throw new Error('Discovery scope does not match the intent');
+  const observed = Date.parse(discovery.observedAt);
+  if (!Number.isFinite(observed) || observed > now || now - observed > 5 * 60000) throw new Error('Discovery is stale');
+  if (!discovery.images.some((image) => fingerprint(image) === fingerprint(intent.image)))
+    throw new Error('Exact image and license identity is not present in discovery');
+  if (preflight) {
+    const timestamp = Date.parse(preflight.observedAt);
+    if (
+      preflight.schemaVersion !== 1 ||
+      preflight.project !== intent.project ||
+      preflight.region !== intent.region ||
+      preflight.intentFingerprint !== fingerprint(intent) ||
+      !Number.isFinite(timestamp) ||
+      timestamp > now ||
+      now - timestamp > 5 * 60000
+    )
+      throw new Error('Preflight scope/intent differs or evidence is stale');
+  }
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const machine = discovery.machineTypes.find((m) => m.name === intent.machineType && m.zone === node.zone);
+      if (
+        !machine ||
+        !Number.isFinite(machine.guestCpus) ||
+        machine.guestCpus < 8 ||
+        !Number.isFinite(machine.memoryMb) ||
+        machine.memoryMb < 32 * 1024
+      )
+        throw new Error('Every node requires an observed machine with at least 8 vCPUs and 32 GiB RAM');
+    }
+  const unavailable = [
+    'gcp_executable_api_mapping_not_qualified',
+    ...(policyReceipt ? [] : ['current_policy_release_not_bound']),
+    'shared_platform_gcp_runtime_not_available',
+    ...(intent.engine === 'terraform' ? ['shared_terraform_gcp_runner_not_available'] : []),
+    ...(discovery.billingEnabled !== true ? ['billing_not_verified'] : []),
+    ...(fundingReceipt ? [] : ['corporate_funding_not_verified']),
+    ...['compute.googleapis.com', 'serviceusage.googleapis.com']
+      .filter((api) => !discovery.enabledApis.includes(api))
+      .map((api) => `api_not_enabled:${api}`),
+    ...(preflight
+      ? [
+          ...['iam', 'organizationPolicy', 'machineNicLimit', 'image', 'zone']
+            .filter((check) => preflight.checks[check] !== 'verified')
+            .map((check) => `${check}_not_verified`),
+          ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
+          ...(byolAuthorization ? [] : ['licenseAcceptance_not_verified']),
+          'zone_capacity_not_reserved',
+        ]
+      : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
+    'routing_and_return_path_not_qualified',
+  ];
+  const body = {
+    schemaVersion: 1,
+    policyIdentity: GCP_CE_POLICY,
+    ...(policyReceipt ? { policyReceipt } : {}),
+    ...(preflight ? { preflight: structuredClone(preflight) } : {}),
+    ...(fundingReceipt ? { fundingReceipt: structuredClone(fundingReceipt) } : {}),
+    ...(byolAuthorization ? { byolAuthorization: structuredClone(byolAuthorization) } : {}),
+    apiRelease: GCP_CE_API_RELEASE,
+    engine: intent.engine,
+    intent: structuredClone(intent),
+    discoveryFingerprint: fingerprint(discovery),
+    executable: false,
+    unavailable,
+    actions: [],
+    approval: 'not-requested',
+  };
+  return { ...body, planHash: fingerprint(body) };
+}
+var init_planner = __esm(() => {
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_types2();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/policy.ts
+import { createHash as createHash5 } from 'node:crypto';
+
+function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
+  if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
+    throw new Error('Unknown CE policy identity/version');
+  for (const phrase of ['exact reviewed saved plan', 'registration', 'ownership', 'restoration', 'Marketplace'])
+    if (!text.includes(phrase)) throw new Error('Incomplete CE automation policy');
+  const normalized = `${text
+    .replace(
+      /\r\n?/g,
+      `
+`,
+    )
+    .trim()}
+`;
+  return {
+    identity: 'f5xc-ce-automation-policy/v2',
+    url: GCP_CE_POLICY_URL,
+    observedAt,
+    normalizedSha256: `sha256:${createHash5('sha256').update(normalized).digest('hex')}`,
+  };
+}
+async function readGcpCePolicy(fetcher = fetch) {
+  const response = await fetcher(GCP_CE_POLICY_URL);
+  if (!response.ok) throw new Error('CE policy retrieval failed');
+  return parseGcpCePolicy(await response.text());
+}
+var GCP_CE_POLICY_URL =
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
+var init_policy = () => {};
+
+// plugins/gcloud/src/ce/preflight.ts
+function object(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed preflight source');
+  return value;
+}
+function quota(value, metric, required) {
+  const rows = object(value).quotas;
+  if (!Array.isArray(rows)) return false;
+  const matches = rows.map(object).filter((row) => row.metric === metric);
+  return (
+    matches.length === 1 &&
+    typeof matches[0].limit === 'number' &&
+    typeof matches[0].usage === 'number' &&
+    Number.isFinite(matches[0].limit) &&
+    Number.isFinite(matches[0].usage) &&
+    matches[0].usage >= 0 &&
+    matches[0].limit - matches[0].usage >= required
+  );
+}
+function unconditional(value, field, expected) {
+  const spec = object(object(value).spec),
+    rules = spec.rules;
+  return (
+    !spec.reset &&
+    Array.isArray(rules) &&
+    rules.length === 1 &&
+    !object(rules[0]).condition &&
+    object(rules[0])[field] === expected
+  );
+}
+async function collectGcpLaunchPreflight(intent, port, signal) {
+  validateIntent(intent);
+  if (
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 1 ||
+    intent.sites[0].nodes[0].interfaces.length !== 2 ||
+    intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
+    intent.egress.mode !== 'external-ip'
+  )
+    throw new Error('Preflight requires the qualified single-node two-interface profile');
+  signal?.throwIfAborted();
+  const node = intent.sites[0].nodes[0],
+    prefix = `/compute/v1/projects/${intent.project}`;
+  const checks = {
+    iam: 'unavailable',
+    quota: 'unavailable',
+    organizationPolicy: 'unavailable',
+    image: 'unavailable',
+    machineNicLimit: 'unavailable',
+    zone: 'unavailable',
+    licenseUseFee: 'unknown',
+    legalAcceptance: 'unknown',
+    zoneCapacity: 'not-reserved',
+  };
+  const receipts = [];
+  const read = async (source, fn) => {
+    signal?.throwIfAborted();
+    const value = await fn();
+    signal?.throwIfAborted();
+    receipts.push({ source, observedAt: new Date().toISOString(), sha256: fingerprint(value) });
+    return object(value);
+  };
+  const attempt = async (fn) => {
+    try {
+      await fn();
+    } catch {
+      signal?.throwIfAborted();
+    }
+  };
+  await attempt(async () => {
+    const result = await read('project-iam', () =>
+      port.query(
+        `/cloudresourcemanager/v1/projects/${intent.project}:testIamPermissions`,
+        { permissions: [...GCP_CREATE_PERMISSIONS] },
+        signal,
+      ),
+    );
+    const permissions = result.permissions;
+    if (Array.isArray(permissions) && GCP_CREATE_PERMISSIONS.every((permission) => permissions.includes(permission)))
+      checks.iam = 'verified';
+  });
+  let machine;
+  await attempt(async () => {
+    machine = await read('machine-type', () =>
+      port.query(`${prefix}/zones/${node.zone}/machineTypes/${intent.machineType}`, undefined, signal),
+    );
+    if (
+      intent.machineType === 'n2-standard-8' &&
+      machine.name === intent.machineType &&
+      machine.guestCpus === 8 &&
+      machine.memoryMb === 32768
+    )
+      checks.machineNicLimit = 'verified';
+  });
+  await attempt(async () => {
+    const result = await read('zone', () => port.query(`${prefix}/zones/${node.zone}`, undefined, signal));
+    if (result.name === node.zone && result.status === 'UP') checks.zone = 'verified';
+  });
+  await attempt(async () => {
+    const region = await read('regional-quotas', () =>
+      port.query(`${prefix}/regions/${intent.region}`, undefined, signal),
+    );
+    const project = await read('project-quotas', () => port.query(prefix, undefined, signal));
+    if (
+      machine &&
+      typeof machine.guestCpus === 'number' &&
+      quota(region, 'N2_CPUS', machine.guestCpus) &&
+      quota(region, 'DISKS_TOTAL_GB', intent.diskGiB) &&
+      quota(region, 'IN_USE_ADDRESSES', 1) &&
+      quota(project, 'NETWORKS', 2)
+    )
+      checks.quota = 'verified';
+  });
+  await attempt(async () => {
+    const raw = await read('exact-image', () =>
+      port.query(intent.image.selfLink.replace('https://www.googleapis.com', ''), undefined, signal),
+    );
+    const result = { ...raw, architecture: raw.architecture ?? 'X86_64' };
+    if (
+      ['id', 'name', 'selfLink', 'status', 'architecture', 'licenses'].every(
+        (key) => fingerprint(result[key]) === fingerprint(intent.image[key]),
+      )
+    )
+      checks.image = 'verified';
+    const licenses = [];
+    for (const license of intent.image.licenses)
+      licenses.push(
+        await read('image-license', () =>
+          port.query(license.replace('https://www.googleapis.com', ''), undefined, signal),
+        ),
+      );
+    if (licenses.every((license) => license.chargesUseFee === false)) checks.licenseUseFee = 'none';
+    else if (licenses.some((license) => license.chargesUseFee === true)) checks.licenseUseFee = 'charged';
+  });
+  await attempt(async () => {
+    const values = [];
+    for (const constraint of [
+      'compute.vmExternalIpAccess',
+      'compute.trustedImageProjects',
+      'compute.requireShieldedVm',
+      'compute.restrictNonConfidentialComputing',
+      'compute.disableSerialPortAccess',
+    ])
+      values.push(await read(constraint, () => port.policy(intent.project, constraint, signal)));
+    if (
+      unconditional(values[0], 'allowAll', true) &&
+      unconditional(values[1], 'allowAll', true) &&
+      unconditional(values[2], 'enforce', false) &&
+      unconditional(values[3], 'allowAll', true) &&
+      unconditional(values[4], 'enforce', true)
+    )
+      checks.organizationPolicy = 'verified';
+  });
+  return {
+    schemaVersion: 1,
+    project: intent.project,
+    region: intent.region,
+    intentFingerprint: fingerprint(intent),
+    observedAt: new Date().toISOString(),
+    checks,
+    receipts,
+  };
+}
+var GCP_CREATE_PERMISSIONS;
+var init_preflight = __esm(() => {
+  init_discovery();
+  init_validation();
+  GCP_CREATE_PERMISSIONS = [
+    'compute.instances.create',
+    'compute.instances.delete',
+    'compute.instances.get',
+    'compute.instances.setMetadata',
+    'compute.instances.setLabels',
+    'compute.instances.setTags',
+    'compute.disks.create',
+    'compute.disks.delete',
+    'compute.disks.get',
+    'compute.disks.use',
+    'compute.images.useReadOnly',
+    'compute.networks.create',
+    'compute.networks.delete',
+    'compute.networks.get',
+    'compute.networks.use',
+    'compute.subnetworks.create',
+    'compute.subnetworks.delete',
+    'compute.subnetworks.get',
+    'compute.subnetworks.use',
+    'compute.subnetworks.useExternalIp',
+    'compute.zoneOperations.get',
+    'compute.globalOperations.get',
+    'compute.regionOperations.get',
+    'compute.machineTypes.get',
+    'compute.regions.get',
+    'compute.zones.get',
+  ];
+});
+
+// plugins/gcloud/src/ce/deployment-review.ts
+import { join as join7 } from 'node:path';
+
+function createGcpDeploymentSources(platform, api) {
+  return {
+    contract: (signal) => resolveGcpContract(undefined, signal),
+    policy: readGcpCePolicy,
+    discovery: (intent, signal) => discoverGcp(api, intent.project, intent.region, signal),
+    preflight: (intent, signal) =>
+      collectGcpLaunchPreflight(intent, createGcpPreflightPort(api, intent.project), signal),
+    funding: (intent, signal) => collectCurrentGcpCorporateFunding(api, intent.project, signal),
+    byol: async (intent, funding, signal) =>
+      assertGcpByolAuthorization(
+        intent,
+        { query: createGcpPreflightPort(api, intent.project).query, document: fetchGcpByolDocument },
+        funding,
+        await storage2(platform, intent),
+        signal,
+      ),
+  };
+}
+function storage2(platform, intent) {
+  return platform.storage({
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: intent.engine,
+    account: intent.project,
+    region: intent.region,
+  });
+}
+function profile(intent, boundary, platform) {
+  assertGcpTeardownProfile(intent, boundary);
+  if (intent.operation !== 'deploy' || intent.machineType !== 'n2-standard-8' || !intent.image.name.endsWith('-byol'))
+    throw new Error('Qualified native single-node BYOL deployment profile required');
+  if (!platform.gcpLifecycle) throw new Error('Qualified native shared deployment runtime unavailable');
+}
+function fundingBinding(funding) {
+  return {
+    project: funding.project,
+    billingAccountName: funding.billingAccountName,
+    policySha256: funding.policySha256,
+    accountDomain: funding.accountDomain,
+    organizationDomain: funding.organizationDomain,
+  };
+}
+async function collect(platform, intent, sources, signal, resume = false) {
+  signal?.throwIfAborted();
+  const boundary = await sources.contract(signal);
+  profile(intent, boundary, platform);
+  const policy = await sources.policy();
+  assertGcpTeardownPolicyFresh(policy);
+  const discovery = await sources.discovery(intent, signal);
+  const preflight = await sources.preflight(intent, signal);
+  const funding = await sources.funding(intent, signal);
+  planGcpCe(intent, discovery, Date.now(), policy, preflight, funding);
+  if (
+    discovery.billingEnabled !== true ||
+    !['compute.googleapis.com', 'serviceusage.googleapis.com'].every((api) => discovery.enabledApis.includes(api))
+  )
+    throw new Error('Deployment billing/APIs unavailable');
+  if (
+    ['iam', ...(resume ? [] : ['quota']), 'organizationPolicy', 'image', 'machineNicLimit', 'zone'].some(
+      (key) => preflight.checks[key] !== 'verified',
+    ) ||
+    preflight.checks.licenseUseFee !== 'none'
+  )
+    throw new Error('Current deployment prerequisites unavailable');
+  const byol = await sources.byol(intent, funding, signal);
+  if (!/^sha256:[a-f0-9]{64}$/.test(byol.authorizationHash)) throw new Error('Exact BYOL authorization required');
+  return { boundary, policy, discovery, preflight, funding, byol };
+}
+async function planGcpDeploymentReview(
+  platform,
+  api,
+  intent,
+  sources = createGcpDeploymentSources(platform, api),
+  signal,
+) {
+  intent = structuredClone(intent);
+  const current = await collect(platform, intent, sources, signal);
+  const cloud = translateGcpNativeCompute(intent);
+  const store = await storage2(platform, intent);
+  const release = await acquireProcessLock(join7(store.directory, '.gcp-review-lock'));
+  try {
+    const identity = { intent, intentFingerprint: fingerprint(intent), platformContext: intent.platformContext };
+    let prior;
+    try {
+      prior = await store.read('gcp-deployment-intent.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (prior && fingerprint(prior) !== fingerprint(identity)) throw new Error('Persisted native intent differs');
+    if (!prior) await store.write('gcp-deployment-intent.json', identity);
+    const lifecycle = await platform.gcpLifecycle?.(
+      {
+        deploymentId: intent.deploymentName,
+        provider: 'gcp',
+        engine: 'native',
+        account: intent.project,
+        region: intent.region,
+      },
+      intent.platformContext,
+      signal,
+    );
+    if (!lifecycle) throw new Error('Scoped native lifecycle unavailable');
+    const objects = await lifecycle.observeTeardown(`${intent.sites[0].nodes[0].name}-token`, signal);
+    if (!objects.siteAbsent || !objects.tokenAbsent) throw new Error('Deployment site/token already exists');
+    const driver = createGcpNativeCreationDriver(
+      api,
+      {
+        read: (name) => store.read(name),
+        write: (name, value) => store.write(name, value),
+        exclusive: async (fn) => fn(),
+      },
+      store.directory,
+      intent,
+    );
+    for (const action of cloud.actions)
+      if (await driver.observe(action, signal)) throw new Error('Deployment cloud resource already exists');
+    const body = {
+      schemaVersion: 1,
+      operation: 'deploy',
+      engine: 'native',
+      intent,
+      intentFingerprint: fingerprint(intent),
+      platformContext: intent.platformContext,
+      apiRelease: current.boundary.release,
+      contractFingerprint: current.boundary.fingerprint,
+      lifecycleFingerprint: fingerprint(current.boundary.singleNodeLifecycle),
+      policyReceipt: current.policy,
+      funding: fundingBinding(current.funding),
+      byolAuthorizationHash: current.byol.authorizationHash,
+      discoveryFingerprint: fingerprint(current.discovery),
+      preflight: current.preflight,
+      cloud,
+      createdAt: new Date().toISOString(),
+      approval: 'required',
+      capacity: 'not-reserved',
+      routing: 'unknown',
+      applicationTraffic: 'unknown',
+    };
+    const plan = { ...body, planHash: fingerprint(body) };
+    await store.write(`gcp-deploy-reviewed-${plan.planHash.slice(7)}.json`, plan);
+    return plan;
+  } finally {
+    await release();
+  }
+}
+async function applyGcpDeploymentReview(
+  platform,
+  api,
+  intent,
+  approvedHash,
+  sources = createGcpDeploymentSources(platform, api),
+  signal,
+  onMutation,
+  execute = applyGcpNativeDeployment,
+) {
+  intent = structuredClone(intent);
+  signal?.throwIfAborted();
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact deployment review hash required');
+  const boundary = await sources.contract(signal);
+  profile(intent, boundary, platform);
+  const store = await storage2(platform, intent);
+  const release = await acquireProcessLock(join7(store.directory, '.gcp-review-lock'));
+  try {
+    const plan = await store.read(`gcp-deploy-reviewed-${approvedHash.slice(7)}.json`);
+    const { planHash, ...body } = plan;
+    if (
+      planHash !== approvedHash ||
+      fingerprint(body) !== approvedHash ||
+      plan.schemaVersion !== 1 ||
+      plan.operation !== 'deploy' ||
+      plan.engine !== 'native' ||
+      plan.intentFingerprint !== fingerprint(intent) ||
+      fingerprint(plan.intent) !== fingerprint(intent) ||
+      plan.platformContext !== intent.platformContext ||
+      fingerprint(plan.apiRelease) !== fingerprint(boundary.release) ||
+      plan.contractFingerprint !== boundary.fingerprint ||
+      plan.lifecycleFingerprint !== fingerprint(boundary.singleNodeLifecycle) ||
+      fingerprint(plan.cloud) !== fingerprint(translateGcpNativeCompute(intent))
+    )
+      throw new Error('Reviewed deployment intent/contract/translation differs');
+    const name = `gcp-deploy-authorized-${approvedHash.slice(7)}.json`;
+    let authorization;
+    try {
+      authorization = await store.read(name);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const age = Date.now() - Date.parse(plan.createdAt);
+    let original;
+    try {
+      original = await store.read('gcp-deploy-original-authorization.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (original && (original.planHash !== approvedHash || original.intentFingerprint !== fingerprint(intent)))
+      throw new Error('Deployment must resume original overall authorization');
+    if (authorization && !original) throw new Error('Deployment original authorization unavailable');
+    if (
+      authorization
+        ? authorization.planHash !== approvedHash || authorization.intentFingerprint !== fingerprint(intent)
+        : !Number.isFinite(age) || age < 0 || age > 5 * 60000
+    )
+      throw new Error('Deployment authorization differs or review stale');
+    const policy = await sources.policy();
+    assertGcpTeardownPolicyFresh(policy);
+    if (policy.normalizedSha256 !== plan.policyReceipt.normalizedSha256) throw new Error('Reviewed policy changed');
+    const funding = await sources.funding(intent, signal);
+    assertGcpCorporateFundingCurrent(funding, intent.project, plan.funding.billingAccountName);
+    if (fingerprint(fundingBinding(funding)) !== fingerprint(plan.funding))
+      throw new Error('Reviewed corporate funding changed');
+    const byol = await sources.byol(intent, funding, signal);
+    if (byol.authorizationHash !== plan.byolAuthorizationHash) throw new Error('Reviewed BYOL authorization changed');
+    {
+      const launch = await collect(platform, intent, sources, signal, !!authorization);
+      if (
+        fingerprint(fundingBinding(launch.funding)) !== fingerprint(plan.funding) ||
+        launch.byol.authorizationHash !== plan.byolAuthorizationHash ||
+        launch.policy.normalizedSha256 !== plan.policyReceipt.normalizedSha256 ||
+        launch.boundary.fingerprint !== plan.contractFingerprint
+      )
+        throw new Error('Launch binding changed during qualification');
+      signal?.throwIfAborted();
+      if (!authorization) {
+        const launchAge = Date.now() - Date.parse(plan.createdAt);
+        if (!Number.isFinite(launchAge) || launchAge < 0 || launchAge > 5 * 60000)
+          throw new Error('Deployment review expired during qualification');
+        const binding = { planHash: approvedHash, intentFingerprint: fingerprint(intent) };
+        if (!original) await store.write('gcp-deploy-original-authorization.json', binding);
+        await store.write(name, binding);
+      }
+    }
+    const gates = {
+      schemaVersion: 1,
+      project: intent.project,
+      region: intent.region,
+      engine: 'native',
+      approvalPlanHash: plan.cloud.sha256,
+      apiContract: {
+        publication: 'immutable-release',
+        gcpMapping: 'available',
+        sha256: boundary.release.contractDigest,
+      },
+      policy: { identity: policy.identity, sha256: policy.normalizedSha256, verified: true },
+      fundingReceipt: funding,
+      sharedRuntime: true,
+      exactImageVerified: true,
+      legalAcceptance: 'authorized-for-access-or-use',
+      iamVerified: true,
+      quotaVerified: true,
+      organizationPolicyVerified: true,
+      providerLocksVerified: false,
+    };
+    const outcome = await execute(
+      platform,
+      api,
+      intent,
+      plan.cloud.sha256,
+      gates,
+      signal,
+      async () => funding,
+      onMutation,
+    );
+    return {
+      ...outcome,
+      planHash: approvedHash,
+      engine: 'native',
+      cloudProvisioning: outcome.state === 'done' ? 'created' : 'pending',
+      registration: 'unknown',
+      physicalInterfaceIdentity: 'unknown',
+      platformHealth: 'unknown',
+      routing: 'unknown',
+      applicationTraffic: 'unknown',
+    };
+  } finally {
+    await release();
+  }
+}
+var init_deployment_review = __esm(() => {
+  init_process_lock();
+  init_byol_terms();
+  init_compute_plan();
+  init_contract();
+  init_corporate_funding();
+  init_deployment_teardown();
+  init_discovery();
+  init_native_create_driver();
+  init_native_deploy();
+  init_planner();
+  init_policy();
+  init_preflight();
+  init_preflight_port();
 });
 
 // plugins/gcloud/src/ce/marketplace-agreement.ts
@@ -2881,15 +4730,15 @@ function parseGcpGlobalHealth(value, nodeName) {
 }
 
 // plugins/gcloud/src/ce/interface-identity.ts
-function object(value) {
+function object2(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed GCP interface identity evidence');
   return value;
 }
 function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
-  const cloud = object(cloudValue),
-    registration = object(registrationValue),
-    configuration = object(configurationValue);
+  const cloud = object2(cloudValue),
+    registration = object2(registrationValue),
+    configuration = object2(configurationValue);
   if (
     !/^\d+$/.test(expected.instanceId) ||
     cloud.id !== expected.instanceId ||
@@ -2897,13 +4746,13 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
   )
     throw new Error('Owned GCP VM identity mismatch');
-  const metadata = object(configuration.metadata);
+  const metadata = object2(configuration.metadata);
   if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
     throw new Error('Exact GCP site configuration identity required');
-  const spec = object(registration.get_spec),
-    infra = object(spec.infra),
-    passport = object(spec.passport);
-  const status = object(object(registration.object).status);
+  const spec = object2(registration.get_spec),
+    infra = object2(spec.infra),
+    passport = object2(spec.passport);
+  const status = object2(object2(registration.object).status);
   if (
     infra.provider !== 'GOOGLE' ||
     String(infra.instance_id) !== expected.instanceId ||
@@ -2913,12 +4762,12 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     status.current_state !== 'ONLINE'
   )
     throw new Error('Registration is not ONLINE for the exact owned GCP node');
-  const nodes = object(object(object(configuration.spec).gcp).not_managed).node_list;
+  const nodes = object2(object2(object2(configuration.spec).gcp).not_managed).node_list;
   if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
-  const matches = nodes.map(object).filter((node) => node.hostname === expected.nodeName);
+  const matches = nodes.map(object2).filter((node) => node.hostname === expected.nodeName);
   if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
   const configured = matches[0].interface_list;
-  const hardware = object(infra.hw_info).network;
+  const hardware = object2(infra.hw_info).network;
   const cloudNics = cloud.networkInterfaces;
   if (
     !Array.isArray(configured) ||
@@ -2932,9 +4781,9 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
   const macs = new Set();
   return configured
     .map((value) => {
-      const nic = object(value),
-        ethernet = object(nic.ethernet_interface),
-        option = object(nic.network_option);
+      const nic = object2(value),
+        ethernet = object2(nic.ethernet_interface),
+        option = object2(nic.network_option);
       if (
         typeof ethernet.device !== 'string' ||
         !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
@@ -2946,7 +4795,7 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
       if (macs.has(mac)) throw new Error('Duplicate configured MAC');
       macs.add(mac);
       const hw = hardware
-        .map(object)
+        .map(object2)
         .filter(
           (item) =>
             item.name === ethernet.device &&
@@ -2956,11 +4805,11 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
       if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
       const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
       const indices = cloudNics
-        .map(object)
+        .map(object2)
         .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
       if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
       const index = indices[0],
-        cloudNic = object(cloudNics[index]);
+        cloudNic = object2(cloudNics[index]);
       const wanted = expected.nics.find((item) => item.index === index);
       if (
         !wanted ||
@@ -2991,7 +4840,7 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
 }
 
 // plugins/gcloud/src/ce/status.ts
-function object2(value) {
+function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed status observation');
   return value;
 }
@@ -3019,7 +4868,7 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
     const value = await fn();
     signal?.throwIfAborted();
     evidence.sourceReceipts.push({ source: name, sha256: fingerprint(value) });
-    return object2(value);
+    return object3(value);
   };
   let cloud;
   try {
@@ -3038,7 +4887,7 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
   let configuration, registration;
   try {
     configuration = await read('xc-site-configuration', () => source.configuration(expected.siteName, signal));
-    const metadata = object2(configuration.metadata);
+    const metadata = object3(configuration.metadata);
     if (metadata.name !== expected.siteName || metadata.namespace !== 'system') return evidence;
     const response = await read('xc-site-registrations', () => source.registrations(expected.siteName, signal));
     if (
@@ -3048,16 +4897,16 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
       response.continue
     )
       return evidence;
-    const matches = response.items.map(object2).filter((item) => {
-      const spec = object2(item.get_spec),
-        infra = object2(spec.infra),
-        passport = object2(spec.passport);
+    const matches = response.items.map(object3).filter((item) => {
+      const spec = object3(item.get_spec),
+        infra = object3(spec.infra),
+        passport = object3(spec.passport);
       return infra.hostname === expected.nodeName && passport.cluster_name === expected.siteName;
     });
     if (matches.length !== 1) return evidence;
     registration = matches[0];
-    const infra = object2(object2(registration.get_spec).infra);
-    const state = object2(object2(registration.object).status).current_state;
+    const infra = object3(object3(registration.get_spec).infra);
+    const state = object3(object3(registration.object).status).current_state;
     if (
       infra.provider !== 'GOOGLE' ||
       String(infra.instance_id) !== expected.instanceId ||
@@ -3158,441 +5007,6 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/planner.ts
-function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight, fundingReceipt, byolAuthorization) {
-  validateIntent(intent);
-  if (fundingReceipt)
-    assertGcpCorporateFundingCurrent(fundingReceipt, intent.project, fundingReceipt.billingAccountName);
-  if (byolAuthorization) {
-    const { authorizationHash, ...authorizationBody } = byolAuthorization;
-    if (
-      authorizationHash !== fingerprint(authorizationBody) ||
-      byolAuthorization.state !== 'authorized-for-access-or-use' ||
-      byolAuthorization.binding.intentFingerprint !== fingerprint(intent) ||
-      !fundingReceipt ||
-      byolAuthorization.fundingPolicySha256 !== fundingReceipt.policySha256 ||
-      byolAuthorization.billingAccountName !== fundingReceipt.billingAccountName
-    )
-      throw new Error('BYOL authorization does not match readiness intent/funding');
-  }
-  if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
-    throw new Error('Discovery scope does not match the intent');
-  const observed = Date.parse(discovery.observedAt);
-  if (!Number.isFinite(observed) || observed > now || now - observed > 5 * 60000) throw new Error('Discovery is stale');
-  if (!discovery.images.some((image) => fingerprint(image) === fingerprint(intent.image)))
-    throw new Error('Exact image and license identity is not present in discovery');
-  if (preflight) {
-    const timestamp = Date.parse(preflight.observedAt);
-    if (
-      preflight.schemaVersion !== 1 ||
-      preflight.project !== intent.project ||
-      preflight.region !== intent.region ||
-      preflight.intentFingerprint !== fingerprint(intent) ||
-      !Number.isFinite(timestamp) ||
-      timestamp > now ||
-      now - timestamp > 5 * 60000
-    )
-      throw new Error('Preflight scope/intent differs or evidence is stale');
-  }
-  for (const site of intent.sites)
-    for (const node of site.nodes) {
-      const machine = discovery.machineTypes.find((m) => m.name === intent.machineType && m.zone === node.zone);
-      if (
-        !machine ||
-        !Number.isFinite(machine.guestCpus) ||
-        machine.guestCpus < 8 ||
-        !Number.isFinite(machine.memoryMb) ||
-        machine.memoryMb < 32 * 1024
-      )
-        throw new Error('Every node requires an observed machine with at least 8 vCPUs and 32 GiB RAM');
-    }
-  const unavailable = [
-    'gcp_executable_api_mapping_not_qualified',
-    ...(policyReceipt ? [] : ['current_policy_release_not_bound']),
-    'shared_platform_gcp_runtime_not_available',
-    ...(intent.engine === 'terraform' ? ['shared_terraform_gcp_runner_not_available'] : []),
-    ...(discovery.billingEnabled !== true ? ['billing_not_verified'] : []),
-    ...(fundingReceipt ? [] : ['corporate_funding_not_verified']),
-    ...['compute.googleapis.com', 'serviceusage.googleapis.com']
-      .filter((api) => !discovery.enabledApis.includes(api))
-      .map((api) => `api_not_enabled:${api}`),
-    ...(preflight
-      ? [
-          ...['iam', 'organizationPolicy', 'machineNicLimit', 'image', 'zone']
-            .filter((check) => preflight.checks[check] !== 'verified')
-            .map((check) => `${check}_not_verified`),
-          ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
-          ...(byolAuthorization ? [] : ['licenseAcceptance_not_verified']),
-          'zone_capacity_not_reserved',
-        ]
-      : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
-    'routing_and_return_path_not_qualified',
-  ];
-  const body = {
-    schemaVersion: 1,
-    policyIdentity: GCP_CE_POLICY,
-    ...(policyReceipt ? { policyReceipt } : {}),
-    ...(preflight ? { preflight: structuredClone(preflight) } : {}),
-    ...(fundingReceipt ? { fundingReceipt: structuredClone(fundingReceipt) } : {}),
-    ...(byolAuthorization ? { byolAuthorization: structuredClone(byolAuthorization) } : {}),
-    apiRelease: GCP_CE_API_RELEASE,
-    engine: intent.engine,
-    intent: structuredClone(intent),
-    discoveryFingerprint: fingerprint(discovery),
-    executable: false,
-    unavailable,
-    actions: [],
-    approval: 'not-requested',
-  };
-  return { ...body, planHash: fingerprint(body) };
-}
-var init_planner = __esm(() => {
-  init_contract();
-  init_corporate_funding();
-  init_discovery();
-  init_types2();
-  init_validation();
-});
-
-// plugins/gcloud/src/ce/policy.ts
-import { createHash as createHash5 } from 'node:crypto';
-
-function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
-  if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
-    throw new Error('Unknown CE policy identity/version');
-  for (const phrase of ['exact reviewed saved plan', 'registration', 'ownership', 'restoration', 'Marketplace'])
-    if (!text.includes(phrase)) throw new Error('Incomplete CE automation policy');
-  const normalized = `${text
-    .replace(
-      /\r\n?/g,
-      `
-`,
-    )
-    .trim()}
-`;
-  return {
-    identity: 'f5xc-ce-automation-policy/v2',
-    url: GCP_CE_POLICY_URL,
-    observedAt,
-    normalizedSha256: `sha256:${createHash5('sha256').update(normalized).digest('hex')}`,
-  };
-}
-async function readGcpCePolicy(fetcher = fetch) {
-  const response = await fetcher(GCP_CE_POLICY_URL);
-  if (!response.ok) throw new Error('CE policy retrieval failed');
-  return parseGcpCePolicy(await response.text());
-}
-var GCP_CE_POLICY_URL =
-  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
-var init_policy = () => {};
-
-// plugins/gcloud/src/ce/preflight.ts
-function object3(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed preflight source');
-  return value;
-}
-function quota(value, metric, required) {
-  const rows = object3(value).quotas;
-  if (!Array.isArray(rows)) return false;
-  const matches = rows.map(object3).filter((row) => row.metric === metric);
-  return (
-    matches.length === 1 &&
-    typeof matches[0].limit === 'number' &&
-    typeof matches[0].usage === 'number' &&
-    Number.isFinite(matches[0].limit) &&
-    Number.isFinite(matches[0].usage) &&
-    matches[0].usage >= 0 &&
-    matches[0].limit - matches[0].usage >= required
-  );
-}
-function unconditional(value, field, expected) {
-  const spec = object3(object3(value).spec),
-    rules = spec.rules;
-  return (
-    !spec.reset &&
-    Array.isArray(rules) &&
-    rules.length === 1 &&
-    !object3(rules[0]).condition &&
-    object3(rules[0])[field] === expected
-  );
-}
-async function collectGcpLaunchPreflight(intent, port, signal) {
-  validateIntent(intent);
-  if (
-    intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 1 ||
-    intent.sites[0].nodes[0].interfaces.length !== 2 ||
-    intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
-    intent.egress.mode !== 'external-ip'
-  )
-    throw new Error('Preflight requires the qualified single-node two-interface profile');
-  signal?.throwIfAborted();
-  const node = intent.sites[0].nodes[0],
-    prefix = `/compute/v1/projects/${intent.project}`;
-  const checks = {
-    iam: 'unavailable',
-    quota: 'unavailable',
-    organizationPolicy: 'unavailable',
-    image: 'unavailable',
-    machineNicLimit: 'unavailable',
-    zone: 'unavailable',
-    licenseUseFee: 'unknown',
-    legalAcceptance: 'unknown',
-    zoneCapacity: 'not-reserved',
-  };
-  const receipts = [];
-  const read = async (source, fn) => {
-    signal?.throwIfAborted();
-    const value = await fn();
-    signal?.throwIfAborted();
-    receipts.push({ source, observedAt: new Date().toISOString(), sha256: fingerprint(value) });
-    return object3(value);
-  };
-  const attempt = async (fn) => {
-    try {
-      await fn();
-    } catch {
-      signal?.throwIfAborted();
-    }
-  };
-  await attempt(async () => {
-    const result = await read('project-iam', () =>
-      port.query(
-        `/cloudresourcemanager/v1/projects/${intent.project}:testIamPermissions`,
-        { permissions: [...GCP_CREATE_PERMISSIONS] },
-        signal,
-      ),
-    );
-    const permissions = result.permissions;
-    if (Array.isArray(permissions) && GCP_CREATE_PERMISSIONS.every((permission) => permissions.includes(permission)))
-      checks.iam = 'verified';
-  });
-  let machine;
-  await attempt(async () => {
-    machine = await read('machine-type', () =>
-      port.query(`${prefix}/zones/${node.zone}/machineTypes/${intent.machineType}`, undefined, signal),
-    );
-    if (
-      intent.machineType === 'n2-standard-8' &&
-      machine.name === intent.machineType &&
-      machine.guestCpus === 8 &&
-      machine.memoryMb === 32768
-    )
-      checks.machineNicLimit = 'verified';
-  });
-  await attempt(async () => {
-    const result = await read('zone', () => port.query(`${prefix}/zones/${node.zone}`, undefined, signal));
-    if (result.name === node.zone && result.status === 'UP') checks.zone = 'verified';
-  });
-  await attempt(async () => {
-    const region = await read('regional-quotas', () =>
-      port.query(`${prefix}/regions/${intent.region}`, undefined, signal),
-    );
-    const project = await read('project-quotas', () => port.query(prefix, undefined, signal));
-    if (
-      machine &&
-      typeof machine.guestCpus === 'number' &&
-      quota(region, 'N2_CPUS', machine.guestCpus) &&
-      quota(region, 'DISKS_TOTAL_GB', intent.diskGiB) &&
-      quota(region, 'IN_USE_ADDRESSES', 1) &&
-      quota(project, 'NETWORKS', 2)
-    )
-      checks.quota = 'verified';
-  });
-  await attempt(async () => {
-    const raw = await read('exact-image', () =>
-      port.query(intent.image.selfLink.replace('https://www.googleapis.com', ''), undefined, signal),
-    );
-    const result = { ...raw, architecture: raw.architecture ?? 'X86_64' };
-    if (
-      ['id', 'name', 'selfLink', 'status', 'architecture', 'licenses'].every(
-        (key) => fingerprint(result[key]) === fingerprint(intent.image[key]),
-      )
-    )
-      checks.image = 'verified';
-    const licenses = [];
-    for (const license of intent.image.licenses)
-      licenses.push(
-        await read('image-license', () =>
-          port.query(license.replace('https://www.googleapis.com', ''), undefined, signal),
-        ),
-      );
-    if (licenses.every((license) => license.chargesUseFee === false)) checks.licenseUseFee = 'none';
-    else if (licenses.some((license) => license.chargesUseFee === true)) checks.licenseUseFee = 'charged';
-  });
-  await attempt(async () => {
-    const values = [];
-    for (const constraint of [
-      'compute.vmExternalIpAccess',
-      'compute.trustedImageProjects',
-      'compute.requireShieldedVm',
-      'compute.restrictNonConfidentialComputing',
-      'compute.disableSerialPortAccess',
-    ])
-      values.push(await read(constraint, () => port.policy(intent.project, constraint, signal)));
-    if (
-      unconditional(values[0], 'allowAll', true) &&
-      unconditional(values[1], 'allowAll', true) &&
-      unconditional(values[2], 'enforce', false) &&
-      unconditional(values[3], 'allowAll', true) &&
-      unconditional(values[4], 'enforce', true)
-    )
-      checks.organizationPolicy = 'verified';
-  });
-  return {
-    schemaVersion: 1,
-    project: intent.project,
-    region: intent.region,
-    intentFingerprint: fingerprint(intent),
-    observedAt: new Date().toISOString(),
-    checks,
-    receipts,
-  };
-}
-var GCP_CREATE_PERMISSIONS;
-var init_preflight = __esm(() => {
-  init_discovery();
-  init_validation();
-  GCP_CREATE_PERMISSIONS = [
-    'compute.instances.create',
-    'compute.instances.delete',
-    'compute.instances.get',
-    'compute.instances.setMetadata',
-    'compute.instances.setLabels',
-    'compute.instances.setTags',
-    'compute.disks.create',
-    'compute.disks.delete',
-    'compute.disks.get',
-    'compute.disks.use',
-    'compute.images.useReadOnly',
-    'compute.networks.create',
-    'compute.networks.delete',
-    'compute.networks.get',
-    'compute.networks.use',
-    'compute.subnetworks.create',
-    'compute.subnetworks.delete',
-    'compute.subnetworks.get',
-    'compute.subnetworks.use',
-    'compute.subnetworks.useExternalIp',
-    'compute.zoneOperations.get',
-    'compute.globalOperations.get',
-    'compute.regionOperations.get',
-    'compute.machineTypes.get',
-    'compute.regions.get',
-    'compute.zones.get',
-  ];
-});
-
-// plugins/gcloud/src/ce/preflight-port.ts
-function createGcpPreflightPort(api, project, fetcher = fetch) {
-  validateScope(project);
-  let credential;
-  const request = async (path, body, signal) => {
-    const compute = `/compute/v1/projects/${project}`;
-    const publisher = '/compute/v1/projects/f5-7626-networks-public/global';
-    const iam = `/cloudresourcemanager/v1/projects/${project}:testIamPermissions`;
-    const suffix = path.startsWith(compute) ? path.slice(compute.length) : undefined;
-    const allowedCompute =
-      suffix !== undefined &&
-      /^(?:|\/regions\/[a-z]+(?:-[a-z]+)+\d|\/zones\/[a-z]+(?:-[a-z]+)+\d-[a-z](?:\/machineTypes\/[a-z][a-z0-9-]{0,62})?)$/.test(
-        suffix,
-      );
-    const allowedPublisher =
-      path.startsWith(publisher) && /^\/(?:images|licenses)\/[a-z][a-z0-9-]{0,62}$/.test(path.slice(publisher.length));
-    if (!allowedCompute && !allowedPublisher && path !== iam)
-      throw new Error('Preflight request escaped explicit project scope');
-    if ((path === iam) !== (body !== undefined)) throw new Error('Preflight request method differs');
-    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
-    combined.throwIfAborted();
-    if (!credential) {
-      const result = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${project}`, '--quiet'], {
-        signal: combined,
-      });
-      if (result.exitCode !== 0 || !result.stdout.trim() || /\s/.test(result.stdout.trim()))
-        throw new Error('GCP preflight authentication unavailable');
-      credential = result.stdout.trim();
-    }
-    combined.throwIfAborted();
-    const url =
-      path === iam
-        ? `https://cloudresourcemanager.googleapis.com/v1/projects/${project}:testIamPermissions`
-        : `https://compute.googleapis.com${path}`;
-    const response = await fetcher(url, {
-      method: body ? 'POST' : 'GET',
-      redirect: 'error',
-      signal: combined,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${credential}`,
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    if (!response.ok || !response.body) throw new Error('GCP preflight source unavailable');
-    const reader = response.body.getReader(),
-      chunks = [];
-    let size = 0;
-    try {
-      for (;;) {
-        combined.throwIfAborted();
-        const { done, value } = await reader.read();
-        combined.throwIfAborted();
-        if (done) break;
-        size += value.length;
-        if (size > 4 * 1024 * 1024) throw new Error('GCP preflight response exceeds size limit');
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel();
-      reader.releaseLock();
-    }
-    try {
-      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
-    } catch {
-      throw new Error('GCP preflight response malformed');
-    }
-  };
-  return {
-    query: request,
-    async policy(requestedProject, constraint, signal) {
-      if (
-        requestedProject !== project ||
-        ![
-          'compute.vmExternalIpAccess',
-          'compute.trustedImageProjects',
-          'compute.requireShieldedVm',
-          'compute.restrictNonConfidentialComputing',
-          'compute.disableSerialPortAccess',
-        ].includes(constraint)
-      )
-        throw new Error('Preflight policy escaped explicit scope');
-      signal?.throwIfAborted();
-      const result = await api.exec(
-        'gcloud',
-        [
-          'org-policies',
-          'describe',
-          `constraints/${constraint}`,
-          `--project=${project}`,
-          '--effective',
-          '--format=json',
-        ],
-        { signal },
-      );
-      signal?.throwIfAborted();
-      if (result.exitCode !== 0) throw new Error('GCP effective policy unavailable');
-      try {
-        return JSON.parse(result.stdout);
-      } catch {
-        throw new Error('GCP effective policy malformed');
-      }
-    },
-  };
-}
-var init_preflight_port = __esm(() => {
-  init_validation();
-});
-
 // plugins/terraform/src/failure.ts
 function terraformFailureCategories(text) {
   const plain = Bun.stripANSI(text);
@@ -3631,15 +5045,15 @@ var init_failure = __esm(() => {
 import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
-  lstat as lstat4,
+  lstat as lstat5,
   mkdir as mkdir3,
   readFile as readFile3,
-  realpath as realpath2,
+  realpath as realpath3,
   rename as rename2,
-  rm as rm2,
-  writeFile as writeFile2,
+  rm as rm3,
+  writeFile as writeFile3,
 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute2, join as join5, resolve } from 'node:path';
+import { isAbsolute as isAbsolute2, join as join8, resolve } from 'node:path';
 
 function object4(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -3716,18 +5130,18 @@ function inspectActionInvocations(plan, expected) {
 }
 async function privateDirectory(path) {
   await mkdir3(path, { recursive: true, mode: 448 });
-  const stat = await lstat4(path);
+  const stat = await lstat5(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath2(path)) !== path
+    (await realpath3(path)) !== path
   )
     throw new Error('Terraform storage ownership is invalid');
   await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat4(path);
+  const stat = await lstat5(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -3740,7 +5154,7 @@ async function privateRead(path) {
 }
 async function persist(path, value) {
   const temporary = `${path}.new`;
-  await writeFile2(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
+  await writeFile3(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
   await rename2(temporary, path);
 }
 function terraformExecutor(
@@ -3818,9 +5232,9 @@ function terraformExecutor(
       const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
       if (code !== 0 && retainFailure) {
         await privateDirectory(cwd);
-        const directory = join5(cwd, 'failure-diagnostics');
+        const directory = join8(cwd, 'failure-diagnostics');
         await privateDirectory(directory);
-        await persist(join5(directory, `${randomUUID2()}.json`), {
+        await persist(join8(directory, `${randomUUID2()}.json`), {
           schemaVersion: 1,
           observedAt: new Date().toISOString(),
           operation: args[0],
@@ -3876,14 +5290,14 @@ class TerraformRunner {
     )
       throw new Error('Explicit deployment scope is required');
     await privateDirectory(this.root);
-    const directory = join5(this.root, deployment.deploymentId);
+    const directory = join8(this.root, deployment.deploymentId);
     await mkdir3(directory, { mode: 448 });
     const { configuration: source, providerLock, ...identity } = deployment;
     const manifest = { ...identity, configurationSha256: digest2(source), providerLockSha256: digest2(providerLock) };
-    await writeFile2(join5(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
-    await writeFile2(join5(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
-    await writeFile2(join5(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
-    await persist(join5(directory, 'deployment.json'), manifest);
+    await writeFile3(join8(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
+    await writeFile3(join8(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
+    await writeFile3(join8(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
+    await persist(join8(directory, 'deployment.json'), manifest);
     this.#directory = directory;
     this.#manifest = manifest;
   }
@@ -3898,7 +5312,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
-      const configuration = await privateRead(join5(directory, 'main.tf.json'));
+      const configuration = await privateRead(join8(directory, 'main.tf.json'));
       if (digest2(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
       return configuration.toString();
     });
@@ -3907,7 +5321,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
         canonical(receipt) !== canonical(journal.receipt) ||
@@ -3916,12 +5330,12 @@ class TerraformRunner {
         receipt.backendIdentity !== manifest.backendIdentity ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan'))) ||
+        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))) ||
         !/^[a-f0-9]{64}$/.test(evidenceSha256)
       )
         throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
       await this.#replacePrivate(
-        join5(directory, 'plan-receipt.json'),
+        join8(directory, 'plan-receipt.json'),
         JSON.stringify({ state: 'applied', receipt, reconciledEvidenceSha256: evidenceSha256 }),
       );
     });
@@ -3931,12 +5345,12 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-      this.#validateRevision(configuration, (await privateRead(join5(directory, 'main.tf.json'))).toString());
+      this.#validateRevision(configuration, (await privateRead(join8(directory, 'main.tf.json'))).toString());
       const nextSha256 = digest2(configuration);
       if (nextSha256 === expectedSha256) return nextSha256;
       let receipt;
       try {
-        receipt = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+        receipt = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
@@ -3948,7 +5362,7 @@ class TerraformRunner {
         configuration,
         archiveId: randomUUID2(),
       };
-      await this.#replacePrivate(join5(directory, 'configuration-transition.json'), JSON.stringify(transition));
+      await this.#replacePrivate(join8(directory, 'configuration-transition.json'), JSON.stringify(transition));
       await this.#recoverRevision();
       return nextSha256;
     });
@@ -3966,14 +5380,14 @@ class TerraformRunner {
   }
   async #replacePrivate(path, content) {
     const temporary = `${path}.${randomUUID2()}.new`;
-    await writeFile2(temporary, content, { mode: 384, flag: 'wx' });
+    await writeFile3(temporary, content, { mode: 384, flag: 'wx' });
     await rename2(temporary, path);
   }
   async #recoverRevision() {
     const { directory } = this.#state();
     let transition;
     try {
-      transition = decode((await privateRead(join5(directory, 'configuration-transition.json'))).toString());
+      transition = decode((await privateRead(join8(directory, 'configuration-transition.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3990,48 +5404,48 @@ class TerraformRunner {
     )
       throw new Error('Terraform configuration transition is malformed');
     this.#validateRevision(transition.configuration);
-    const owner = decode((await privateRead(join5(directory, 'deployment.json'))).toString());
-    const current = await privateRead(join5(directory, 'main.tf.json'));
+    const owner = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
+    const current = await privateRead(join8(directory, 'main.tf.json'));
     if (
       ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
-      digest2(await privateRead(join5(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
-      digest2(await privateRead(join5(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
+      digest2(await privateRead(join8(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
+      digest2(await privateRead(join8(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
     )
       throw new Error('Terraform configuration transition ownership or inputs changed');
-    const archive = join5(directory, 'revisions', transition.archiveId);
+    const archive = join8(directory, 'revisions', transition.archiveId);
     await privateDirectory(archive);
     const archiveFile = async (name, content) => {
       try {
-        await writeFile2(join5(archive, name), content, { mode: 384, flag: 'wx' });
+        await writeFile3(join8(archive, name), content, { mode: 384, flag: 'wx' });
       } catch (error) {
-        if (error.code !== 'EEXIST' || digest2(await privateRead(join5(archive, name))) !== digest2(content))
+        if (error.code !== 'EEXIST' || digest2(await privateRead(join8(archive, name))) !== digest2(content))
           throw error;
       }
     };
     if (digest2(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
-    if (digest2(await privateRead(join5(archive, 'main.tf.json'))) !== previous.configurationSha256)
+    if (digest2(await privateRead(join8(archive, 'main.tf.json'))) !== previous.configurationSha256)
       throw new Error('Previous Terraform configuration archive is missing');
-    this.#validateRevision(transition.configuration, (await privateRead(join5(archive, 'main.tf.json'))).toString());
+    this.#validateRevision(transition.configuration, (await privateRead(join8(archive, 'main.tf.json'))).toString());
     await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        await archiveFile(name, await privateRead(join5(directory, name)));
+        await archiveFile(name, await privateRead(join8(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
-    await this.#replacePrivate(join5(directory, 'main.tf.json'), transition.configuration);
-    await this.#replacePrivate(join5(directory, 'deployment.json'), JSON.stringify(next));
+    await this.#replacePrivate(join8(directory, 'main.tf.json'), transition.configuration);
+    await this.#replacePrivate(join8(directory, 'deployment.json'), JSON.stringify(next));
     this.#manifest = next;
-    await rm2(join5(directory, 'configuration-transition.json'));
+    await rm3(join8(directory, 'configuration-transition.json'));
   }
   async resume(deploymentId, expected, configurationMode = 'exact') {
     if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
-    const directory = join5(this.root, deploymentId);
+    const directory = join8(this.root, deploymentId);
     await privateDirectory(directory);
-    const manifest = decode((await privateRead(join5(directory, 'deployment.json'))).toString());
+    const manifest = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
     if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
       throw new Error('Terraform deployment ownership is invalid');
     this.#directory = directory;
@@ -4049,7 +5463,7 @@ class TerraformRunner {
       if (canonical(recoveredManifest) !== canonical(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
-        this.#validateRevision((await privateRead(join5(directory, 'main.tf.json'))).toString(), configuration);
+        this.#validateRevision((await privateRead(join8(directory, 'main.tf.json'))).toString(), configuration);
     }
     this.#directory = directory;
     this.#manifest = recoveredManifest;
@@ -4062,12 +5476,12 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat4(join5(this.#directory, 'configuration-transition.json'));
+      await lstat5(join8(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    const owner = decode((await privateRead(join5(this.#directory, 'deployment.json'))).toString());
+    const owner = decode((await privateRead(join8(this.#directory, 'deployment.json'))).toString());
     if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
@@ -4075,7 +5489,7 @@ class TerraformRunner {
       ['.terraform.lock.hcl', this.#manifest.providerLockSha256],
       ['deployment.tfrc', digest2(cliConfig)],
     ]) {
-      if (digest2(await privateRead(join5(this.#directory, file))) !== expected)
+      if (digest2(await privateRead(join8(this.#directory, file))) !== expected)
         throw new Error('Terraform configuration or provider lock changed');
     }
   }
@@ -4083,8 +5497,8 @@ class TerraformRunner {
     const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => !key.startsWith('TF_')));
     return {
       ...env,
-      TF_CLI_CONFIG_FILE: join5(this.#state().directory, 'deployment.tfrc'),
-      TF_DATA_DIR: join5(this.#state().directory, '.terraform'),
+      TF_CLI_CONFIG_FILE: join8(this.#state().directory, 'deployment.tfrc'),
+      TF_DATA_DIR: join8(this.#state().directory, '.terraform'),
       TF_IN_AUTOMATION: '1',
       TF_INPUT: '0',
       TF_WORKSPACE: 'default',
@@ -4100,7 +5514,7 @@ class TerraformRunner {
     if (this.#busy) throw new Error('Terraform deployment operation is already running');
     if (!this.#directory) throw new Error('Prepare or resume the deployment first');
     this.#busy = true;
-    const lock = join5(this.#directory, '.runner-lock');
+    const lock = join8(this.#directory, '.runner-lock');
     let release;
     try {
       release = await acquireProcessLock(lock);
@@ -4115,24 +5529,24 @@ class TerraformRunner {
     const files = new Map();
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        files.set(name, await privateRead(join5(directory, name)));
+        files.set(name, await privateRead(join8(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
     if (!files.size) return;
     for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
-      files.set(name, await privateRead(join5(directory, name)));
+      files.set(name, await privateRead(join8(directory, name)));
     const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest2(bytes)])));
-    const archive = join5(directory, 'plan-history', digest2(inventory));
+    const archive = join8(directory, 'plan-history', digest2(inventory));
     await privateDirectory(archive);
     files.set('inventory.json', Buffer.from(inventory));
     for (const [name, bytes] of files) {
       try {
-        await writeFile2(join5(archive, name), bytes, { mode: 384, flag: 'wx' });
+        await writeFile3(join8(archive, name), bytes, { mode: 384, flag: 'wx' });
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
-        if (digest2(await privateRead(join5(archive, name))) !== digest2(bytes))
+        if (digest2(await privateRead(join8(archive, name))) !== digest2(bytes))
           throw new Error('Terraform plan history differs');
       }
     }
@@ -4224,19 +5638,19 @@ class TerraformRunner {
         backendIdentity: manifest.backendIdentity,
         configurationSha256: manifest.configurationSha256,
         providerLockSha256: manifest.providerLockSha256,
-        planSha256: digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan'))),
+        planSha256: digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))),
         changes,
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
         ...(destroy ? { operation: 'destroy' } : {}),
       };
-      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
+      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
       return receipt;
     });
   }
   async #assertActionUnsubmitted() {
     try {
-      await privateRead(join5(this.#state().directory, 'action-attempt.json'));
+      await privateRead(join8(this.#state().directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -4247,7 +5661,7 @@ class TerraformRunner {
     const directory = this.#state().directory;
     let journal;
     try {
-      journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+      journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -4256,10 +5670,10 @@ class TerraformRunner {
     const actions = object4(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
-      await privateRead(join5(directory, 'action-attempt.json'));
+      await privateRead(join8(directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      await persist(join5(directory, 'action-attempt.json'), {
+      await persist(join8(directory, 'action-attempt.json'), {
         schemaVersion: 1,
         legacyJournalState: journal.state,
         receipt: journal.receipt,
@@ -4277,7 +5691,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       const receipt = object4(journal.receipt);
       if (
         !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
@@ -4303,7 +5717,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'applied' ||
         canonical(journal.receipt) !== canonical(receipt) ||
@@ -4312,7 +5726,7 @@ class TerraformRunner {
         receipt.backendIdentity !== manifest.backendIdentity ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
       )
         throw new Error('Exact applied Terraform receipt required for ownership capture');
     });
@@ -4369,12 +5783,12 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
         canonical(journal.receipt) !== canonical(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
       )
         throw new Error('Terraform identity inspection saved plan differs');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -4431,7 +5845,7 @@ class TerraformRunner {
         }
         result[address] = selected;
       }
-      if (receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
       return result;
     });
@@ -4439,7 +5853,7 @@ class TerraformRunner {
   async apply(receipt, env, signal) {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
-      const journal = decode((await privateRead(join5(this.#state().directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join8(this.#state().directory, 'plan-receipt.json'))).toString());
       if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
       if (
         canonical(receipt) !== canonical(journal.receipt) ||
@@ -4447,7 +5861,7 @@ class TerraformRunner {
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
         receipt.providerLockSha256 !== this.#state().manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan')))
       )
         throw new Error('Terraform saved-plan receipt does not match');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -4459,19 +5873,19 @@ class TerraformRunner {
       if (expectedActions.length) validateActionIntent(expectedActions[0]);
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
       inspectActionInvocations(plan, expectedActions[0]);
-      if (receipt.planSha256 !== digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
       if (expectedActions.length) {
         await this.#assertActionUnsubmitted();
-        await persist(join5(this.#state().directory, 'action-attempt.json'), {
+        await persist(join8(this.#state().directory, 'action-attempt.json'), {
           schemaVersion: 1,
           submittedAt: new Date().toISOString(),
           receipt,
         });
       }
-      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
+      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
-      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
     });
   }
 }
@@ -4491,7 +5905,7 @@ var init_runner = __esm(() => {
 });
 
 // plugins/terraform/src/service.ts
-import { join as join6 } from 'node:path';
+import { join as join9 } from 'node:path';
 
 function createCeTerraformService(platform) {
   return {
@@ -4512,7 +5926,7 @@ function createCeTerraformService(platform) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
-        deployment.stage ? join6(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+        deployment.stage ? join9(store.directory, 'terraform-stages', deployment.stage) : store.directory,
       );
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
@@ -4574,178 +5988,6 @@ function createCeTerraformService(platform) {
 }
 var init_service2 = __esm(() => {
   init_runner();
-});
-
-// plugins/gcloud/src/ce/compute-plan.ts
-function assertComputeOnly(intent) {
-  if (
-    intent.ingress.profile !== 'none' ||
-    intent.routing.profile !== 'static-insertion' ||
-    intent.routing.destinationCidrs.length !== 0
-  )
-    throw new Error('Compute translation cannot configure ingress or destination routes');
-}
-function translateGcpTerraformCompute(intent, googleProviderVersion) {
-  validateIntent(intent);
-  if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
-  if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
-  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
-    throw new Error('Compute candidate supports external-IP deployment only');
-  assertComputeOnly(intent);
-  const networks = {},
-    subnets = {},
-    instances = {};
-  const variable = {};
-  for (const site of intent.sites)
-    for (const node of site.nodes) {
-      for (const nic of node.interfaces) {
-        networks[nic.network.replaceAll('-', '_')] = {
-          name: nic.network,
-          project: intent.project,
-          auto_create_subnetworks: false,
-          routing_mode: 'REGIONAL',
-        };
-        const key = nic.subnet.replaceAll('-', '_');
-        const subnet = {
-          name: nic.subnet,
-          project: intent.project,
-          region: intent.region,
-          ip_cidr_range: nic.cidr,
-          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
-        };
-        if (subnets[key] && fingerprint(subnets[key]) !== fingerprint(subnet))
-          throw new Error('Subnet identity has conflicting intent');
-        subnets[key] = subnet;
-      }
-      const key = node.name.replaceAll('-', '_');
-      variable[`${key}_user_data`] = {
-        type: 'string',
-        sensitive: true,
-        description: 'Restricted node-bound one-use bootstrap; never export as an output',
-      };
-      instances[key] = {
-        name: node.name,
-        project: intent.project,
-        zone: node.zone,
-        machine_type: intent.machineType,
-        can_ip_forward: true,
-        boot_disk: [
-          {
-            auto_delete: true,
-            initialize_params: [{ image: intent.image.selfLink, size: intent.diskGiB, type: 'pd-balanced' }],
-          },
-        ],
-        network_interface: node.interfaces.map((nic) => ({
-          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
-          subnetwork: `\${google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}.id}`,
-          ...(nic.index === 0 ? { access_config: [{}] } : {}),
-        })),
-        labels: {
-          'xcsh-deployment': intent.deploymentName,
-          'xcsh-engine': 'terraform',
-          'xcsh-site': site.name,
-          'xcsh-node': node.name,
-        },
-        metadata: { VmDnsSetting: 'ZonePreferred', 'user-data': `\${var.${key}_user_data}` },
-      };
-    }
-  return {
-    schemaVersion: 1,
-    engine: 'terraform',
-    executable: false,
-    configuration: {
-      terraform: {
-        required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
-      },
-      provider: { google: [{ project: intent.project, region: intent.region }] },
-      variable,
-      resource: {
-        google_compute_network: networks,
-        google_compute_subnetwork: subnets,
-        google_compute_instance: instances,
-      },
-    },
-  };
-}
-function translateGcpTerraformSiteCompute(intent, versions) {
-  for (const version of Object.values(versions))
-    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
-  const cloud = translateGcpTerraformCompute(intent, versions.google);
-  const sites = {};
-  const tokens = {};
-  const instances = cloud.configuration.resource.google_compute_instance;
-  for (const site of intent.sites) {
-    const siteKey = site.name.replaceAll('-', '_');
-    sites[siteKey] = {
-      name: site.name,
-      namespace: 'system',
-      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
-      gcp: { not_managed: {} },
-      ...(intent.initialVersions
-        ? {
-            software_settings: {
-              sw: { volterra_software_version: intent.initialVersions.software },
-              os: { operating_system_version: intent.initialVersions.os },
-            },
-          }
-        : {}),
-      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
-      disable_management_network: {},
-      block_all_services: {},
-      no_network_policy: {},
-      no_forward_proxy: {},
-      f5_proxy: {},
-      no_proxy_bypass: {},
-      logs_streaming_disabled: {},
-      no_s2s_connectivity_sli: {},
-      no_s2s_connectivity_slo: {},
-      disable_url_categorization: {},
-      local_vrf: { default_config: {}, default_sli_config: {} },
-    };
-    for (const node of site.nodes) {
-      const key = node.name.replaceAll('-', '_');
-      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
-      tokens[key] = {
-        name: `${node.name}-token`,
-        namespace: 'system',
-        type: 1,
-        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
-        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
-      };
-      const userData = `#cloud-config
-write_files:
-  - path: /etc/vpm/user_data
-    permissions: "0600"
-    owner: root
-    content: |
-      token: \${xcsh_token.${key}.content}
-`;
-      instances[key].metadata = {
-        VmDnsSetting: 'ZonePreferred',
-        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
-      };
-    }
-  }
-  return {
-    schemaVersion: 1,
-    engine: 'terraform',
-    executable: false,
-    configuration: {
-      terraform: {
-        required_version: `= ${versions.terraform}`,
-        required_providers: {
-          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
-          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
-        },
-      },
-      provider: { ...cloud.configuration.provider, xcsh: [{}] },
-      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
-    },
-  };
-}
-var init_compute_plan = __esm(() => {
-  init_discovery();
-  init_validation();
 });
 
 // plugins/gcloud/src/ce/funding-session.ts
@@ -4981,7 +6223,7 @@ var init_terraform_admission = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/terraform-teardown.ts
-import { join as join7 } from 'node:path';
+import { join as join10 } from 'node:path';
 
 function addresses(intent) {
   const site = intent.sites[0],
@@ -5166,7 +6408,7 @@ async function planGcpTerraformTeardown(runtime, intent, contract, policy, signa
   assertGcpTeardownProfile(intent, contract, 'terraform');
   assertGcpTeardownPolicyFresh(policy);
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join7(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(runtime.store, intent);
     assertGcpTeardownTopology(intent, resources);
@@ -5202,7 +6444,7 @@ async function applyGcpTerraformTeardown(runtime, intent, contract, policy, appr
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact Terraform teardown review required');
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join7(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const plan = await runtime.store.read(`gcp-tf-reviewed-${approvedHash.slice(7)}.json`);
     const { planHash, ...body } = plan;
@@ -5304,7 +6546,7 @@ var init_terraform_teardown = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join8 } from 'node:path';
+import { join as join11 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -5353,11 +6595,11 @@ function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Return a non-executable deployment readiness plan, or an exact owning-engine teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
+      'Review a native single-node BYOL deployment when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Without an operation, returns non-executable readiness.',
     ],
     [
       'gcp_ce_apply',
-      'Apply an exact reviewed owning-engine single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Terraform requires original Platform identity and saved-plan ledgers. Other mutations report unavailable.',
+      'Apply or resume an exact reviewed native single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform deployment remains unavailable. Cloud creation does not imply registration, health or traffic.',
     ],
     [
       'gcp_ce_status',
@@ -5398,10 +6640,14 @@ function createGcpCeTools(
         }),
       ),
       operation: Type.Optional(
-        Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
+        Type.Union([Type.Literal('deploy'), Type.Literal('teardown')], {
+          description: 'Explicit reviewed deployment or owned teardown lifecycle',
+        }),
       ),
       approvedPlanHash: Type.Optional(
-        Type.String({ description: 'Exact SHA-256 of the saved teardown or agreement plan approved for execution' }),
+        Type.String({
+          description: 'Exact SHA-256 of the saved deployment, teardown or agreement plan approved for execution',
+        }),
       ),
       agreement: Type.Optional(
         Type.String({
@@ -5426,6 +6672,48 @@ function createGcpCeTools(
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'deploy') {
+          const intent = params.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.engine !== (params.engine ?? 'native') ||
+            intent.operation !== 'deploy' ||
+            (params.deploymentName !== undefined && params.deploymentName !== intent.deploymentName) ||
+            (params.platformContext !== undefined && params.platformContext !== intent.platformContext)
+          )
+            throw new Error('Explicit deployment intent scope required');
+          validateIntent(intent);
+          if (intent.engine !== 'native') throw new Error('Public Terraform deployment qualification unavailable');
+          if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
+            throw new Error('Planning tool cannot apply authorization');
+          if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
+            throw new Error('Exact reviewed deployment hash required');
+          const platform = await getPlatform();
+          const sources = createGcpDeploymentSources(platform, api);
+          sources.contract = (signal) => contract(undefined, signal);
+          sources.policy = policy;
+          sources.preflight = (intent, signal) =>
+            preflight(intent, createGcpPreflightPort(api, intent.project), signal);
+          sources.funding = (intent, signal) => funding(api, intent.project, signal);
+          if (tool === 'gcp_ce_apply') {
+            const evidence = await applyGcpDeploymentReview(
+              platform,
+              api,
+              intent,
+              params.approvedPlanHash,
+              sources,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(tool, { availability: 'native-deployment', ...evidence, mutationAttempted });
+          }
+          const plan = await planGcpDeploymentReview(platform, api, intent, sources, signal);
+          return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+        }
         if (tool === 'gcp_marketplace_agreement') {
           const intent = params.intent;
           if (
@@ -5455,7 +6743,7 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join8(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join11(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
             if (intent.image.name.endsWith('-byol') && !params.agreement) {
@@ -5793,7 +7081,9 @@ function createGcpCeTools(
             reason: mutationAttempted
               ? tool === 'gcp_marketplace_agreement'
                 ? 'consent_requires_reconciliation'
-                : 'teardown_requires_reconciliation'
+                : params.operation === 'deploy'
+                  ? 'deployment_requires_reconciliation'
+                  : 'teardown_requires_reconciliation'
               : error instanceof GcpMarketplaceUnavailable
                 ? error.reason
                 : 'validation_or_read_failed',
@@ -5813,6 +7103,7 @@ var init_gcp_ce = __esm(() => {
   init_byol_terms();
   init_contract();
   init_corporate_funding();
+  init_deployment_review();
   init_deployment_teardown();
   init_discovery();
   init_marketplace_agreement();

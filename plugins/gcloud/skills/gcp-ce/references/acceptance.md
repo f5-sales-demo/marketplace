@@ -1,8 +1,9 @@
 # GCP installed and live acceptance
 
-Current status: discovery/readiness, owned observations and narrow native teardown.
-Native and Terraform deployment,
-bootstrap, upgrades, repair, replacement, failover, interruption recovery,
+Current status: discovery/readiness, owned observations and narrow typed teardown.
+Native public single-node deployment plan/apply has an implementation candidate;
+its fresh installed/live acceptance remains pending. Terraform deployment,
+upgrades, repair, replacement, failover, full interruption recovery,
 restoration remain unavailable through public tools. Terraform teardown has a
 qualified owning-engine plan/apply path for the same narrow disposable profile.
 Full parity is unclaimed.

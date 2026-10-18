@@ -61,10 +61,11 @@ observes F5 image/license identities and cloud prerequisites, and `gcp_ce_plan`
 validates topology and sizing with a hashed readiness plan. Native is the default;
 an explicit Terraform choice must match the intent.
 
-The plan contains no executable actions. Immutable API v12.1.3 includes GCP
+Readiness without an explicit operation contains no executable actions. Immutable API v12.1.3 includes GCP
 schema and observational mappings with both-engine single-node boot evidence.
-Public deployment, upgrade and failover remain unavailable
-pending full integration. Their tools report these gaps before mutation.
+Explicit `operation=deploy` provides a native single-node BYOL implementation candidate;
+fresh public installed/live acceptance remains pending. Terraform deployment,
+upgrade and failover report unavailable before mutation.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
 remain separate unknown gates. Deployment labels alone cannot authorize deletion.
@@ -74,6 +75,17 @@ readiness plans collect live IAM, quota, effective policy, zone and image/licens
 checks. They retain sanitized source hashes and reject stale evidence or a changed
 intent. Capacity reservation and verified Marketplace acceptance remain explicit;
 passing cloud prerequisites alone does not enable deployment.
+
+For the native candidate, complete the BYOL review and request `gcp_ce_plan` with
+`operation=deploy` and the exact intent. The saved overall plan binds the immutable
+API, current policy, exact image/license and translation, server-collected preflight,
+corporate funding and original BYOL authorization. Review that plan, then call
+`gcp_ce_apply` with the same intent, operation and its `approvedPlanHash`. Reuse the
+hash when asynchronous creation remains pending. Resume rechecks current image,
+APIs, permissions, policy, zone, funding and documents, while allowing quota used by
+the deployment itself. Cloud creation remains separate from registration, NIC
+identity, platform health and traffic. The candidate supports one node, two NICs,
+external-IP egress, no ingress and no destination routes.
 
 `gcp_marketplace_agreement` reviews the pinned image's product terms. For the
 qualified BYOL image, supply the versioned intent, review the exact Google

@@ -46,9 +46,17 @@ Read [provider contract](references/provider-contract.md) before planning and
    node; one node and three HA nodes are distinct topologies. NIC zero is SLO;
    each NIC requires a distinct VPC and non-overlapping subnet. HA uses identical
    NIC order and VRFs. Minimum sizing is 8 vCPUs, 32 GiB RAM and 80 GiB disk.
-4. The current plan is non-executable. Report its unavailable gates. Do not use
-   `gcloud_exec`, CLI commands, Terraform or generic Platform tools to bypass it.
-   Deployment apply, upgrade and failover tools report unavailable before mutation.
+4. Without an explicit operation, the plan is non-executable readiness. Use
+   `operation=deploy` for the native single-node BYOL candidate: two interfaces,
+   `n2-standard-8`, external-IP egress, no ingress and no destination routes.
+   It collects prerequisites itself and persists intent, image/license, translation,
+   immutable API, current policy, corporate funding and BYOL authorization under
+   the overall `planHash`. Review it before supplying that exact `approvedPlanHash`
+   and unchanged intent to `gcp_ce_apply` with `operation=deploy`. Resume with the
+   same hash; cloud creation does not establish registration, health or traffic.
+   Public native deployment installed/live acceptance remains pending. Terraform
+   deployment, HA, upgrade and failover remain unavailable. Do not bypass an
+   unavailable gate with generic CLI, Terraform or Platform tools.
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
    `platformContext` use the shared Platform service and exact ledger topology to
@@ -61,7 +69,9 @@ Read [provider contract](references/provider-contract.md) before planning and
    saved plan, then supply its exact `approvedPlanHash` to `gcp_ce_apply` with
    `operation=teardown`. The supported profile has two interfaces, external IP
    egress, no ingress and no destination routes. Six exact cloud ledger identities
-   and the owned site/token binding are required. Authorization survives
+   and the owned site/token binding are required for complete deployments. Native
+   interrupted creation can review completed journal resources; ambiguous
+   submissions require reconciliation before cleanup. Authorization survives
    interruption; changed identities and reappeared objects fail closed. Explicit
    Terraform selection uses the candidate saved-plan teardown path. It requires
    stored session inputs and original Platform identity recorded after the exact

@@ -4864,13 +4864,14 @@ class GcpPlatformLifecycle {
     signal?.throwIfAborted();
     if (!/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)) throw new Error('Invalid bound token name');
     const checkpoint = await this.#checkpoint();
-    if (!checkpoint?.uid) throw new Error('Exact owned site checkpoint required for teardown');
     const site = await this.port.read(this.#path(), signal);
-    if (site && checkpoint.state === 'absent') throw new Error('Deleted GCP site reappeared');
-    if (site && this.#owned(site) !== checkpoint.uid) throw new Error('GCP teardown site was replaced');
+    if (site && !checkpoint?.uid) throw new Error('Exact owned site checkpoint required for teardown');
+    if (site && checkpoint?.state === 'absent') throw new Error('Deleted GCP site reappeared');
+    if (site && this.#owned(site) !== checkpoint?.uid) throw new Error('GCP teardown site was replaced');
     const value = await this.port.read(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
     let tokenIdentityHash;
     if (value) {
+      if (!checkpoint?.uid) throw new Error('Exact owned site checkpoint required for token teardown');
       let revoked;
       try {
         revoked = await this.store.read(`gcp-token-revoke-${tokenName}.json`);
@@ -4898,7 +4899,7 @@ class GcpPlatformLifecycle {
     }
     return {
       siteName: this.#site,
-      siteUid: checkpoint.uid,
+      siteUid: checkpoint?.uid,
       tokenName,
       tokenIdentityHash,
       siteAbsent: site === null,

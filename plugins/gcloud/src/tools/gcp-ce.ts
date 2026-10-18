@@ -9,6 +9,7 @@ import {
 } from '../ce/byol-terms';
 import { resolveGcpContract } from '../ce/contract';
 import { collectCurrentGcpCorporateFunding } from '../ce/corporate-funding';
+import { applyGcpDeploymentReview, createGcpDeploymentSources, planGcpDeploymentReview } from '../ce/deployment-review';
 import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../ce/deployment-teardown';
 import { discoverGcp } from '../ce/discovery';
 import { applyGcpMarketplaceAcceptance, planGcpMarketplaceAcceptance } from '../ce/marketplace-agreement';
@@ -85,11 +86,11 @@ export function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Return a non-executable deployment readiness plan, or an exact owning-engine teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
+      'Review a native single-node BYOL deployment when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Without an operation, returns non-executable readiness.',
     ],
     [
       'gcp_ce_apply',
-      'Apply an exact reviewed owning-engine single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Terraform requires original Platform identity and saved-plan ledgers. Other mutations report unavailable.',
+      'Apply or resume an exact reviewed native single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform deployment remains unavailable. Cloud creation does not imply registration, health or traffic.',
     ],
     [
       'gcp_ce_status',
@@ -130,10 +131,14 @@ export function createGcpCeTools(
         }),
       ),
       operation: Type.Optional(
-        Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
+        Type.Union([Type.Literal('deploy'), Type.Literal('teardown')], {
+          description: 'Explicit reviewed deployment or owned teardown lifecycle',
+        }),
       ),
       approvedPlanHash: Type.Optional(
-        Type.String({ description: 'Exact SHA-256 of the saved teardown or agreement plan approved for execution' }),
+        Type.String({
+          description: 'Exact SHA-256 of the saved deployment, teardown or agreement plan approved for execution',
+        }),
       ),
       agreement: Type.Optional(
         Type.String({
@@ -159,7 +164,7 @@ export function createGcpCeTools(
         platformContext?: string;
         engine?: GcpCeEngine;
         intent?: GcpCeIntent;
-        operation?: 'teardown';
+        operation?: 'deploy' | 'teardown';
         approvedPlanHash?: string;
         agreement?: string;
         agreementDocument?: string;
@@ -176,6 +181,48 @@ export function createGcpCeTools(
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'deploy') {
+          const intent = params.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.engine !== (params.engine ?? 'native') ||
+            intent.operation !== 'deploy' ||
+            (params.deploymentName !== undefined && params.deploymentName !== intent.deploymentName) ||
+            (params.platformContext !== undefined && params.platformContext !== intent.platformContext)
+          )
+            throw new Error('Explicit deployment intent scope required');
+          validateIntent(intent);
+          if (intent.engine !== 'native') throw new Error('Public Terraform deployment qualification unavailable');
+          if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
+            throw new Error('Planning tool cannot apply authorization');
+          if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
+            throw new Error('Exact reviewed deployment hash required');
+          const platform = await getPlatform();
+          const sources = createGcpDeploymentSources(platform, api);
+          sources.contract = (signal) => contract(undefined, signal);
+          sources.policy = policy;
+          sources.preflight = (intent, signal) =>
+            preflight(intent, createGcpPreflightPort(api, intent.project), signal);
+          sources.funding = (intent, signal) => funding(api, intent.project, signal);
+          if (tool === 'gcp_ce_apply') {
+            const evidence = await applyGcpDeploymentReview(
+              platform,
+              api,
+              intent,
+              params.approvedPlanHash as string,
+              sources,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(tool, { availability: 'native-deployment', ...evidence, mutationAttempted });
+          }
+          const plan = await planGcpDeploymentReview(platform, api, intent, sources, signal);
+          return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+        }
         if (tool === 'gcp_marketplace_agreement') {
           const intent = params.intent;
           if (
@@ -547,7 +594,9 @@ export function createGcpCeTools(
             reason: mutationAttempted
               ? tool === 'gcp_marketplace_agreement'
                 ? 'consent_requires_reconciliation'
-                : 'teardown_requires_reconciliation'
+                : params.operation === 'deploy'
+                  ? 'deployment_requires_reconciliation'
+                  : 'teardown_requires_reconciliation'
               : error instanceof GcpMarketplaceUnavailable
                 ? error.reason
                 : 'validation_or_read_failed',

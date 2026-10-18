@@ -2,8 +2,10 @@ import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { GcloudExecApi } from '../gcloud/exec';
+import { translateGcpNativeCompute } from './compute-plan';
 import { GCP_CE_API_RELEASE, type GcpCeContractBoundary } from './contract';
 import { fingerprint } from './discovery';
+import type { GcpOperationStore } from './native-operation';
 import { applyGcpNativeTeardown } from './native-teardown';
 import {
   assertGcpResourceOwnership,
@@ -81,6 +83,58 @@ export function assertGcpTeardownTopology(intent: GcpCeIntent, resources: GcpRes
   )
     throw new Error('Complete disposable teardown topology required');
 }
+/** Partial cleanup requires an unambiguous completed creation journal, never labels or inferred adoption. */
+async function assertNativeCleanupTopology(
+  store: GcpOperationStore,
+  intent: GcpCeIntent,
+  resources: GcpResourceIdentity[],
+) {
+  if (resources.length === 6) return assertGcpTeardownTopology(intent, resources);
+  const cloud = translateGcpNativeCompute(intent);
+  const checkpoint = (await store.read(`gcp-create-${cloud.sha256.slice(7)}.json`)) as {
+    planHash?: string;
+    actions?: Record<string, { state?: string }>;
+  };
+  if (
+    checkpoint.planHash !== cloud.sha256 ||
+    !checkpoint.actions ||
+    !resources.length ||
+    Object.entries(checkpoint.actions).some(
+      ([id, action]) => action.state !== 'done' || !cloud.actions.some((a) => a.id === id),
+    )
+  )
+    throw new Error('Partial cleanup requires reconciled creation journal');
+  const node = intent.sites[0].nodes[0];
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const expected = cloud.actions
+    .filter((action) => checkpoint.actions?.[action.id]?.state === 'done')
+    .map((action) => {
+      if (action.dependencies.some((id) => checkpoint.actions?.[id]?.state !== 'done'))
+        throw new Error('Creation journal dependency differs');
+      const name = action.argv[action.kind === 'subnetwork' ? 4 : 3];
+      const scope =
+        action.kind === 'instance'
+          ? `zones/${node.zone}/instances`
+          : action.kind === 'network'
+            ? 'global/networks'
+            : `regions/${intent.region}/subnetworks`;
+      return `${prefix}/${scope}/${name}`;
+    });
+  const disks = resources.filter((resource) => resource.kind === 'disk');
+  const hasInstance = expected.includes(`${prefix}/zones/${node.zone}/instances/${node.name}`);
+  if (
+    disks.length !== (hasInstance ? 1 : 0) ||
+    resources.length !== expected.length + disks.length ||
+    expected.some((link) => resources.filter((resource) => resource.selfLink === link).length !== 1) ||
+    disks.some(
+      (disk) =>
+        disk.nodeName !== node.name ||
+        disk.siteName !== intent.sites[0].name ||
+        !disk.selfLink.startsWith(`${prefix}/zones/${node.zone}/disks/`),
+    )
+  )
+    throw new Error('Partial cleanup ledger differs from completed creation journal');
+}
 export async function observeGcpTeardownResource(
   api: GcloudExecApi,
   resource: GcpResourceIdentity,
@@ -142,7 +196,7 @@ export async function planGcpDeploymentTeardown(
   if (!platform.gcpLifecycle) throw new Error('Qualified shared teardown lifecycle unavailable');
   const store = await storage(platform, intent),
     resources = await readGcpResourceInventory(store, intent);
-  assertGcpTeardownTopology(intent, resources);
+  await assertNativeCleanupTopology(store, intent, resources);
   const cloud = planGcpOwnedTeardown(resources, {
     project: intent.project,
     region: intent.region,
@@ -239,7 +293,7 @@ export async function applyGcpDeploymentTeardown(
   const release = await acquireProcessLock(join(store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(store, intent);
-    assertGcpTeardownTopology(intent, resources);
+    await assertNativeCleanupTopology(store, intent, resources);
     if (
       fingerprint(plan.cloud.resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink))) !==
       fingerprint(resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink)))

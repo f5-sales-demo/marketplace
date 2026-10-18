@@ -5,6 +5,38 @@ import { fingerprint } from '../../src/ce/discovery';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
 
+it('public deploy rejects wrong scope, engine and missing review before cloud access', async () => {
+  let calls = 0;
+  const tools = createGcpCeTools(
+    { typebox: { Type } },
+    () => ({
+      exec: async () => {
+        calls++;
+        throw new Error('must not execute');
+      },
+    }),
+    undefined,
+    async () => {
+      calls++;
+      throw new Error('must not open');
+    },
+  );
+  const i = structuredClone(intent());
+  i.routing.destinationCidrs = [];
+  for (const parameters of [
+    { project: i.project, region: i.region, operation: 'deploy' as const, intent: i },
+    { project: i.project, region: i.region, operation: 'deploy' as const, intent: i, engine: 'terraform' as const },
+    { project: i.project, region: i.region, operation: 'deploy' as const, intent: i, deploymentName: 'foreign' },
+  ]) {
+    const result = await tools
+      .find((tool) => tool.name === 'gcp_ce_apply')
+      ?.execute('id', parameters, undefined, null, { cwd: '/tmp' });
+    expect(result?.isError).toBe(true);
+    expect(result?.details.mutationAttempted).toBe(false);
+  }
+  expect(calls).toBe(0);
+});
+
 it('typed status refuses wrong persisted context before cloud or platform observations', async () => {
   const i = intent();
   let reads = 0;
