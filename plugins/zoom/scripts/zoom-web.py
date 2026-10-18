@@ -4,12 +4,16 @@
 """Zoom Web substrate; no software installation, physical media or recording."""
 
 import argparse
+import contextlib
 import json
 import os
 import re
 import shutil
 import socket
 import subprocess
+import sys
+import time
+import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -137,10 +141,13 @@ def join(target):
             "--ozone-platform=wayland",
             "--no-first-run",
             "--no-default-browser-check",
+            # Acknowledge capture permission in this owned profile. The injected
+            # guard forces real virtual devices; no fake capture device is used.
+            "--use-fake-ui-for-media-stream",
             "--user-data-dir=" + str(profile),
             "--remote-debugging-address=127.0.0.1",
             "--remote-debugging-port=" + str(port),
-            "--app=" + url,
+            "--app=about:blank",
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -151,6 +158,31 @@ def join(target):
         json.dumps({"port": port, "pid": process.pid, "profile": str(profile)})
     )
     state.chmod(0o600)
+    ready_file = runtime / "pi-zoom-web-guard-ready"
+    ready_file.unlink(missing_ok=True)
+    (runtime / "pi-zoom-web-guard-error").unlink(missing_ok=True)
+    worker = subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "_guard"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    if worker.stdin is None:
+        message = "Browser guard input unavailable"
+        raise ValueError(message)
+    worker.stdin.write(url.encode())
+    worker.stdin.close()
+    deadline = time.monotonic() + 45
+    while not ready_file.exists():
+        if worker.poll() is not None or time.monotonic() >= deadline:
+            process.terminate()
+            if worker.poll() is None:
+                worker.terminate()
+                worker.wait(timeout=5)
+            message = "Persistent browser guard startup failed"
+            raise ValueError(message)
+        time.sleep(0.2)
     return {
         "exitCode": 0,
         "backend": "zoom-web",
@@ -197,14 +229,11 @@ def owned_browser_state():
     return selected
 
 
-def observe_or_control(action, requested=None):
-    """Observe the owned Zoom browser and use visible semantic controls only."""
-    selected = owned_browser_state()
-    port = selected["port"]
+def playwright_runtime():
+    """Use the image's baked environment without runtime installation."""
     # pylint: disable=import-outside-toplevel
     # The image ships the dependency environment; this system-Python launcher
     # uses it explicitly without downloading anything during activation.
-    import sys  # noqa: PLC0415
 
     if Path("/etc/pi-desktop/desktop-lock.json").is_file():
         sys.path[:0] = [
@@ -215,7 +244,77 @@ def observe_or_control(action, requested=None):
         ]
     from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
-    with sync_playwright() as playwright:
+    return sync_playwright
+
+
+def initialize_browser(url, persistent=False):
+    """Install the virtual-device guard before loading any Zoom code."""
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            selected = owned_browser_state()
+            break
+        except (ValueError, OSError):
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.2)
+    endpoint = f"http://127.0.0.1:{selected['port']}"
+    while True:
+        try:
+            with urllib.request.urlopen(endpoint + "/json/version", timeout=1):  # noqa: S310 - fixed loopback HTTP endpoint
+                break
+        except OSError:
+            if time.monotonic() >= deadline:
+                message = "Owned Chrome startup deadline exceeded"
+                raise ValueError(message) from None
+            time.sleep(0.2)
+    with playwright_runtime()() as playwright:
+        browser = playwright.chromium.connect_over_cdp(endpoint, timeout=10000)
+        try:
+            context = browser.contexts[0]
+            origin = urlparse(url)
+            context.grant_permissions(
+                ["camera", "microphone"], origin=f"https://{origin.hostname}"
+            )
+            guard = Path(__file__).with_name("virtual-media-guard.js").read_text()
+            page = context.pages[0]
+            context.add_init_script(guard)
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            final = urlparse(page.url)
+            if not final.hostname or not (
+                final.hostname == "zoom.us" or final.hostname.endswith(".zoom.us")
+            ):
+                message = "Zoom navigation left the permitted origin"
+                raise ValueError(message)
+            context.grant_permissions(
+                ["camera", "microphone"], origin=f"https://{final.hostname}"
+            )
+            page.evaluate(guard)
+            if page.evaluate("window.__piZoomMediaGuard?.version") != 1:
+                message = "Virtual media guard did not initialize"
+                raise ValueError(message)
+            if persistent:
+                ready = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-ready"
+                ready.write_text("ready")
+                ready.chmod(0o600)
+                while browser.is_connected() and not page.is_closed():
+                    page.wait_for_timeout(1000)
+        finally:
+            if persistent:
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(selected["pid"], 15)
+            browser.close()
+
+
+def observe_or_control(action, requested=None):
+    """Observe the owned Zoom browser and use visible semantic controls only."""
+    selected = owned_browser_state()
+    runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+    if not (runtime / "pi-zoom-web-guard-ready").is_file():
+        message = "Owned virtual media guard is unavailable"
+        raise ValueError(message)
+    port = selected["port"]
+    with playwright_runtime()() as playwright:
         browser = playwright.chromium.connect_over_cdp(
             f"http://127.0.0.1:{port}", timeout=10000
         )
@@ -234,6 +333,9 @@ def observe_or_control(action, requested=None):
                 message = "One owned Zoom page required"
                 raise ValueError(message)
             page = pages[0]
+            if page.evaluate("window.__piZoomMediaGuard?.version") != 1:
+                message = "Owned virtual media guard is unavailable"
+                raise ValueError(message)
             controls = page.get_by_role("button").evaluate_all(
                 "els=>els.filter(e=>e.getBoundingClientRect().width&&e.getBoundingClientRect().height).map(e=>({name:e.getAttribute('aria-label')||e.innerText,pressed:e.getAttribute('aria-pressed')}))"
             )
@@ -256,19 +358,28 @@ def observe_or_control(action, requested=None):
                 if requested not in ("on", "off"):
                     message = "Explicit on/off state required"
                     raise ValueError(message)
-                # Enabling media is withheld until device-selection acceptance exists.
                 if requested == "on":
-                    return {
-                        "exitCode": 1,
-                        "error": "virtual_device_selection_not_qualified",
-                        "recording": False,
-                    }
+                    inventory = page.evaluate("window.__piZoomMediaGuard?.inventory()")
+                    required = "videoinput" if action == "video" else "audioinput"
+                    if (
+                        not inventory
+                        or sum(d["kind"] == required for d in inventory) != 1
+                    ):
+                        return {
+                            "exitCode": 1,
+                            "error": "virtual_device_guard_not_ready",
+                            "recording": False,
+                        }
                 control = page.get_by_role(
                     "button",
                     name=re.compile(patterns[action][requested], re.IGNORECASE),
                 )
                 opposite = page.get_by_role(
-                    "button", name=re.compile(patterns[action]["on"], re.IGNORECASE)
+                    "button",
+                    name=re.compile(
+                        patterns[action]["off" if requested == "on" else "on"],
+                        re.IGNORECASE,
+                    ),
                 )
                 if opposite.count() == 1 and opposite.is_visible():
                     return {
@@ -321,6 +432,9 @@ def observe_or_control(action, requested=None):
 
 
 def main():
+    if sys.argv[1:] == ["_guard"]:
+        initialize_browser(sys.stdin.read().strip(), persistent=True)
+        return 0
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "action",
@@ -345,6 +459,14 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (ValueError, OSError, subprocess.TimeoutExpired):
+    except (ValueError, OSError, subprocess.TimeoutExpired, RuntimeError) as error:
+        if sys.argv[1:] == ["_guard"]:
+            diagnostic = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-error"
+            diagnostic.write_text(
+                type(error).__name__
+                + ": "
+                + (str(error) if isinstance(error, ValueError) else "startup failed")
+            )
+            diagnostic.chmod(0o600)
         print(json.dumps({"exitCode": 1, "error": "zoom_web_operation_failed"}))
         raise SystemExit(1) from None
