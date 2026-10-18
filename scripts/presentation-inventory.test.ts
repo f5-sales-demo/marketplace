@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { clearXcshPluginRootsCache } from './agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/discovery/helpers';
 import { discoverAndLoadExtensions } from './agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/extensions/loader';
+import { rendererOwnershipErrors, sourceOwnershipErrors } from './presentation-ownership.mjs';
 import {
   parseTasks,
   reconcileTasks,
@@ -51,6 +52,7 @@ test('canonical presentation tracker covers actual registrations and every shipp
     ),
   ).version;
   expect(catalog.plugins).toHaveLength(23);
+  const registeredEntrypoints = new Set<string>();
   expect(new Set(catalog.plugins.map((p) => p.name)).size).toBe(23);
   const inventory: InventoryPlugin[] = catalog.plugins.map((plugin) => {
     const manifest = JSON.parse(readFileSync(join(root, plugin.source, '.xcsh-plugin/plugin.json'), 'utf8'));
@@ -125,6 +127,13 @@ test('canonical presentation tracker covers actual registrations and every shipp
         const plugin = inventory.find((p) => extension.path.startsWith(`${resolve(root, p.source)}/`));
         if (!plugin) throw new Error(`Unmapped registration: ${extension.path}`);
         const origin = relative(root, extension.path);
+        registeredEntrypoints.add(extension.path);
+        expect(
+          rendererOwnershipErrors(
+            plugin.name,
+            [...extension.tools.values()].map((tool) => tool.definition),
+          ),
+        ).toEqual([]);
         for (const [collection, kind] of [
           ['tools', 'tool'],
           ['commands', 'command'],
@@ -156,6 +165,7 @@ test('canonical presentation tracker covers actual registrations and every shipp
     clearXcshPluginRootsCache({ rewarm: false });
     await rm(home, { recursive: true, force: true });
   }
+  expect(sourceOwnershipErrors(root, catalog, [...registeredEntrypoints])).toEqual([]);
   for (const plugin of inventory) {
     plugin.surfaces.sort((a, b) => a.id.localeCompare(b.id));
     expect(new Set(plugin.surfaces.map((s) => s.id)).size).toBe(plugin.surfaces.length);
