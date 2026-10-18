@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 spec = importlib.util.spec_from_file_location(
     "zoom_web", Path(__file__).parents[1] / "zoom-web.py"
@@ -89,3 +89,27 @@ class ZoomWebSafety(unittest.TestCase):
         for invalid in ("", "x" * 65, "xcsh\nlab"):
             with self.assertRaises(ValueError):
                 module.display_name(invalid)
+
+    def test_hd_control_is_enabled_and_verified_when_offered(self):
+        page = MagicMock()
+        tab = page.locator.return_value.filter.return_value
+        tab.count.return_value = 1
+        hd = page.get_by_label.return_value
+        hd.count.return_value = 1
+        hd.is_visible.return_value = True
+        hd.is_checked.side_effect = [False, True, True]
+        close = page.locator.return_value.locator.return_value
+        close.count.return_value = 0
+        result = module.ensure_web_hd(page)
+        hd.check.assert_called_once_with(timeout=3000)
+        self.assertEqual(result, {"hd": True, "verified": True, "changed": True})
+
+    def test_missing_hd_control_is_explicit_not_success(self):
+        page = MagicMock()
+        page.locator.return_value.filter.return_value.count.return_value = 1
+        page.get_by_label.return_value.count.return_value = 0
+        page.locator.return_value.filter.return_value.count.side_effect = [1, 0]
+        page.locator.return_value.locator.return_value.count.return_value = 0
+        result = module.ensure_web_hd(page)
+        self.assertEqual(result["hd"], "unavailable")
+        self.assertFalse(result["verified"])

@@ -32,3 +32,39 @@ covers the captured 1280×720 region. The setup receipt verifies display, window
 producer arguments, frame rate, and managed profile/unit hashes. Keep the
 original Herdr session and unrelated terminals running. Setup reconciles only
 an exactly matching legacy camera override; conflicting overrides fail closed.
+
+
+## Linux ARM64
+
+Linux ARM64 uses Zoom Web in Chrome automatically. The native Linux Workplace
+packages target amd64/x86_64; do not install them on ARM64 or require Ghostty.
+The integration reports its backend and local software readiness separately from
+meeting-control and receiver acceptance. Set `XCSH_ZOOM_BACKEND=web` to select the
+same route on another supported Linux desktop.
+
+The participant display name defaults to `xcsh`, independent of the Linux account.
+Set `XCSH_ZOOM_DISPLAY_NAME` for an explicit participant-name override. The owned
+browser selects only `xcsh Camera`, `xcsh_Zoom_Microphone`, and
+`xcsh_zoom_output`; absent or ambiguous virtual devices fail closed. The browser
+guard remains active across Zoom redirects and reloads. Capture and playback must
+never fall back to physical devices.
+
+`status` verifies prerequisites; `awareness` observes the owned Web session.
+Unqualified meeting actions return a capability gate. A launched browser or local
+virtual-device probe does not establish receiver-observed video, audio, or sharing.
+
+
+For the authorized development-lab meeting workflow, automatically acknowledge
+Zoom recording notices with their `Got it` control and AI/transcript notices
+with their `OK` control. Resolve each visible notice dialog by its recording or
+transcription text, then verify it closed. This acknowledgement does not start a
+recording or configure host recording settings. Do not treat these known lab
+notices as a meeting blocker or dismiss unrelated dialogs.
+
+
+Enable HD automatically before video-on whenever the selected backend exposes
+an HD setting, and verify that setting. For Zoom Web, open Video Settings and
+inspect the available controls. If Zoom Web does not offer HD, report that limit
+explicitly; a 1280x720/30 virtual camera source alone does not prove HD transport.
+Verify the actual sender and receiver resolutions separately. Never claim HD
+from input-device dimensions or an unavailable checkbox.

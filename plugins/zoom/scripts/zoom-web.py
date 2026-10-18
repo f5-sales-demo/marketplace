@@ -94,13 +94,21 @@ def invitation(target):
     return urlunparse(parsed._replace(path=path, fragment=""))
 
 
+MAX_DISPLAY_NAME = 64
+FIRST_PRINTABLE = 32
+
+
 def display_name(value=None):
     """Keep the product identity independent of the operating-system account."""
     name = (
         value if value is not None else os.environ.get("XCSH_ZOOM_DISPLAY_NAME", "xcsh")
     )
     name = name.strip()
-    if not name or len(name) > 64 or any(ord(c) < 32 for c in name):
+    if (
+        not name
+        or len(name) > MAX_DISPLAY_NAME
+        or any(ord(c) < FIRST_PRINTABLE for c in name)
+    ):
         message = "Zoom display name must contain 1-64 printable characters"
         raise ValueError(message)
     return name
@@ -319,13 +327,137 @@ def initialize_browser(url, persistent=False):
                 ready = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-ready"
                 ready.write_text("ready")
                 ready.chmod(0o600)
+                hd_attempted = False
                 while browser.is_connected() and not page.is_closed():
+                    acknowledge_meeting_notices(page)
+                    if (
+                        not hd_attempted
+                        and page.locator(
+                            'button[aria-label="More video controls"]'
+                        ).count()
+                        == 1
+                    ):
+                        hd_result = ensure_web_hd(page)
+                        if hd_result.get("hd") != "pending":
+                            hd_path = (
+                                Path(os.environ["XDG_RUNTIME_DIR"])
+                                / "pi-zoom-web-hd.json"
+                            )
+                            hd_path.write_text(json.dumps(hd_result))
+                            hd_path.chmod(0o600)
+                            hd_attempted = True
                     page.wait_for_timeout(1000)
         finally:
             if persistent:
                 with contextlib.suppress(ProcessLookupError):
                     os.kill(selected["pid"], 15)
             browser.close()
+
+
+def acknowledge_meeting_notices(page):
+    """Accept the authorized Zoom recording and AI/transcript notices."""
+    acknowledgements = []
+    for _ in range(4):
+        matched = False
+        for pattern, label, kind in (
+            (
+                r"this meeting is being recorded|consent to being recorded",
+                "Got it",
+                "recording",
+            ),
+            (r"this meeting is being transcribed|zoom ai is on", "OK", "ai_transcript"),
+        ):
+            # Resolve the notice text and its own dialog; unrelated OK controls
+            # cannot be selected simply because a recording label is elsewhere.
+            dialogs = page.locator(
+                '[role="dialog"], [role="alertdialog"], .zm-modal, .zm-dialog, .notification-modal, .disclaimer-content'
+            )
+            notice = dialogs.filter(has_text=re.compile(pattern, re.IGNORECASE))
+            buttons = notice.locator("button").filter(
+                has_text=re.compile("^" + re.escape(label) + "$")
+            )
+            if notice.count() != 1:
+                # Older Web clients expose notices as plain modal containers.
+                # Match the smallest non-page ancestor containing both known
+                # notice text and its exact acknowledgement button.
+                candidates = page.locator("button").filter(
+                    has_text=re.compile("^" + re.escape(label) + "$")
+                )
+                if candidates.count() == 1 and candidates.is_visible():
+                    notice = (
+                        candidates.locator(
+                            "xpath=ancestor::*[not(self::body) and not(self::html)]"
+                        )
+                        .filter(has_text=re.compile(pattern, re.IGNORECASE))
+                        .first
+                    )
+                    buttons = notice.locator("button").filter(
+                        has_text=re.compile("^" + re.escape(label) + "$")
+                    )
+            if notice.count() == 1 and buttons.count() == 1 and buttons.is_visible():
+                buttons.click(timeout=5000)
+                notice.wait_for(state="hidden", timeout=5000)
+                acknowledgements.append(kind)
+                matched = True
+        if not matched:
+            break
+    return acknowledgements
+
+
+def ensure_web_hd(page):
+    """Open video settings, enable HD when offered, and report actual support."""
+    tab = page.locator('[role="tab"]').filter(has_text=re.compile("^Video$"))
+    if tab.count() != 1:
+        menu = page.locator('a[aria-label="Video Settings..."]')
+        more = page.locator('button[aria-label="More video controls"]')
+        if more.count() != 1:
+            return {
+                "hd": "pending",
+                "verified": False,
+                "reason": "meeting_video_controls_unavailable",
+            }
+        for _ in range(3):
+            if menu.count() == 1 and menu.is_visible():
+                break
+            more.click(timeout=3000)
+            page.wait_for_timeout(200)
+        if menu.count() != 1 or not menu.is_visible():
+            return {
+                "hd": "unavailable",
+                "verified": False,
+                "reason": "web_video_settings_unavailable",
+            }
+        menu.click(timeout=3000)
+        tab = page.locator('[role="tab"]').filter(has_text=re.compile("^Video$"))
+        tab.wait_for(state="visible", timeout=3000)
+    tab.click(timeout=3000)
+    page.wait_for_timeout(200)
+    hd = page.get_by_label(re.compile(r"^(?:enable )?hd(?: video)?$", re.IGNORECASE))
+    if hd.count() != 1:
+        hd = page.locator('[role="checkbox"]').filter(
+            has_text=re.compile(r"hd|high definition", re.IGNORECASE)
+        )
+    if hd.count() == 1 and hd.is_visible():
+        before = hd.is_checked()
+        hd.check(timeout=3000)
+        result = {
+            "hd": hd.is_checked(),
+            "verified": hd.is_checked(),
+            "changed": not before,
+        }
+    else:
+        result = {
+            "hd": "unavailable",
+            "verified": False,
+            "reason": "zoom_web_does_not_offer_hd_control",
+        }
+    # Settings close is scoped to its container; leave meeting controls untouched.
+    close = page.locator(
+        ".settings-dialog, .settings-container, .settings-modal"
+    ).locator('button[aria-label="Close"]')
+    if close.count() == 1 and close.is_visible():
+        close.click(timeout=3000)
+    return result
 
 
 def observe_or_control(action, requested=None):
@@ -358,6 +490,7 @@ def observe_or_control(action, requested=None):
             if page.evaluate("window.__piZoomMediaGuard?.version") != 1:
                 message = "Owned virtual media guard is unavailable"
                 raise ValueError(message)
+            acknowledgements = acknowledge_meeting_notices(page)
             controls = page.get_by_role("button").evaluate_all(
                 "els=>els.filter(e=>e.getBoundingClientRect().width&&e.getBoundingClientRect().height).map(e=>({name:e.getAttribute('aria-label')||e.innerText,pressed:e.getAttribute('aria-pressed')}))"
             )
@@ -366,6 +499,10 @@ def observe_or_control(action, requested=None):
                     "exitCode": 0,
                     "backend": "zoom-web",
                     "controls": controls,
+                    "acknowledged_notices": acknowledgements,
+                    "hd": json.loads((runtime / "pi-zoom-web-hd.json").read_text())
+                    if (runtime / "pi-zoom-web-hd.json").is_file()
+                    else {"hd": "pending"},
                     "meeting_joined": any(
                         re.search(r"leave", c["name"], re.IGNORECASE) for c in controls
                     ),
@@ -374,7 +511,10 @@ def observe_or_control(action, requested=None):
                 }
             patterns = {
                 "audio": {"on": r"^unmute(?:\b|$)", "off": r"^mute(?:\b|$)"},
-                "video": {"on": r"^start video(?:\b|$)", "off": r"^stop video(?:\b|$)"},
+                "video": {
+                    "on": r"^(?:start video|start my video)(?:\b|$)",
+                    "off": r"^(?:stop video|stop my video)(?:\b|$)",
+                },
             }
             if action in patterns:
                 if requested not in ("on", "off"):

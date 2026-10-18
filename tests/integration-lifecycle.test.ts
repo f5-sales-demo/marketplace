@@ -16,6 +16,7 @@ import {
   invitationToZoomMtg,
   parseZoomCommand,
   parseZoomToolInput,
+  zoomBackend,
 } from '../plugins/zoom/extensions/integration';
 import { presentation } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/presentation';
 
@@ -2106,5 +2107,20 @@ it('baked desktop provider activation retains authentication without software in
     }
   } finally {
     exists.mockRestore();
+  }
+});
+
+it('selects Web on Linux ARM64 and retains native hosts with explicit override', () => {
+  const prior = process.env.XCSH_ZOOM_BACKEND;
+  delete process.env.XCSH_ZOOM_BACKEND;
+  try {
+    expect(zoomBackend('linux', 'arm64')).toBe('web');
+    expect(zoomBackend('linux', 'x64')).toBe('workplace');
+    expect(zoomBackend('darwin', 'arm64')).toBe('workplace');
+    process.env.XCSH_ZOOM_BACKEND = 'web';
+    expect(zoomBackend('linux', 'x64')).toBe('web');
+  } finally {
+    if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+    else process.env.XCSH_ZOOM_BACKEND = prior;
   }
 });
