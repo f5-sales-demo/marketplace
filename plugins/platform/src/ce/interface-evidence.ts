@@ -58,8 +58,9 @@ export function correlateCeInterfaces(
   objects: Json,
   physical: Json,
   expected: ExpectedCeInterface[],
-  provider: 'aws' | 'azure' = 'aws',
+  provider: 'aws' | 'azure' | 'gcp' = 'aws',
 ): ObservedCeInterface[] {
+  if (provider === 'gcp') throw new Error('GCP physical interface mapping is unavailable');
   const metadata = object(configuration.metadata);
   const uid = identity(object(configuration.system_metadata).uid);
   const statusMetadata = object(physical.metadata);

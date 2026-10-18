@@ -34,7 +34,7 @@ export class CeDeploymentStore {
     if (
       !isAbsolute(root) ||
       !['native', 'terraform'].includes(owner.engine) ||
-      !['aws', 'azure'].includes(owner.provider) ||
+      !['aws', 'azure', 'gcp'].includes(owner.provider) ||
       [owner.account, owner.region, owner.deploymentId].some((value) => !value || /[\r\n]/.test(value))
     )
       throw new Error('Invalid CE storage binding');

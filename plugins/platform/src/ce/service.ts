@@ -13,9 +13,10 @@ export interface CeEventBus {
 export interface CeCapabilityEvidence {
   contractIdentity: string;
   smsv2ContractVersion: 'v2';
-  supportedProviders: Array<'aws' | 'azure'>;
+  supportedProviders: Array<'aws' | 'azure' | 'gcp'>;
   bootstrapDrivers: Array<'api'>;
-  providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
+  providerNetworkingProfiles: Partial<Record<'aws' | 'azure' | 'gcp', string[]>>;
+  gcpCe: { availability: 'unavailable'; reason: 'gcp_runtime_not_qualified' };
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
   azureRouteServerEbgpMultihop: AzureRouteServerEbgpMultihopCapability;
   source: 'verified-api-contract';
@@ -84,6 +85,7 @@ export function createCePlatformService(
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],
+        gcpCe: { availability: 'unavailable', reason: 'gcp_runtime_not_qualified' },
         providerNetworkingProfiles: {
           aws: ['direct-eni', 'nlb-ingress', 'tgw-static', 'tgw-connect'],
           azure: ['direct-nic', 'load-balancer-ingress', 'route-server-bgp'],
