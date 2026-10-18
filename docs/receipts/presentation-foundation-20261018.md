@@ -55,9 +55,9 @@ establish service access. Live service checks for this campaign use the MacBook
 only. Ubuntu/NUC service unavailability is qualified explicitly and is not counted
 as a successful service test or treated as a request to repair authentication.
 
-`shared.contract` remains blocked because the original accepted native visual
-receipt identifiers are missing. Source tests, tag integrity and these installed
-file comparisons do not replace that visual evidence.
+The original native visual identifiers were unavailable. A fresh automated
+[native baseline](salesforce-native-baseline-20261018.md) now qualifies the
+contract separately from these source and installation-integrity records.
 
 ## Module verification
 
@@ -82,7 +82,8 @@ bun test tests/installed-salesforce-verifier.test.ts
 bun test scripts/presentation-inventory.test.ts
 ```
 
-Native binary/TUI captures and full supported-host service acceptance remain
-pending under their surface/delivery IDs. Raw runtime diagnostics and any
+Fresh native renderer and supported-MacBook service captures are recorded in
+the linked native baseline receipt. Shared-runtime adoption and model-selection
+qualification remain pending under their separate IDs. Raw runtime diagnostics and any
 organization responses remain private; this receipt contains outcomes and
 provenance only.

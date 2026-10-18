@@ -43,8 +43,8 @@ they cannot prove that an independently rewritten renderer shares no behavior.
 The original private installation receipt verifies 101 files against the exact
 2.3.11 tag. It has no visual findings. A fresh comparison verifies all 101 files
 on both Mac and Ubuntu. Neither proof substitutes for historical or fresh native
-terminal captures. `shared.contract` remains blocked pending qualified visual
-receipts. Fresh module readiness is reported separately from native binary/TUI
+terminal captures. `shared.contract` is qualified by the fresh automated native baseline in
+[the native receipt](receipts/salesforce-native-baseline-20261018.md). Fresh module readiness is reported separately from native binary/TUI
 acceptance. In this campaign, live Salesforce checks use the corporate MDM
 MacBook. Ubuntu and the NUC cannot access that service by policy; their
 installation/source checks do not establish service access. Their campaign checks are limited to source, artifacts and unavailable-state
@@ -68,9 +68,8 @@ cleanup. Runtime adoption must independently qualify these requirements:
 - Switch live theme/preset without stale output. Advance registered-tool progress
   and retire timers on completion, cancellation and session shutdown.
 
-This document defines the ownership contract and migration gates. It does not
-claim that the runtime prerequisite, Salesforce adoption or native visual
-acceptance has passed.
+This document defines the ownership contract and migration gates. It preserves the qualified native renderer baseline while the shared-runtime
+prerequisite and Salesforce adoption remain pending.
 
 ## Verification
 
