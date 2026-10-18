@@ -7,7 +7,7 @@ The readiness plan names `f5xc-ce-automation-policy/v2` but cannot bind a verifi
 policy release yet; it contains zero executable actions and requests no approval.
 
 Shared Platform CE service and Terraform runner work is tracked by marketplace
-#1326 and draft #1327. GCP must reuse restricted storage, authorization,
+issue #1326 and draft PR #1327. GCP must reuse restricted storage, authorization,
 checkpoints, restoration inventory and ownership. Do not copy AWS/Azure wire
 schemas, synthesize provider fields, or enable mutation based on declaration alone.
 
