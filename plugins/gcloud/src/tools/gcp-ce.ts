@@ -1,7 +1,11 @@
+import { join } from 'node:path';
+import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { CE_SERVICE_CHANNEL, type CePlatformService } from '../../../platform/src/ce/service';
 import { resolveGcpContract } from '../ce/contract';
 import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../ce/deployment-teardown';
 import { discoverGcp } from '../ce/discovery';
+import { applyGcpMarketplaceAcceptance, planGcpMarketplaceAcceptance } from '../ce/marketplace-agreement';
+import { createGcpMarketplacePort, enableGcpMarketplaceApi, GcpMarketplaceUnavailable } from '../ce/marketplace-port';
 import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
@@ -56,6 +60,10 @@ export function createGcpCeTools(
       'Discover exact F5 images and licenses, billing, APIs, machines and quotas for an explicit project/region. Unknown prerequisites remain explicit.',
     ],
     [
+      'gcp_marketplace_agreement',
+      'Discover and qualify the pinned F5 image Marketplace consent. Save an exact agreement document review and accept programmatically with its approvedPlanHash. Unavailable API, prerequisite terms and ambiguous mappings remain explicit; this tool places no orders.',
+    ],
+    [
       'gcp_ce_inventory',
       'List cloud instances labeled for a CE deployment. Labels are candidate ownership only; platform registration, interface identity and traffic remain unknown.',
     ],
@@ -100,12 +108,30 @@ export function createGcpCeTools(
           description: 'Owning engine; native is the conversational default',
         }),
       ),
-      intent: Type.Optional(Type.Unknown({ description: 'Versioned GCP CE intent; only used by gcp_ce_plan' })),
+      intent: Type.Optional(
+        Type.Unknown({
+          description: 'Versioned GCP CE intent for readiness planning or Marketplace agreement qualification',
+        }),
+      ),
       operation: Type.Optional(
         Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
       ),
       approvedPlanHash: Type.Optional(
-        Type.String({ description: 'Exact SHA-256 of the saved teardown plan explicitly approved for execution' }),
+        Type.String({ description: 'Exact SHA-256 of the saved teardown or agreement plan approved for execution' }),
+      ),
+      agreement: Type.Optional(
+        Type.String({
+          description: 'Exact Google Marketplace agreement resource, if automatic mapping is unavailable',
+        }),
+      ),
+      agreementDocument: Type.Optional(
+        Type.String({ description: 'Exact versioned document beneath that agreement; server validation is required' }),
+      ),
+      enableMarketplaceApi: Type.Optional(
+        Type.Boolean({
+          description:
+            'Explicitly request enabling the scoped Consumer Procurement API prerequisite before consent qualification',
+        }),
       ),
     }),
     async execute(
@@ -119,6 +145,9 @@ export function createGcpCeTools(
         intent?: GcpCeIntent;
         operation?: 'teardown';
         approvedPlanHash?: string;
+        agreement?: string;
+        agreementDocument?: string;
+        enableMarketplaceApi?: boolean;
       },
       signal: AbortSignal | undefined,
       _update: unknown,
@@ -131,6 +160,50 @@ export function createGcpCeTools(
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (tool === 'gcp_marketplace_agreement') {
+          const intent = params.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.engine !== (params.engine ?? 'native')
+          )
+            throw new Error('Explicit Marketplace intent scope required');
+          validateIntent(intent);
+          if (!!params.agreement !== !!params.agreementDocument)
+            throw new Error('Both agreement and document references required');
+          const platform = await getPlatform();
+          const store = await platform.storage({
+            deploymentId: intent.deploymentName,
+            provider: 'gcp',
+            engine: intent.engine,
+            account: intent.project,
+            region: intent.region,
+          });
+          const port = createGcpMarketplacePort(
+            api,
+            intent,
+            params.agreement && params.agreementDocument
+              ? { agreement: params.agreement, agreementDocument: params.agreementDocument }
+              : undefined,
+            undefined,
+            signal,
+          );
+          const release = await acquireProcessLock(join(store.directory, '.gcp-deployment-lock'));
+          try {
+            if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
+            if (params.approvedPlanHash) {
+              const receipt = await applyGcpMarketplaceAcceptance(port, store, params.approvedPlanHash, () => {
+                mutationAttempted = true;
+              });
+              return result(tool, { availability: 'accepted', receipt, mutationAttempted });
+            }
+            const plan = await planGcpMarketplaceAcceptance(port, store);
+            return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+          } finally {
+            await release();
+          }
+        }
         if (
           (tool === 'gcp_ce_teardown' && params.deploymentName) ||
           (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'teardown')
@@ -341,14 +414,20 @@ export function createGcpCeTools(
           },
           true,
         );
-      } catch {
+      } catch (error) {
         signal?.throwIfAborted();
         // Cloud errors and caller-controlled fields can contain private values.
         return result(
           tool,
           {
             availability: 'unavailable',
-            reason: mutationAttempted ? 'teardown_requires_reconciliation' : 'validation_or_read_failed',
+            reason: mutationAttempted
+              ? tool === 'gcp_marketplace_agreement'
+                ? 'consent_requires_reconciliation'
+                : 'teardown_requires_reconciliation'
+              : error instanceof GcpMarketplaceUnavailable
+                ? error.reason
+                : 'validation_or_read_failed',
             mutationAttempted,
           },
           true,

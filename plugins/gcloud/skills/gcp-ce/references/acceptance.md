@@ -6,6 +6,13 @@ bootstrap, upgrades, repair, replacement, failover, interruption recovery,
 restoration and Terraform teardown remain unavailable through public tools.
 Full parity is unclaimed.
 
+The installed `gcp_marketplace_agreement` tool correctly reported the disabled
+Consumer Procurement API and Google's cloud-terms prerequisite on explicit
+enablement. No consent or order was created. Automated tests cover exact document
+binding, grant dry runs, independent acceptance checks, lost-grant recovery,
+revocation, changed image identity, pagination and sanitized prerequisite errors.
+Successful live grant and fresh unaccepted-document discovery remain unqualified.
+
 Installed native teardown qualification used six synthetic Compute identities
 and a live disposable XC site and node-bound token. The typed tool saved a review,
 applied its exact approved hash and verified absence; independent API reads

@@ -760,6 +760,161 @@ var init_gcloud_help2 = __esm(() => {
   init_shared();
 });
 
+// plugins/platform/src/ce/process-lock.ts
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename as basename2, dirname, join } from 'node:path';
+
+async function bootId() {
+  let value;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
+  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
+  return value;
+}
+async function processStartTicks(pid) {
+  if (process.platform === 'darwin') {
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const end = value.lastIndexOf(') ');
+    const fields =
+      end < 0
+        ? []
+        : value
+            .slice(end + 2)
+            .trim()
+            .split(/\s+/);
+    const start = fields[19];
+    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
+    return start;
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+}
+function claim(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  const row = value;
+  if (
+    row.schemaVersion !== 1 ||
+    typeof row.token !== 'string' ||
+    !tokenPattern.test(row.token) ||
+    !Number.isSafeInteger(row.pid) ||
+    Number(row.pid) < 1 ||
+    typeof row.bootId !== 'string' ||
+    !bootPattern.test(row.bootId) ||
+    typeof row.processStartTicks !== 'string' ||
+    !/^\d+$/.test(row.processStartTicks)
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  return row;
+}
+async function readClaim(path) {
+  const stat = await lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
+    throw new Error('Operation lock evidence cannot be reconciled');
+  try {
+    const claimPath = join(path, 'claim.json');
+    const claimStat = await lstat(claimPath);
+    if (
+      !claimStat.isFile() ||
+      claimStat.isSymbolicLink() ||
+      claimStat.nlink !== 1 ||
+      claimStat.uid !== process.getuid?.() ||
+      (claimStat.mode & 63) !== 0
+    )
+      throw new Error('Operation lock evidence cannot be reconciled');
+    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
+  } catch (error) {
+    if (error instanceof SyntaxError || error.code === 'ENOENT')
+      throw new Error('Operation lock evidence cannot be reconciled');
+    throw error;
+  }
+}
+async function acquireProcessLock(path) {
+  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename2(path)))
+    throw new Error('Invalid operation lock path');
+  const currentBootId = await bootId();
+  const currentStart = await processStartTicks(process.pid);
+  if (!currentStart) throw new Error('Current process identity is unavailable');
+  const mine = {
+    schemaVersion: 1,
+    token: randomUUID(),
+    pid: process.pid,
+    bootId: currentBootId,
+    processStartTicks: currentStart,
+  };
+  const parent = dirname(path);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = join(parent, `${basename2(path)}.claim-${mine.token}`);
+    await mkdir(candidate, { mode: 448 });
+    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
+    try {
+      await rename(candidate, path);
+      return async () => {
+        const owned = await readClaim(path);
+        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
+        await rm(path, { recursive: true });
+      };
+    } catch (error) {
+      await rm(candidate, { recursive: true });
+      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
+    }
+    let existing;
+    try {
+      existing = await readClaim(path);
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
+    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
+      throw new Error('Operation lock is held by a live process');
+    const stale = join(parent, `${basename2(path)}.stale-${randomUUID()}`);
+    try {
+      await rename(path, stale);
+      await rm(stale, { recursive: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error('Operation lock could not be acquired');
+}
+var tokenPattern, bootPattern;
+var init_process_lock = __esm(() => {
+  tokenPattern = /^[a-f0-9-]{36}$/;
+  bootPattern = /^[a-f0-9-]{36}$/;
+});
+
 // plugins/gcloud/src/ce/types.ts
 var GCP_CE_POLICY = 'f5xc-ce-automation-policy/v2',
   GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public',
@@ -1171,161 +1326,6 @@ var init_bgp_route_evidence = () => {};
 
 // plugins/platform/src/ce/bootstrap.ts
 var init_bootstrap = () => {};
-
-// plugins/platform/src/ce/process-lock.ts
-import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { basename as basename2, dirname, join } from 'node:path';
-
-async function bootId() {
-  let value;
-  if (process.platform === 'darwin') {
-    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
-    value = (await new Response(child.stdout).text()).trim().toLowerCase();
-    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
-  } else {
-    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-  }
-  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
-  return value;
-}
-async function processStartTicks(pid) {
-  if (process.platform === 'darwin') {
-    const script = `import ctypes, sys
-class Info(ctypes.Structure):
- _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
-lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
-lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
-info=Info()
-result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
-if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
-elif result==0 and ctypes.get_errno()==3: sys.exit(3)
-else: sys.exit(2)
-`;
-    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
-    const start = (await new Response(child.stdout).text()).trim();
-    const code = await child.exited;
-    if (code === 3) return;
-    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
-    return start;
-  }
-  try {
-    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
-    const end = value.lastIndexOf(') ');
-    const fields =
-      end < 0
-        ? []
-        : value
-            .slice(end + 2)
-            .trim()
-            .split(/\s+/);
-    const start = fields[19];
-    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
-    return start;
-  } catch (error) {
-    if (error.code === 'ENOENT') return;
-    throw error;
-  }
-}
-function claim(value) {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  const row = value;
-  if (
-    row.schemaVersion !== 1 ||
-    typeof row.token !== 'string' ||
-    !tokenPattern.test(row.token) ||
-    !Number.isSafeInteger(row.pid) ||
-    Number(row.pid) < 1 ||
-    typeof row.bootId !== 'string' ||
-    !bootPattern.test(row.bootId) ||
-    typeof row.processStartTicks !== 'string' ||
-    !/^\d+$/.test(row.processStartTicks)
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  return row;
-}
-async function readClaim(path) {
-  const stat = await lstat(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
-    throw new Error('Operation lock evidence cannot be reconciled');
-  try {
-    const claimPath = join(path, 'claim.json');
-    const claimStat = await lstat(claimPath);
-    if (
-      !claimStat.isFile() ||
-      claimStat.isSymbolicLink() ||
-      claimStat.nlink !== 1 ||
-      claimStat.uid !== process.getuid?.() ||
-      (claimStat.mode & 63) !== 0
-    )
-      throw new Error('Operation lock evidence cannot be reconciled');
-    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
-  } catch (error) {
-    if (error instanceof SyntaxError || error.code === 'ENOENT')
-      throw new Error('Operation lock evidence cannot be reconciled');
-    throw error;
-  }
-}
-async function acquireProcessLock(path) {
-  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename2(path)))
-    throw new Error('Invalid operation lock path');
-  const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
-  if (!currentStart) throw new Error('Current process identity is unavailable');
-  const mine = {
-    schemaVersion: 1,
-    token: randomUUID(),
-    pid: process.pid,
-    bootId: currentBootId,
-    processStartTicks: currentStart,
-  };
-  const parent = dirname(path);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const candidate = join(parent, `${basename2(path)}.claim-${mine.token}`);
-    await mkdir(candidate, { mode: 448 });
-    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
-    try {
-      await rename(candidate, path);
-      return async () => {
-        const owned = await readClaim(path);
-        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
-        await rm(path, { recursive: true });
-      };
-    } catch (error) {
-      await rm(candidate, { recursive: true });
-      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
-    }
-    let existing;
-    try {
-      existing = await readClaim(path);
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
-    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
-      throw new Error('Operation lock is held by a live process');
-    const stale = join(parent, `${basename2(path)}.stale-${randomUUID()}`);
-    try {
-      await rename(path, stale);
-      await rm(stale, { recursive: true });
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw new Error('Operation lock could not be acquired');
-}
-var tokenPattern, bootPattern;
-var init_process_lock = __esm(() => {
-  tokenPattern = /^[a-f0-9-]{36}$/;
-  bootPattern = /^[a-f0-9-]{36}$/;
-});
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 var init_ingress_lifecycle = __esm(() => {
@@ -1957,6 +1957,326 @@ var init_deployment_teardown = __esm(() => {
   init_ownership();
   init_teardown_plan();
   init_validation();
+});
+
+// plugins/gcloud/src/ce/marketplace-agreement.ts
+function validateGcpMarketplaceBinding(binding) {
+  if (
+    Object.keys(binding).some(
+      (key) =>
+        ![
+          'project',
+          'projectNumber',
+          'imageId',
+          'imageSelfLink',
+          'licenseId',
+          'licenseSelfLink',
+          'billingService',
+          'agreement',
+          'agreementDocument',
+        ].includes(key),
+    ) ||
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(binding.project) ||
+    ![binding.projectNumber, binding.imageId, binding.licenseId].every((id) => /^\d+$/.test(id)) ||
+    !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/f5-7626-networks-public\/global\/images\/[a-z][a-z0-9-]{0,62}$/.test(
+      binding.imageSelfLink,
+    ) ||
+    !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/f5-7626-networks-public\/global\/licenses\/[a-z][a-z0-9-]{0,62}$/.test(
+      binding.licenseSelfLink,
+    ) ||
+    !/^[a-z][a-z0-9-]*\.endpoints\.f5-7626-networks-public\.cloud\.goog$/.test(binding.billingService)
+  )
+    throw new Error('Exact Marketplace image/project/license identity required');
+  const prefix = `commerceoffercatalog.googleapis.com/services/${binding.billingService}/standardOffers/`;
+  const suffix = binding.agreement.slice(prefix.length);
+  if (
+    !binding.agreement.startsWith(prefix) ||
+    !/^[a-zA-Z0-9_-]+\/agreements\/[a-zA-Z0-9_-]+$/.test(suffix) ||
+    !binding.agreementDocument.startsWith(`${binding.agreement}/documents/`) ||
+    !/^[a-zA-Z0-9_-]+$/.test(binding.agreementDocument.slice(`${binding.agreement}/documents/`.length))
+  )
+    throw new Error('Agreement document must match the image billing service');
+}
+function activeConsent(value, binding) {
+  const consent = value?.consent;
+  if (!consent) return;
+  if (
+    consent.state !== 'ACTIVE' ||
+    consent.agreement !== binding.agreement ||
+    consent.agreementDocument !== binding.agreementDocument ||
+    typeof consent.name !== 'string' ||
+    !consent.name.startsWith(`projects/${binding.projectNumber}/consents/`) ||
+    !/^[a-zA-Z0-9_-]+$/.test(consent.name.slice(`projects/${binding.projectNumber}/consents/`.length))
+  )
+    throw new Error('Marketplace consent identity/state differs');
+  return {
+    nameHash: fingerprint(consent.name),
+    identityHash: fingerprint({
+      name: consent.name,
+      agreement: consent.agreement,
+      agreementDocument: consent.agreementDocument,
+    }),
+  };
+}
+async function planGcpMarketplaceAcceptance(port, store) {
+  const binding = await port.binding();
+  validateGcpMarketplaceBinding(binding);
+  const current = activeConsent(await port.check(binding), binding);
+  if (!current) await port.validateGrant(binding);
+  const body = {
+    schemaVersion: 1,
+    operation: 'marketplace-consent',
+    binding,
+    createdAt: new Date().toISOString(),
+    alreadyAccepted: !!current,
+    action: current ? 'observe' : 'grant-consent',
+    purchases: 0,
+    approval: 'required',
+  };
+  const plan = { ...body, planHash: fingerprint(body) };
+  await store.write(`gcp-marketplace-plan-${plan.planHash.slice(7)}.json`, plan);
+  return plan;
+}
+async function applyGcpMarketplaceAcceptance(port, store, approvedHash, onMutation) {
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact agreement review required');
+  const plan = await store.read(`gcp-marketplace-plan-${approvedHash.slice(7)}.json`);
+  const { planHash, ...body } = plan;
+  if (planHash !== approvedHash || fingerprint(body) !== approvedHash) throw new Error('Agreement review changed');
+  validateGcpMarketplaceBinding(plan.binding);
+  const live = await port.binding();
+  if (fingerprint(live) !== fingerprint(plan.binding)) throw new Error('Marketplace binding changed after review');
+  const checkpointName = `gcp-marketplace-grant-${approvedHash.slice(7)}.json`;
+  let checkpoint;
+  try {
+    checkpoint = await store.read(checkpointName);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (checkpoint && (checkpoint.planHash !== approvedHash || !['submitting', 'accepted'].includes(checkpoint.state)))
+    throw new Error('Marketplace consent checkpoint differs');
+  const age = Date.now() - Date.parse(plan.createdAt);
+  if (!checkpoint && (!Number.isFinite(age) || age < 0 || age > 5 * 60000)) throw new Error('Marketplace review stale');
+  let consent = activeConsent(await port.check(live), live);
+  if (!consent) {
+    if (checkpoint) throw new Error('Ambiguous or revoked Marketplace consent requires reconciliation');
+    if (plan.alreadyAccepted) throw new Error('Reviewed Marketplace consent is no longer active');
+    await port.validateGrant(live);
+    await store.write(checkpointName, { planHash: approvedHash, state: 'submitting' });
+    onMutation?.();
+    await port.grant(live);
+    consent = activeConsent(await port.check(live), live);
+    if (!consent) throw new Error('Marketplace consent not independently established');
+  }
+  await store.write(checkpointName, { planHash: approvedHash, state: 'accepted' });
+  const receipt = {
+    schemaVersion: 1,
+    project: live.project,
+    planHash: approvedHash,
+    bindingHash: fingerprint(live),
+    ...consent,
+    state: 'accepted',
+    observedAt: new Date().toISOString(),
+    purchases: 0,
+  };
+  await store.write(`gcp-marketplace-receipt-${approvedHash.slice(7)}.json`, receipt);
+  return receipt;
+}
+var init_marketplace_agreement = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/marketplace-port.ts
+async function enableGcpMarketplaceApi(api, project, signal) {
+  validateScope(project);
+  signal?.throwIfAborted();
+  const response = await api.exec(
+    'gcloud',
+    ['services', 'enable', 'cloudcommerceconsumerprocurement.googleapis.com', `--project=${project}`, '--quiet'],
+    { signal },
+  );
+  if (response.exitCode !== 0) {
+    if (response.stderr.includes('UREQ_TOS_NOT_ACCEPTED'))
+      throw new GcpMarketplaceUnavailable('cloud_terms_not_accepted');
+    throw new GcpMarketplaceUnavailable('source_unavailable');
+  }
+}
+function createGcpMarketplacePort(api, intent, reference, fetcher = fetch, signal) {
+  validateIntent(intent);
+  const scoped = structuredClone(intent);
+  const selected = reference ? structuredClone(reference) : undefined;
+  let credential;
+  let admittedBinding;
+  const request = async (url, body) => {
+    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+    combined.throwIfAborted();
+    if (!credential) {
+      const response = await api.exec(
+        'gcloud',
+        ['auth', 'print-access-token', `--project=${scoped.project}`, '--quiet'],
+        { signal: combined },
+      );
+      if (response.exitCode !== 0 || !response.stdout.trim() || /\s/.test(response.stdout.trim()))
+        throw new GcpMarketplaceUnavailable('source_unavailable');
+      credential = response.stdout.trim();
+    }
+    const response = await fetcher(url, {
+      method: body ? 'POST' : 'GET',
+      redirect: 'error',
+      signal: combined,
+      headers: {
+        Authorization: `Bearer ${credential}`,
+        'Content-Type': 'application/json',
+        'x-goog-user-project': scoped.project,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const text = await response.text();
+    if (text.length > 4 * 1024 * 1024) throw new GcpMarketplaceUnavailable('source_unavailable');
+    let value;
+    try {
+      value = JSON.parse(text);
+    } catch {
+      throw new GcpMarketplaceUnavailable('source_unavailable');
+    }
+    if (!response.ok) {
+      const reasons = value.error?.details?.map((d) => d.reason) ?? [];
+      if (reasons.includes('UREQ_TOS_NOT_ACCEPTED')) throw new GcpMarketplaceUnavailable('cloud_terms_not_accepted');
+      if (reasons.includes('SERVICE_DISABLED')) throw new GcpMarketplaceUnavailable('api_disabled');
+      if (response.status === 403) throw new GcpMarketplaceUnavailable('permission_denied');
+      throw new GcpMarketplaceUnavailable('source_unavailable');
+    }
+    return value;
+  };
+  const apiRoot = 'https://cloudcommerceconsumerprocurement.googleapis.com/v1alpha1';
+  const assertBinding = (b) => {
+    validateGcpMarketplaceBinding(b);
+    if (
+      admittedBinding !== fingerprint(b) ||
+      b.project !== scoped.project ||
+      b.imageId !== scoped.image.id ||
+      b.imageSelfLink !== scoped.image.selfLink ||
+      !scoped.image.licenses.includes(b.licenseSelfLink)
+    )
+      throw new Error('Consent escaped pinned image/project');
+  };
+  const grant = async (binding, validateOnly) => {
+    assertBinding(binding);
+    return request(`${apiRoot}/projects/${binding.projectNumber}/consents:grant`, {
+      consent: { agreementDocument: binding.agreementDocument },
+      validateOnly,
+    });
+  };
+  return {
+    async binding() {
+      if (scoped.image.licenses.length !== 1) throw new GcpMarketplaceUnavailable('agreement_mapping_unavailable');
+      const project = await request(`https://cloudresourcemanager.googleapis.com/v1/projects/${scoped.project}`);
+      if (
+        project.projectId !== scoped.project ||
+        typeof project.projectNumber !== 'string' ||
+        !/^\d+$/.test(project.projectNumber)
+      )
+        throw new Error('Marketplace project differs');
+      const imagePrefix = 'https://www.googleapis.com/compute/v1/projects/f5-7626-networks-public/global/images/';
+      if (
+        !scoped.image.selfLink.startsWith(imagePrefix) ||
+        !/^[a-z][a-z0-9-]{0,62}$/.test(scoped.image.selfLink.slice(imagePrefix.length))
+      )
+        throw new Error('Pinned F5 image required');
+      const image = await request(scoped.image.selfLink.replace('www.googleapis.com', 'compute.googleapis.com'));
+      if (
+        String(image.id) !== scoped.image.id ||
+        image.selfLink !== scoped.image.selfLink ||
+        image.status !== 'READY' ||
+        JSON.stringify(image.licenses) !== JSON.stringify(scoped.image.licenses)
+      )
+        throw new Error('Marketplace image changed');
+      const licenseLink = scoped.image.licenses[0];
+      if (
+        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/f5-7626-networks-public\/global\/licenses\/[a-z][a-z0-9-]{0,62}$/.test(
+          licenseLink,
+        )
+      )
+        throw new Error('Pinned F5 license required');
+      const license = await request(licenseLink.replace('www.googleapis.com', 'compute.googleapis.com'));
+      const billingService =
+        typeof license.description === 'string'
+          ? license.description.match(
+              /^License for Cloud Marketplace virtual machine image solution with billing service ([a-z][a-z0-9-]*\.endpoints\.f5-7626-networks-public\.cloud\.goog): default$/,
+            )?.[1]
+          : undefined;
+      if (!billingService || license.selfLink !== licenseLink || !/^\d+$/.test(String(license.id)))
+        throw new GcpMarketplaceUnavailable('agreement_mapping_unavailable');
+      let resolved = selected;
+      if (!resolved) {
+        const prefix = `commerceoffercatalog.googleapis.com/services/${billingService}/standardOffers/`;
+        const matches = [];
+        const tokens = new Set();
+        let pageToken = '';
+        do {
+          const url = new URL(`${apiRoot}/projects/${project.projectNumber}/consents`);
+          url.searchParams.set('pageSize', '100');
+          if (pageToken) url.searchParams.set('pageToken', pageToken);
+          const page = await request(url.href);
+          if (page.consents !== undefined && !Array.isArray(page.consents))
+            throw new GcpMarketplaceUnavailable('source_unavailable');
+          for (const consent of page.consents ?? [])
+            if (
+              typeof consent.agreement === 'string' &&
+              consent.agreement.startsWith(prefix) &&
+              typeof consent.agreementDocument === 'string'
+            )
+              matches.push({ agreement: consent.agreement, agreementDocument: consent.agreementDocument });
+          if (page.nextPageToken !== undefined && typeof page.nextPageToken !== 'string')
+            throw new GcpMarketplaceUnavailable('source_unavailable');
+          pageToken = page.nextPageToken ?? '';
+          if (pageToken && tokens.has(pageToken)) throw new GcpMarketplaceUnavailable('source_unavailable');
+          tokens.add(pageToken);
+          if (tokens.size > 100) throw new GcpMarketplaceUnavailable('source_unavailable');
+        } while (pageToken);
+        const unique = [...new Map(matches.map((m) => [m.agreementDocument, m])).values()];
+        if (unique.length !== 1) throw new GcpMarketplaceUnavailable('agreement_mapping_unavailable');
+        resolved = unique[0];
+      }
+      const binding = {
+        project: scoped.project,
+        projectNumber: String(project.projectNumber),
+        imageId: scoped.image.id,
+        imageSelfLink: scoped.image.selfLink,
+        licenseId: String(license.id),
+        licenseSelfLink: licenseLink,
+        billingService,
+        ...resolved,
+      };
+      validateGcpMarketplaceBinding(binding);
+      admittedBinding = fingerprint(binding);
+      return binding;
+    },
+    async check(binding) {
+      assertBinding(binding);
+      return request(`${apiRoot}/projects/${binding.projectNumber}/consents:check`, {
+        agreement: binding.agreement,
+      });
+    },
+    async validateGrant(binding) {
+      await grant(binding, true);
+    },
+    grant(binding) {
+      return grant(binding, false);
+    },
+  };
+}
+var GcpMarketplaceUnavailable;
+var init_marketplace_port = __esm(() => {
+  init_discovery();
+  init_marketplace_agreement();
+  init_validation();
+  GcpMarketplaceUnavailable = class GcpMarketplaceUnavailable extends Error {
+    reason;
+    constructor(reason) {
+      super(`GCP Marketplace unavailable: ${reason}`);
+      this.reason = reason;
+    }
+  };
 });
 
 // plugins/gcloud/src/ce/health.ts
@@ -2674,6 +2994,8 @@ var init_preflight_port = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
+import { join as join3 } from 'node:path';
+
 function result(tool, data, isError = false) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -2708,6 +3030,10 @@ function createGcpCeTools(
     [
       'gcp_compute_discover',
       'Discover exact F5 images and licenses, billing, APIs, machines and quotas for an explicit project/region. Unknown prerequisites remain explicit.',
+    ],
+    [
+      'gcp_marketplace_agreement',
+      'Discover and qualify the pinned F5 image Marketplace consent. Save an exact agreement document review and accept programmatically with its approvedPlanHash. Unavailable API, prerequisite terms and ambiguous mappings remain explicit; this tool places no orders.',
     ],
     [
       'gcp_ce_inventory',
@@ -2754,12 +3080,30 @@ function createGcpCeTools(
           description: 'Owning engine; native is the conversational default',
         }),
       ),
-      intent: Type.Optional(Type.Unknown({ description: 'Versioned GCP CE intent; only used by gcp_ce_plan' })),
+      intent: Type.Optional(
+        Type.Unknown({
+          description: 'Versioned GCP CE intent for readiness planning or Marketplace agreement qualification',
+        }),
+      ),
       operation: Type.Optional(
         Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
       ),
       approvedPlanHash: Type.Optional(
-        Type.String({ description: 'Exact SHA-256 of the saved teardown plan explicitly approved for execution' }),
+        Type.String({ description: 'Exact SHA-256 of the saved teardown or agreement plan approved for execution' }),
+      ),
+      agreement: Type.Optional(
+        Type.String({
+          description: 'Exact Google Marketplace agreement resource, if automatic mapping is unavailable',
+        }),
+      ),
+      agreementDocument: Type.Optional(
+        Type.String({ description: 'Exact versioned document beneath that agreement; server validation is required' }),
+      ),
+      enableMarketplaceApi: Type.Optional(
+        Type.Boolean({
+          description:
+            'Explicitly request enabling the scoped Consumer Procurement API prerequisite before consent qualification',
+        }),
       ),
     }),
     async execute(_id, params, signal, _update, ctx) {
@@ -2770,6 +3114,50 @@ function createGcpCeTools(
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (tool === 'gcp_marketplace_agreement') {
+          const intent = params.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.engine !== (params.engine ?? 'native')
+          )
+            throw new Error('Explicit Marketplace intent scope required');
+          validateIntent(intent);
+          if (!!params.agreement !== !!params.agreementDocument)
+            throw new Error('Both agreement and document references required');
+          const platform = await getPlatform();
+          const store = await platform.storage({
+            deploymentId: intent.deploymentName,
+            provider: 'gcp',
+            engine: intent.engine,
+            account: intent.project,
+            region: intent.region,
+          });
+          const port = createGcpMarketplacePort(
+            api,
+            intent,
+            params.agreement && params.agreementDocument
+              ? { agreement: params.agreement, agreementDocument: params.agreementDocument }
+              : undefined,
+            undefined,
+            signal,
+          );
+          const release = await acquireProcessLock(join3(store.directory, '.gcp-deployment-lock'));
+          try {
+            if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
+            if (params.approvedPlanHash) {
+              const receipt = await applyGcpMarketplaceAcceptance(port, store, params.approvedPlanHash, () => {
+                mutationAttempted = true;
+              });
+              return result(tool, { availability: 'accepted', receipt, mutationAttempted });
+            }
+            const plan = await planGcpMarketplaceAcceptance(port, store);
+            return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+          } finally {
+            await release();
+          }
+        }
         if (
           (tool === 'gcp_ce_teardown' && params.deploymentName) ||
           (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'teardown')
@@ -2977,13 +3365,19 @@ function createGcpCeTools(
           },
           true,
         );
-      } catch {
+      } catch (error) {
         signal?.throwIfAborted();
         return result(
           tool,
           {
             availability: 'unavailable',
-            reason: mutationAttempted ? 'teardown_requires_reconciliation' : 'validation_or_read_failed',
+            reason: mutationAttempted
+              ? tool === 'gcp_marketplace_agreement'
+                ? 'consent_requires_reconciliation'
+                : 'teardown_requires_reconciliation'
+              : error instanceof GcpMarketplaceUnavailable
+                ? error.reason
+                : 'validation_or_read_failed',
             mutationAttempted,
           },
           true,
@@ -2994,10 +3388,13 @@ function createGcpCeTools(
 }
 var UNKNOWN;
 var init_gcp_ce = __esm(() => {
+  init_process_lock();
   init_service();
   init_contract();
   init_deployment_teardown();
   init_discovery();
+  init_marketplace_agreement();
+  init_marketplace_port();
   init_owned_status();
   init_planner();
   init_policy();

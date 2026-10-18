@@ -59,8 +59,18 @@ remain separate unknown gates. Deployment labels alone cannot authorize deletion
 For the qualified single-node `n2-standard-8` profile with SLO and SLI interfaces,
 readiness plans collect live IAM, quota, effective policy, zone and image/license
 checks. They retain sanitized source hashes and reject stale evidence or a changed
-intent. Capacity reservation and human Marketplace acceptance remain explicit;
+intent. Capacity reservation and verified Marketplace acceptance remain explicit;
 passing cloud prerequisites alone does not enable deployment.
+
+`gcp_marketplace_agreement` qualifies the pinned image's agreement and can accept
+an exact reviewed document programmatically. Supply the versioned intent, review
+the returned plan and use its `approvedPlanHash`. Existing consent references are
+discovered from Google; an absent or ambiguous mapping requires an exact agreement
+and document reference for server validation. Optional `enableMarketplaceApi=true`
+requests scoped API enablement. The tool checks active consent after granting and
+reconciles interrupted grants without duplicate acceptance. It places no orders.
+The installed live probe currently reports Google's prerequisite cloud terms as
+unaccepted; successful live Marketplace acceptance remains unqualified.
 
 For an existing disposable native single-node deployment, `gcp_ce_teardown`
 prepares an exact saved review from its persisted intent and ownership ledger.

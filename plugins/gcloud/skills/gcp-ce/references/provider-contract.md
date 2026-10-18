@@ -24,7 +24,7 @@ policies, zone availability and exact image/license responses for the qualified
 single-node, two-interface `n2-standard-8` profile. Plans bind the sanitized source
 hashes and collection time to their intent. Missing, stale, conditional or ambiguous
 evidence remains unavailable. An observed UP zone does not reserve capacity, and
-`chargesUseFee=false` does not establish human Marketplace acceptance.
+`chargesUseFee=false` does not establish Marketplace acceptance.
 
 Requested future profiles are external IP/Cloud NAT and explicit firewall/proxy
 egress; static insertion; internal passthrough LB ingress and next-hop routing;
@@ -61,3 +61,15 @@ deletion and records durable authorization for interruption recovery. Final
 evidence requires fresh cloud, site and token absence. Its installed runtime was
 qualified against synthetic Compute identities and live disposable XC objects;
 this does not establish installed live GCP cloud teardown or full parity.
+
+Marketplace consent uses the Google Cloud SDK's Consumer Procurement v1alpha1
+project consent `check` and `grant` methods. Grant dry runs validate the exact
+agreement document; a grant is followed by an independent current-consent check.
+Image/license IDs, the license billing service and project number bind the review.
+Lost grants are reconciled without blind resubmission. Existing consent references
+can be discovered with pagination; absent or ambiguous offer/document mappings
+remain unavailable. Purchases and billing-account orders are outside this flow.
+The installed live probe encountered `SERVICE_DISABLED`; explicit API enablement
+then returned `UREQ_TOS_NOT_ACCEPTED` for Google's prerequisite cloud terms.
+No Marketplace consent was granted. Programmatic acceptance and its use as a
+deployment prerequisite remain unqualified on this account.

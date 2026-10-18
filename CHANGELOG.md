@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** adds programmatic Marketplace consent review and grant through
+  scoped Google APIs, with exact image/license/document binding, server dry runs
+  and independent acceptance checks. Live grant remains gated by Google's cloud
+  terms prerequisite; no usage fee is treated as acceptance (#1559).
 - **`gcloud`** v1.7.0 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact

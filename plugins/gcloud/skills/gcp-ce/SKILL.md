@@ -19,6 +19,14 @@ Read [provider contract](references/provider-contract.md) before planning and
 2. Use `gcp_compute_discover` with the explicit region. Pin the exact F5 image ID,
    selfLink and licenses. Unknown IAM, organization policy, capacity, NIC limits,
    quotas or legal acceptance cannot become a passing prerequisite.
+   Use `gcp_marketplace_agreement` with the pinned schema-v1 intent to qualify
+   Marketplace consent. It derives the billing service from the exact license,
+   discovers existing agreement references and checks current consent. If mapping
+   is unavailable, require an exact agreement/document reference that Google can
+   validate. Review the saved plan and supply its `approvedPlanHash` to accept
+   programmatically. Set `enableMarketplaceApi=true` only when API enablement is
+   explicitly requested. Report API, permission, mapping and prerequisite cloud
+   terms failures; no usage fee does not prove acceptance. The tool places no orders.
 3. Use `gcp_ce_plan` with a schema-v1 intent. Name each independent site and each
    node; one node and three HA nodes are distinct topologies. NIC zero is SLO;
    each NIC requires a distinct VPC and non-overlapping subnet. HA uses identical
@@ -47,4 +55,5 @@ and teardown plans must be reviewed before required approvals. Immutable SLO
 identity changes require replacement. Keep ingress separate from routing and
 prove return-path symmetry. Bootstrap belongs only in restricted deployment
 storage with deployment/site/node binding and one-use checkout. Marketplace
-legal acceptance is human-only.
+acceptance requires exact document authorization and independently observed
+active consent. Do not invent consent, agreement mappings or unsupported APIs.
