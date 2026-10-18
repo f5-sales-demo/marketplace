@@ -202,6 +202,17 @@ def observe_or_control(action, requested=None):
     selected = owned_browser_state()
     port = selected["port"]
     # pylint: disable=import-outside-toplevel
+    # The image ships the dependency environment; this system-Python launcher
+    # uses it explicitly without downloading anything during activation.
+    import sys  # noqa: PLC0415
+
+    if Path("/etc/pi-desktop/desktop-lock.json").is_file():
+        sys.path[:0] = [
+            str(p)
+            for p in Path("/opt/pi-desktop/python/venv/lib").glob(
+                "python*/site-packages"
+            )
+        ]
     from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
     with sync_playwright() as playwright:
