@@ -1013,9 +1013,9 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
   if (zoomBackend() === 'web') {
-    if (!['status', 'awareness', 'join'].includes(action))
+    if (!['status', 'awareness', 'join', 'audio', 'video', 'leave'].includes(action))
       return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
-    const result = Bun.spawnSync(['python3', ZOOM_WEB, action === 'awareness' ? 'status' : action, ...args, '--json']);
+    const result = Bun.spawnSync(['python3', ZOOM_WEB, action, ...args, '--json']);
     try {
       return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode };
     } catch {
@@ -1145,7 +1145,9 @@ export default function zoomIntegration(pi: ExtensionApi) {
       try {
         const value = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;
         return value.ready === true
-          ? { state: 'ready', value }
+          ? web
+            ? { state: 'degraded', reason: 'meeting_controls_not_qualified', value }
+            : { state: 'ready', value }
           : { state: 'setup_required', reason: 'terminal_camera_not_ready', value };
       } catch {
         return { state: 'setup_required', reason: 'invalid_response' };
