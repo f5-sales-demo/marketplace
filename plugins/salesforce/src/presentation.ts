@@ -7,9 +7,8 @@ import { decorate, type SymbolResolver } from './presentation/icons';
 import { orgView } from './presentation/org';
 import { pipelineView } from './presentation/pipeline';
 import { queryView } from './presentation/query';
-import { component } from './presentation/renderer';
 import type { Args, Options, Result, View } from './presentation/shared';
-import { code, context, evidence, literal, record, texts } from './presentation/shared';
+import { code, context, evidence, incomplete, literal, record, texts } from './presentation/shared';
 
 const adapters = {
   sf_exec: execView,
@@ -24,7 +23,17 @@ export function presentTool<T extends { name: string; label?: string }>(
   p: PresentationAPI,
   symbols: SymbolResolver = () => undefined,
 ) {
-  const styled = (view: View, options: Options) => decorate(view, symbols, options);
+  const styled = (view: View, options: Options) =>
+    decorate(
+      {
+        ...view,
+        sections: view.sections.map((section) =>
+          section.kind === 'fields' ? { ...section, previewFields: 'all' } : section,
+        ),
+      },
+      symbols,
+      options,
+    );
   const presented = p.withPresentation(tool, {
     call: (input: unknown, options: Options): View => {
       const args = record(input);
@@ -58,6 +67,8 @@ export function presentTool<T extends { name: string; label?: string }>(
         return styled(
           {
             summary: 'Salesforce operation failed',
+            expandedEvidence: 'provided',
+            completeness: 'provided',
             sections: [
               ...(argv ? [copyableCommand(p, argv, undefined, options.width)] : []),
               ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
@@ -75,30 +86,39 @@ export function presentTool<T extends { name: string; label?: string }>(
         ];
       const warnings = record(result.details).cliWarnings;
       if (Array.isArray(warnings)) view.warnings = [...(view.warnings ?? []), ...warnings.map(String)];
+      // Completion explanations belong to the decoded Salesforce adapter.
+      const details = record(result.details);
+      let decoded: unknown;
+      if (tool.name === 'sf_exec') {
+        try {
+          decoded = JSON.parse(texts(result)[0] ?? '');
+        } catch {
+          /* Opaque CLI output uses runtime warnings. */
+        }
+      }
+      const recognized = Boolean(
+        result.isError ||
+          (tool.name === 'sf_exec' && decoded !== undefined) ||
+          (tool.name === 'sf_query' && Array.isArray(record(details.queryResult).records)) ||
+          (tool.name === 'sf_describe' && Array.isArray(record(details.described).fields)) ||
+          (tool.name === 'sf_org_display' && Object.keys(record(details.orgEvidence)).length) ||
+          (tool.name === 'sf_help' && /^(?:USAGE|DESCRIPTION|FLAGS)$/m.test(texts(result).join('\n'))) ||
+          (tool.name === 'sf_pipeline_report' &&
+            (Object.keys(record(details.pipelineReport)).length ||
+              /^(?:Pipeline queries: \d+ completed, \d+ running\.|Discovering pipeline scope and schema\.)$/.test(
+                texts(result).join('\n'),
+              ))),
+      );
+      if (recognized) {
+        view.completeness = 'provided';
+        if (options.isPartial && tool.name !== 'sf_pipeline_report')
+          view.states = [...(view.states ?? []), { kind: 'running', text: 'Provisional results' }];
+        if (incomplete(decoded ?? details) && !JSON.stringify(view.states).includes('Partial'))
+          view.warnings = [...(view.warnings ?? []), 'Partial results; conclusions apply only to returned data.'];
+      }
+      view.expandedEvidence = 'provided';
       return styled(view, options);
     },
   });
-  return Object.assign(presented, {
-    inline: true,
-    mergeCallAndResult: true,
-    renderCall: (args: Args, options: Options, theme: unknown) =>
-      component(
-        tool.label ?? tool.name,
-        (width) => presented.presentation.call(args, { ...options, width } as Options) as View,
-        options,
-        theme,
-      ),
-    renderResult: (result: Result, options: Options, theme: unknown, args: Args) =>
-      component(
-        tool.label ?? tool.name,
-        (width) => {
-          const view = presented.presentation.result(result, { ...options, width } as Options, args) as View;
-          if (options.expanded) view.sections.push(literal(args, 'Arguments'));
-          return view;
-        },
-        options,
-        theme,
-        Boolean(result.isError),
-      ),
-  });
+  return presented;
 }
