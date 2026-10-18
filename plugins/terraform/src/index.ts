@@ -1,9 +1,15 @@
+import terraformIntegration from '../extensions/integration';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import { CE_TERRAFORM_RESOURCE_CHANNEL, type CeEventBus } from '../../platform/src/ce/service';
 import { executeF5TerraformResource } from './f5-resources';
 import { createCeTerraformService, registerCeTerraformService, requestPlatform } from './service';
 
-export default function factory(pi: { events: CeEventBus; setLabel(label: string): void }): void {
+export default function factory(pi: {
+  events: CeEventBus;
+  setLabel(label: string): void;
+  integrations: { register<T>(definition: unknown): unknown };
+}): void {
+  terraformIntegration(pi);
   pi.setLabel('Terraform CE lifecycle execution');
   const service = createCeTerraformService(() => requestPlatform(pi.events));
   registerCeTerraformService(pi.events, service);

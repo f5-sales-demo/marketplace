@@ -82,7 +82,14 @@ test('installed Terraform extension registers an executable service through the 
     },
   };
   registerCePlatformService(bus, platform);
-  factory({ events: bus, setLabel: () => {} });
+  const integrations: unknown[] = [];
+  factory({
+    events: bus,
+    setLabel: () => {},
+    integrations: { register: (definition) => integrations.push(definition) },
+  });
+  expect(integrations).toHaveLength(1);
+  expect((integrations[0] as { id: string }).id).toBe('terraform');
   const service = await new Promise<CeTerraformService>((resolve) =>
     bus.emit(TERRAFORM_SERVICE_CHANNEL, { version: 1, resolve }),
   );

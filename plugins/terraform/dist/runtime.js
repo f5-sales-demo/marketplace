@@ -1,5 +1,38 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
+// plugins/terraform/extensions/integration.ts
+function terraformInstallArgv(platform = process.platform) {
+  if (platform === 'darwin') return ['brew', 'install', 'terraform'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'terraform'];
+}
+function terraformIntegration(pi) {
+  pi.integrations.register({
+    id: 'terraform',
+    name: 'Terraform',
+    plugin: 'terraform',
+    kind: 'local',
+    setup: {
+      pluginDependencies: [],
+      requiredEnvironment: [],
+      profileFields: [],
+      steps: [
+        {
+          kind: 'install',
+          argv: terraformInstallArgv(),
+          timeoutMs: 300000,
+        },
+      ],
+      verification: [{ argv: ['terraform', 'version'], timeoutMs: 30000 }],
+    },
+    async probe() {
+      return Bun.spawnSync(['terraform', 'version']).exitCode === 0
+        ? { state: 'ready' }
+        : { state: 'setup_required', reason: 'cli_missing' };
+    },
+  });
+}
+
 // plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -1557,6 +1590,7 @@ function requestPlatform(bus) {
 
 // plugins/terraform/src/index.ts
 function factory(pi) {
+  terraformIntegration(pi);
   pi.setLabel('Terraform CE lifecycle execution');
   const service = createCeTerraformService(() => requestPlatform(pi.events));
   registerCeTerraformService(pi.events, service);
