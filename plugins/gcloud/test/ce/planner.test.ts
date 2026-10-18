@@ -128,6 +128,14 @@ describe('GCP readiness boundary', () => {
     i.sites[0].nodes[1].interfaces[1].vrf = 'changed';
     expect(() => planGcpCe(i, discovery())).toThrow('homogeneous');
   });
+  it('discovers current CE CRT image names as well as legacy CECRT names', () => {
+    const current = {
+      ...image,
+      name: 'f5xc-ce-crt-20260801-0205-byol',
+      selfLink: image.selfLink.replace(image.name, 'f5xc-ce-crt-20260801-0205-byol'),
+    };
+    expect(selectF5Images([current, image])).toHaveLength(2);
+  });
   it('rejects standard OS images, mutable alias identities and missing license', () => {
     expect(
       selectF5Images([

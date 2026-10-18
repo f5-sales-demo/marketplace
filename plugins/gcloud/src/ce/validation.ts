@@ -22,7 +22,7 @@ export function ipv4Range(cidr: string): [number, number] {
 }
 export function validateImage(image: GcpCeImage) {
   name(image.name);
-  if (!/^f5xc-cecrt-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
+  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
   const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
   if (
     !/^\d+$/.test(image.id) ||
