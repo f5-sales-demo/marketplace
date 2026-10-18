@@ -4,8 +4,6 @@ set -eu
 ACTION=${1:-}
 PLUGIN_VERSION=${2:-}
 MINIMUM_PROTOCOL=27
-PINNED_VERSION=0.19.2
-PINNED_PROTOCOL=27
 INSTALL_DIR=${HERDR_INSTALL_DIR:-$HOME/.local/bin}
 STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
 RECEIPT_PATH=${XCSH_HERDR_RECEIPT_PATH:-$STATE_HOME/xcsh/herdr/setup-receipt.json}
@@ -171,19 +169,17 @@ LOCK_OWNED=1
 printf '%s\n' "$$" >"$LOCK_DIR/pid"
 find "$INSTALL_DIR" -maxdepth 1 -type f -name '.herdr.xcsh.tmp.*' -exec rm -f {} \;
 
-VERSION=$PINNED_VERSION
-PROTOCOL=$PINNED_PROTOCOL
-case "$TARGET" in
-linux-x86_64) EXPECTED_SHA=8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394 ;;
-linux-aarch64) EXPECTED_SHA=dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c ;;
-macos-x86_64) EXPECTED_SHA=36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a ;;
-macos-aarch64) EXPECTED_SHA=f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a ;;
-*) fail "unsupported_target:$TARGET" ;;
-esac
-if [ "${HERDR_TESTING:-}" = 1 ] && [ -n "${HERDR_TEST_EXPECTED_SHA:-}" ]; then
-  EXPECTED_SHA=$HERDR_TEST_EXPECTED_SHA
+PROTOCOL=$MINIMUM_PROTOCOL
+if [ "${HERDR_TESTING:-}" = 1 ] && [ -n "${HERDR_PACKAGE_FILE:-}" ]; then
+  VERSION=0.19.2
+  EXPECTED_SHA=${HERDR_TEST_EXPECTED_SHA:-}
+  IMMUTABLE_URL=https://github.com/f5-sales-demo/herdr/releases/download/v$VERSION/$ASSET_NAME
+else
+  resolved=$(python3 "$(dirname "$0")/resolve-latest.py" "$TARGET") || fail release_resolution
+  read -r VERSION EXPECTED_SHA IMMUTABLE_URL <<EOF
+$resolved
+EOF
 fi
-IMMUTABLE_URL=https://github.com/f5-sales-demo/herdr/releases/download/v$PINNED_VERSION/$ASSET_NAME
 
 if verify_installation &&
   [ "$(receipt_value herdr_version)" = "$VERSION" ] &&

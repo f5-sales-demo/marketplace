@@ -14,8 +14,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $MinimumProtocol = 27
-$PinnedVersion = "0.19.2"
-$PinnedSha256 = "b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b"
 
 function Get-Target {
     param([string]$RequestedArchitecture)
@@ -35,12 +33,23 @@ function Get-Target {
 function Resolve-StableRelease {
     param([string]$Target)
     $expectedName = "herdr-windows-x86_64.zip"
+    $metadata = Invoke-RestMethod -Uri "https://api.github.com/repos/f5-sales-demo/herdr/releases/latest"
+    if ($metadata.draft -or $metadata.prerelease -or $metadata.tag_name -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+        throw "stable_fork_release_required"
+    }
+    $asset = @($metadata.assets | Where-Object { $_.name -eq $expectedName })
+    if ($asset.Count -ne 1 -or $asset[0].digest -notmatch '^sha256:[0-9a-f]{64}$') {
+        throw "published_fork_digest_required"
+    }
+    $version = $metadata.tag_name.Substring(1)
+    $url = "https://github.com/f5-sales-demo/herdr/releases/download/v$version/$expectedName"
+    if ($asset[0].browser_download_url -ne $url) { throw "fork_release_origin_mismatch" }
     return [PSCustomObject]@{
-        Version = $PinnedVersion
+        Version = $version
         Protocol = $MinimumProtocol
         Target = $Target
-        Url = "https://github.com/f5-sales-demo/herdr/releases/download/v$PinnedVersion/$expectedName"
-        Sha256 = $PinnedSha256
+        Url = $url
+        Sha256 = $asset[0].digest.Substring(7)
     }
 }
 
