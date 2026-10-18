@@ -1,4 +1,4 @@
-import { ownedTables, type View } from './shared';
+import { type Options, ownedTables, type View } from './shared';
 
 type SymbolKey =
   | 'status.info'
@@ -27,12 +27,12 @@ export function sessionSymbols() {
   };
 }
 
-export function decorate(view: View, resolve: SymbolResolver, _summaryKey?: SymbolKey): View {
+export function decorate(view: View, resolve: SymbolResolver, options: Options): View {
   const { states = [], ...output } = view;
   let missing = false;
-  const sections = view.sections.map((section) => {
-    if (section.kind !== 'table' || !ownedTables.has(section)) return section;
-    return {
+  const sections = view.sections.flatMap((section) => {
+    if (section.kind !== 'table' || !ownedTables.has(section)) return [section];
+    const formatted = {
       ...section,
       rows: section.rows.map((row) =>
         Object.fromEntries(
@@ -45,6 +45,19 @@ export function decorate(view: View, resolve: SymbolResolver, _summaryKey?: Symb
         ),
       ),
     };
+    if (options.expanded || formatted.rows.length <= 3) return [formatted];
+    // xcsh 23.5.1 previews three rows per table. Keep ordinary result sets visible
+    // in sequential table blocks without changing the shared presentation contract.
+    const visible = formatted.rows.slice(0, 12);
+    const blocks = [];
+    for (let i = 0; i < visible.length; i += 3)
+      blocks.push({ ...formatted, ...(i ? { title: undefined } : {}), rows: visible.slice(i, i + 3) });
+    if (formatted.rows.length > visible.length)
+      blocks.push({
+        kind: 'markdown' as const,
+        text: `${formatted.rows.length - visible.length} more rows in expanded details`,
+      });
+    return blocks;
   });
   const cues = states.map(({ kind, text }) => ({
     kind: 'markdown' as const,

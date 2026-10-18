@@ -23,7 +23,7 @@ export function presentTool<T extends { name: string; label?: string }>(
   p: PresentationAPI,
   symbols: SymbolResolver = () => undefined,
 ) {
-  const styled = (view: View, _family?: string) => decorate(view, symbols);
+  const styled = (view: View, options: Options) => decorate(view, symbols, options);
   return p.withPresentation(tool, {
     call: (input: unknown, options: Options): View => {
       const args = record(input);
@@ -32,27 +32,36 @@ export function presentTool<T extends { name: string; label?: string }>(
         return { sections: [literal(tool.name === 'sf_exec' ? commandContext(args).argv : args)] };
       if (tool.name === 'sf_exec') {
         const c = commandContext(args);
-        return styled({
-          sections: [copyableCommand(p, ['sf', ...c.argv]), ...context(c.operation, c.params)],
-        });
+        return styled(
+          {
+            sections: [copyableCommand(p, ['sf', ...c.argv]), ...context(c.operation, c.params)],
+          },
+          options,
+        );
       }
       const argv = toolArgv(tool.name, args);
-      return styled({
-        sections: argv ? [copyableCommand(p, argv), ...context('', args)] : p.data(args),
-      });
+      return styled(
+        {
+          sections: argv ? [copyableCommand(p, argv), ...context('', args)] : p.data(args),
+        },
+        options,
+      );
     },
     result: (result: Result, options: Options, input: unknown): View => {
       const args: Args = record(input);
       const argv = toolArgv(tool.name, args);
       if (result.isError && tool.name !== 'sf_exec')
-        return styled({
-          summary: 'Salesforce operation failed',
-          sections: [
-            ...(argv ? [copyableCommand(p, argv)] : []),
-            ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
-            ...(options.expanded ? evidence(p, result, args) : []),
-          ],
-        });
+        return styled(
+          {
+            summary: 'Salesforce operation failed',
+            sections: [
+              ...(argv ? [copyableCommand(p, argv)] : []),
+              ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
+              ...(options.expanded ? evidence(p, result, args) : []),
+            ],
+          },
+          options,
+        );
       const adapter = adapters[tool.name as keyof typeof adapters];
       const view = adapter ? adapter(p, result, options, args) : { sections: evidence(p, result, args) };
       if (argv)
@@ -62,7 +71,7 @@ export function presentTool<T extends { name: string; label?: string }>(
         ];
       const warnings = record(result.details).cliWarnings;
       if (Array.isArray(warnings)) view.warnings = [...(view.warnings ?? []), ...warnings.map(String)];
-      return styled(view, tool.name === 'sf_exec' ? commandContext(args).family : undefined);
+      return styled(view, options);
     },
   });
 }

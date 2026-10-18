@@ -40,7 +40,7 @@ export function orgView(
   const available = (v: unknown) => v !== null && v !== undefined && v !== '';
   const status = org.connectedStatus;
   return {
-    ...(available(status) ? { summary: String(status) } : {}),
+    ...(available(status) && !/^connected$/i.test(String(status)) ? { summary: `Connection: ${String(status)}` } : {}),
     states:
       !available(org.username) || !available(org.instanceUrl)
         ? [{ kind: 'info', text: 'Identity unknown' }]

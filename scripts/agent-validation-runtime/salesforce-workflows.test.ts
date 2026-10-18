@@ -213,8 +213,8 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(collapsed).toContain('Partial results');
           if (result.isError) expect(collapsed).toContain('No such column');
           if ((args as any).query === taskQuery || (args as any).args?.includes(taskQuery)) {
-            expect(collapsed).toContain('7 more rows');
-            expect(collapsed).not.toContain('Prepare demo 3');
+            expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo9');
+            expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo3');
             expect((collapsed.match(/SELECT/g) ?? []).length).toBe(1);
             expect(collapsed).toContain('--json');
           }
