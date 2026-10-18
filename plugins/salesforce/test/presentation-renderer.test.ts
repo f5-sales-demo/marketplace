@@ -117,3 +117,24 @@ test('top deals preserve amount stage timing owner and next steps in readable ta
   expect(output).not.toContain('Owner:');
   expect(output).toContain('|');
 });
+
+test('pending pipeline uses current host spinner frames and stops on completion', () => {
+  const tool = presentTool({ name: 'sf_pipeline_report' }, presentation);
+  const spinningTheme = { ...theme, spinnerFrames: ['frame-a', 'frame-b'] };
+  const result = {
+    content: [{ type: 'text', text: 'Pipeline queries: 1 completed, 3 running.' }],
+    details: { tool: 'sf_pipeline_report' },
+  };
+  for (const spinnerFrame of [0, 1]) {
+    const text = tool
+      .renderResult(result, { expanded: false, isPartial: true, spinnerFrame }, spinningTheme, {})
+      .render(76)
+      .join('\n');
+    expect(text).toContain(`${spinningTheme.spinnerFrames[spinnerFrame]} Pipeline: 1 completed`);
+  }
+  const final = tool
+    .renderResult(result, { expanded: false, isPartial: false, spinnerFrame: 1 }, spinningTheme, {})
+    .render(76)
+    .join('\n');
+  expect(final).not.toContain('frame-b');
+});
