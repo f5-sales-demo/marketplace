@@ -69,8 +69,21 @@ discovered from Google; an absent or ambiguous mapping requires an exact agreeme
 and document reference for server validation. Optional `enableMarketplaceApi=true`
 requests scoped API enablement. The tool checks active consent after granting and
 reconciles interrupted grants without duplicate acceptance. It places no orders.
-The installed live probe currently reports Google's prerequisite cloud terms as
-unaccepted; successful live Marketplace acceptance remains unqualified.
+
+### Google Cloud terms prerequisite
+
+Google may require acceptance of its prerequisite Cloud terms before enabling
+the Consumer Procurement API. The tool reports `cloud_terms_not_accepted`, the
+provider code `UREQ_TOS_NOT_ACCEPTED`, an acceptance link and recovery steps.
+
+1. Open [Google Cloud terms](https://console.developers.google.com/terms/cloud).
+2. Sign in with the same Google account used by `gcloud`.
+3. Review and accept the terms shown, selecting the intended project if prompted.
+4. Retry scoped API enablement and agreement qualification to verify recovery.
+
+No supported API for this prerequisite acceptance has been qualified. These
+terms are separate from the F5 Marketplace agreement; verify current F5 consent
+afterward. Successful live Marketplace acceptance remains unqualified.
 
 For an existing disposable native single-node deployment, `gcp_ce_teardown`
 prepares an exact saved review from its persisted intent and ownership ledger.

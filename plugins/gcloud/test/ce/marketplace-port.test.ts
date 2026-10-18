@@ -1,5 +1,11 @@
 import { expect, it } from 'bun:test';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Type } from '@sinclair/typebox';
+import type { CePlatformService } from '../../../platform/src/ce/service';
 import { createGcpMarketplacePort, enableGcpMarketplaceApi } from '../../src/ce/marketplace-port';
+import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
 
 function fixture() {
@@ -10,7 +16,8 @@ function fixture() {
   const calls: { url: string; body?: Record<string, unknown> }[] = [];
   let repeated = false,
     foreign = false,
-    disabled = false;
+    disabled = false,
+    methodUnavailable = false;
   const fetcher = async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input),
       body = init?.body ? JSON.parse(String(init.body)) : undefined;
@@ -28,6 +35,9 @@ function fixture() {
     else if (disabled) {
       status = 403;
       value = { error: { message: 'private-auth-fixture', details: [{ reason: 'SERVICE_DISABLED' }] } };
+    } else if (methodUnavailable) {
+      status = 404;
+      value = { error: { message: 'Method not found.' } };
     } else if (url.includes('consents:check')) value = {};
     else if (url.includes('consents:grant')) value = {};
     else if (url.includes('/consents'))
@@ -52,6 +62,9 @@ function fixture() {
     },
     disable: () => {
       disabled = true;
+    },
+    unavailable: () => {
+      methodUnavailable = true;
     },
   };
 }
@@ -90,6 +103,12 @@ it('disabled API errors expose a fixed prerequisite category without raw credent
   expect(message).not.toContain('private-auth-fixture');
   expect(message).not.toContain('private-access-fixture');
 });
+it('a missing consent API method remains separate from an unaccepted Cloud terms prerequisite', async () => {
+  const f = fixture();
+  f.unavailable();
+  await expect(f.port.binding()).rejects.toThrow('method_unavailable');
+  expect(f.calls.filter((call) => call.url.includes('consents:grant'))).toHaveLength(0);
+});
 it('explicit API enablement stays scoped and reports Google cloud terms prerequisites', async () => {
   const calls: string[][] = [];
   const api = {
@@ -102,4 +121,46 @@ it('explicit API enablement stays scoped and reports Google cloud terms prerequi
   expect(calls).toEqual([
     ['services', 'enable', 'cloudcommerceconsumerprocurement.googleapis.com', '--project=test-project', '--quiet'],
   ]);
+});
+
+it('typed qualification gives the terms acceptance link and recovery steps without exposing raw provider errors', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'gcp-cloud-terms-')));
+  try {
+    const i = intent();
+    const calls: string[][] = [];
+    const api = {
+      exec: async (_command: string, args: string[]) => {
+        calls.push(args);
+        return { stdout: '', stderr: 'UREQ_TOS_NOT_ACCEPTED private-token-fixture', exitCode: 1 };
+      },
+    };
+    const platform = { storage: async () => ({ directory }) } as unknown as CePlatformService;
+    const tool = createGcpCeTools(
+      { typebox: { Type } },
+      () => api,
+      undefined,
+      async () => platform,
+    ).find((tool) => tool.name === 'gcp_marketplace_agreement');
+    if (!tool) throw new Error('Missing agreement tool');
+    const result = await tool.execute(
+      'terms',
+      { project: i.project, region: i.region, intent: i, enableMarketplaceApi: true },
+      undefined,
+      null,
+      { cwd: directory },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.details.reason).toBe('cloud_terms_not_accepted');
+    expect(result.details.providerCode).toBe('UREQ_TOS_NOT_ACCEPTED');
+    expect(result.details.acceptanceUrl).toBe('https://console.developers.google.com/terms/cloud');
+    expect(result.details.marketplaceConsent).toBe('not-established');
+    expect(result.details.mutationAttempted).toBe(false);
+    expect(result.details.nextSteps).toHaveLength(3);
+    expect(JSON.stringify(result)).not.toContain('private-token-fixture');
+    expect(calls).toEqual([
+      ['services', 'enable', 'cloudcommerceconsumerprocurement.googleapis.com', '--project=test-project', '--quiet'],
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

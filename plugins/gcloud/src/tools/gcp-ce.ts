@@ -5,7 +5,12 @@ import { resolveGcpContract } from '../ce/contract';
 import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../ce/deployment-teardown';
 import { discoverGcp } from '../ce/discovery';
 import { applyGcpMarketplaceAcceptance, planGcpMarketplaceAcceptance } from '../ce/marketplace-agreement';
-import { createGcpMarketplacePort, enableGcpMarketplaceApi, GcpMarketplaceUnavailable } from '../ce/marketplace-port';
+import {
+  createGcpMarketplacePort,
+  enableGcpMarketplaceApi,
+  GcpMarketplaceUnavailable,
+  gcpMarketplacePrerequisiteGuidance,
+} from '../ce/marketplace-port';
 import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
@@ -429,6 +434,7 @@ export function createGcpCeTools(
                 ? error.reason
                 : 'validation_or_read_failed',
             mutationAttempted,
+            ...(error instanceof GcpMarketplaceUnavailable ? gcpMarketplacePrerequisiteGuidance(error.reason) : {}),
           },
           true,
         );

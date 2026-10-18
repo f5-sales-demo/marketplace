@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** documents Google's prerequisite Cloud terms and returns the
+  acceptance link, account guidance and verification steps when API enablement
+  reports `UREQ_TOS_NOT_ACCEPTED` (#1559).
 - **`gcloud`** adds programmatic Marketplace consent review and grant through
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live grant remains gated by Google's cloud

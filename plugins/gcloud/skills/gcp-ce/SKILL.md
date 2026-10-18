@@ -27,6 +27,14 @@ Read [provider contract](references/provider-contract.md) before planning and
    programmatically. Set `enableMarketplaceApi=true` only when API enablement is
    explicitly requested. Report API, permission, mapping and prerequisite cloud
    terms failures; no usage fee does not prove acceptance. The tool places no orders.
+   If Google returns `UREQ_TOS_NOT_ACCEPTED`, open the tool's
+   [Google Cloud terms acceptance link](https://console.developers.google.com/terms/cloud)
+   and have the user sign in with the same Google account used by `gcloud`, review
+   and accept the terms, selecting the intended project if prompted. This is a
+   prerequisite for enabling the Consumer Procurement API. No supported API for
+   this prerequisite acceptance has been qualified. After the user reports
+   acceptance, retry scoped API enablement and agreement qualification. Verify
+   the results; accepting these terms does not establish F5 Marketplace consent.
 3. Use `gcp_ce_plan` with a schema-v1 intent. Name each independent site and each
    node; one node and three HA nodes are distinct topologies. NIC zero is SLO;
    each NIC requires a distinct VPC and non-overlapping subnet. HA uses identical

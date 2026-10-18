@@ -8,6 +8,21 @@ import {
 import type { GcpCeIntent } from './types';
 import { validateIntent, validateScope } from './validation';
 
+export const GCP_CLOUD_TERMS_URL = 'https://console.developers.google.com/terms/cloud';
+export function gcpMarketplacePrerequisiteGuidance(reason: GcpMarketplaceUnavailable['reason']) {
+  if (reason !== 'cloud_terms_not_accepted') return {};
+  return {
+    prerequisite: 'google-cloud-terms',
+    providerCode: 'UREQ_TOS_NOT_ACCEPTED',
+    acceptanceUrl: GCP_CLOUD_TERMS_URL,
+    nextSteps: [
+      'Open the acceptance URL and sign in with the same Google account used by gcloud.',
+      'Review and accept the Google Cloud terms shown; select the intended project if prompted.',
+      'Retry scoped Consumer Procurement API enablement and agreement qualification to verify recovery.',
+    ],
+    marketplaceConsent: 'not-established',
+  };
+}
 export class GcpMarketplaceUnavailable extends Error {
   constructor(
     readonly reason:
@@ -15,6 +30,7 @@ export class GcpMarketplaceUnavailable extends Error {
       | 'permission_denied'
       | 'agreement_mapping_unavailable'
       | 'source_unavailable'
+      | 'method_unavailable'
       | 'cloud_terms_not_accepted',
   ) {
     super(`GCP Marketplace unavailable: ${reason}`);
@@ -74,7 +90,7 @@ export function createGcpMarketplacePort(
     const text = await response.text();
     if (text.length > 4 * 1024 * 1024) throw new GcpMarketplaceUnavailable('source_unavailable');
     let value: {
-      error?: { details?: { reason?: string }[] };
+      error?: { message?: string; details?: { reason?: string }[] };
       projectId?: string;
       projectNumber?: string;
       id?: string;
@@ -94,6 +110,8 @@ export function createGcpMarketplacePort(
       const reasons = value.error?.details?.map((d: { reason?: string }) => d.reason) ?? [];
       if (reasons.includes('UREQ_TOS_NOT_ACCEPTED')) throw new GcpMarketplaceUnavailable('cloud_terms_not_accepted');
       if (reasons.includes('SERVICE_DISABLED')) throw new GcpMarketplaceUnavailable('api_disabled');
+      if (response.status === 404 && value.error?.message === 'Method not found.')
+        throw new GcpMarketplaceUnavailable('method_unavailable');
       if (response.status === 403) throw new GcpMarketplaceUnavailable('permission_denied');
       throw new GcpMarketplaceUnavailable('source_unavailable');
     }

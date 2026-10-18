@@ -2086,6 +2086,20 @@ var init_marketplace_agreement = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/marketplace-port.ts
+function gcpMarketplacePrerequisiteGuidance(reason) {
+  if (reason !== 'cloud_terms_not_accepted') return {};
+  return {
+    prerequisite: 'google-cloud-terms',
+    providerCode: 'UREQ_TOS_NOT_ACCEPTED',
+    acceptanceUrl: GCP_CLOUD_TERMS_URL,
+    nextSteps: [
+      'Open the acceptance URL and sign in with the same Google account used by gcloud.',
+      'Review and accept the Google Cloud terms shown; select the intended project if prompted.',
+      'Retry scoped Consumer Procurement API enablement and agreement qualification to verify recovery.',
+    ],
+    marketplaceConsent: 'not-established',
+  };
+}
 async function enableGcpMarketplaceApi(api, project, signal) {
   validateScope(project);
   signal?.throwIfAborted();
@@ -2142,6 +2156,8 @@ function createGcpMarketplacePort(api, intent, reference, fetcher = fetch, signa
       const reasons = value.error?.details?.map((d) => d.reason) ?? [];
       if (reasons.includes('UREQ_TOS_NOT_ACCEPTED')) throw new GcpMarketplaceUnavailable('cloud_terms_not_accepted');
       if (reasons.includes('SERVICE_DISABLED')) throw new GcpMarketplaceUnavailable('api_disabled');
+      if (response.status === 404 && value.error?.message === 'Method not found.')
+        throw new GcpMarketplaceUnavailable('method_unavailable');
       if (response.status === 403) throw new GcpMarketplaceUnavailable('permission_denied');
       throw new GcpMarketplaceUnavailable('source_unavailable');
     }
@@ -2265,7 +2281,8 @@ function createGcpMarketplacePort(api, intent, reference, fetcher = fetch, signa
     },
   };
 }
-var GcpMarketplaceUnavailable;
+var GCP_CLOUD_TERMS_URL = 'https://console.developers.google.com/terms/cloud',
+  GcpMarketplaceUnavailable;
 var init_marketplace_port = __esm(() => {
   init_discovery();
   init_marketplace_agreement();
@@ -3379,6 +3396,7 @@ function createGcpCeTools(
                 ? error.reason
                 : 'validation_or_read_failed',
             mutationAttempted,
+            ...(error instanceof GcpMarketplaceUnavailable ? gcpMarketplacePrerequisiteGuidance(error.reason) : {}),
           },
           true,
         );

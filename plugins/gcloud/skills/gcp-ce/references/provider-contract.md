@@ -69,7 +69,10 @@ Image/license IDs, the license billing service and project number bind the revie
 Lost grants are reconciled without blind resubmission. Existing consent references
 can be discovered with pagination; absent or ambiguous offer/document mappings
 remain unavailable. Purchases and billing-account orders are outside this flow.
-The installed live probe encountered `SERVICE_DISABLED`; explicit API enablement
-then returned `UREQ_TOS_NOT_ACCEPTED` for Google's prerequisite cloud terms.
-No Marketplace consent was granted. Programmatic acceptance and its use as a
-deployment prerequisite remain unqualified on this account.
+The initial installed live probe encountered `SERVICE_DISABLED`; explicit API
+enablement then returned `UREQ_TOS_NOT_ACCEPTED` for Google's prerequisite cloud
+terms. After console acceptance, scoped API enablement succeeded and Service
+Usage confirmed `ENABLED`. Subsequent project consent inspection returned
+`Method not found.` The consumer reports this as `method_unavailable`, without
+exposing raw provider responses. No Marketplace consent was granted. Successful
+live grant and its use as a deployment prerequisite remain unqualified.

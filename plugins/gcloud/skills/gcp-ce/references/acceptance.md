@@ -12,6 +12,10 @@ enablement. No consent or order was created. Automated tests cover exact documen
 binding, grant dry runs, independent acceptance checks, lost-grant recovery,
 revocation, changed image identity, pagination and sanitized prerequisite errors.
 Successful live grant and fresh unaccepted-document discovery remain unqualified.
+After prerequisite Cloud terms acceptance, API enablement succeeded and the
+independent service read confirmed `ENABLED`. The next live consent inspection
+returned `Method not found.` This separate API compatibility gate remains
+unqualified; terms acceptance does not establish image agreement acceptance.
 
 Installed native teardown qualification used six synthetic Compute identities
 and a live disposable XC site and node-bound token. The typed tool saved a review,
