@@ -53,6 +53,7 @@ export function renderProviderResource(request: Json, resourceSchema: unknown): 
           if (!Array.isArray(value)) throw new Error(`Provider block must be a collection: ${key}`);
           result[key] = value.map((row) => convert(object(row), child));
         } else throw new Error(`Unsupported provider block nesting: ${key}`);
+      } else if (key === 'description' && value === '') {
       } else throw new Error(`Published provider does not expose request field: ${key}`);
     }
     return result;

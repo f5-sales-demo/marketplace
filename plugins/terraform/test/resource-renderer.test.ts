@@ -62,3 +62,16 @@ test('unknown and read-only provider fields cannot enter a saved F5 configuratio
   expect(() => renderProviderResource(request, schema)).toThrow('Read-only');
   expect(() => renderProviderResource({ ...request, spec: { unsupported: {} } }, schema)).toThrow('does not expose');
 });
+
+test('omits only unsupported empty description defaults from nested API readback', () => {
+  const request = {
+    metadata: { name: 'site', namespace: 'system' },
+    spec: { aws: { not_managed: { node_list: [{ hostname: 'node', description: '' }] } } },
+  };
+  expect(renderProviderResource(request, schema).aws).toEqual([
+    { not_managed: [{ node_list: [{ hostname: 'node' }] }] },
+  ]);
+  request.spec.aws.not_managed.node_list[0].description = 'requested description';
+  expect(() => renderProviderResource(request, schema)).toThrow('does not expose request field: description');
+  expect(() => renderProviderResource({ ...request, spec: { unsupported: '' } }, schema)).toThrow('does not expose');
+});
