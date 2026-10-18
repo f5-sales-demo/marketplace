@@ -26,9 +26,12 @@ Read [provider contract](references/provider-contract.md) before planning and
 4. The current plan is non-executable. Report its unavailable gates. Do not use
    `gcloud_exec`, CLI commands, Terraform or generic Platform tools to bypass it.
    Apply, upgrade, failover and teardown tools report unavailable before mutation.
-5. Inventory/status/diagnose read cloud provisioning only. Candidate labels do not
-   prove ledger ownership. Keep registration, physical interface identity, platform
-   health, routing, application traffic and independent absence separate.
+5. Inventory and status without a context read cloud provisioning only. For an
+   existing owned deployment, status/diagnose with explicit region and its persisted
+   `platformContext` use the shared Platform service and exact ledger topology to
+   observe registration, physical interface identity and global health. Candidate
+   labels do not prove ledger ownership. Routing, application traffic, HA health
+   and independent absence remain separate unqualified gates.
 
 When executable support is qualified, concrete billable, intrusive diagnostic
 and teardown plans must be reviewed before required approvals. Immutable SLO

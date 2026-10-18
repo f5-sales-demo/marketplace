@@ -56,6 +56,12 @@ Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
 remain separate unknown gates. Deployment labels alone cannot authorize deletion.
 
+For an existing ledger-owned deployment, status and diagnostics with explicit
+region and its persisted `platformContext` use shared Platform observations.
+They correlate registration and physical interfaces against exact VM identities
+and report matching-node global health. HA health, routing, application traffic
+and independent absence remain unqualified.
+
 Disposable native and shared Terraform runner qualification also observed matching
 node global health after initial software and OS convergence, followed by owned
 cleanup and independent absence checks. These campaign results do not establish
