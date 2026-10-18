@@ -49,11 +49,11 @@ def expected_argv(case: dict[str, Any]) -> list[str] | None:
     if tool == "sf_query":
         result = ["data", "query", "--query", args["query"]]
     elif tool == "sf_describe":
-        result = ["sobject", "describe", "--sobject", args["sobject"]]
+        result = ["sobject", "describe", "--sobject", args["sobject"].strip()]
     elif tool == "sf_org_display":
         result = ["org", "display"]
     elif tool == "sf_help":
-        return [*args["command_path"].split(), "--help"]
+        return [*filter(None, re.split(r"[ :]+", args.get("command_path", "").strip())), "--help"]
     elif tool == "sf_exec":
         return args["args"]
     else:

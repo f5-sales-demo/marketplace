@@ -19,7 +19,6 @@ import {
   configureSalesforceExecutor,
 } from '../../plugins/salesforce/src/context/salesforce-context';
 import factory from '../../plugins/salesforce/src/index';
-import { copyableCommand } from '../../plugins/salesforce/src/presentation/command';
 import { PluginViewComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/plugin-view';
 import { ToolExecutionComponent } from './node_modules/@f5-sales-demo/xcsh/src/modes/components/tool-execution';
 import { initTheme, setSymbolPreset, setTheme, theme } from './node_modules/@f5-sales-demo/xcsh/src/modes/theme/theme';
@@ -301,7 +300,7 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
       await setTheme(theme);
       for (const expanded of [false, true]) {
         for (const width of [40, 76, 120, 153]) {
-          const section = copyableCommand(presentation, argv, undefined, width - 10);
+          const section = presentation.command(argv);
           const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
           const copied = plain(component.render(width - 10));
           for (const shell of shells) {

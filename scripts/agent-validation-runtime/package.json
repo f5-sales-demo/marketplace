@@ -2,7 +2,7 @@
   "name": "marketplace-agent-validation",
   "private": true,
   "dependencies": {
-    "@f5-sales-demo/xcsh": "23.5.1"
+    "@f5-sales-demo/xcsh": "23.8.0"
   },
   "devDependencies": {
     "@tobilu/qmd": "2.8.3"

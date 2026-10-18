@@ -53,3 +53,64 @@ test('malformed domain payloads retain automatic completion warnings', () => {
     expect(view.warnings?.join()).toContain('streaming');
   }
 });
+
+test('nested fallback tables retain twelve-row previews and declared readability', () => {
+  const view = presentTool({ name: 'sf_exec' }, presentation).presentation.result(
+    {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            result: {
+              items: Array.from({ length: 15 }, () => ({
+                Id: 'synthetic',
+                Amount: 0,
+                CurrencyIsoCode: 'CAD',
+                month: '2029-01',
+              })),
+            },
+          }),
+        },
+      ],
+    },
+    { expanded: false, isPartial: false },
+    { args: ['api', 'request', 'rest', '/synthetic'] },
+  );
+  const tables = view.sections?.filter((s) => s.kind === 'table') ?? [];
+  expect(tables).toHaveLength(1);
+  for (const table of tables) {
+    expect(table.previewRows).toBe(12);
+    expect(table.columns.find((c) => c.key === 'Amount')?.minWidth).toBe(14);
+    expect(table.columns.find((c) => c.key === 'CurrencyIsoCode')?.minWidth).toBe(8);
+    expect(table.columns.find((c) => c.key === 'month')?.minWidth).toBe(6);
+    expect(table.columns.find((c) => c.key === 'Id')?.maxWidth).toBe(35);
+  }
+});
+
+test('expanded exec org evidence uses the same safe identity whitelist as org display', () => {
+  const result = {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: 0,
+          result: {
+            username: 'synthetic@example.com',
+            instanceUrl: 'https://salesforce.example.com',
+            isSandbox: false,
+            accessToken: 'SENSITIVE_VALUE_FIXTURE',
+            sfdxAuthUrl: 'SENSITIVE_VALUE_FIXTURE',
+          },
+        }),
+      },
+    ],
+  };
+  const view = presentTool({ name: 'sf_exec' }, presentation).presentation.result(
+    result,
+    { expanded: true, isPartial: false },
+    { args: ['org', 'display', '--json'] },
+  );
+  expect(JSON.stringify(view)).not.toContain('SENSITIVE_VALUE_FIXTURE');
+  expect(JSON.stringify(view)).toContain('synthetic@example.com');
+  expect(JSON.stringify(view)).toContain('false');
+});

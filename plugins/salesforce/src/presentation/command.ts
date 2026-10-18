@@ -1,10 +1,4 @@
-import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args } from './shared';
-
-// The runtime owns quoting and width-safe wrapping from declared executable argv.
-export function copyableCommand(p: PresentationAPI, argv: readonly string[], title?: string, _columns?: number) {
-  return p.command(argv, title);
-}
 
 export function toolArgv(name: string, args: Args): string[] | undefined {
   if (name === 'sf_exec') return Array.isArray(args.args) ? ['sf', ...args.args.map(String)] : undefined;

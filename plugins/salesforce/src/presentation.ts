@@ -1,5 +1,5 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
-import { copyableCommand, toolArgv } from './presentation/command';
+import { toolArgv } from './presentation/command';
 import { describeView } from './presentation/describe';
 import { commandContext, execView } from './presentation/exec';
 import { helpView } from './presentation/help';
@@ -39,15 +39,12 @@ export function presentTool<T extends { name: string; label?: string }>(
       const args = record(input);
       if (options.expanded)
         // The host labels expanded call arguments; the result owns the runnable block.
-        return { sections: [literal(tool.name === 'sf_exec' ? commandContext(args).argv : args)] };
+        return { sections: [literal(args)] };
       if (tool.name === 'sf_exec') {
         const c = commandContext(args);
         return styled(
           {
-            sections: [
-              copyableCommand(p, ['sf', ...c.argv], undefined, options.width),
-              ...context(c.operation, c.params),
-            ],
+            sections: [p.command(['sf', ...c.argv]), ...context(c.operation, c.params)],
           },
           options,
         );
@@ -55,7 +52,7 @@ export function presentTool<T extends { name: string; label?: string }>(
       const argv = toolArgv(tool.name, args);
       return styled(
         {
-          sections: argv ? [copyableCommand(p, argv, undefined, options.width), ...context('', args)] : p.data(args),
+          sections: argv ? [p.command(argv), ...context('', args)] : p.data(args),
         },
         options,
       );
@@ -70,7 +67,7 @@ export function presentTool<T extends { name: string; label?: string }>(
             expandedEvidence: 'provided',
             completeness: 'provided',
             sections: [
-              ...(argv ? [copyableCommand(p, argv, undefined, options.width)] : []),
+              ...(argv ? [p.command(argv)] : []),
               ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
               ...(options.expanded && result.details !== undefined ? [literal(result.details, 'Metadata')] : []),
             ],
@@ -81,7 +78,7 @@ export function presentTool<T extends { name: string; label?: string }>(
       const view = adapter ? adapter(p, result, options, args) : { sections: evidence(p, result, args) };
       if (argv)
         view.sections = [
-          copyableCommand(p, argv, undefined, options.width),
+          p.command(argv),
           ...view.sections.filter((section) => !['SOQL', 'SOSL', 'Query'].includes(section.title ?? '')),
         ];
       const warnings = record(result.details).cliWarnings;
