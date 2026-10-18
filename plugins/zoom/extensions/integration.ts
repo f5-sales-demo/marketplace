@@ -47,10 +47,11 @@ const DEFAULT_SESSION = 'desktop';
 const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
 const ZOOM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'zoom-setup.py');
 const ZOOM_WEB = resolve(import.meta.dir, '..', 'scripts', 'zoom-web.py');
-export const zoomBackend = () =>
-  process.platform === 'linux' && (process.arch === 'arm64' || process.env.XCSH_ZOOM_BACKEND === 'web')
-    ? 'web'
-    : 'workplace';
+export const zoomBackend = () => {
+  if (process.env.XCSH_ZOOM_BACKEND === 'web') return 'web';
+  if (process.env.XCSH_ZOOM_BACKEND === 'x11') return 'workplace';
+  return process.platform === 'linux' && process.arch === 'arm64' ? 'web' : 'workplace';
+};
 type AccessibilityItem = {
   name?: string;
   role?: string;

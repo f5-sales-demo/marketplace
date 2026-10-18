@@ -21,10 +21,14 @@ import { presentation } from '../scripts/agent-validation-runtime/node_modules/@
 const xorgVersion = (
   await Bun.file(join(import.meta.dir, '..', 'plugins', 'xorg', '.xcsh-plugin', 'plugin.json')).json()
 ).version as string;
+const originalZoomBackend = process.env.XCSH_ZOOM_BACKEND;
+process.env.XCSH_ZOOM_BACKEND = 'x11';
 const originalZoomStateDirectory = process.env.XCSH_ZOOM_STATE_DIR;
 const zoomStateDirectory = mkdtempSync(join(tmpdir(), 'xcsh-zoom-test-state-'));
 process.env.XCSH_ZOOM_STATE_DIR = zoomStateDirectory;
 afterAll(() => {
+  if (originalZoomBackend === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+  else process.env.XCSH_ZOOM_BACKEND = originalZoomBackend;
   if (originalZoomStateDirectory === undefined) delete process.env.XCSH_ZOOM_STATE_DIR;
   else process.env.XCSH_ZOOM_STATE_DIR = originalZoomStateDirectory;
   rmSync(zoomStateDirectory, { recursive: true, force: true });
@@ -2059,5 +2063,28 @@ describe('Ghostty unsupported host readiness', () => {
         spawn.mockRestore();
       }
     });
+  }
+});
+
+it('preserves ARM64 Zoom Web diagnostics with explicit backend selection', () => {
+  const prior = process.env.XCSH_ZOOM_BACKEND;
+  process.env.XCSH_ZOOM_BACKEND = 'web';
+  const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
+    exitCode: 23,
+    stdout: new Uint8Array(),
+    stderr: new TextEncoder().encode('synthetic-web-unavailable'),
+  } as never);
+  try {
+    expect(call('status', [])).toEqual({
+      exitCode: 23,
+      backend: 'zoom-web',
+      error: 'invalid_response',
+      stderr: 'synthetic-web-unavailable',
+    });
+    expect(call('leave', [])).toMatchObject({ error: 'web_control_not_qualified' });
+  } finally {
+    spawn.mockRestore();
+    if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+    else process.env.XCSH_ZOOM_BACKEND = prior;
   }
 });
