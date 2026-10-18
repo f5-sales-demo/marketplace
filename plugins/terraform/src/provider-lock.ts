@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-export const XCSH_PROVIDER_VERSION = '8.0.0';
-export const XCSH_PROVIDER_LOCK_SHA256 = 'a9ccc898377e32d9e7193a1fbc1c2bcedda88eaabf80633ae5f86a1456ad76d1';
+export const XCSH_PROVIDER_VERSION = '15.12.1';
+export const XCSH_PROVIDER_LOCK_SHA256 = '6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782';
 
 /** Load the immutable XC provider lock shared by cloud-specific lifecycle translators. */
 export async function loadXcshProviderLock(): Promise<string> {
