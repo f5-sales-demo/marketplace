@@ -309,7 +309,14 @@ class Hyprland:
                     ):
                         message = "Text must be UTF-8 without NUL, at most 64 KiB"
                         raise Fault(message)
-                    normalized.append(["clipboard-paste", text])
+                    modifiers = step.get("paste_modifiers", "CTRL")
+                    if not isinstance(modifiers, str) or modifiers not in (
+                        "CTRL",
+                        "CTRL SHIFT",
+                    ):
+                        message = "Paste modifiers must be CTRL or CTRL SHIFT"
+                        raise Fault(message)
+                    normalized.append(["clipboard-paste", text, modifiers])
                 elif kind == "move":
                     x, y = step.get("x"), step.get("y")
                     if (
@@ -335,7 +342,12 @@ class Hyprland:
                 if argv[0] == "clipboard-paste":
                     self.dispatch("clipboard", "set", {"text": argv[1]})
                     self.command(
-                        ["hyprctl", "dispatch", "sendshortcut", "CTRL,v,activewindow"],
+                        [
+                            "hyprctl",
+                            "dispatch",
+                            "sendshortcut",
+                            f"{argv[2]},v,activewindow",
+                        ],
                         timeout=2,
                     )
                 else:
