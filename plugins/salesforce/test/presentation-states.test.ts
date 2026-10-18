@@ -28,7 +28,7 @@ test('missing cells use one quiet legend while zero false empty and customer tex
   const table = view.sections.find((s) => s.kind === 'table');
   expect(table?.kind === 'table' && table.rows[0]).toMatchObject({
     Name: 'No value | Not returned',
-    Amount: '0',
+    Amount: '0.00',
     Flag: false,
     Empty: '',
     Nullable: 'host:status.disabled',
@@ -187,4 +187,20 @@ test('currency scope appears once and missing-cell legend stays beside its table
   const legend = output.sections.findIndex((s) => s.kind === 'markdown' && s.text.includes('Value not returned'));
   expect(legend).toBeGreaterThan(0);
   expect(output.sections[legend + 1].kind).toBe('table');
+});
+
+test('monetary tables round floating point artifacts while evidence retains exact numbers', () => {
+  const records = [
+    { Name: 'Example one', Amount: 473686.80999999994 },
+    { Name: 'Example two', Amount: 89511.48000000001 },
+    { Name: 'Zero', Amount: 0 },
+  ];
+  const result = { content: [], details: { queryResult: { records, done: true, totalSize: 3 } } };
+  const output = JSON.stringify(render('sf_query', result));
+  expect(output).toContain('473,686.81');
+  expect(output).toContain('89,511.48');
+  expect(output).toContain('0.00');
+  expect(output).not.toContain('999999');
+  const expanded = render('sf_query', result, true).sections.find((s) => s.title === 'Metadata');
+  expect(expanded?.kind === 'code' && JSON.parse(expanded.text).queryResult.records).toEqual(records);
 });

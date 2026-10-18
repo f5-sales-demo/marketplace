@@ -9,6 +9,7 @@ import {
   formatSoql,
   incomplete,
   label,
+  money,
   record,
   rows,
   table,
@@ -69,7 +70,12 @@ export function queryView(
   let records = raw.map(flattenRecord);
   const metricLabels = metrics(soql);
   records = records.map((row) =>
-    Object.fromEntries(Object.entries(row).map(([key, val]) => [key, key in metricLabels ? value(val, true) : val])),
+    Object.fromEntries(
+      Object.entries(row).map(([key, val]) => [
+        key,
+        key in metricLabels ? (/amount/.test(metricLabels[key]) ? money(val) : value(val, true)) : val,
+      ]),
+    ),
   );
   const aggregate =
     raw.length > 0 &&

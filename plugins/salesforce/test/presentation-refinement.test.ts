@@ -163,7 +163,7 @@ test('pipeline orders scope first, separates currencies, retains distributions a
   expect(output.warnings).not.toContain('Informational detail');
   const text = JSON.stringify(output);
   expect(text).toContain('Close distribution');
-  expect(text).toContain('1,234.56789');
+  expect(text).toContain('1,234.57');
   expect(text).not.toContain('2,469.13578');
   const expanded = JSON.stringify(view('sf_pipeline_report', result, {}, true));
   expect(expanded).toContain('FINAL_SOURCE');
