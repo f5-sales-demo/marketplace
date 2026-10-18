@@ -406,7 +406,7 @@ def acknowledge_meeting_notices(page):
 
 def ensure_web_hd(page):
     """Open video settings, enable HD when offered, and report actual support."""
-    tab = page.locator('[role="tab"]').filter(has_text=re.compile("^Video$"))
+    tab = page.locator('[role="tab"][id="video"]')
     if tab.count() != 1:
         menu = page.locator('a[aria-label="Video Settings..."]')
         more = page.locator('button[aria-label="More video controls"]')
@@ -428,7 +428,7 @@ def ensure_web_hd(page):
                 "reason": "web_video_settings_unavailable",
             }
         menu.click(timeout=3000)
-        tab = page.locator('[role="tab"]').filter(has_text=re.compile("^Video$"))
+        tab = page.locator('[role="tab"][id="video"]')
         tab.wait_for(state="visible", timeout=3000)
     tab.click(timeout=3000)
     page.wait_for_timeout(200)

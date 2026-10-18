@@ -92,7 +92,7 @@ class ZoomWebSafety(unittest.TestCase):
 
     def test_hd_control_is_enabled_and_verified_when_offered(self):
         page = MagicMock()
-        tab = page.locator.return_value.filter.return_value
+        tab = page.locator.return_value
         tab.count.return_value = 1
         hd = page.get_by_label.return_value
         hd.count.return_value = 1
@@ -106,9 +106,9 @@ class ZoomWebSafety(unittest.TestCase):
 
     def test_missing_hd_control_is_explicit_not_success(self):
         page = MagicMock()
-        page.locator.return_value.filter.return_value.count.return_value = 1
+        page.locator.return_value.count.return_value = 1
         page.get_by_label.return_value.count.return_value = 0
-        page.locator.return_value.filter.return_value.count.side_effect = [1, 0]
+        page.locator.return_value.filter.return_value.count.return_value = 0
         page.locator.return_value.locator.return_value.count.return_value = 0
         result = module.ensure_web_hd(page)
         self.assertEqual(result["hd"], "unavailable")
