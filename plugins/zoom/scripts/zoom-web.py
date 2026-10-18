@@ -501,7 +501,7 @@ def ensure_web_hd(page):
             page.wait_for_timeout(200)
         if menu.count() != 1 or not menu.is_visible():
             return {
-                "hd": "unavailable",
+                "hd": "pending",
                 "verified": False,
                 "reason": "web_video_settings_unavailable",
             }

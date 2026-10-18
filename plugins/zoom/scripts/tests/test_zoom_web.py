@@ -104,6 +104,18 @@ class ZoomWebSafety(unittest.TestCase):
         hd.check.assert_called_once_with(timeout=3000)
         self.assertEqual(result, {"hd": True, "verified": True, "changed": True})
 
+    def test_video_settings_not_ready_remains_pending(self):
+        page = MagicMock()
+        tab, menu, more = MagicMock(), MagicMock(), MagicMock()
+        page.locator.side_effect = [tab, menu, more]
+        tab.count.return_value = 0
+        menu.count.return_value = 0
+        more.count.return_value = 1
+        result = module.ensure_web_hd(page)
+        self.assertEqual(result["hd"], "pending")
+        self.assertEqual(result["reason"], "web_video_settings_unavailable")
+        self.assertFalse(result["verified"])
+
     def test_missing_hd_control_is_explicit_not_success(self):
         page = MagicMock()
         page.locator.return_value.count.return_value = 1
