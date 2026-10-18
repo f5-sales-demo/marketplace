@@ -100,10 +100,21 @@ export async function applyGcpNativeTeardown(
       if (!checkpoint.resources[resource.selfLink]) {
         checkpoint.resources[resource.selfLink] = 'submitting';
         await store.write(filename, checkpoint);
-        const r = await api.exec('gcloud', [...base, 'delete', name, ...flags, '--async', '--quiet', '--format=json'], {
-          signal,
-        });
+        const asynchronous = resource.kind === 'instance' || resource.kind === 'disk';
+        const r = await api.exec(
+          'gcloud',
+          [...base, 'delete', name, ...flags, ...(asynchronous ? ['--async'] : []), '--quiet', '--format=json'],
+          {
+            signal,
+          },
+        );
         if (r.exitCode !== 0) throw new Error('Teardown submission requires reconciliation');
+        if (!asynchronous) {
+          if (await observe()) return { state: 'pending', resource: resource.selfLink };
+          checkpoint.resources[resource.selfLink] = 'done';
+          await store.write(filename, checkpoint);
+          continue;
+        }
         let v: unknown;
         try {
           v = JSON.parse(r.stdout);

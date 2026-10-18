@@ -137,7 +137,7 @@ export function createGcpNativeCreationDriver(
             consumed: true,
           });
           args.push(`--metadata-from-file=user-data=${metadataPath}`);
-        } else args.push('--async');
+        }
         signal?.throwIfAborted();
         const result = await api.exec('gcloud', args, { signal });
         if (result.exitCode !== 0) throw new Error('Cloud creation outcome requires reconciliation');
@@ -148,6 +148,13 @@ export function createGcpNativeCreationDriver(
           throw new Error('Creation operation receipt unavailable');
         }
         const row = Array.isArray(response) ? response[0] : response;
+        if (action.kind !== 'instance') {
+          await store.write(`gcp-create-completed-${executionId}.json`, {
+            actionFingerprint: fingerprint(action),
+            completed: true,
+          });
+          return { completedCommand: true };
+        }
         await recordGcpOperation(store, binding(action, executionId), row);
         return { operationRecorded: true };
       } finally {
@@ -155,6 +162,15 @@ export function createGcpNativeCreationDriver(
       }
     },
     async reconcile(action, executionId, _receipt, signal) {
+      if (action.kind !== 'instance') {
+        const completed = (await store.read(`gcp-create-completed-${executionId}.json`)) as {
+          actionFingerprint?: string;
+          completed?: boolean;
+        };
+        if (completed.actionFingerprint !== fingerprint(action) || completed.completed !== true)
+          throw new Error('Ambiguous creation requires a completed command receipt');
+        return (await observe(action, signal)) ? 'done' : 'pending';
+      }
       let recorded: unknown;
       try {
         recorded = await store.read(`gcp-operation-${executionId}.json`);

@@ -40,23 +40,22 @@ it('native create driver rejects changed structured arguments before cloud execu
   );
   expect(calls).toBe(0);
 });
-it('native driver records and reconciles exact global async operation without foreign scope', async () => {
+it('native driver records synchronous network completion and rechecks exact identity', async () => {
   const i = intent();
   i.routing.destinationCidrs = [];
   const s = store();
   const action = translateGcpNativeCompute(i).actions[0];
   const calls: string[][] = [];
-  const op = {
-    name: 'operation-123',
-    selfLink: `https://www.googleapis.com/compute/v1/projects/${i.project}/global/operations/operation-123`,
-    status: 'RUNNING',
-  };
   const d = createGcpNativeCreationDriver(
     {
       exec: async (_cmd, args) => {
         calls.push(args);
         return {
-          stdout: JSON.stringify({ ...op, status: args.includes('describe') ? 'DONE' : 'RUNNING' }),
+          stdout: JSON.stringify({
+            id: '123',
+            name: 'outside',
+            selfLink: `https://www.googleapis.com/compute/v1/projects/${i.project}/global/networks/outside`,
+          }),
           stderr: '',
           exitCode: 0,
         };
@@ -68,10 +67,10 @@ it('native driver records and reconciles exact global async operation without fo
   );
   const id = `create-${'a'.repeat(40)}`;
   await d.submit(action, id);
-  expect(calls[0]).toContain('--async');
+  expect(calls[0]).not.toContain('--async');
   expect(await d.reconcile(action, id, {})).toBe('done');
-  expect(calls[1]).toContain('--global');
-  await expect(d.reconcile(action, `create-${'b'.repeat(40)}`, {})).rejects.toThrow('Ambiguous');
+  expect(calls[1]).toContain('--project=test-project');
+  await expect(d.reconcile(action, `create-${'b'.repeat(40)}`, {})).rejects.toThrow('missing');
 });
 
 it('checkpoint write failure removes private bootstrap staging before any cloud submit', async () => {
