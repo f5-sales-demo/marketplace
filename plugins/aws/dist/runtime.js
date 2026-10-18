@@ -10566,208 +10566,163 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
 var object11 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_terraform_identities = () => {};
 
-// plugins/aws/src/ce/terraform-routing-references.ts
-function routingAttachmentIds(plan, observation) {
-  if (plan.intent.routing.profile !== 'tgw-connect') return [];
-  const selected = tables(plan);
-  const ids = observation.resources
-    .filter((resource) => selected.has(resource.id))
-    .flatMap((resource) =>
-      ['Associations', 'Propagations'].flatMap((key) =>
-        rows(resource.state[key]).map((row) => row.TransitGatewayAttachmentId),
-      ),
-    );
-  if (ids.some((id) => typeof id !== 'string' || !/^tgw-attach-[0-9a-f]{8,17}$/.test(id)))
-    throw new Error('Malformed routing attachment identity');
-  return [...new Set(ids)];
-}
-function ownedRoutingAdditions(plan, before, after, evidence) {
-  return after.map((resource) => {
-    const baseline = before.find((item) => item.id === resource.id);
-    if (!baseline || !tables(plan).has(resource.id)) return resource;
-    const state = { ...resource.state };
-    for (const [key, selected] of [
-      ['Associations', plan.intent.routing.associations],
-      ['Propagations', plan.intent.routing.propagations],
-    ]) {
-      const original = rows(baseline.state[key]);
-      const current = rows(state[key]);
-      const ids = current.map((row) => row.TransitGatewayAttachmentId);
-      if (new Set(ids).size !== ids.length) throw new Error('Duplicate routing reference edge');
-      state[key] = current.filter((row) => {
-        if (
-          !selected.includes(resource.id) ||
-          original.some((old) => old.TransitGatewayAttachmentId === row.TransitGatewayAttachmentId)
-        )
-          return true;
-        const matches = evidence.filter((item) => item.id === row.TransitGatewayAttachmentId);
-        if (matches.length !== 1) return true;
-        const attachment = matches[0];
-        const records = rows(attachment.state.TransitGatewayAttachments);
-        if (records.length !== 1) return true;
-        const actual = records[0];
-        const tags = attachment.tags;
-        const expectedRow = {
-          TransitGatewayAttachmentId: attachment.id,
-          ResourceId: actual.ResourceId,
-          ResourceType: actual.ResourceType,
-        };
-        const { State: _state, ...configuration } = row;
-        return !(
-          plan.engine === 'terraform' &&
-          attachment.exists &&
-          attachment.owned &&
-          attachment.region === plan.region &&
-          tags['xcsh-managed-by'] === 'aws-ce' &&
-          tags['xcsh-execution-engine'] === 'terraform' &&
-          tags['xcsh-deployment-id'] === plan.deploymentName &&
-          tags['xcsh-plan-sha256'] === plan.planSha256 &&
-          actual.TransitGatewayAttachmentId === attachment.id &&
-          actual.TransitGatewayId === plan.intent.routing.transitGatewayId &&
-          actual.ResourceOwnerId === plan.accountId &&
-          actual.TransitGatewayOwnerId === plan.accountId &&
-          typeof actual.ResourceId === 'string' &&
-          ((actual.ResourceType === 'vpc' && /^vpc-[0-9a-f]{8,17}$/.test(actual.ResourceId)) ||
-            (actual.ResourceType === 'connect' && /^tgw-attach-[0-9a-f]{8,17}$/.test(actual.ResourceId))) &&
-          canonicalSha256(configuration) === canonicalSha256(expectedRow)
-        );
-      });
-    }
-    return { ...resource, state };
+// plugins/aws/src/ce/terraform-replacement-stages.ts
+import { createHash as createHash6 } from 'node:crypto';
+
+function awsTerraformReplacementStages(base, replacement, configuration, expectedConfigurationSha256) {
+  verifyAwsCePlan(base);
+  const { planId, planSha256, ...draft } = replacement;
+  const selected = siteBindings(base).find(({ binding }) => binding.siteName === replacement.binding.siteName);
+  if (
+    base.engine !== 'terraform' ||
+    replacement.engine !== 'terraform' ||
+    replacement.kind !== 'aws-ce-site-replacement' ||
+    replacement.schemaVersion !== 2 ||
+    replacement.sourcePlanSha256 !== base.planSha256 ||
+    canonicalSha256(draft) !== planSha256 ||
+    planId !== `aws-ce-replace-${planSha256.slice(0, 24)}` ||
+    !selected ||
+    canonicalSha256(selected.binding) !== canonicalSha256(replacement.binding)
+  )
+    throw new Error('Terraform replacement engine, identity or plan integrity differs');
+  if (digest2(configuration) !== expectedConfigurationSha256)
+    throw new Error('Current Terraform configuration hash differs');
+  const original = object12(JSON.parse(configuration));
+  const resources = object12(original.resource);
+  const instances = object12(resources.aws_instance);
+  const associations = object12(resources.aws_eip_association);
+  const outputs = object12(object12(object12(original.output).ce_instances).value);
+  const addresses = [];
+  for (const node of selected.site.nodeIndexes) {
+    const name = `node_${node}`;
+    const instance = object12(instances[name]);
+    const association = object12(associations[name]);
+    const tags = object12(instance.tags);
+    if (
+      tags['xcsh-execution-engine'] !== 'terraform' ||
+      tags['xcsh-managed-by'] !== 'aws-ce' ||
+      tags['xcsh-deployment-id'] !== base.deploymentName ||
+      tags['xcsh-plan-sha256'] !== base.planSha256 ||
+      tags['xcsh-node-index'] !== String(node) ||
+      tags['ves-io-site-name'] !== selected.site.name ||
+      instance.count !== undefined ||
+      instance.for_each !== undefined ||
+      instance.ami !== base.intent.image.amiId ||
+      instance.instance_type !== base.intent.instance.type ||
+      instance.user_data_replace_on_change !== true ||
+      typeof instance.user_data_base64 !== 'string'
+    )
+      throw new Error('Terraform replacement instance configuration differs');
+    const expected = base.intent.interfaces.map((iface) => ({
+      device_index: iface.index,
+      network_interface_id: `\${aws_network_interface.node_${node}_nic_${iface.index}.id}`,
+      delete_on_termination: false,
+    }));
+    if (
+      canonicalSha256(instance.network_interface) !== canonicalSha256(expected) ||
+      association.allocation_id !== `\${aws_eip.node_${node}.id}` ||
+      association.network_interface_id !== `\${aws_network_interface.node_${node}_nic_0.id}` ||
+      association.count !== undefined ||
+      association.for_each !== undefined ||
+      object12(outputs[String(node)]).id !== `\${aws_instance.node_${node}.id}`
+    )
+      throw new Error('Terraform replacement retained network or output binding differs');
+    addresses.push(`aws_instance.${name}`, `aws_eip_association.${name}`);
+  }
+  const quiesced = structuredClone(original);
+  const quiescedResources = object12(quiesced.resource);
+  for (const node of selected.site.nodeIndexes) {
+    delete object12(quiescedResources.aws_instance)[`node_${node}`];
+    delete object12(quiescedResources.aws_eip_association)[`node_${node}`];
+    delete object12(object12(object12(quiesced.output).ce_instances).value)[String(node)];
+  }
+  for (const type of ['aws_instance', 'aws_eip_association'])
+    if (!Object.keys(object12(quiescedResources[type])).length) delete quiescedResources[type];
+  const quiesceConfiguration = JSON.stringify(quiesced);
+  const make = (phase, text, previous) => ({
+    phase,
+    replacementPlanSha256: planSha256,
+    deploymentId: base.deploymentName,
+    previousConfigurationSha256: previous,
+    configurationSha256: digest2(text),
+    configuration: text,
+    addresses: [...addresses],
   });
+  return {
+    quiesce: make('quiesce', quiesceConfiguration, expectedConfigurationSha256),
+    launch(bootstrapByHostname) {
+      if (Object.keys(bootstrapByHostname).length !== selected.binding.nodes.length)
+        throw new Error('Complete replacement bootstrap inventory is required');
+      const resumed = structuredClone(original);
+      for (const node of selected.site.nodeIndexes) {
+        const material = bootstrapByHostname[`${base.deploymentName}-${node}`];
+        if (
+          typeof material !== 'string' ||
+          !material.startsWith(`#cloud-config
+`) ||
+          !material.includes('/etc/vpm/user_data') ||
+          /__\w+__/.test(material)
+        )
+          throw new Error('Resolved replacement cloud-init is required');
+        object12(object12(object12(resumed.resource).aws_instance)[`node_${node}`]).user_data_base64 =
+          Buffer.from(material).toString('base64');
+      }
+      return make('launch', JSON.stringify(resumed), digest2(quiesceConfiguration));
+    },
+  };
+}
+function inspectAwsTerraformReplacementStage(stage, receipt) {
+  if (
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== stage.deploymentId ||
+    receipt.configurationSha256 !== stage.configurationSha256 ||
+    digest2(stage.configuration) !== stage.configurationSha256 ||
+    !['quiesce', 'launch'].includes(stage.phase) ||
+    !Array.isArray(receipt.changes)
+  )
+    throw new Error('Terraform replacement saved plan binding differs');
+  const seen = new Set();
+  for (const change of receipt.changes) {
+    if (seen.has(change.address) || !Array.isArray(change.actions) || change.actions.length !== 1)
+      throw new Error('Ambiguous or combined Terraform replacement actions');
+    seen.add(change.address);
+    const action = change.actions[0];
+    if (action === 'no-op') continue;
+    if (
+      !stage.addresses.includes(change.address) ||
+      change.type !== change.address.split('.')[0] ||
+      action !== (stage.phase === 'quiesce' ? 'delete' : 'create') ||
+      receipt.noChanges
+    )
+      throw new Error('Terraform replacement would mutate outside the selected stage');
+  }
+}
+async function applyAwsTerraformReplacementStage(session, stage, persist, env, signal) {
+  signal?.throwIfAborted();
+  if (digest2(stage.configuration) !== stage.configurationSha256)
+    throw new Error('Replacement configuration integrity differs');
+  try {
+    await session.reviseConfiguration(stage.previousConfigurationSha256, stage.configuration);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('revision is stale')) throw error;
+    await session.reviseConfiguration(stage.configurationSha256, stage.configuration);
+  }
+  const receipt = await session.plan(env, signal);
+  inspectAwsTerraformReplacementStage(stage, receipt);
+  await persist(receipt);
+  await session.apply(receipt, env, signal);
+  return receipt;
 }
 var object12 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
-      throw new Error('Malformed routing reference evidence');
+      throw new Error('Malformed replacement configuration');
     return value;
   },
-  rows = (value) => {
-    if (!Array.isArray(value)) throw new Error('Incomplete routing reference evidence');
-    return value.map(object12);
-  },
-  tables = (plan) => new Set([...plan.intent.routing.associations, ...plan.intent.routing.propagations]);
-var init_terraform_routing_references = __esm(() => {
-  init_canonical();
-});
-
-// plugins/aws/src/ce/terraform-preflight.ts
-async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetcher = fetch, signal) {
-  verifyAwsCePlan(plan);
-  if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy' || plan.intent.vpc.mode !== 'greenfield')
-    throw new Error('Terraform deployment preflight requires a greenfield owning plan');
-  const api = scopedAwsApi(rawApi, plan.intent.awsProfile, signal);
-  const result = await api.exec('aws', [
-    'ec2',
-    'describe-addresses',
-    '--region',
-    plan.region,
-    '--output',
-    'json',
-    '--filters',
-    `Name=tag:xcsh-deployment-id,Values=${plan.deploymentName}`,
-  ]);
-  if (result.exitCode !== 0) throw new Error('Terraform deployment EIP ownership is unavailable');
-  const addresses = JSON.parse(result.stdout);
-  if (!Array.isArray(addresses.Addresses) || addresses.NextToken) throw new Error('Incomplete Terraform EIP inventory');
-  const ids = addresses.Addresses.map((address) => {
-    const tags = Object.fromEntries((address.Tags ?? []).map((tag) => [tag.Key, tag.Value]));
-    if (
-      !/^eipalloc-[0-9a-f]{8,21}$/.test(address.AllocationId ?? '') ||
-      tags['xcsh-managed-by'] !== 'aws-ce' ||
-      tags['xcsh-execution-engine'] !== 'terraform' ||
-      tags['xcsh-deployment-id'] !== plan.deploymentName ||
-      tags['xcsh-plan-sha256'] !== plan.planSha256
-    )
-      throw new Error('Terraform EIP belongs to a different plan or engine');
-    return address.AllocationId;
-  });
-  if (new Set(ids).size !== ids.length) throw new Error('Duplicate Terraform EIP identity');
-  const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
-  const current = await discoverAwsCompute(
-    {
-      awsProfile: plan.intent.awsProfile,
-      vpcMode: plan.intent.vpc.mode,
-      accountId: plan.accountId,
-      partition: plan.partition,
-      deploymentName: plan.deploymentName,
-      requiredEnis: plan.interfaces.length,
-      nodeCount: plan.topology.nodeCount,
-      instanceTypes: [plan.instance.type],
-      brownfieldResourceIds: terraformRoutingReferences(plan),
-      observedOwnedResourceIds: ids,
-      ownedPlanSha256s: [plan.planSha256],
-      resourceRegion: plan.region,
-      egressMode: plan.egress.mode,
-      routingProfile: plan.routing.profile,
-      f5Capabilities,
-    },
-    api,
-    fetcher,
-  );
-  const attachmentIds = routingAttachmentIds(plan, current);
-  if (attachmentIds.length)
-    current.resources.push(
-      ...(await observeAwsResources(api, attachmentIds, plan.region, {
-        deploymentName: plan.deploymentName,
-        planSha256s: [plan.planSha256],
-      })),
-    );
-  assertAwsTerraformPreflight(plan, baseline, current);
-  return current;
-}
-function assertAwsTerraformPreflight(plan, baseline, current) {
-  const region = current.regions.filter((item) => item.name === plan.region);
-  if (
-    current.identity.accountId !== plan.accountId ||
-    current.identity.partition !== plan.partition ||
-    current.identity.awsProfile !== plan.intent.awsProfile ||
-    !current.agreement.active ||
-    current.agreement.productId !== baseline.agreement.productId ||
-    current.f5CapabilitiesSha256 !== plan.f5CapabilitiesSha256 ||
-    canonicalSha256(current.research.sourceReceipts) !== canonicalSha256(baseline.research.sourceReceipts) ||
-    region.length !== 1 ||
-    !region[0].enabled ||
-    !region[0].eligible ||
-    canonicalSha256(region[0].ami) !== canonicalSha256(plan.image)
-  )
-    throw new Error('Terraform preflight identity, image, agreement, contract or capacity changed');
-  const types = region[0].instanceTypes.filter((item) => item.name === plan.instance.type);
-  if (
-    types.length !== 1 ||
-    !types[0].supported ||
-    plan.topology.availabilityZones.some((zone) => !types[0].availabilityZones.includes(zone))
-  )
-    throw new Error('Terraform instance offering no longer supports the planned topology');
-  const references = terraformRoutingReferences(plan);
-  if (references.length) {
-    const select = (observation) => observation.resources.filter((item) => references.includes(item.id));
-    const before = select(baseline);
-    const after = select(current);
-    if (
-      before.length !== references.length ||
-      after.length !== references.length ||
-      after.some((item) => !item.exists || item.region !== plan.region) ||
-      canonicalSha256(resourceConfiguration(before)) !==
-        canonicalSha256(resourceConfiguration(ownedRoutingAdditions(plan, before, after, current.resources)))
-    )
-      throw new Error('Terraform routing reference configuration changed');
-  }
-}
-function terraformRoutingReferences(plan) {
-  const routing = plan.intent.routing;
-  return ['tgw-connect', 'tgw-static'].includes(routing?.profile)
-    ? [
-        ...new Set(
-          [routing.transitGatewayId, ...routing.associations, ...routing.propagations].filter((id) => Boolean(id)),
-        ),
-      ]
-    : [];
-}
-var init_terraform_preflight = __esm(() => {
+  digest2 = (value) => createHash6('sha256').update(value).digest('hex');
+var init_terraform_replacement_stages = __esm(() => {
   init_artifacts();
   init_canonical();
-  init_discovery();
-  init_terraform_routing_references();
 });
 
 // plugins/aws/src/ce/terraform-routing.ts
@@ -10896,8 +10851,850 @@ var init_terraform_routing = __esm(() => {
   init_terraform_identities();
 });
 
+// plugins/aws/src/ce/terraform-site-replacement.ts
+import { createHash as createHash7 } from 'node:crypto';
+
+async function createTerraformAwsSiteReplacementDriver(
+  source,
+  replacement,
+  expectedConfigurationSha256,
+  session,
+  storage,
+  raw,
+  env,
+  routing,
+) {
+  const base = structuredClone(source);
+  const plan = structuredClone(replacement);
+  const validate = async (candidate) => {
+    if (
+      base.engine !== 'terraform' ||
+      plan.engine !== 'terraform' ||
+      canonicalSha256(candidate) !== canonicalSha256(plan) ||
+      canonicalSha256(storage.owner) !== canonicalSha256(plan.binding.owner)
+    )
+      throw new Error('Terraform replacement ownership differs');
+    await storage.verify();
+  };
+  await validate(plan);
+  let routingCheckpoint;
+  if (base.routing?.profile === 'tgw-connect') {
+    let currentRouting;
+    try {
+      currentRouting = await storage.read('terraform-routing-checkpoint.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (currentRouting === undefined) {
+      routingCheckpoint = undefined;
+    } else {
+      if (!routing || routing.runtime.engine !== base.engine)
+        throw new Error('Connect replacement requires automatic routing recovery');
+      const name = `${plan.planId}-routing-source.json`;
+      let saved;
+      try {
+        saved = object14(await storage.read(name));
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        saved = {
+          replacementPlanSha256: plan.planSha256,
+          checkpoint: currentRouting,
+        };
+        const cp = object14(saved.checkpoint);
+        if (
+          cp.schemaVersion !== 2 ||
+          cp.engine !== base.engine ||
+          cp.planId !== base.planId ||
+          cp.planSha256 !== base.planSha256
+        )
+          throw new Error('Replacement routing source differs from deployment');
+        validateAwsRoutingRebind(base, {
+          siteName: plan.binding.siteName,
+          siteUid: String(plan.preparation.uid),
+          contract: routing.contract,
+          checkpoint: cp,
+        });
+        await storage.write(name, saved);
+      }
+      const cp = object14(saved.checkpoint);
+      if (
+        saved.replacementPlanSha256 !== plan.planSha256 ||
+        cp.schemaVersion !== 2 ||
+        cp.engine !== base.engine ||
+        cp.planId !== base.planId ||
+        cp.planSha256 !== base.planSha256
+      )
+        throw new Error('Replacement routing source differs from deployment');
+      routingCheckpoint = structuredClone(cp);
+      validateAwsRoutingRebind(base, {
+        siteName: plan.binding.siteName,
+        siteUid: String(plan.preparation.uid),
+        contract: routing.contract,
+        checkpoint: routingCheckpoint,
+      });
+    }
+  }
+  const snapshotName = `${plan.planId}-terraform-source.json`;
+  let snapshot;
+  try {
+    snapshot = object14(await storage.read(snapshotName));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    const configuration = await session.readConfiguration(expectedConfigurationSha256);
+    awsTerraformReplacementStages(base, plan, configuration, expectedConfigurationSha256);
+    let admissionSha256 = null;
+    try {
+      const admission = object14(await storage.read('terraform-admission.json'));
+      const configured = object14(object14(object14(JSON.parse(configuration)).resource).aws_instance);
+      const bootstrapByNode = Object.fromEntries(
+        Object.entries(configured).map(([name, value]) => {
+          const encoded = object14(value).user_data_base64;
+          if (!/^node_[1-3]$/.test(name) || typeof encoded !== 'string')
+            throw new Error('Terraform source bootstrap admission is incomplete');
+          return [name.slice(5), Buffer.from(encoded, 'base64').toString('utf8')];
+        }),
+      );
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        typeof admission.configurationSha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(admission.configurationSha256) ||
+        !Array.isArray(admission.admittedSites) ||
+        !admission.admittedSites.includes(plan.binding.siteName) ||
+        canonicalSha256(admission.admittedSites) !==
+          canonicalSha256(
+            siteBindings(base)
+              .map(({ site }) => site.name)
+              .slice(0, admission.admittedSites.length),
+          ) ||
+        canonicalSha256(admission.bootstrapByNode) !== canonicalSha256(bootstrapByNode)
+      )
+        throw new Error('Terraform source admission differs from deployment and bootstrap');
+      admissionSha256 = canonicalSha256(admission);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    snapshot = {
+      schemaVersion: 1,
+      admissionSha256,
+      routingSourceSha256: routingCheckpoint ? canonicalSha256(routingCheckpoint) : null,
+      replacementPlanSha256: plan.planSha256,
+      configurationSha256: expectedConfigurationSha256,
+      configuration,
+    };
+    await storage.write(snapshotName, snapshot);
+  }
+  if (
+    snapshot.schemaVersion !== 1 ||
+    (routingCheckpoint && snapshot.routingSourceSha256 !== canonicalSha256(routingCheckpoint)) ||
+    !Object.hasOwn(snapshot, 'admissionSha256') ||
+    (snapshot.admissionSha256 !== null &&
+      (typeof snapshot.admissionSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(snapshot.admissionSha256))) ||
+    snapshot.replacementPlanSha256 !== plan.planSha256 ||
+    snapshot.configurationSha256 !== expectedConfigurationSha256 ||
+    typeof snapshot.configuration !== 'string' ||
+    hash2(snapshot.configuration) !== expectedConfigurationSha256
+  )
+    throw new Error('Terraform replacement source snapshot differs');
+  const stages = awsTerraformReplacementStages(base, plan, snapshot.configuration, expectedConfigurationSha256);
+  const nodeIndex = (node) => Number(node.slice(base.deploymentName.length + 1));
+  const launchMarkerName = `${plan.planId}-terraform-launch.json`;
+  const readLaunch = async () => {
+    try {
+      const marker = object14(await storage.read(launchMarkerName));
+      if (
+        marker.schemaVersion !== 1 ||
+        marker.replacementPlanSha256 !== plan.planSha256 ||
+        typeof marker.configurationSha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(marker.configurationSha256)
+      )
+        throw new Error('Terraform replacement launch marker differs');
+      return marker;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      return;
+    }
+  };
+  const observe = async (candidate, allowNew, signal) => {
+    await validate(candidate);
+    const api = scopedAwsApi(raw, base.intent.awsProfile, signal);
+    const identity = await api.exec('aws', ['sts', 'get-caller-identity', '--region', base.region, '--output', 'json']);
+    if (identity.exitCode) throw new Error('Terraform replacement AWS identity unavailable');
+    const caller = object14(JSON.parse(identity.stdout));
+    if (caller.Account !== base.accountId || !String(caller.Arn).startsWith(`arn:${base.partition}:`))
+      throw new Error('Terraform replacement AWS account or partition differs');
+    const old = object14(plan.preparation.instances);
+    const ids = [
+      ...Object.values(old).map(String),
+      ...Object.values(plan.interfaceIds),
+      ...Object.values(plan.elasticIpAllocationIds),
+    ];
+    const observed = await observeAwsResources(api, ids, base.region, {
+      deploymentName: base.deploymentName,
+      planSha256s: [base.planSha256],
+    });
+    const checked = (id) => {
+      const found = observed.find((row) => row.id === id);
+      if (
+        !found?.exists ||
+        !found.owned ||
+        found.tags['xcsh-execution-engine'] !== 'terraform' ||
+        found.state.NextToken
+      )
+        throw new Error('Terraform replacement cloud resource ownership is unavailable or differs');
+      return found;
+    };
+    const current = {};
+    const associations = {};
+    let terminated = true;
+    let quiescenceStarted = false;
+    let detached = true;
+    for (const node of plan.binding.nodes) {
+      const index = nodeIndex(node);
+      const original = checked(String(old[node]));
+      const oldRows = list2(original.state.Reservations).flatMap((row) => list2(row.Instances));
+      if (
+        oldRows.length !== 1 ||
+        oldRows[0].InstanceId !== old[node] ||
+        original.tags['xcsh-node-index'] !== String(index) ||
+        original.tags['ves-io-site-name'] !== plan.binding.siteName ||
+        oldRows[0].ImageId !== base.intent.image.amiId
+      )
+        throw new Error('Original Terraform instance identity differs');
+      const state = object14(oldRows[0].State).Name;
+      if (!['pending', 'running', 'stopping', 'stopped', 'shutting-down', 'terminated'].includes(String(state)))
+        throw new Error('Original Terraform instance state is unknown');
+      terminated &&= state === 'terminated';
+      quiescenceStarted ||= state === 'terminated' || state === 'shutting-down';
+      const vpcs = new Set();
+      for (const iface of base.intent.interfaces) {
+        const key = `${node}/${iface.role}`;
+        const found = checked(plan.interfaceIds[key]);
+        const rows = list2(found.state.NetworkInterfaces);
+        const expected = list2(plan.preparation.interfaces).find((row) => row.node === node && row.role === iface.role);
+        if (rows.length !== 1 || rows[0].NetworkInterfaceId !== plan.interfaceIds[key])
+          throw new Error('Ambiguous retained Terraform ENI');
+        const eni = rows[0];
+        vpcs.add(String(eni.VpcId));
+        if (
+          eni.OwnerId !== base.accountId ||
+          eni.MacAddress !== expected?.mac ||
+          eni.AvailabilityZone !== iface.subnets[index - 1].availabilityZone ||
+          found.tags['xcsh-node-index'] !== String(index) ||
+          found.tags['xcsh-interface-index'] !== String(iface.index) ||
+          found.tags['ves-io-site-name'] !== plan.binding.siteName
+        )
+          throw new Error('Retained Terraform ENI identity differs');
+        if (eni.Attachment) {
+          detached = false;
+          const attachment = object14(eni.Attachment);
+          const id = String(attachment.InstanceId);
+          if (
+            attachment.DeviceIndex !== iface.index ||
+            attachment.DeleteOnTermination !== false ||
+            !/^i-[a-f0-9]{8,17}$/.test(id)
+          )
+            throw new Error('Retained Terraform ENI attachment differs');
+          if (id !== old[node]) {
+            if (!allowNew || state !== 'terminated' || (current[node] && current[node] !== id))
+              throw new Error('Unexpected replacement Terraform instance attachment');
+            current[node] = id;
+          }
+        } else if (eni.Status !== 'available') throw new Error('Retained Terraform ENI state is unavailable');
+      }
+      if (vpcs.size !== 1) throw new Error('Retained Terraform ENI VPC differs');
+      const eip = checked(plan.elasticIpAllocationIds[node]);
+      const addresses = list2(eip.state.Addresses);
+      if (
+        addresses.length !== 1 ||
+        addresses[0].AllocationId !== plan.elasticIpAllocationIds[node] ||
+        eip.tags['xcsh-node-index'] !== String(index) ||
+        (addresses[0].AssociationId && addresses[0].NetworkInterfaceId !== plan.interfaceIds[`${node}/slo`])
+      )
+        throw new Error('Retained Terraform EIP association differs');
+      if (addresses[0].AssociationId) {
+        if (!/^eipassoc-[a-f0-9]{8,17}$/.test(String(addresses[0].AssociationId)))
+          throw new Error('Malformed retained EIP association');
+        associations[node] = String(addresses[0].AssociationId);
+      }
+    }
+    for (const [node, id] of Object.entries(current)) {
+      const [found] = await observeAwsResources(api, [id], base.region, {
+        deploymentName: base.deploymentName,
+        planSha256s: [base.planSha256],
+      });
+      const rows = list2(found.state.Reservations).flatMap((row) => list2(row.Instances));
+      if (
+        !found.exists ||
+        !found.owned ||
+        found.tags['xcsh-execution-engine'] !== 'terraform' ||
+        found.state.NextToken ||
+        found.tags['xcsh-node-index'] !== String(nodeIndex(node)) ||
+        found.tags['ves-io-site-name'] !== plan.binding.siteName ||
+        rows.length !== 1 ||
+        rows[0].InstanceId !== id ||
+        rows[0].ImageId !== base.intent.image.amiId ||
+        rows[0].InstanceType !== base.intent.instance.type ||
+        !['pending', 'running', 'stopping', 'stopped'].includes(String(object14(rows[0].State).Name))
+      )
+        throw new Error('New Terraform instance ownership differs');
+    }
+    const missingAssociations = Object.keys(associations).length < Object.keys(plan.elasticIpAllocationIds).length;
+    const quiescence =
+      terminated && detached && !Object.keys(associations).length
+        ? 'complete'
+        : quiescenceStarted || missingAssociations
+          ? 'partial'
+          : 'intact';
+    return { current, associations, terminated, detached, quiescence };
+  };
+  const outputs = async (signal) => {
+    const values = await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], env, signal);
+    const evidence = await discoverAwsTerraformInterfaces(base, values, raw, signal);
+    for (const node of plan.binding.nodes)
+      for (const iface of base.intent.interfaces) {
+        if (
+          evidence.bindings[`__ENI_${nodeIndex(node)}_${iface.index}__`] !== plan.interfaceIds[`${node}/${iface.role}`]
+        )
+          throw new Error('Terraform state changed a retained ENI identity');
+      }
+    return object14(values.ce_instances);
+  };
+  const authorizeReceipt = async (receipt, phase, signal, admission) => {
+    const identities = await session.readPlannedResourceIds(receipt, stages.quiesce.addresses, env, signal);
+    const live = await observe(plan, phase === 'launch', signal);
+    for (const change of receipt.changes.filter((change) => stages.quiesce.addresses.includes(change.address))) {
+      const node = `${base.deploymentName}-${Number(change.address.split('node_')[1])}`;
+      const expected =
+        change.type === 'aws_instance'
+          ? phase === 'quiesce'
+            ? object14(plan.preparation.instances)[node]
+            : live.current[node]
+          : live.associations[node];
+      if (change.actions[0] === 'create') {
+        if (identities[change.address] !== null || expected)
+          throw new Error(
+            'Terraform replacement creation has an existing resource identity; reconcile state before retrying',
+          );
+      } else if (!expected || identities[change.address] !== expected) {
+        throw new Error('Terraform saved plan targets a different cloud resource');
+      }
+    }
+    await storage.write(`${plan.planId}-terraform-${phase}-plan.json`, { receipt, identities });
+    if (phase === 'quiesce') await admission?.(live.quiescence);
+  };
+  return {
+    quiescenceAdmissionVersion: 1,
+    engine: 'terraform',
+    async restoreRouting(candidate, siteUid, signal) {
+      await validate(candidate);
+      if (!routingCheckpoint) return;
+      if (!routing) throw new Error('Replacement routing runtime is unavailable');
+      const observed = await configureAwsTerraformRouting(base, session, routing.runtime, storage, raw, env, signal, {
+        siteName: plan.binding.siteName,
+        siteUid,
+        contract: routing.contract,
+        checkpoint: routingCheckpoint,
+      });
+      return observed.status === 'healthy';
+    },
+    async finalize(candidate, expected, signal) {
+      await validate(candidate);
+      const live = await observe(candidate, true, signal);
+      if (plan.binding.nodes.some((node) => !expected[node] || live.current[node] !== expected[node]))
+        throw new Error('Terraform replacement completion identity differs');
+      const marker = await readLaunch();
+      if (!marker) throw new Error('Terraform replacement launch marker is unavailable');
+      const configuration = await session.readConfiguration(String(marker.configurationSha256));
+      const bootstraps = (configuration) => {
+        const instances = object14(object14(object14(JSON.parse(configuration)).resource).aws_instance);
+        return Object.fromEntries(
+          Object.entries(instances)
+            .filter(([name]) => /^node_[1-3]$/.test(name))
+            .map(([name, value]) => {
+              const encoded = object14(value).user_data_base64;
+              if (typeof encoded !== 'string') throw new Error('Terraform admission bootstrap snapshot is incomplete');
+              return [name.slice(5), Buffer.from(encoded, 'base64').toString('utf8')];
+            }),
+        );
+      };
+      const oldBootstrap = bootstraps(String(snapshot.configuration));
+      const nextBootstrap = bootstraps(configuration);
+      const material = Object.fromEntries(
+        plan.binding.nodes.map((node) => [node, nextBootstrap[String(nodeIndex(node))]]),
+      );
+      if (stages.launch(material).configurationSha256 !== marker.configurationSha256)
+        throw new Error('Terraform replacement completion configuration differs');
+      const refresh = await session.plan(env, signal);
+      if (refresh.configurationSha256 !== marker.configurationSha256 || !refresh.noChanges)
+        throw new Error('Replacement completion requires a final refresh-enabled no-change plan');
+      await storage.write(`${plan.planId}-terraform-final-refresh.json`, refresh);
+      let admission;
+      try {
+        admission = object14(await storage.read('terraform-admission.json'));
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        if (snapshot.admissionSha256 !== null) throw new Error('Terraform admission disappeared during replacement');
+        return;
+      }
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        !Array.isArray(admission.admittedSites) ||
+        !admission.admittedSites.includes(plan.binding.siteName) ||
+        canonicalSha256(admission.admittedSites) !==
+          canonicalSha256(
+            siteBindings(base)
+              .map(({ site }) => site.name)
+              .slice(0, admission.admittedSites.length),
+          )
+      )
+        throw new Error('Terraform admission ownership or selected site differs');
+      const isOriginal =
+        snapshot.admissionSha256 !== null &&
+        canonicalSha256(admission) === snapshot.admissionSha256 &&
+        canonicalSha256(admission.bootstrapByNode) === canonicalSha256(oldBootstrap);
+      const isCompleted =
+        admission.configurationSha256 === marker.configurationSha256 &&
+        canonicalSha256(admission.bootstrapByNode) === canonicalSha256(nextBootstrap);
+      if (!isOriginal && !isCompleted) throw new Error('Terraform admission changed during replacement');
+      if (!isCompleted)
+        await storage.write('terraform-admission.json', {
+          ...admission,
+          configurationSha256: marker.configurationSha256,
+          bootstrapByNode: nextBootstrap,
+        });
+    },
+    async assertOwnership(candidate, phase, expected = {}, signal) {
+      const marker = await readLaunch();
+      const live = await observe(candidate, !!marker && ['launch', 'registration', 'complete'].includes(phase), signal);
+      if (['registration', 'complete'].includes(phase) || Object.keys(expected).length) {
+        const instances = await outputs(signal);
+        for (const node of plan.binding.nodes)
+          if (
+            !expected[node] ||
+            live.current[node] !== expected[node] ||
+            object14(instances[String(nodeIndex(node))]).id !== expected[node]
+          )
+            throw new Error('Terraform output and replacement instance checkpoint differ');
+      }
+    },
+    async quiesce(candidate, signal, admission) {
+      await observe(candidate, false, signal);
+      await applyAwsTerraformReplacementStage(
+        session,
+        stages.quiesce,
+        (receipt) => authorizeReceipt(receipt, 'quiesce', signal, admission),
+        env,
+        signal,
+      );
+      const live = await observe(candidate, false, signal);
+      if (!live.terminated || !live.detached) throw new Error('Terraform replacement quiescence has not converged');
+      const instances = await outputs(signal);
+      if (plan.binding.nodes.some((node) => Object.hasOwn(instances, String(nodeIndex(node)))))
+        throw new Error('Terraform state still contains a quiesced node');
+    },
+    async launch(candidate, bootstrap, signal) {
+      const stage = stages.launch(bootstrap);
+      const previous = await readLaunch();
+      if (previous && previous.configurationSha256 !== stage.configurationSha256)
+        throw new Error('Terraform replacement bootstrap changed on resume');
+      const live = await observe(candidate, !!previous, signal);
+      if (!live.terminated) throw new Error('Original VMs must terminate before Terraform replacement launch');
+      await storage.write(launchMarkerName, {
+        schemaVersion: 1,
+        replacementPlanSha256: plan.planSha256,
+        configurationSha256: stage.configurationSha256,
+      });
+      await applyAwsTerraformReplacementStage(
+        session,
+        stage,
+        (receipt) => authorizeReceipt(receipt, 'launch', signal),
+        env,
+        signal,
+      );
+      const after = await observe(candidate, true, signal);
+      const instances = await outputs(signal);
+      const result = {};
+      for (const node of plan.binding.nodes) {
+        const id = object14(instances[String(nodeIndex(node))]).id;
+        if (
+          typeof id !== 'string' ||
+          !after.current[node] ||
+          id !== after.current[node] ||
+          id === object14(plan.preparation.instances)[node]
+        )
+          throw new Error('Terraform replacement instance state has not converged');
+        result[node] = id;
+      }
+      const refresh = await session.plan(env, signal);
+      if (refresh.configurationSha256 !== stage.configurationSha256 || !refresh.noChanges)
+        throw new Error('Terraform replacement requires a refresh-enabled no-change plan');
+      await storage.write(`${plan.planId}-terraform-refresh.json`, refresh);
+      return result;
+    },
+  };
+}
+var object14 = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Malformed Terraform replacement evidence');
+    return value;
+  },
+  list2 = (value) => {
+    if (!Array.isArray(value)) throw new Error('Incomplete Terraform replacement observation');
+    return value.map(object14);
+  },
+  hash2 = (value) => createHash7('sha256').update(value).digest('hex');
+var init_terraform_site_replacement = __esm(() => {
+  init_canonical();
+  init_discovery();
+  init_routing_apply();
+  init_terraform_identities();
+  init_terraform_replacement_stages();
+  init_terraform_routing();
+});
+
+// plugins/aws/src/ce/terraform-initial-replacement.ts
+async function optional3(storage, name) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return;
+  }
+}
+async function runAwsTerraformInitialReplacement(
+  base,
+  terraform,
+  runtime,
+  storage,
+  api,
+  fetcher,
+  signal,
+  loadContract = () => VerifiedUpgradeContract.release(fetcher, signal),
+) {
+  if (base.engine !== 'terraform') throw new Error('Initial replacement requires Terraform ownership');
+  let handled = false;
+  for (const { site, binding } of siteBindings(base)) {
+    const name = `terraform-initial-replacement-${site.name}.json`;
+    let frozen = await optional3(storage, name);
+    const preparation = await optional3(storage, `terraform-interface-mtu-${site.name}.json`);
+    if (!frozen && (!preparation || object15(preparation).evidenceKind !== 'preboot-interface-configuration-required'))
+      continue;
+    if (runtime.engine !== 'terraform') throw new Error('Initial replacement runtime ownership differs');
+    handled = true;
+    const contract = await loadContract();
+    const session = await terraform.open(binding.owner, await awsTerraformFoundationDeployment(base), 'current');
+    if (!frozen) {
+      let record = object15(preparation);
+      if (record.planId !== base.planId || record.planSha256 !== base.planSha256)
+        throw new Error('Initial replacement preparation differs from the owning plan');
+      let versions;
+      try {
+        versions = await captureCeReplacementVersions(
+          binding,
+          String(record.uid),
+          String(record.contractFingerprint),
+          runtime,
+          contract,
+          signal,
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message.includes('version evidence is unavailable') ||
+            error.message.includes('versions are not stable'))
+        )
+          return { handled: true, status: 'pending-replacement-versions' };
+        throw error;
+      }
+      if (!session.readResourceIdentities || !session.readConfigurationSha256)
+        throw new Error('Terraform replacement identity reader unavailable');
+      const identities = await session.readResourceIdentities(process.env, signal);
+      const find = (address, type, pattern) => {
+        const rows = identities.filter((row) => row.address === address && row.type === type);
+        if (rows.length !== 1 || !pattern.test(rows[0].id))
+          throw new Error('Initial replacement resource identity differs');
+        return rows[0].id;
+      };
+      const interfaceIds = {};
+      const elasticIpAllocationIds = {};
+      const bootstrapTokenNames = {};
+      for (const node of site.nodeIndexes) {
+        const hostname = `${base.deploymentName}-${node}`;
+        for (const iface of base.intent.interfaces)
+          interfaceIds[`${hostname}/${iface.role}`] = find(
+            `aws_network_interface.node_${node}_nic_${iface.index}`,
+            'aws_network_interface',
+            /^eni-[a-f0-9]{8,17}$/,
+          );
+        if (base.egress.mode === 'elastic-ip')
+          elasticIpAllocationIds[hostname] = find(`aws_eip.node_${node}`, 'aws_eip', /^eipalloc-[a-f0-9]{8,17}$/);
+        const token = `${base.deploymentName.slice(0, 40)}-${node}-${base.planSha256.slice(0, 12)}`;
+        const saved = object15(await storage.read(`${token}.json`));
+        if (saved.tokenName !== token || saved.siteName !== site.name || saved.node !== hostname)
+          throw new Error('Initial replacement bootstrap ownership differs');
+        bootstrapTokenNames[hostname] = token;
+      }
+      const refreshed = await runtime.prepareAwsSiteReplacement(binding, record.instances, record.interfaces, signal);
+      if (refreshed.uid !== record.uid) throw new Error('Initial replacement site identity changed');
+      record = { ...refreshed, planId: base.planId, planSha256: base.planSha256 };
+      const plan = compileAwsSiteReplacement(base, site.name, record, {
+        versions,
+        interfaceIds,
+        elasticIpAllocationIds,
+        bootstrapTokenNames,
+      });
+      frozen = {
+        sourcePlanSha256: base.planSha256,
+        configurationSha256: await session.readConfigurationSha256(),
+        plan,
+      };
+      await storage.write(name, frozen);
+    }
+    const record = object15(frozen);
+    if (
+      record.sourcePlanSha256 !== base.planSha256 ||
+      typeof record.configurationSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(record.configurationSha256)
+    )
+      throw new Error('Frozen initial replacement source differs');
+    const plan = record.plan;
+    if (plan?.sourcePlanSha256 !== base.planSha256 || plan.binding?.siteName !== site.name)
+      throw new Error('Frozen initial replacement plan differs');
+    const driver = await createTerraformAwsSiteReplacementDriver(
+      base,
+      plan,
+      record.configurationSha256,
+      session,
+      storage,
+      api,
+      process.env,
+    );
+    const result = await runAwsSiteReplacement(plan, plan.planSha256, driver, runtime, storage, contract, signal);
+    if (result.status !== 'registered-with-configured-interfaces') return { handled: true, ...result };
+  }
+  return { handled, status: handled ? 'registered' : 'not-required' };
+}
+var object15 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Invalid initial replacement source');
+  return value;
+};
+var init_terraform_initial_replacement = __esm(() => {
+  init_replacement_versions();
+  init_upgrade_contract();
+  init_site_replacement();
+  init_terraform_foundation();
+  init_terraform_site_replacement();
+});
+
+// plugins/aws/src/ce/terraform-routing-references.ts
+function routingAttachmentIds(plan, observation) {
+  if (plan.intent.routing.profile !== 'tgw-connect') return [];
+  const selected = tables(plan);
+  const ids = observation.resources
+    .filter((resource) => selected.has(resource.id))
+    .flatMap((resource) =>
+      ['Associations', 'Propagations'].flatMap((key) =>
+        rows(resource.state[key]).map((row) => row.TransitGatewayAttachmentId),
+      ),
+    );
+  if (ids.some((id) => typeof id !== 'string' || !/^tgw-attach-[0-9a-f]{8,17}$/.test(id)))
+    throw new Error('Malformed routing attachment identity');
+  return [...new Set(ids)];
+}
+function ownedRoutingAdditions(plan, before, after, evidence) {
+  return after.map((resource) => {
+    const baseline = before.find((item) => item.id === resource.id);
+    if (!baseline || !tables(plan).has(resource.id)) return resource;
+    const state = { ...resource.state };
+    for (const [key, selected] of [
+      ['Associations', plan.intent.routing.associations],
+      ['Propagations', plan.intent.routing.propagations],
+    ]) {
+      const original = rows(baseline.state[key]);
+      const current = rows(state[key]);
+      const ids = current.map((row) => row.TransitGatewayAttachmentId);
+      if (new Set(ids).size !== ids.length) throw new Error('Duplicate routing reference edge');
+      state[key] = current.filter((row) => {
+        if (
+          !selected.includes(resource.id) ||
+          original.some((old) => old.TransitGatewayAttachmentId === row.TransitGatewayAttachmentId)
+        )
+          return true;
+        const matches = evidence.filter((item) => item.id === row.TransitGatewayAttachmentId);
+        if (matches.length !== 1) return true;
+        const attachment = matches[0];
+        const records = rows(attachment.state.TransitGatewayAttachments);
+        if (records.length !== 1) return true;
+        const actual = records[0];
+        const tags = attachment.tags;
+        const expectedRow = {
+          TransitGatewayAttachmentId: attachment.id,
+          ResourceId: actual.ResourceId,
+          ResourceType: actual.ResourceType,
+        };
+        const { State: _state, ...configuration } = row;
+        return !(
+          plan.engine === 'terraform' &&
+          attachment.exists &&
+          attachment.owned &&
+          attachment.region === plan.region &&
+          tags['xcsh-managed-by'] === 'aws-ce' &&
+          tags['xcsh-execution-engine'] === 'terraform' &&
+          tags['xcsh-deployment-id'] === plan.deploymentName &&
+          tags['xcsh-plan-sha256'] === plan.planSha256 &&
+          actual.TransitGatewayAttachmentId === attachment.id &&
+          actual.TransitGatewayId === plan.intent.routing.transitGatewayId &&
+          actual.ResourceOwnerId === plan.accountId &&
+          actual.TransitGatewayOwnerId === plan.accountId &&
+          typeof actual.ResourceId === 'string' &&
+          ((actual.ResourceType === 'vpc' && /^vpc-[0-9a-f]{8,17}$/.test(actual.ResourceId)) ||
+            (actual.ResourceType === 'connect' && /^tgw-attach-[0-9a-f]{8,17}$/.test(actual.ResourceId))) &&
+          canonicalSha256(configuration) === canonicalSha256(expectedRow)
+        );
+      });
+    }
+    return { ...resource, state };
+  });
+}
+var object16 = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Malformed routing reference evidence');
+    return value;
+  },
+  rows = (value) => {
+    if (!Array.isArray(value)) throw new Error('Incomplete routing reference evidence');
+    return value.map(object16);
+  },
+  tables = (plan) => new Set([...plan.intent.routing.associations, ...plan.intent.routing.propagations]);
+var init_terraform_routing_references = __esm(() => {
+  init_canonical();
+});
+
+// plugins/aws/src/ce/terraform-preflight.ts
+async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetcher = fetch, signal) {
+  verifyAwsCePlan(plan);
+  if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy' || plan.intent.vpc.mode !== 'greenfield')
+    throw new Error('Terraform deployment preflight requires a greenfield owning plan');
+  const api = scopedAwsApi(rawApi, plan.intent.awsProfile, signal);
+  const result = await api.exec('aws', [
+    'ec2',
+    'describe-addresses',
+    '--region',
+    plan.region,
+    '--output',
+    'json',
+    '--filters',
+    `Name=tag:xcsh-deployment-id,Values=${plan.deploymentName}`,
+  ]);
+  if (result.exitCode !== 0) throw new Error('Terraform deployment EIP ownership is unavailable');
+  const addresses = JSON.parse(result.stdout);
+  if (!Array.isArray(addresses.Addresses) || addresses.NextToken) throw new Error('Incomplete Terraform EIP inventory');
+  const ids = addresses.Addresses.map((address) => {
+    const tags = Object.fromEntries((address.Tags ?? []).map((tag) => [tag.Key, tag.Value]));
+    if (
+      !/^eipalloc-[0-9a-f]{8,21}$/.test(address.AllocationId ?? '') ||
+      tags['xcsh-managed-by'] !== 'aws-ce' ||
+      tags['xcsh-execution-engine'] !== 'terraform' ||
+      tags['xcsh-deployment-id'] !== plan.deploymentName ||
+      tags['xcsh-plan-sha256'] !== plan.planSha256
+    )
+      throw new Error('Terraform EIP belongs to a different plan or engine');
+    return address.AllocationId;
+  });
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate Terraform EIP identity');
+  const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
+  const current = await discoverAwsCompute(
+    {
+      awsProfile: plan.intent.awsProfile,
+      vpcMode: plan.intent.vpc.mode,
+      accountId: plan.accountId,
+      partition: plan.partition,
+      deploymentName: plan.deploymentName,
+      requiredEnis: plan.interfaces.length,
+      nodeCount: plan.topology.nodeCount,
+      instanceTypes: [plan.instance.type],
+      brownfieldResourceIds: terraformRoutingReferences(plan),
+      observedOwnedResourceIds: ids,
+      ownedPlanSha256s: [plan.planSha256],
+      resourceRegion: plan.region,
+      egressMode: plan.egress.mode,
+      routingProfile: plan.routing.profile,
+      f5Capabilities,
+    },
+    api,
+    fetcher,
+  );
+  const attachmentIds = routingAttachmentIds(plan, current);
+  if (attachmentIds.length)
+    current.resources.push(
+      ...(await observeAwsResources(api, attachmentIds, plan.region, {
+        deploymentName: plan.deploymentName,
+        planSha256s: [plan.planSha256],
+      })),
+    );
+  assertAwsTerraformPreflight(plan, baseline, current);
+  return current;
+}
+function assertAwsTerraformPreflight(plan, baseline, current) {
+  const region = current.regions.filter((item) => item.name === plan.region);
+  if (
+    current.identity.accountId !== plan.accountId ||
+    current.identity.partition !== plan.partition ||
+    current.identity.awsProfile !== plan.intent.awsProfile ||
+    !current.agreement.active ||
+    current.agreement.productId !== baseline.agreement.productId ||
+    current.f5CapabilitiesSha256 !== plan.f5CapabilitiesSha256 ||
+    canonicalSha256(current.research.sourceReceipts) !== canonicalSha256(baseline.research.sourceReceipts) ||
+    region.length !== 1 ||
+    !region[0].enabled ||
+    !region[0].eligible ||
+    canonicalSha256(region[0].ami) !== canonicalSha256(plan.image)
+  )
+    throw new Error('Terraform preflight identity, image, agreement, contract or capacity changed');
+  const types = region[0].instanceTypes.filter((item) => item.name === plan.instance.type);
+  if (
+    types.length !== 1 ||
+    !types[0].supported ||
+    plan.topology.availabilityZones.some((zone) => !types[0].availabilityZones.includes(zone))
+  )
+    throw new Error('Terraform instance offering no longer supports the planned topology');
+  const references = terraformRoutingReferences(plan);
+  if (references.length) {
+    const select = (observation) => observation.resources.filter((item) => references.includes(item.id));
+    const before = select(baseline);
+    const after = select(current);
+    if (
+      before.length !== references.length ||
+      after.length !== references.length ||
+      after.some((item) => !item.exists || item.region !== plan.region) ||
+      canonicalSha256(resourceConfiguration(before)) !==
+        canonicalSha256(resourceConfiguration(ownedRoutingAdditions(plan, before, after, current.resources)))
+    )
+      throw new Error('Terraform routing reference configuration changed');
+  }
+}
+function terraformRoutingReferences(plan) {
+  const routing = plan.intent.routing;
+  return ['tgw-connect', 'tgw-static'].includes(routing?.profile)
+    ? [
+        ...new Set(
+          [routing.transitGatewayId, ...routing.associations, ...routing.propagations].filter((id) => Boolean(id)),
+        ),
+      ]
+    : [];
+}
+var init_terraform_preflight = __esm(() => {
+  init_artifacts();
+  init_canonical();
+  init_discovery();
+  init_terraform_routing_references();
+});
+
 // plugins/aws/src/ce/terraform-admission.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 
 async function admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal, haSerialDelayMs = 180000) {
   verifyAwsCePlan(plan);
@@ -10912,7 +11709,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
     checkpoint = {
       schemaVersion: 1,
       planSha256: plan.planSha256,
-      configurationSha256: hash2(initial),
+      configurationSha256: hash3(initial),
       bootstrapByNode: {},
       launchedAtByNode: {},
       admittedSites: [],
@@ -10946,7 +11743,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
       if (!(error instanceof Error) || !error.message.includes('applied or converged current configuration'))
         throw error;
       const receipt = await session.plan(env, signal);
-      const desiredHash = hash2(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode));
+      const desiredHash = hash3(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode));
       if (
         ![checkpoint.configurationSha256, desiredHash].includes(receipt.configurationSha256) ||
         receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
@@ -11020,7 +11817,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
           await save();
         }
         const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
-        const nextHash = hash2(configuration);
+        const nextHash = hash3(configuration);
         if (checkpoint.configurationSha256 !== nextHash) {
           try {
             await session.reviseConfiguration(checkpoint.configurationSha256, configuration);
@@ -11109,7 +11906,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
     traffic: 'unknown',
   };
 }
-var hash2 = (value) => createHash6('sha256').update(value).digest('hex'),
+var hash3 = (value) => createHash8('sha256').update(value).digest('hex'),
   waitUntil2 = async (notBefore, signal) => {
     const remaining = notBefore - Date.now();
     if (remaining <= 0) return;
@@ -11316,7 +12113,50 @@ ${plan.planSha256}`,
         routing: 'unknown',
         traffic: 'unknown',
       }
-    : await runAwsTerraformAdmission(plan, terraform, runtime, storage, api, revalidate, process.env, signal);
+    : await (async () => {
+        const pending = await runAwsTerraformInitialReplacement(
+          plan,
+          terraform,
+          runtime,
+          storage,
+          api,
+          fetcher,
+          signal,
+        );
+        if (pending.handled && pending.status !== 'registered') return pending;
+        try {
+          return await runAwsTerraformAdmission(
+            plan,
+            terraform,
+            runtime,
+            storage,
+            api,
+            revalidate,
+            process.env,
+            signal,
+          );
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes('coupled VM/site replacement')) throw error;
+          const replacement = await runAwsTerraformInitialReplacement(
+            plan,
+            terraform,
+            runtime,
+            storage,
+            api,
+            fetcher,
+            signal,
+          );
+          if (!replacement.handled) throw error;
+          if (replacement.status === 'registered')
+            await storage.write('terraform-workflow.json', {
+              schemaVersion: 1,
+              engine: 'terraform',
+              planSha256: plan.planSha256,
+              stage: 'registered',
+            });
+          return replacement;
+        }
+      })();
   if (
     ['tgw-connect', 'tgw-static'].includes(plan.routing?.profile) &&
     (connectStarted || result.status === 'registered')
@@ -11476,6 +12316,7 @@ var init_terraform_apply = __esm(() => {
   init_terraform_connect_stage();
   init_terraform_foundation();
   init_terraform_identities();
+  init_terraform_initial_replacement();
   init_terraform_preflight();
   init_terraform_routing();
   init_terraform_static();
@@ -11671,7 +12512,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
     signal?.throwIfAborted();
     if (response.exitCode !== 0) throw detectAwsError(response.stderr, response.exitCode);
     sources.push(operation);
-    return object14(JSON.parse(response.stdout));
+    return object17(JSON.parse(response.stdout));
   };
   const pages = async (operation, collection, args) => {
     const output = [],
@@ -11789,7 +12630,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
         seen.add(id);
         let terminal = false;
         if (type === 'aws_instance') {
-          const state = object14(row.State).Name;
+          const state = object17(row.State).Name;
           if (typeof state !== 'string') throw new Error('Missing instance retirement state');
           terminal = state === 'terminated';
         } else if (type === 'aws_ebs_volume' || type.startsWith('aws_ec2_transit_gateway_')) {
@@ -11859,13 +12700,13 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
     };
   }
 }
-var object14 = (value) => {
+var object17 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed absence evidence');
     return value;
   },
   rows2 = (value) => {
     if (!Array.isArray(value)) throw new Error('Missing absence collection');
-    return value.map(object14);
+    return value.map(object17);
   },
   types,
   elbTypes,
@@ -11958,13 +12799,13 @@ var init_terraform_absence = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-destroy-ownership.ts
-function object15(value) {
+function object18(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS teardown identity');
   return value;
 }
 function rows3(value) {
   if (!Array.isArray(value)) throw new Error('Incomplete AWS teardown inventory');
-  return value.map(object15);
+  return value.map(object18);
 }
 async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi, env, signal) {
   verifyAwsCePlan(plan);
@@ -11996,7 +12837,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     if (result.exitCode !== 0) throw new Error('AWS teardown ownership observation unavailable');
     let value;
     try {
-      value = object15(JSON.parse(result.stdout));
+      value = object18(JSON.parse(result.stdout));
     } catch {
       throw new Error('Malformed AWS teardown response');
     }
@@ -12023,7 +12864,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
   if (Object.keys(fields).length !== receipt.changes.length)
     throw new Error('Incomplete Terraform teardown projection');
   const states = receipt.changes.map((change) => {
-    const value = object15(fields[change.address]);
+    const value = object18(fields[change.address]);
     if (typeof value.id !== 'string' || !value.id || value.region !== intent.region)
       throw new Error('Terraform teardown resource identity or region differs');
     return { ...change, value };
@@ -12110,7 +12951,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       const disks = rows3(value.BlockDeviceMappings);
       if (!disks.length) throw new Error('Instance teardown disk inventory is unavailable');
       for (const disk of disks) {
-        const id = object15(disk.Ebs).VolumeId;
+        const id = object18(disk.Ebs).VolumeId;
         if (typeof id !== 'string' || !/^vol-[a-f0-9]{8,21}$/.test(id))
           throw new Error('Instance teardown volume identity is unavailable');
         volumeIds.add(id);
@@ -12232,8 +13073,8 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       );
       if (
         health.length !== 1 ||
-        object15(health[0].Target).Id !== value.target_id ||
-        object15(health[0].Target).Port !== value.port
+        object18(health[0].Target).Id !== value.target_id ||
+        object18(health[0].Target).Port !== value.port
       )
         throw new Error('Teardown NLB target health identity differs');
     } else if (type.startsWith('aws_ec2_transit_gateway_route_table_')) {
@@ -12407,9 +13248,9 @@ var init_terraform_destroy_ownership = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-cloud-teardown.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 
-async function optional3(storage, name) {
+async function optional4(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -12444,8 +13285,8 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     throw new Error('Terraform cloud teardown ownership differs');
   signal?.throwIfAborted();
   await storage.verify();
-  let source = await optional3(storage, sourceFile);
-  let checkpoint = await optional3(storage, checkpointFile);
+  let source = await optional4(storage, sourceFile);
+  let checkpoint = await optional4(storage, checkpointFile);
   if (source === undefined) {
     if (checkpoint !== undefined) throw new Error('Terraform teardown source snapshot is missing');
     const receipt = await session.planDestroy(env, signal);
@@ -12456,9 +13297,9 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
       engine: 'terraform',
       sourcePlanSha256: plan.planSha256,
       configuration,
-      configurationSha256: digest2(configuration),
+      configurationSha256: digest3(configuration),
       retiredConfiguration: retired,
-      retiredConfigurationSha256: digest2(retired),
+      retiredConfigurationSha256: digest3(retired),
     };
     await storage.write(sourceFile, source);
   }
@@ -12469,8 +13310,8 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     source.sourcePlanSha256 !== plan.planSha256 ||
     typeof source.configuration !== 'string' ||
     typeof source.retiredConfiguration !== 'string' ||
-    digest2(source.configuration) !== source.configurationSha256 ||
-    digest2(source.retiredConfiguration) !== source.retiredConfigurationSha256 ||
+    digest3(source.configuration) !== source.configurationSha256 ||
+    digest3(source.retiredConfiguration) !== source.retiredConfigurationSha256 ||
     retiredConfiguration(plan, source.configuration) !== source.retiredConfiguration
   )
     throw new Error('Terraform teardown source snapshot is forged or differs');
@@ -12504,7 +13345,7 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     await storage.write('terraform-cloud-teardown-plan.json', receipt);
     await storage.verify();
     const ownership = await verifyAwsTerraformDestroyOwnership(plan, receipt, session, api, env, signal);
-    const originalInventory = await optional3(storage, 'terraform-cloud-teardown-inventory.json');
+    const originalInventory = await optional4(storage, 'terraform-cloud-teardown-inventory.json');
     if (originalInventory === undefined) {
       await storage.write('terraform-cloud-teardown-inventory.json', ownership.inventory);
     } else {
@@ -12577,7 +13418,7 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     platform: 'unknown',
   };
 }
-var digest2 = (value) => createHash7('sha256').update(value).digest('hex'),
+var digest3 = (value) => createHash9('sha256').update(value).digest('hex'),
   sourceFile = 'terraform-cloud-teardown-source.json',
   checkpointFile = 'terraform-cloud-teardown.json';
 var init_terraform_cloud_teardown = __esm(() => {
@@ -12854,7 +13695,7 @@ var init_terraform_teardown = __esm(() => {
 // plugins/aws/src/ce/terraform-teardown-plan.ts
 import { readdir as readdir2 } from 'node:fs/promises';
 
-async function optional4(storage, name) {
+async function optional5(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -12902,11 +13743,11 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const before = await files(),
     namespaces = new Set(['default']);
   for (const file of before.filter(ingressFile)) {
-    const value = object16(await storage.read(file));
-    const namespace = object16(object16(value.request).metadata).namespace;
+    const value = object19(await storage.read(file));
+    const namespace = object19(object19(value.request).metadata).namespace;
     if (!safeName(namespace)) throw new Error('Stored listener namespace is invalid');
     namespaces.add(namespace);
-    const originNamespace = object16(object16(object16(value.material).intent).originPool).namespace;
+    const originNamespace = object19(object19(object19(value.material).intent).originPool).namespace;
     if (!safeName(originNamespace)) throw new Error('Stored origin namespace is invalid');
     namespaces.add(originNamespace);
   }
@@ -12976,11 +13817,11 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     (row) => row.kind === 'bgps' || row.kind === 'bgp_routing_policys' || row.kind === 'external_connectors',
   );
   if (base.routing.profile === 'tgw-connect') {
-    const saved = await optional4(storage, `${base.engine}-routing-checkpoint.json`);
+    const saved = await optional5(storage, `${base.engine}-routing-checkpoint.json`);
     if (saved === undefined) {
       if (routing.length) throw new Error('Live routing exists without an owning checkpoint');
     } else {
-      const checkpoint = object16(saved);
+      const checkpoint = object19(saved);
       let values;
       if (base.engine === 'terraform') {
         if (
@@ -12990,7 +13831,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
           checkpoint.planSha256 !== base.planSha256
         )
           throw new Error('Routing checkpoint source differs');
-        values = object16(checkpoint.resolvedValues);
+        values = object19(checkpoint.resolvedValues);
       } else {
         const native = checkpoint;
         const version = Number(checkpoint.schemaVersion);
@@ -13028,7 +13869,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     const matches = tokenMatches(file);
     if (!matches.length) continue;
     if (matches.length !== 1) throw new Error('Ambiguous historical enrollment filename');
-    const record = object16(await storage.read(file));
+    const record = object19(await storage.read(file));
     const { tokenName, siteName, node } = record;
     if (
       !safeName(tokenName) ||
@@ -13105,7 +13946,7 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-var object16 = (value) => {
+var object19 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed teardown source record');
     return value;
@@ -13229,7 +14070,7 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
     throw new Error('Native teardown preparation requires native ownership');
   const materialName = 'aws-native-teardown-material.json';
   const persisted =
-    (await optional5(storage, materialName)) ?? (await optional5(storage, 'aws-native-teardown-source.json'));
+    (await optional6(storage, materialName)) ?? (await optional6(storage, 'aws-native-teardown-source.json'));
   let material;
   if (persisted === undefined) {
     const collected = await collectAwsTeardownMaterial(base, runtime, contract, storage, signal);
@@ -13244,14 +14085,14 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
       drain: candidate.drain,
       retirement: candidate.retirement,
     };
-    if ((await optional5(storage, materialName)) === undefined) await storage.write(materialName, material);
+    if ((await optional6(storage, materialName)) === undefined) await storage.write(materialName, material);
   }
   const { drain, retirement } = material;
   const plan = compileAwsNativeTeardown(base, cloud, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-async function optional5(storage, key) {
+async function optional6(storage, key) {
   try {
     return await storage.read(key);
   } catch (error) {
@@ -13278,7 +14119,7 @@ async function coordinateAwsNativeTeardown(base, cloud, input, authorizedPlanSha
   const release = await acquireProcessLock(join5(storage.directory, '.aws-native-teardown-lock'));
   try {
     const sourceName = `${plan.planId}-source.json`;
-    const saved = await optional5(storage, sourceName);
+    const saved = await optional6(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, plan);
     else if (canonicalSha256(saved) !== canonicalSha256(plan))
       throw new Error('Persisted native teardown source differs');
@@ -13410,7 +14251,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-teardown.ts
-async function optional6(storage, name) {
+async function optional7(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -13516,7 +14357,7 @@ Artifact: artifact://${artifactId}`,
         )
           throw new Error('Persisted AWS CE teardown plan identity differs');
         const authorizationName = `${teardown.planId}-authorization.json`;
-        const authorization = await optional6(storage, authorizationName);
+        const authorization = await optional7(storage, authorizationName);
         if (authorization !== undefined) {
           if (
             !authorization ||
@@ -13677,7 +14518,7 @@ var init_aws_ce_teardown = __esm(() => {
 });
 
 // plugins/platform/src/ce/native-upgrade.ts
-import { createHash as createHash8, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
+import { createHash as createHash10, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -13689,7 +14530,7 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional7(storage, name) {
+async function optional8(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -13706,7 +14547,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
   if (
     runtime.engine !== 'native' ||
     storage.owner.engine !== 'native' ||
-    hash3(storage.owner) !== hash3(upgrade.expectation.binding.owner)
+    hash4(storage.owner) !== hash4(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning native engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -13714,11 +14555,11 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional7(storage, sourceName);
+    const saved = await optional8(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash3(saved) !== hash3(upgrade)) throw new Error('Saved native upgrade source differs');
+    else if (hash4(saved) !== hash4(upgrade)) throw new Error('Saved native upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional7(storage, checkpointName);
+    let checkpoint = await optional8(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 1,
@@ -13737,7 +14578,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
       !['ready', 'submitted', 'complete'].includes(checkpoint.phase)
     )
       throw new Error('Native upgrade checkpoint differs');
-    let serial = await optional7(storage, 'native-ce-upgrade-serial.json');
+    let serial = await optional8(storage, 'native-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 1, engine: 'native', status: 'idle' };
     if (
       serial.schemaVersion !== 1 ||
@@ -13779,7 +14620,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash3(receipt.target) !== hash3(upgrade.expectation.target) ||
+        hash4(receipt.target) !== hash4(upgrade.expectation.target) ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
         receipt.traffic !== 'unknown'
@@ -13886,7 +14727,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     await release();
   }
 }
-var hash3 = (value) => createHash8('sha256').update(canonical(value)).digest('hex'),
+var hash4 = (value) => createHash10('sha256').update(canonical(value)).digest('hex'),
   sameHash = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -13976,7 +14817,7 @@ var init_native_upgrade2 = __esm(() => {
 });
 
 // plugins/terraform/src/ce-upgrade.ts
-import { createHash as createHash9, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
+import { createHash as createHash11, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
 function canonical2(value) {
   if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
@@ -13988,7 +14829,7 @@ function canonical2(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional8(storage, name) {
+async function optional9(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -14002,13 +14843,13 @@ function validateActionReceipt(upgrade, receipt) {
     receipt.engine !== 'terraform' ||
     receipt.deploymentId !== upgrade.deployment.deploymentId ||
     receipt.backendIdentity !== upgrade.deployment.backendIdentity ||
-    receipt.configurationSha256 !== digest3(upgrade.deployment.configuration) ||
-    receipt.providerLockSha256 !== digest3(upgrade.deployment.providerLock) ||
+    receipt.configurationSha256 !== digest4(upgrade.deployment.configuration) ||
+    receipt.providerLockSha256 !== digest4(upgrade.deployment.providerLock) ||
     receipt.operation ||
     receipt.noChanges ||
     receipt.changes.length ||
     receipt.actionInvocations?.length !== 1 ||
-    hash4(receipt.actionInvocations[0]) !== hash4(upgrade.action) ||
+    hash5(receipt.actionInvocations[0]) !== hash5(upgrade.action) ||
     !/^[a-f0-9]{64}$/.test(receipt.planSha256)
   )
     throw new Error('Terraform upgrade saved action plan differs');
@@ -14033,7 +14874,7 @@ async function runTerraformCeUpgrade(
   if (
     runtime.engine !== 'terraform' ||
     storage.owner.engine !== 'terraform' ||
-    hash4(storage.owner) !== hash4(upgrade.expectation.binding.owner)
+    hash5(storage.owner) !== hash5(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning Terraform engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -14041,11 +14882,11 @@ async function runTerraformCeUpgrade(
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional8(storage, sourceName);
+    const saved = await optional9(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash4(saved) !== hash4(upgrade)) throw new Error('Saved Terraform upgrade source differs');
+    else if (hash5(saved) !== hash5(upgrade)) throw new Error('Saved Terraform upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional8(storage, checkpointName);
+    let checkpoint = await optional9(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 2,
@@ -14066,7 +14907,7 @@ async function runTerraformCeUpgrade(
       (checkpoint.phase !== 'ready' && !/^[a-f0-9]{64}$/.test(checkpoint.actionPlanSha256 ?? ''))
     )
       throw new Error('Terraform upgrade checkpoint differs');
-    let serial = await optional8(storage, 'terraform-ce-upgrade-serial.json');
+    let serial = await optional9(storage, 'terraform-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 2, engine: 'terraform', status: 'idle' };
     if (
       serial.schemaVersion !== 2 ||
@@ -14111,7 +14952,7 @@ async function runTerraformCeUpgrade(
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash4(receipt.target) !== hash4(upgrade.expectation.target) ||
+        hash5(receipt.target) !== hash5(upgrade.expectation.target) ||
         receipt.actionPlanSha256 !== checkpoint.actionPlanSha256 ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
@@ -14198,8 +15039,8 @@ async function runTerraformCeUpgrade(
     await release();
   }
 }
-var digest3 = (value) => createHash9('sha256').update(value).digest('hex'),
-  hash4 = (value) => digest3(canonical2(value)),
+var digest4 = (value) => createHash11('sha256').update(value).digest('hex'),
+  hash5 = (value) => digest4(canonical2(value)),
   sameHash2 = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -14346,7 +15187,7 @@ var init_terraform_upgrade = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-upgrade.ts
-async function optional9(storage, name) {
+async function optional10(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -14411,7 +15252,7 @@ function createAwsCeUpgradeTool(pi, dependencies = defaults2) {
                   contract,
                   signal,
                 );
-          const existing = await optional9(storage, `${upgrade.planId}.json`);
+          const existing = await optional10(storage, `${upgrade.planId}.json`);
           if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
           else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
             throw new Error('Persisted AWS CE upgrade plan differs');
@@ -14456,7 +15297,7 @@ Artifact: artifact://${artifactId}`,
         if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
           throw new Error('Persisted AWS CE upgrade plan identity differs');
         const authorizationName = `${upgrade.planId}-authorization.json`;
-        const authorization = await optional9(storage, authorizationName);
+        const authorization = await optional10(storage, authorizationName);
         if (authorization !== undefined) {
           if (
             !authorization ||
@@ -14675,7 +15516,7 @@ function verifyAwsNativeFailover(base, failover) {
   )
     throw new Error('Saved AWS native failover plan changed');
 }
-async function optional10(storage, name) {
+async function optional11(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -14716,11 +15557,11 @@ async function runAwsNativeFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional10(storage, sourceName);
+    const saved = await optional11(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional10(storage, checkpointName);
+    let checkpoint = await optional11(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -14823,17 +15664,17 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
     sha256Hex(configuration) !== expectedConfigurationSha256
   )
     throw new Error('Terraform failover engine, instance or configuration binding differs');
-  const original = object17(JSON.parse(configuration));
-  const provider = object17(object17(original.provider).aws);
+  const original = object20(JSON.parse(configuration));
+  const provider = object20(object20(original.provider).aws);
   if (
     provider.region !== base.region ||
     canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId])
   )
     throw new Error('Terraform failover provider scope differs');
-  const resources = object17(original.resource);
+  const resources = object20(original.resource);
   if (resources.aws_ec2_instance_state !== undefined) throw new Error('An instance power control is already present');
-  const instance = object17(object17(resources.aws_instance)[`node_${nodeIndex}`]);
-  const tags = object17(instance.tags);
+  const instance = object20(object20(resources.aws_instance)[`node_${nodeIndex}`]);
+  const tags = object20(instance.tags);
   if (
     tags['xcsh-execution-engine'] !== 'terraform' ||
     tags['xcsh-managed-by'] !== 'aws-ce' ||
@@ -14849,12 +15690,12 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
   )
     throw new Error('Terraform failover instance ownership or identity differs');
   const retainedAddresses = Object.entries(resources).flatMap(([type, values]) =>
-    Object.keys(object17(values)).map((name) => ({ address: `${type}.${name}`, type })),
+    Object.keys(object20(values)).map((name) => ({ address: `${type}.${name}`, type })),
   );
   const controlAddress = 'aws_ec2_instance_state.ce_failover';
   const power = (state) => {
     const result = structuredClone(original);
-    object17(result.resource).aws_ec2_instance_state = {
+    object20(result.resource).aws_ec2_instance_state = {
       ce_failover: { instance_id: instanceId, state, force: false },
     };
     return JSON.stringify(result);
@@ -14938,7 +15779,7 @@ function verifyAwsTerraformFailover(base, failover) {
   if (canonicalSha256(expected) !== canonicalSha256(failover))
     throw new Error('Saved AWS Terraform failover plan changed');
 }
-async function optional11(storage, name) {
+async function optional12(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -14981,11 +15822,11 @@ async function runAwsTerraformFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional11(storage, sourceName);
+    const saved = await optional12(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional11(storage, checkpointName);
+    let checkpoint = await optional12(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -15072,7 +15913,7 @@ async function runAwsTerraformFailover(
     await release();
   }
 }
-var object17 = (value) => {
+var object20 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover configuration');
   return value;
 };
@@ -15083,7 +15924,7 @@ var init_terraform_failover = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-failover.ts
-async function optional12(storage, name) {
+async function optional13(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -15131,7 +15972,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
           if (plan.engine === 'terraform') {
             const terraform = await dependencies.terraform(pi, signal);
             const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
-            const marker = object18(await storage.read('terraform-connect-stage.json'));
+            const marker = object21(await storage.read('terraform-connect-stage.json'));
             if (
               marker.schemaVersion !== 1 ||
               marker.engine !== 'terraform' ||
@@ -15142,8 +15983,8 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               throw new Error('Terraform Connect deployment has not completed');
             const configuration = await session.readConfiguration(marker.configurationSha256);
             const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
-            const instances = object18(outputs.ce_instances);
-            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object18(value) }));
+            const instances = object21(outputs.ce_instances);
+            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object21(value) }));
             if (
               identities.length !== plan.intent.topology.nodeCount ||
               new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
@@ -15155,7 +15996,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               )
             )
               throw new Error('Terraform instance output is incomplete');
-            const selected = object18(instances[String(params.nodeIndex)]);
+            const selected = object21(instances[String(params.nodeIndex)]);
             if (typeof selected.id !== 'string') throw new Error('Selected Terraform instance identity is unavailable');
             failover = buildAwsTerraformFailover(
               plan,
@@ -15173,13 +16014,13 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
             );
             const replacement = registration
-              ? await optional12(storage, `${registration.id}-initial-mtu-replacement.json`)
+              ? await optional13(storage, `${registration.id}-initial-mtu-replacement.json`)
               : undefined;
             let instancePlanSha256 = plan.planSha256;
             if (replacement !== undefined) {
-              const envelope = object18(replacement);
-              const child = object18(envelope.plan);
-              const binding = object18(child.binding);
+              const envelope = object21(replacement);
+              const child = object21(envelope.plan);
+              const binding = object21(child.binding);
               const { planId, planSha256, ...draft } = child;
               const expectedSite = siteForNode(plan.intent, params.nodeIndex);
               if (
@@ -15197,7 +16038,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
             }
             failover = buildAwsNativeFailover(plan, params.nodeIndex, instanceId, instancePlanSha256);
           }
-          const existing = await optional12(storage, `${failover.planId}.json`);
+          const existing = await optional13(storage, `${failover.planId}.json`);
           if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
           else if (canonicalSha256(existing) !== canonicalSha256(failover))
             throw new Error('Persisted AWS CE failover plan differs');
@@ -15240,7 +16081,7 @@ Artifact: artifact://${artifactId}`,
         if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
           throw new Error('Persisted AWS CE failover plan identity differs');
         const authorizationName = `${failover.planId}-authorization.json`;
-        const authorization = await optional12(storage, authorizationName);
+        const authorization = await optional13(storage, authorizationName);
         if (authorization === undefined) {
           if (
             ctx.hasUI &&
@@ -15348,7 +16189,7 @@ Node ${failover.nodeIndex}`,
   };
 }
 var defaults3,
-  object18 = (value) => {
+  object21 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover identity');
     return value;
   };
@@ -15728,14 +16569,14 @@ async function verifyDiagnosticManagedNode(api, instanceId, region) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('SSM managed-node prerequisites are unavailable');
-  const response = object19(JSON.parse(result.stdout));
+  const response = object22(JSON.parse(result.stdout));
   if (
     Object.hasOwn(response, 'NextToken') ||
     !Array.isArray(response.InstanceInformationList) ||
     response.InstanceInformationList.length !== 1
   )
     throw new Error('SSM managed-node observation is incomplete');
-  const node = object19(response.InstanceInformationList[0]);
+  const node = object22(response.InstanceInformationList[0]);
   const pingTime =
     typeof node.LastPingDateTime === 'number'
       ? node.LastPingDateTime * 1000
@@ -15766,15 +16607,15 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('Diagnostic instance ownership is unavailable');
-  const data = object19(JSON.parse(result.stdout));
+  const data = object22(JSON.parse(result.stdout));
   if (data.NextToken || !Array.isArray(data.Reservations) || data.Reservations.length !== 1)
     throw new Error('Diagnostic instance response is incomplete');
-  const reservation = object19(data.Reservations[0]);
+  const reservation = object22(data.Reservations[0]);
   const instances = reservation.Instances;
   if (reservation.OwnerId !== plan.accountId || !Array.isArray(instances) || instances.length !== 1)
     throw new Error('Diagnostic instance account is unverified');
-  const instance = object19(instances[0]);
-  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object19) : [];
+  const instance = object22(instances[0]);
+  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object22) : [];
   const expected = {
     'xcsh-managed-by': 'aws-ce',
     'xcsh-deployment-id': plan.deploymentName,
@@ -15783,7 +16624,7 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
   };
   if (
     instance.InstanceId !== instanceId ||
-    object19(instance.State).Name !== 'running' ||
+    object22(instance.State).Name !== 'running' ||
     Object.entries(expected).some(
       ([key, value]) =>
         tags.filter((tag) => tag.Key === key).length !== 1 || tags.find((tag) => tag.Key === key)?.Value !== value,
@@ -15823,7 +16664,7 @@ async function observeDiagnosticInvocation(
     } else {
       let invocation;
       try {
-        invocation = object19(JSON.parse(result.stdout));
+        invocation = object22(JSON.parse(result.stdout));
       } catch {
         return { ...base, status: 'unknown', reason: 'invocation-response-malformed' };
       }
@@ -15849,7 +16690,7 @@ async function observeDiagnosticInvocation(
   }
   return { ...base, status: 'unknown', reason: 'invocation-not-converged' };
 }
-var object19 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var object22 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_diagnostic_invocation = () => {};
 
 // plugins/aws/src/ce/flow-log-evidence.ts

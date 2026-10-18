@@ -11,6 +11,7 @@ import { scopedAwsApi } from './scoped-exec';
 import { applyAwsTerraformConnectStage } from './terraform-connect-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
+import { runAwsTerraformInitialReplacement } from './terraform-initial-replacement';
 import { revalidateAwsTerraformPlan } from './terraform-preflight';
 import { bindTerraformIngress, configureAwsTerraformRouting } from './terraform-routing';
 import { bindTerraformStaticRouting } from './terraform-static';
@@ -137,7 +138,50 @@ export async function executeAwsCeTerraformApply(
         routing: 'unknown',
         traffic: 'unknown',
       }
-    : await runAwsTerraformAdmission(plan, terraform, runtime, storage, api, revalidate, process.env, signal);
+    : await (async () => {
+        const pending = await runAwsTerraformInitialReplacement(
+          plan,
+          terraform,
+          runtime,
+          storage,
+          api,
+          fetcher,
+          signal,
+        );
+        if (pending.handled && pending.status !== 'registered') return pending;
+        try {
+          return await runAwsTerraformAdmission(
+            plan,
+            terraform,
+            runtime,
+            storage,
+            api,
+            revalidate,
+            process.env,
+            signal,
+          );
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes('coupled VM/site replacement')) throw error;
+          const replacement = await runAwsTerraformInitialReplacement(
+            plan,
+            terraform,
+            runtime,
+            storage,
+            api,
+            fetcher,
+            signal,
+          );
+          if (!replacement.handled) throw error;
+          if (replacement.status === 'registered')
+            await storage.write('terraform-workflow.json', {
+              schemaVersion: 1,
+              engine: 'terraform',
+              planSha256: plan.planSha256,
+              stage: 'registered',
+            });
+          return replacement;
+        }
+      })();
   if (
     ['tgw-connect', 'tgw-static'].includes(plan.routing?.profile) &&
     (connectStarted || result.status === 'registered')
