@@ -35,3 +35,23 @@ it('rejects foreign ownership, wrong engine, duplicates and empty inventory', ()
   expect(() => planGcpOwnedTeardown([vm, vm], scope)).toThrow('duplicates');
   expect(() => planGcpOwnedTeardown([], scope)).toThrow('absence');
 });
+
+it('rejects resources outside the teardown region while accepting all HA zones in that region', () => {
+  const vm = resource('instance', 'instances', 'ce');
+  const subnet = resource('subnetwork', 'subnetworks', 'outside');
+  for (const target of [vm, subnet]) {
+    expect(() =>
+      planGcpOwnedTeardown(
+        [{ ...target, selfLink: target.selfLink.replace('northamerica-northeast1', 'us-central1') }],
+        scope,
+      ),
+    ).toThrow('region');
+  }
+  const secondZone = {
+    ...vm,
+    id: '456',
+    selfLink: vm.selfLink.replace('northeast1-a', 'northeast1-b').replace('/ce', '/ce-b'),
+  };
+  expect(planGcpOwnedTeardown([vm, secondZone], scope).resources).toHaveLength(2);
+  expect(() => planGcpOwnedTeardown([vm], { ...scope, region: '' })).toThrow('region');
+});
