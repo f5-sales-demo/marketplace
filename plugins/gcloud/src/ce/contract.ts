@@ -12,13 +12,41 @@ export interface GcpCeContractBoundary {
   availability: 'unavailable';
   reason: 'gcp_provider_not_published' | 'gcp_provider_requires_consumer_qualification';
 }
-export async function resolveGcpContract(fetcher: typeof fetch = fetch): Promise<GcpCeContractBoundary> {
+export async function resolveGcpContract(
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<GcpCeContractBoundary> {
+  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+  const read = async (url: string, maximum = 1024 * 1024): Promise<Uint8Array> => {
+    combined.throwIfAborted();
+    const response = await fetcher(url, {
+      signal: combined,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
+    if (!response.body) throw new Error('Contract response body unavailable');
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > maximum) throw new Error('Contract response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes: Uint8Array) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   const base = `https://api.github.com/repos/${GCP_CE_API_RELEASE.repository}`;
-  const response = await fetcher(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
-  const release = await response.json();
+  const release = decode(await read(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`));
   if (
     release.tag_name !== GCP_CE_API_RELEASE.tag ||
     release.immutable !== true ||
@@ -36,12 +64,10 @@ export async function resolveGcpContract(fetcher: typeof fetch = fetch): Promise
     matches[0].browser_download_url !== expectedUrl
   )
     throw new Error('Contract asset identity mismatch');
-  const asset = await fetcher(expectedUrl);
-  if (!asset.ok) throw new Error(`Contract asset unavailable: HTTP ${asset.status}`);
-  const bytes = new Uint8Array(await asset.arrayBuffer());
+  const bytes = await read(expectedUrl, 4 * 1024 * 1024);
   if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
-  const contract = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const contract = decode(bytes);
   if (
     contract.contract_id !== 'f5xc-smsv2-api/v1' ||
     !contract.providers ||

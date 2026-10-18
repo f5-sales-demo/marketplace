@@ -1054,13 +1054,38 @@ var init_discovery = __esm(() => {
 // plugins/gcloud/src/ce/contract.ts
 import { createHash as createHash2 } from 'node:crypto';
 
-async function resolveGcpContract(fetcher = fetch) {
+async function resolveGcpContract(fetcher = fetch, signal) {
+  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+  const read = async (url, maximum = 1024 * 1024) => {
+    combined.throwIfAborted();
+    const response = await fetcher(url, {
+      signal: combined,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
+    if (!response.body) throw new Error('Contract response body unavailable');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > maximum) throw new Error('Contract response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   const base = `https://api.github.com/repos/${GCP_CE_API_RELEASE.repository}`;
-  const response = await fetcher(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
-  const release = await response.json();
+  const release = decode(await read(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`));
   if (
     release.tag_name !== GCP_CE_API_RELEASE.tag ||
     release.immutable !== true ||
@@ -1078,12 +1103,10 @@ async function resolveGcpContract(fetcher = fetch) {
     matches[0].browser_download_url !== expectedUrl
   )
     throw new Error('Contract asset identity mismatch');
-  const asset = await fetcher(expectedUrl);
-  if (!asset.ok) throw new Error(`Contract asset unavailable: HTTP ${asset.status}`);
-  const bytes = new Uint8Array(await asset.arrayBuffer());
+  const bytes = await read(expectedUrl, 4 * 1024 * 1024);
   if (`sha256:${createHash2('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
-  const contract = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const contract = decode(bytes);
   if (
     contract.contract_id !== 'f5xc-smsv2-api/v1' ||
     !contract.providers ||
@@ -1289,7 +1312,7 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
           if (tool === 'gcp_ce_plan') validateIntent(params.intent);
           const discovery = await discoverGcp(api, params.project, params.region, signal);
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
-          const boundary = await contract();
+          const boundary = await contract(undefined, signal);
           const policyReceipt = await readGcpCePolicy();
           const plan = planGcpCe(params.intent, discovery, Date.now(), policyReceipt);
           return result(tool, { availability: 'unavailable', boundary, plan });
@@ -1331,7 +1354,7 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
             owningEngine: 'not-established',
           });
         }
-        const boundary = await contract();
+        const boundary = await contract(undefined, signal);
         return result(
           tool,
           {

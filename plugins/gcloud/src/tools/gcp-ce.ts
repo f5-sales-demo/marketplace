@@ -115,7 +115,7 @@ export function createGcpCeTools(
           if (tool === 'gcp_ce_plan') validateIntent(params.intent as GcpCeIntent);
           const discovery = await discoverGcp(api, params.project, params.region, signal);
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
-          const boundary = await contract();
+          const boundary = await contract(undefined, signal);
           const policyReceipt = await readGcpCePolicy();
           const plan = planGcpCe(params.intent as GcpCeIntent, discovery, Date.now(), policyReceipt);
           return result(tool, { availability: 'unavailable', boundary, plan });
@@ -160,7 +160,7 @@ export function createGcpCeTools(
             owningEngine: 'not-established',
           });
         }
-        const boundary = await contract();
+        const boundary = await contract(undefined, signal);
         return result(
           tool,
           {

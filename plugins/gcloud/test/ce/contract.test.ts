@@ -53,3 +53,40 @@ it('does not conceal contract transport failure', async () => {
   const fetcher = (async () => new Response('', { status: 503 })) as typeof fetch;
   await expect(resolveGcpContract(fetcher)).rejects.toThrow('HTTP 503');
 });
+
+it('rejects cancellation before fetching a release', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  await expect(
+    resolveGcpContract(
+      (async () => {
+        calls++;
+        return Response.json(release());
+      }) as typeof fetch,
+      controller.signal,
+    ),
+  ).rejects.toThrow();
+  expect(calls).toBe(0);
+});
+
+it('bounds streamed contract responses before parsing or downloading assets', async () => {
+  let cancelled = false;
+  let calls = 0;
+  const fetcher = (async () => {
+    calls++;
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    );
+  }) as typeof fetch;
+  await expect(resolveGcpContract(fetcher)).rejects.toThrow('size limit');
+  expect(calls).toBe(1);
+  expect(cancelled).toBe(true);
+});
