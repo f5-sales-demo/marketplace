@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import * as nodeFs from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -15,16 +16,21 @@ import {
   invitationToZoomMtg,
   parseZoomCommand,
   parseZoomToolInput,
+  zoomBackend,
 } from '../plugins/zoom/extensions/integration';
 import { presentation } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/presentation';
 
 const xorgVersion = (
   await Bun.file(join(import.meta.dir, '..', 'plugins', 'xorg', '.xcsh-plugin', 'plugin.json')).json()
 ).version as string;
+const originalZoomBackend = process.env.XCSH_ZOOM_BACKEND;
+process.env.XCSH_ZOOM_BACKEND = 'x11';
 const originalZoomStateDirectory = process.env.XCSH_ZOOM_STATE_DIR;
 const zoomStateDirectory = mkdtempSync(join(tmpdir(), 'xcsh-zoom-test-state-'));
 process.env.XCSH_ZOOM_STATE_DIR = zoomStateDirectory;
 afterAll(() => {
+  if (originalZoomBackend === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+  else process.env.XCSH_ZOOM_BACKEND = originalZoomBackend;
   if (originalZoomStateDirectory === undefined) delete process.env.XCSH_ZOOM_STATE_DIR;
   else process.env.XCSH_ZOOM_STATE_DIR = originalZoomStateDirectory;
   rmSync(zoomStateDirectory, { recursive: true, force: true });
@@ -2059,5 +2065,66 @@ describe('Ghostty unsupported host readiness', () => {
         spawn.mockRestore();
       }
     });
+  }
+});
+
+it('preserves ARM64 Zoom Web diagnostics with explicit backend selection', () => {
+  const prior = process.env.XCSH_ZOOM_BACKEND;
+  process.env.XCSH_ZOOM_BACKEND = 'web';
+  const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
+    exitCode: 23,
+    stdout: new Uint8Array(),
+    stderr: new TextEncoder().encode('synthetic-web-unavailable'),
+  } as never);
+  try {
+    expect(call('status', [])).toEqual({
+      exitCode: 23,
+      backend: 'zoom-web',
+      error: 'invalid_response',
+      stderr: 'synthetic-web-unavailable',
+    });
+    for (const action of ['share', 'stop-share'] as const) {
+      expect(call(action, [])).toMatchObject({ exitCode: 23, error: 'invalid_response' });
+      expect(spawn.mock.calls.at(-1)?.[0]).toContain(action);
+    }
+    expect(call('reaction', [])).toMatchObject({ error: 'web_control_not_qualified' });
+  } finally {
+    spawn.mockRestore();
+    if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+    else process.env.XCSH_ZOOM_BACKEND = prior;
+  }
+});
+
+it('baked desktop provider activation retains authentication without software installs', async () => {
+  const actual = nodeFs.existsSync;
+  const exists = spyOn(nodeFs, 'existsSync').mockImplementation(
+    (path) => path === '/etc/pi-desktop/desktop-lock.json' || actual(path),
+  );
+  try {
+    for (const plugin of ['aws', 'azure', 'gcloud', 'gitlab', 'terraform', 'kvm']) {
+      const defs = await definitionsFor(plugin);
+      expect(defs.length).toBeGreaterThan(0);
+      for (const def of defs) {
+        expect(def.setup?.steps.filter((step) => step.kind === 'install')).toEqual([]);
+        expect(def.setup?.verification.length).toBeGreaterThan(0);
+      }
+    }
+  } finally {
+    exists.mockRestore();
+  }
+});
+
+it('selects Web on Linux ARM64 and retains native hosts with explicit override', () => {
+  const prior = process.env.XCSH_ZOOM_BACKEND;
+  delete process.env.XCSH_ZOOM_BACKEND;
+  try {
+    expect(zoomBackend('linux', 'arm64')).toBe('web');
+    expect(zoomBackend('linux', 'x64')).toBe('workplace');
+    expect(zoomBackend('darwin', 'arm64')).toBe('workplace');
+    process.env.XCSH_ZOOM_BACKEND = 'web';
+    expect(zoomBackend('linux', 'x64')).toBe('web');
+  } finally {
+    if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;
+    else process.env.XCSH_ZOOM_BACKEND = prior;
   }
 });

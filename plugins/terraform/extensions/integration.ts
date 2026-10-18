@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
+
 interface ExtensionApi {
-  integrations: { register<T>(definition: unknown): unknown };
+  integrations: { register<_T>(definition: unknown): unknown };
 }
 
 export function terraformInstallArgv(platform = process.platform): string[] {
@@ -18,13 +20,15 @@ export default function terraformIntegration(pi: ExtensionApi) {
       pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [
-        {
-          kind: 'install',
-          argv: terraformInstallArgv(),
-          timeoutMs: 300_000,
-        },
-      ],
+      steps: existsSync('/etc/pi-desktop/desktop-lock.json')
+        ? []
+        : [
+            {
+              kind: 'install',
+              argv: terraformInstallArgv(),
+              timeoutMs: 300_000,
+            },
+          ],
       verification: [{ argv: ['terraform', 'version'], timeoutMs: 30_000 }],
     },
     async probe() {

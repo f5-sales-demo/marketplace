@@ -1,7 +1,7 @@
 {
   "name": "zoom",
-  "version": "1.3.0",
-  "description": "Verified Zoom Workplace control through public xorgctl JSON",
+  "version": "1.4.0",
+  "description": "Zoom Web on Linux ARM64 and native Workplace on supported hosts, with verified virtual media",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
@@ -24,15 +24,19 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["zoom"],
-    "requirements": ["Ubuntu 24.04 amd64", "Zoom Workplace 7.2.1.5760", "Xorg, Herdr, and Ghostty plugins"],
+    "requirements": [
+      "Chrome and configured virtual media for ARM64 Zoom Web",
+      "Verified local desktop backend and Herdr",
+      "amd64 Zoom Workplace remains supported"
+    ],
     "setupRequired": true,
     "collectedData": [],
-    "pluginDependencies": ["xorg", "herdr", "ghostty"]
+    "pluginDependencies": ["xorg", "herdr"]
   },
   "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Zoom",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "minimumRuntimeVersion": "23.5.1"
 }

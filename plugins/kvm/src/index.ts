@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { presentTool as enrichTool } from './presentation';
 import {
   type ControllerInvoker,
@@ -30,15 +31,17 @@ const factory = async (pi: KvmExtensionApi, invokeController: ControllerInvoker 
       pluginDependencies: ['platform'],
       requiredEnvironment: ['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_NAMESPACE'],
       profileFields: [],
-      steps: [
-        {
-          kind: 'install',
-          argv: [KVM_SMSV2_CONTROLLER, '--json', 'setup', 'apply'],
-          timeoutMs: 7_200_000,
-          environment: ['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_NAMESPACE'],
-          stdin: 'inherit',
-        },
-      ],
+      steps: existsSync('/etc/pi-desktop/desktop-lock.json')
+        ? []
+        : [
+            {
+              kind: 'install',
+              argv: [KVM_SMSV2_CONTROLLER, '--json', 'setup', 'apply'],
+              timeoutMs: 7_200_000,
+              environment: ['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_NAMESPACE'],
+              stdin: 'inherit',
+            },
+          ],
       verification: [
         {
           argv: [KVM_SMSV2_CONTROLLER, '--json', 'setup', 'status'],

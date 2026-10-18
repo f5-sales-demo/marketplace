@@ -24,8 +24,13 @@ PIPER_CONFIG_SHA256 = "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181d
 
 def speech_engine():
     """Return validated, pinned Piper assets without exposing generated media."""
-    root = pathlib.Path.home() / ".local/share/xorgctl"
-    piper = root / "venv/bin/piper"
+    baked = pathlib.Path("/etc/pi-desktop/desktop-lock.json").is_file()
+    root = (
+        pathlib.Path("/opt/pi-desktop")
+        if baked
+        else pathlib.Path.home() / ".local/share/xorgctl"
+    )
+    piper = root / ("python/venv/bin/piper" if baked else "venv/bin/piper")
     model = root / "voices/en_US-lessac-medium.onnx"
     config = root / "voices/en_US-lessac-medium.onnx.json"
     try:

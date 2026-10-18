@@ -10,6 +10,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.3.1 verifies baked desktop prerequisites without reinstalling software (#1605).
+
+- **`kvm`** v3.2.1 verifies baked desktop prerequisites without reinstalling software (#1605).
+
+- **`gitlab`** v1.5.1 verifies baked desktop prerequisites without reinstalling software (#1605).
+
+- **`azure`** v4.6.1 verifies baked desktop prerequisites without reinstalling software (#1605).
+
+- **`aws`** v2.3.1 verifies baked desktop prerequisites without reinstalling software (#1605).
+
 - **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
 
 - **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).
@@ -22,7 +32,7 @@ and this project adheres to
 
 - **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
-- **`gcloud`** bumped to v1.6.0
+- **`gcloud`** v1.6.1 verifies baked desktop prerequisites without reinstalling software (#1605).
 
 - Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
   readiness planning to the Google Cloud plugin, with topology, sizing and engine

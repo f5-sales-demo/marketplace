@@ -46,6 +46,12 @@ export type Action =
 const DEFAULT_SESSION = 'desktop';
 const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
 const ZOOM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'zoom-setup.py');
+const ZOOM_WEB = resolve(import.meta.dir, '..', 'scripts', 'zoom-web.py');
+export const zoomBackend = (platform = process.platform, architecture = process.arch) => {
+  if (process.env.XCSH_ZOOM_BACKEND === 'web') return 'web';
+  if (process.env.XCSH_ZOOM_BACKEND === 'x11') return 'workplace';
+  return platform === 'linux' && architecture === 'arm64' ? 'web' : 'workplace';
+};
 type AccessibilityItem = {
   name?: string;
   role?: string;
@@ -1006,6 +1012,21 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
 };
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
+  if (zoomBackend() === 'web') {
+    if (!['status', 'awareness', 'join', 'audio', 'video', 'share', 'stop-share', 'leave'].includes(action))
+      return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
+    const result = Bun.spawnSync(['python3', ZOOM_WEB, action, ...args, '--json']);
+    try {
+      return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode };
+    } catch {
+      return {
+        exitCode: result.exitCode || 1,
+        backend: 'zoom-web',
+        error: 'invalid_response',
+        stderr: new TextDecoder().decode(result.stderr),
+      };
+    }
+  }
   const windowsBySession = sessionInventory();
   const activeMeetingSession =
     discoverActiveMeetingSession(windowsBySession) ?? discoverActiveMeetingSessionByAwareness(windowsBySession);
@@ -1104,25 +1125,29 @@ export const createZoomCommandHandler =
   };
 export default function zoomIntegration(pi: ExtensionApi) {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
+  const web = zoomBackend() === 'web';
+  const setupScript = web ? ZOOM_WEB : ZOOM_SETUP;
   pi.integrations.register({
     id: 'zoom',
-    name: 'Zoom Workplace',
+    name: web ? 'Zoom Web' : 'Zoom Workplace',
     plugin: 'zoom',
     kind: 'local',
     setup: {
-      pluginDependencies: ['xorg', 'herdr', 'ghostty'],
+      pluginDependencies: web ? ['xorg', 'herdr'] : ['xorg', 'herdr', 'ghostty'],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: ['python3', ZOOM_SETUP, 'apply', '--json'], timeoutMs: 900000 }],
-      verification: [{ argv: ['python3', ZOOM_SETUP, 'verify', '--json'], timeoutMs: 120000 }],
+      steps: web ? [] : [{ kind: 'install', argv: ['python3', ZOOM_SETUP, 'apply', '--json'], timeoutMs: 900000 }],
+      verification: [{ argv: ['python3', setupScript, 'verify', '--json'], timeoutMs: 120000 }],
     },
     async probe() {
-      const result = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
+      const result = Bun.spawnSync(['python3', setupScript, 'status', '--json']);
       if (result.exitCode !== 0) return { state: 'setup_required', reason: 'terminal_camera_not_ready' };
       try {
         const value = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;
         return value.ready === true
-          ? { state: 'ready', value }
+          ? web
+            ? { state: 'degraded', reason: 'meeting_controls_not_qualified', value }
+            : { state: 'ready', value }
           : { state: 'setup_required', reason: 'terminal_camera_not_ready', value };
       } catch {
         return { state: 'setup_required', reason: 'invalid_response' };
@@ -1133,8 +1158,9 @@ export default function zoomIntegration(pi: ExtensionApi) {
     presentTool({
       name: 'zoom_meeting',
       label: 'Zoom meeting',
-      description:
-        'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. Every matching join selects xcsh Camera and verifies video on. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
+      description: web
+        ? 'Zoom Web controller for Linux ARM64. Join uses Chrome and the xcsh display identity with guarded virtual camera/microphone devices. Status reports installed prerequisites; awareness observes the owned meeting browser. Audio/video require explicit on/off. Shared meeting controls and receiver acceptance are reported separately. Unqualified actions return explicit capability gates.'
+        : 'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. Every matching join selects xcsh Camera and verifies video on. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
       parameters: pi.typebox.Type.Object({
         action: pi.typebox.Type.Union(actions.map((action) => pi.typebox.Type.Literal(action))),
         invitation_url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
@@ -1152,12 +1178,14 @@ export default function zoomIntegration(pi: ExtensionApi) {
     }),
   );
   pi.registerCommand('zoom', {
-    description: 'Join or control Zoom Workplace deterministically',
+    description: web
+      ? 'Join or control Zoom Web in the owned ARM64 browser'
+      : 'Join or control Zoom Workplace deterministically',
     handler: createZoomCommandHandler(
       call,
       pi.sendMessage
         ? (result) =>
-            pi.sendMessage!({
+            pi.sendMessage?.({
               customType: 'zoom',
               content: JSON.stringify(result),
               display: true,

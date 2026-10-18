@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { presentTool as enrichTool } from './presentation';
@@ -16,11 +17,19 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
-const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
+const BAKED = existsSync('/etc/pi-desktop/desktop-lock.json');
+const WAYLAND = process.env.XDG_SESSION_TYPE === 'wayland' || process.env.XORGCTL_BACKEND === 'wayland';
+const INSTALLED_XORGCTL = BAKED ? '/usr/local/bin/xorgctl' : resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
-  Bun.spawnSync([INSTALLED_XORGCTL, ...(session ? ['--session', session] : []), '--json', ...args]);
+  Bun.spawnSync([
+    INSTALLED_XORGCTL,
+    ...(session ? ['--session', session] : []),
+    '--json',
+    ...(WAYLAND ? ['--backend', 'wayland'] : []),
+    ...args,
+  ]);
 export default function xorgIntegration(pi: ExtensionApi) {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.integrations.register({
@@ -32,23 +41,28 @@ export default function xorgIntegration(pi: ExtensionApi) {
       pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [
-        {
-          kind: 'install',
-          argv: [BUNDLED_XORGCTL, 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
-          timeoutMs: 900000,
-        },
-      ],
+      steps: BAKED
+        ? []
+        : [
+            {
+              kind: 'install',
+              argv: [BUNDLED_XORGCTL, 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
+              timeoutMs: 900000,
+            },
+          ],
       verification: [
         {
-          argv: [
-            INSTALLED_XORGCTL,
-            '--json',
-            'setup',
-            'status',
-            '--params',
-            JSON.stringify({ expected_version: VERSION }),
-          ],
+          argv:
+            BAKED && WAYLAND
+              ? [INSTALLED_XORGCTL, '--backend', 'wayland', 'capabilities']
+              : [
+                  INSTALLED_XORGCTL,
+                  '--json',
+                  'setup',
+                  'status',
+                  '--params',
+                  JSON.stringify({ expected_version: VERSION }),
+                ],
           timeoutMs: 30000,
         },
       ],
@@ -56,8 +70,16 @@ export default function xorgIntegration(pi: ExtensionApi) {
     async probe() {
       const r = invoke(undefined, ['capabilities']);
       const text = new TextDecoder().decode(r.stdout);
-      if (r.exitCode !== 0 || !text.includes(VERSION)) {
+      if (r.exitCode !== 0 || (!WAYLAND && !text.includes(VERSION))) {
         return { state: 'degraded', reason: 'version_mismatch' };
+      }
+      if (BAKED && WAYLAND) {
+        try {
+          const value = JSON.parse(text);
+          return { state: value.ok ? 'ready' : 'degraded', value: value.result };
+        } catch {
+          return { state: 'degraded', reason: 'backend_probe_invalid' };
+        }
       }
       const setup = invoke(undefined, ['setup', 'status', '--params', JSON.stringify({ expected_version: VERSION })]);
       if (setup.exitCode !== 0) return { state: 'degraded', reason: 'setup_probe_failed' };
