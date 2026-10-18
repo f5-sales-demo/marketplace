@@ -1154,6 +1154,492 @@ var init_contract = __esm(() => {
   };
 });
 
+// plugins/platform/src/ce/deployment-store.ts
+var init_deployment_store = () => {};
+
+// plugins/platform/src/ce/bgp-evidence.ts
+var init_bgp_evidence = () => {};
+
+// plugins/platform/src/ce/bgp-route-evidence.ts
+var init_bgp_route_evidence = () => {};
+
+// plugins/platform/src/ce/bootstrap.ts
+var init_bootstrap = () => {};
+
+// plugins/platform/src/ce/process-lock.ts
+var init_process_lock = () => {};
+
+// plugins/platform/src/ce/ingress-lifecycle.ts
+var init_ingress_lifecycle = __esm(() => {
+  init_process_lock();
+  init_runtime();
+});
+// plugins/platform/src/ce/interface-evidence.ts
+var init_interface_evidence = () => {};
+
+// plugins/platform/src/ce/origin-teardown.ts
+var init_origin_teardown = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/platform-drain.ts
+var init_platform_drain = __esm(() => {
+  init_runtime();
+});
+// plugins/platform/src/ce/teardown-inventory.ts
+var init_teardown_inventory = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/upgrade-evidence.ts
+var init_upgrade_evidence = () => {};
+
+// plugins/platform/src/ce/runtime.ts
+var init_runtime = __esm(() => {
+  init_bgp_evidence();
+  init_bgp_route_evidence();
+  init_bootstrap();
+  init_ingress_lifecycle();
+  init_interface_evidence();
+  init_origin_teardown();
+  init_platform_drain();
+  init_teardown_inventory();
+  init_upgrade_evidence();
+});
+
+// plugins/platform/src/ce/gcp-observation.ts
+var init_gcp_observation = __esm(() => {
+  init_discovery();
+  init_runtime();
+});
+
+// plugins/platform/src/ce/verified-api-release.ts
+var repository = 'f5-sales-demo/api-specs-enriched',
+  tag = 'v7.0.1',
+  commit = '2513fe498149c98fb737ff2ab207704b8a86fec6',
+  digest = 'sha256:48863c0a2e6c6a6fde050f4f8f5a6966b02872851fa1acb7830f26ef2e143cd9',
+  _assetUrl,
+  _CE_API_RELEASE;
+var init_verified_api_release = __esm(() => {
+  _assetUrl = `https://github.com/${repository}/releases/download/${tag}/openapi.json`;
+  _CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
+});
+// plugins/platform/src/ce/wire-schema.ts
+var _keywords;
+var init_wire_schema = __esm(() => {
+  _keywords = new Set([
+    'type',
+    'enum',
+    'const',
+    'required',
+    'minLength',
+    'maxLength',
+    'pattern',
+    'minimum',
+    'maximum',
+    'multipleOf',
+    'minItems',
+    'maxItems',
+    'uniqueItems',
+    'minProperties',
+    'maxProperties',
+    'format',
+    'nullable',
+  ]);
+});
+
+// plugins/platform/src/ce/wire-routing.ts
+var init_wire_routing = __esm(() => {
+  init_wire_schema();
+});
+
+// plugins/platform/src/ce/wire-site.ts
+var init_wire_site = __esm(() => {
+  init_wire_schema();
+});
+
+// plugins/platform/src/ce/verified-contract.ts
+var _publishedAssets;
+var init_verified_contract = __esm(() => {
+  init_verified_api_release();
+  init_wire_routing();
+  init_wire_schema();
+  init_wire_site();
+  _publishedAssets = Object.freeze({
+    'smsv2-contract.json': 'sha256:3602ecd09b744449f1bf036c42e10e8be7133f6073e5d1553edb49e46cd2429c',
+    'smsv2-contract-manifest.json': 'sha256:75899912ef4c0d243caca5b466d2e8a467d541e7721c8abefd19c890d88d9a07',
+    'smsv2-evidence-receipt.json': 'sha256:4e90ee602aa6b00c78f7034691b36ef3d439d5f6ee12bf321c29dca6b0d53a8c',
+  });
+});
+
+// plugins/platform/src/ce/service.ts
+var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
+var init_service = __esm(() => {
+  init_contract();
+  init_deployment_store();
+  init_gcp_observation();
+  init_runtime();
+  init_verified_contract();
+});
+
+// plugins/gcloud/src/ce/ownership.ts
+function validateGcpResourceIdentity(resource) {
+  if (
+    !resource ||
+    typeof resource !== 'object' ||
+    Array.isArray(resource) ||
+    Object.keys(resource).some(
+      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
+    )
+  )
+    throw new Error('Unexpected GCP ownership identity fields');
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
+    !/^\d+$/.test(resource.id) ||
+    !['native', 'terraform'].includes(resource.engine)
+  )
+    throw new Error('Invalid GCP resource identity');
+  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
+  const collection = COLLECTIONS[resource.kind];
+  if (!collection) throw new Error('Unsupported GCP resource kind');
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
+  const suffix = resource.selfLink.slice(prefix.length);
+  if (
+    !resource.selfLink.startsWith(prefix) ||
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
+  )
+    throw new Error('Resource must have an exact scoped selfLink');
+}
+async function readGcpResourceInventory(store, scope) {
+  const ledger = await store.read('gcp-resources.json');
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ownership ledger is unavailable');
+  const links = new Set();
+  for (const resource of ledger.resources) {
+    validateGcpResourceIdentity(resource);
+    if (!sameScope(resource, scope) || links.has(resource.selfLink))
+      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
+    links.add(resource.selfLink);
+  }
+  return structuredClone(ledger.resources);
+}
+function sameScope(a, b) {
+  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
+}
+var COLLECTIONS;
+var init_ownership = __esm(() => {
+  COLLECTIONS = {
+    instance: 'instances',
+    disk: 'disks',
+    network: 'networks',
+    subnetwork: 'subnetworks',
+    address: 'addresses',
+    firewall: 'firewalls',
+    router: 'routers',
+    route: 'routes',
+  };
+});
+
+// plugins/gcloud/src/ce/health.ts
+function parseGcpGlobalHealth(value, nodeName) {
+  const base = { nodeName, source: 'f5xc-global-health', scope: 'site-global-only' };
+  if (!/^[a-z][a-z0-9-]{0,62}$/.test(nodeName)) throw new Error('Invalid expected GCP node');
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return { ...base, status: 'unknown', reason: 'malformed-health' };
+  const row = value;
+  if (typeof row.hostname !== 'string' || (row.hostname !== nodeName && !row.hostname.startsWith(`${nodeName}.`)))
+    return { ...base, status: 'unknown', reason: 'node-identity-mismatch' };
+  if (
+    typeof row.state !== 'string' ||
+    !['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
+      row.state,
+    )
+  )
+    return { ...base, status: 'unknown', reason: 'unknown-health-state' };
+  return { ...base, state: row.state, status: row.state === 'PROVISIONED' ? 'healthy' : 'degraded' };
+}
+
+// plugins/gcloud/src/ce/interface-identity.ts
+function object(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed GCP interface identity evidence');
+  return value;
+}
+function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
+  const cloud = object(cloudValue),
+    registration = object(registrationValue),
+    configuration = object(configurationValue);
+  if (
+    !/^\d+$/.test(expected.instanceId) ||
+    cloud.id !== expected.instanceId ||
+    cloud.name !== expected.nodeName ||
+    cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
+  )
+    throw new Error('Owned GCP VM identity mismatch');
+  const metadata = object(configuration.metadata);
+  if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
+    throw new Error('Exact GCP site configuration identity required');
+  const spec = object(registration.get_spec),
+    infra = object(spec.infra),
+    passport = object(spec.passport);
+  const status = object(object(registration.object).status);
+  if (
+    infra.provider !== 'GOOGLE' ||
+    String(infra.instance_id) !== expected.instanceId ||
+    infra.hostname !== expected.nodeName ||
+    infra.availability_zone !== expected.zone ||
+    passport.cluster_name !== expected.siteName ||
+    status.current_state !== 'ONLINE'
+  )
+    throw new Error('Registration is not ONLINE for the exact owned GCP node');
+  const nodes = object(object(object(configuration.spec).gcp).not_managed).node_list;
+  if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
+  const matches = nodes.map(object).filter((node) => node.hostname === expected.nodeName);
+  if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
+  const configured = matches[0].interface_list;
+  const hardware = object(infra.hw_info).network;
+  const cloudNics = cloud.networkInterfaces;
+  if (
+    !Array.isArray(configured) ||
+    !Array.isArray(hardware) ||
+    !Array.isArray(cloudNics) ||
+    configured.length !== expected.nics.length ||
+    cloudNics.length !== expected.nics.length
+  )
+    throw new Error('GCP interface topology evidence is incomplete');
+  const used = new Set();
+  const macs = new Set();
+  return configured
+    .map((value) => {
+      const nic = object(value),
+        ethernet = object(nic.ethernet_interface),
+        option = object(nic.network_option);
+      if (
+        typeof ethernet.device !== 'string' ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
+        typeof ethernet.mac !== 'string' ||
+        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/.test(ethernet.mac)
+      )
+        throw new Error('Configured device and MAC are required');
+      const mac = ethernet.mac;
+      if (macs.has(mac)) throw new Error('Duplicate configured MAC');
+      macs.add(mac);
+      const hw = hardware
+        .map(object)
+        .filter(
+          (item) =>
+            item.name === ethernet.device &&
+            typeof item.mac_address === 'string' &&
+            item.mac_address.toLowerCase() === mac,
+        );
+      if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
+      const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
+      const indices = cloudNics
+        .map(object)
+        .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
+      if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
+      const index = indices[0],
+        cloudNic = object(cloudNics[index]);
+      const wanted = expected.nics.find((item) => item.index === index);
+      if (
+        !wanted ||
+        cloudNic.name !== `nic${index}` ||
+        cloudNic.network !== wanted.network ||
+        cloudNic.subnetwork !== wanted.subnet
+      )
+        throw new Error('Cloud NIC network/subnet/order differs');
+      const roleField = wanted.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
+      if (
+        Object.keys(option).length !== 1 ||
+        !Object.hasOwn(option, roleField) ||
+        nic.is_primary !== (index === 0) ||
+        (wanted.role === 'slo') !== (index === 0)
+      )
+        throw new Error('Configured role/primary interface differs');
+      used.add(index);
+      return {
+        cloudNicIndex: index,
+        role: wanted.role,
+        vrf: wanted.vrf,
+        device: ethernet.device,
+        mac,
+        source: 'owned-cloud-vm-and-site-registration',
+      };
+    })
+    .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
+}
+
+// plugins/gcloud/src/ce/status.ts
+function object2(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed status observation');
+  return value;
+}
+async function observeGcpSiteStatus(expected, engine, source, signal) {
+  signal?.throwIfAborted();
+  if (!['native', 'terraform'].includes(engine)) throw new Error('Explicit status owning engine required');
+  const evidence = {
+    schemaVersion: 1,
+    project: expected.project,
+    zone: expected.zone,
+    siteName: expected.siteName,
+    nodeName: expected.nodeName,
+    engine,
+    observedAt: new Date().toISOString(),
+    cloudProvisioning: 'unknown',
+    registration: 'unknown',
+    physicalInterfaceIdentity: 'unknown',
+    platformHealth: 'unknown',
+    routing: 'unknown',
+    applicationTraffic: 'unknown',
+    sourceReceipts: [],
+  };
+  const read = async (name, fn) => {
+    signal?.throwIfAborted();
+    const value = await fn();
+    signal?.throwIfAborted();
+    evidence.sourceReceipts.push({ source: name, sha256: fingerprint(value) });
+    return object2(value);
+  };
+  let cloud;
+  try {
+    cloud = await read('gcloud-instance', () => source.cloud(expected.nodeName, signal));
+    if (
+      String(cloud.id) !== expected.instanceId ||
+      cloud.name !== expected.nodeName ||
+      cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
+    )
+      return evidence;
+    evidence.cloudProvisioning = cloud.status === 'RUNNING' ? 'running' : 'observed';
+  } catch {
+    signal?.throwIfAborted();
+    return evidence;
+  }
+  let configuration, registration;
+  try {
+    configuration = await read('xc-site-configuration', () => source.configuration(expected.siteName, signal));
+    const metadata = object2(configuration.metadata);
+    if (metadata.name !== expected.siteName || metadata.namespace !== 'system') return evidence;
+    const response = await read('xc-site-registrations', () => source.registrations(expected.siteName, signal));
+    if (
+      !Array.isArray(response.items) ||
+      (response.errors !== undefined && (!Array.isArray(response.errors) || response.errors.length)) ||
+      response.next_page_token ||
+      response.continue
+    )
+      return evidence;
+    const matches = response.items.map(object2).filter((item) => {
+      const spec = object2(item.get_spec),
+        infra = object2(spec.infra),
+        passport = object2(spec.passport);
+      return infra.hostname === expected.nodeName && passport.cluster_name === expected.siteName;
+    });
+    if (matches.length !== 1) return evidence;
+    registration = matches[0];
+    const infra = object2(object2(registration.get_spec).infra);
+    const state = object2(object2(registration.object).status).current_state;
+    if (
+      infra.provider !== 'GOOGLE' ||
+      String(infra.instance_id) !== expected.instanceId ||
+      infra.availability_zone !== expected.zone
+    )
+      return evidence;
+    evidence.registration = state === 'ONLINE' ? 'online' : 'observed-not-online';
+    if (state !== 'ONLINE') return evidence;
+  } catch {
+    signal?.throwIfAborted();
+    return evidence;
+  }
+  try {
+    correlateGcpPhysicalInterfaces(expected, cloud, registration, configuration);
+    evidence.physicalInterfaceIdentity = 'observed';
+  } catch {
+    return evidence;
+  }
+  try {
+    const health = await read('xc-global-health', () => source.health(expected.siteName, signal));
+    evidence.platformHealth = parseGcpGlobalHealth(health, expected.nodeName).status;
+  } catch {
+    signal?.throwIfAborted();
+    evidence.platformHealth = 'unknown';
+  }
+  return evidence;
+}
+var init_status = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/owned-status.ts
+async function observeGcpOwnedDeployment(store, intent, source, signal) {
+  signal?.throwIfAborted();
+  validateIntent(intent);
+  const saved = await store.read(
+    intent.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+  );
+  if (
+    !saved?.intent ||
+    saved.intentFingerprint !== fingerprint(saved.intent) ||
+    saved.intentFingerprint !== fingerprint(intent) ||
+    saved.platformContext !== intent.platformContext
+  )
+    throw new Error('Status intent is not bound to persisted deployment context');
+  const resources = await readGcpResourceInventory(store, intent);
+  const instances = resources.filter((resource) => resource.kind === 'instance');
+  const nodes = intent.sites.flatMap((site) => site.nodes.map((node) => ({ site, node })));
+  if (instances.length !== nodes.length) throw new Error('Complete owned deployment node inventory required');
+  const identities = nodes.map(({ site, node }) => {
+    const matches = instances.filter((resource) => resource.siteName === site.name && resource.nodeName === node.name);
+    const expectedLink = `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/${node.zone}/instances/${node.name}`;
+    if (matches.length !== 1 || matches[0].selfLink !== expectedLink)
+      throw new Error('Owned deployment node identity differs');
+    return {
+      project: intent.project,
+      zone: node.zone,
+      instanceId: matches[0].id,
+      siteName: site.name,
+      nodeName: node.name,
+      nics: node.interfaces.map((nic) => {
+        if (nic.role === 'management') throw new Error('Management interface observation is not qualified');
+        return {
+          index: nic.index,
+          role: nic.role,
+          vrf: nic.vrf,
+          network: `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${nic.network}`,
+          subnet: `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${nic.subnet}`,
+        };
+      }),
+    };
+  });
+  const observations = [];
+  for (const expected of identities) {
+    signal?.throwIfAborted();
+    observations.push(
+      await observeGcpSiteStatus(expected, intent.engine, source(expected.nodeName, expected.zone), signal),
+    );
+  }
+  return {
+    schemaVersion: 1,
+    project: intent.project,
+    region: intent.region,
+    deploymentName: intent.deploymentName,
+    platformContext: intent.platformContext,
+    engine: intent.engine,
+    nodes: observations,
+    routing: 'unknown',
+    applicationTraffic: 'unknown',
+    haHealth: 'not-established',
+    absence: 'not-established',
+  };
+}
+var init_owned_status = __esm(() => {
+  init_discovery();
+  init_ownership();
+  init_status();
+  init_validation();
+});
+
 // plugins/gcloud/src/ce/planner.ts
 function planGcpCe(intent, discovery, now = Date.now(), policyReceipt) {
   validateIntent(intent);
@@ -1250,7 +1736,25 @@ function result(tool, data, isError = false) {
     ...(isError ? { isError: true } : {}),
   };
 }
-function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContract) {
+async function platformService(pi) {
+  const events = pi.events;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Shared Platform CE service unavailable')), 2000);
+    events?.emit?.(CE_SERVICE_CHANNEL, {
+      version: 2,
+      resolve: (service) => {
+        clearTimeout(timer);
+        resolve(service);
+      },
+    });
+  });
+}
+function createGcpCeTools(
+  pi,
+  makeApi = makeExecApi,
+  contract = resolveGcpContract,
+  getPlatform = () => platformService(pi),
+) {
   const { Type } = pi.typebox;
   const definitions = [
     ['gcp_project_identity', 'Read explicit GCP project identity. Does not change the active project or authenticate.'],
@@ -1291,6 +1795,9 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
       region: Type.Optional(Type.String({ description: 'Explicit region; required for discovery and plan' })),
       deploymentName: Type.Optional(
         Type.String({ description: 'Exact deployment label; required for inventory/status/diagnose' }),
+      ),
+      platformContext: Type.Optional(
+        Type.String({ description: 'Persisted F5 context; use with explicit region for ledger-bound status/diagnose' }),
       ),
       engine: Type.Optional(
         Type.Union([Type.Literal('native'), Type.Literal('terraform')], {
@@ -1341,6 +1848,57 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
           if (!params.deploymentName || !/^[a-z][a-z0-9-]{0,62}$/.test(params.deploymentName))
             throw new Error('Exact deployment name required');
+          if (['gcp_ce_status', 'gcp_ce_diagnose'].includes(tool) && params.platformContext) {
+            if (!params.region || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(params.platformContext))
+              throw new Error('Explicit region and persisted platform context required');
+            const platform = await getPlatform();
+            if (!platform.gcpObservations) throw new Error('Shared GCP observations unavailable');
+            const owner = {
+              deploymentId: params.deploymentName,
+              provider: 'gcp',
+              engine: params.engine ?? 'native',
+              account: params.project,
+              region: params.region,
+            };
+            const store = await platform.storage(owner);
+            const saved = await store.read(
+              owner.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+            );
+            if (
+              !saved?.intent ||
+              saved.platformContext !== params.platformContext ||
+              saved.intent.platformContext !== params.platformContext ||
+              saved.intent.engine !== owner.engine ||
+              saved.intent.project !== params.project ||
+              saved.intent.region !== params.region ||
+              saved.intent.deploymentName !== params.deploymentName
+            )
+              throw new Error('Persisted deployment intent/context differs');
+            const observations = await platform.gcpObservations(owner, params.platformContext, signal);
+            const evidence = await observeGcpOwnedDeployment(
+              store,
+              saved.intent,
+              (node, zone) => ({
+                cloud: () =>
+                  execGcloudJson(
+                    api,
+                    [
+                      'compute',
+                      'instances',
+                      'describe',
+                      node,
+                      `--project=${params.project}`,
+                      `--zone=${zone}`,
+                      '--format=json(id,name,zone,status,networkInterfaces)',
+                    ],
+                    signal,
+                  ),
+                ...observations,
+              }),
+              signal,
+            );
+            return result(tool, { availability: 'read-only', evidence, mutationAttempted: false });
+          }
           const raw = await execGcloudJson(
             api,
             [
@@ -1394,6 +1952,7 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
           true,
         );
       } catch {
+        signal?.throwIfAborted();
         return result(
           tool,
           { availability: 'unavailable', reason: 'validation_or_read_failed', mutationAttempted: false },
@@ -1405,8 +1964,10 @@ function createGcpCeTools(pi, makeApi = makeExecApi, contract = resolveGcpContra
 }
 var UNKNOWN;
 var init_gcp_ce = __esm(() => {
+  init_service();
   init_contract();
   init_discovery();
+  init_owned_status();
   init_planner();
   init_policy();
   init_validation();

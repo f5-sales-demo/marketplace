@@ -1,5 +1,7 @@
+import { CE_SERVICE_CHANNEL, type CePlatformService } from '../../../platform/src/ce/service';
 import { resolveGcpContract } from '../ce/contract';
 import { discoverGcp } from '../ce/discovery';
+import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
@@ -22,10 +24,24 @@ const UNKNOWN = {
   routing: 'unknown',
   applicationTraffic: 'unknown',
 };
+async function platformService(pi: PluginInterface): Promise<CePlatformService> {
+  const events = pi.events as { emit?(channel: string, data: unknown): void } | undefined;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Shared Platform CE service unavailable')), 2000);
+    events?.emit?.(CE_SERVICE_CHANNEL, {
+      version: 2,
+      resolve: (service: CePlatformService) => {
+        clearTimeout(timer);
+        resolve(service);
+      },
+    });
+  });
+}
 export function createGcpCeTools(
   pi: PluginInterface,
   makeApi: (cwd: string) => GcloudExecApi = makeExecApi,
   contract = resolveGcpContract,
+  getPlatform: () => Promise<CePlatformService> = () => platformService(pi),
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -68,6 +84,9 @@ export function createGcpCeTools(
       deploymentName: Type.Optional(
         Type.String({ description: 'Exact deployment label; required for inventory/status/diagnose' }),
       ),
+      platformContext: Type.Optional(
+        Type.String({ description: 'Persisted F5 context; use with explicit region for ledger-bound status/diagnose' }),
+      ),
       engine: Type.Optional(
         Type.Union([Type.Literal('native'), Type.Literal('terraform')], {
           description: 'Owning engine; native is the conversational default',
@@ -77,7 +96,14 @@ export function createGcpCeTools(
     }),
     async execute(
       _id: string,
-      params: { project: string; region?: string; deploymentName?: string; engine?: GcpCeEngine; intent?: GcpCeIntent },
+      params: {
+        project: string;
+        region?: string;
+        deploymentName?: string;
+        platformContext?: string;
+        engine?: GcpCeEngine;
+        intent?: GcpCeIntent;
+      },
       signal: AbortSignal | undefined,
       _update: unknown,
       ctx: { cwd: string },
@@ -123,6 +149,57 @@ export function createGcpCeTools(
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
           if (!params.deploymentName || !/^[a-z][a-z0-9-]{0,62}$/.test(params.deploymentName))
             throw new Error('Exact deployment name required');
+          if (['gcp_ce_status', 'gcp_ce_diagnose'].includes(tool) && params.platformContext) {
+            if (!params.region || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(params.platformContext))
+              throw new Error('Explicit region and persisted platform context required');
+            const platform = await getPlatform();
+            if (!platform.gcpObservations) throw new Error('Shared GCP observations unavailable');
+            const owner = {
+              deploymentId: params.deploymentName,
+              provider: 'gcp' as const,
+              engine: params.engine ?? 'native',
+              account: params.project,
+              region: params.region,
+            };
+            const store = await platform.storage(owner);
+            const saved = (await store.read(
+              owner.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+            )) as { intent?: GcpCeIntent; platformContext?: string };
+            if (
+              !saved?.intent ||
+              saved.platformContext !== params.platformContext ||
+              saved.intent.platformContext !== params.platformContext ||
+              saved.intent.engine !== owner.engine ||
+              saved.intent.project !== params.project ||
+              saved.intent.region !== params.region ||
+              saved.intent.deploymentName !== params.deploymentName
+            )
+              throw new Error('Persisted deployment intent/context differs');
+            const observations = await platform.gcpObservations(owner, params.platformContext, signal);
+            const evidence = await observeGcpOwnedDeployment(
+              store,
+              saved.intent,
+              (node, zone) => ({
+                cloud: () =>
+                  execGcloudJson(
+                    api,
+                    [
+                      'compute',
+                      'instances',
+                      'describe',
+                      node,
+                      `--project=${params.project}`,
+                      `--zone=${zone}`,
+                      '--format=json(id,name,zone,status,networkInterfaces)',
+                    ],
+                    signal,
+                  ),
+                ...observations,
+              }),
+              signal,
+            );
+            return result(tool, { availability: 'read-only', evidence, mutationAttempted: false });
+          }
           const raw = await execGcloudJson<Array<Record<string, unknown>>>(
             api,
             [
@@ -179,6 +256,7 @@ export function createGcpCeTools(
           true,
         );
       } catch {
+        signal?.throwIfAborted();
         // Cloud errors and caller-controlled fields can contain private values.
         return result(
           tool,
