@@ -33,7 +33,10 @@ function Get-Target {
 function Resolve-StableRelease {
     param([string]$Target)
     $expectedName = "herdr-windows-x86_64.zip"
-    $metadata = Invoke-RestMethod -Uri "https://api.github.com/repos/f5-sales-demo/herdr/releases/latest"
+    $headers = @{ "User-Agent" = "f5-sales-demo-herdr-installer" }
+    $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { $env:GITHUB_TOKEN }
+    if ($token) { $headers.Authorization = "Bearer $token" }
+    $metadata = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/f5-sales-demo/herdr/releases/latest"
     if ($metadata.draft -or $metadata.prerelease -or $metadata.tag_name -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
         throw "stable_fork_release_required"
     }

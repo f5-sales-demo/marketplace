@@ -3,6 +3,7 @@
 # pylint: disable=invalid-name
 
 import json
+import os
 import re
 import sys
 import urllib.request
@@ -11,9 +12,15 @@ import urllib.request
 def resolve(target: str) -> dict[str, str]:
     """Return immutable asset metadata from the latest stable fork release."""
     name = "herdr-" + target
-    with urllib.request.urlopen(
-        "https://api.github.com/repos/f5-sales-demo/herdr/releases/latest", timeout=30
-    ) as response:
+    headers = {"User-Agent": "f5-sales-demo-herdr-installer"}
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(
+        "https://api.github.com/repos/f5-sales-demo/herdr/releases/latest",
+        headers=headers,
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - fixed HTTPS vendor endpoint
         release = json.load(response)
     if (
         release.get("draft")
