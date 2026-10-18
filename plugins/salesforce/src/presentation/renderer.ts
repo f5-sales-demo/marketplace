@@ -159,7 +159,20 @@ export function component(title: string, view: (width: number) => View, options:
             lines.push(
               ...wrap(`${key}: ${typeof value === 'string' ? value : (JSON.stringify(value) ?? 'undefined')}`),
             );
-        } else lines.push(...wrapWords(section.text, inner));
+        } else {
+          let text = section.text;
+          if (
+            options.isPartial &&
+            section.kind === 'markdown' &&
+            /Pipeline:|Discovering pipeline scope|Preparing pipeline/.test(text)
+          ) {
+            const frames: string[] = theme.spinnerFrames ?? [];
+            const frame = frames.length ? frames[(options.spinnerFrame ?? 0) % frames.length] : undefined;
+            const status = text.match(/(?:Pipeline:|Discovering pipeline scope|Preparing pipeline).*$/)?.[0];
+            if (frame && status) text = `${frame} ${status}`;
+          }
+          lines.push(...wrapWords(text, inner));
+        }
       }
       const box = theme.boxSharp;
       const border = (text: string) => theme.fg('dim', text);
