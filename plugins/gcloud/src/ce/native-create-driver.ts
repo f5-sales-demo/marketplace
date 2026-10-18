@@ -88,7 +88,7 @@ export function createGcpNativeCreationDriver(
   return {
     observe,
     async submit(action, executionId, signal) {
-      const { node } = admit(action);
+      const { node, site } = admit(action);
       if (!/^create-[a-f0-9]{40}$/.test(executionId)) throw new Error('Exact creation execution ID required');
       let metadataPath: string | undefined;
       const args = [...action.argv];
@@ -101,11 +101,22 @@ export function createGcpNativeCreationDriver(
         // Bootstrap checkout is already consumed and staged by the owning lifecycle.
         const material = (await store.read(`gcp-bootstrap-material-${node.name}.json`)) as {
           nodeName: string;
+          project: string;
+          deploymentName: string;
+          siteName: string;
+          engine: string;
+          expiresAt: string;
           userData: string;
           consumed: boolean;
         };
         if (
           material.nodeName !== node.name ||
+          material.project !== intent.project ||
+          material.deploymentName !== intent.deploymentName ||
+          material.siteName !== site?.name ||
+          material.engine !== 'native' ||
+          !Number.isFinite(Date.parse(material.expiresAt)) ||
+          Date.parse(material.expiresAt) <= Date.now() ||
           material.consumed ||
           typeof material.userData !== 'string' ||
           !material.userData.startsWith('#cloud-config\n')
@@ -115,6 +126,11 @@ export function createGcpNativeCreationDriver(
         await writeFile(metadataPath, material.userData, { flag: 'wx', mode: 0o600 });
         await store.write(`gcp-bootstrap-material-${node.name}.json`, {
           nodeName: node.name,
+          project: material.project,
+          deploymentName: material.deploymentName,
+          siteName: material.siteName,
+          engine: material.engine,
+          expiresAt: material.expiresAt,
           userData: '',
           consumed: true,
         });
