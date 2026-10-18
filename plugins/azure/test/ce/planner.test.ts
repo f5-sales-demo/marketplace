@@ -836,3 +836,15 @@ it('rejects duplicate outside or inside roles before planning resources', () => 
     expect(() => compileAzureCePlan(intent({ nics: selected }), observation())).toThrow('roles must be unique');
   }
 });
+
+for (const engine of ['native', 'terraform'] as const) {
+  for (const role of ['management', 'cluster', 'other'] as const) {
+    it(`${engine} rejects ${role} NIC semantics unavailable in the pinned bootstrap`, () => {
+      const selected = nics(3);
+      selected[2].role = role;
+      expect(() => compileAzureCePlan(intent({ engine, nics: selected }), observation())).toThrow(
+        'bootstrap disables management networking',
+      );
+    });
+  }
+}

@@ -4201,6 +4201,8 @@ function normalizeIntent(input) {
   if (!UUID2.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
   if (input.nics.length < 1 || input.nics.length > 8) fail('NIC count must be between 1 and 8');
   if (input.nics[0]?.role !== 'slo') fail('NIC 0 must have role slo');
+  if (input.nics.some((nic) => !['slo', 'sli', 'data'].includes(nic.role)))
+    fail('The pinned Azure bootstrap disables management networking; NIC roles must be slo, sli, or data');
   const marketplaceThreeNic =
     input.nics.length === 3 && input.nics[1]?.role === 'data' && input.nics[2]?.role === 'sli';
   if (input.nics.length > 1 && input.nics[1]?.role !== 'sli' && !marketplaceThreeNic)
