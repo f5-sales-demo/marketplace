@@ -25,6 +25,7 @@ export async function applyGcpNativeCreation(
   reviewedHash: string,
   driver: GcpNativeCreateDriver,
   signal?: AbortSignal,
+  beforeInstance?: (action: GcpNativeAction, signal?: AbortSignal) => Promise<void>,
 ) {
   const plan = translateGcpNativeCompute(intent);
   if (reviewedHash !== plan.sha256) throw new Error('Reviewed native creation plan differs');
@@ -63,6 +64,7 @@ export async function applyGcpNativeCreation(
       }
       if (!prior) {
         if (await driver.observe(action, signal)) throw new Error('Preexisting cloud resource collision');
+        if (action.kind === 'instance') await beforeInstance?.(action, signal);
         checkpoint.actions[action.id] = { state: 'submitting' };
         await store.write(name, checkpoint);
         signal?.throwIfAborted();
