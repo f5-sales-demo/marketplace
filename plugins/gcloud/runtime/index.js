@@ -4351,10 +4351,15 @@ class TerraformRunner {
           !Array.isArray(fields) ||
           !fields.length ||
           new Set(fields).size !== fields.length ||
-          fields.some((field) => typeof field !== 'string' || !/^[a-z][a-z0-9_]*$/.test(field)),
+          fields.some(
+            (field) =>
+              typeof field !== 'string' ||
+              !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
+              field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
+          ),
       )
     )
-      throw new Error('Explicit root resource addresses and unique top-level fields are required');
+      throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
     const nonsensitive = (value) =>
@@ -4399,9 +4404,30 @@ class TerraformRunner {
               : object4(change.before_sensitive);
         const selected = {};
         for (const field of fields) {
-          if (!Object.hasOwn(before, field) || sensitivity === true || !nonsensitive(sensitivity[field]))
-            throw new Error('Terraform resource field is unavailable or sensitive');
-          selected[field] = before[field];
+          let value = before;
+          let marker = sensitivity;
+          const parts = field.split('.');
+          for (const [index, part] of parts.entries()) {
+            if (
+              marker === true ||
+              !value ||
+              typeof value !== 'object' ||
+              !Object.hasOwn(value, part) ||
+              (Array.isArray(value) &&
+                !(part === 'length' && index === parts.length - 1) &&
+                !/^(0|[1-9][0-9]*)$/.test(part))
+            )
+              throw new Error('Terraform resource field is unavailable or sensitive');
+            marker =
+              Array.isArray(value) && part === 'length'
+                ? false
+                : marker !== null && typeof marker === 'object'
+                  ? marker[part]
+                  : marker;
+            value = value[part];
+          }
+          if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
+          selected[field] = value;
         }
         result[address] = selected;
       }
@@ -5053,7 +5079,21 @@ async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
     selections = {};
   for (const address of expected) {
     if (address.startsWith('google_compute_instance.'))
-      selections[address] = ['name', 'project', 'zone', 'self_link', 'instance_id', 'boot_disk', 'network_interface'];
+      selections[address] = [
+        'name',
+        'project',
+        'zone',
+        'self_link',
+        'instance_id',
+        'boot_disk.length',
+        'boot_disk.0.source',
+        'boot_disk.0.auto_delete',
+        'network_interface.length',
+        ...intent.sites[0].nodes[0].interfaces.flatMap((_, index) => [
+          `network_interface.${index}.network`,
+          `network_interface.${index}.subnetwork`,
+        ]),
+      ];
     else if (address.startsWith('google_compute_network.'))
       selections[address] = ['name', 'project', 'self_link', 'numeric_id'];
     else if (address.startsWith('google_compute_subnetwork.'))
@@ -5095,24 +5135,20 @@ async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
       if (!resource || value.project !== intent.project || value.name !== resource.selfLink.split('/').at(-1))
         throw new Error('Saved destroy cloud identity differs');
       if (address.startsWith('google_compute_instance.')) {
-        const disks = value.boot_disk;
-        const nics = value.network_interface;
         if (
           resource.kind !== 'instance' ||
           String(value.instance_id) !== resource.id ||
           value.zone !== node.zone ||
           !disk ||
-          !Array.isArray(disks) ||
-          disks.length !== 1 ||
-          disks[0].source !== disk.selfLink ||
-          disks[0].auto_delete !== true ||
-          !Array.isArray(nics) ||
-          nics.length !== node.interfaces.length ||
-          nics.some(
-            (nic, index) =>
-              nic.network !==
+          value['boot_disk.length'] !== 1 ||
+          value['boot_disk.0.source'] !== disk.selfLink ||
+          value['boot_disk.0.auto_delete'] !== true ||
+          value['network_interface.length'] !== node.interfaces.length ||
+          node.interfaces.some(
+            (_, index) =>
+              value[`network_interface.${index}.network`] !==
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${node.interfaces[index].network}` ||
-              nic.subnetwork !==
+              value[`network_interface.${index}.subnetwork`] !==
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${node.interfaces[index].subnet}`,
           )
         )

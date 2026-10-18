@@ -11,7 +11,7 @@ export interface TerraformSession {
   readConfigurationSha256?(): Promise<string>;
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
   readConfiguration(expectedSha256: string): Promise<string>;
-  /** Restricted ownership projection; selected fields must be nonsensitive. */
+  /** Restricted ownership projection; explicit dotted paths must be nonsensitive. Array .length exports only count. */
   readPlannedResourceFields(
     receipt: PlanReceipt,
     selections: Record<string, string[]>,

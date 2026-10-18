@@ -137,6 +137,66 @@ test('projects resource IDs privately from the exact saved plan and rejects sens
   );
 });
 
+test('projects nonsensitive nested disk identities without exposing sensitive sibling keys', async () => {
+  const before = {
+    boot_disk: [{ source: 'owned-disk', auto_delete: true, disk_encryption_key_raw: 'PRIVATE_KEY' }],
+    network_interface: [{ network: 'owned-vpc', subnetwork: 'owned-subnet' }],
+  };
+  const change = {
+    actions: ['delete'],
+    before,
+    after: null,
+    before_sensitive: { boot_disk: [{ disk_encryption_key_raw: true }] },
+  };
+  const { runner } = await fixture({
+    resource_changes: [{ address: 'google_compute_instance.ce', type: 'google_compute_instance', change }],
+  });
+  const receipt = await runner.plan({});
+  const fields = [
+    'boot_disk.length',
+    'boot_disk.0.source',
+    'boot_disk.0.auto_delete',
+    'network_interface.length',
+    'network_interface.0.network',
+  ];
+  const projected = await runner.readPlannedResourceFields(receipt, { 'google_compute_instance.ce': fields }, {});
+  expect(projected).toEqual({
+    'google_compute_instance.ce': {
+      'boot_disk.length': 1,
+      'boot_disk.0.source': 'owned-disk',
+      'boot_disk.0.auto_delete': true,
+      'network_interface.length': 1,
+      'network_interface.0.network': 'owned-vpc',
+    },
+  });
+  expect(JSON.stringify(projected)).not.toContain('PRIVATE_KEY');
+  for (const field of [
+    'boot_disk',
+    'boot_disk.0',
+    'boot_disk.0.disk_encryption_key_raw',
+    'boot_disk.1.source',
+    'boot_disk.0.source.length',
+  ])
+    await expect(
+      runner.readPlannedResourceFields(receipt, { 'google_compute_instance.ce': [field] }, {}),
+    ).rejects.toThrow(/unavailable or sensitive/);
+  for (const field of [
+    'boot_disk.*.source',
+    'boot_disk.-1.source',
+    'boot_disk.01.source',
+    'boot_disk.constructor',
+    '__proto__.source',
+  ])
+    await expect(
+      runner.readPlannedResourceFields(receipt, { 'google_compute_instance.ce': [field] }, {}),
+    ).rejects.toThrow(/fields/);
+  change.before_sensitive.boot_disk = true as never;
+  for (const field of ['boot_disk.length', 'boot_disk.0.source'])
+    await expect(
+      runner.readPlannedResourceFields(receipt, { 'google_compute_instance.ce': [field] }, {}),
+    ).rejects.toThrow(/sensitive/);
+});
+
 test('projects only requested nonsensitive teardown identity fields from an exact saved plan', async () => {
   const resource = {
     address: 'aws_route.ce',

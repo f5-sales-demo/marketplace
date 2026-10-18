@@ -198,7 +198,21 @@ async function projectSavedPlan(
     selections: Record<string, string[]> = {};
   for (const address of expected) {
     if (address.startsWith('google_compute_instance.'))
-      selections[address] = ['name', 'project', 'zone', 'self_link', 'instance_id', 'boot_disk', 'network_interface'];
+      selections[address] = [
+        'name',
+        'project',
+        'zone',
+        'self_link',
+        'instance_id',
+        'boot_disk.length',
+        'boot_disk.0.source',
+        'boot_disk.0.auto_delete',
+        'network_interface.length',
+        ...intent.sites[0].nodes[0].interfaces.flatMap((_, index) => [
+          `network_interface.${index}.network`,
+          `network_interface.${index}.subnetwork`,
+        ]),
+      ];
     else if (address.startsWith('google_compute_network.'))
       selections[address] = ['name', 'project', 'self_link', 'numeric_id'];
     else if (address.startsWith('google_compute_subnetwork.'))
@@ -240,24 +254,20 @@ async function projectSavedPlan(
       if (!resource || value.project !== intent.project || value.name !== resource.selfLink.split('/').at(-1))
         throw new Error('Saved destroy cloud identity differs');
       if (address.startsWith('google_compute_instance.')) {
-        const disks = value.boot_disk as Array<{ source?: string; auto_delete?: boolean }>;
-        const nics = value.network_interface as Array<{ network?: string; subnetwork?: string }>;
         if (
           resource.kind !== 'instance' ||
           String(value.instance_id) !== resource.id ||
           value.zone !== node.zone ||
           !disk ||
-          !Array.isArray(disks) ||
-          disks.length !== 1 ||
-          disks[0].source !== disk.selfLink ||
-          disks[0].auto_delete !== true ||
-          !Array.isArray(nics) ||
-          nics.length !== node.interfaces.length ||
-          nics.some(
-            (nic, index) =>
-              nic.network !==
+          value['boot_disk.length'] !== 1 ||
+          value['boot_disk.0.source'] !== disk.selfLink ||
+          value['boot_disk.0.auto_delete'] !== true ||
+          value['network_interface.length'] !== node.interfaces.length ||
+          node.interfaces.some(
+            (_, index) =>
+              value[`network_interface.${index}.network`] !==
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${node.interfaces[index].network}` ||
-              nic.subnetwork !==
+              value[`network_interface.${index}.subnetwork`] !==
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${node.interfaces[index].subnet}`,
           )
         )

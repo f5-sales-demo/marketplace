@@ -15,6 +15,14 @@ independent API absence reads and a final empty destroy plan passed. Private
 staging was removed. No GCP VM or network was created. This qualifies identity
 capture and runner integration, with full live cloud teardown still unqualified.
 
+A later Terraform cloud campaign reached two healthy installed observations.
+Typed teardown review rejected the Google provider's sensitive boot-disk block.
+The exact owning-engine fallback destroy and all eight independent absence checks
+passed. The repaired projection reads only disk/NIC identities, array counts and
+order; a preserved live saved-plan replay through the rebuilt installed Terraform
+runner passes and still rejects the whole sensitive block. This replay establishes
+the projection repair; fresh installed live typed teardown remains unqualified.
+
 The installed `gcp_marketplace_agreement` tool correctly reported the disabled
 Consumer Procurement API and Google's cloud-terms prerequisite on explicit
 enablement. No consent or order was created. Automated tests cover exact document
@@ -43,8 +51,13 @@ and a live disposable XC site and node-bound token. The typed tool saved a revie
 applied its exact approved hash and verified absence; independent API reads
 confirmed both XC objects absent and private staging was removed. Automated
 tests cover lost-response recovery after review expiry, no repeated deletion,
-replacement rejection and reappeared site/token rejection. Installed live GCP
-cloud teardown remains a separate acceptance gate.
+replacement rejection and reappeared site/token rejection. Fresh installed native
+cloud teardown passed on a disposable live GCP single-node deployment with two NICs and external-IP egress. The corporate
+funding/BYOL guards preceded creation; two installed samples established ONLINE
+registration, both physical NIC identities and matching-node PROVISIONED health.
+The exact reviewed typed teardown completed without fallback, followed by six
+independent cloud absence checks and two independent XC absence checks. This
+qualifies only the narrow disposable native profile.
 
 Disposable qualification established single-node boot, ONLINE registration and
 both physical NIC joins for native and Terraform. Later native and shared

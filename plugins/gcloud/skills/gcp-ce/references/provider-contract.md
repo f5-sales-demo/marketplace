@@ -60,7 +60,12 @@ and the owned XC site/token identities. It rechecks every identity before cloud
 deletion and records durable authorization for interruption recovery. Final
 evidence requires fresh cloud, site and token absence. Its installed runtime was
 qualified against synthetic Compute identities and live disposable XC objects;
-this does not establish installed live GCP cloud teardown or full parity.
+a later fresh installed campaign passed native live cloud teardown and eight
+independent absence checks on the same narrow disposable single-node profile.
+Terraform ownership projections select exact nested disk/NIC identities and array
+counts while rejecting sensitive provider fields. A preserved live-plan replay
+passes with the rebuilt installed runner; fresh live typed Terraform teardown
+remains unqualified. Full parity remains unqualified.
 
 Marketplace consent uses the Google Cloud SDK's Consumer Procurement v1alpha1
 project consent `check` and `grant` methods. Grant dry runs validate the exact

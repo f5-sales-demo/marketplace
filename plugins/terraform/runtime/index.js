@@ -919,10 +919,15 @@ class TerraformRunner {
           !Array.isArray(fields) ||
           !fields.length ||
           new Set(fields).size !== fields.length ||
-          fields.some((field) => typeof field !== 'string' || !/^[a-z][a-z0-9_]*$/.test(field)),
+          fields.some(
+            (field) =>
+              typeof field !== 'string' ||
+              !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
+              field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
+          ),
       )
     )
-      throw new Error('Explicit root resource addresses and unique top-level fields are required');
+      throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
     const nonsensitive = (value) =>
@@ -967,9 +972,30 @@ class TerraformRunner {
               : object(change.before_sensitive);
         const selected = {};
         for (const field of fields) {
-          if (!Object.hasOwn(before, field) || sensitivity === true || !nonsensitive(sensitivity[field]))
-            throw new Error('Terraform resource field is unavailable or sensitive');
-          selected[field] = before[field];
+          let value = before;
+          let marker = sensitivity;
+          const parts = field.split('.');
+          for (const [index, part] of parts.entries()) {
+            if (
+              marker === true ||
+              !value ||
+              typeof value !== 'object' ||
+              !Object.hasOwn(value, part) ||
+              (Array.isArray(value) &&
+                !(part === 'length' && index === parts.length - 1) &&
+                !/^(0|[1-9][0-9]*)$/.test(part))
+            )
+              throw new Error('Terraform resource field is unavailable or sensitive');
+            marker =
+              Array.isArray(value) && part === 'length'
+                ? false
+                : marker !== null && typeof marker === 'object'
+                  ? marker[part]
+                  : marker;
+            value = value[part];
+          }
+          if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
+          selected[field] = value;
         }
         result[address] = selected;
       }

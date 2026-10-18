@@ -80,11 +80,16 @@ async function fixture() {
         ? {
             zone: node.zone,
             instance_id: r.id,
-            boot_disk: [{ source: resources[1].selfLink, auto_delete: true }],
-            network_interface: node.interfaces.map((nic) => ({
-              network: `${prefix}/global/networks/${nic.network}`,
-              subnetwork: `${prefix}/regions/${i.region}/subnetworks/${nic.subnet}`,
-            })),
+            'boot_disk.length': 1,
+            'boot_disk.0.source': resources[1].selfLink,
+            'boot_disk.0.auto_delete': true,
+            'network_interface.length': node.interfaces.length,
+            ...Object.fromEntries(
+              node.interfaces.flatMap((nic, index) => [
+                [`network_interface.${index}.network`, `${prefix}/global/networks/${nic.network}`],
+                [`network_interface.${index}.subnetwork`, `${prefix}/regions/${i.region}/subnetworks/${nic.subnet}`],
+              ]),
+            ),
           }
         : r.kind === 'network'
           ? { numeric_id: r.id }
@@ -289,6 +294,43 @@ it('saves an exact destroy review, applies once and independently confirms eight
   expect(f.live.size).toBe(0);
   await applyGcpTerraformTeardown(f.runtime, f.i, f.contract, f.policy, plan.planHash);
   expect(f.applies()).toBe(1);
+});
+it('reviews disk and ordered NIC identities without requesting sensitive provider blocks', async () => {
+  const f = await fixture();
+  await recordGcpTerraformPlatformIdentity(f.runtime, f.i, f.contract, f.creation);
+  const read = f.runtime.session.readPlannedResourceFields;
+  f.runtime.session.readPlannedResourceFields = async (receipt, selections, env, signal) => {
+    const fields = selections['google_compute_instance.node_a'];
+    expect(fields).not.toContain('boot_disk');
+    expect(fields).not.toContain('network_interface');
+    expect(fields).toContain('boot_disk.length');
+    expect(fields).toContain('boot_disk.0.source');
+    expect(fields).toContain('network_interface.length');
+    expect(fields).toContain('network_interface.1.subnetwork');
+    return read(receipt, selections, env, signal);
+  };
+  const plan = await planGcpTerraformTeardown(f.runtime, f.i, f.contract, f.policy);
+  expect(plan.savedPlan.changes).toHaveLength(7);
+  expect(f.applies()).toBe(0);
+});
+it('rejects changed disk counts, disk retention, and NIC order in restricted projections', async () => {
+  const f = await fixture();
+  await recordGcpTerraformPlatformIdentity(f.runtime, f.i, f.contract, f.creation);
+  const vm = f.fields['google_compute_instance.node_a'];
+  for (const [field, changed] of [
+    ['boot_disk.length', 2],
+    ['boot_disk.0.auto_delete', false],
+    ['boot_disk.0.source', 'foreign-disk'],
+    ['network_interface.length', 3],
+    ['network_interface.0.network', vm['network_interface.1.network']],
+    ['network_interface.1.subnetwork', vm['network_interface.0.subnetwork']],
+  ] as const) {
+    const original = vm[field];
+    vm[field] = changed;
+    await expect(planGcpTerraformTeardown(f.runtime, f.i, f.contract, f.policy)).rejects.toThrow('VM/disk identity');
+    vm[field] = original;
+  }
+  expect(f.applies()).toBe(0);
 });
 it('reconciles a lost complete apply from independent evidence without repeating apply', async () => {
   const f = await fixture();
