@@ -31,14 +31,26 @@ views but also provide private `renderCall` and `renderResult` overrides. Its
 private implementation owns table/frame layout, narrow-width fallback and
 progress frames; its command helper owns width-aware shell continuations.
 
-The ownership check permits only the existing six named Salesforce overrides
-while the runtime prerequisite remains open. That migration baseline does not
-complete `salesforce.delivery.adapter` or any installed visual acceptance task.
-New imperative tool renderers outside that baseline fail registration validation.
+The ownership check rejects imperative tool renderers from every plugin, including
+Salesforce. Copied legacy layout is detected using normalized hashed signatures
+pinned to Salesforce 2.3.11 and its source SHA; executable private renderer code
+is not retained as a baseline fixture. Imperative tool renderers fail registration validation.
 Production-source checks reject runtime-internal imports, cross-plugin imports
 of Salesforce presentation, and wholesale private-renderer copies, including
 copies whose comments or whitespace changed. These checks supplement review;
 they cannot prove that an independently rewritten renderer shares no behavior.
+
+The candidate 2.3.12 adapter removes all six overrides and private timer hooks.
+It declares runtime-owned commands, twelve-row previews, full field sections,
+complete safe expanded evidence and decoded domain completion explanations.
+The runtime refinements are delivered through [#5014](https://github.com/f5-sales-demo/xcsh/pull/5014)
+and its source-audit follow-up [#5016](https://github.com/f5-sales-demo/xcsh/pull/5016).
+Stable publication and installed acceptance are separate gates.
+
+Removed lifecycle registration rows are preserved in the canonical tracker's
+Retired surfaces appendix with their full prior status, evidence, receipt and
+fingerprint, plus the removal reason, source SHA and delivery link. Only current
+registrations count toward active surface coverage; unexplained removals fail.
 
 The original private installation receipt verifies 101 files against the exact
 2.3.11 tag. It has no visual findings. A fresh comparison verifies all 101 files

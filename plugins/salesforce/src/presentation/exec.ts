@@ -2,7 +2,7 @@ import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import { normalizeArgs } from '../tools/sf-exec-guard';
 import { describeView } from './describe';
 import { helpView } from './help';
-import { orgView } from './org';
+import { orgView, safeIdentity } from './org';
 import { queryView } from './query';
 import type { Args, Options, Result, View } from './shared';
 import { code, context, data, evidence, flag, record, rows, table, texts } from './shared';
@@ -73,6 +73,21 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
     /* Literal output. */
   }
   const payload = envelope.result;
+  if (family === 'org display' && parsed && Object.keys(record(payload)).length) {
+    // Expanded evidence shares Org Display's whitelist; auth material is not presentation data.
+    const safeText = JSON.stringify({ ...envelope, result: safeIdentity(payload) }, null, 2);
+    blocks[0] = safeText;
+    let replaced = false;
+    result = {
+      ...result,
+      content: result.content.map((block) => {
+        if (block.type !== 'text' || replaced) return block;
+        replaced = true;
+        return { ...block, text: safeText };
+      }),
+    };
+  }
+
   warnings.push(...(Array.isArray(envelope.warnings) ? envelope.warnings.map(String) : []));
   let view: View;
   if (result.isError || (typeof envelope.status === 'number' && envelope.status !== 0))
@@ -177,7 +192,9 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
       ],
     };
   if (options.expanded) {
-    view.sections = view.sections.filter((s) => !/^(Arguments|CLI output|Metadata)(\.|$)/.test(s.title ?? ''));
+    view.sections = view.sections.filter(
+      (s) => !/^(Arguments|CLI output|Metadata|CLI diagnostics|Literal CLI output)(\.|$)/.test(s.title ?? ''),
+    );
     view.sections.push(...evidence(p, result, args, argv));
   }
   return view;

@@ -105,3 +105,23 @@ test('semantic headings share host keys across all six tools', () => {
     }
   }
 });
+
+test('session spinner uses injected live theme frames and clears on shutdown', () => {
+  const symbols = sessionSymbols();
+  let frames = ['a', 'b'];
+  symbols.bind({
+    hasUI: true,
+    ui: {
+      get theme() {
+        return { symbol: () => 'status', spinnerFrames: frames };
+      },
+    },
+  });
+  expect(symbols.resolve.spinner?.(0)).toBe('a');
+  expect(symbols.resolve.spinner?.(1)).toBe('b');
+  frames = ['new'];
+  expect(symbols.resolve.spinner?.(1)).toBe('new');
+  symbols.clear();
+  expect(symbols.resolve.spinner?.(0)).toBeUndefined();
+  expect(symbols.resolve('status.running')).toBeUndefined();
+});

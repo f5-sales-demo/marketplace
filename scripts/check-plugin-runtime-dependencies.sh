@@ -104,8 +104,18 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     fi
   fi
 
-  expected_xcsh="$EXPECTED_XCSH"
-  expected_pi_utils="$EXPECTED_XCSH"
+  manifest="$REPO_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json"
+  if ! expected_xcsh=$(jq -er --arg baseline "$EXPECTED_XCSH" '
+    (.minimumRuntimeVersion // $baseline) as $minimum
+    | if ($minimum | type) != "string" or
+         ($minimum | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) == false
+      then error("minimumRuntimeVersion must be an exact stable version")
+      else [$baseline, $minimum] | max_by(split(".") | map(tonumber)) end
+  ' "$manifest" 2>/dev/null); then
+    fail_static "$plugin minimumRuntimeVersion is missing or invalid"
+    continue
+  fi
+  expected_pi_utils="$expected_xcsh"
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
@@ -121,7 +131,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
       ">=$expected_pi_utils" "$plugin pi-utils peer range"
   fi
 
-  require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$EXPECTED_XCSH" "$plugin pinned development runtime"
+  require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$expected_xcsh" "$plugin pinned development runtime"
 
   require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"
   require_lock_version "$lock" '@f5-sales-demo/pi-utils' "$expected_pi_utils"

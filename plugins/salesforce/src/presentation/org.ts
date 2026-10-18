@@ -36,7 +36,24 @@ export function orgView(
   const details = record(result.details);
   const org = safeIdentity(details.orgEvidence ?? (Array.isArray(details.orgs) ? details.orgs[0] : undefined));
   if (!Object.keys(org).length && result.content.length)
-    return { summary: 'Org identity unavailable', sections: texts(result).map((text) => code(text, 'CLI output')) };
+    return {
+      summary: 'Org identity unavailable',
+      sections: [
+        ...texts(result).map((text) => code(text, 'CLI output')),
+        ...(options.expanded
+          ? [
+              literal(
+                {
+                  ...details,
+                  orgEvidence: org,
+                  ...(Array.isArray(details.orgs) ? { orgs: details.orgs.map(safeIdentity) } : {}),
+                },
+                'Metadata',
+              ),
+            ]
+          : []),
+      ],
+    };
   const available = (v: unknown) => v !== null && v !== undefined && v !== '';
   const status = org.connectedStatus;
   return {

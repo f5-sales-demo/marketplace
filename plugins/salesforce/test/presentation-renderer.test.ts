@@ -1,140 +1,189 @@
-import { expect, test } from 'bun:test';
-import { presentation } from '@f5-sales-demo/xcsh/presentation';
-import { presentTool } from '../src/presentation';
+import { beforeAll, expect, test } from 'bun:test';
+import { initTheme, plain, registered, setTheme, visibleWidth } from './shared-runtime';
 
-const theme = {
-  fg: (_key: string, text: string) => text,
-  bold: (text: string) => text,
-  boxSharp: {
-    horizontal: '-',
-    vertical: '|',
-    topLeft: '+',
-    topRight: '+',
-    bottomLeft: '+',
-    bottomRight: '+',
-    teeDown: '+',
-    teeUp: '+',
-    teeLeft: '+',
-    teeRight: '+',
-    cross: '+',
-  },
-};
-test('actual render width keeps fitting commands literal and shows ordinary tables completely', () => {
-  const tool = presentTool({ name: 'sf_query' }, presentation);
-  const args = { query: 'SELECT Name FROM Account' };
-  const result = {
-    content: [],
-    details: {
-      queryResult: {
-        records: Array.from({ length: 15 }, (_, i) => ({ Name: `Example ${i}` })),
-        done: true,
-        totalSize: 15,
+beforeAll(async () => {
+  await initTheme();
+});
+const fixtures = [
+  [
+    'sf_exec',
+    { args: ['data', 'query', '--query', 'SELECT Name, Amount FROM Opportunity'] },
+    {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            result: { records: [{ Name: 'Literal *bold* `code`', Amount: 0, IsWon: false }], done: false },
+          }),
+        },
+      ],
+    },
+  ],
+  [
+    'sf_query',
+    { query: 'SELECT Name, Amount FROM Opportunity' },
+    {
+      content: [],
+      details: {
+        queryResult: {
+          records: Array.from({ length: 15 }, (_, i) => ({
+            Name: `Example ${i}`,
+            Amount: 123456.78,
+            CurrencyIsoCode: 'CAD',
+            IsWon: false,
+            NextStep: '',
+          })),
+          done: false,
+          totalSize: 20,
+        },
       },
     },
-  };
-  const render = tool.renderResult(result, { expanded: false, isPartial: false }, theme, args);
-  const wide = render.render(120).join('\n');
-  expect(wide).toContain("sf data query --query 'SELECT Name FROM Account' --json");
-  expect(wide).not.toContain('\\\n');
-  expect(wide).toContain('Example 11');
-  expect(wide).not.toContain('Example 12');
-  expect(wide).toContain('3 more rows in expanded details');
-  expect(render.render(40).join('\n')).toContain('\\');
-  const expanded = tool.renderResult(result, { expanded: true, isPartial: false }, theme, args).render(120).join('\n');
-  expect(expanded).toContain('Example 14');
-  expect(expanded).toContain('Arguments');
-});
-
-test('interim pipeline shows one status and retains raw progress only in expansion', () => {
-  const tool = presentTool({ name: 'sf_pipeline_report', label: 'Salesforce Pipeline Report' }, presentation);
-  const result = {
-    content: [{ type: 'text', text: 'Pipeline queries: 0 completed, 1 running.' }],
-    details: { tool: 'sf_pipeline_report' },
-  };
-  const collapsed = tool.renderResult(result, { expanded: false, isPartial: true }, theme, {}).render(76).join('\n');
-  expect(collapsed).toContain('Pipeline: 0 completed · 1 query running');
-  for (const noise of ['CLI output', 'Metadata', 'Output is still streaming', 'In progress', 'sf_pipeline_report'])
-    expect(collapsed).not.toContain(noise);
-  const expanded = tool.renderResult(result, { expanded: true, isPartial: true }, theme, {}).render(76).join('\n');
-  expect(expanded).toContain('Pipeline queries: 0 completed, 1 running.');
-  expect(expanded).toContain('Metadata');
-  expect(expanded).toContain('sf_pipeline_report');
-});
-
-test('pipeline monthly distributions remain compact tables at normal transcript width', () => {
-  const tool = presentTool({ name: 'sf_pipeline_report', label: 'Salesforce Pipeline Report' }, presentation);
-  const result = {
-    content: [],
-    details: {
-      pipelineReport: {
-        currency: 'USD',
-        closeDistribution: [
-          {
-            label: 'January 2029',
-            yearMonth: '2029-01',
-            amount: 123456.78,
-            commit: 0,
-            bestCase: 0,
-            pipeline: 123456.78,
-            oppCount: 2,
-          },
-        ],
-        renewalDistribution: [{ label: 'February 2029', amount: 0, commit: 0, bestCase: 0, pipeline: 0, oppCount: 1 }],
+  ],
+  [
+    'sf_describe',
+    { sobject: 'Event' },
+    {
+      content: [],
+      details: {
+        described: {
+          name: 'Event',
+          fields: [{ name: 'Subject', label: 'Subject', type: 'string', custom: false }],
+          childRelationships: [],
+        },
       },
     },
-  };
-  const text = tool.renderResult(result, { expanded: false, isPartial: false }, theme, {}).render(76).join('\n');
-  expect(text).toContain('Month');
-  expect(text).toContain('Opportunities');
-  expect(text).toContain('January 2029');
-  expect(text).not.toContain('Year Month:');
-  expect(text).not.toContain('Commit:');
-});
-
-test('top deals preserve amount stage timing owner and next steps in readable tables', () => {
-  const tool = presentTool({ name: 'sf_pipeline_report' }, presentation);
-  const deal = {
-    oppId: 'synthetic-opportunity',
-    name: 'Example deal',
-    accountName: 'Example account',
-    stage: 'Review',
-    closeDate: '2027-01-01',
-    forecast: 'Best case',
-    amount: 0,
-    ownerName: 'Example owner',
-    nextStep: 'Confirm scope',
-  };
-  const result = {
-    content: [],
-    details: { pipelineReport: { currency: 'USD', topDeals: [deal], topRenewals: [deal] } },
-  };
-  const output = tool.renderResult(result, { expanded: false, isPartial: false }, theme, {}).render(76).join('\n');
-  expect(output).toContain('Stage and timing');
-  expect(output).toContain('Next steps');
-  expect(output).toContain('Confirm scope');
-  expect(output).not.toContain('Opp Id:');
-  expect(output).not.toContain('Name:');
-  expect(output).not.toContain('Owner:');
-  expect(output).toContain('|');
-});
-
-test('pending pipeline uses current host spinner frames and stops on completion', () => {
-  const tool = presentTool({ name: 'sf_pipeline_report' }, presentation);
-  const spinningTheme = { ...theme, spinnerFrames: ['frame-a', 'frame-b'] };
-  const result = {
-    content: [{ type: 'text', text: 'Pipeline queries: 1 completed, 3 running.' }],
-    details: { tool: 'sf_pipeline_report' },
-  };
-  for (const spinnerFrame of [0, 1]) {
-    const text = tool
-      .renderResult(result, { expanded: false, isPartial: true, spinnerFrame }, spinningTheme, {})
-      .render(76)
-      .join('\n');
-    expect(text).toContain(`${spinningTheme.spinnerFrames[spinnerFrame]} Pipeline: 1 completed`);
+  ],
+  [
+    'sf_org_display',
+    {},
+    {
+      content: [],
+      details: {
+        orgEvidence: {
+          username: 'synthetic@example.com',
+          instanceUrl: 'https://salesforce.example.com',
+          alias: '',
+          isSandbox: false,
+        },
+      },
+    },
+  ],
+  [
+    'sf_help',
+    { command_path: 'data query' },
+    {
+      content: [
+        {
+          type: 'text',
+          text: 'Query data\n\nUSAGE\n  sf data query --query <value>\n\nFLAGS\n  --query=<value> (required) Literal *query*\n\nEXAMPLES\n  sf data query --query "SELECT Id FROM Task"',
+        },
+      ],
+    },
+  ],
+  [
+    'sf_pipeline_report',
+    {},
+    {
+      content: [],
+      details: {
+        pipelineReport: {
+          currencyBreakdown: [
+            { currency: 'CAD', netNew: { totals: { platform: 123456.78, shape: 0, other: 0 }, quotaTotal: 123456.78 } },
+            { currency: 'USD', booked: { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0 } },
+          ],
+          closeDistribution: [
+            { label: 'January 2029', amount: 123456.78, commit: 0, bestCase: 0, pipeline: 123456.78, oppCount: 2 },
+          ],
+        },
+      },
+    },
+  ],
+] as const;
+test('six registered tools preserve data at every width, theme, preset and expansion', async () => {
+  for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
+    await initTheme(false, preset);
+    for (const theme of ['xcsh-dark', 'xcsh-light']) {
+      await setTheme(theme);
+      for (const [name, args, result] of fixtures) {
+        const c = await registered(name, args);
+        c.updateResult(structuredClone(result) as never);
+        for (const width of [40, 76, 120, 153])
+          for (const expanded of [false, true]) {
+            c.setExpanded(expanded);
+            const lines = c.render(width),
+              text = plain(lines),
+              compact = text.replace(/[\s│|]/g, '');
+            expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+            if (name === 'sf_query') {
+              expect(compact).toContain('123,456.78');
+              expect(text).toContain('CAD');
+              expect(text).toContain('false');
+              expect(text).toContain('""');
+              expect(compact).toContain(expanded ? 'Example14' : 'Example11');
+              if (!expanded) {
+                expect(compact).not.toContain('Example12');
+                expect(text).toContain('3 more rows');
+              }
+              expect(text).toContain('Partial results');
+            }
+            if (name === 'sf_pipeline_report') {
+              expect(text).toContain('CAD');
+              expect(text).toContain('USD');
+              expect(compact).toContain('123,456.78');
+            }
+            if (expanded) expect(text).toContain('Arguments');
+          }
+        c.stopAnimation();
+      }
+    }
   }
-  const final = tool
-    .renderResult(result, { expanded: false, isPartial: false, spinnerFrame: 1 }, spinningTheme, {})
-    .render(76)
-    .join('\n');
-  expect(final).not.toContain('frame-b');
+}, 60000);
+test('empty unavailable partial and failed results retain complete corrective guidance', async () => {
+  for (const [name] of fixtures)
+    for (const result of [
+      { content: [] },
+      { content: [{ type: 'text', text: 'Service unavailable; next action: check configured organization.' }] },
+      { content: [{ type: 'text', text: 'Opaque progress' }], details: { done: false } },
+      {
+        isError: true,
+        content: [{ type: 'text', text: 'Literal *failure* `guidance`\n'.repeat(40) + 'FINAL_CORRECTIVE_DETAIL' }],
+      },
+    ]) {
+      const c = await registered(name);
+      c.updateResult(result, Boolean(result.details));
+      for (const width of [40, 76, 120, 153])
+        for (const expanded of [false, true]) {
+          c.setExpanded(expanded);
+          const lines = c.render(width);
+          expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+          if (result.isError) expect(plain(lines)).toContain('FINAL_CORRECTIVE_DETAIL');
+          if (result.details) expect(plain(lines)).toContain('streaming');
+        }
+      c.stopAnimation();
+    }
+});
+test('runtime progress advances and stops after completion, cancellation and late updates', async () => {
+  for (const end of ['complete', 'cancel', 'shutdown', 'replace']) {
+    let renders = 0;
+    const c = await registered('sf_pipeline_report', {}, () => renders++);
+    const result = {
+      content: [{ type: 'text', text: 'Pipeline queries: 1 completed, 1 running.' }],
+      details: { tool: 'sf_pipeline_report' },
+    };
+    c.updateResult(result, true);
+    const first = plain(c.render(76));
+    await Bun.sleep(180);
+    expect(renders).toBeGreaterThan(0);
+    expect(plain(c.render(76))).not.toBe(first);
+    if (end === 'complete') c.updateResult({ content: [] }, false);
+    else {
+      c.stopAnimation();
+      c.updateResult(result, true);
+      c.updateArgs({ late: true });
+    }
+    const stopped = renders;
+    await Bun.sleep(180);
+    expect(renders).toBe(stopped);
+    c.stopAnimation();
+  }
 });

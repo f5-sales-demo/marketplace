@@ -1,7 +1,7 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
-import { copyableCommand, toolArgv } from './command';
+import { toolArgv } from './command';
 import type { Args, Options, Result, Section, State, View } from './shared';
-import { data, evidence, fields, hint, literal, record, rows, table, texts, value } from './shared';
+import { data, evidence, fields, hint, label, literal, record, rows, table, texts, value } from './shared';
 
 export function pipelineView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const details = record(result.details),
@@ -141,7 +141,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         sections.push(
           table(p, deals, title, ['name', 'accountName', 'amount'], {
             name: 'Deal',
-            accountName: 'Account',
+            accountName: label('accountName'),
             amount: 'Amount',
           }),
           table(p, deals, `${title} · Stage and timing`, ['name', 'stage', 'closeDate', 'forecast'], {
@@ -187,8 +187,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     );
     rows(report.sourceQueries).forEach((source, i) => {
       sections.push(
-        copyableCommand(
-          p,
+        p.command(
           toolArgv('sf_query', { query: source.query, target_org: args.target_org ?? scope.orgAlias })!,
           `Source query ${i + 1}`,
         ),

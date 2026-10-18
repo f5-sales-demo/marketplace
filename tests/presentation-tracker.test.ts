@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { parseTasks, reconcileTasks, renderTasks, seedTasks, validateTasks } from '../scripts/presentation-tracker.mjs';
+import {
+  parseRetiredTasks,
+  parseTasks,
+  reconcileTasks,
+  renderRetiredTasks,
+  renderTasks,
+  seedTasks,
+  validateTasks,
+} from '../scripts/presentation-tracker.mjs';
 
 const inventory = [
   {
@@ -69,4 +77,53 @@ describe('presentation tracker evidence and coverage gates', () => {
   test('removed surfaces require explicit retirement rather than discarding receipts', () => {
     expect(() => reconcileTasks([], seedTasks(inventory, links))).toThrow('retire');
   });
+});
+
+test('retired rows preserve history with a reason, removal SHA and delivery link', () => {
+  const previous = seedTasks(inventory, links);
+  previous[4].receipt = 'private:historic';
+  const expected = seedTasks([{ ...inventory[0], surfaces: [] }], links);
+  const retirement = {
+    reason: 'Removed private progress lifecycle registration',
+    removalSha: 'b'.repeat(40),
+    delivery: links.example,
+  };
+  const retired = [];
+  const current = reconcileTasks(expected, previous, {
+    retirements: Object.fromEntries(
+      previous.filter((t) => t.id.startsWith('example.tool.')).map((t) => [t.id, retirement]),
+    ),
+    retired,
+  });
+  expect(current.map((t) => t.id)).toEqual(expected.map((t) => t.id));
+  expect(retired).toHaveLength(8);
+  expect(retired[0].receipt).toBe('private:historic');
+  expect(retired[0].reason).toBe(retirement.reason);
+  expect(validateTasks(current, [{ ...inventory[0], surfaces: [] }], links, retired)).toEqual([]);
+  expect(validateTasks(current, [{ ...inventory[0], surfaces: [] }], links, [...retired, retired[0]]).join()).toContain(
+    'duplicate',
+  );
+  expect(
+    validateTasks(current, [{ ...inventory[0], surfaces: [] }], links, [{ ...retired[0], reason: '' }]).join(),
+  ).toContain('reason');
+  expect(() =>
+    reconcileTasks(expected, previous, { retirements: { [previous[4].id]: retirement }, retired: [] }),
+  ).toThrow('retire');
+});
+
+test('retired appendix roundtrips all historical cells and stays out of active tasks', () => {
+  const prior = seedTasks(inventory, links)[4];
+  const retired = [
+    {
+      ...prior,
+      evidence: 'literal a | b\nfalse=false',
+      receipt: 'private:old',
+      reason: 'Removed lifecycle',
+      removalSha: 'c'.repeat(40),
+      removalDelivery: links.example,
+    },
+  ];
+  const text = renderTasks([seedTasks(inventory, links)[0]]) + renderRetiredTasks(retired);
+  expect(parseTasks(text)).toHaveLength(1);
+  expect(parseRetiredTasks(text)).toEqual(retired);
 });

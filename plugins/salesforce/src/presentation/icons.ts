@@ -10,20 +10,30 @@ type SymbolKey =
   | 'icon.file'
   | 'icon.host'
   | 'icon.extensionInstruction';
-export type SymbolResolver = (key: SymbolKey) => string | undefined;
+export type SymbolResolver = ((key: SymbolKey) => string | undefined) & {
+  spinner?: (frame: number) => string | undefined;
+};
 export interface PresentationContext {
   hasUI: boolean;
-  ui: { readonly theme: { symbol(key: SymbolKey): string } };
+  ui: { readonly theme: { symbol(key: SymbolKey): string; spinnerFrames?: readonly string[] } };
 }
 
 // Read the UI's theme getter on every presentation; never retain a preset snapshot.
 export function sessionSymbols() {
   let context: PresentationContext | undefined;
   return {
+    clear() {
+      context = undefined;
+    },
     bind(next: PresentationContext) {
       context = next;
     },
-    resolve: ((key) => (context?.hasUI ? context.ui.theme.symbol(key) : undefined)) as SymbolResolver,
+    resolve: Object.assign((key: SymbolKey) => (context?.hasUI ? context.ui.theme.symbol(key) : undefined), {
+      spinner(frame: number) {
+        const frames = context?.hasUI ? context.ui.theme.spinnerFrames : undefined;
+        return frames?.length ? frames[frame % frames.length] : undefined;
+      },
+    }) as SymbolResolver,
   };
 }
 
@@ -60,7 +70,14 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
   });
   const cues = states.map(({ kind, text }) => ({
     kind: 'markdown' as const,
-    text: [resolve(`status.${kind}`), text].filter(Boolean).join(' '),
+    text: [
+      kind === 'running'
+        ? (resolve.spinner?.(options.spinnerFrame ?? 0) ?? resolve('status.running'))
+        : resolve(`status.${kind}`),
+      text,
+    ]
+      .filter(Boolean)
+      .join(' '),
   }));
   const cueIndex = sections.findIndex((section) => section.kind === 'table');
   const insert = cueIndex < 0 ? sections.length : cueIndex;
