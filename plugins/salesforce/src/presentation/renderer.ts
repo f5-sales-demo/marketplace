@@ -72,7 +72,17 @@ function renderTable(
     const widest = widths.indexOf(Math.max(...widths));
     widths[widest]--;
   }
-  if (widths.some((n, i) => n < Math.min(10, Math.max(...[headers[i], ...rows.map((r) => r[i])].map(visibleWidth)))))
+  if (
+    headers[0] !== 'Deal' &&
+    widths.some(
+      (n, i) =>
+        n <
+        Math.min(
+          headers[i] === 'Month' ? 6 : 10,
+          Math.max(...[headers[i], ...rows.map((r) => r[i])].map(visibleWidth)),
+        ),
+    )
+  )
     return rows.flatMap((row) => row.flatMap((cell, i) => wrapWords(`${headers[i]}: ${cell}`, width)));
   const box = options.symbols;
   const h = box?.horizontal ?? '─',
@@ -117,7 +127,11 @@ export function component(title: string, view: (width: number) => View, options:
         if (
           known &&
           result.sections.some(
-            (s) => s.kind === 'markdown' && /Partial results|Partial related records|Provisional results/.test(s.text),
+            (s) =>
+              s.kind === 'markdown' &&
+              /Partial results|Partial related records|Provisional results|Pipeline:|Discovering pipeline scope|Preparing pipeline/.test(
+                s.text,
+              ),
           )
         )
           continue;
@@ -149,7 +163,10 @@ export function component(title: string, view: (width: number) => View, options:
       }
       const box = theme.boxSharp;
       const border = (text: string) => theme.fg('dim', text);
-      const heading = `${title}${isError ? ' · Failed' : options.isPartial ? ' · In progress' : ''}`;
+      const hasRunningCue = result.sections.some(
+        (s) => s.kind === 'markdown' && /Pipeline:|Discovering pipeline scope|Preparing pipeline/.test(s.text),
+      );
+      const heading = `${title}${isError ? ' · Failed' : options.isPartial && !hasRunningCue ? ' · In progress' : ''}`;
       const head = wrapTextWithAnsi(heading, Math.max(1, width - 4))[0] ?? '';
       return [
         border(

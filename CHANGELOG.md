@@ -18,6 +18,8 @@ and this project adheres to
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`terraform`** v2.4.0 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
+- **`salesforce`** v2.3.7 shows one concise Pipeline progress status and readable deal, renewal and monthly distribution tables, with complete evidence retained in expansion (#1569).
+
 - **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
 - **`gcloud`** bumped to v1.6.0
