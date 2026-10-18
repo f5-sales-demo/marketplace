@@ -126,6 +126,10 @@ mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
 mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
+# The canonical runner now includes a real Python capture regression before Bun suites.
+mkdir -p "$BAD_INSTALL/tests"
+cp "$REPO_ROOT/tests/test_native_capture_tools.py" "$BAD_INSTALL/tests/test_native_capture_tools.py"
+cp "$REPO_ROOT/scripts/drive-salesforce-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-capture.py"
 
 cat >"$BAD_INSTALL/plugins/aws/scripts/tests/run-tests.sh" <<'EOF'
 #!/usr/bin/env bash
