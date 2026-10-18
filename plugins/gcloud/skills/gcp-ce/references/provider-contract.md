@@ -21,3 +21,9 @@ Requested future profiles are external IP/Cloud NAT and explicit firewall/proxy
 egress; static insertion; internal passthrough LB ingress and next-hop routing;
 NCC router appliance/Cloud Router BGP only with verified F5 mappings. Each profile
 requires cloud, interface, routing, return-path and application evidence.
+
+API-only qualification on 2026-10-18 accepted GCP site configuration and a
+site-bound JWT, but `provider=gcp` cloud-init returned only a token placeholder.
+The response is not a usable image bootstrap template. Boot/registration remains
+unavailable, and placeholder-only material must be rejected before VM creation.
+Owned API probe objects were deleted and independently verified absent.
