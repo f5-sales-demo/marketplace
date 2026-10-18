@@ -1490,7 +1490,7 @@ Scrape/crawl/map/search, service setup/status and skills; retain target, limits,
 
 Issue: <https://github.com/f5-sales-demo/marketplace/issues/1591>. Source version: `2.3.11`. Installed Mac: `2.3.11`; Ubuntu: `2.3.11`. Lifecycle: integrated.
 
-Locate accepted 2.3.11 receipts; audit all six registered tools. Preserve command width, tables, currency grouping, monetary formatting and live spinner behavior through shared-renderer adoption.
+Locate accepted 2.3.11 receipts; audit all six registered tools. Preserve command width, tables, currency grouping, monetary formatting and live spinner behavior through shared-renderer adoption. In this campaign, Salesforce service checks use the authorized corporate MDM MacBook. Ubuntu/NUC service access is unavailable by policy; source, immutable-artifact and unavailable-state checks remain separate.
 
 17 exposed surfaces:
 
