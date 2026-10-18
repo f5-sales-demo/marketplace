@@ -141,6 +141,12 @@ class FakeRunner:
 
 
 class ZoomSetupTests(unittest.TestCase):
+    def setUp(self):
+        # Workplace setup tests use a synthetic amd64 host on every test runner.
+        host = patch.object(zoom_setup.platform, "machine", return_value="x86_64")
+        host.start()
+        self.addCleanup(host.stop)
+
     def test_accepted_camera_profile_is_not_desktop_geometry(self):
         unit = zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
         self.assertIn("-video_size 1280x720 -i :91+0,0", unit)
