@@ -21,7 +21,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       states: [
         { kind: options.isPartial ? 'running' : 'disabled', text: options.isPartial ? status : 'Pipeline unavailable' },
       ],
-      sections: options.expanded ? evidence(p, result, args) : [],
+      sections: options.expanded || !options.isPartial ? evidence(p, result, args) : [],
     };
   }
   const groups = rows(report.currencyBreakdown);
