@@ -137,6 +137,8 @@ def inspect_frame(
     """Check one complete native frame and retain its explicit findings."""
     text = plain("\n".join(frame["lines"]))
     failures = []
+    if frame.get("terminalColumns", 0) < frame["width"]:
+        failures.append("terminal-allocation-too-narrow")
     if any(columns(line) > frame["width"] for line in frame["lines"]):
         failures.append("overflow")
     if not frame["lines"]:
@@ -192,12 +194,48 @@ def wait(root: Path, target: str, timeout: int = 180) -> dict[str, Any]:
     raise TimeoutError("Native capture acknowledgement missing: " + target)
 
 
+def terminal_allocation(
+    root: Path, ready: dict[str, Any], geometry: str | None, widths: list[int]
+) -> int:
+    """Accept updated allocation only from a fresh native frame in this run."""
+    allocation = ready["terminalColumns"]
+    if geometry:
+        path = (root / "frames" / geometry).resolve()
+        if path.parent != (root / "frames").resolve() or path.suffix != ".json":
+            message = "Geometry evidence must be a frame filename in this run"
+            raise ValueError(message)
+        if path.stat().st_mtime_ns < (root / "ready.json").stat().st_mtime_ns:
+            message = "Geometry frame predates this capture session"
+            raise ValueError(message)
+        frame = json.loads(path.read_text())
+        manifest = json.loads((root / "manifest.json").read_text())
+        for key in ["runtimeVersion", "pluginVersion"]:
+            if frame.get(key) != ready[key] or manifest.get(key) != ready[key]:
+                msg = "Geometry evidence has different installation provenance"
+                raise ValueError(msg)
+        if (
+            manifest.get("binary") != ready["binary"]
+            or frame.get("binary", ready["binary"]) != ready["binary"]
+        ):
+            message = "Geometry evidence has different executable provenance"
+            raise ValueError(message)
+        allocation = frame["terminalColumns"]
+    if not isinstance(allocation, int) or allocation < max(widths):
+        msg = "Terminal allocation is narrower than the requested capture widths"
+        raise ValueError(msg)
+    return allocation
+
+
 def main() -> None:
     """Run the explicitly scoped capture workflow."""
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     parser.add_argument("--pane", required=True)
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--geometry-frame",
+        help="Fresh native frame filename under this run's frames directory",
+    )
     parser.add_argument("--inspect-only", action="store_true")
     args = parser.parse_args()
     root = args.root.resolve()
@@ -206,6 +244,7 @@ def main() -> None:
     ready = json.loads((root / "ready.json").read_text())
     if ready["terminalColumns"] not in widths:
         widths.append(ready["terminalColumns"])
+    allocation = terminal_allocation(root, ready, args.geometry_frame, widths)
     snapshots = root / "visible"
     snapshots.mkdir(mode=0o700, exist_ok=True)
     journal = root / "inspection.jsonl"
@@ -245,10 +284,7 @@ def main() -> None:
                                 failures.append(finding)
                             # The native renderer buffer is complete. Preserve an independent Herdr
                             # viewport observation as a separate evidence tier, without desktop control.
-                            if (
-                                width == ready["terminalColumns"]
-                                and not args.inspect_only
-                            ):
+                            if width == max(widths) and not args.inspect_only:
                                 time.sleep(0.08)
                                 value = subprocess.check_output(  # noqa: S603 - argv is fixed or comes from the owner-controlled capture protocol
                                     [  # noqa: S607 - argv is fixed or comes from the owner-controlled capture protocol
@@ -281,6 +317,8 @@ def main() -> None:
         "frames": captured,
         "caseCount": len(cases),
         "widths": widths,
+        "terminalColumns": allocation,
+        "geometryFrame": args.geometry_frame,
         "failureCount": len(failures),
         "failures": failures,
         "runtimeVersion": ready["runtimeVersion"],
