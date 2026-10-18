@@ -177,7 +177,9 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
       ],
     };
   if (options.expanded) {
-    view.sections = view.sections.filter((s) => !/^(Arguments|CLI output|Metadata)(\.|$)/.test(s.title ?? ''));
+    view.sections = view.sections.filter(
+      (s) => !/^(Arguments|CLI output|Metadata|CLI diagnostics|Literal CLI output)(\.|$)/.test(s.title ?? ''),
+    );
     view.sections.push(...evidence(p, result, args, argv));
   }
   return view;

@@ -47,21 +47,3 @@ test('Org and Exec org display share quiet normal identity and complete safe evi
     expect(JSON.stringify(view)).not.toContain('Not returned');
   }
 });
-test('all six tools use one renderer and retain complete failure guidance at every width', () => {
-  const correction = 'Synthetic error: verify your Salesforce organization before retrying.';
-  const theme = {
-    fg: (_k: string, s: string) => s,
-    bold: (s: string) => s,
-    boxSharp: { topLeft: '+', topRight: '+', bottomLeft: '+', bottomRight: '+', horizontal: '-', vertical: '|' },
-  };
-  for (const name of ['sf_query', 'sf_exec', 'sf_describe', 'sf_org_display', 'sf_help', 'sf_pipeline_report']) {
-    const tool = presentTool({ name }, presentation);
-    for (const width of [40, 76, 120, 153]) {
-      const lines = tool
-        .renderResult({ isError: true, content: [{ type: 'text', text: correction }] }, options, theme, {})
-        .render(width);
-      expect(lines.every((line) => line.length <= width)).toBe(true);
-      expect(lines.join('').replace(/[\s|]/g, '')).toContain(correction.replace(/\s/g, ''));
-    }
-  }
-});

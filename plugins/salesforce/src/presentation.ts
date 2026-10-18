@@ -72,7 +72,7 @@ export function presentTool<T extends { name: string; label?: string }>(
             sections: [
               ...(argv ? [copyableCommand(p, argv, undefined, options.width)] : []),
               ...texts(result).map((t) => code(t, 'Complete corrective guidance')),
-              ...(options.expanded ? evidence(p, result, args) : []),
+              ...(options.expanded && result.details !== undefined ? [literal(result.details, 'Metadata')] : []),
             ],
           },
           options,
@@ -109,7 +109,7 @@ export function presentTool<T extends { name: string; label?: string }>(
                 texts(result).join('\n'),
               ))),
       );
-      if (recognized) {
+      if (recognized && !view.warnings?.some((warning) => warning.startsWith('Malformed'))) {
         view.completeness = 'provided';
         if (options.isPartial && tool.name !== 'sf_pipeline_report')
           view.states = [...(view.states ?? []), { kind: 'running', text: 'Provisional results' }];
