@@ -1018,7 +1018,12 @@ export const call = (action: Action, args: string[]) => {
     try {
       return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode };
     } catch {
-      return { exitCode: 1, backend: 'zoom-web', error: 'invalid_response' };
+      return {
+        exitCode: result.exitCode || 1,
+        backend: 'zoom-web',
+        error: 'invalid_response',
+        stderr: new TextDecoder().decode(result.stderr),
+      };
     }
   }
   const windowsBySession = sessionInventory();
