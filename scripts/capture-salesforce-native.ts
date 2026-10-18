@@ -16,37 +16,8 @@ export default async function captureSalesforce(api: any) {
   if (!['fixture', 'live'].includes(mode)) throw new Error('Capture mode must be fixture or live');
   const tools = new Map<string, any>();
   const handlers = new Map<string, any[]>();
-  let pluginRepaints = 0;
-  const wrapUi = (ui: any) =>
-    new Proxy(ui, {
-      get(target, key) {
-        if (key === 'setWidget')
-          return (name: string, content: any, ...args: any[]) => {
-            if (name === 'salesforce-progress-refresh' && typeof content === 'function') {
-              const original = content;
-              content = (tui: any, ...rest: any[]) =>
-                original(
-                  new Proxy(tui, {
-                    get(t, k) {
-                      if (k === 'requestRender')
-                        return (...params: any[]) => {
-                          pluginRepaints++;
-                          return t.requestRender(...params);
-                        };
-                      const value = Reflect.get(t, k, t);
-                      return typeof value === 'function' ? value.bind(t) : value;
-                    },
-                  }),
-                  ...rest,
-                );
-            }
-            return target.setWidget(name, content, ...args);
-          };
-        const value = Reflect.get(target, key, target);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
-  const wrappedContext = (ctx: any) => ({ ...ctx, ui: wrapUi(ctx.ui) });
+  let runtimeRepaints = 0;
+  const wrappedContext = (ctx: any) => ctx;
   const proxy = new Proxy(api, {
     get(target, key) {
       if (key === 'registerTool')
@@ -141,6 +112,8 @@ export default async function captureSalesforce(api: any) {
         try {
           step = JSON.parse(control);
           if (step.action === 'stop') {
+            for (const component of components.values()) component.stopAnimation();
+            await emit('session_shutdown', {});
             manifest.completed = true;
             persist();
             clearInterval(poll);
@@ -165,12 +138,24 @@ export default async function captureSalesforce(api: any) {
           currentId = step.id;
           let component = components.get(item.id);
           if (!component) {
-            component = new sdk.ToolExecutionComponent(tool.name, item.args, {}, tool, tui, ctx.cwd);
+            const runtimeTui = new Proxy(tui, {
+              get(target, key) {
+                if (key === 'requestRender')
+                  return (...params: any[]) => {
+                    runtimeRepaints++;
+                    return target.requestRender(...params);
+                  };
+                const value = Reflect.get(target, key, target);
+                return typeof value === 'function' ? value.bind(target) : value;
+              },
+            });
+            component = new sdk.ToolExecutionComponent(tool.name, item.args, {}, tool, runtimeTui, ctx.cwd);
+            component.setArgsComplete();
             components.set(item.id, component);
           }
           activeComponent = component;
           if (!results.has(item.id)) {
-            const before = pluginRepaints;
+            const before = runtimeRepaints;
             await emit('tool_execution_start', { toolName: tool.name, toolCallId: item.id, args: item.args });
             const progressTimer = setInterval(() => {
               if (tool.name !== 'sf_pipeline_report') return;
@@ -178,9 +163,9 @@ export default async function captureSalesforce(api: any) {
                 `progress-${item.id}-${Date.now()}`,
                 component,
                 Math.min(76, process.stdout.columns ?? 76),
-                { case: item.id, progress: true, repaints: pluginRepaints },
+                { case: item.id, progress: true, repaints: runtimeRepaints },
               );
-              manifest.progress.push({ id: record.id, case: item.id, repaints: pluginRepaints });
+              manifest.progress.push({ id: record.id, case: item.id, repaints: runtimeRepaints });
             }, 100);
             let result: any;
             try {
@@ -200,14 +185,14 @@ export default async function captureSalesforce(api: any) {
             }
             results.set(item.id, result);
             component.updateResult(result, false);
-            const ended = pluginRepaints;
+            const ended = runtimeRepaints;
             await Bun.sleep(200);
             manifest.results.push({
               case: item.id,
               tool: tool.name,
               isError: Boolean(result.isError),
               repaintsDuring: ended - before,
-              repaintsAfterEnd: pluginRepaints - ended,
+              repaintsAfterEnd: runtimeRepaints - ended,
             });
           }
           component.setExpanded(Boolean(step.expanded));
@@ -224,8 +209,8 @@ export default async function captureSalesforce(api: any) {
             item.args,
           );
           record.commands = (view?.sections ?? [])
-            .filter((s: any) => s.kind === 'code' && typeof s.text === 'string' && /^sf(?:\s|$)/.test(s.text))
-            .map((s: any) => s.text);
+            .filter((s: any) => s.kind === 'code' && Array.isArray(s.argv) && s.argv[0] === 'sf')
+            .map((s: any) => ({ argv: s.argv }));
           writeFileSync(join(frames, `${step.id}.json`), JSON.stringify(record));
           manifest.captures.push({
             id: step.id,

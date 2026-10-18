@@ -191,6 +191,7 @@ export function renderTasks(tasks) {
   );
 }
 export function parseTasks(text) {
+  text = text.split('## Retired surfaces')[0];
   return text
     .split('\n')
     .filter((line) =>
@@ -207,7 +208,7 @@ export function parseTasks(text) {
       return Object.fromEntries(fields.map((field, i) => [field, cells[i]]));
     });
 }
-export function validateTasks(tasks, inventory, links) {
+export function validateTasks(tasks, inventory, links, retired = []) {
   const expected = new Map(seedTasks(inventory, links).map((t) => [t.id, t]));
   const errors = [],
     seen = new Set();
@@ -241,10 +242,21 @@ export function validateTasks(tasks, inventory, links) {
     )
       errors.push(`NOT APPLICABLE requires an unexposed capability and reason: ${task.id}`);
   }
+  for (const task of retired) {
+    if (fields.some((field) => typeof task[field] !== 'string'))
+      errors.push(`retirement needs complete historical row: ${task.id}`);
+    if (seen.has(task.id)) errors.push(`duplicate ID: ${task.id}`);
+    seen.add(task.id);
+    if (expected.has(task.id)) errors.push(`retired ID still registered: ${task.id}`);
+    if (!task.reason?.trim()) errors.push(`retirement needs reason: ${task.id}`);
+    if (!/^[a-f0-9]{40}$/.test(task.removalSha ?? '')) errors.push(`retirement needs removal SHA: ${task.id}`);
+    if (!/^https:\/\/github.com\/\S+/.test(task.removalDelivery ?? ''))
+      errors.push(`retirement needs delivery link: ${task.id}`);
+  }
   for (const id of expected.keys()) if (!seen.has(id)) errors.push(`missing ID: ${id}`);
   return errors;
 }
-export function reconcileTasks(expected, previous) {
+export function reconcileTasks(expected, previous, { retirements = {}, retired = [] } = {}) {
   const old = new Map(previous.map((t) => [t.id, t]));
   if (old.size !== previous.length) throw new Error('duplicate prior task IDs');
   const result = expected.map((task) => {
@@ -266,13 +278,69 @@ export function reconcileTasks(expected, previous) {
     }
     return updated;
   });
-  if (old.size)
+  const removals = [...old.values()];
+  if (
+    removals.some((task) => {
+      const r = retirements[task.id];
+      return (
+        !r?.reason?.trim() ||
+        !/^[a-f0-9]{40}$/.test(r.removalSha ?? '') ||
+        !/^https:\/\/github.com\/\S+/.test(r.delivery ?? '')
+      );
+    })
+  )
     throw new Error(
       `Explicitly retire removed IDs with receipt preservation before regeneration: ${[...old.keys()].join(', ')}`,
     );
+  const ids = new Set([...result, ...retired].map((t) => t.id));
+  if (ids.size !== result.length + retired.length) throw new Error('duplicate current or retired task IDs');
+  for (const task of removals) {
+    if (ids.has(task.id)) throw new Error(`duplicate retired ID: ${task.id}`);
+    ids.add(task.id);
+    const r = retirements[task.id];
+    retired.push({ ...task, reason: r.reason, removalSha: r.removalSha, removalDelivery: r.delivery });
+  }
   return result;
 }
-export function renderTracker(inventory, metadata, tasks) {
+const retirementFields = [...fields, 'reason', 'removalSha', 'removalDelivery'];
+export function parseRetiredTasks(text) {
+  const appendix = text.split('## Retired surfaces\n')[1];
+  if (!appendix) return [];
+  return appendix
+    .split('\n')
+    .filter((line) => /^\| [a-z0-9-]+\./.test(line))
+    .map((line) => {
+      const cells = line
+        .slice(1, -1)
+        .split('|')
+        .map((cell) => decode(cell.trim()));
+      if (cells.length !== retirementFields.length) throw new Error('Malformed retired task row');
+      return Object.fromEntries(
+        retirementFields.map((field, i) => [
+          field,
+          field === 'removalDelivery' ? cells[i].replace(/^<(.+)>$/, '$1') : cells[i],
+        ]),
+      );
+    });
+}
+export function renderRetiredTasks(retired) {
+  if (!retired.length) return '';
+  return (
+    '## Retired surfaces\n\nComplete historical rows are retained below. Only current registrations count as active surfaces.\n\n' +
+    '| ID | Status | Scope | Acceptance | Evidence | Receipt | Delivery | Blocker | Input fingerprint | Reason | Removal SHA | Removal delivery |\n' +
+    '| ' +
+    retirementFields.map(() => '---').join(' | ') +
+    ' |\n' +
+    retired
+      .map(
+        (t) =>
+          '| ' + retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ') + ' |',
+      )
+      .join('\n') +
+    '\n\n'
+  );
+}
+export function renderTracker(inventory, metadata, tasks, retired = []) {
   let text =
     '<!-- Generated wide task tables retain stable editable cells. -->\n<!-- markdownlint-disable MD013 MD060 -->\n# Marketplace presentation TODO tracker\n\n';
   text += `Umbrella: <${metadata.links.umbrella}>. Tracking-system delivery: <${metadata.links.tracking}>. Shared prerequisite: <${metadata.links.shared}>.\n\n`;
@@ -304,6 +372,7 @@ export function renderTracker(inventory, metadata, tasks) {
       '\n\n';
     text += `${renderTasks(tasks.filter((t) => t.id.startsWith(`${plugin.name}.`)))}\n`;
   }
+  text += renderRetiredTasks(retired);
   text += `<!-- tracker-metadata\n${JSON.stringify(metadata, null, 2)}\n-->\n`;
   return text;
 }

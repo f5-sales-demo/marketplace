@@ -27,7 +27,10 @@ class NativeCaptureChecks(unittest.TestCase):
         encoded = "'" + query.replace("'", "'\\''") + "'"
         command = "sf data query --query \\\n" + encoded + " --json"
         rows = ["│ " + part + " │" for part in command.splitlines()]
-        frame = {"lines": rows}
+        frame = {
+            "lines": rows,
+            "commands": [{"argv": ["sf", "data", "query", "--query", query, "--json"]}],
+        }
         case = {"tool": "sf_query", "args": {"query": query}}
         with tempfile.TemporaryDirectory() as root:
             result = driver.verify_commands(

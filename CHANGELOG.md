@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).
+
 - **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
 
 - **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).

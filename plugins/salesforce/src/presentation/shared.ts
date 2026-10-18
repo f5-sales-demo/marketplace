@@ -4,7 +4,14 @@ export type Section = ReturnType<PresentationAPI['data']>[number];
 export type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
 export type Options = { expanded: boolean; isPartial: boolean; spinnerFrame?: number; width?: number };
 export type State = { kind: 'info' | 'warning' | 'running' | 'disabled'; text: string };
-export type View = { summary?: string; warnings?: string[]; states?: State[]; sections: Section[] };
+export type View = {
+  expandedEvidence?: 'append' | 'provided';
+  completeness?: 'automatic' | 'provided';
+  summary?: string;
+  warnings?: string[];
+  states?: State[];
+  sections: Section[];
+};
 export type Args = Record<string, unknown>;
 export const record = (value: unknown): Args =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Args) : {};
@@ -12,7 +19,12 @@ export const rows = (value: unknown): Args[] =>
   Array.isArray(value) ? value.filter((v) => v && typeof v === 'object' && !Array.isArray(v)) : [];
 export const texts = (result: Result) => result.content.filter((b) => b.type === 'text').map((b) => b.text ?? '');
 export const code = (text: string, title?: string): Section => ({ kind: 'code', text, title });
-export const fields = (values: Args, title?: string): Section => ({ kind: 'fields', values, title });
+export const fields = (values: Args, title?: string): Section => ({
+  kind: 'fields',
+  values,
+  title,
+  previewFields: 'all',
+});
 export const hint = (text: string): Section => ({ kind: 'markdown', text });
 
 const labelPairs = [
@@ -69,6 +81,18 @@ export function money(input: unknown): unknown {
 }
 const monetaryFields =
   /^(Amount|amount|quotaTotal|platform|shape|other|commit|bestCase|pipeline|totalAmount|bookedAmount|renewalAmount)$/;
+function columnReadability(key: string) {
+  return {
+    minWidth: monetaryFields.test(key)
+      ? 14
+      : /^(period|month|yearMonth|label)$/i.test(key)
+        ? 6
+        : /currency|unit/i.test(key)
+          ? 8
+          : 10,
+    ...(monetaryFields.test(key) ? {} : { maxWidth: 35 }),
+  };
+}
 export const ownedTables = new WeakSet<object>();
 export function table(
   p: PresentationAPI,
@@ -95,17 +119,29 @@ export function table(
     columns.map((key) => ({
       key,
       label: labels?.[key] ?? label(key),
+      ...columnReadability(key),
       ...(data.some((row) => typeof row[key] === 'number') ? { align: 'right' as const } : {}),
     })),
     title,
   );
+  section.previewRows = 12;
   ownedTables.add(section);
   return section;
 }
 export function data(p: PresentationAPI, input: unknown, title: string): Section[] {
   if (Array.isArray(input) && input.every((v) => v && typeof v === 'object' && !Array.isArray(v)))
     return [table(p, rows(input), title)];
-  return p.data(input, title);
+  return p.data(input, title).map((section) =>
+    section.kind === 'fields'
+      ? { ...section, previewFields: 'all' }
+      : section.kind === 'table'
+        ? {
+            ...section,
+            previewRows: 12,
+            columns: section.columns.map((column) => ({ ...column, ...columnReadability(column.key) })),
+          }
+        : section,
+  );
 }
 export function flag(argv: string[], ...names: string[]): string | undefined {
   for (let i = 0; i < argv.length; i++) {

@@ -1,13 +1,16 @@
 import { expect, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rendererOwnershipErrors, sourceOwnershipErrors } from '../scripts/presentation-ownership.mjs';
 
-test('domain adapters use shared presentation while Salesforce legacy override stays explicit', () => {
+test('all domain adapters including Salesforce use shared rendering', () => {
   expect(rendererOwnershipErrors('aws', [{ name: 'aws_exec', presentation: { result() {} } }])).toEqual([]);
   expect(rendererOwnershipErrors('aws', [{ name: 'aws_exec', renderResult() {} }]).join()).toContain('runtime-owned');
-  expect(rendererOwnershipErrors('salesforce', [{ name: 'sf_query', renderResult() {} }])).toEqual([]);
+  expect(rendererOwnershipErrors('salesforce', [{ name: 'sf_query', renderResult() {} }]).join()).toContain(
+    'runtime-owned',
+  );
   expect(rendererOwnershipErrors('salesforce', [{ name: 'new_tool', renderResult() {} }]).join()).toContain(
     'unqualified',
   );
@@ -17,9 +20,11 @@ test('source imports cannot bypass shared renderer ownership or copy Salesforce 
   try {
     mkdirSync(join(root, 'plugins/salesforce/src/presentation'), { recursive: true });
     mkdirSync(join(root, 'plugins/aws/src'), { recursive: true });
-    const privateRenderer =
-      '// Private renderer header\nexport function wrapWords(text) { return text.split(/\\s+/).map(word => word.trim()); }';
-    writeFileSync(join(root, 'plugins/salesforce/src/presentation/renderer.ts'), privateRenderer);
+    const privateRenderer = execFileSync(
+      'git',
+      ['show', 'salesforce/v2.3.11:plugins/salesforce/src/presentation/renderer.ts'],
+      { cwd: join(import.meta.dir, '..'), encoding: 'utf8' },
+    );
     const catalog = {
       plugins: [
         { name: 'salesforce', source: './plugins/salesforce' },

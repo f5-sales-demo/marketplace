@@ -9,6 +9,7 @@ import { clearXcshPluginRootsCache } from './agent-validation-runtime/node_modul
 import { discoverAndLoadExtensions } from './agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/extensions/loader';
 import { rendererOwnershipErrors, sourceOwnershipErrors } from './presentation-ownership.mjs';
 import {
+  parseRetiredTasks,
   parseTasks,
   reconcileTasks,
   renderTracker,
@@ -186,17 +187,20 @@ test('canonical presentation tracker covers actual registrations and every shipp
   expect(metadata.runtime).toBe(runtime);
   for (const key of ['umbrella', 'tracking', 'shared', ...inventory.map((p) => p.name)])
     expect(metadata.links[key]).toMatch(/^https:\/\/github.com\/f5-sales-demo\/marketplace\/issues\/\d+$/);
+  const retired = parseRetiredTasks(existing);
+  const retirementPath = join(root, 'scripts/presentation-retirements.json');
+  const retirements = existsSync(retirementPath) ? JSON.parse(readFileSync(retirementPath, 'utf8')) : {};
   const expected = seedTasks(inventory, metadata.links);
   const tasks =
     action === 'init'
       ? expected
       : action === 'update'
-        ? reconcileTasks(expected, parseTasks(existing))
+        ? reconcileTasks(expected, parseTasks(existing), { retirements, retired })
         : parseTasks(existing);
-  expect(validateTasks(tasks, inventory, metadata.links)).toEqual([]);
+  expect(validateTasks(tasks, inventory, metadata.links, retired)).toEqual([]);
   if (action !== 'check') {
     if (action === 'init' && existing) throw new Error('Refusing to overwrite existing tracker; use update');
-    writeFileSync(trackerPath, renderTracker(inventory, metadata, tasks));
+    writeFileSync(trackerPath, renderTracker(inventory, metadata, tasks, retired));
   }
   const final = readFileSync(trackerPath, 'utf8');
   expect(final.match(/^## Plugin /gm)).toHaveLength(23);

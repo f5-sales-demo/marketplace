@@ -57,6 +57,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       # The repository-owned installer verifies the pinned release digest and extracts
       # under runner.temp. Persistent runners may have a live Bun process in ~/.bun,
@@ -66,6 +67,15 @@ jobs:
 
       - name: Check Bun lockfile compatibility
         run: ./scripts/check-ci-bun-lockfile-compatibility.sh
+
+      - name: Prepare isolated Python fixture dependencies
+        run: |
+          set -euo pipefail
+          plugin_test_python_root="$RUNNER_TEMP/plugin-tests-python"
+          python3 -m venv "$plugin_test_python_root"
+          "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3'
+          plugin_test_python_site=$("$plugin_test_python_root/bin/python3" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
+          printf 'PYTHONPATH=%s\n' "$plugin_test_python_site" >> "$GITHUB_ENV"
 
       - name: Run plugin test suites
         run: ./scripts/run-plugin-tests.sh

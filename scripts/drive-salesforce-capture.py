@@ -49,11 +49,14 @@ def expected_argv(case: dict[str, Any]) -> list[str] | None:
     if tool == "sf_query":
         result = ["data", "query", "--query", args["query"]]
     elif tool == "sf_describe":
-        result = ["sobject", "describe", "--sobject", args["sobject"]]
+        result = ["sobject", "describe", "--sobject", args["sobject"].strip()]
     elif tool == "sf_org_display":
         result = ["org", "display"]
     elif tool == "sf_help":
-        return [*args["command_path"].split(), "--help"]
+        return [
+            *filter(None, re.split(r"[ :]+", args.get("command_path", "").strip())),
+            "--help",
+        ]
     elif tool == "sf_exec":
         return args["args"]
     else:
@@ -73,6 +76,16 @@ def verify_commands(
     expected = expected_argv(case)
     if expected is None:
         return {"capability": "no single CLI command exposed"}
+    declared = frame.get("commands", [])
+    if not declared or not isinstance(declared[0], dict):
+        return {"passed": False, "reason": "No declared command argv captured"}
+    argv = declared[0].get("argv")
+    if not isinstance(argv, list) or argv != ["sf", *expected]:
+        return {
+            "passed": False,
+            "reason": "Declared argv differs from the scoped invocation",
+        }
+    expected = argv[1:]
     command_lines: list[str] = []
     for row in frame["lines"]:
         value = plain(row)

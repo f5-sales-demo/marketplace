@@ -75,7 +75,8 @@ new_fixture() {
   cp "$SOURCE_ROOT/scripts/check-plugin-runtime-dependencies.sh" \
     "$root/scripts/check-plugin-runtime-dependencies.sh"
   for plugin in aws azure gcloud github gitlab salesforce; do
-    mkdir -p "$root/plugins/$plugin"
+    mkdir -p "$root/plugins/$plugin/.xcsh-plugin"
+    cp "$SOURCE_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$root/plugins/$plugin/.xcsh-plugin/plugin.json"
     cp "$SOURCE_ROOT/plugins/$plugin/package.json" "$root/plugins/$plugin/package.json"
     cp "$SOURCE_ROOT/plugins/$plugin/bun.lock" "$root/plugins/$plugin/bun.lock"
   done
