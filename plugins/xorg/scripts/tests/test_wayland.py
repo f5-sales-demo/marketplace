@@ -115,3 +115,35 @@ class WaylandContract(unittest.TestCase):
             self.assertFalse(capabilities["held_input_leases"])
             self.assertTrue(capabilities["screen_recording"])
             self.assertTrue(capabilities["screenshots"])
+
+    def test_invalid_click_or_text_rejects_whole_batch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backend = self.backend(directory)
+            for invalid in (
+                {"action": "click", "button": True},
+                {"action": "text", "text": "\x00"},
+                {"action": "text", "text": "x" * 65537},
+            ):
+                with (
+                    patch.object(backend, "command") as command,
+                    self.assertRaises(Fault),
+                ):
+                    backend.dispatch(
+                        "input",
+                        "batch",
+                        {"steps": [{"action": "key", "key": "Return"}, invalid]},
+                    )
+                command.assert_not_called()
+
+    def test_click_uses_atomic_compositor_shortcut(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backend = self.backend(directory)
+            with patch.object(backend, "command") as command:
+                result, _ = backend.dispatch(
+                    "input", "batch", {"steps": [{"action": "click", "button": 1}]}
+                )
+            command.assert_called_once_with(
+                ["hyprctl", "dispatch", "sendshortcut", ",mouse:272,activewindow"],
+                timeout=2,
+            )
+            self.assertFalse(result["held_input"])

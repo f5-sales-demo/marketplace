@@ -55,12 +55,14 @@ class Hyprland:
                 "clipboard": True,
                 "atomic_shortcuts": True,
                 "pointer_move": True,
-                "text_input": False,
+                "text_input": True,
+                "pointer_click": True,
                 "held_input_leases": False,
                 "screen_recording": True,
             },
             "limitations": [
-                "No held key/button leases or arbitrary text injection",
+                "Text uses clipboard paste; verify application receipt",
+                "No held key/button leases; clicks and shortcuts are atomic",
                 "Screenshots use grim and physical output pixels",
                 "Bounded screen-only capture uses wf-recorder; audio is not captured",
             ],
@@ -284,6 +286,30 @@ class Hyprland:
                             f"{modifiers},{key},activewindow",
                         ]
                     )
+                elif kind == "click":
+                    button = step.get("button", 1)
+                    if type(button) is not int or button not in (1, 2, 3):
+                        message = "Click button must be 1, 2 or 3"
+                        raise Fault(message)
+                    code = {1: 272, 2: 274, 3: 273}[button]
+                    normalized.append(
+                        [
+                            "hyprctl",
+                            "dispatch",
+                            "sendshortcut",
+                            f",mouse:{code},activewindow",
+                        ]
+                    )
+                elif kind == "text":
+                    text = step.get("text")
+                    if (
+                        not isinstance(text, str)
+                        or "\x00" in text
+                        or len(text.encode()) > 65536
+                    ):
+                        message = "Text must be UTF-8 without NUL, at most 64 KiB"
+                        raise Fault(message)
+                    normalized.append(["clipboard-paste", text])
                 elif kind == "move":
                     x, y = step.get("x"), step.get("y")
                     if (
@@ -306,7 +332,14 @@ class Hyprland:
                 if time.monotonic() - start > 10:
                     message = "Input batch deadline reached"
                     raise Fault(message)
-                self.command(argv, timeout=2)
+                if argv[0] == "clipboard-paste":
+                    self.dispatch("clipboard", "set", {"text": argv[1]})
+                    self.command(
+                        ["hyprctl", "dispatch", "sendshortcut", "CTRL,v,activewindow"],
+                        timeout=2,
+                    )
+                else:
+                    self.command(argv, timeout=2)
             return {
                 "backend": "wayland",
                 "completed": len(normalized),
