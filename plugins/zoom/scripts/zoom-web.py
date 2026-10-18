@@ -559,7 +559,7 @@ def control_web_share(page, action, requested):
     stop = page.locator("button").filter(has_text=re.compile(r"^Stop Share$"))
     if action == "stop-share":
         if stop.count() == 1 and stop.is_visible():
-            stop.click(timeout=5000)
+            stop.click(timeout=5000, no_wait_after=True)
             stop.wait_for(state="hidden", timeout=5000)
         return {"exitCode": 0, "control": action, "current": "off", "verified": True}
     if requested not in (None, "desktop", "screen"):
@@ -597,7 +597,7 @@ def control_web_share(page, action, requested):
             previous = sample["frames"]
         page.wait_for_timeout(1000)
     if stop.count() == 1 and stop.is_visible():
-        stop.click(timeout=5000)
+        stop.click(timeout=5000, no_wait_after=True)
         stop.wait_for(state="hidden", timeout=5000)
     return {
         "exitCode": 1,
