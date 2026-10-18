@@ -295,13 +295,13 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
     'demo',
     '--json',
   ];
-  const section = copyableCommand(presentation, argv);
   for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
     await setSymbolPreset(preset);
     for (const theme of ['xcsh-dark', 'xcsh-light']) {
       await setTheme(theme);
       for (const expanded of [false, true]) {
         for (const width of [40, 76, 120, 153]) {
+          const section = copyableCommand(presentation, argv, undefined, width - 7);
           const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
           const copied = plain(component.render(width - 10));
           for (const shell of shells) {
