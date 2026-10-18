@@ -167,16 +167,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       else sections.push(...data(p, group[key], title));
     }
     if (empty.length) {
-      const outcomes: Record<string, string> = {
-        'Net new by account': 'new-business accounts',
-        'Booked by account': 'booked accounts',
-        'Renewals by account': 'renewal accounts',
-        'Top deals': 'open deals',
-        'Top renewals': 'renewal deals',
-        'Close distribution': 'closing opportunities',
-        'Renewal distribution': 'closing renewals',
-      };
-      sections.push(hint(`No ${empty.map((name) => outcomes[name] ?? name.toLowerCase()).join(', ')} returned.`));
+      sections.push(hint(`${empty.join(', ')}: no entries in this report.`));
     }
     if (absent.length) states.push({ kind: 'info', text: `Data not returned: ${absent.join(', ')}` });
   }

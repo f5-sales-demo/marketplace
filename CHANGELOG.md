@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).
+
 - **`salesforce`** v2.3.9 groups Pipeline currency once, uses natural empty outcomes, and places missing-value legends beside their tables (#1573).
 
 - **`salesforce`** v2.3.8 animates Pipeline progress using the active host spinner frames (#1571).
