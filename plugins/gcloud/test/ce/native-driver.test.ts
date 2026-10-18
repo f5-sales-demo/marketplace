@@ -129,3 +129,10 @@ it('driver rejects direct foreign scope and identity-switching arguments', async
   ).rejects.toThrow('argument');
   expect(f.calls).toHaveLength(0);
 });
+it('resume without submit receipt still reconciles the durable operation journal', async () => {
+  const f = fixture();
+  await f.driver.submit(action);
+  f.set({ ...f.vm, status: 'TERMINATED' });
+  expect(await f.driver.reconcile(action, undefined)).toBe('done');
+  expect(f.calls.some((args) => args[1] === 'operations')).toBe(true);
+});

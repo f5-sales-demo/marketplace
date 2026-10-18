@@ -147,6 +147,18 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
     async reconcile(action, receipt, signal) {
       const operationReceipt =
         receipt && typeof receipt === 'object' ? (receipt as Record<string, unknown>) : undefined;
+      if (!operationReceipt) {
+        let saved: unknown;
+        try {
+          saved = await store.read(`gcp-operation-${action.id}.json`);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        if (saved) {
+          const outcome = await reconcileGcpOperation(store, api, operationBinding(action), signal);
+          if (outcome.state === 'pending' || outcome.state === 'failed') return outcome.state;
+        }
+      }
       if (operationReceipt?.kind === 'operation') {
         const op = await reconcileGcpOperation(store, api, operationBinding(action), signal);
         if (op.state === 'pending' || op.state === 'failed') return op.state;
