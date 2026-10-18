@@ -94,3 +94,38 @@ it('rejects foreign preexisting tokens and wrong approval before token mutation'
   );
   expect(calls).toBe(0);
 });
+
+it('concurrent bootstrap resumptions issue only one token under the deployment lock', async () => {
+  const f = fixture();
+  let tail = Promise.resolve();
+  let creates = 0;
+  const locked = {
+    ...f.store,
+    exclusive: async <T>(fn: () => Promise<T>) => {
+      const before = tail;
+      let release = () => {};
+      tail = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await before;
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    },
+  };
+  const driver = {
+    assertSiteOwnership: async () => {},
+    readToken: async () => null,
+    createToken: async () => {
+      creates++;
+      return f.response;
+    },
+  };
+  await Promise.all([
+    issueGcpBootstrap(locked, f.plan, f.plan.sha256, f.plan.contractDigest, driver),
+    issueGcpBootstrap(locked, f.plan, f.plan.sha256, f.plan.contractDigest, driver),
+  ]);
+  expect(creates).toBe(1);
+});

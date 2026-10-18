@@ -37,7 +37,7 @@ function token(value: unknown, plan: GcpBootstrapIssuePlan): string {
 }
 
 /** Candidate issuer journals submission before contacting XC and consumes through shared private storage. */
-export async function issueGcpBootstrap(
+async function issueUnlocked(
   store: GcpBootstrapStore,
   plan: GcpBootstrapIssuePlan,
   approvedHash: string,
@@ -59,7 +59,6 @@ export async function issueGcpBootstrap(
   signal?.throwIfAborted();
   formatGcpUserData({ ...plan.owner, jwt: 'fixtureheader.fixturepayload.fixturesignature', expiresAt: plan.expiresAt });
   const checkpointName = `gcp-bootstrap-issue-${sha256.slice(7)}.json`;
-  // The same deployment lock must be held by the outer lifecycle executor.
   let checkpoint: { state: 'prepared' | 'submitting' | 'issued'; planHash: string } | undefined;
   try {
     checkpoint = (await store.read(checkpointName)) as typeof checkpoint;
@@ -101,4 +100,28 @@ export async function issueGcpBootstrap(
     throw new Error('Stored bootstrap state differs');
   await store.write(checkpointName, { state: 'issued', planHash: sha256 });
   return { issued: true, nodeName: plan.owner.nodeName, replay: false };
+}
+
+export async function issueGcpBootstrap(
+  store: GcpBootstrapStore,
+  plan: GcpBootstrapIssuePlan,
+  approvedHash: string,
+  qualifiedContractDigest: string,
+  driver: GcpBootstrapIssueDriver,
+  signal?: AbortSignal,
+) {
+  return store.exclusive(() =>
+    issueUnlocked(
+      {
+        read: (name) => store.read(name),
+        write: (name, value) => store.write(name, value),
+        exclusive: async <T>(fn: () => Promise<T>) => fn(),
+      },
+      plan,
+      approvedHash,
+      qualifiedContractDigest,
+      driver,
+      signal,
+    ),
+  );
 }
