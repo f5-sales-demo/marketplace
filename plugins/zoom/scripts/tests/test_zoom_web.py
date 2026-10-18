@@ -80,3 +80,12 @@ class ZoomWebSafety(unittest.TestCase):
                 self.assertRaises(ValueError),
             ):
                 module.owned_browser_state()
+
+    def test_display_name_defaults_to_product_identity_and_allows_override(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(module.display_name(), "xcsh")
+        with patch.dict(os.environ, {"XCSH_ZOOM_DISPLAY_NAME": "xcsh lab"}):
+            self.assertEqual(module.display_name(), "xcsh lab")
+        for invalid in ("", "x" * 65, "xcsh\nlab"):
+            with self.assertRaises(ValueError):
+                module.display_name(invalid)

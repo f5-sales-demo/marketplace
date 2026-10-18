@@ -94,6 +94,18 @@ def invitation(target):
     return urlunparse(parsed._replace(path=path, fragment=""))
 
 
+def display_name(value=None):
+    """Keep the product identity independent of the operating-system account."""
+    name = (
+        value if value is not None else os.environ.get("XCSH_ZOOM_DISPLAY_NAME", "xcsh")
+    )
+    name = name.strip()
+    if not name or len(name) > 64 or any(ord(c) < 32 for c in name):
+        message = "Zoom display name must contain 1-64 printable characters"
+        raise ValueError(message)
+    return name
+
+
 def join(target):
     ready = status()
     if not ready["ready"]:
@@ -155,7 +167,14 @@ def join(target):
     )
     state = runtime / "pi-zoom-web-state.json"
     state.write_text(
-        json.dumps({"port": port, "pid": process.pid, "profile": str(profile)})
+        json.dumps(
+            {
+                "port": port,
+                "pid": process.pid,
+                "profile": str(profile),
+                "display_name": display_name(),
+            }
+        )
     )
     state.chmod(0o600)
     ready_file = runtime / "pi-zoom-web-guard-ready"
@@ -293,6 +312,9 @@ def initialize_browser(url, persistent=False):
             if page.evaluate("window.__piZoomMediaGuard?.version") != 1:
                 message = "Virtual media guard did not initialize"
                 raise ValueError(message)
+            name = page.locator("#input-for-name")
+            if name.count() == 1:
+                name.fill(selected.get("display_name", "xcsh"))
             if persistent:
                 ready = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-ready"
                 ready.write_text("ready")
