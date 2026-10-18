@@ -2,7 +2,7 @@ import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
 export const subscriptionId = '00000000-0000-4000-8000-000000000001';
 export const sharedContractUrl =
-  'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 export const intent: AzureCeIntent = {
   schemaVersion: 3,
   operation: 'deploy',

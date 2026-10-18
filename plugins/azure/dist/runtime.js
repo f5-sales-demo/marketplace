@@ -2846,7 +2846,7 @@ var init_native_action_recovery = __esm(() => {
 var AZURE_CE_SCHEMA_VERSION = 3,
   AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4,
   AZURE_CE_SHARED_CONTRACT_URL =
-    'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
+    'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 
 // plugins/azure/src/ce/workload-fixture.ts
 var AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE = 'Standard_B1s',

@@ -1,7 +1,7 @@
 export const AZURE_CE_SCHEMA_VERSION = 3 as const;
 export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
-  'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
 export type AzureCeOperation =
   | 'deploy'
