@@ -1105,8 +1105,8 @@ var init_contract = __esm(() => {
   init_discovery();
   GCP_CE_API_RELEASE = {
     repository: 'f5-sales-demo/api-specs-enriched',
-    tag: 'v12.1.0',
-    contractDigest: 'sha256:3c8b143ac2f38dc5a1e9bbdca27dbbc0a65d7cf5f11b88cee0aeb49bd62c74f1',
+    tag: 'v12.1.1',
+    contractDigest: 'sha256:93c430e884be34fb80de9e572e1aa6dddbb1e804df65867b9479cb77660c0f16',
   };
 });
 
