@@ -110,7 +110,19 @@ export function component(title: string, view: (width: number) => View, options:
       const lines: string[] = [];
       const wrap = (text: string) => wrapTextWithAnsi(text, inner);
       if (result.summary) lines.push(...wrap(theme.fg('toolTitle', result.summary)));
-      for (const warning of result.warnings ?? []) lines.push(...wrap(theme.fg('warning', warning)));
+      for (const warning of result.warnings ?? []) {
+        const known =
+          warning === 'Results are incomplete. Counts and conclusions apply only to returned data.' ||
+          warning === 'Output is still streaming; results are not final.';
+        if (
+          known &&
+          result.sections.some(
+            (s) => s.kind === 'markdown' && /Partial results|Partial related records|Provisional results/.test(s.text),
+          )
+        )
+          continue;
+        lines.push(...wrap(theme.fg('warning', warning)));
+      }
       for (const section of result.sections) {
         if (section.title) lines.push(...wrap(theme.fg('dim', section.title)));
         if (section.kind === 'table') {
