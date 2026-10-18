@@ -21,7 +21,7 @@ class ZoomWebSafety(unittest.TestCase):
         )
         self.assertEqual(
             module.invitation("https://us06web.zoom.us/j/12345678901"),
-            "https://us06web.zoom.us/j/12345678901",
+            "https://us06web.zoom.us/wc/join/12345678901",
         )
         for url in (
             "http://zoom.us/j/12345678901",
@@ -52,3 +52,11 @@ class ZoomWebSafety(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertFalse(result["recording"])
         self.assertEqual(result["receiver_acceptance"], "pending controlled meeting")
+
+    def test_web_invitation_preserves_join_parameters(self):
+        self.assertEqual(
+            module.invitation(
+                "https://us06web.zoom.us/j/12345678901?pwd=synthetic-token#fragment"
+            ),
+            "https://us06web.zoom.us/wc/join/12345678901?pwd=synthetic-token",
+        )

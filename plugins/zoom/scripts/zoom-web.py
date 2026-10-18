@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 
 def status():
@@ -85,7 +85,8 @@ def invitation(target):
     if not re.search(r"/(?:j|wc/join)/\d{9,11}(?:/|$)", parsed.path):
         message = "Unrecognized Zoom invitation path"
         raise ValueError(message)
-    return target
+    path = re.sub(r"^/j/", "/wc/join/", parsed.path)
+    return urlunparse(parsed._replace(path=path, fragment=""))
 
 
 def join(target):
@@ -116,8 +117,8 @@ def join(target):
                     },
                     "profile": {
                         "default_content_setting_values": {
-                            "media_stream_mic": 2,
-                            "media_stream_camera": 2,
+                            "media_stream_mic": 3,
+                            "media_stream_camera": 3,
                         }
                     },
                 }
