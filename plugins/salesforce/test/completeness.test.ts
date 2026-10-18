@@ -41,7 +41,7 @@ test('expanded describe exposes custom fields, relationships and complete pickli
   };
   const collapsed = tool.presentation.result(result, { expanded: false, isPartial: false }, {});
   const expanded = tool.presentation.result(result, { expanded: true, isPartial: false }, {});
-  expect(JSON.stringify(collapsed.sections)).toContain('expanded');
+  expect(JSON.stringify(collapsed.sections)).toContain('expansion');
   expect(JSON.stringify(expanded.sections)).toContain('Product__c');
   expect(JSON.stringify(expanded.sections)).toContain('OpportunityLineItems');
   expect(JSON.stringify(expanded.sections)).toContain('FINAL_PICKLIST_VALUE');
@@ -334,7 +334,7 @@ test('pipeline presentation separates record currencies and does not publish a c
     { expanded: false, isPartial: false },
     {},
   );
-  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · CAD');
-  expect(JSON.stringify(view.sections)).toContain('Pipeline summary · USD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline — CAD');
+  expect(JSON.stringify(view.sections)).toContain('Pipeline — USD');
   expect(JSON.stringify(view.sections)).not.toContain('300.00');
 });

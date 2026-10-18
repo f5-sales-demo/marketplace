@@ -1,6 +1,6 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args, Options, Result, View } from './shared';
-import { code, fields, record, texts } from './shared';
+import { code, evidence, fields, literal, record, texts } from './shared';
 
 const identityFields = [
   'username',
@@ -37,27 +37,47 @@ export function orgView(
   const org = safeIdentity(details.orgEvidence ?? (Array.isArray(details.orgs) ? details.orgs[0] : undefined));
   if (!Object.keys(org).length && result.content.length)
     return { summary: 'Org identity unavailable', sections: texts(result).map((text) => code(text, 'CLI output')) };
-  const status = org.connectedStatus ?? 'Not returned';
+  const available = (v: unknown) => v !== null && v !== undefined && v !== '';
+  const status = org.connectedStatus;
   return {
-    summary: String(status),
-    warnings: [
-      ...(!org.username || !org.instanceUrl
-        ? ['Authenticated identity is not verified; username or instance was not returned.']
-        : []),
-      ...(typeof status === 'string' && !/^connected$/i.test(status) && status !== 'Not returned'
-        ? [`Reported connection status: ${status}`]
-        : []),
-    ],
+    ...(available(status) && !/^connected$/i.test(String(status)) ? { summary: `Connection: ${String(status)}` } : {}),
+    states:
+      !available(org.username) || !available(org.instanceUrl)
+        ? [{ kind: 'info', text: 'Identity unknown' }]
+        : !available(status)
+          ? [{ kind: 'info', text: 'Connection unknown' }]
+          : [],
     sections: [
-      fields({
-        Alias: org.alias ?? 'Not returned',
-        Username: org.username ?? 'Not returned',
-        Instance: org.instanceUrl ?? 'Not returned',
-        'Org ID': org.id ?? org.orgId ?? 'Not returned',
-        Environment: typeof org.isSandbox === 'boolean' ? (org.isSandbox ? 'Sandbox' : 'Production') : 'Not returned',
-        Default: org.isDefaultUsername ?? org.isDefault ?? 'Not returned',
-      }),
-      ...(options.expanded ? p.data(org, 'Metadata') : []),
+      fields(
+        Object.fromEntries(
+          [
+            ['Alias', org.alias],
+            ['Username', org.username],
+            ['Instance', org.instanceUrl],
+            [
+              'Environment',
+              typeof org.isSandbox === 'boolean' ? (org.isSandbox ? 'Sandbox' : 'Production') : undefined,
+            ],
+          ].filter(([, v]) => available(v)),
+        ),
+      ),
+      ...(options.expanded
+        ? [
+            literal(org, 'Identity'),
+            ...evidence(
+              p,
+              {
+                ...result,
+                details: {
+                  ...details,
+                  orgs: Array.isArray(details.orgs) ? details.orgs.map(safeIdentity) : details.orgs,
+                  orgEvidence: org,
+                },
+              },
+              _args,
+            ),
+          ]
+        : []),
     ],
   };
 }

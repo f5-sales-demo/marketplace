@@ -15,6 +15,17 @@ and this project adheres to
 - **`platform`** v7.0.0 consumes verified API v12.0.9 bootstrap and telemetry, exposes the shared CE service, and separates native operations from Terraform resource state.
 
 - **`aws`** v3.0.1 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts. Whole-site stop/start is gated until coordinated service withdrawal and restoration are implemented.
+- **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
+
+- **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).
+
+- **`salesforce`** v2.3.9 groups Pipeline currency once, uses natural empty outcomes, and places missing-value legends beside their tables (#1573).
+
+- **`salesforce`** v2.3.8 animates Pipeline progress using the active host spinner frames (#1571).
+
+- **`salesforce`** v2.3.7 shows one concise Pipeline progress status and readable deal, renewal and monthly distribution tables, with complete evidence retained in expansion (#1569).
+
+- **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
 - **`gcloud`** bumped to v1.6.0
 

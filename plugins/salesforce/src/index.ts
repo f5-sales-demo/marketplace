@@ -3,6 +3,7 @@ import type { SalesforceContext, UserProfile } from './context/salesforce-contex
 import { prepareLoginUrl } from './login-url';
 import { presentTool } from './presentation';
 import { type PresentationContext, sessionSymbols } from './presentation/icons';
+import { spinnerDriver } from './presentation/spinner';
 import type { PluginHost } from './tools/plugin-host';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, makeExecApi, renderError } from './tools/shared';
@@ -116,6 +117,7 @@ const providerSetup = {
 } as const;
 const factory = async (pi: CanonicalExtensionAPI) => {
   const symbols = sessionSymbols();
+  const spinner = spinnerDriver();
   if (!pi.host || !pi.software)
     throw new Error('Salesforce plugin requires xcsh 22.4.6 or later with the host/software API');
   if (!pi.personProfile || typeof pi.personProfile.get !== 'function') {
@@ -255,8 +257,16 @@ const factory = async (pi: CanonicalExtensionAPI) => {
     });
   }
 
+  pi.on('tool_execution_start', (event: { toolName: string }) => {
+    if (event.toolName === 'sf_pipeline_report') spinner.start();
+  });
+  pi.on('tool_execution_end', (event: { toolName: string }) => {
+    if (event.toolName === 'sf_pipeline_report') spinner.end();
+  });
+  pi.on('session_shutdown', () => spinner.dispose());
   pi.on('session_start', (_event: unknown, ctx: PresentationContext) => {
     symbols.bind(ctx);
+    spinner.bind(ctx as never);
     if (!sfAvailable) pi.logger.debug('Salesforce: sf CLI not found');
   });
 };
