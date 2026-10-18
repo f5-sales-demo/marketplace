@@ -4,6 +4,8 @@ import { discoverGcp } from '../ce/discovery';
 import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
+import { collectGcpLaunchPreflight } from '../ce/preflight';
+import { createGcpPreflightPort } from '../ce/preflight-port';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
 import { validateIntent, validateScope } from '../ce/validation';
 import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
@@ -42,6 +44,7 @@ export function createGcpCeTools(
   makeApi: (cwd: string) => GcloudExecApi = makeExecApi,
   contract = resolveGcpContract,
   getPlatform: () => Promise<CePlatformService> = () => platformService(pi),
+  preflight = collectGcpLaunchPreflight,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -143,7 +146,17 @@ export function createGcpCeTools(
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
           const boundary = await contract(undefined, signal);
           const policyReceipt = await readGcpCePolicy();
-          const plan = planGcpCe(params.intent as GcpCeIntent, discovery, Date.now(), policyReceipt);
+          const intent = params.intent as GcpCeIntent;
+          const profileSupported =
+            intent.sites.length === 1 &&
+            intent.sites[0].nodes.length === 1 &&
+            intent.sites[0].nodes[0].interfaces.length === 2 &&
+            intent.sites[0].nodes[0].interfaces[1].role === 'sli' &&
+            intent.egress.mode === 'external-ip';
+          const prerequisites = profileSupported
+            ? await preflight(intent, createGcpPreflightPort(api, params.project), signal)
+            : undefined;
+          const plan = planGcpCe(intent, discovery, Date.now(), policyReceipt, prerequisites);
           return result(tool, { availability: 'unavailable', boundary, plan });
         }
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {

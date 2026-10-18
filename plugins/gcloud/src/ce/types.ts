@@ -73,6 +73,7 @@ export interface GcpCeDiscovery {
   checks: Record<'iam' | 'organizationPolicy' | 'zoneCapacity' | 'machineNicLimit' | 'licenseAcceptance', 'unknown'>;
 }
 export interface GcpCePlan {
+  preflight?: import('./preflight').GcpLaunchPreflight;
   policyReceipt?: { identity: string; url: string; observedAt: string; normalizedSha256: string };
   apiRelease: { repository: string; tag: string; contractDigest: string };
   schemaVersion: 1;

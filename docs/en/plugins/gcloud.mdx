@@ -48,13 +48,19 @@ observes F5 image/license identities and cloud prerequisites, and `gcp_ce_plan`
 validates topology and sizing with a hashed readiness plan. Native is the default;
 an explicit Terraform choice must match the intent.
 
-The plan contains no executable actions. Immutable API v12.1.2 includes GCP
+The plan contains no executable actions. Immutable API v12.1.3 includes GCP
 schema and observational mappings with both-engine single-node boot evidence.
 Public GCP Platform/Terraform execution remains unavailable pending full integration.
 Apply, upgrade, failover and teardown tools report these gaps before mutation.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
 remain separate unknown gates. Deployment labels alone cannot authorize deletion.
+
+For the qualified single-node `n2-standard-8` profile with SLO and SLI interfaces,
+readiness plans collect live IAM, quota, effective policy, zone and image/license
+checks. They retain sanitized source hashes and reject stale evidence or a changed
+intent. Capacity reservation and human Marketplace acceptance remain explicit;
+passing cloud prerequisites alone does not enable deployment.
 
 For an existing ledger-owned deployment, status and diagnostics with explicit
 region and its persisted `platformContext` use shared Platform observations.

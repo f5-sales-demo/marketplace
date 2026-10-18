@@ -1,6 +1,7 @@
 import { GCP_CE_API_RELEASE } from './contract';
 import { fingerprint } from './discovery';
 import type { GcpPolicyReceipt } from './policy';
+import type { GcpLaunchPreflight } from './preflight';
 import { GCP_CE_POLICY, type GcpCeDiscovery, type GcpCeIntent, type GcpCePlan } from './types';
 import { validateIntent } from './validation';
 
@@ -9,6 +10,7 @@ export function planGcpCe(
   discovery: GcpCeDiscovery,
   now = Date.now(),
   policyReceipt?: GcpPolicyReceipt,
+  preflight?: GcpLaunchPreflight,
 ): GcpCePlan {
   validateIntent(intent);
   if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
@@ -18,6 +20,19 @@ export function planGcpCe(
     throw new Error('Discovery is stale');
   if (!discovery.images.some((image) => fingerprint(image) === fingerprint(intent.image)))
     throw new Error('Exact image and license identity is not present in discovery');
+  if (preflight) {
+    const timestamp = Date.parse(preflight.observedAt);
+    if (
+      preflight.schemaVersion !== 1 ||
+      preflight.project !== intent.project ||
+      preflight.region !== intent.region ||
+      preflight.intentFingerprint !== fingerprint(intent) ||
+      !Number.isFinite(timestamp) ||
+      timestamp > now ||
+      now - timestamp > 5 * 60_000
+    )
+      throw new Error('Preflight scope/intent differs or evidence is stale');
+  }
   for (const site of intent.sites)
     for (const node of site.nodes) {
       const machine = discovery.machineTypes.find((m) => m.name === intent.machineType && m.zone === node.zone);
@@ -39,14 +54,23 @@ export function planGcpCe(
     ...['compute.googleapis.com', 'serviceusage.googleapis.com']
       .filter((api) => !discovery.enabledApis.includes(api))
       .map((api) => `api_not_enabled:${api}`),
-    ...Object.keys(discovery.checks).map((check) => `${check}_not_verified`),
-    'quota_headroom_not_qualified',
+    ...(preflight
+      ? [
+          ...(['iam', 'organizationPolicy', 'machineNicLimit', 'image', 'zone'] as const)
+            .filter((check) => preflight.checks[check] !== 'verified')
+            .map((check) => `${check}_not_verified`),
+          ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
+          'licenseAcceptance_not_verified',
+          'zone_capacity_not_reserved',
+        ]
+      : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
     'routing_and_return_path_not_qualified',
   ];
   const body = {
     schemaVersion: 1 as const,
     policyIdentity: GCP_CE_POLICY,
     ...(policyReceipt ? { policyReceipt } : {}),
+    ...(preflight ? { preflight: structuredClone(preflight) } : {}),
     apiRelease: GCP_CE_API_RELEASE,
     engine: intent.engine,
     intent: structuredClone(intent),

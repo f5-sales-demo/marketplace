@@ -1663,7 +1663,7 @@ var init_owned_status = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/planner.ts
-function planGcpCe(intent, discovery, now = Date.now(), policyReceipt) {
+function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight) {
   validateIntent(intent);
   if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
     throw new Error('Discovery scope does not match the intent');
@@ -1671,6 +1671,19 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt) {
   if (!Number.isFinite(observed) || observed > now || now - observed > 5 * 60000) throw new Error('Discovery is stale');
   if (!discovery.images.some((image) => fingerprint(image) === fingerprint(intent.image)))
     throw new Error('Exact image and license identity is not present in discovery');
+  if (preflight) {
+    const timestamp = Date.parse(preflight.observedAt);
+    if (
+      preflight.schemaVersion !== 1 ||
+      preflight.project !== intent.project ||
+      preflight.region !== intent.region ||
+      preflight.intentFingerprint !== fingerprint(intent) ||
+      !Number.isFinite(timestamp) ||
+      timestamp > now ||
+      now - timestamp > 5 * 60000
+    )
+      throw new Error('Preflight scope/intent differs or evidence is stale');
+  }
   for (const site of intent.sites)
     for (const node of site.nodes) {
       const machine = discovery.machineTypes.find((m) => m.name === intent.machineType && m.zone === node.zone);
@@ -1692,14 +1705,23 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt) {
     ...['compute.googleapis.com', 'serviceusage.googleapis.com']
       .filter((api) => !discovery.enabledApis.includes(api))
       .map((api) => `api_not_enabled:${api}`),
-    ...Object.keys(discovery.checks).map((check) => `${check}_not_verified`),
-    'quota_headroom_not_qualified',
+    ...(preflight
+      ? [
+          ...['iam', 'organizationPolicy', 'machineNicLimit', 'image', 'zone']
+            .filter((check) => preflight.checks[check] !== 'verified')
+            .map((check) => `${check}_not_verified`),
+          ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
+          'licenseAcceptance_not_verified',
+          'zone_capacity_not_reserved',
+        ]
+      : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
     'routing_and_return_path_not_qualified',
   ];
   const body = {
     schemaVersion: 1,
     policyIdentity: GCP_CE_POLICY,
     ...(policyReceipt ? { policyReceipt } : {}),
+    ...(preflight ? { preflight: structuredClone(preflight) } : {}),
     apiRelease: GCP_CE_API_RELEASE,
     engine: intent.engine,
     intent: structuredClone(intent),
@@ -1750,6 +1772,313 @@ var GCP_CE_POLICY_URL =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 var init_policy = () => {};
 
+// plugins/gcloud/src/ce/preflight.ts
+function object3(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed preflight source');
+  return value;
+}
+function quota(value, metric, required) {
+  const rows = object3(value).quotas;
+  if (!Array.isArray(rows)) return false;
+  const matches = rows.map(object3).filter((row) => row.metric === metric);
+  return (
+    matches.length === 1 &&
+    typeof matches[0].limit === 'number' &&
+    typeof matches[0].usage === 'number' &&
+    Number.isFinite(matches[0].limit) &&
+    Number.isFinite(matches[0].usage) &&
+    matches[0].usage >= 0 &&
+    matches[0].limit - matches[0].usage >= required
+  );
+}
+function unconditional(value, field, expected) {
+  const spec = object3(object3(value).spec),
+    rules = spec.rules;
+  return (
+    !spec.reset &&
+    Array.isArray(rules) &&
+    rules.length === 1 &&
+    !object3(rules[0]).condition &&
+    object3(rules[0])[field] === expected
+  );
+}
+async function collectGcpLaunchPreflight(intent, port, signal) {
+  validateIntent(intent);
+  if (
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 1 ||
+    intent.sites[0].nodes[0].interfaces.length !== 2 ||
+    intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
+    intent.egress.mode !== 'external-ip'
+  )
+    throw new Error('Preflight requires the qualified single-node two-interface profile');
+  signal?.throwIfAborted();
+  const node = intent.sites[0].nodes[0],
+    prefix = `/compute/v1/projects/${intent.project}`;
+  const checks = {
+    iam: 'unavailable',
+    quota: 'unavailable',
+    organizationPolicy: 'unavailable',
+    image: 'unavailable',
+    machineNicLimit: 'unavailable',
+    zone: 'unavailable',
+    licenseUseFee: 'unknown',
+    legalAcceptance: 'unknown',
+    zoneCapacity: 'not-reserved',
+  };
+  const receipts = [];
+  const read = async (source, fn) => {
+    signal?.throwIfAborted();
+    const value = await fn();
+    signal?.throwIfAborted();
+    receipts.push({ source, observedAt: new Date().toISOString(), sha256: fingerprint(value) });
+    return object3(value);
+  };
+  const attempt = async (fn) => {
+    try {
+      await fn();
+    } catch {
+      signal?.throwIfAborted();
+    }
+  };
+  await attempt(async () => {
+    const result = await read('project-iam', () =>
+      port.query(
+        `/cloudresourcemanager/v1/projects/${intent.project}:testIamPermissions`,
+        { permissions: [...GCP_CREATE_PERMISSIONS] },
+        signal,
+      ),
+    );
+    const permissions = result.permissions;
+    if (Array.isArray(permissions) && GCP_CREATE_PERMISSIONS.every((permission) => permissions.includes(permission)))
+      checks.iam = 'verified';
+  });
+  let machine;
+  await attempt(async () => {
+    machine = await read('machine-type', () =>
+      port.query(`${prefix}/zones/${node.zone}/machineTypes/${intent.machineType}`, undefined, signal),
+    );
+    if (
+      intent.machineType === 'n2-standard-8' &&
+      machine.name === intent.machineType &&
+      machine.guestCpus === 8 &&
+      machine.memoryMb === 32768
+    )
+      checks.machineNicLimit = 'verified';
+  });
+  await attempt(async () => {
+    const result = await read('zone', () => port.query(`${prefix}/zones/${node.zone}`, undefined, signal));
+    if (result.name === node.zone && result.status === 'UP') checks.zone = 'verified';
+  });
+  await attempt(async () => {
+    const region = await read('regional-quotas', () =>
+      port.query(`${prefix}/regions/${intent.region}`, undefined, signal),
+    );
+    const project = await read('project-quotas', () => port.query(prefix, undefined, signal));
+    if (
+      machine &&
+      typeof machine.guestCpus === 'number' &&
+      quota(region, 'N2_CPUS', machine.guestCpus) &&
+      quota(region, 'DISKS_TOTAL_GB', intent.diskGiB) &&
+      quota(region, 'IN_USE_ADDRESSES', 1) &&
+      quota(project, 'NETWORKS', 2)
+    )
+      checks.quota = 'verified';
+  });
+  await attempt(async () => {
+    const raw = await read('exact-image', () =>
+      port.query(intent.image.selfLink.replace('https://www.googleapis.com', ''), undefined, signal),
+    );
+    const result = { ...raw, architecture: raw.architecture ?? 'X86_64' };
+    if (
+      ['id', 'name', 'selfLink', 'status', 'architecture', 'licenses'].every(
+        (key) => fingerprint(result[key]) === fingerprint(intent.image[key]),
+      )
+    )
+      checks.image = 'verified';
+    const licenses = [];
+    for (const license of intent.image.licenses)
+      licenses.push(
+        await read('image-license', () =>
+          port.query(license.replace('https://www.googleapis.com', ''), undefined, signal),
+        ),
+      );
+    if (licenses.every((license) => license.chargesUseFee === false)) checks.licenseUseFee = 'none';
+    else if (licenses.some((license) => license.chargesUseFee === true)) checks.licenseUseFee = 'charged';
+  });
+  await attempt(async () => {
+    const values = [];
+    for (const constraint of [
+      'compute.vmExternalIpAccess',
+      'compute.trustedImageProjects',
+      'compute.requireShieldedVm',
+      'compute.restrictNonConfidentialComputing',
+      'compute.disableSerialPortAccess',
+    ])
+      values.push(await read(constraint, () => port.policy(intent.project, constraint, signal)));
+    if (
+      unconditional(values[0], 'allowAll', true) &&
+      unconditional(values[1], 'allowAll', true) &&
+      unconditional(values[2], 'enforce', false) &&
+      unconditional(values[3], 'allowAll', true) &&
+      unconditional(values[4], 'enforce', true)
+    )
+      checks.organizationPolicy = 'verified';
+  });
+  return {
+    schemaVersion: 1,
+    project: intent.project,
+    region: intent.region,
+    intentFingerprint: fingerprint(intent),
+    observedAt: new Date().toISOString(),
+    checks,
+    receipts,
+  };
+}
+var GCP_CREATE_PERMISSIONS;
+var init_preflight = __esm(() => {
+  init_discovery();
+  init_validation();
+  GCP_CREATE_PERMISSIONS = [
+    'compute.instances.create',
+    'compute.instances.delete',
+    'compute.instances.get',
+    'compute.instances.setMetadata',
+    'compute.instances.setLabels',
+    'compute.instances.setTags',
+    'compute.disks.create',
+    'compute.disks.delete',
+    'compute.disks.get',
+    'compute.disks.use',
+    'compute.images.useReadOnly',
+    'compute.networks.create',
+    'compute.networks.delete',
+    'compute.networks.get',
+    'compute.networks.use',
+    'compute.subnetworks.create',
+    'compute.subnetworks.delete',
+    'compute.subnetworks.get',
+    'compute.subnetworks.use',
+    'compute.subnetworks.useExternalIp',
+    'compute.zoneOperations.get',
+    'compute.globalOperations.get',
+    'compute.regionOperations.get',
+    'compute.machineTypes.get',
+    'compute.regions.get',
+    'compute.zones.get',
+  ];
+});
+
+// plugins/gcloud/src/ce/preflight-port.ts
+function createGcpPreflightPort(api, project, fetcher = fetch) {
+  validateScope(project);
+  let credential;
+  const request = async (path, body, signal) => {
+    const compute = `/compute/v1/projects/${project}`;
+    const publisher = '/compute/v1/projects/f5-7626-networks-public/global';
+    const iam = `/cloudresourcemanager/v1/projects/${project}:testIamPermissions`;
+    const suffix = path.startsWith(compute) ? path.slice(compute.length) : undefined;
+    const allowedCompute =
+      suffix !== undefined &&
+      /^(?:|\/regions\/[a-z]+(?:-[a-z]+)+\d|\/zones\/[a-z]+(?:-[a-z]+)+\d-[a-z](?:\/machineTypes\/[a-z][a-z0-9-]{0,62})?)$/.test(
+        suffix,
+      );
+    const allowedPublisher =
+      path.startsWith(publisher) && /^\/(?:images|licenses)\/[a-z][a-z0-9-]{0,62}$/.test(path.slice(publisher.length));
+    if (!allowedCompute && !allowedPublisher && path !== iam)
+      throw new Error('Preflight request escaped explicit project scope');
+    if ((path === iam) !== (body !== undefined)) throw new Error('Preflight request method differs');
+    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+    combined.throwIfAborted();
+    if (!credential) {
+      const result = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${project}`, '--quiet'], {
+        signal: combined,
+      });
+      if (result.exitCode !== 0 || !result.stdout.trim() || /\s/.test(result.stdout.trim()))
+        throw new Error('GCP preflight authentication unavailable');
+      credential = result.stdout.trim();
+    }
+    combined.throwIfAborted();
+    const url =
+      path === iam
+        ? `https://cloudresourcemanager.googleapis.com/v1/projects/${project}:testIamPermissions`
+        : `https://compute.googleapis.com${path}`;
+    const response = await fetcher(url, {
+      method: body ? 'POST' : 'GET',
+      redirect: 'error',
+      signal: combined,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${credential}`,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok || !response.body) throw new Error('GCP preflight source unavailable');
+    const reader = response.body.getReader(),
+      chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > 4 * 1024 * 1024) throw new Error('GCP preflight response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    try {
+      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+    } catch {
+      throw new Error('GCP preflight response malformed');
+    }
+  };
+  return {
+    query: request,
+    async policy(requestedProject, constraint, signal) {
+      if (
+        requestedProject !== project ||
+        ![
+          'compute.vmExternalIpAccess',
+          'compute.trustedImageProjects',
+          'compute.requireShieldedVm',
+          'compute.restrictNonConfidentialComputing',
+          'compute.disableSerialPortAccess',
+        ].includes(constraint)
+      )
+        throw new Error('Preflight policy escaped explicit scope');
+      signal?.throwIfAborted();
+      const result = await api.exec(
+        'gcloud',
+        [
+          'org-policies',
+          'describe',
+          `constraints/${constraint}`,
+          `--project=${project}`,
+          '--effective',
+          '--format=json',
+        ],
+        { signal },
+      );
+      signal?.throwIfAborted();
+      if (result.exitCode !== 0) throw new Error('GCP effective policy unavailable');
+      try {
+        return JSON.parse(result.stdout);
+      } catch {
+        throw new Error('GCP effective policy malformed');
+      }
+    },
+  };
+}
+var init_preflight_port = __esm(() => {
+  init_validation();
+});
+
 // plugins/gcloud/src/tools/gcp-ce.ts
 function result(tool, data, isError = false) {
   return {
@@ -1776,6 +2105,7 @@ function createGcpCeTools(
   makeApi = makeExecApi,
   contract = resolveGcpContract,
   getPlatform = () => platformService(pi),
+  preflight = collectGcpLaunchPreflight,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -1864,7 +2194,17 @@ function createGcpCeTools(
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
           const boundary = await contract(undefined, signal);
           const policyReceipt = await readGcpCePolicy();
-          const plan = planGcpCe(params.intent, discovery, Date.now(), policyReceipt);
+          const intent = params.intent;
+          const profileSupported =
+            intent.sites.length === 1 &&
+            intent.sites[0].nodes.length === 1 &&
+            intent.sites[0].nodes[0].interfaces.length === 2 &&
+            intent.sites[0].nodes[0].interfaces[1].role === 'sli' &&
+            intent.egress.mode === 'external-ip';
+          const prerequisites = profileSupported
+            ? await preflight(intent, createGcpPreflightPort(api, params.project), signal)
+            : undefined;
+          const plan = planGcpCe(intent, discovery, Date.now(), policyReceipt, prerequisites);
           return result(tool, { availability: 'unavailable', boundary, plan });
         }
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
@@ -1992,6 +2332,8 @@ var init_gcp_ce = __esm(() => {
   init_owned_status();
   init_planner();
   init_policy();
+  init_preflight();
+  init_preflight_port();
   init_validation();
   init_exec();
   init_shared();

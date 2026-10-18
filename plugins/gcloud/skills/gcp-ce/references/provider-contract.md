@@ -19,6 +19,13 @@ candidates. A candidate is not a supported boot/registration receipt. Billing,
 enabled APIs, machine inventory and region quotas are observations; permissions,
 organization policy, zone capacity and machine NIC limits remain independent gates.
 
+Readiness planning collects live IAM, project/regional quota, effective organization
+policies, zone availability and exact image/license responses for the qualified
+single-node, two-interface `n2-standard-8` profile. Plans bind the sanitized source
+hashes and collection time to their intent. Missing, stale, conditional or ambiguous
+evidence remains unavailable. An observed UP zone does not reserve capacity, and
+`chargesUseFee=false` does not establish human Marketplace acceptance.
+
 Requested future profiles are external IP/Cloud NAT and explicit firewall/proxy
 egress; static insertion; internal passthrough LB ingress and next-hop routing;
 NCC router appliance/Cloud Router BGP only with verified F5 mappings. Each profile
