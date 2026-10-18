@@ -7,7 +7,8 @@ const tenantId = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
 const foreignSubscriptionId = ['33333333', '3333', '4333', '8333', '333333333333'].join('-');
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
-const sharedContractUrl = 'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
+const sharedContractUrl =
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
