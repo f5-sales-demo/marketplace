@@ -113,7 +113,7 @@ export function flag(argv: string[], ...names: string[]): string | undefined {
 export function context(_operation: string, args: Args): Section[] {
   return [
     fields({
-      Org: args.target_org ?? 'Default org',
+      'Salesforce organization': args.target_org || 'CLI default organization',
       ...(args.use_tooling_api ? { API: 'Tooling' } : {}),
       ...(args.all_rows ? { Records: 'Includes deleted records' } : {}),
       ...(args.options && Object.keys(record(args.options)).length ? { Options: args.options } : {}),

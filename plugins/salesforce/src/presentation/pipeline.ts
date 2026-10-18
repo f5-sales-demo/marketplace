@@ -63,7 +63,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
   const sections: Section[] = [
     fields(
       {
-        Org: args.target_org ?? scope.orgAlias ?? 'Default org',
+        'Salesforce organization': args.target_org || scope.orgAlias || 'CLI default organization',
         ...(report.fyLabel !== undefined ? { 'Fiscal year': report.fyLabel } : {}),
         ...(quarter.start !== undefined || quarter.end !== undefined
           ? { Quarter: `${quarter.start ?? 'Unknown'} – ${quarter.end ?? 'Unknown'}` }
