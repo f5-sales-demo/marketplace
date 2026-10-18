@@ -167,7 +167,9 @@ export function component(title: string, view: (width: number) => View, options:
             /Pipeline:|Discovering pipeline scope|Preparing pipeline/.test(text)
           ) {
             const frames: string[] = theme.spinnerFrames ?? [];
-            const frame = frames.length ? frames[(options.spinnerFrame ?? 0) % frames.length] : undefined;
+            const frame = frames.length
+              ? frames[(options.spinnerFrame ?? Math.floor(Date.now() / 80)) % frames.length]
+              : undefined;
             const status = text.match(/(?:Pipeline:|Discovering pipeline scope|Preparing pipeline).*$/)?.[0];
             if (frame && status) text = `${frame} ${status}`;
           }
