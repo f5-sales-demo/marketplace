@@ -4,6 +4,7 @@ import type { GcpCeContractBoundary } from '../../../gcloud/src/ce/contract';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { validateIntent } from '../../../gcloud/src/ce/validation';
+import { initialSoftwareSettings } from './initial-versions';
 
 type Json = Record<string, unknown>;
 export interface GcpLifecyclePort {
@@ -42,6 +43,7 @@ export class GcpPlatformLifecycle {
     this.#site = intent.sites[0].name;
     this.#node = intent.sites[0].nodes[0].name;
     this.#spec = structuredClone(profile.site_create.spec);
+    if (intent.initialVersions) this.#spec.software_settings = initialSoftwareSettings(intent.initialVersions);
     this.#binding = fingerprint({ intent, contract: contract.release.contractDigest });
   }
   #unchanged() {

@@ -126,3 +126,25 @@ it('token revocation requires exact node/site labels and reconciles lost deletio
   await expect(driver.revokeToken('node-a-token')).rejects.toThrow('ownership');
   expect(deletes).toBe(1);
 });
+
+it('native site creation preserves the explicit reviewed initial version pair', async () => {
+  const f = fixture();
+  f.i.initialVersions = { software: 'crt-20260801-0209', os: '9.2026.20' };
+  let live: Record<string, unknown> | null = null,
+    body: Record<string, unknown> | undefined;
+  const driver = new GcpPlatformLifecycle(f.store, f.i, f.contract, {
+    read: async () => live,
+    mutate: async (_path, _method, value) => {
+      body = value;
+      live = f.site;
+      return {};
+    },
+  });
+  await driver.ensureSite();
+  expect(body?.spec).toMatchObject({
+    software_settings: {
+      sw: { volterra_software_version: 'crt-20260801-0209' },
+      os: { operating_system_version: '9.2026.20' },
+    },
+  });
+});

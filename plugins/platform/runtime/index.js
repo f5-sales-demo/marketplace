@@ -4775,6 +4775,7 @@ class GcpPlatformLifecycle {
     this.#site = intent.sites[0].name;
     this.#node = intent.sites[0].nodes[0].name;
     this.#spec = structuredClone(profile.site_create.spec);
+    if (intent.initialVersions) this.#spec.software_settings = initialSoftwareSettings(intent.initialVersions);
     this.#binding = fingerprint({ intent, contract: contract.release.contractDigest });
   }
   #unchanged() {
