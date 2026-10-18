@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.7 shows one concise Pipeline progress status and compact monthly distribution tables, with complete evidence retained in expansion (#1569).
+
 - **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
 - **`gcloud`** bumped to v1.6.0

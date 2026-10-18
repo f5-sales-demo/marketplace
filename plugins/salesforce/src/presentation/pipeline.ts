@@ -1,22 +1,29 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import { copyableCommand, toolArgv } from './command';
 import type { Args, Options, Result, Section, State, View } from './shared';
-import { data, evidence, fields, hint, literal, record, rows, table, value } from './shared';
+import { data, evidence, fields, hint, literal, record, rows, table, texts, value } from './shared';
 
 export function pipelineView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const details = record(result.details),
     report = record(details.pipelineReport),
     scope = record(details.pipelineEvidence);
-  if (!Object.keys(report).length)
+  if (!Object.keys(report).length) {
+    const progress = texts(result).join('\n');
+    const counts = /^Pipeline queries: (\d+) completed, (\d+) running\.$/.exec(progress);
+    const running = counts ? Number(counts[2]) : undefined;
+    const completed = counts ? Number(counts[1]) : undefined;
+    const status = counts
+      ? `Pipeline: ${completed} completed · ${running} ${running === 1 ? 'query' : 'queries'} running`
+      : progress === 'Discovering pipeline scope and schema.'
+        ? 'Discovering pipeline scope'
+        : 'Preparing pipeline';
     return {
       states: [
-        {
-          kind: options.isPartial ? 'running' : 'disabled',
-          text: options.isPartial ? 'Pipeline in progress' : 'Pipeline unavailable',
-        },
+        { kind: options.isPartial ? 'running' : 'disabled', text: options.isPartial ? status : 'Pipeline unavailable' },
       ],
-      sections: evidence(p, result, args),
+      sections: options.expanded ? evidence(p, result, args) : [],
     };
+  }
   const groups = rows(report.currencyBreakdown);
   const quarter = record(report.quarter);
   const currencies = groups.map((g) => String(g.currency ?? 'unverified'));
@@ -127,6 +134,14 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       if (renewalsUnavailable && (key === 'topRenewals' || key === 'renewalDistribution')) continue;
       if (group[key] === undefined || group[key] === null) absent.push(title);
       else if (Array.isArray(group[key]) && !(group[key] as unknown[]).length) empty.push(title);
+      else if ((key === 'closeDistribution' || key === 'renewalDistribution') && !options.expanded)
+        sections.push(
+          table(p, rows(group[key]), `${title} · ${currency}`, ['label', 'amount', 'oppCount'], {
+            label: 'Month',
+            amount: 'Amount',
+            oppCount: 'Opportunities',
+          }),
+        );
       else sections.push(...data(p, group[key], `${title} · ${currency}`));
     }
     if (empty.length) sections.push(hint(`No records · ${currency}: ${empty.join(', ')}`));
