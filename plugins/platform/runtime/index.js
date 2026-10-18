@@ -1037,8 +1037,8 @@ function fingerprint(value) {
 // plugins/gcloud/src/ce/contract.ts
 var GCP_CE_API_RELEASE = {
   repository: 'f5-sales-demo/api-specs-enriched',
-  tag: 'v12.1.2',
-  contractDigest: 'sha256:07f797c5d48fe8fc7557add08242cb5fff04ffe69f669c84ce377ca7c6abc325',
+  tag: 'v12.1.3',
+  contractDigest: 'sha256:ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc',
 };
 async function resolveGcpContract(fetcher = fetch, signal) {
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
@@ -1128,6 +1128,12 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
+    gcp.single_node_lifecycle.node_count === 1 &&
+    gcp.single_node_lifecycle.interface_count === 2 &&
+    gcp.single_node_lifecycle.consumer_runtime_qualification_required === true
+      ? { singleNodeLifecycle: structuredClone(gcp.single_node_lifecycle) }
+      : {}),
   };
 }
 
