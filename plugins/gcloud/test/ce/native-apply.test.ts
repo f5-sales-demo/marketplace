@@ -147,3 +147,26 @@ it('dependent actions never execute before prior asynchronous completion', async
   });
   expect(calls).toBe(1);
 });
+it('rejects foreign or dependency-forged checkpoint actions without executing', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const p = plan();
+  await s.write('gcp-lifecycle-checkpoint.json', {
+    schemaVersion: 1,
+    planSha256: p.sha256,
+    approvedPlanSha256: p.sha256,
+    actions: { foreign: { state: 'done' } },
+  });
+  let calls = 0;
+  await expect(
+    applyGcpNativeLifecycle(s, p, p.sha256, {
+      observe: async () => resource,
+      submit: async () => {
+        calls++;
+        return {};
+      },
+      reconcile: async () => 'done',
+    }),
+  ).rejects.toThrow('foreign');
+  expect(calls).toBe(0);
+});

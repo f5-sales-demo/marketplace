@@ -120,6 +120,16 @@ export async function applyGcpNativeLifecycle(
       Array.isArray(checkpoint.actions)
     )
       throw new Error('Resume checkpoint is not bound to reviewed authorization');
+    const actionIds = new Set(plan.actions.map((action) => action.id));
+    if (Object.keys(checkpoint.actions).some((id) => !actionIds.has(id)))
+      throw new Error('Checkpoint includes foreign lifecycle actions');
+    for (const action of plan.actions) {
+      const recorded = checkpoint.actions[action.id];
+      if (recorded && Object.keys(recorded).some((key) => !['state', 'receipt'].includes(key)))
+        throw new Error('Malformed lifecycle action evidence');
+      if (recorded?.state === 'done' && action.dependencies.some((id) => checkpoint.actions[id]?.state !== 'done'))
+        throw new Error('Checkpoint violates lifecycle dependency order');
+    }
     const save = () => store.write('gcp-lifecycle-checkpoint.json', checkpoint);
     await save();
     for (const action of plan.actions) {
