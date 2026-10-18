@@ -1,4 +1,5 @@
 import { HttpCeV2Driver } from './ce/driver';
+import { type CeEventBus, createCePlatformService, registerCePlatformService } from './ce/service';
 import { presentTool as enrichTool } from './presentation';
 import type { PlatformToolApi, PlatformToolContext } from './types';
 
@@ -8,6 +9,7 @@ interface PlatformExtensionApi extends PlatformToolApi {
   registerTool(tool: unknown): void;
   integrations: { register<_T>(definition: unknown): unknown };
   settings?: { get(key: string): unknown };
+  events?: CeEventBus;
   on?: (event: 'session_start' | 'context', handler: (event: unknown, context: PlatformToolContext) => void) => void;
 }
 
@@ -30,6 +32,7 @@ function activeContextEnvironment(
 const factory: ExtensionFactory = async (pi) => {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('F5 Distributed Cloud Platform');
+  if (pi.events) registerCePlatformService(pi.events, createCePlatformService(activeContextEnvironment(pi)));
   let sessionSettings: PlatformToolContext['settings'];
   const observeSession = (_event: unknown, context: PlatformToolContext) => {
     sessionSettings = context.settings;
