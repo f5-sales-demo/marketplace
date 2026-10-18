@@ -71,7 +71,7 @@ export async function discoverGcp(
       'list',
       `--project=${GCP_CE_IMAGE_PROJECT}`,
       '--no-standard-images',
-      '--filter=name~^f5xc-ce(-crt|crt)-',
+      '--filter=name~^f5xc-ce',
       '--format=json(id,name,selfLink,status,licenses,architecture)',
     ]),
   );
