@@ -1,0 +1,191 @@
+import { resolveGcpContract } from '../ce/contract';
+import { discoverGcp } from '../ce/discovery';
+import { planGcpCe } from '../ce/planner';
+import { readGcpCePolicy } from '../ce/policy';
+import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
+import { validateIntent, validateScope } from '../ce/validation';
+import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
+import type { PluginInterface } from '../gcloud/types';
+import { makeExecApi } from './shared';
+
+function result(tool: string, data: Record<string, unknown>, isError = false) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+    details: { tool, ...data },
+    ...(isError ? { isError: true } : {}),
+  };
+}
+const UNKNOWN = {
+  registration: 'unknown',
+  physicalInterfaceIdentity: 'unknown',
+  platformHealth: 'unknown',
+  routing: 'unknown',
+  applicationTraffic: 'unknown',
+};
+export function createGcpCeTools(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => GcloudExecApi = makeExecApi,
+  contract = resolveGcpContract,
+) {
+  const { Type } = pi.typebox;
+  const definitions = [
+    ['gcp_project_identity', 'Read explicit GCP project identity. Does not change the active project or authenticate.'],
+    [
+      'gcp_compute_discover',
+      'Discover exact F5 images and licenses, billing, APIs, machines and quotas for an explicit project/region. Unknown prerequisites remain explicit.',
+    ],
+    [
+      'gcp_ce_inventory',
+      'List cloud instances labeled for a CE deployment. Labels are candidate ownership only; platform registration, interface identity and traffic remain unknown.',
+    ],
+    [
+      'gcp_ce_plan',
+      'Validate a versioned GCP CE intent and return a hashed, non-executable readiness plan. Supports native or explicit Terraform. Never accepts caller discovery/health evidence.',
+    ],
+    [
+      'gcp_ce_apply',
+      'Report GCP CE execution availability. Native/Terraform mutation is unavailable until verified API mappings and shared runtime/runner are integrated.',
+    ],
+    [
+      'gcp_ce_status',
+      'Observe cloud instance provisioning for an explicit deployment without inferring F5 or traffic health.',
+    ],
+    [
+      'gcp_ce_diagnose',
+      'Report read-only cloud provisioning and separate unknown platform/interface/routing/traffic evidence. No packet collection or intrusive diagnostics.',
+    ],
+    ['gcp_ce_upgrade', 'Report GCP upgrade availability; upgrades require a reviewed plan and qualified F5 contract.'],
+    ['gcp_ce_failover', 'Report GCP failover availability; no outage is induced without a qualified reviewed plan.'],
+    ['gcp_ce_teardown', 'Report GCP teardown availability; labels alone never authorize deletion.'],
+  ];
+  return definitions.map(([tool, description]) => ({
+    name: tool,
+    label: tool.replaceAll('_', ' '),
+    description,
+    parameters: Type.Object({
+      project: Type.String({ description: 'Explicit target project ID' }),
+      region: Type.Optional(Type.String({ description: 'Explicit region; required for discovery and plan' })),
+      deploymentName: Type.Optional(
+        Type.String({ description: 'Exact deployment label; required for inventory/status/diagnose' }),
+      ),
+      engine: Type.Optional(
+        Type.Union([Type.Literal('native'), Type.Literal('terraform')], {
+          description: 'Owning engine; native is the conversational default',
+        }),
+      ),
+      intent: Type.Optional(Type.Unknown({ description: 'Versioned GCP CE intent; only used by gcp_ce_plan' })),
+    }),
+    async execute(
+      _id: string,
+      params: { project: string; region?: string; deploymentName?: string; engine?: GcpCeEngine; intent?: GcpCeIntent },
+      signal: AbortSignal | undefined,
+      _update: unknown,
+      ctx: { cwd: string },
+    ) {
+      try {
+        validateScope(params.project, params.region);
+        if (params.engine !== undefined && !['native', 'terraform'].includes(params.engine))
+          throw new Error('Invalid owning engine');
+        if (signal?.aborted) throw new Error('Operation cancelled');
+        const api = makeApi(ctx.cwd);
+        if (tool === 'gcp_project_identity') {
+          const raw = await execGcloudJson<{ projectId?: string; projectNumber?: string; lifecycleState?: string }>(
+            api,
+            ['projects', 'describe', params.project, `--project=${params.project}`],
+            signal,
+          );
+          if (raw.projectId !== params.project || !/^\d+$/.test(raw.projectNumber ?? ''))
+            throw new Error('Project identity mismatch');
+          return result(tool, {
+            project: raw.projectId,
+            projectNumber: raw.projectNumber,
+            lifecycleState: raw.lifecycleState,
+          });
+        }
+        if (['gcp_compute_discover', 'gcp_ce_plan'].includes(tool)) {
+          if (!params.region) throw new Error('Explicit region required');
+          if (
+            tool === 'gcp_ce_plan' &&
+            (!params.intent ||
+              params.intent.project !== params.project ||
+              params.intent.region !== params.region ||
+              params.intent.engine !== (params.engine ?? 'native'))
+          )
+            throw new Error('Intent scope/owning engine mismatch');
+          if (tool === 'gcp_ce_plan') validateIntent(params.intent as GcpCeIntent);
+          const discovery = await discoverGcp(api, params.project, params.region, signal);
+          if (tool === 'gcp_compute_discover') return result(tool, { discovery });
+          const boundary = await contract();
+          const policyReceipt = await readGcpCePolicy();
+          const plan = planGcpCe(params.intent as GcpCeIntent, discovery, Date.now(), policyReceipt);
+          return result(tool, { availability: 'unavailable', boundary, plan });
+        }
+        if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
+          if (!params.deploymentName || !/^[a-z][a-z0-9-]{0,62}$/.test(params.deploymentName))
+            throw new Error('Exact deployment name required');
+          const raw = await execGcloudJson<Array<Record<string, unknown>>>(
+            api,
+            [
+              'compute',
+              'instances',
+              'list',
+              `--project=${params.project}`,
+              `--filter=labels.xcsh-deployment=${params.deploymentName}`,
+              '--format=json(id,name,zone,status,labels)',
+            ],
+            signal,
+          );
+          if (!Array.isArray(raw)) throw new Error('Malformed inventory');
+          // Allowlist fields: never export metadata, startup scripts, service accounts or bootstrap.
+          const instances = raw
+            .filter(
+              (r) => (r.labels as Record<string, string> | undefined)?.['xcsh-deployment'] === params.deploymentName,
+            )
+            .map((r) => ({
+              id: r.id,
+              name: r.name,
+              zone: r.zone,
+              status: r.status,
+              ownership: 'candidate-label-only',
+            }));
+          return result(tool, {
+            schemaVersion: 1,
+            project: params.project,
+            deploymentName: params.deploymentName,
+            observedAt: new Date().toISOString(),
+            instances,
+            cloudProvisioning: 'observed',
+            ...UNKNOWN,
+            absence: 'not-established',
+            owningEngine: 'not-established',
+          });
+        }
+        const boundary = await contract();
+        return result(
+          tool,
+          {
+            availability: 'unavailable',
+            reason: boundary.reason,
+            boundary,
+            engine: params.engine ?? 'native',
+            mutationAttempted: false,
+            required: [
+              'qualified GCP API/policy mappings',
+              'shared Platform CE runtime',
+              'owning-engine deployment ledger',
+              ...(params.engine === 'terraform' ? ['shared Terraform GCP runner'] : []),
+            ],
+          },
+          true,
+        );
+      } catch {
+        // Cloud errors and caller-controlled fields can contain private values.
+        return result(
+          tool,
+          { availability: 'unavailable', reason: 'validation_or_read_failed', mutationAttempted: false },
+          true,
+        );
+      }
+    },
+  }));
+}
