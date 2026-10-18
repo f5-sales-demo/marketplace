@@ -76,6 +76,13 @@ function validate(plan: GcpLifecyclePlan, approvedHash: string) {
       !action.argv.includes(`--zone=${zone}`)
     )
       throw new Error('Action argv does not match owned identity');
+    if (
+      !action.argv.includes('--format=json') ||
+      (action.argv[2] === 'set-machine-type' &&
+        action.argv.filter((arg) => arg.startsWith('--machine-type=')).length !== 1) ||
+      (action.argv[2] !== 'set-machine-type' && !action.argv.includes('--async'))
+    )
+      throw new Error('Lifecycle action lacks exact operation/result flags');
     const allowed = new Set([`--project=${plan.project}`, `--zone=${zone}`, '--async', '--quiet', '--format=json']);
     for (const arg of action.argv.slice(4)) {
       if (
