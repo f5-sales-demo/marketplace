@@ -92,6 +92,7 @@ test('public failover prepares a private plan and applies it with one durable au
   const artifacts: string[] = [];
   let confirms = 0;
   let runs = 0;
+  let acceptance: 'passed' | 'failed' = 'passed';
   const ctx = {
     cwd: '/tmp',
     hasUI: true,
@@ -127,7 +128,10 @@ test('public failover prepares a private plan and applies it with one durable au
       runs++;
       expect(authorized).toBe(failover.planSha256);
       return {
-        status: 'failover-complete' as const,
+        status: acceptance === 'passed' ? ('failover-complete' as const) : ('failover-acceptance-failed' as const),
+        acceptance,
+        withdrawalTiming: { status: 'passed' as const, thresholdMs: 45000 as const },
+        restorationTiming: { status: acceptance, thresholdMs: 45000 as const },
         engine: 'terraform' as const,
         planId: failover.planId,
         planSha256: failover.planSha256,
@@ -162,6 +166,12 @@ test('public failover prepares a private plan and applies it with one durable au
   expect((await tool.execute('3', input, undefined, undefined, ctx)).isError).toBeUndefined();
   expect(confirms).toBe(1);
   expect(runs).toBe(2);
+  acceptance = 'failed';
+  const failed = await tool.execute('4', input, undefined, undefined, ctx);
+  expect(failed.isError).toBe(true);
+  expect(failed.details.status).toBe('failover-acceptance-failed');
+  expect(artifacts.at(-1)).toContain('"acceptance":"failed"');
+  expect(confirms).toBe(1);
 });
 
 test('public failover routes native ownership without opening Terraform', async () => {

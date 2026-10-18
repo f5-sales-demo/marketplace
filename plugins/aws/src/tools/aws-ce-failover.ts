@@ -302,9 +302,10 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
           content: [
             {
               type: 'text' as const,
-              text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration passed; traffic and origin-control evidence remain separate.`,
+              text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Traffic and origin-control evidence remain separate.`,
             },
           ],
+          ...('acceptance' in result && result.acceptance !== 'passed' ? { isError: true } : {}),
           details: { tool: 'aws_ce_failover', operation: 'apply', artifactId, ...result },
         };
       } catch (error) {

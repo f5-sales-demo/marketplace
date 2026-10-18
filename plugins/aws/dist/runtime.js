@@ -15851,10 +15851,55 @@ async function runAwsTerraformFailover(
         !/^[a-f0-9]{64}$/.test(checkpoint.submittedPlanSha256))
     )
       throw new Error('Terraform failover checkpoint differs');
+    const now = () => (polling.now ?? Date.now)();
+    const timestamp = () => {
+      const value = now();
+      if (!Number.isFinite(value)) throw new Error('Failover clock is invalid');
+      return new Date(value).toISOString();
+    };
+    for (const [phase, attempt] of Object.entries(checkpoint.attempts ?? {})) {
+      if (
+        !['stop', 'start'].includes(phase) ||
+        !attempt ||
+        attempt.instanceId !== failover.instanceId ||
+        attempt.sourcePlanSha256 !== base.planSha256 ||
+        !/^[a-f0-9]{64}$/.test(attempt.planSha256) ||
+        !Number.isFinite(Date.parse(attempt.observedAt)) ||
+        Date.parse(attempt.observedAt) > now()
+      )
+        throw new Error('Failover original attempt binding differs');
+    }
+    for (const [phase, timing] of Object.entries(checkpoint.timings ?? {})) {
+      if (
+        !['outage', 'recovered'].includes(phase) ||
+        !timing ||
+        timing.thresholdMs !== 45000 ||
+        !['passed', 'failed', 'unknown'].includes(timing.status)
+      )
+        throw new Error('Failover timing checkpoint differs');
+      const attempt = checkpoint.attempts?.[phase === 'outage' ? 'stop' : 'start'];
+      if (timing.status === 'unknown') {
+        if (timing.elapsedMs !== undefined || timing.originalAttemptAt !== undefined || timing.observedAt !== undefined)
+          throw new Error('Unknown failover timing contains invented evidence');
+      } else {
+        const elapsed = Date.parse(timing.observedAt ?? '') - Date.parse(attempt?.observedAt ?? '');
+        if (
+          !attempt ||
+          timing.originalAttemptAt !== attempt.observedAt ||
+          !Number.isFinite(elapsed) ||
+          elapsed < 0 ||
+          timing.elapsedMs !== elapsed ||
+          Date.parse(timing.observedAt ?? '') > now() ||
+          timing.status !== (elapsed <= 45000 ? 'passed' : 'failed')
+        )
+          throw new Error('Failover timing does not match original attempt');
+      }
+    }
     let active = checkpoint;
     const mutate = async (name, next) => {
       const stage = failover.stages[name];
       let receipt;
+      const resumingSubmitted = !!active.submittedPlanSha256;
       if (active.submittedPlanSha256) {
         receipt = await storage.read(`${failover.planId}-${name}-plan.json`);
         validateAwsTerraformFailoverPlan(stage, receipt);
@@ -15868,6 +15913,27 @@ async function runAwsTerraformFailover(
         active = { ...active, phase: name, submittedPlanSha256: receipt.planSha256 };
         await storage.write(checkpointName, active);
       }
+      if (name !== 'release') {
+        const existing = active.attempts?.[name];
+        if (existing && existing.planSha256 !== receipt.planSha256)
+          throw new Error('Failover original attempt saved plan differs');
+        if (!existing && !active.submittedPlanSha256) throw new Error('Failover submitted plan missing');
+        if (!existing && !resumingSubmitted) {
+          active = {
+            ...active,
+            attempts: {
+              ...active.attempts,
+              [name]: {
+                observedAt: timestamp(),
+                planSha256: receipt.planSha256,
+                instanceId: failover.instanceId,
+                sourcePlanSha256: base.planSha256,
+              },
+            },
+          };
+          await storage.write(checkpointName, active);
+        }
+      }
       await storage.verify();
       await session.apply(receipt, env, signal);
       active = { ...active, phase: next, submittedPlanSha256: undefined };
@@ -15879,7 +15945,25 @@ async function runAwsTerraformFailover(
         const evidence = await collect(phase, signal);
         if (evidence.acceptance === 'passed') {
           await storage.write(`${failover.planId}-${phase}-evidence.json`, evidence);
-          active = { ...active, phase: next, submittedPlanSha256: undefined };
+          const attempt = active.attempts?.[phase === 'outage' ? 'stop' : 'start'];
+          const observedAt = timestamp();
+          const elapsedMs = attempt ? Date.parse(observedAt) - Date.parse(attempt.observedAt) : undefined;
+          const timing =
+            elapsedMs !== undefined && elapsedMs >= 0
+              ? {
+                  status: elapsedMs <= 45000 ? 'passed' : 'failed',
+                  thresholdMs: 45000,
+                  originalAttemptAt: attempt?.observedAt,
+                  observedAt,
+                  elapsedMs,
+                }
+              : { status: 'unknown', thresholdMs: 45000 };
+          active = {
+            ...active,
+            phase: next,
+            submittedPlanSha256: undefined,
+            timings: { ...active.timings, [phase]: timing },
+          };
           await storage.write(checkpointName, active);
           return;
         }
@@ -15896,8 +15980,23 @@ async function runAwsTerraformFailover(
     validateAwsTerraformFailoverPlan(failover.stages.release, final);
     if (!final.noChanges || final.changes.some((change) => change.actions[0] !== 'no-op'))
       throw new Error('Terraform failover did not finish with a refresh-enabled no-change plan');
+    const withdrawalTiming = active.timings?.outage ?? { status: 'unknown', thresholdMs: 45000 };
+    const restorationTiming = active.timings?.recovered ?? { status: 'unknown', thresholdMs: 45000 };
+    const acceptance = [withdrawalTiming, restorationTiming].some((t) => t.status === 'failed')
+      ? 'failed'
+      : [withdrawalTiming, restorationTiming].every((t) => t.status === 'passed')
+        ? 'passed'
+        : 'unknown';
     const receipt = {
-      status: 'failover-complete',
+      status:
+        acceptance === 'passed'
+          ? 'failover-complete'
+          : acceptance === 'failed'
+            ? 'failover-acceptance-failed'
+            : 'failover-acceptance-unknown',
+      acceptance,
+      withdrawalTiming,
+      restorationTiming,
       engine: 'terraform',
       planId: failover.planId,
       planSha256: failover.planSha256,
@@ -16167,9 +16266,10 @@ Node ${failover.nodeIndex}`,
           content: [
             {
               type: 'text',
-              text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration passed; traffic and origin-control evidence remain separate.`,
+              text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Traffic and origin-control evidence remain separate.`,
             },
           ],
+          ...('acceptance' in result && result.acceptance !== 'passed' ? { isError: true } : {}),
           details: { tool: 'aws_ce_failover', operation: 'apply', artifactId, ...result },
         };
       } catch (error) {

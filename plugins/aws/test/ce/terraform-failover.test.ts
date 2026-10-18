@@ -15,6 +15,10 @@ import {
 } from '../../src/ce/terraform-failover';
 import { connectFixture } from './terraform-connect-fixture';
 
+interface TestCheckpoint {
+  attempts: Record<string, { observedAt: string; instanceId: string }>;
+  timings: Record<string, { elapsedMs: number; thresholdMs: number }>;
+}
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const instanceId = 'i-0123456789abcdef0';
 const directories: string[] = [];
@@ -260,4 +264,138 @@ test('resumes the exact submitted stop plan after an ambiguous response', async 
   );
   expect(result.status).toBe('failover-complete');
   expect(f.calls).toEqual(['stop', 'stop', 'start', 'release']);
+});
+
+test('late restoration fails timing acceptance after restorative release and no-change', async () => {
+  const f = await executionFixture();
+  let now = Date.now();
+  const result = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async (phase) => {
+      if (phase === 'recovered') now += 212_977;
+      return { acceptance: 'passed' };
+    },
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {}, now: () => now },
+  );
+  expect(f.calls).toEqual(['stop', 'start', 'release']);
+  expect(result.status).toBe('failover-acceptance-failed');
+  expect(result.restorationTiming.status).toBe('failed');
+  expect(result.restorationTiming.elapsedMs).toBe(212_977);
+  expect(result.restorationTiming.thresholdMs).toBe(45_000);
+});
+
+test('restoration timing includes apply and survives an interrupted convergence without resetting origin', async () => {
+  const f = await executionFixture();
+  let now = Date.now();
+  const originalApply = f.session.apply.bind(f.session);
+  f.session.apply = async (...args) => {
+    await originalApply(...args);
+    if (args[0].configurationSha256 === f.failover.stages.start.configurationSha256) now += 45_001;
+  };
+  await expect(
+    runAwsTerraformFailover(
+      f.plan,
+      f.failover,
+      f.failover.planSha256,
+      f.session,
+      f.storage,
+      async (phase) => {
+        if (phase === 'recovered') throw new Error('interrupted observation');
+        return { acceptance: 'passed' };
+      },
+      {},
+      undefined,
+      { attempts: 1, intervalMs: 0, wait: async () => {}, now: () => now },
+    ),
+  ).rejects.toThrow('interrupted observation');
+  const before = (await f.storage.read(`${f.failover.planId}-checkpoint.json`)) as TestCheckpoint;
+  const result = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async () => ({ acceptance: 'passed' }),
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {}, now: () => now },
+  );
+  expect(result.restorationTiming.originalAttemptAt).toBe(before.attempts.start.observedAt);
+  expect(result.restorationTiming.elapsedMs).toBe(45_001);
+  expect(result.status).toBe('failover-acceptance-failed');
+  expect(f.calls).toEqual(['stop', 'start', 'release']);
+});
+
+test('exact timing boundary passes and old complete checkpoints cannot invent a timing origin', async () => {
+  const f = await executionFixture();
+  let now = Date.now();
+  const result = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async (phase) => {
+      if (phase === 'recovered') now += 45_000;
+      return { acceptance: 'passed' };
+    },
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {}, now: () => now },
+  );
+  expect(result.status).toBe('failover-complete');
+  expect(result.restorationTiming.elapsedMs).toBe(45_000);
+  const checkpoint = (await f.storage.read(`${f.failover.planId}-checkpoint.json`)) as TestCheckpoint;
+  delete (checkpoint as Partial<TestCheckpoint>).attempts;
+  delete (checkpoint as Partial<TestCheckpoint>).timings;
+  await f.storage.write(`${f.failover.planId}-checkpoint.json`, checkpoint);
+  const legacy = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async () => ({ acceptance: 'passed' }),
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {}, now: () => now },
+  );
+  expect(legacy.status).toBe('failover-acceptance-unknown');
+  expect(legacy.restorationTiming.status).toBe('unknown');
+});
+
+test('rejects forged persisted timing and foreign original attempt bindings', async () => {
+  const f = await executionFixture();
+  const run = () =>
+    runAwsTerraformFailover(
+      f.plan,
+      f.failover,
+      f.failover.planSha256,
+      f.session,
+      f.storage,
+      async () => ({ acceptance: 'passed' }),
+      {},
+      undefined,
+      { attempts: 1, intervalMs: 0, wait: async () => {} },
+    );
+  await run();
+  const path = `${f.failover.planId}-checkpoint.json`;
+  const original = (await f.storage.read(path)) as TestCheckpoint;
+  for (const mutate of [
+    (v: TestCheckpoint) => (v.timings.recovered.elapsedMs += 1),
+    (v: TestCheckpoint) => (v.timings.recovered.thresholdMs = 300_000),
+    (v: TestCheckpoint) => (v.attempts.start.instanceId = 'i-foreign'),
+    (v: TestCheckpoint) => (v.attempts.start.observedAt = 'malformed'),
+  ]) {
+    const value = structuredClone(original);
+    mutate(value);
+    await f.storage.write(path, value);
+    await expect(run()).rejects.toThrow();
+  }
 });
