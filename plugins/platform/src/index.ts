@@ -49,6 +49,11 @@ const factory: ExtensionFactory = async (pi) => {
         if (!active.gcpObservations) throw new Error('GCP observations unavailable');
         return active.gcpObservations(owner, contextName, signal);
       },
+      gcpLifecycle: (owner, contextName, signal) => {
+        const active = service();
+        if (!active.gcpLifecycle) throw new Error('GCP lifecycle unavailable');
+        return active.gcpLifecycle(owner, contextName, signal);
+      },
     });
   }
   const makeDriver = (context?: PlatformToolContext) => {

@@ -2,8 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolveGcpContract } from '../../../gcloud/src/ce/contract';
+import { fingerprint } from '../../../gcloud/src/ce/discovery';
+import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { CeDeploymentStore } from './deployment-store';
+import { createGcpLifecycleHttpPort } from './gcp-http';
+import { GcpPlatformLifecycle } from './gcp-lifecycle';
 import { createGcpPlatformObservations, type GcpPlatformObservations } from './gcp-observation';
+import { acquireProcessLock } from './process-lock';
 import { type CeOwner, CeRuntime } from './runtime';
 import { type AzureRouteServerEbgpMultihopCapability, VerifiedCeContract } from './verified-contract';
 
@@ -34,6 +39,7 @@ export interface CePlatformService {
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
   gcpObservations?(owner: CeOwner, contextName: string, signal?: AbortSignal): Promise<GcpPlatformObservations>;
+  gcpLifecycle?(owner: CeOwner, contextName: string, signal?: AbortSignal): Promise<GcpPlatformLifecycle>;
 }
 export type PublishedCeContractLoader = () => Promise<VerifiedCeContract>;
 async function context(
@@ -68,6 +74,51 @@ export function createCePlatformService(
     return loaded;
   };
   return {
+    async gcpLifecycle(owner, contextName, signal) {
+      if (owner.provider !== 'gcp' || owner.engine !== 'native')
+        throw new Error('Native GCP lifecycle ownership required');
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join(env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      const saved = (await store.read('gcp-deployment-intent.json')) as {
+        intent?: GcpCeIntent;
+        intentFingerprint?: string;
+        platformContext?: string;
+      };
+      if (
+        !saved.intent ||
+        saved.intentFingerprint !== fingerprint(saved.intent) ||
+        saved.platformContext !== contextName ||
+        saved.intent.platformContext !== contextName ||
+        saved.intent.project !== owner.account ||
+        saved.intent.region !== owner.region ||
+        saved.intent.deploymentName !== owner.deploymentId ||
+        saved.intent.engine !== 'native'
+      )
+        throw new Error('Persisted GCP lifecycle intent differs');
+      const credentials = await context(env, contextName),
+        artifact = await resolveGcpContract(undefined, signal);
+      const privateStore = {
+        read: (name: string) => store.read(name),
+        write: (name: string, value: unknown) => store.write(name, value),
+        exclusive: async <T>(fn: () => Promise<T>) => {
+          const release = await acquireProcessLock(join(store.directory, '.gcp-lifecycle-lock'));
+          try {
+            return await fn();
+          } finally {
+            await release();
+          }
+        },
+      };
+      return new GcpPlatformLifecycle(
+        privateStore,
+        saved.intent,
+        artifact,
+        createGcpLifecycleHttpPort(credentials.url, credentials.credential),
+      );
+    },
     async gcpObservations(owner, contextName, signal) {
       const credentials = await context(env, contextName);
       const artifact = await resolveGcpContract(undefined, signal);

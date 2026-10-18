@@ -33,7 +33,7 @@ it('bundled Platform and Terraform services load from isolated plugin directorie
   const terraformFactory = (await import(terraform)).default;
   terraformFactory({ events, setLabel: () => {} });
   expect(handlers.has('xcsh:ce-platform:v2:service')).toBe(true);
-  let platformService: { gcpObservations?: unknown } | undefined;
+  let platformService: { gcpObservations?: unknown; gcpLifecycle?: unknown } | undefined;
   events.emit('xcsh:ce-platform:v2:service', {
     version: 2,
     resolve: (service: { gcpObservations?: unknown }) => {
@@ -41,5 +41,6 @@ it('bundled Platform and Terraform services load from isolated plugin directorie
     },
   });
   expect(typeof platformService?.gcpObservations).toBe('function');
+  expect(typeof platformService?.gcpLifecycle).toBe('function');
   expect(handlers.has('xcsh:ce-terraform:v1:service')).toBe(true);
 });

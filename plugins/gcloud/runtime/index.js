@@ -1213,6 +1213,17 @@ var init_runtime = __esm(() => {
   init_upgrade_evidence();
 });
 
+// plugins/platform/src/ce/gcp-http.ts
+var init_gcp_http = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/gcp-lifecycle.ts
+var init_gcp_lifecycle = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
 // plugins/platform/src/ce/gcp-observation.ts
 var init_gcp_observation = __esm(() => {
   init_discovery();
@@ -1282,8 +1293,12 @@ var init_verified_contract = __esm(() => {
 var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 var init_service = __esm(() => {
   init_contract();
+  init_discovery();
   init_deployment_store();
+  init_gcp_http();
+  init_gcp_lifecycle();
   init_gcp_observation();
+  init_process_lock();
   init_runtime();
   init_verified_contract();
 });

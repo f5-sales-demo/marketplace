@@ -165,4 +165,41 @@ export class GcpPlatformLifecycle {
         ),
     };
   }
+  async revokeToken(tokenName: string, signal?: AbortSignal) {
+    this.#unchanged();
+    signal?.throwIfAborted();
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)) throw new Error('Invalid bound token name');
+    const path = `/api/register/namespaces/system/tokens/${tokenName}`;
+    const name = `gcp-token-revoke-${tokenName}.json`;
+    let saved: { binding: string; state: 'deleting' | 'absent' } | undefined;
+    try {
+      saved = (await this.store.read(name)) as typeof saved;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (saved && saved.binding !== this.#binding) throw new Error('Token revocation checkpoint differs');
+    const value = await this.port.read(path, signal);
+    if (value) {
+      const metadata = value.metadata as
+        | { name?: string; namespace?: string; labels?: Record<string, string> }
+        | undefined;
+      const spec = value.spec as { site_name?: string } | undefined;
+      if (
+        metadata?.name !== tokenName ||
+        metadata.namespace !== 'system' ||
+        metadata.labels?.['xcsh-deployment'] !== this.intent.deploymentName ||
+        metadata.labels['xcsh-engine'] !== 'native' ||
+        metadata.labels['xcsh-node'] !== this.#node ||
+        spec?.site_name !== this.#site
+      )
+        throw new Error('Registration token revocation ownership differs');
+      if (!saved) {
+        await this.store.write(name, { binding: this.#binding, state: 'deleting' });
+        await this.port.mutate(path, 'DELETE', undefined, signal);
+      }
+      if (await this.port.read(path, signal)) return { tokenName, absent: false };
+    }
+    await this.store.write(name, { binding: this.#binding, state: 'absent' });
+    return { tokenName, absent: true };
+  }
 }

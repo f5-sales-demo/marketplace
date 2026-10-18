@@ -1018,6 +1018,166 @@ import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join4 } from 'node:path';
 
+// plugins/gcloud/src/ce/types.ts
+var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
+var GCP_CE_OPERATIONS = [
+  'deploy',
+  'reconcile',
+  'start',
+  'stop',
+  'resize',
+  'update-network',
+  'replace-node',
+  'repair',
+  'upgrade',
+  'failover',
+  'teardown',
+];
+
+// plugins/gcloud/src/gcloud/types.ts
+var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+// plugins/gcloud/src/ce/validation.ts
+var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
+function validateScope(project, region) {
+  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
+  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
+}
+function name(value) {
+  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
+}
+function ipv4Range(cidr) {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
+  if (!match) throw new Error('Invalid IPv4 CIDR');
+  const octets = match.slice(1, 5).map(Number);
+  const prefix = Number(match[5]);
+  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
+  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
+  const size = 2 ** (32 - prefix);
+  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
+  return [ip, ip + size - 1];
+}
+function validateImage(image) {
+  name(image.name);
+  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
+  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
+  if (
+    !/^\d+$/.test(image.id) ||
+    image.selfLink !== expected ||
+    image.status !== 'READY' ||
+    image.architecture !== 'X86_64'
+  )
+    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
+  if (
+    !Array.isArray(image.licenses) ||
+    image.licenses.length === 0 ||
+    image.licenses.some(
+      (license) =>
+        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
+          license,
+        ),
+    )
+  )
+    throw new Error('Image must pin its exact license identities');
+}
+function keys(value, allowed) {
+  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
+}
+function validateIntent(intent) {
+  if (intent?.schemaVersion !== 1) throw new Error('Unsupported GCP CE intent version');
+  keys(intent, [
+    'schemaVersion',
+    'project',
+    'region',
+    'deploymentName',
+    'platformContext',
+    'engine',
+    'operation',
+    'sites',
+    'machineType',
+    'diskGiB',
+    'image',
+    'ipForwarding',
+    'initialVersions',
+    'egress',
+    'ingress',
+    'routing',
+  ]);
+  keys(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
+  keys(intent.egress, ['mode', 'resource']);
+  keys(intent.ingress, ['profile']);
+  keys(intent.routing, ['profile', 'destinationCidrs']);
+  validateScope(intent.project, intent.region);
+  name(intent.deploymentName);
+  name(intent.machineType);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
+  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
+  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
+  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
+  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
+  validateImage(intent.image);
+  if (intent.initialVersions) {
+    keys(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
+  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
+    throw new Error('Unsupported egress');
+  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
+    throw new Error('Explicit egress resource required');
+  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
+  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
+    throw new Error('Unsupported routing');
+  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
+  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
+  const sites = new Set();
+  const nodes = new Set();
+  for (const site of intent.sites) {
+    keys(site, ['name', 'nodes']);
+    name(site.name);
+    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
+    sites.add(site.name);
+    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
+    let shape;
+    for (const node of site.nodes) {
+      keys(node, ['name', 'zone', 'interfaces']);
+      name(node.name);
+      if (nodes.has(node.name)) throw new Error('Node names must be unique');
+      nodes.add(node.name);
+      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
+        throw new Error('Node zone must belong to the explicit region');
+      if (!node.interfaces.length || node.interfaces.length > 8)
+        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
+      const networks = new Set();
+      const ranges = [];
+      for (const [index, nic] of node.interfaces.entries()) {
+        keys(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
+        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
+          throw new Error('Contiguous NIC order must start with SLO');
+        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
+          throw new Error('Invalid NIC role');
+        name(nic.vrf);
+        name(nic.network);
+        name(nic.subnet);
+        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
+        networks.add(nic.network);
+        const range = ipv4Range(nic.cidr);
+        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
+          throw new Error('NIC subnets must not overlap');
+        ranges.push(range);
+      }
+      const current = JSON.stringify(node.interfaces);
+      if (shape !== undefined && shape !== current)
+        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
+      shape = current;
+    }
+  }
+}
+
+// plugins/gcloud/src/ce/discovery.ts
 function fingerprint(value) {
   const stable = (item) =>
     Array.isArray(item)
@@ -2434,7 +2594,7 @@ function canonical3(value) {
   return JSON.stringify(value);
 }
 var hash2 = (value) => createHash7('sha256').update(canonical3(value)).digest('hex');
-var name = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+var name2 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text = (value) => typeof value === 'string' && !!value.trim();
 var list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
 function validate(plan, store, port) {
@@ -2459,7 +2619,7 @@ function validate(plan, store, port) {
     identities.add(key);
   };
   for (const listener of plan.listeners) {
-    if (!listener || !/^[a-f0-9]{24}$/.test(listener.id) || !name(listener.name) || !name(listener.namespace))
+    if (!listener || !/^[a-f0-9]{24}$/.test(listener.id) || !name2(listener.name) || !name2(listener.namespace))
       throw new Error('Invalid drain listener');
     unique(`listener:${listener.namespace}/${listener.name}`);
     unique(`listener-plan:${listener.id}`);
@@ -2470,8 +2630,8 @@ function validate(plan, store, port) {
       canonical3(snapshot.owner) !== canonical3(plan.owner) ||
       snapshot.contractFingerprint !== plan.ingressContractFingerprint ||
       !snapshot.origin ||
-      !name(snapshot.origin.name) ||
-      !name(snapshot.origin.namespace) ||
+      !name2(snapshot.origin.name) ||
+      !name2(snapshot.origin.namespace) ||
       !text(snapshot.origin.uid) ||
       !text(snapshot.resourceVersion) ||
       !/^[a-f0-9]{64}$/.test(snapshot.specSha256) ||
@@ -2485,7 +2645,7 @@ function validate(plan, store, port) {
     if (
       !site?.binding ||
       canonical3(site.binding.owner) !== canonical3(plan.owner) ||
-      !name(site.binding.siteName) ||
+      !name2(site.binding.siteName) ||
       !text(site.siteUid) ||
       !Array.isArray(site.binding.nodes) ||
       ![1, 3].includes(site.binding.nodes.length) ||
@@ -2495,14 +2655,14 @@ function validate(plan, store, port) {
     unique(`site:${site.binding.siteName}`);
     unique(`uid:${site.siteUid}`);
     for (const node of site.binding.nodes) {
-      if (!name(node)) throw new Error('Invalid drain node');
+      if (!name2(node)) throw new Error('Invalid drain node');
       unique(`node:${node}`);
     }
     for (const resource of site.routing) {
       if (
         !resource ||
         !['bgp', 'bgp_routing_policy', 'external_connector'].includes(resource.kind) ||
-        !name(resource.name) ||
+        !name2(resource.name) ||
         !text(resource.uid)
       )
         throw new Error('Invalid drain routing identity');
@@ -2696,7 +2856,7 @@ var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed teardown inventory');
   return value;
 };
-var name2 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+var name3 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text2 = (value) => typeof value === 'string' && !!value.trim();
 var ownerLabels = (owner) => ({
   'xcsh-ce-deployment': owner.deploymentId,
@@ -2712,7 +2872,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
   const owner = bindings?.[0]?.owner;
   if (
     !owner ||
-    !name2(owner.deploymentId) ||
+    !name3(owner.deploymentId) ||
     !['native', 'terraform'].includes(owner.engine) ||
     !['aws', 'azure'].includes(owner.provider) ||
     !text2(owner.account) ||
@@ -2723,7 +2883,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
     !Array.isArray(namespaces) ||
     !namespaces.length ||
     namespaces.length > 128 ||
-    namespaces.some((value) => !name2(value)) ||
+    namespaces.some((value) => !name3(value)) ||
     new Set(namespaces).size !== namespaces.length ||
     !text2(contracts.site) ||
     !text2(contracts.ingress)
@@ -2734,7 +2894,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
     nodes = new Map();
   for (const binding of bindings) {
     if (
-      !name2(binding.siteName) ||
+      !name3(binding.siteName) ||
       sites.has(binding.siteName) ||
       Object.keys(ownerLabels(binding.owner)).some((key) => ownerLabels(binding.owner)[key] !== labels[key]) ||
       !Array.isArray(binding.nodes) ||
@@ -2743,7 +2903,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
       throw new Error('Invalid teardown site scope');
     sites.add(binding.siteName);
     for (const node of binding.nodes) {
-      if (!name2(node) || nodes.has(node)) throw new Error('Invalid teardown node scope');
+      if (!name3(node) || nodes.has(node)) throw new Error('Invalid teardown node scope');
       nodes.set(node, binding.siteName);
     }
   }
@@ -2823,7 +2983,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
         const row = object9(item),
           rowLabels = owned(row.labels),
           key = `${namespace}/${kind}/${row.name}`;
-        if (!name2(row.name) || row.namespace !== namespace || !text2(row.uid) || seen.has(key) || uids.has(row.uid))
+        if (!name3(row.name) || row.namespace !== namespace || !text2(row.uid) || seen.has(key) || uids.has(row.uid))
           throw new Error('Invalid or duplicate teardown resource');
         const metadata = row.metadata === undefined || row.metadata === null ? {} : object9(row.metadata),
           system =
@@ -4506,6 +4666,267 @@ class CeRuntime {
   }
 }
 
+// plugins/platform/src/ce/gcp-http.ts
+function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch) {
+  const base = new URL(apiUrl);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
+    throw new Error('Explicit HTTPS GCP context required');
+  const request = async (path, method, body, signal) => {
+    if (
+      !/^\/api\/(?:config|register)\/namespaces\/system\/(?:securemesh_site_v2s|tokens)(?:\/[a-z][a-z0-9-]{0,62})?$/.test(
+        path,
+      )
+    )
+      throw new Error('GCP lifecycle path escaped scope');
+    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+    combined.throwIfAborted();
+    const response = await fetcher(new URL(path, base), {
+      method,
+      redirect: 'error',
+      signal: combined,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `APIToken ${credential}`,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (response.status === 404 && method === 'GET') return null;
+    if (!response.ok)
+      throw new CeApiError(
+        response.status === 401
+          ? 'expired'
+          : response.status === 403
+            ? 'authorization'
+            : response.status === 409
+              ? 'conflict'
+              : 'transient',
+        response.status,
+      );
+    if (!response.body) return {};
+    const reader = response.body.getReader(),
+      chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > 16 * 1024 * 1024) throw new CeApiError('malformed');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    const bytes = Buffer.concat(chunks);
+    if (!bytes.length) return {};
+    let value;
+    try {
+      value = JSON.parse(bytes.toString('utf8'));
+    } catch {
+      throw new CeApiError('malformed');
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CeApiError('malformed');
+    return value;
+  };
+  return {
+    read: (path, signal) => request(path, 'GET', undefined, signal),
+    mutate: async (path, method, body, signal) => {
+      const value = await request(path, method, body, signal);
+      if (!value) throw new CeApiError('malformed');
+      return value;
+    },
+  };
+}
+
+// plugins/platform/src/ce/gcp-lifecycle.ts
+class GcpPlatformLifecycle {
+  store;
+  intent;
+  contract;
+  port;
+  #site;
+  #node;
+  #spec;
+  #binding;
+  constructor(store, intent, contract, port) {
+    this.store = store;
+    this.intent = intent;
+    this.contract = contract;
+    this.port = port;
+    this.intent = structuredClone(intent);
+    this.contract = structuredClone(contract);
+    validateIntent(intent);
+    const profile = contract.singleNodeLifecycle;
+    if (
+      !profile?.site_create?.spec ||
+      profile.node_count !== 1 ||
+      profile.interface_count !== 2 ||
+      intent.engine !== 'native' ||
+      intent.sites.length !== 1 ||
+      intent.sites[0].nodes.length !== 1 ||
+      intent.sites[0].nodes[0].interfaces.length !== 2 ||
+      intent.sites[0].nodes[0].interfaces[1].role !== 'sli'
+    )
+      throw new Error('Qualified native one-node two-interface lifecycle required');
+    this.#site = intent.sites[0].name;
+    this.#node = intent.sites[0].nodes[0].name;
+    this.#spec = structuredClone(profile.site_create.spec);
+    this.#binding = fingerprint({ intent, contract: contract.release.contractDigest });
+  }
+  #unchanged() {
+    if (fingerprint({ intent: this.intent, contract: this.contract.release.contractDigest }) !== this.#binding)
+      throw new Error('GCP lifecycle intent changed after admission');
+  }
+  #path() {
+    return `/api/config/namespaces/system/securemesh_site_v2s/${this.#site}`;
+  }
+  #labels() {
+    return { 'xcsh-deployment': this.intent.deploymentName, 'xcsh-engine': 'native' };
+  }
+  #owned(value) {
+    const metadata = value.metadata;
+    const uid = value.system_metadata?.uid;
+    if (
+      metadata?.name !== this.#site ||
+      metadata.namespace !== 'system' ||
+      metadata.labels?.['xcsh-deployment'] !== this.intent.deploymentName ||
+      metadata.labels['xcsh-engine'] !== 'native' ||
+      typeof uid !== 'string' ||
+      !uid
+    )
+      throw new Error('GCP site identity/ownership differs');
+    return uid;
+  }
+  async #checkpoint() {
+    let saved;
+    try {
+      saved = await this.store.read(`gcp-site-${this.#site}.json`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (
+      saved &&
+      (saved.binding !== this.#binding || !['submitting', 'created', 'deleting', 'absent'].includes(saved.state))
+    )
+      throw new Error('GCP site checkpoint differs');
+    return saved;
+  }
+  async ensureSite(signal) {
+    this.#unchanged();
+    signal?.throwIfAborted();
+    const checkpoint = await this.#checkpoint();
+    if (checkpoint?.state === 'deleting' || checkpoint?.state === 'absent')
+      throw new Error('Deleted site requires a new deployment identity');
+    let observed = await this.port.read(this.#path(), signal);
+    if (observed && !checkpoint) throw new Error('Preexisting GCP site collision');
+    if (!observed) {
+      if (checkpoint) throw new Error('Ambiguous site creation requires reconciliation');
+      await this.store.write(`gcp-site-${this.#site}.json`, { binding: this.#binding, state: 'submitting' });
+      await this.port.mutate(
+        '/api/config/namespaces/system/securemesh_site_v2s',
+        'POST',
+        { metadata: { name: this.#site, namespace: 'system', labels: this.#labels() }, spec: this.#spec },
+        signal,
+      );
+      observed = await this.port.read(this.#path(), signal);
+    }
+    if (!observed) throw new Error('Site creation still converging');
+    const uid = this.#owned(observed);
+    if (checkpoint?.uid && checkpoint.uid !== uid) throw new Error('GCP site replaced during creation');
+    await this.store.write(`gcp-site-${this.#site}.json`, { binding: this.#binding, state: 'created', uid });
+    return { siteName: this.#site, uid, created: true };
+  }
+  async deleteSite(signal) {
+    this.#unchanged();
+    signal?.throwIfAborted();
+    const checkpoint = await this.#checkpoint();
+    if (!checkpoint?.uid) throw new Error('Exact owned GCP site deletion checkpoint required');
+    const observed = await this.port.read(this.#path(), signal);
+    if (observed) {
+      if (this.#owned(observed) !== checkpoint.uid) throw new Error('GCP site was replaced before deletion');
+      if (checkpoint.state !== 'deleting') {
+        await this.store.write(`gcp-site-${this.#site}.json`, { ...checkpoint, state: 'deleting' });
+        await this.port.mutate(this.#path(), 'DELETE', undefined, signal);
+      }
+      if (await this.port.read(this.#path(), signal)) return { siteName: this.#site, absent: false };
+    }
+    await this.store.write(`gcp-site-${this.#site}.json`, { ...checkpoint, state: 'absent' });
+    return { siteName: this.#site, absent: true };
+  }
+  bootstrapDriver() {
+    return {
+      assertSiteOwnership: async (owner, signal) => {
+        this.#unchanged();
+        if (
+          owner.project !== this.intent.project ||
+          owner.deploymentName !== this.intent.deploymentName ||
+          owner.engine !== 'native' ||
+          owner.siteName !== this.#site ||
+          owner.nodeName !== this.#node
+        )
+          throw new Error('Bootstrap node binding differs');
+        const checkpoint = await this.#checkpoint(),
+          observed = await this.port.read(this.#path(), signal);
+        if (!checkpoint?.uid || checkpoint.state !== 'created' || !observed || this.#owned(observed) !== checkpoint.uid)
+          throw new Error('Exact created GCP site required for bootstrap');
+      },
+      readToken: (name, signal) => {
+        if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid bound token name');
+        return this.port.read(`/api/register/namespaces/system/tokens/${name}`, signal);
+      },
+      createToken: (name, owner, signal) =>
+        this.port.mutate(
+          '/api/register/namespaces/system/tokens',
+          'POST',
+          {
+            metadata: { name, namespace: 'system', labels: { ...this.#labels(), 'xcsh-node': owner.nodeName } },
+            spec: { type: 1, site_name: this.#site },
+          },
+          signal,
+        ),
+    };
+  }
+  async revokeToken(tokenName, signal) {
+    this.#unchanged();
+    signal?.throwIfAborted();
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)) throw new Error('Invalid bound token name');
+    const path = `/api/register/namespaces/system/tokens/${tokenName}`;
+    const name = `gcp-token-revoke-${tokenName}.json`;
+    let saved;
+    try {
+      saved = await this.store.read(name);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (saved && saved.binding !== this.#binding) throw new Error('Token revocation checkpoint differs');
+    const value = await this.port.read(path, signal);
+    if (value) {
+      const metadata = value.metadata;
+      const spec = value.spec;
+      if (
+        metadata?.name !== tokenName ||
+        metadata.namespace !== 'system' ||
+        metadata.labels?.['xcsh-deployment'] !== this.intent.deploymentName ||
+        metadata.labels['xcsh-engine'] !== 'native' ||
+        metadata.labels['xcsh-node'] !== this.#node ||
+        spec?.site_name !== this.#site
+      )
+        throw new Error('Registration token revocation ownership differs');
+      if (!saved) {
+        await this.store.write(name, { binding: this.#binding, state: 'deleting' });
+        await this.port.mutate(path, 'DELETE', undefined, signal);
+      }
+      if (await this.port.read(path, signal)) return { tokenName, absent: false };
+    }
+    await this.store.write(name, { binding: this.#binding, state: 'absent' });
+    return { tokenName, absent: true };
+  }
+}
+
 // plugins/platform/src/ce/gcp-observation.ts
 async function createGcpPlatformObservations(store, contextName, apiUrl, credential, contract, fetcher = fetch) {
   const base = new URL(apiUrl);
@@ -5659,6 +6080,47 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
     return loaded;
   };
   return {
+    async gcpLifecycle(owner, contextName, signal) {
+      if (owner.provider !== 'gcp' || owner.engine !== 'native')
+        throw new Error('Native GCP lifecycle ownership required');
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join4(env.XDG_STATE_HOME ?? join4(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      const saved = await store.read('gcp-deployment-intent.json');
+      if (
+        !saved.intent ||
+        saved.intentFingerprint !== fingerprint(saved.intent) ||
+        saved.platformContext !== contextName ||
+        saved.intent.platformContext !== contextName ||
+        saved.intent.project !== owner.account ||
+        saved.intent.region !== owner.region ||
+        saved.intent.deploymentName !== owner.deploymentId ||
+        saved.intent.engine !== 'native'
+      )
+        throw new Error('Persisted GCP lifecycle intent differs');
+      const credentials = await context(env, contextName),
+        artifact = await resolveGcpContract(undefined, signal);
+      const privateStore = {
+        read: (name) => store.read(name),
+        write: (name, value) => store.write(name, value),
+        exclusive: async (fn) => {
+          const release = await acquireProcessLock(join4(store.directory, '.gcp-lifecycle-lock'));
+          try {
+            return await fn();
+          } finally {
+            await release();
+          }
+        },
+      };
+      return new GcpPlatformLifecycle(
+        privateStore,
+        saved.intent,
+        artifact,
+        createGcpLifecycleHttpPort(credentials.url, credentials.credential),
+      );
+    },
     async gcpObservations(owner, contextName, signal) {
       const credentials = await context(env, contextName);
       const artifact = await resolveGcpContract(undefined, signal);
@@ -5770,6 +6232,11 @@ var factory = async (pi) => {
         const active = service();
         if (!active.gcpObservations) throw new Error('GCP observations unavailable');
         return active.gcpObservations(owner, contextName, signal);
+      },
+      gcpLifecycle: (owner, contextName, signal) => {
+        const active = service();
+        if (!active.gcpLifecycle) throw new Error('GCP lifecycle unavailable');
+        return active.gcpLifecycle(owner, contextName, signal);
       },
     });
   }

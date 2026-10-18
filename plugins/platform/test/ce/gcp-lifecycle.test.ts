@@ -92,3 +92,37 @@ it('foreign preexisting sites and missing lifecycle mappings cannot mutate', asy
   await expect(new GcpPlatformLifecycle(f.store, f.i, f.contract, port).ensureSite()).rejects.toThrow('collision');
   expect(calls).toBe(0);
 });
+
+it('token revocation requires exact node/site labels and reconciles lost deletion', async () => {
+  const f = fixture();
+  let live: Record<string, unknown> | null = {
+    metadata: {
+      name: 'node-a-token',
+      namespace: 'system',
+      labels: { 'xcsh-deployment': f.i.deploymentName, 'xcsh-engine': 'native', 'xcsh-node': 'node-a' },
+    },
+    spec: { site_name: f.i.sites[0].name },
+  };
+  let deletes = 0;
+  const driver = new GcpPlatformLifecycle(f.store, f.i, f.contract, {
+    read: async () => live,
+    mutate: async () => {
+      deletes++;
+      live = null;
+      throw new Error('lost token delete');
+    },
+  });
+  await expect(driver.revokeToken('node-a-token')).rejects.toThrow('lost token delete');
+  expect((await driver.revokeToken('node-a-token')).absent).toBe(true);
+  expect(deletes).toBe(1);
+  live = {
+    metadata: {
+      name: 'node-a-token',
+      namespace: 'system',
+      labels: { 'xcsh-deployment': 'foreign', 'xcsh-engine': 'native', 'xcsh-node': 'node-a' },
+    },
+    spec: { site_name: f.i.sites[0].name },
+  };
+  await expect(driver.revokeToken('node-a-token')).rejects.toThrow('ownership');
+  expect(deletes).toBe(1);
+});
