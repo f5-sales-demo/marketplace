@@ -11945,6 +11945,37 @@ var init_azure_ce_apply = __esm(() => {
   };
 });
 
+// plugins/azure/src/ce/terraform-status.ts
+async function readAzureTerraformWorkflowStatus(plan, storage) {
+  if (plan.engine !== 'terraform') throw new Error('Terraform checkpoint requires the owning engine');
+  await storage.verify();
+  let value;
+  try {
+    value = await storage.read('terraform-workflow.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return { state: 'not-started', engine: 'terraform', source: 'terraform-workflow.json' };
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Terraform workflow');
+  const record = value;
+  if (
+    record.schemaVersion !== 1 ||
+    record.engine !== 'terraform' ||
+    record.planSha256 !== plan.planSha256 ||
+    typeof record.configurationSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(record.configurationSha256) ||
+    !['network-pending', 'registration-pending', 'registered'].includes(String(record.stage))
+  )
+    throw new Error('Terraform workflow identity differs from the owning plan');
+  return {
+    state: String(record.stage),
+    engine: 'terraform',
+    source: 'terraform-workflow.json',
+    planSha256: plan.planSha256,
+    configurationSha256: record.configurationSha256,
+  };
+}
+
 // plugins/azure/src/tools/azure-ce-status.ts
 async function commandJson(api, args) {
   const result = await api.exec('az', [...args, '--output', 'json']);
@@ -12063,11 +12094,24 @@ function createAzureCeStatusTool(pi, makeApi = makeExecApi) {
                 plan.subscription.id,
               ])
             : Promise.resolve([]),
-          loadCheckpoint(ctx.sessionManager, plan),
+          plan.engine === 'native' ? loadCheckpoint(ctx.sessionManager, plan) : Promise.resolve(undefined),
         ]);
         const azure = azureSummary(plan, resources, vms, peers);
         const routing = await collectAzureRouteServerHealth(plan, api, signal);
         let f5;
+        let observedCheckpoint = checkpoint;
+        if (plan.engine === 'terraform') {
+          try {
+            const service = await azurePlatformService(pi, signal);
+            observedCheckpoint = await readAzureTerraformWorkflowStatus(
+              plan,
+              await service.storage(azureUpgradeBinding(plan).owner),
+            );
+          } catch (error) {
+            if (signal?.aborted) throw error;
+            observedCheckpoint = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };
+          }
+        }
         try {
           const service = await azurePlatformService(pi, signal);
           const runtime = await service.runtime(plan.engine, plan.intent.platformContext);
@@ -12084,7 +12128,7 @@ function createAzureCeStatusTool(pi, makeApi = makeExecApi) {
         }
         const evidence = {
           planId: plan.planId,
-          checkpoint: checkpoint ?? {
+          checkpoint: observedCheckpoint ?? {
             state: 'not-started',
             completedActionIds: [],
           },
@@ -12120,6 +12164,7 @@ var init_azure_ce_status = __esm(() => {
   init_artifacts();
   init_canonical();
   init_route_server_health();
+  init_terraform_upgrade();
   init_shared();
 });
 

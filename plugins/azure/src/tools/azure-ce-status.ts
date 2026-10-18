@@ -6,6 +6,8 @@ import { withAzureCeExecution } from '../ce/execution';
 import { azurePlatformService } from '../ce/platform';
 import { collectAzurePlatformHealth } from '../ce/platform-health';
 import { collectAzureRouteServerHealth } from '../ce/route-server-health';
+import { readAzureTerraformWorkflowStatus } from '../ce/terraform-status';
+import { azureUpgradeBinding } from '../ce/terraform-upgrade';
 import type { AzureCePlan } from '../ce/types';
 import { makeExecApi } from './shared';
 
@@ -133,11 +135,24 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
                 plan.subscription.id,
               ])
             : Promise.resolve([]),
-          loadCheckpoint(ctx.sessionManager, plan),
+          plan.engine === 'native' ? loadCheckpoint(ctx.sessionManager, plan) : Promise.resolve(undefined),
         ]);
         const azure = azureSummary(plan, resources, vms, peers);
         const routing = await collectAzureRouteServerHealth(plan, api, signal);
         let f5: unknown;
+        let observedCheckpoint: unknown = checkpoint;
+        if (plan.engine === 'terraform') {
+          try {
+            const service = await azurePlatformService(pi as unknown as Record<string, unknown>, signal);
+            observedCheckpoint = await readAzureTerraformWorkflowStatus(
+              plan,
+              await service.storage(azureUpgradeBinding(plan).owner),
+            );
+          } catch (error) {
+            if (signal?.aborted) throw error;
+            observedCheckpoint = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };
+          }
+        }
         try {
           const service = await azurePlatformService(pi as unknown as Record<string, unknown>, signal);
           const runtime = await service.runtime(plan.engine, plan.intent.platformContext);
@@ -154,7 +169,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
         }
         const evidence = {
           planId: plan.planId,
-          checkpoint: checkpoint ?? {
+          checkpoint: (observedCheckpoint as { state: string }) ?? {
             state: 'not-started',
             completedActionIds: [],
           },
