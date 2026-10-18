@@ -28,7 +28,7 @@ const COLLECTIONS = {
   router: 'routers',
   route: 'routes',
 } as const;
-function validate(resource: GcpResourceIdentity) {
+export function validateGcpResourceIdentity(resource: GcpResourceIdentity) {
   if (
     !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
     !/^\d+$/.test(resource.id) ||
@@ -56,7 +56,7 @@ function sameScope(
 
 /** Exact numeric identities supplement labels; caller must bind this store to shared ownership. */
 export async function recordGcpResource(store: GcpOperationStore, resource: GcpResourceIdentity): Promise<void> {
-  validate(resource);
+  validateGcpResourceIdentity(resource);
   let ledger: Ledger;
   try {
     ledger = (await store.read('gcp-resources.json')) as Ledger;
@@ -72,7 +72,7 @@ export async function recordGcpResource(store: GcpOperationStore, resource: GcpR
   }
   if (ledger?.schemaVersion !== 1 || !sameScope(ledger, resource) || !Array.isArray(ledger.resources))
     throw new Error('GCP ledger scope differs');
-  for (const existing of ledger.resources) validate(existing);
+  for (const existing of ledger.resources) validateGcpResourceIdentity(existing);
   const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
   if (prior && JSON.stringify(prior) !== JSON.stringify(resource))
     throw new Error('GCP resource identity changed; explicit replacement required');
@@ -87,7 +87,7 @@ export async function assertGcpResourceOwnership(
   expected: GcpResourceIdentity,
   observed: Pick<GcpResourceIdentity, 'id' | 'selfLink'>,
 ): Promise<void> {
-  validate(expected);
+  validateGcpResourceIdentity(expected);
   const ledger = (await store.read('gcp-resources.json')) as Ledger;
   if (ledger?.schemaVersion !== 1 || !sameScope(ledger, expected) || !Array.isArray(ledger.resources))
     throw new Error('GCP ownership ledger is unavailable');
