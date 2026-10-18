@@ -76,3 +76,22 @@ it('site compute qualification binds each node token to its site with sensitive 
   expect(Object.hasOwn(result.configuration, 'output')).toBe(false);
   expect(result.executable).toBe(false);
 });
+it('preserves explicit initial versions without treating caller values as qualified upgrade evidence', async () => {
+  const { translateGcpTerraformSiteCompute } = await import('../../src/ce/compute-plan');
+  const i = intent();
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  i.initialVersions = { software: 'crt-20260801-0205', os: '9.2026.20' };
+  const result = translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' });
+  expect(result.configuration.resource.xcsh_securemesh_site_v2.ce_site).toMatchObject({
+    software_settings: {
+      sw: { volterra_software_version: 'crt-20260801-0205' },
+      os: { operating_system_version: '9.2026.20' },
+    },
+  });
+  expect(result.executable).toBe(false);
+  i.initialVersions.software = 'latest';
+  expect(() => translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' })).toThrow(
+    'version pair',
+  );
+});

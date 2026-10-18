@@ -211,6 +211,14 @@ export function translateGcpTerraformSiteCompute(
       namespace: 'system',
       labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
       gcp: { not_managed: {} },
+      ...(intent.initialVersions
+        ? {
+            software_settings: {
+              sw: { volterra_software_version: intent.initialVersions.software },
+              os: { operating_system_version: intent.initialVersions.os },
+            },
+          }
+        : {}),
       ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
       disable_management_network: {},
       block_all_services: {},

@@ -39,6 +39,7 @@ export interface GcpCeIntent {
   machineType: string;
   diskGiB: number;
   image: GcpCeImage;
+  initialVersions?: { software: string; os: string };
   ipForwarding: true;
   egress: { mode: 'external-ip' | 'cloud-nat' | 'firewall' | 'proxy'; resource?: string };
   ingress: { profile: 'none' | 'internal-passthrough-lb' };
