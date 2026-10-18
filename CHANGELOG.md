@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.9 groups Pipeline currency once, uses natural empty outcomes, and places missing-value legends beside their tables (#1573).
+
 - **`salesforce`** v2.3.8 animates Pipeline progress using the active host spinner frames (#1571).
 
 - **`salesforce`** v2.3.7 shows one concise Pipeline progress status and readable deal, renewal and monthly distribution tables, with complete evidence retained in expansion (#1569).

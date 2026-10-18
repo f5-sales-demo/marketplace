@@ -228,7 +228,7 @@ test('query distinguishes aggregates from ordinary scalar rows and preserves pre
     },
     { query: 'SELECT Subject, Value, Flag, Nothing FROM Task' },
   );
-  expect(regular.summary).toContain('1 records returned');
+  expect(regular.summary).toContain('1 record returned');
   expect(JSON.stringify(regular)).not.toContain('Aggregate metrics');
   const partial = {
     content: [],

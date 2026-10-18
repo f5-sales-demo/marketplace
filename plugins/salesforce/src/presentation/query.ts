@@ -132,7 +132,7 @@ export function queryView(
         }))
       : undefined;
   return {
-    summary: `${purpose} · ${value(raw.length)} ${aggregate ? 'aggregate rows' : 'records'} returned`,
+    summary: `${purpose} · ${value(raw.length)} ${aggregate ? (raw.length === 1 ? 'aggregate row' : 'aggregate rows') : raw.length === 1 ? 'record' : 'records'} returned`,
     states: warnings.map((text) => ({
       kind:
         text === 'Provisional results'
