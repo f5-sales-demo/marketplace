@@ -104,6 +104,24 @@ class ZoomWebSafety(unittest.TestCase):
         hd.check.assert_called_once_with(timeout=3000)
         self.assertEqual(result, {"hd": True, "verified": True, "changed": True})
 
+    def test_share_receipt_rejects_blank_ended_and_non_desktop_tracks(self):
+        sample = {
+            "width": 1920,
+            "height": 1080,
+            "ready": 4,
+            "frames": 5,
+            "track": "live",
+            "surface": "monitor",
+        }
+        self.assertTrue(module.share_frame_ready(sample))
+        for key, value in (
+            ("ready", 0),
+            ("frames", 0),
+            ("track", "ended"),
+            ("surface", "browser"),
+        ):
+            self.assertFalse(module.share_frame_ready({**sample, key: value}))
+
     def test_host_removal_overrides_stale_meeting_controls(self):
         page = MagicMock()
         removed = page.get_by_text.return_value

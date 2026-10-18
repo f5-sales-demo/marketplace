@@ -209,6 +209,7 @@ def join(target):
             "google-chrome-stable",
             "--ozone-platform=wayland",
             "--enable-features=WebRTCPipeWireCapturer",
+            "--auto-select-screen-capture-source",
             "--no-first-run",
             "--no-default-browser-check",
             "--user-data-dir=" + str(profile),
@@ -536,6 +537,75 @@ def ensure_web_hd(page):
     return result
 
 
+DESKTOP_WIDTH = 1920
+DESKTOP_HEIGHT = 1080
+HAVE_CURRENT_DATA = 2
+
+
+def share_frame_ready(sample):
+    """Require actual desktop frames, never just enumerated track dimensions."""
+    return (
+        sample.get("width") == DESKTOP_WIDTH
+        and sample.get("height") == DESKTOP_HEIGHT
+        and sample.get("ready", 0) >= HAVE_CURRENT_DATA
+        and sample.get("frames", 0) > 0
+        and sample.get("track") == "live"
+        and sample.get("surface") == "monitor"
+    )
+
+
+def control_web_share(page, action, requested):
+    """Share the owned desktop and verify decoded frames and stop behavior."""
+    stop = page.locator("button").filter(has_text=re.compile(r"^Stop Share$"))
+    if action == "stop-share":
+        if stop.count() == 1 and stop.is_visible():
+            stop.click(timeout=5000)
+            stop.wait_for(state="hidden", timeout=5000)
+        return {"exitCode": 0, "control": action, "current": "off", "verified": True}
+    if requested not in (None, "desktop", "screen"):
+        return {"exitCode": 1, "error": "web_share_requires_desktop", "verified": False}
+    if stop.count() != 1 or not stop.is_visible():
+        share = page.locator('button[aria-label="Share"]')
+        if share.count() != 1 or not share.is_visible():
+            return {
+                "exitCode": 1,
+                "error": "share_control_unavailable",
+                "verified": False,
+            }
+        share.click(timeout=5000, no_wait_after=True)
+    deadline = time.monotonic() + 30
+    previous = None
+    while time.monotonic() < deadline:
+        sample = page.evaluate("""() => {
+            const video = document.getElementById("sharer-client-sharing-canvas");
+            const track = video?.srcObject?.getVideoTracks()[0];
+            return {width: video?.videoWidth, height: video?.videoHeight,
+                ready: video?.readyState, frames: video?.getVideoPlaybackQuality().totalVideoFrames,
+                track: track?.readyState, surface: track?.getSettings().displaySurface};
+        }""")
+        if share_frame_ready(sample):
+            if previous is not None and sample["frames"] > previous:
+                return {
+                    "exitCode": 0,
+                    "control": action,
+                    "current": "on",
+                    "target": "desktop",
+                    "verified": True,
+                    "capture": sample,
+                    "receiver_acceptance": "separate controlled meeting check",
+                }
+            previous = sample["frames"]
+        page.wait_for_timeout(1000)
+    if stop.count() == 1 and stop.is_visible():
+        stop.click(timeout=5000)
+        stop.wait_for(state="hidden", timeout=5000)
+    return {
+        "exitCode": 1,
+        "error": "share_frame_verification_failed",
+        "verified": False,
+    }
+
+
 def meeting_state(page, controls):
     """Prefer visible terminal states over stale background controls."""
     removed = page.get_by_text("You have been removed", exact=True)
@@ -551,7 +621,7 @@ def meeting_state(page, controls):
     )
 
 
-def observe_or_control(action, requested=None):
+def observe_or_control(action, requested=None):  # noqa: PLR0911
     """Observe the owned Zoom browser and use visible semantic controls only."""
     selected = owned_browser_state()
     runtime = Path(os.environ["XDG_RUNTIME_DIR"])
@@ -615,6 +685,8 @@ def observe_or_control(action, requested=None):
                     "meeting_joined": False,
                     "recording": False,
                 }
+            if action in ("share", "stop-share"):
+                return control_web_share(page, action, requested)
             patterns = {
                 "audio": {"on": r"^unmute(?:\b|$)", "off": r"^mute(?:\b|$)"},
                 "video": {
@@ -706,7 +778,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "action",
-        choices=["status", "verify", "join", "awareness", "audio", "video", "leave"],
+        choices=[
+            "status",
+            "verify",
+            "join",
+            "awareness",
+            "audio",
+            "video",
+            "share",
+            "stop-share",
+            "leave",
+        ],
     )
     parser.add_argument("target", nargs="?")
     parser.add_argument("--json", action="store_true")
@@ -714,7 +796,7 @@ def main():
     if args.action == "join":
         result = join(args.target or "")
         code = result["exitCode"]
-    elif args.action in ("awareness", "audio", "video", "leave"):
+    elif args.action in ("awareness", "audio", "video", "share", "stop-share", "leave"):
         result = observe_or_control(args.action, args.target)
         code = result["exitCode"]
     else:

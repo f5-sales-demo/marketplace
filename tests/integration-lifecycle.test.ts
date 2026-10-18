@@ -2083,7 +2083,11 @@ it('preserves ARM64 Zoom Web diagnostics with explicit backend selection', () =>
       error: 'invalid_response',
       stderr: 'synthetic-web-unavailable',
     });
-    expect(call('share', [])).toMatchObject({ error: 'web_control_not_qualified' });
+    for (const action of ['share', 'stop-share'] as const) {
+      expect(call(action, [])).toMatchObject({ exitCode: 23, error: 'invalid_response' });
+      expect(spawn.mock.calls.at(-1)?.[0]).toContain(action);
+    }
+    expect(call('reaction', [])).toMatchObject({ error: 'web_control_not_qualified' });
   } finally {
     spawn.mockRestore();
     if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;

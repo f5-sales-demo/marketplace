@@ -1013,7 +1013,7 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
   if (zoomBackend() === 'web') {
-    if (!['status', 'awareness', 'join', 'audio', 'video', 'leave'].includes(action))
+    if (!['status', 'awareness', 'join', 'audio', 'video', 'share', 'stop-share', 'leave'].includes(action))
       return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
     const result = Bun.spawnSync(['python3', ZOOM_WEB, action, ...args, '--json']);
     try {
