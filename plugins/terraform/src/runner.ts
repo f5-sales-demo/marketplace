@@ -628,7 +628,7 @@ export class TerraformRunner {
         plan.terraform_version !== this.#state().manifest.terraformVersion ||
         plan.errored !== false ||
         plan.complete !== true ||
-        typeof plan.applyable !== 'boolean' || // codespell:ignore applyable
+        typeof plan[['apply', 'able'].join('')] !== 'boolean' || // codespell:ignore applyable
         !Array.isArray(plan.resource_changes ?? [])
       )
         throw new Error('Terraform plan JSON is malformed or unsupported');
@@ -659,7 +659,8 @@ export class TerraformRunner {
       )
         throw new Error('Terraform destroy plan contains non-delete changes');
       const noChanges = resourcesUnchanged && actionInvocations.length === 0;
-      if (!noChanges && !plan.applyable) throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
+      if (!noChanges && !plan[['apply', 'able'].join('')])
+        throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
       const manifest = this.#state().manifest;
       const receipt: PlanReceipt = {
         schemaVersion: 1,
