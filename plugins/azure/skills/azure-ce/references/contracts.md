@@ -87,4 +87,7 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 - [F5 Secure Mesh Site v2 on Azure](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-az-clickops)
 - [F5 CE registration and upgrade](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-reg-upg-ref)
 
-The pinned API bootstrap disables separate management networking. NIC roles `management`, `cluster`, and `other` cannot currently be translated by that bootstrap and must be rejected before planning resources. A NIC name such as `mgmt` may still identify an explicitly declared SLO; cloud names do not change the role. Qualifying separate management/cluster semantics requires a supported producer bootstrap contract and live evidence.
+The pinned API bootstrap disables separate management networking.
+NIC roles `management`, `cluster`, and `other` cannot currently be translated by that bootstrap and must be rejected before planning resources.
+A NIC name such as `mgmt` may still identify an explicitly declared SLO; cloud names do not change the role.
+Qualifying separate management/cluster semantics requires a supported producer bootstrap contract and live evidence.
