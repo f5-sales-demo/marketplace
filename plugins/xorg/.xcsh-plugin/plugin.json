@@ -1,6 +1,6 @@
 {
   "name": "xorg",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Ubuntu 24.04 Xorg desktop automation substrate",
   "license": "Apache-2.0",
   "author": {
@@ -16,24 +16,39 @@
       "category": "development",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/xorg",
       "license": "Apache-2.0",
-      "keywords": ["xorg", "at-spi", "xtest", "pipewire"],
-      "tags": ["linux", "desktop", "automation"],
+      "keywords": [
+        "xorg",
+        "at-spi",
+        "xtest",
+        "pipewire"
+      ],
+      "tags": [
+        "linux",
+        "desktop",
+        "automation"
+      ],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     }
   },
   "lifecycle": {
     "mode": "integrated",
-    "integrations": ["xorg"],
-    "requirements": ["Ubuntu 24.04 with passwordless sudo"],
+    "integrations": [
+      "xorg"
+    ],
+    "requirements": [
+      "Ubuntu 24.04 with passwordless sudo"
+    ],
     "setupRequired": true,
     "setupAuthorization": "install",
     "collectedData": [],
     "pluginDependencies": []
   },
-  "extensions": ["extensions/integration.ts"],
+  "extensions": [
+    "extensions/integration.ts"
+  ],
   "xcsh": {
     "name": "Xorg",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "minimumRuntimeVersion": "23.5.1"
 }

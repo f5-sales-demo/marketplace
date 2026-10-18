@@ -46,6 +46,8 @@ export type Action =
 const DEFAULT_SESSION = 'desktop';
 const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
 const ZOOM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'zoom-setup.py');
+const ZOOM_WEB = resolve(import.meta.dir, '..', 'scripts', 'zoom-web.py');
+export const zoomBackend = () => process.platform === 'linux' && (process.arch === 'arm64' || process.env.XCSH_ZOOM_BACKEND === 'web') ? 'web' : 'workplace';
 type AccessibilityItem = {
   name?: string;
   role?: string;
@@ -1006,6 +1008,12 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
 };
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
+  if (zoomBackend() === 'web') {
+    if (!['status', 'awareness', 'join'].includes(action)) return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
+    const result = Bun.spawnSync(['python3', ZOOM_WEB, action === 'awareness' ? 'status' : action, ...args, '--json']);
+    try { return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode }; }
+    catch { return { exitCode: 1, backend: 'zoom-web', error: 'invalid_response' }; }
+  }
   const windowsBySession = sessionInventory();
   const activeMeetingSession =
     discoverActiveMeetingSession(windowsBySession) ?? discoverActiveMeetingSessionByAwareness(windowsBySession);
@@ -1104,20 +1112,22 @@ export const createZoomCommandHandler =
   };
 export default function zoomIntegration(pi: ExtensionApi) {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
+  const web = zoomBackend() === 'web';
+  const setupScript = web ? ZOOM_WEB : ZOOM_SETUP;
   pi.integrations.register({
     id: 'zoom',
-    name: 'Zoom Workplace',
+    name: web ? 'Zoom Web' : 'Zoom Workplace',
     plugin: 'zoom',
     kind: 'local',
     setup: {
-      pluginDependencies: ['xorg', 'herdr', 'ghostty'],
+      pluginDependencies: web ? ['xorg', 'herdr'] : ['xorg', 'herdr', 'ghostty'],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: ['python3', ZOOM_SETUP, 'apply', '--json'], timeoutMs: 900000 }],
-      verification: [{ argv: ['python3', ZOOM_SETUP, 'verify', '--json'], timeoutMs: 120000 }],
+      steps: web ? [] : [{ kind: 'install', argv: ['python3', ZOOM_SETUP, 'apply', '--json'], timeoutMs: 900000 }],
+      verification: [{ argv: ['python3', setupScript, 'verify', '--json'], timeoutMs: 120000 }],
     },
     async probe() {
-      const result = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
+      const result = Bun.spawnSync(['python3', setupScript, 'status', '--json']);
       if (result.exitCode !== 0) return { state: 'setup_required', reason: 'terminal_camera_not_ready' };
       try {
         const value = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;

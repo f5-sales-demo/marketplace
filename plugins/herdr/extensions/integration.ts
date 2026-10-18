@@ -406,7 +406,30 @@ export function probeHerdr(dependencies: ProbeDependencies = systemDependencies(
   };
 }
 
+export function probeBakedHerdr() {
+  const path = '/etc/pi-desktop/desktop-lock.json';
+  if (!existsSync(path)) return undefined;
+  const context = contextDetails(process.env);
+  try {
+    const lock = JSON.parse(readFileSync(path, 'utf8'));
+    const runtime = lock.baked_tools?.herdr;
+    if (runtime?.repository !== 'f5-sales-demo/herdr' || typeof runtime.version !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(runtime.binary_sha256)) throw new Error('invalid_baked_receipt');
+    const binary = '/usr/local/bin/herdr';
+    const hash = createHash('sha256').update(readFileSync(binary)).digest('hex');
+    const version = Bun.spawnSync([binary, '--version']);
+    if (hash !== runtime.binary_sha256 || version.exitCode !== 0 ||
+        parseVersion(new TextDecoder().decode(version.stdout)) !== runtime.version) throw new Error('baked_binary_mismatch');
+    return { state: 'ready', value: { installation: { state: 'ready', binary, hash, version: runtime.version,
+                     repository: runtime.repository, source: 'immutable baked receipt' }, context,
+                     runtime: { state: context.state === 'unpaired' ? 'unpaired' : 'pending_runtime_probe' } } };
+  } catch {
+    return { state: 'degraded', reason: 'invalid_baked_receipt', value: { context } };
+  }
+}
+
 export default function herdrIntegration(pi: ExtensionApi) {
+  const baked = existsSync('/etc/pi-desktop/desktop-lock.json');
   pi.integrations.register({
     id: 'herdr',
     name: 'Herdr',
@@ -416,11 +439,11 @@ export default function herdrIntegration(pi: ExtensionApi) {
       pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: setupCommand(process.platform, 'apply'), timeoutMs: 300_000 }],
-      verification: [{ argv: setupCommand(process.platform, 'verify'), timeoutMs: 30_000 }],
+      steps: baked ? [] : [{ kind: 'install', argv: setupCommand(process.platform, 'apply'), timeoutMs: 300_000 }],
+      verification: [{ argv: baked ? ['/usr/local/bin/herdr', '--version'] : setupCommand(process.platform, 'verify'), timeoutMs: 30_000 }],
     },
     async probe() {
-      return probeHerdr();
+      return probeBakedHerdr() ?? probeHerdr();
     },
   });
 }
