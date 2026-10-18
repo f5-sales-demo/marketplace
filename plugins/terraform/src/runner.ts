@@ -18,7 +18,7 @@ export interface Deployment {
   deploymentId: string;
   stage?: string;
   engine: 'terraform';
-  scope: { cloud: 'aws' | 'azure'; account: string; region: string };
+  scope: { cloud: 'aws' | 'azure' | 'gcp'; account: string; region: string };
   terraformVersion: string;
   configuration: string;
   providerLock: string;
@@ -290,7 +290,11 @@ export class TerraformRunner {
         `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
     )
       throw new Error('This runner currently admits isolated local backends only');
-    if (!deployment.scope.account || !deployment.scope.region || !['aws', 'azure'].includes(deployment.scope.cloud))
+    if (
+      !deployment.scope.account ||
+      !deployment.scope.region ||
+      !['aws', 'azure', 'gcp'].includes(deployment.scope.cloud)
+    )
       throw new Error('Explicit deployment scope is required');
     await privateDirectory(this.root);
     const directory = join(this.root, deployment.deploymentId);

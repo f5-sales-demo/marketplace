@@ -14,12 +14,40 @@ const tokenPattern = /^[a-f0-9-]{36}$/;
 const bootPattern = /^[a-f0-9-]{36}$/;
 
 async function bootId(): Promise<string> {
-  const value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  let value: string;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
   if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
   return value;
 }
 
 async function processStartTicks(pid: number): Promise<string | undefined> {
+  if (process.platform === 'darwin') {
+    // Darwin proc_bsdinfo exposes microsecond process-start identity, avoiding
+    // second-resolution ps output that cannot safely distinguish PID reuse.
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return undefined;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
   try {
     const value = await readFile(`/proc/${pid}/stat`, 'utf8');
     const end = value.lastIndexOf(') ');
@@ -87,7 +115,7 @@ async function readClaim(path: string): Promise<Claim> {
 }
 
 /**
- * Acquire an atomic process-bound lock. A claim is reclaimed only when Linux boot/process-start
+ * Acquire an atomic process-bound lock. A claim is reclaimed only when verified boot/process-start
  * evidence proves that its owner no longer exists, so PID reuse cannot authorize removal.
  */
 export async function acquireProcessLock(path: string): Promise<() => Promise<void>> {

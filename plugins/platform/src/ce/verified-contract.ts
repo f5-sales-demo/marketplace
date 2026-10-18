@@ -57,7 +57,7 @@ export class VerifiedCeContract {
     readonly fingerprint: string,
     contract: Json,
     schemas: Json,
-    networking?: { network: Json; marketplace: Json },
+    networking: { network: Json; marketplace: Json } | undefined,
     publication: 'published-release',
   ) {
     this.publication = publication;
@@ -195,7 +195,8 @@ export class VerifiedCeContract {
     const capability = this.azureRouteServerEbgpMultihop();
     throw new Error(`Azure Route Server eBGP multihop is ${capability.availability}: ${capability.reason}`);
   }
-  configurationPath(providerName: 'aws' | 'azure', siteName: string): string {
+  configurationPath(providerName: 'aws' | 'azure' | 'gcp', siteName: string): string {
+    if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
     const provider = object(object(this.#contract.providers)[providerName]);
     const observation = object(object(provider.runtime).configuration);
     const mappings = object(observation.response_mappings);
@@ -230,7 +231,8 @@ export class VerifiedCeContract {
       throw new Error(`Verified ${providerName} configuration observation mapping is unavailable`);
     return `/api/config/namespaces/system/securemesh_site_v2s/${siteName}`;
   }
-  bgpPeersPath(providerName: 'aws' | 'azure', siteName: string): string {
+  bgpPeersPath(providerName: 'aws' | 'azure' | 'gcp', siteName: string): string {
+    if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
     const provider = object(object(this.#contract.providers)[providerName]);
     const runtime = object(provider.runtime);
     const observation = object(runtime.bgp_peers);
@@ -259,7 +261,8 @@ export class VerifiedCeContract {
       throw new Error(`Verified ${providerName} BGP observation mapping is unavailable`);
     return `/api/operate/namespaces/system/sites/${siteName}/ver/bgp_peers`;
   }
-  bgpRoutesPath(providerName: 'aws' | 'azure', siteName: string): string {
+  bgpRoutesPath(providerName: 'aws' | 'azure' | 'gcp', siteName: string): string {
+    if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
     const provider = object(object(this.#contract.providers)[providerName]);
     const observation = object(object(provider.runtime).bgp_routes);
     const mappings = object(observation.response_mappings);
@@ -328,10 +331,11 @@ export class VerifiedCeContract {
   validateSiteReplace(request: Json): void {
     createWireValidator(this.#schemas, 'securemesh_site_v2ReplaceRequest')(request);
   }
-  provider(name: 'aws' | 'azure'): Json {
+  provider(name: 'aws' | 'azure' | 'gcp'): Json {
     return structuredClone(object(object(this.#contract.providers)[name]));
   }
-  bootstrapQuery(name: 'aws' | 'azure'): { provider: 'aws' | 'azure'; enableManagementNetwork: false } {
+  bootstrapQuery(name: 'aws' | 'azure' | 'gcp'): { provider: 'aws' | 'azure' | 'gcp'; enableManagementNetwork: false } {
+    if (name === 'gcp') throw new Error('Verified GCP image bootstrap capability is unavailable');
     const provider = object(object(this.#contract.providers)[name]);
     const bootstrap = object(provider.bootstrap);
     if (

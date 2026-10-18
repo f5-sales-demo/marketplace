@@ -30,3 +30,25 @@ test('deployment storage survives a new service instance and rejects engine migr
   await symlink('owner.json', join(store.directory, 'link.json'));
   await expect(store.read('link.json')).rejects.toThrow('ownership');
 });
+
+test('GCP deployment storage resumes exact project and engine bindings with private modes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gcp-ce-store-'));
+  dirs.push(root);
+  const gcp = { ...owner, provider: 'gcp' as const, account: 'test-project', region: 'northamerica-northeast1' };
+  const store = await CeDeploymentStore.open(root, gcp);
+  await store.write('checkpoint.json', {
+    schemaVersion: 1,
+    project: gcp.account,
+    authorization: 'retained',
+    operation: 'pending',
+  });
+  const resumed = await CeDeploymentStore.open(root, gcp);
+  expect(await resumed.read('checkpoint.json')).toEqual({
+    schemaVersion: 1,
+    project: 'test-project',
+    authorization: 'retained',
+    operation: 'pending',
+  });
+  expect((await stat(join(store.directory, 'checkpoint.json'))).mode & 0o777).toBe(0o600);
+  await expect(CeDeploymentStore.open(root, { ...gcp, engine: 'terraform' })).rejects.toThrow('engine');
+});

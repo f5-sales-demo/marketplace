@@ -28,7 +28,7 @@ type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 export interface CeOwner {
   deploymentId: string;
   engine: 'native' | 'terraform';
-  provider: 'aws' | 'azure';
+  provider: 'aws' | 'azure' | 'gcp';
   account: string;
   region: string;
 }
@@ -170,10 +170,12 @@ export class CeRuntime {
     }
   }
   #binding(binding: SiteBinding, mutation = false): void {
+    if (mutation && binding.owner.provider === 'gcp')
+      throw new Error('GCP runtime mutation is unavailable until qualified');
     if (
       !safeName.test(binding.siteName) ||
       !safeName.test(binding.owner.deploymentId) ||
-      !['aws', 'azure'].includes(binding.owner.provider) ||
+      !['aws', 'azure', 'gcp'].includes(binding.owner.provider) ||
       !['native', 'terraform'].includes(binding.owner.engine) ||
       !binding.owner.account ||
       !binding.owner.region ||

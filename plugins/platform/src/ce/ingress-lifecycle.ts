@@ -117,7 +117,8 @@ export class CeIngressLifecycle {
       'xcsh-ce-region': owner.region,
     };
   }
-  async #material(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async #material(provider: 'aws' | 'azure' | 'gcp', intent: Intent, selections: Selection[], signal?: AbortSignal) {
+    if (provider === 'gcp') throw new Error('GCP ingress mapping is unavailable');
     const deadline = AbortSignal.timeout(60_000);
     signal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     signal.throwIfAborted();
@@ -216,7 +217,7 @@ export class CeIngressLifecycle {
   async planAzure(intent: Intent, selections: Selection[], signal?: AbortSignal) {
     return this.#plan('azure', intent, selections, signal);
   }
-  async #plan(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async #plan(provider: 'aws' | 'azure' | 'gcp', intent: Intent, selections: Selection[], signal?: AbortSignal) {
     return this.#locked(async () => {
       const material = await this.#material(provider, intent, selections, signal);
       const draft = {

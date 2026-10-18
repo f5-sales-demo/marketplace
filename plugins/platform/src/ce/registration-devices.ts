@@ -21,7 +21,7 @@ export function correlateRegistrationDevices(
   siteName: string,
   instances: Record<string, string>,
   expected: ExpectedCeInterface[],
-  provider: 'aws' | 'azure' = 'aws',
+  provider: 'aws' | 'azure' | 'gcp' = 'aws',
 ): Array<ExpectedCeInterface & { device: string }> {
   if (
     response.next_page_token ||
@@ -87,7 +87,7 @@ export function correlateRegistrationDevices(
 export function verifyRegisteredInterfaceConfiguration(
   spec: Json,
   devices: Array<ExpectedCeInterface & { device: string }>,
-  provider: 'aws' | 'azure' = 'aws',
+  provider: 'aws' | 'azure' | 'gcp' = 'aws',
 ): void {
   const nodes = array(object(object(spec[provider]).not_managed).node_list).map(object);
   const expectedNodes = new Set(devices.map((item) => item.node));
