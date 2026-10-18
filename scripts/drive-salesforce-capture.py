@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Drive one task-owned native Herdr capture session and inspect frames serially."""
+# CLI filenames follow repository conventions; orchestration keeps one lifecycle owner.
+# pylint: disable=invalid-name,too-many-locals,too-many-statements
 
 import argparse
 import hashlib
@@ -62,13 +64,16 @@ def expected_argv(case: dict[str, Any]) -> list[str] | None:
 
 
 def verify_commands(
-    root: Path, frame: dict[str, Any], case: dict[str, Any]
+    root: Path,
+    frame: dict[str, Any],
+    case: dict[str, Any],
+    required_shells: tuple[str, ...] = ("/bin/bash", "/bin/zsh"),
 ) -> dict[str, Any]:
     """Execute only captured fixture commands against an argv recorder."""
     expected = expected_argv(case)
     if expected is None:
         return {"capability": "no single CLI command exposed"}
-    command_lines = []
+    command_lines: list[str] = []
     for row in frame["lines"]:
         value = plain(row)
         if value[:2] in ["│ ", "| "] and value[-1:] in ["│", "|"]:
@@ -90,7 +95,10 @@ def verify_commands(
     )
     executable.chmod(0o700)
     outcomes = {}
-    for shell in ["/bin/bash", "/bin/zsh"]:
+    for shell in required_shells:
+        if not Path(shell).is_file():
+            outcomes[Path(shell).name] = False
+            continue
         target = recorder / (Path(shell).name + ".json")
         target.unlink(missing_ok=True)
         env = {

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Capture every native visible page for completed renderer frames in an owned pane."""
+# CLI filenames follow repository conventions; orchestration keeps one lifecycle owner.
+# pylint: disable=invalid-name,too-many-locals,too-many-statements
 
 import argparse
 import hashlib
@@ -13,6 +15,9 @@ from pathlib import Path
 spec = spec_from_file_location(
     "capture_driver", Path(__file__).with_name("drive-salesforce-capture.py")
 )
+if spec is None or spec.loader is None:
+    msg = "Native capture driver cannot be loaded"
+    raise ImportError(msg)
 driver = module_from_spec(spec)
 spec.loader.exec_module(driver)
 

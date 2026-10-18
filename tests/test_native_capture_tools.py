@@ -7,6 +7,8 @@ from pathlib import Path
 
 MODULE = Path(__file__).resolve().parents[1] / "scripts" / "drive-salesforce-capture.py"
 spec = importlib.util.spec_from_file_location("capture_driver", MODULE)
+assert spec is not None
+assert spec.loader is not None
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 
@@ -28,7 +30,16 @@ class NativeCaptureChecks(unittest.TestCase):
         frame = {"lines": rows}
         case = {"tool": "sf_query", "args": {"query": query}}
         with tempfile.TemporaryDirectory() as root:
-            result = driver.verify_commands(Path(root), frame, case)
+            result = driver.verify_commands(
+                Path(root),
+                frame,
+                case,
+                required_shells=tuple(
+                    shell
+                    for shell in ("/bin/bash", "/bin/zsh")
+                    if Path(shell).is_file()
+                ),
+            )
         assert result["passed"], result
 
     def test_overflow_and_missing_value_are_not_accepted(self):

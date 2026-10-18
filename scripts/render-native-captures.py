@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Render native ANSI frame buffers to private images; these are not desktop screenshots."""
+# CLI filenames follow repository conventions; orchestration keeps one lifecycle owner.
+# pylint: disable=invalid-name,too-many-locals,too-many-statements
 
 import argparse
 import json
@@ -45,7 +47,7 @@ def main() -> None:
     cell_width = round(regular.getlength("M"))
     cell_height = 22
     count = 0
-    glyph_cache = {}
+    glyph_cache: dict[tuple[str, str, str, int], Image.Image] = {}
     for path in sorted((args.root / "frames").glob("*.json")):
         value = json.loads(path.read_text())
         rows = value["lines"]

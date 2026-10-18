@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Start a reproducible native capture using the current Mac install and an owned Herdr pane."""
+# CLI filenames follow repository conventions; orchestration keeps one lifecycle owner.
+# pylint: disable=invalid-name,too-many-locals,too-many-statements
 
 import argparse
 import hashlib
@@ -127,7 +129,11 @@ def main() -> None:
         msg = "Installed Salesforce target is ambiguous"
         raise RuntimeError(msg)
     plugin = Path(plugins[0]["installPath"]).resolve()
-    binary = Path(shutil.which("xcsh")).resolve()
+    binary_name = shutil.which("xcsh")
+    if binary_name is None:
+        msg_0 = "Installed xcsh executable is unavailable"
+        raise FileNotFoundError(msg_0)
+    binary = Path(binary_name).resolve()
     version = subprocess.check_output([str(binary), "--version"], text=True).strip()  # noqa: S603 - argv is fixed or comes from the owner-controlled capture protocol
     server = json.loads(
         subprocess.check_output(["herdr", "status", "server", "--json"], text=True)  # noqa: S607 - argv is fixed or comes from the owner-controlled capture protocol
@@ -214,7 +220,7 @@ def main() -> None:
         wrapper = root / "bin/sf"
         wrapper.write_text(
             "#!/bin/sh\nexec "
-            + shlex.quote(shutil.which("bun"))
+            + shlex.quote(shutil.which("bun") or "bun")
             + " "
             + shlex.quote(str(fixture / "fixture-sf.ts"))
             + ' "$@"\n'
