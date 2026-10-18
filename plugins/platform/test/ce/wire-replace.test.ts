@@ -36,3 +36,18 @@ test('replacement projection preserves settings and maps while omitting read-onl
     projectReplaceSnapshot({ ...observed, settings: { mtu: 0, unknown: true } }, schemas, 'root', ['status']),
   ).toThrow('unsupported');
 });
+
+test('preserves exact vendor wire spellings in replacement snapshots', () => {
+  const schemas = {
+    Root: {
+      type: 'object',
+      properties: {
+        blocked_service: { type: 'array', items: { type: 'string' }, 'x-f5xc-wire-name': 'blocked_sevice' },
+      },
+    },
+  };
+  expect(projectReplaceSnapshot({ blocked_sevice: ['ssh'] }, schemas, 'Root')).toEqual({ blocked_sevice: ['ssh'] });
+  expect(() => projectReplaceSnapshot({ blocked_service: ['ssh'], blocked_sevice: ['dns'] }, schemas, 'Root')).toThrow(
+    /Duplicate/,
+  );
+});

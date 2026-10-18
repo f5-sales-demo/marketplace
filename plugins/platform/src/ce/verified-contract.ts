@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
+import { parseKvmImageResolution, type Smsv2KvmImageResolution } from './release-contract';
+import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
 import {
   type AwsGreBinding,
@@ -59,6 +60,7 @@ export class VerifiedCeContract {
     schemas: Json,
     networking: { network: Json; marketplace: Json } | undefined,
     publication: 'published-release',
+    readonly kvmImageResolution?: Smsv2KvmImageResolution,
   ) {
     this.publication = publication;
     this.#contract = contract;
@@ -87,7 +89,7 @@ export class VerifiedCeContract {
     const bindings = object(manifest.assets);
     if (
       manifest.schema_version !== 1 ||
-      release.commit !== 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc' ||
+      release.commit !== CE_API_RELEASE.commit ||
       contract.contract_id !== 'f5xc-smsv2-api/v1' ||
       contract.version !== '7.0.0' ||
       evidence.contract_id !== contract.contract_id ||
@@ -97,12 +99,22 @@ export class VerifiedCeContract {
       throw new Error('Published SMSv2 contract binding is invalid');
     const schemas = object(object(api.components).schemas);
     return new VerifiedCeContract(
-      'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc',
+      CE_API_RELEASE.commit,
       publishedAssets['smsv2-contract-manifest.json'],
       contract,
       schemas,
       { network: schemas, marketplace: schemas },
       'published-release',
+      {
+        ...parseKvmImageResolution(api),
+        publication: {
+          repository: 'f5-sales-demo/api-specs-enriched',
+          tag: 'v12.0.9',
+          commit: CE_API_RELEASE.commit,
+          asset: 'openapi.json',
+          sha256: CE_API_RELEASE.fingerprint,
+        },
+      },
     );
   }
   get awsRoutingAvailable(): boolean {
@@ -331,8 +343,64 @@ export class VerifiedCeContract {
       ]),
       resource_version: snapshot.resource_version,
     };
-    this.validateSiteReplace(request);
+    for (const provider of ['aws', 'azure']) {
+      const original = object(snapshot.spec)[provider] as Json | undefined;
+      const projected = object(request.spec)[provider] as Json | undefined;
+      if (!original || !projected) continue;
+      const originalNodes = object(original.not_managed ?? {}).node_list as Json[] | undefined;
+      const projectedNodes = object(projected.not_managed ?? {}).node_list as Json[] | undefined;
+      for (const node of projectedNodes ?? [])
+        for (const iface of node.interface_list as Json[]) {
+          const ethernet = object(iface.ethernet_interface);
+          const observed = (
+            originalNodes?.find((item) => item.hostname === node.hostname)?.interface_list as Json[] | undefined
+          )?.find(
+            (item) =>
+              object(item.ethernet_interface).mac === ethernet.mac &&
+              object(item.ethernet_interface).device === ethernet.device,
+          );
+          for (const field of ['is_primary', 'is_management'])
+            if (typeof observed?.[field] === 'boolean') iface[field] = observed[field];
+        }
+    }
+    this.validateObservedSiteReplace(snapshot, request);
     return request;
+  }
+  validateObservedSiteReplace(snapshot: Json, request: Json): void {
+    if (
+      object(snapshot.metadata).name !== object(request.metadata).name ||
+      object(snapshot.metadata).namespace !== object(request.metadata).namespace ||
+      !snapshot.resource_version ||
+      request.resource_version !== snapshot.resource_version
+    )
+      throw new Error('Replacement snapshot identity or resource version differs');
+    for (const provider of ['aws', 'azure']) {
+      const before = object(snapshot.spec)[provider] as Json | undefined;
+      const after = object(request.spec)[provider] as Json | undefined;
+      if (!before && !after) continue;
+      if (!before || !after) throw new Error('Replacement provider identity differs');
+      const original = object(before.not_managed ?? {}).node_list as Json[] | undefined;
+      const nodes = object(after.not_managed ?? {}).node_list as Json[] | undefined;
+      for (const node of nodes ?? [])
+        for (const iface of node.interface_list as Json[]) {
+          const ethernet = object(iface.ethernet_interface);
+          const observed = (
+            original?.find((item) => item.hostname === node.hostname)?.interface_list as Json[] | undefined
+          )?.find(
+            (item) =>
+              object(item.ethernet_interface).mac === ethernet.mac &&
+              object(item.ethernet_interface).device === ethernet.device,
+          );
+          if (!observed) throw new Error('Replacement physical interface identity differs');
+          for (const field of ['is_primary', 'is_management'])
+            if (iface[field] !== observed[field]) throw new Error('Observed interface identity flags changed');
+        }
+    }
+    createWireValidator(
+      this.#schemas,
+      'securemesh_site_v2ReplaceRequest',
+      object(snapshot.spec).aws !== undefined || object(snapshot.spec).azure !== undefined,
+    )(request);
   }
   validateSiteReplace(request: Json): void {
     createWireValidator(this.#schemas, 'securemesh_site_v2ReplaceRequest')(request);

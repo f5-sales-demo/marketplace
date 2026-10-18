@@ -19,7 +19,73 @@ Inspect Azure resources and plan F5 Distributed Cloud Customer Edge deployments.
 - The Platform plugin with F5 Distributed Cloud authentication.
 - An authorized lab or demo target.
 
-## Install
+## Customer Edge tools
+
+| Tool | Purpose |
+| --- | --- |
+| `azure_compute_discover` | Enumerate the live Marketplace catalog and rank regions using exact image, SKU, NIC, zone, quota, policy, Route Server, terms, and brownfield evidence |
+| `azure_ce_plan` | Compile natural-language intent into a canonical secret-free plan and SHA-256 |
+| `azure_ce_apply` | Apply or resume only the exact persisted plan after stale-state and ownership checks |
+| `azure_ce_status` | Correlate Azure resources, checkpoints, Route Server peers, and F5 evidence |
+| `azure_ce_diagnose` | Run passive or separately approved active network, VM, boot, and cross-plane diagnostics |
+| `azure_cloud_init_analyze` | Validate cloud-init stages and summarize boot evidence without returning user data |
+
+The `azure-ce` skill coordinates authentication, discovery, recommendation,
+approval, Secure Mesh Site v2 creation, one-use bootstrap checkout, virtual
+machine launch, registration gates, routing activation, and verification.
+
+## Mandatory research gate
+
+Natural-language requests such as “F5 edge appliance,” “XC CE,” and “Secure Mesh
+node” route to the CE workflow. Before recommending an image, size, or region,
+the workflow retrieves and hashes the canonical `f5xc-ce-automation/v1` contract,
+the current official F5 Azure deployment guide, and Microsoft Marketplace/SKU
+guidance. It then enumerates the live publisher,
+offer, image SKU, exact version, and compatible subscription-aware VM sizes.
+User-supplied catalog values are constraints to verify, never trusted defaults.
+
+The discovery result includes a secret-free research receipt, normalized source
+digests, and session artifact. Planning fails closed when the contract is invalid,
+unavailable, or changed, or when that live discovery artifact is absent. Schema-v1
+Azure intent, observations, and plans are unsupported.
+
+<Aside type="caution">
+  A plan never contains bootstrap material. Platform returns an opaque
+  `f5xc-ce://` reference, and Azure consumes its 0600 token file once from a
+  session-owned 0700 temporary directory. Do not inspect or copy this storage.
+</Aside>
+
+## Topology and routing
+
+- Non-HA plans use one node and explicit user-defined routes through its
+  data-plane private address.
+- High-availability plans use three symmetric nodes. Eligible greenfield plans
+  create a dedicated `/26` `RouteServerSubnet`, peer every node, and gate routing
+  on F5 health and BGP evidence.
+- Every node is checked for at least 8 vCPUs and 32 GB memory and receives an
+  80 GB OS disk.
+- Brownfield plans modify only named associations and routes and preserve exact
+  restoration state.
+
+## Headless controls
+
+Set `XCSH_CE_HEADLESS_MUTATIONS=1` and supply the exact plan hash for headless
+CE orchestration. An initial exact Terraform deployment needs no Marketplace
+environment flag, CLI command, console action, or other manual intervention:
+its generated configuration reads and idempotently accepts only the live-discovered
+F5 XC Marketplace agreement before creating any foundation resource in the same
+`terraform apply` that admits the VMs. Destructive
+operations also require `XCSH_CE_ALLOW_DESTROY=1`. Azure-named compatibility
+environment variables are not supported.
+
+## Verify
+
+Run `azure_ce_status`, `f5xc_ce_v2_status`, and passive
+`azure_ce_diagnose`. Confirm the expected node count, healthy registration,
+established BGP when applicable, correct effective routes, and a complete
+checkpoint.
+
+Maintainers can run a real synthesized-prompt trace without cloud mutation:
 
 ```bash
 xcsh plugin install azure@f5-sales-demo-marketplace

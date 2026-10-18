@@ -9,7 +9,7 @@ export interface ObservedCeInterface extends ExpectedCeInterface {
   device: string;
   interfaceName: string;
   mtu: number;
-  linkUp: true;
+  linkUp: boolean;
   ipv4: { address: string; prefixLength: number } | null;
 }
 type Json = Record<string, unknown>;
@@ -162,9 +162,14 @@ export function correlateCeInterfaces(
       links[0].link_type !== 'LINK_TYPE_ETHERNET' ||
       links[0].network_type !==
         (iface.role === 'slo' ? 'VIRTUAL_NETWORK_SITE_LOCAL' : 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE') ||
-      links[0].link_state !== true
+      typeof links[0].link_state !== 'boolean'
     )
-      throw new Error('Physical interface link is not verified up');
-    return { ...iface, interfaceName: identity(matches[0].name), linkUp: true, ipv4: observedIpv4(links[0]) };
+      throw new Error('Physical interface link state is not explicit or identity verified');
+    return {
+      ...iface,
+      interfaceName: identity(matches[0].name),
+      linkUp: links[0].link_state as boolean,
+      ipv4: observedIpv4(links[0]),
+    };
   });
 }

@@ -2523,9 +2523,17 @@ async function verifyPublishedCeApi(fetcher, signal) {
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
   const read = async (url, maximum = 1048576) => {
     combined.throwIfAborted();
-    const response = await fetcher(url, { signal: combined, headers: authenticatedContractHeaders(url) });
+    let response;
+    try {
+      response = await fetcher(url, { signal: combined, headers: authenticatedContractHeaders(url) });
+    } catch {
+      throw new CeContractFailure('public_contract_transport', 'Published contract transport failed');
+    }
     if (!response.ok || !response.body)
-      throw new Error(`CE API contract download failed: HTTP ${response.status}, ${new URL(url).hostname}`);
+      throw new CeContractFailure(
+        'public_contract_transport',
+        `CE API contract download failed: HTTP ${response.status}, ${new URL(url).hostname}`,
+      );
     const reader = response.body.getReader();
     const chunks = [];
     let size = 0;
@@ -2567,7 +2575,8 @@ async function verifyPublishedCeApi(fetcher, signal) {
   combined.throwIfAborted();
   return api;
 }
-var repository = 'f5-sales-demo/api-specs-enriched',
+var CeContractFailure,
+  repository = 'f5-sales-demo/api-specs-enriched',
   tag = 'v12.0.9',
   commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc',
   digest = 'sha256:8a3ea9bce1bab8aa228c10e0d646e693bcfb9c36562ad4efefef3c5b74062753',
@@ -2576,9 +2585,40 @@ var repository = 'f5-sales-demo/api-specs-enriched',
   verifiedSchemas;
 var init_verified_api_release = __esm(() => {
   init_contract_auth();
+  CeContractFailure = class CeContractFailure extends Error {
+    category;
+    constructor(category, message) {
+      super(message);
+      this.category = category;
+    }
+  };
   assetUrl = `https://github.com/${repository}/releases/download/${tag}/openapi.json`;
   CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
   verifiedSchemas = new WeakMap();
+});
+
+// plugins/platform/src/ce/release-contract.ts
+var RELEASE_TAG, RELEASE_COMMIT, OPENAPI_SHA256, RELEASE_URL, TAG_URL, REQUIRED_ASSETS;
+var init_release_contract = __esm(() => {
+  init_verified_api_release();
+  RELEASE_TAG = CE_API_RELEASE.tag;
+  RELEASE_COMMIT = CE_API_RELEASE.commit;
+  OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
+  RELEASE_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/${RELEASE_TAG}`;
+  TAG_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/${RELEASE_TAG}`;
+  REQUIRED_ASSETS = new Set([
+    'api-catalog.json',
+    'concurrency_contracts.json',
+    'f5xc-api-specs-v12.0.9.zip',
+    'index.json',
+    'minimal-export-defaults.json',
+    'openapi.json',
+    'smsv2-contract-manifest.json',
+    'smsv2-contract.json',
+    'smsv2-evidence-receipt.json',
+    'smsv2_parity_manifest.json',
+    'upstream-contract-removals.json',
+  ]);
 });
 
 // plugins/platform/src/ce/wire-replace.ts
@@ -2625,7 +2665,10 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
       const properties = object3(schema.properties ?? {});
       const result = {};
       for (const [key, item] of Object.entries(value)) {
-        if (!Object.hasOwn(properties, key)) {
+        const canonicalKey = Object.hasOwn(properties, key)
+          ? key
+          : Object.keys(properties).find((name) => object3(properties[name])['x-f5xc-wire-name'] === key);
+        if (canonicalKey === undefined) {
           if (top && ignoredRootFields.includes(key)) continue;
           if (schema.additionalProperties === true) {
             result[key] = structuredClone(item);
@@ -2638,8 +2681,11 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
           }
           throw new Error('GET snapshot contains an unsupported replacement field');
         }
-        const projected = project(item, properties[key]);
-        if (projected !== undefined) result[key] = projected;
+        const wireName = object3(properties[canonicalKey])['x-f5xc-wire-name'];
+        const outputKey = typeof wireName === 'string' ? wireName : canonicalKey;
+        if (Object.hasOwn(result, outputKey)) throw new Error('Duplicate canonical and wire field aliases');
+        const projected = project(item, properties[canonicalKey]);
+        if (projected !== undefined) result[outputKey] = projected;
       }
       return result;
     }
@@ -2669,6 +2715,11 @@ function requestSchema(schemas, root) {
     const result = {};
     for (const [key, item] of Object.entries(source)) {
       if (keywords.has(key)) result[key] = item;
+      if (key === 'required' && Array.isArray(item))
+        result.required = item.map((name) => {
+          const property = object4(source.properties ?? {})[String(name)];
+          return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
+        });
       if (key === '$ref') {
         if (typeof item !== 'string' || !item.startsWith('#/components/schemas/'))
           throw new Error('Unsupported SMSv2 schema reference');
@@ -2679,7 +2730,10 @@ function requestSchema(schemas, root) {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object4(item)).map(([name, schema]) => [name, convert(schema)]),
+          Object.entries(object4(item)).map(([name, schema]) => {
+            const wireName = object4(schema)['x-f5xc-wire-name'];
+            return [typeof wireName === 'string' ? wireName : name, convert(schema)];
+          }),
         );
         result.additionalProperties =
           source.additionalProperties === undefined ? false : convert(source.additionalProperties);
@@ -2706,8 +2760,13 @@ function requestSchema(schemas, root) {
       }
       if (!Array.isArray(names) || names.some((name) => typeof name !== 'string'))
         throw new Error('Malformed SMSv2 oneof group');
-      for (let i = 0; i < names.length; i++)
-        for (let j = i + 1; j < names.length; j++) exclusions.push({ not: { required: [names[i], names[j]] } });
+      const wireNames = names.map((name) => {
+        const property = object4(source.properties ?? {})[String(name)];
+        return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
+      });
+      for (let i = 0; i < wireNames.length; i++)
+        for (let j = i + 1; j < wireNames.length; j++)
+          exclusions.push({ not: { required: [wireNames[i], wireNames[j]] } });
     }
     if (exclusions.length) result.allOf = [...(result.allOf ?? []), ...exclusions];
     return result;
@@ -2717,8 +2776,22 @@ function requestSchema(schemas, root) {
   for (const name of referenced) definitions[name] = convert(schemas[name]);
   return { $ref: `#/definitions/${root}`, definitions };
 }
-function createWireValidator(schemas, root = 'viewssecuremesh_site_v2CreateSpecType') {
+function createWireValidator(
+  schemas,
+  root = 'viewssecuremesh_site_v2CreateSpecType',
+  observedInterfaceIdentityEcho = false,
+) {
   const schema = requestSchema(schemas, root);
+  if (observedInterfaceIdentityEcho) {
+    if (root !== 'securemesh_site_v2ReplaceRequest') throw new Error('Identity echo requires a replacement snapshot');
+    const properties = object4(object4(schemas.securemesh_site_v2Interface).properties);
+    const projected = object4(object4(object4(schema.definitions).securemesh_site_v2Interface).properties);
+    for (const field of ['is_primary', 'is_management']) {
+      const source = object4(properties[field]);
+      if (source.readOnly !== true || source.type !== 'boolean') throw new Error('Interface identity schema changed');
+      projected[field] = { type: 'boolean' };
+    }
+  }
   return (spec) => {
     const keyword = firstFailure(schema, spec, schema);
     if (keyword) {
@@ -2900,6 +2973,7 @@ var init_wire_site = __esm(() => {
 // plugins/platform/src/ce/verified-contract.ts
 var publishedAssets;
 var init_verified_contract = __esm(() => {
+  init_release_contract();
   init_verified_api_release();
   init_wire_routing();
   init_wire_schema();
@@ -3044,7 +3118,7 @@ import { createHash as createHash3 } from 'node:crypto';
 import { readFile as readFile2 } from 'node:fs/promises';
 
 async function loadXcshProviderLock() {
-  const value = await readFile2(new URL('../locks/xcsh-provider.hcl', import.meta.url), 'utf8');
+  const value = await readFile2(new URL('./assets/plugins/terraform/locks/xcsh-provider.hcl', import.meta.url), 'utf8');
   if (createHash3('sha256').update(value).digest('hex') !== XCSH_PROVIDER_LOCK_SHA256)
     throw new Error('Published XC provider lock changed');
   return value;
@@ -9956,7 +10030,10 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
 }
 async function awsTerraformFoundationDeployment(plan, bootstrapByNode = {}) {
   const configuration = renderAwsTerraformFoundation(plan, bootstrapByNode);
-  const providerLock = await readFile3(new URL('../../terraform/provider-lock.hcl', import.meta.url), 'utf8');
+  const providerLock = await readFile3(
+    new URL('./assets/plugins/aws/terraform/provider-lock.hcl', import.meta.url),
+    'utf8',
+  );
   if (createHash4('sha256').update(providerLock).digest('hex') !== AWS_CE_PROVIDER_LOCK_SHA256)
     throw new Error('AWS provider lock changed');
   return {

@@ -21,7 +21,7 @@ interface Port {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
   ): Promise<{
-    status: 'observed' | 'unknown';
+    status: 'observed' | 'down' | 'unknown';
     interfaces: ObservedCeInterface[];
     observedAt: string;
   }>;
@@ -30,7 +30,7 @@ interface Port {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
   ): Promise<{
-    status: 'observed' | 'unknown';
+    status: 'observed' | 'down' | 'unknown';
     interfaces: ObservedCeInterface[];
     observedAt: string;
   }>;

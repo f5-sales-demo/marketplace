@@ -135,6 +135,26 @@ var assetUrl = `https://github.com/${repository}/releases/download/${tag}/openap
 var CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
 var verifiedSchemas = new WeakMap();
 
+// plugins/platform/src/ce/release-contract.ts
+var RELEASE_TAG = CE_API_RELEASE.tag;
+var RELEASE_COMMIT = CE_API_RELEASE.commit;
+var OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
+var RELEASE_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/${RELEASE_TAG}`;
+var TAG_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/${RELEASE_TAG}`;
+var REQUIRED_ASSETS = new Set([
+  'api-catalog.json',
+  'concurrency_contracts.json',
+  'f5xc-api-specs-v12.0.9.zip',
+  'index.json',
+  'minimal-export-defaults.json',
+  'openapi.json',
+  'smsv2-contract-manifest.json',
+  'smsv2-contract.json',
+  'smsv2-evidence-receipt.json',
+  'smsv2_parity_manifest.json',
+  'upstream-contract-removals.json',
+]);
+
 // plugins/platform/src/ce/wire-schema.ts
 var keywords = new Set([
   'type',
@@ -175,7 +195,7 @@ import { join as join2 } from 'node:path';
 var XCSH_PROVIDER_VERSION = '8.0.0';
 var XCSH_PROVIDER_LOCK_SHA256 = 'a9ccc898377e32d9e7193a1fbc1c2bcedda88eaabf80633ae5f86a1456ad76d1';
 async function loadXcshProviderLock() {
-  const value = await readFile2(new URL('../locks/xcsh-provider.hcl', import.meta.url), 'utf8');
+  const value = await readFile2(new URL('./assets/plugins/terraform/locks/xcsh-provider.hcl', import.meta.url), 'utf8');
   if (createHash('sha256').update(value).digest('hex') !== XCSH_PROVIDER_LOCK_SHA256)
     throw new Error('Published XC provider lock changed');
   return value;

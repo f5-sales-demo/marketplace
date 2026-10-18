@@ -1,311 +1,325 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CeCapabilityFailure, type CeV2Driver, type CeV2SiteConfig } from '../../src/ce/driver';
-import { ReleaseContractFailure } from '../../src/ce/release-contract';
+import { Type } from '@sinclair/typebox';
+import type { SiteBinding } from '../../src/ce/runtime';
+import type { CePlatformService, CeStoredSiteBinding } from '../../src/ce/service';
+import { buildWireSite, type WireSiteIntent } from '../../src/ce/wire-site';
 import { createF5xcCeV2BootstrapTool } from '../../src/tools/f5xc-ce-v2-bootstrap';
 import { createF5xcCeV2CapabilitiesTool } from '../../src/tools/f5xc-ce-v2-capabilities';
 import { createF5xcCeV2SiteTool, createSitePlan } from '../../src/tools/f5xc-ce-v2-site';
 import { createF5xcCeV2StatusTool } from '../../src/tools/f5xc-ce-v2-status';
 import type { PlatformToolApi } from '../../src/types';
+import schema from '../fixtures/smsv2-create-schema.json';
 
+const pi = { typebox: { Type } } as unknown as PlatformToolApi;
+const binding: SiteBinding = {
+  owner: { deploymentId: 'ce-test', engine: 'native', provider: 'aws', account: 'demo', region: 'us-east-1' },
+  siteName: 'ce-test',
+  nodes: ['node-one'],
+};
+const config: WireSiteIntent = {
+  schemaVersion: 2,
+  provider: 'aws',
+  haMode: 'one-node',
+  settings: {},
+  nodes: [
+    {
+      hostname: 'node-one',
+      interfaces: [
+        {
+          name: 'slo',
+          ethernet_interface: { mac: '02:00:00:00:00:01', device: 'ens5' },
+          network_option: { site_local_network: {} },
+          dhcp_client: {},
+        },
+      ],
+    },
+  ],
+};
+const known: CeStoredSiteBinding = {
+  schemaVersion: 1,
+  binding,
+  siteUid: 'owned-site-uid',
+  contractFingerprint: 'fingerprint',
+  tenantOrigin: 'https://tenant.example.test',
+  expectedInterfaces: [{ node: 'node-one', role: 'slo', mac: '02:00:00:00:00:01' }],
+};
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
-
-const Type = {
-  Object: (value: unknown) => value,
-  String: (value?: unknown) => ({ type: 'string', ...((value as object) ?? {}) }),
-  Optional: (value: unknown) => ({ optional: true, ...((value as object) ?? {}) }),
-  Boolean: () => ({ type: 'boolean' }),
-  Number: () => ({ type: 'number' }),
-  Array: (value: unknown) => ({ type: 'array', items: value }),
-  Union: (value: unknown) => ({ union: value }),
-  Literal: (value: unknown) => ({ const: value }),
-  Unknown: () => ({}),
-};
-const pi: PlatformToolApi = { typebox: { Type } };
-const kvmImageResolution = {
-  id: 'site_uid_image_resolution' as const,
-  endpoint: '/api/maurice/software_os_version' as const,
-  operation: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage' as const,
-  ownerJoin: {
-    namespace: 'system' as const,
-    namedConfiguration: 'exactly_one' as const,
-    ownerKind: 'securemesh_site_v2' as const,
-    cardinality: 'exactly_one' as const,
-    uidSource: 'site_object' as const,
-  },
-  validation: [
-    'exact_site_uid_mapping',
-    'empty_error_description',
-    'https_image_url',
-    'md5_checksum',
-    'ownership_recheck',
-  ] as Array<
-    'exact_site_uid_mapping' | 'empty_error_description' | 'https_image_url' | 'md5_checksum' | 'ownership_recheck'
-  >,
-  publication: {
-    repository: 'f5-sales-demo/api-specs-enriched' as const,
-    tag: 'v12.0.9' as const,
-    commit: 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc' as const,
-    asset: 'openapi.json' as const,
-    sha256: `sha256:${'a'.repeat(64)}`,
-  },
-};
-
-function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
-  return {
+const originalHeadless = process.env.XCSH_CE_HEADLESS_MUTATIONS;
+afterEach(async () => {
+  if (originalHeadless === undefined) delete process.env.XCSH_CE_HEADLESS_MUTATIONS;
+  else process.env.XCSH_CE_HEADLESS_MUTATIONS = originalHeadless;
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+const context = (hasUI = true, approved = true) => ({
+  hasUI,
+  ui: { confirm: async () => approved },
+  sessionManager: { getSessionId: () => 'session-a', saveArtifact: async () => 'artifact-a' },
+});
+function fixture() {
+  const calls: string[] = [];
+  const privateRecords: unknown[] = [];
+  const jwt = `header.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 1200 })).toString('base64url')}.fixture-signature`;
+  const runtime = {
+    contract: {
+      fingerprint: 'fingerprint',
+      buildSite: (intent: WireSiteIntent) => buildWireSite(intent, schema.schemas),
+    },
+    observeOwnedSite: async () => ({
+      system_metadata: { uid: 'owned-site-uid' },
+      resource_version: 'version-one',
+      spec: buildWireSite(config, schema.schemas),
+    }),
+    ensureSite: async () => {
+      calls.push('create');
+    },
+    replaceSite: async () => {
+      calls.push('update');
+    },
+    deleteSiteExact: async () => {
+      calls.push('delete');
+    },
+    bootstrap: async (
+      _binding: unknown,
+      _node: unknown,
+      _token: unknown,
+      persist: (value: unknown) => Promise<void>,
+    ) => {
+      calls.push('bootstrap');
+      await persist({ jwt });
+      return '#cloud-config';
+    },
+    observeAwsInterfaces: async () => ({
+      status: 'observed',
+      interfaces: [
+        {
+          ...known.expectedInterfaces[0],
+          device: 'ens5',
+          interfaceName: 'generated-a',
+          mtu: 1500,
+          linkUp: true,
+          ipv4: null,
+        },
+      ],
+      observedAt: new Date().toISOString(),
+    }),
+    observeAzureInterfaces: async () => ({ status: 'unknown', interfaces: [], observedAt: new Date().toISOString() }),
+  };
+  const service = {
     capabilities: async () => ({
       smsv2ContractVersion: 'v2',
       supportedProviders: ['aws', 'azure'],
-      bootstrapDrivers: ['console'],
-      providerNetworkingProfiles: {
-        aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
-        azure: ['direct-nic', 'route-server-bgp'],
-      },
-      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
-      kvmImageResolution,
+      bootstrapDrivers: ['api'],
+      providerNetworkingProfiles: {},
+      awsSmsv2TgwConnect: { supported: true, schemaVersion: 'telemetry' },
+      tenantOrigin: 'https://tenant.example.test',
     }),
-    site: async (_action, request) => ({
-      metadata: { name: request.siteName, namespace: request.namespace },
-      spec: request.config ?? {},
-      etag: '1',
-    }),
-    checkoutBootstrap: async () => ({ token: 'fixture-secret-value', driver: 'console' }),
-    status: async () => ({
-      siteState: 'ONLINE',
-      nodes: [
-        {
-          name: 'ce-1',
-          registration: 'REGISTERED',
-          provisioning: 'READY',
-          health: 'HEALTHY',
-          interfaces: [],
-          routes: [],
-        },
-      ],
-      bgp: { established: true, peers: 2, learnedRoutes: 4 },
-    }),
-    ...overrides,
-  };
-}
-
-const siteConfig = {
-  provider: 'aws' as const,
-  haMode: 'one-node' as const,
-  vrfs: [{ index: 0, name: 'default' }],
-  interfaces: [
-    {
-      index: 0,
-      role: 'slo' as const,
-      vrf: 'default',
-      addressing: { mode: 'dhcp' as const, addresses: [] },
+    siteBinding: async () => structuredClone(known),
+    runtime: async (engine: string, context?: string) => {
+      calls.push(`runtime:${engine}:${context ?? 'active'}`);
+      return runtime;
     },
-  ],
-  bgpPeers: [],
-  providerNetwork: { profile: 'direct-eni', metadata: { vpcId: 'vpc-example' } },
-};
-
-function ctx(hasUI = true) {
-  return {
-    hasUI,
-    ui: { confirm: async () => true },
-    sessionManager: { getSessionId: () => 'session-a', saveArtifact: async () => '1' },
+    storage: async () => ({
+      write: async (_name: string, value: unknown) => {
+        privateRecords.push(value);
+      },
+    }),
   };
+  return { service: service as unknown as CePlatformService, rawService: service, runtime, calls, privateRecords, jwt };
 }
-
-describe('f5xc_ce_v2_bootstrap', () => {
-  it('returns only an opaque reference and never the driver token', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'platform-ce-tools-test-'));
+test('plans resolved writable site configuration, rejects a mismatched hash, and executes the exact public create path', async () => {
+  const f = fixture();
+  const tool = createF5xcCeV2SiteTool(pi, () => f.service);
+  const params = {
+    action: 'create' as const,
+    namespace: 'system',
+    siteName: binding.siteName,
+    binding,
+    config,
+    platformContext: 'demo',
+  };
+  const planned = await tool.execute('id', params, undefined, undefined, context());
+  expect(planned.isError).toBeUndefined();
+  expect(f.calls).not.toContain('create');
+  const plan = planned.details.plan;
+  if (!plan) throw Error('missing plan');
+  const bad = await tool.execute('id', { ...params, planSha256: 'f'.repeat(64) }, undefined, undefined, context());
+  expect(bad.isError).toBe(true);
+  expect(f.calls).not.toContain('create');
+  const result = await tool.execute('id', { ...params, planSha256: plan.planSha256 }, undefined, undefined, context());
+  expect(result.isError).toBeUndefined();
+  expect(f.calls).toContain('runtime:native:demo');
+  expect(f.calls).toContain('create');
+});
+test('rejects unresolved physical identifiers before public site execution', async () => {
+  const f = fixture();
+  const invalid = structuredClone(config);
+  delete (invalid.nodes[0].interfaces[0].ethernet_interface as Record<string, unknown>).device;
+  const result = await createF5xcCeV2SiteTool(pi, () => f.service).execute(
+    'id',
+    { action: 'create', namespace: 'system', siteName: binding.siteName, binding, config: invalid },
+    undefined,
+    undefined,
+    context(),
+  );
+  expect(result.isError).toBe(true);
+  expect(f.calls).not.toContain('create');
+});
+test('binds update and delete plans to exact UID, resource version, engine, and tenant', async () => {
+  const params = {
+    action: 'update' as const,
+    namespace: 'system',
+    siteName: binding.siteName,
+    binding,
+    config,
+    expectedUid: 'owned-site-uid',
+    expectedResourceVersion: 'version-one',
+  };
+  expect(() => createSitePlan({ ...params, expectedUid: undefined })).toThrow();
+  expect(() => createSitePlan({ ...params, expectedResourceVersion: undefined })).toThrow();
+  const plan = createSitePlan(params, 'https://tenant.example.test');
+  expect(createSitePlan(params, 'https://other.example.test').planSha256).not.toBe(plan.planSha256);
+  const f = fixture();
+  const tool = createF5xcCeV2SiteTool(pi, () => f.service);
+  const result = await tool.execute('id', { ...params, planSha256: plan.planSha256 }, undefined, undefined, context());
+  expect(result.isError).toBeUndefined();
+  expect(f.calls).toContain('update');
+});
+test('does not mutate when interactive approval is declined', async () => {
+  const f = fixture();
+  const params = { action: 'create' as const, namespace: 'system', siteName: binding.siteName, binding, config };
+  const plan = createSitePlan(params, 'https://tenant.example.test');
+  const result = await createF5xcCeV2SiteTool(pi, () => f.service).execute(
+    'id',
+    { ...params, planSha256: plan.planSha256 },
+    undefined,
+    undefined,
+    context(true, false),
+  );
+  expect(result.isError).toBe(true);
+  expect(f.calls).not.toContain('create');
+});
+for (const hasUI of [true, false])
+  test(`public API bootstrap returns only a private opaque reference (${hasUI ? 'interactive' : 'headless'})`, async () => {
+    process.env.XCSH_CE_HEADLESS_MUTATIONS = '1';
+    const f = fixture();
+    const root = await mkdtemp(join(tmpdir(), 'ce-public-test-'));
     roots.push(root);
-    const tool = createF5xcCeV2BootstrapTool(pi, () => driver(), root);
-    const result = await tool.execute(
+    const result = await createF5xcCeV2BootstrapTool(pi, () => f.service, root).execute(
       'id',
-      { namespace: 'system', siteName: 'ce-demo', nodeName: 'ce-1', expiresInSeconds: 60 },
+      { namespace: 'system', siteName: binding.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
       undefined,
       undefined,
-      ctx(),
+      context(hasUI),
     );
-    expect(result.isError).not.toBe('unavailable');
-    expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
-    expect(result.details.reference).toMatch(/^f5xc-ce:\/\/session-a\//);
+    expect(result.isError).toBeUndefined();
+    expect('reference' in result.details ? result.details.reference : undefined).toMatch(/^f5xc-ce:\/\/session-a\//);
+    expect(JSON.stringify(result)).not.toContain(f.jwt);
+    expect(f.privateRecords).toEqual([{ jwt: f.jwt }]);
+    expect(f.calls).toContain('bootstrap');
   });
-
-  it('fails closed headlessly when only console fallback is available', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'platform-ce-tools-test-'));
-    roots.push(root);
-    let called = false;
-    const tool = createF5xcCeV2BootstrapTool(
-      pi,
-      () =>
-        driver({
-          capabilities: async () => ({
-            ...(await driver().capabilities()),
-            bootstrapDrivers: ['console'],
-          }),
-          checkoutBootstrap: async () => {
-            called = true;
-            return { token: 'secret', driver: 'console' };
-          },
-        }),
-      root,
-    );
+test('rejects foreign bootstrap nodes and invalid expiry before issuing a token', async () => {
+  const f = fixture();
+  const tool = createF5xcCeV2BootstrapTool(pi, () => f.service);
+  for (const params of [
+    { nodeName: 'foreign-node', expiresInSeconds: 60 },
+    { nodeName: 'node-one', expiresInSeconds: 0 },
+  ]) {
     const result = await tool.execute(
       'id',
-      { namespace: 'system', siteName: 'ce-demo', nodeName: 'ce-1', expiresInSeconds: 60 },
+      { namespace: 'system', siteName: binding.siteName, ...params },
       undefined,
       undefined,
-      ctx(false),
+      context(),
     );
     expect(result.isError).toBe(true);
-    expect(called).toBe(false);
-  });
-
-  it('does not expose a token embedded in a driver error', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'platform-ce-tools-test-'));
-    roots.push(root);
-    const tool = createF5xcCeV2BootstrapTool(
-      pi,
-      () =>
-        driver({
-          checkoutBootstrap: async () => {
-            throw new Error('upstream leaked fixture-secret-value');
-          },
-        }),
-      root,
-    );
-    const result = await tool.execute(
-      'id',
-      { namespace: 'system', siteName: 'ce-demo', nodeName: 'ce-1', expiresInSeconds: 60 },
-      undefined,
-      undefined,
-      ctx(),
-    );
-    expect(result.isError).toBe(true);
-    expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
-  });
+  }
+  expect(f.calls).not.toContain('bootstrap');
 });
-
-describe('f5xc_ce_v2_site', () => {
-  it('creates byte-identical plans and requires their exact hash for mutation', async () => {
-    const request = {
-      action: 'create' as const,
-      namespace: 'system',
-      siteName: 'ce-demo',
-      config: siteConfig,
-    };
-    expect(JSON.stringify(createSitePlan(request))).toBe(JSON.stringify(createSitePlan(request)));
-    const tool = createF5xcCeV2SiteTool(pi, () => driver());
-    const invalid = await tool.execute('id', { ...request, planSha256: '0'.repeat(64) }, undefined, undefined, ctx());
-    expect(invalid.isError).toBe(true);
-    const plan = createSitePlan(request);
-    const applied = await tool.execute('id', { ...request, planSha256: plan.planSha256 }, undefined, undefined, ctx());
-    expect(applied.isError).not.toBe(true);
-  });
-
-  it('rejects untyped and non-symmetric provider configurations', () => {
-    expect(() =>
-      createSitePlan({
-        action: 'create',
-        namespace: 'system',
-        siteName: 'ce-demo',
-        config: { bgp: { localAsn: 65010 }, interfaces: [{ index: 4, role: 'slo' }] } as unknown as CeV2SiteConfig,
-      }),
-    ).toThrow(/provider-neutral/i);
-    expect(() =>
-      createSitePlan({
-        action: 'create',
-        namespace: 'system',
-        siteName: 'ce-demo',
-        config: { ...siteConfig, interfaces: [{ ...siteConfig.interfaces[0], index: 1 }] },
-      }),
-    ).toThrow(/ordered/i);
-  });
-
-  it('rejects secret-bearing plans and redacts tenant response fields', async () => {
-    expect(() =>
-      createSitePlan({
-        action: 'create',
-        namespace: 'system',
-        siteName: 'ce-demo',
-        config: { bootstrap_token: 'fixture-secret-value' } as unknown as CeV2SiteConfig,
-      }),
-    ).toThrow(/secret-free/);
-    const tool = createF5xcCeV2SiteTool(pi, () =>
-      driver({
-        site: async () => ({
-          metadata: { name: 'ce-demo' },
-          bootstrap_token: 'fixture-secret-value',
-          nested: { password: 'also-secret' },
-        }),
-      }),
-    );
-    const result = await tool.execute(
+test('returns real unknown for absent, ambiguous, rebuilt, incomplete, or unauthorized deployment bindings', async () => {
+  for (const failure of ['absent', 'ambiguous', 'rebuilt', 'partial', 'authorization']) {
+    const f = fixture();
+    if (failure === 'partial') f.rawService.siteBinding = async () => ({ ...known, expectedInterfaces: [] });
+    else if (failure === 'rebuilt') f.rawService.siteBinding = async () => ({ ...known, siteUid: 'retired-site-uid' });
+    else
+      f.rawService.siteBinding = async () => {
+        throw Error(failure);
+      };
+    const result = await createF5xcCeV2StatusTool(pi, () => f.service).execute(
       'id',
-      { action: 'read', namespace: 'system', siteName: 'ce-demo' },
+      { namespace: 'system', siteName: binding.siteName },
       undefined,
       undefined,
-      ctx(),
+      context(),
     );
-    expect(result).not.toHaveProperty('isError', true);
-    expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
-    expect(JSON.stringify(result)).not.toContain('also-secret');
-  });
+    expect(result.details.status).toBe('unknown');
+    expect(result.details.interfaces).toEqual([]);
+    expect(result.details.canSatisfyMutationGate).toBe(false);
+  }
 });
-
-describe('f5xc_ce_v2_capabilities', () => {
-  it('returns canonical non-secret capability evidence', async () => {
-    const tool = createF5xcCeV2CapabilitiesTool(pi, () => driver());
-    const result = await tool.execute('id', {}, undefined, undefined, ctx());
-    expect(result.isError).not.toBe(true);
-    expect(result.details.capabilities).toEqual({
-      smsv2ContractVersion: 'v2',
-      supportedProviders: ['aws', 'azure'],
-      bootstrapDrivers: ['console'],
-      providerNetworkingProfiles: {
-        aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
-        azure: ['direct-nic', 'route-server-bgp'],
-      },
-      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
-      kvmImageResolution,
+test('preserves explicit down and healthy observed status without inventing CE heartbeat age', async () => {
+  for (const status of ['observed', 'down', 'unknown']) {
+    const f = fixture();
+    f.runtime.observeAwsInterfaces = async () => ({
+      status,
+      interfaces:
+        status === 'unknown'
+          ? []
+          : [
+              {
+                ...known.expectedInterfaces[0],
+                device: 'ens5',
+                interfaceName: 'generated-a',
+                mtu: 1500,
+                linkUp: status === 'observed',
+                ipv4: null,
+              },
+            ],
+      observedAt: new Date().toISOString(),
     });
-    expect(result.content[0].text).toContain('KVM image resolution: site_uid_image_resolution');
-    expect(JSON.stringify(result)).not.toMatch(
-      /maurice_config_cardinality_exactly_one|external_tenant_prerequisite|get-image-download-url/,
+    const result = await createF5xcCeV2StatusTool(pi, () => f.service).execute(
+      'id',
+      { namespace: 'system', siteName: binding.siteName },
+      undefined,
+      undefined,
+      context(),
     );
-    expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
-  });
-
-  it.each([
-    ['context', new CeCapabilityFailure('context', 'XCSH_API_TOKEN sensitive')],
-    ['public_contract_transport', new ReleaseContractFailure('public_contract_transport')],
-    ['public_contract_http', new ReleaseContractFailure('public_contract_http:403')],
-    ['public_contract_parsing', new ReleaseContractFailure('public_contract_parsing')],
-    ['public_contract_provenance', new ReleaseContractFailure('evidence is stale')],
-    ['public_contract_integrity', new ReleaseContractFailure('asset checksum is invalid')],
-    ['tenant_http', new CeCapabilityFailure('tenant_http', 'Bearer sensitive')],
-    ['tenant_transport', new CeCapabilityFailure('tenant_transport', 'Bearer sensitive')],
-    ['unexpected', new Error('Bearer sensitive')],
-  ] as const)('redacts %s failures', async (category, error) => {
-    const tool = createF5xcCeV2CapabilitiesTool(pi, () => ({
-      ...driver(),
-      capabilities: async () => {
-        throw error;
-      },
-    }));
-    const result = await tool.execute('id', {});
-    expect(result.details.failure).toEqual({ category });
-    expect(JSON.stringify(result)).not.toMatch(/sensitive|authenticated tenant capability request was rejected/);
-  });
+    expect(result.details.status).toBe(status);
+    expect(result.details.ceSampleAge).toBe('unknown');
+    expect(result.details.canSatisfyMutationGate).toBe(false);
+  }
+});
+test('advertises the executable API bootstrap service through the public capability path', async () => {
+  const f = fixture();
+  const result = await createF5xcCeV2CapabilitiesTool(pi, () => f.service).execute(
+    'id',
+    {},
+    undefined,
+    undefined,
+    context(),
+  );
+  expect(result.isError).toBeUndefined();
+  expect(result.details.capabilities?.bootstrapDrivers).toEqual(['api']);
 });
 
-describe('f5xc_ce_v2_status', () => {
-  it('returns only allowlisted non-secret evidence', async () => {
-    const tool = createF5xcCeV2StatusTool(pi);
-    const result = await tool.execute('id', { namespace: 'system', siteName: 'ce-demo' }, undefined, undefined, ctx());
-    expect(result).not.toHaveProperty('isError', 'unavailable');
-    expect(result.details.capability).toBe('unavailable');
-    expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
-  });
+test('does not report a partial HA binding set as a complete public status observation', async () => {
+  const f = fixture();
+  const original = f.runtime.observeOwnedSite;
+  f.runtime.observeOwnedSite = async () => {
+    const site = await original();
+    const node = (site.spec.aws as { not_managed: { node_list: unknown[] } }).not_managed.node_list[0];
+    (site.spec.aws as { not_managed: { node_list: unknown[] } }).not_managed.node_list.push(node);
+    return site;
+  };
+  const result = await createF5xcCeV2StatusTool(pi, () => f.service).execute(
+    'id',
+    { namespace: 'system', siteName: binding.siteName },
+    undefined,
+    undefined,
+    context(),
+  );
+  expect(result.details.status).toBe('unknown');
+  expect(result.details.interfaces).toEqual([]);
 });

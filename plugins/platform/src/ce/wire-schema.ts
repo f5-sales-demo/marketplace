@@ -36,6 +36,11 @@ export function requestSchema(schemas: Json, root: string): Json {
     const result: Json = {};
     for (const [key, item] of Object.entries(source)) {
       if (keywords.has(key)) result[key] = item;
+      if (key === 'required' && Array.isArray(item))
+        result.required = item.map((name) => {
+          const property = object(source.properties ?? {})[String(name)] as Json | undefined;
+          return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
+        });
       if (key === '$ref') {
         if (typeof item !== 'string' || !item.startsWith('#/components/schemas/'))
           throw new Error('Unsupported SMSv2 schema reference');
@@ -46,7 +51,10 @@ export function requestSchema(schemas: Json, root: string): Json {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object(item)).map(([name, schema]) => [name, convert(schema)]),
+          Object.entries(object(item)).map(([name, schema]) => {
+            const wireName = object(schema)['x-f5xc-wire-name'];
+            return [typeof wireName === 'string' ? wireName : name, convert(schema)];
+          }),
         );
         result.additionalProperties =
           source.additionalProperties === undefined ? false : convert(source.additionalProperties);
@@ -73,8 +81,13 @@ export function requestSchema(schemas: Json, root: string): Json {
       }
       if (!Array.isArray(names) || names.some((name) => typeof name !== 'string'))
         throw new Error('Malformed SMSv2 oneof group');
-      for (let i = 0; i < names.length; i++)
-        for (let j = i + 1; j < names.length; j++) exclusions.push({ not: { required: [names[i], names[j]] } });
+      const wireNames = names.map((name) => {
+        const property = object(source.properties ?? {})[String(name)] as Json | undefined;
+        return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
+      });
+      for (let i = 0; i < wireNames.length; i++)
+        for (let j = i + 1; j < wireNames.length; j++)
+          exclusions.push({ not: { required: [wireNames[i], wireNames[j]] } });
     }
     if (exclusions.length) result.allOf = [...((result.allOf as Json[]) ?? []), ...exclusions];
     return result;
@@ -89,8 +102,19 @@ export function requestSchema(schemas: Json, root: string): Json {
 export function createWireValidator(
   schemas: Json,
   root = 'viewssecuremesh_site_v2CreateSpecType',
+  observedInterfaceIdentityEcho = false,
 ): (spec: unknown) => void {
   const schema = requestSchema(schemas, root);
+  if (observedInterfaceIdentityEcho) {
+    if (root !== 'securemesh_site_v2ReplaceRequest') throw new Error('Identity echo requires a replacement snapshot');
+    const properties = object(object(schemas.securemesh_site_v2Interface).properties);
+    const projected = object(object(object(schema.definitions).securemesh_site_v2Interface).properties);
+    for (const field of ['is_primary', 'is_management']) {
+      const source = object(properties[field]);
+      if (source.readOnly !== true || source.type !== 'boolean') throw new Error('Interface identity schema changed');
+      projected[field] = { type: 'boolean' };
+    }
+  }
   return (spec: unknown) => {
     const keyword = firstFailure(schema, spec, schema);
     if (keyword) {

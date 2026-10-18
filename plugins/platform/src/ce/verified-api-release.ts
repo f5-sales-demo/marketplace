@@ -3,6 +3,14 @@ import { authenticatedContractHeaders } from './contract-auth';
 
 type Json = Record<string, unknown>;
 export type PublishedApiFetcher = (url: string, init?: RequestInit) => Promise<Response>;
+export class CeContractFailure extends Error {
+  constructor(
+    readonly category: 'public_contract_transport',
+    message: string,
+  ) {
+    super(message);
+  }
+}
 const repository = 'f5-sales-demo/api-specs-enriched';
 const tag = 'v12.0.9';
 const commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc';
@@ -46,9 +54,17 @@ async function verifyPublishedCeApi(fetcher: PublishedApiFetcher, signal?: Abort
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
   const read = async (url: string, maximum = 1_048_576): Promise<Uint8Array> => {
     combined.throwIfAborted();
-    const response = await fetcher(url, { signal: combined, headers: authenticatedContractHeaders(url) });
+    let response: Response;
+    try {
+      response = await fetcher(url, { signal: combined, headers: authenticatedContractHeaders(url) });
+    } catch {
+      throw new CeContractFailure('public_contract_transport', 'Published contract transport failed');
+    }
     if (!response.ok || !response.body)
-      throw new Error(`CE API contract download failed: HTTP ${response.status}, ${new URL(url).hostname}`);
+      throw new CeContractFailure(
+        'public_contract_transport',
+        `CE API contract download failed: HTTP ${response.status}, ${new URL(url).hostname}`,
+      );
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;

@@ -53,7 +53,10 @@ export function projectReplaceSnapshot(
       const properties = object(schema.properties ?? {});
       const result: Json = {};
       for (const [key, item] of Object.entries(value)) {
-        if (!Object.hasOwn(properties, key)) {
+        const canonicalKey = Object.hasOwn(properties, key)
+          ? key
+          : Object.keys(properties).find((name) => object(properties[name])['x-f5xc-wire-name'] === key);
+        if (canonicalKey === undefined) {
           if (top && ignoredRootFields.includes(key)) continue;
           if (schema.additionalProperties === true) {
             result[key] = structuredClone(item);
@@ -66,8 +69,11 @@ export function projectReplaceSnapshot(
           }
           throw new Error('GET snapshot contains an unsupported replacement field');
         }
-        const projected = project(item, properties[key]);
-        if (projected !== undefined) result[key] = projected;
+        const wireName = object(properties[canonicalKey])['x-f5xc-wire-name'];
+        const outputKey = typeof wireName === 'string' ? wireName : canonicalKey;
+        if (Object.hasOwn(result, outputKey)) throw new Error('Duplicate canonical and wire field aliases');
+        const projected = project(item, properties[canonicalKey]);
+        if (projected !== undefined) result[outputKey] = projected;
       }
       return result;
     }

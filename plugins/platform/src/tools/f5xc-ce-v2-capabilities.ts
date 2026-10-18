@@ -1,11 +1,11 @@
-import { CeCapabilityFailure, type CeV2Driver, createDefaultCeV2Driver } from '../ce/driver';
 import { ReleaseContractFailure } from '../ce/release-contract';
-import { type CeEventBus, requestCePlatformService } from '../ce/service';
+import { CeContextFailure, type CePlatformService, createCePlatformService } from '../ce/service';
+import { CeContractFailure } from '../ce/verified-api-release';
 import type { PlatformToolApi, PlatformToolContext } from '../types';
 
 export function createF5xcCeV2CapabilitiesTool(
   pi: PlatformToolApi,
-  makeDriver: (context?: PlatformToolContext) => CeV2Driver = createDefaultCeV2Driver,
+  makeService: (ctx?: PlatformToolContext) => CePlatformService = () => createCePlatformService(),
 ) {
   const { Type } = pi.typebox;
   return {
@@ -22,23 +22,22 @@ export function createF5xcCeV2CapabilitiesTool(
       ctx?: PlatformToolContext,
     ) {
       try {
-        const bus = (pi as PlatformToolApi & { events?: CeEventBus }).events;
-        const capabilities = bus
-          ? await (await requestCePlatformService(bus, _signal)).capabilities(_params.platformContext)
-          : await makeDriver(ctx).capabilities();
-        const kvm = 'kvmImageResolution' in capabilities ? capabilities.kvmImageResolution : undefined;
+        const capabilities = await makeService(ctx).capabilities(_params.platformContext);
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Secure Mesh Site v2 ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ')}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}; KVM image resolution: ${kvm ? `${kvm.id} (${kvm.endpoint})` : 'not collected by AWS CE service'}.`,
+              text: `Secure Mesh Site v2 ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ')}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}.`,
             },
           ],
           details: { tool: 'f5xc_ce_v2_capabilities', capabilities },
         };
       } catch (error) {
         const category =
-          error instanceof ReleaseContractFailure || error instanceof CeCapabilityFailure
+          error instanceof ReleaseContractFailure ||
+          error instanceof CeContextFailure ||
+          error instanceof CeContractFailure
             ? error.category
             : 'unexpected';
         return {

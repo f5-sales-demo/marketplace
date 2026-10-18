@@ -1,4 +1,3 @@
-import { HttpCeV2Driver } from './ce/driver';
 import {
   type CeEventBus,
   createCePlatformService,
@@ -43,10 +42,6 @@ const factory: ExtensionFactory = async (pi) => {
   };
   pi.on?.('session_start', observeSession);
   pi.on?.('context', observeSession);
-  const makeDriver = (context?: PlatformToolContext) => {
-    if (context?.settings) sessionSettings = context.settings;
-    return new HttpCeV2Driver(activeContextEnvironment(pi, context?.settings ?? sessionSettings));
-  };
   pi.integrations.register({
     id: 'platform',
     name: 'F5 Distributed Cloud Platform',
@@ -74,24 +69,28 @@ const factory: ExtensionFactory = async (pi) => {
       }
     },
   });
-  if (pi.events)
-    registerCePlatformService(
-      pi.events,
-      createCePlatformService(
-        () => activeContextEnvironment(pi, sessionSettings),
-        undefined,
-        (contextName, tenantOrigin) => requestTerraformResourceMutation(pi.events!, contextName, tenantOrigin),
-      ),
-    );
+  const service = createCePlatformService(
+    () => activeContextEnvironment(pi, sessionSettings),
+    undefined,
+    (contextName, tenantOrigin) => {
+      if (!pi.events) throw new Error('Terraform platform service is unavailable');
+      return requestTerraformResourceMutation(pi.events, contextName, tenantOrigin);
+    },
+  );
+  if (pi.events) registerCePlatformService(pi.events, service);
+  const makeService = (context?: PlatformToolContext) => {
+    if (context?.settings) sessionSettings = context.settings;
+    return service;
+  };
   if (typeof pi.registerTool !== 'function') return;
   const { createF5xcCeV2SiteTool } = await import('./tools/f5xc-ce-v2-site');
   const { createF5xcCeV2BootstrapTool } = await import('./tools/f5xc-ce-v2-bootstrap');
   const { createF5xcCeV2StatusTool } = await import('./tools/f5xc-ce-v2-status');
   const { createF5xcCeV2CapabilitiesTool } = await import('./tools/f5xc-ce-v2-capabilities');
-  pi.registerTool(presentTool(createF5xcCeV2CapabilitiesTool(pi, makeDriver)));
-  pi.registerTool(presentTool(createF5xcCeV2SiteTool(pi, makeDriver)));
-  pi.registerTool(presentTool(createF5xcCeV2BootstrapTool(pi, makeDriver)));
-  pi.registerTool(presentTool(createF5xcCeV2StatusTool(pi)));
+  pi.registerTool(presentTool(createF5xcCeV2CapabilitiesTool(pi, makeService)));
+  pi.registerTool(presentTool(createF5xcCeV2SiteTool(pi, makeService)));
+  pi.registerTool(presentTool(createF5xcCeV2BootstrapTool(pi, makeService)));
+  pi.registerTool(presentTool(createF5xcCeV2StatusTool(pi, makeService)));
 };
 
 export default factory;

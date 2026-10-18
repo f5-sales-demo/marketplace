@@ -5,6 +5,7 @@ import { VerifiedCeContract } from '../../src/ce/verified-contract';
 import routingSchema from '../fixtures/aws-routing-schema.json';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schema from '../fixtures/smsv2-create-schema.json';
+import replaceSchema from '../fixtures/smsv2-replace-schema.json';
 
 type ContractFixtureConstructor = new (
   commit: string,
@@ -21,7 +22,7 @@ function fixture(withRouting = false, fixtureContract: Record<string, unknown> =
     schema.provenance.commit,
     `sha256:${'f'.repeat(64)}`,
     fixtureContract,
-    schema.schemas,
+    { ...schema.schemas, ...replaceSchema.schemas },
     withRouting
       ? {
           network: routingSchema.schemas.network,
@@ -1055,4 +1056,79 @@ test('bootstrap revocation reconciles lost responses and requires absence before
       expect(deletes).toBe(1);
     }
   }
+});
+
+test('public replacement projects only writable fields and rejects stale UID/version before PUT', async () => {
+  const contract = fixture();
+  let site: Record<string, unknown> = {
+    metadata: { name: binding.siteName, namespace: 'system', labels },
+    system_metadata: { uid: 'public-site-uid' },
+    resource_version: 'version-one',
+    spec: contract.buildSite(intent),
+  };
+  const requests: Record<string, unknown>[] = [];
+  const runtime = new CeRuntime(
+    contract,
+    'native',
+    'https://tenant.example.test',
+    'fixture-token',
+    async (_url, init) => {
+      if (init?.method === 'PUT') {
+        const request = JSON.parse(String(init.body));
+        requests.push(request);
+        site = { ...site, resource_version: 'version-two', spec: request.spec };
+      }
+      return json(site);
+    },
+  );
+  await expect(
+    runtime.replaceSite(binding, intent, { uid: 'foreign-site-uid', resourceVersion: 'version-one' }, async () => {}),
+  ).rejects.toThrow(/replan/);
+  await expect(
+    runtime.replaceSite(binding, intent, { uid: 'public-site-uid', resourceVersion: 'stale' }, async () => {}),
+  ).rejects.toThrow(/replan/);
+  expect(requests).toHaveLength(0);
+  const phases: unknown[] = [];
+  await runtime.replaceSite(
+    binding,
+    intent,
+    { uid: 'public-site-uid', resourceVersion: 'version-one' },
+    async (record) => {
+      phases.push(record.phase);
+    },
+  );
+  expect(requests).toHaveLength(1);
+  const spec = requests[0].spec as Record<string, unknown>;
+  expect(spec.disable_management_network).toBeUndefined();
+  expect(requests[0].resource_version).toBe('version-one');
+  expect(phases).toEqual(['replace-prepared', 'replace-observed']);
+});
+
+test('replacement preserves observed primary identity flags and rejects caller changes', async () => {
+  const contract = fixture();
+  const spec = contract.buildSite(intent);
+  const node = (spec.aws as { not_managed: { node_list: Array<{ interface_list: Array<Record<string, unknown>> }> } })
+    .not_managed.node_list[0];
+  Object.assign(node.interface_list[0], { is_primary: true, is_management: false });
+  const snapshot = {
+    metadata: { name: binding.siteName, namespace: 'system', labels },
+    system_metadata: { uid: 'owned-primary-site' },
+    resource_version: 'version-one',
+    spec,
+  };
+  const replacement = contract.siteReplaceRequest(snapshot);
+  const result = (replacement.spec as typeof spec).aws as {
+    not_managed: { node_list: Array<{ interface_list: Array<Record<string, unknown>> }> };
+  };
+  expect(result.not_managed.node_list[0].interface_list[0].is_primary).toBe(true);
+  expect(result.not_managed.node_list[0].interface_list[0].is_management).toBe(false);
+  result.not_managed.node_list[0].interface_list[0].is_primary = false;
+  expect(() => contract.validateObservedSiteReplace(snapshot, replacement)).toThrow(/flags changed/);
+  expect(() => contract.validateSiteReplace(replacement)).toThrow();
+  expect(() =>
+    contract.buildSite({
+      ...intent,
+      nodes: [{ ...intent.nodes[0], interfaces: [{ ...intent.nodes[0].interfaces[0], is_primary: true }] }],
+    }),
+  ).toThrow();
 });

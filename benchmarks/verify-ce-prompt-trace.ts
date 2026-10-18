@@ -24,7 +24,7 @@ interface TraceEvent {
   result?: { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
 }
 
-const CONTRACT = 'f5xc-ce-automation/v1';
+const CONTRACT = 'f5xc-ce-automation-policy/v2';
 
 export function parseTrace(jsonl: string): TraceEvent[] {
   return jsonl

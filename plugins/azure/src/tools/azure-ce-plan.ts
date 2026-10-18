@@ -28,6 +28,8 @@ export function createAzureCePlanTool(pi: PluginInterface) {
       discoveryArtifactId: Type.String(),
       intent: Type.Object({
         schemaVersion: Type.Literal(AZURE_CE_SCHEMA_VERSION),
+        platformContext: Type.Optional(Type.String()),
+        engine: Type.Optional(Type.Union([Type.Literal('native'), Type.Literal('terraform')])),
         operation: Type.Union(
           [
             'deploy',
@@ -56,9 +58,35 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         routing: Type.Object({
           mode: Type.Union(['auto', 'udr', 'route-server'].map((value) => Type.Literal(value))),
           destinationCidrs: Type.Array(Type.String()),
-          localAsn: Type.Optional(Type.Number()),
-          peerAsn: Type.Optional(Type.Number()),
+          localAsn: Type.Optional(
+            Type.Number({ description: 'CE local ASN; Route Server requires an unreserved 16-bit value.' }),
+          ),
+          peerAsn: Type.Optional(
+            Type.Number({ description: 'CE ASN passed to Azure peering; must equal localAsn when both are supplied.' }),
+          ),
         }),
+        ingress: Type.Optional(
+          Type.Union([
+            Type.Object({ mode: Type.Literal('none') }),
+            Type.Object({
+              mode: Type.Literal('platform-http'),
+              port: Type.Integer({ minimum: 1, maximum: 65535 }),
+              listener: Type.Object({
+                name: Type.String(),
+                namespace: Type.String(),
+                domain: Type.String(),
+                privateAddress: Type.String(),
+                originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+              }),
+              probe: Type.Object({
+                sourceVmResourceId: Type.String(),
+                path: Type.String(),
+                expectedStatus: Type.Integer({ minimum: 100, maximum: 599 }),
+                expectedBodySha256: Type.String(),
+              }),
+            }),
+          ]),
+        ),
         securityRules: Type.Array(
           Type.Object({
             name: Type.String(),
@@ -87,6 +115,14 @@ export function createAzureCePlanTool(pi: PluginInterface) {
             }),
           ),
         }),
+        workloadFixture: Type.Optional(
+          Type.Object({
+            subnetName: Type.String(),
+            cidr: Type.String(),
+            privateIp: Type.String(),
+            port: Type.Integer({ minimum: 1, maximum: 65535 }),
+          }),
+        ),
         replacementNode: Type.Optional(Type.Number()),
       }),
     }),

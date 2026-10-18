@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { authenticatedContractHeaders } from './contract-auth';
+import { CE_API_RELEASE } from './verified-api-release';
 
-const RELEASE_TAG = 'v12.0.9';
-const RELEASE_COMMIT = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc';
+const RELEASE_TAG = CE_API_RELEASE.tag;
+const RELEASE_COMMIT = CE_API_RELEASE.commit;
 const RELEASE_VERSION = '12.0.9';
-const OPENAPI_SHA256 = 'sha256:8a3ea9bce1bab8aa228c10e0d646e693bcfb9c36562ad4efefef3c5b74062753';
+const OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
 const REPOSITORY = 'f5-sales-demo/api-specs-enriched';
 const RELEASE_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/${RELEASE_TAG}`;
 const TAG_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/${RELEASE_TAG}`;
@@ -239,7 +240,7 @@ export function parseKvmImageResolution(openapi: unknown): Omit<Smsv2KvmImageRes
 
 export async function resolveSmsv2ReleaseContract(
   fetcher: Fetcher = fetch,
-  expectedOpenapiDigest = OPENAPI_SHA256,
+  expectedOpenapiDigest: string = OPENAPI_SHA256,
 ): Promise<Smsv2ReleaseContract> {
   const release = await json(fetcher, RELEASE_URL);
   if (

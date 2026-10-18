@@ -97,6 +97,7 @@ export class CeRuntime {
     credential: string,
     readonly fetcher: Fetcher = fetch,
     readonly resourceMutation?: CeResourceMutation,
+    readonly recordBinding?: (binding: SiteBinding, siteUid: string, expected?: ExpectedCeInterface[]) => Promise<void>,
   ) {
     this.#base = new URL(apiUrl);
     if (
@@ -440,6 +441,52 @@ export class CeRuntime {
     const spec = this.contract.buildSite(intent);
     await this.#ensureSpec(binding, spec, checkpoint, signal);
   }
+  async replaceSite(
+    binding: SiteBinding,
+    intent: WireSiteIntent,
+    expected: { uid: string; resourceVersion: string },
+    checkpoint: (site: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    if (
+      intent.provider !== binding.owner.provider ||
+      !subset(
+        intent.nodes.map((node) => node.hostname),
+        binding.nodes,
+      )
+    )
+      throw new Error('Site intent and deployment binding disagree');
+    const before = await this.observeOwnedSite(binding, signal);
+    if (object(before.system_metadata).uid !== expected.uid || before.resource_version !== expected.resourceVersion)
+      throw new Error('Site UID or resource version changed; replan required');
+    const desired = this.contract.buildSite(intent);
+    const original = object(object(object(before.spec)[binding.owner.provider]).not_managed).node_list as Json[];
+    const nodes = object(object(desired[binding.owner.provider]).not_managed).node_list as Json[];
+    for (const node of nodes)
+      for (const iface of node.interface_list as Json[]) {
+        const ethernet = object(iface.ethernet_interface);
+        const observed = (
+          original.find((item) => item.hostname === node.hostname)?.interface_list as Json[] | undefined
+        )?.find(
+          (item) =>
+            object(item.ethernet_interface).mac === ethernet.mac &&
+            object(item.ethernet_interface).device === ethernet.device,
+        );
+        if (!observed) throw new Error('Physical interface changes require the owning cloud replacement workflow');
+        for (const field of ['is_primary', 'is_management'])
+          if (typeof observed[field] === 'boolean') iface[field] = observed[field];
+      }
+    const replacement = this.contract.siteReplaceRequest({ ...before, spec: desired });
+    this.contract.validateObservedSiteReplace(before, replacement);
+    await checkpoint({ phase: 'replace-prepared', uid: expected.uid, resourceVersion: expected.resourceVersion });
+    await this.#request(this.#sitePath(binding), { method: 'PUT', body: JSON.stringify(replacement) }, signal);
+    const after = await this.observeOwnedSite(binding, signal);
+    if (object(after.system_metadata).uid !== expected.uid || !subset(after.spec, replacement.spec))
+      throw new Error('Replacement configuration has not converged');
+    await this.recordBinding?.(binding, expected.uid, []);
+    await checkpoint({ phase: 'replace-observed', uid: expected.uid, resourceVersion: after.resource_version });
+  }
   /** Explicit owned-site replacement, including sites whose interfaces already match the plan. */
   async prepareAwsSiteReplacement(
     binding: SiteBinding,
@@ -634,6 +681,7 @@ export class CeRuntime {
     if (!subset(existing.spec, spec)) throw new Error('Existing site configuration differs; replan required');
     const uid = object(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+    await this.recordBinding?.(binding, uid);
     await checkpoint({
       siteName: binding.siteName,
       uid,
@@ -810,7 +858,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
     if (binding.owner.provider !== 'aws') throw new Error('AWS interface observation requires AWS ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
@@ -818,7 +866,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
@@ -865,7 +913,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
     this.#binding(binding);
     const observedAt = new Date().toISOString();
     try {
@@ -883,9 +931,11 @@ export class CeRuntime {
         signal,
       );
       const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
+      const interfaces = correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider);
+      await this.recordBinding?.(binding, String(object(configuration.system_metadata).uid), expected);
       return {
-        status: 'observed',
-        interfaces: correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider),
+        status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
+        interfaces,
         observedAt,
       };
     } catch (error) {

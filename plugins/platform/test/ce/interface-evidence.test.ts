@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { correlateCeInterfaces } from '../../src/ce/interface-evidence';
+import six from '../fixtures/aws-ha-six-interface-links.json';
 import recorded from '../fixtures/aws-site-publisher-links.json';
 
 function fixture() {
@@ -139,13 +140,10 @@ test('missing, inactive and malformed physical addresses remain unknown without 
   });
   expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].ipv4).toBeNull();
 });
-test('rejects stale, down, duplicated, foreign-owner and wrong-MTU evidence', () => {
+test('rejects stale, duplicated, foreign-owner and wrong-MTU evidence', () => {
   for (const mutate of [
     (f: ReturnType<typeof fixture>) => {
       f.physical.status[0].metadata.vtrp_stale = true;
-    },
-    (f: ReturnType<typeof fixture>) => {
-      f.physical.status[0].ver_status.intf_status[0].link_state = false;
     },
     (f: ReturnType<typeof fixture>) => {
       f.objects.items.push(f.objects.items[0]);
@@ -226,4 +224,61 @@ test('replays sanitized current AWS site-publisher interface evidence', () => {
   expect(interfaces).toHaveLength(2);
   expect(interfaces.map((item) => item.role)).toEqual(['slo', 'sli']);
   expect(interfaces.every((item) => item.linkUp && item.mtu === 1500)).toBe(true);
+});
+
+test('keeps complete six-interface explicit down and restored up observations with the same identities', () => {
+  const f = structuredClone(six);
+  const expected = f.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
+  const observe = () => correlateCeInterfaces(f.configuration, f.objects, f.physical, expected);
+  const before = observe();
+  expect(before).toHaveLength(6);
+  const selected = before.find((row) => row.role === 'sli');
+  expect(selected).toBeDefined();
+  if (!selected) throw new Error('fixture SLI identity missing');
+  const links = f.physical.status.flatMap((row) => row.ver_status.intf_status);
+  const link = links.find((row) => row.mac.toLowerCase() === selected?.mac);
+  expect(link).toBeDefined();
+  if (!link) throw new Error('fixture SLI missing');
+  link.link_state = false;
+  const down = observe();
+  expect(down).toHaveLength(6);
+  expect(down.find((row) => row.mac === selected?.mac)).toEqual({ ...selected, linkUp: false });
+  expect(down.filter((row) => row.role === 'slo').every((row) => row.linkUp)).toBe(true);
+  link.link_state = true;
+  expect(observe()).toEqual(before);
+});
+
+test('does not turn malformed or omitted link state into down evidence', () => {
+  for (const state of [undefined, null, 0, 1, 'false', 'true', {}, []]) {
+    const f = sitePublisherFixture();
+    Object.assign(f.physical.status[0].ver_status.intf_status[0], { link_state: state });
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
+  }
+});
+
+test('rejects incomplete, duplicate, stale, foreign and partially discovered six-interface observations', () => {
+  for (const mutation of [
+    (f: typeof six) => f.physical.status.pop(),
+    (f: typeof six) => f.physical.status.push(f.physical.status[0]),
+    (f: typeof six) => {
+      f.physical.status[0].metadata.vtrp_stale = true;
+    },
+    (f: typeof six) => {
+      f.physical.status[0].metadata.creator_id = 'foreign-site';
+    },
+    (f: typeof six) => {
+      f.physical.status[0].object_refs[0].uid = 'foreign-site-uid';
+    },
+    (f: typeof six) => {
+      f.objects.items[0].owner_view.uid = 'foreign-owner';
+    },
+    (f: typeof six) => {
+      Object.assign(f.objects, { next_page_token: 'more' });
+    },
+  ]) {
+    const f = structuredClone(six);
+    mutation(f);
+    const expected = f.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, expected)).toThrow();
+  }
 });
