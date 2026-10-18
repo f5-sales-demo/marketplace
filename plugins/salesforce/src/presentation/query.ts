@@ -9,6 +9,7 @@ import {
   formatSoql,
   incomplete,
   label,
+  money,
   record,
   rows,
   table,
@@ -69,7 +70,12 @@ export function queryView(
   let records = raw.map(flattenRecord);
   const metricLabels = metrics(soql);
   records = records.map((row) =>
-    Object.fromEntries(Object.entries(row).map(([key, val]) => [key, key in metricLabels ? value(val, true) : val])),
+    Object.fromEntries(
+      Object.entries(row).map(([key, val]) => [
+        key,
+        key in metricLabels ? (/amount/.test(metricLabels[key]) ? money(val) : value(val, true)) : val,
+      ]),
+    ),
   );
   const aggregate =
     raw.length > 0 &&
@@ -132,7 +138,7 @@ export function queryView(
         }))
       : undefined;
   return {
-    summary: `${purpose} · ${value(raw.length)} ${aggregate ? 'aggregate rows' : 'records'} returned`,
+    summary: `${purpose} · ${value(raw.length)} ${aggregate ? (raw.length === 1 ? 'aggregate row' : 'aggregate rows') : raw.length === 1 ? 'record' : 'records'} returned`,
     states: warnings.map((text) => ({
       kind:
         text === 'Provisional results'

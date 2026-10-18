@@ -63,6 +63,12 @@ export function value(value: unknown, numeric = false): unknown {
   if (!match) return value;
   return `${match[1]}${match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${match[3] ?? ''}${match[4] ?? ''}`;
 }
+export function money(input: unknown): unknown {
+  if (typeof input !== 'number' || !Number.isFinite(input)) return input;
+  return input.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+const monetaryFields =
+  /^(Amount|amount|quotaTotal|platform|shape|other|commit|bestCase|pipeline|totalAmount|bookedAmount|renewalAmount)$/;
 export const ownedTables = new WeakSet<object>();
 export function table(
   p: PresentationAPI,
@@ -77,10 +83,12 @@ export function table(
       Object.fromEntries(
         columns.map((key) => [
           key,
-          value(
-            row[key],
-            /amount|total|count|remaining|^max$|platform|shape|other|commit|bestCase|pipeline/i.test(key),
-          ),
+          monetaryFields.test(key)
+            ? money(row[key])
+            : value(
+                row[key],
+                /amount|total|count|remaining|^max$|platform|shape|other|commit|bestCase|pipeline/i.test(key),
+              ),
         ]),
       ),
     ),

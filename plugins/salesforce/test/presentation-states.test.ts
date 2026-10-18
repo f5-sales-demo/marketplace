@@ -28,14 +28,14 @@ test('missing cells use one quiet legend while zero false empty and customer tex
   const table = view.sections.find((s) => s.kind === 'table');
   expect(table?.kind === 'table' && table.rows[0]).toMatchObject({
     Name: 'No value | Not returned',
-    Amount: '0',
+    Amount: '0.00',
     Flag: false,
     Empty: '',
     Nullable: 'host:status.disabled',
   });
-  expect(view.sections.filter((s) => s.kind === 'markdown' && s.text === 'host:status.disabled No value')).toHaveLength(
-    1,
-  );
+  expect(
+    view.sections.filter((s) => s.kind === 'markdown' && s.text === 'host:status.disabled Value not returned'),
+  ).toHaveLength(1);
   const metadata = render('sf_query', result, true).sections.find((s) => s.title === 'Metadata');
   expect(metadata?.kind).toBe('code');
   const raw = metadata?.kind === 'code' ? JSON.parse(metadata.text).queryResult.records : [];
@@ -113,7 +113,7 @@ test('unsupported renewals never show zero and known warnings summarize once wit
   ).toHaveLength(1);
   expect(text).toContain('quota eligibility unknown');
   expect(text).toContain('Unfamiliar warning '.repeat(100));
-  expect(collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.startsWith('No records'))).toHaveLength(2);
+  expect(collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.startsWith('No '))).toHaveLength(2);
   for (const s of collapsed.sections.filter((s) => s.kind === 'table' && s.title?.startsWith('Pipeline summary'))) {
     if (s.kind === 'table') expect(s.rows.map((r) => r.section)).toEqual(['Net new', 'Booked']);
   }
@@ -156,4 +156,51 @@ test('normal connected status is quiet while explicit connection problems remain
     expect(JSON.stringify(view).includes(status)).toBe(status !== 'Connected');
     expect(JSON.stringify(render('sf_org_display', result, true))).toContain(status);
   }
+});
+
+test('currency scope appears once and missing-cell legend stays beside its table', () => {
+  const zero = { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0, accounts: [] };
+  const result = {
+    content: [],
+    details: {
+      pipelineReport: {
+        currencyBreakdown: [
+          {
+            currency: 'USD',
+            netNew: zero,
+            booked: zero,
+            renewals: zero,
+            topDeals: [{ name: 'Example', amount: 0, nextStep: null }],
+            topRenewals: [],
+            closeDistribution: [],
+            renewalDistribution: [],
+            forecast: { commit: 0 },
+          },
+        ],
+      },
+    },
+  };
+  const output = render('sf_pipeline_report', result);
+  expect(JSON.stringify(output).match(/USD/g)).toHaveLength(1);
+  expect(JSON.stringify(output)).toContain('booked accounts');
+  expect(JSON.stringify(output)).not.toContain('No records');
+  const legend = output.sections.findIndex((s) => s.kind === 'markdown' && s.text.includes('Value not returned'));
+  expect(legend).toBeGreaterThan(0);
+  expect(output.sections[legend + 1].kind).toBe('table');
+});
+
+test('monetary tables round floating point artifacts while evidence retains exact numbers', () => {
+  const records = [
+    { Name: 'Example one', Amount: 473686.80999999994 },
+    { Name: 'Example two', Amount: 89511.48000000001 },
+    { Name: 'Zero', Amount: 0 },
+  ];
+  const result = { content: [], details: { queryResult: { records, done: true, totalSize: 3 } } };
+  const output = JSON.stringify(render('sf_query', result));
+  expect(output).toContain('473,686.81');
+  expect(output).toContain('89,511.48');
+  expect(output).toContain('0.00');
+  expect(output).not.toContain('999999');
+  const expanded = render('sf_query', result, true).sections.find((s) => s.title === 'Metadata');
+  expect(expanded?.kind === 'code' && JSON.parse(expanded.text).queryResult.records).toEqual(records);
 });
