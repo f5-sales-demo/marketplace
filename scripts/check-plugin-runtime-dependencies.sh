@@ -106,7 +106,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
 
   expected_xcsh="$EXPECTED_XCSH"
   case "$plugin" in
-    aws|azure) expected_xcsh="23.6.8" ;;
+  aws | azure) expected_xcsh="23.6.8" ;;
   esac
   expected_pi_utils="$expected_xcsh"
   expected_anthropic="$EXPECTED_ANTHROPIC"
