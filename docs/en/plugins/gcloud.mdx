@@ -40,6 +40,21 @@ Use `gcloud_config_list` to confirm the active account, configuration, and proje
 
 If credentials expire, repeat human setup and reconfirm the active project before continuing.
 
+## Customer Edge readiness
+
+Use the `gcp-ce` skill for GCP Customer Edge planning and inspection.
+`gcp_project_identity` verifies an explicit project, `gcp_compute_discover`
+observes F5 image/license identities and cloud prerequisites, and `gcp_ce_plan`
+validates topology and sizing with a hashed readiness plan. Native is the default;
+an explicit Terraform choice must match the intent.
+
+The plan contains no executable actions. Immutable API v12.0.10 has no GCP
+provider mapping, and shared GCP Platform/Terraform execution remains unavailable.
+Apply, upgrade, failover and teardown tools report these gaps before mutation.
+Inventory, status and diagnostics observe cloud provisioning; registration,
+physical interface identity, platform health, routing and application traffic
+remain separate unknown gates. Deployment labels alone cannot authorize deletion.
+
 ## Check the result
 
 Check integration status and `gcloud_config_list`. Confirm the account and

@@ -192,9 +192,14 @@ export function formatSoql(query: string): string {
   return output;
 }
 export function evidence(p: PresentationAPI, result: Result, _args: Args, _argv?: string[]): Section[] {
+  const formattedReport = ['sf_describe', 'sf_org_display', 'sf_pipeline_report'].includes(
+    String(record(result.details).tool ?? ''),
+  );
   return [
     // Expanded call arguments are already rendered and labeled by xcsh.
-    ...texts(result).map((text) => code(text, 'CLI output')),
+    ...texts(result).map(
+      (text): Section => (formattedReport ? { kind: 'markdown', title: 'CLI output', text } : code(text, 'CLI output')),
+    ),
     ...(result.details === undefined ? [] : p.data(result.details, 'Metadata')),
   ];
 }

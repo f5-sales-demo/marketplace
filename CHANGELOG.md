@@ -16,6 +16,17 @@ and this project adheres to
 
 - **`aws`** v3.0.1 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts. Whole-site stop/start is gated until coordinated service withdrawal and restoration are implemented.
 
+- **`gcloud`** bumped to v1.6.0
+
+- Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
+  readiness planning to the Google Cloud plugin, with topology, sizing and engine
+  validation. Lifecycle mutation remains unavailable pending qualified GCP API
+  mappings and shared Platform/Terraform integration (#1559).
+
+- **`salesforce`** v2.3.5 renders formatted Describe, Org and Pipeline evidence as Markdown in expanded
+  views, preserving literal commands, arbitrary CLI output and complete metadata. Requires xcsh 23.5.1
+  (#1557).
+
 - **`salesforce`** v2.3.4 resolves authenticated identity before optional report discovery, preventing
   profile collection deadlines from discarding a valid connection. Pipeline reports discover and cache
   schema and territory scope on demand for the verified org. Requires xcsh 23.5.1 (#1555).
