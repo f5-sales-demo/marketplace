@@ -3,8 +3,8 @@ import { fingerprint } from './discovery';
 
 export const GCP_CE_API_RELEASE = {
   repository: 'f5-sales-demo/api-specs-enriched',
-  tag: 'v12.0.10',
-  contractDigest: 'sha256:2dd4d33693c9e228bfb304d7558a2f50ca9cc0146407f8fb9b5f0ca7d7c56f3c',
+  tag: 'v12.1.0',
+  contractDigest: 'sha256:3c8b143ac2f38dc5a1e9bbdca27dbbc0a65d7cf5f11b88cee0aeb49bd62c74f1',
 } as const;
 export interface GcpCeContractBoundary {
   release: typeof GCP_CE_API_RELEASE;
