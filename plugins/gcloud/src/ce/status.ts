@@ -4,10 +4,10 @@ import { correlateGcpPhysicalInterfaces, type GcpExpectedNodeIdentity } from './
 import type { GcpCeEngine } from './types';
 
 export interface GcpStatusSource {
-  cloud(nodeName: string): Promise<unknown>;
-  configuration(siteName: string): Promise<unknown>;
-  registrations(siteName: string): Promise<unknown>;
-  health(siteName: string): Promise<unknown>;
+  cloud(nodeName: string, signal?: AbortSignal): Promise<unknown>;
+  configuration(siteName: string, signal?: AbortSignal): Promise<unknown>;
+  registrations(siteName: string, signal?: AbortSignal): Promise<unknown>;
+  health(siteName: string, signal?: AbortSignal): Promise<unknown>;
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed status observation');
@@ -18,7 +18,9 @@ export async function observeGcpSiteStatus(
   expected: GcpExpectedNodeIdentity,
   engine: GcpCeEngine,
   source: GcpStatusSource,
+  signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
   if (!['native', 'terraform'].includes(engine)) throw new Error('Explicit status owning engine required');
   const evidence = {
     schemaVersion: 1,
@@ -37,13 +39,15 @@ export async function observeGcpSiteStatus(
     sourceReceipts: [] as Array<{ source: string; sha256: string }>,
   };
   const read = async (name: string, fn: () => Promise<unknown>) => {
+    signal?.throwIfAborted();
     const value = await fn();
+    signal?.throwIfAborted();
     evidence.sourceReceipts.push({ source: name, sha256: fingerprint(value) });
     return object(value);
   };
   let cloud: Record<string, unknown>;
   try {
-    cloud = await read('gcloud-instance', () => source.cloud(expected.nodeName));
+    cloud = await read('gcloud-instance', () => source.cloud(expected.nodeName, signal));
     if (
       String(cloud.id) !== expected.instanceId ||
       cloud.name !== expected.nodeName ||
@@ -52,14 +56,15 @@ export async function observeGcpSiteStatus(
       return evidence;
     evidence.cloudProvisioning = cloud.status === 'RUNNING' ? 'running' : 'observed';
   } catch {
+    signal?.throwIfAborted();
     return evidence;
   }
   let configuration: Record<string, unknown>, registration: Record<string, unknown>;
   try {
-    configuration = await read('xc-site-configuration', () => source.configuration(expected.siteName));
+    configuration = await read('xc-site-configuration', () => source.configuration(expected.siteName, signal));
     const metadata = object(configuration.metadata);
     if (metadata.name !== expected.siteName || metadata.namespace !== 'system') return evidence;
-    const response = await read('xc-site-registrations', () => source.registrations(expected.siteName));
+    const response = await read('xc-site-registrations', () => source.registrations(expected.siteName, signal));
     if (
       !Array.isArray(response.items) ||
       (response.errors !== undefined && (!Array.isArray(response.errors) || response.errors.length)) ||
@@ -86,6 +91,7 @@ export async function observeGcpSiteStatus(
     evidence.registration = state === 'ONLINE' ? 'online' : 'observed-not-online';
     if (state !== 'ONLINE') return evidence;
   } catch {
+    signal?.throwIfAborted();
     return evidence;
   }
   try {
@@ -95,9 +101,10 @@ export async function observeGcpSiteStatus(
     return evidence;
   }
   try {
-    const health = await read('xc-global-health', () => source.health(expected.siteName));
+    const health = await read('xc-global-health', () => source.health(expected.siteName, signal));
     evidence.platformHealth = parseGcpGlobalHealth(health, expected.nodeName).status;
   } catch {
+    signal?.throwIfAborted();
     evidence.platformHealth = 'unknown';
   }
   return evidence;

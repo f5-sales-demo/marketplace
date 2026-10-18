@@ -125,3 +125,48 @@ it('registration/interface success does not hide health transport failure', asyn
   expect(result.platformHealth).toBe('unknown');
   expect(JSON.stringify(result)).not.toContain('private');
 });
+
+it('cancellation before observation performs no reads', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let reads = 0;
+  await expect(
+    observeGcpSiteStatus(
+      expected,
+      'native',
+      {
+        ...source(),
+        cloud: async () => {
+          reads++;
+          return {};
+        },
+      },
+      controller.signal,
+    ),
+  ).rejects.toThrow();
+  expect(reads).toBe(0);
+});
+
+it('propagates cancellation at every asynchronous layer and resumes with fresh reads', async () => {
+  for (const layer of ['cloud', 'configuration', 'registrations', 'health'] as const) {
+    const controller = new AbortController();
+    const s = source();
+    let readsAfterCancellation = 0;
+    const interrupted = Object.fromEntries(
+      (['cloud', 'configuration', 'registrations', 'health'] as const).map((name) => [
+        name,
+        async (_identity: string, signal?: AbortSignal) => {
+          expect(signal).toBe(controller.signal);
+          if (controller.signal.aborted) readsAfterCancellation++;
+          if (name === layer) controller.abort();
+          return s[name]();
+        },
+      ]),
+    ) as unknown as import('../../src/ce/status').GcpStatusSource;
+    await expect(observeGcpSiteStatus(expected, 'terraform', interrupted, controller.signal)).rejects.toThrow();
+    expect(readsAfterCancellation).toBe(0);
+    const resumed = await observeGcpSiteStatus(expected, 'terraform', source(), new AbortController().signal);
+    expect(resumed.platformHealth).toBe('healthy');
+    expect(resumed.sourceReceipts).toHaveLength(4);
+  }
+});
