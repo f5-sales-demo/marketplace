@@ -1,9 +1,15 @@
 import { GCP_CE_API_RELEASE } from './contract';
 import { fingerprint } from './discovery';
+import type { GcpPolicyReceipt } from './policy';
 import { GCP_CE_POLICY, type GcpCeDiscovery, type GcpCeIntent, type GcpCePlan } from './types';
 import { validateIntent } from './validation';
 
-export function planGcpCe(intent: GcpCeIntent, discovery: GcpCeDiscovery, now = Date.now()): GcpCePlan {
+export function planGcpCe(
+  intent: GcpCeIntent,
+  discovery: GcpCeDiscovery,
+  now = Date.now(),
+  policyReceipt?: GcpPolicyReceipt,
+): GcpCePlan {
   validateIntent(intent);
   if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
     throw new Error('Discovery scope does not match the intent');
@@ -26,7 +32,7 @@ export function planGcpCe(intent: GcpCeIntent, discovery: GcpCeDiscovery, now = 
     }
   const unavailable = [
     'gcp_executable_api_mapping_not_qualified',
-    'current_policy_release_not_bound',
+    ...(policyReceipt ? [] : ['current_policy_release_not_bound']),
     'shared_platform_gcp_runtime_not_available',
     ...(intent.engine === 'terraform' ? ['shared_terraform_gcp_runner_not_available'] : []),
     ...(discovery.billingEnabled !== true ? ['billing_not_verified'] : []),
@@ -40,6 +46,7 @@ export function planGcpCe(intent: GcpCeIntent, discovery: GcpCeDiscovery, now = 
   const body = {
     schemaVersion: 1 as const,
     policyIdentity: GCP_CE_POLICY,
+    ...(policyReceipt ? { policyReceipt } : {}),
     apiRelease: GCP_CE_API_RELEASE,
     engine: intent.engine,
     intent: structuredClone(intent),
