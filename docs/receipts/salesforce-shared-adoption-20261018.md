@@ -72,7 +72,7 @@ in the original run; no immutable asset or tag was rewritten.
 
 ## Final adapter source qualification
 
-Implementation source: `7f4b04e1b26c3509491cdfa1eb32dfa86d3034c8`.
+Implementation source: `5b772359e6165240e30286f14d4aa70180aa01c1`.
 All 325 Salesforce tests pass with the actual published 23.8.0 SDK. The common
 marketplace matrix passes 24 tests and 21,737 assertions through all 23 plugins.
 Dependency fixtures pass all ten checks, including rejection of a development
@@ -81,13 +81,16 @@ has 324 active surfaces and preserves 16 retired progress-registration rows.
 
 The Mac full-suite attempt also records unrelated GitLab, KVM, Xorg and Zoom
 platform-fixture failures; its early hermeticity attempt ran before all fixture
-dependencies existed. The complete required source/hermetic qualification is
-being repeated on the verified Ubuntu CI route. These failures are retained,
-not presented as passing Mac suite evidence.
+dependencies existed. The full Ubuntu plugin runner passes all suites after materializing the test
+dependencies and providing task-owned PyYAML to the sanitized Python environment.
+The Ubuntu hermeticity check passes with real cloud CLIs replaced by controlled
+stubs. These Mac failures are retained, not presented as passing Mac suite evidence.
+The privacy enforcement check is clean. The final Account column label uses the
+existing domain label map; all 325 targeted tests still pass.
 
 ## Remaining delivery gates
 
-Ubuntu full plugin/hermetic checks, green plugin CI/merge, immutable 2.3.12
+Final-source Ubuntu verification, green plugin CI/merge, immutable 2.3.12
 publication, matching plugin installations, and fresh Mac native fixture/read-only
 service acceptance remain pending. Ubuntu and NUC perform no Salesforce service
 probes. Raw native captures remain private; sanitized findings and provenance
