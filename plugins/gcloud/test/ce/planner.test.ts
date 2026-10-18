@@ -270,3 +270,17 @@ describe('GCP typed tools', () => {
     expect(r.details.absence).toBe('not-established');
   });
 });
+
+it('binds current policy receipt into the readiness plan hash', () => {
+  const i = intent(),
+    d = discovery();
+  const receipt = {
+    identity: 'f5xc-ce-automation-policy/v2' as const,
+    url: 'https://example.com/policy',
+    observedAt: d.observedAt,
+    normalizedSha256: `sha256:${'a'.repeat(64)}`,
+  };
+  const withPolicy = planGcpCe(i, d, Date.now(), receipt);
+  expect(withPolicy.unavailable).not.toContain('current_policy_release_not_bound');
+  expect(withPolicy.planHash).not.toBe(planGcpCe(i, d).planHash);
+});

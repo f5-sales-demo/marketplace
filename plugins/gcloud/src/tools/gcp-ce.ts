@@ -1,6 +1,7 @@
 import { resolveGcpContract } from '../ce/contract';
 import { discoverGcp } from '../ce/discovery';
 import { planGcpCe } from '../ce/planner';
+import { readGcpCePolicy } from '../ce/policy';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
 import { validateIntent, validateScope } from '../ce/validation';
 import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
@@ -115,7 +116,8 @@ export function createGcpCeTools(
           const discovery = await discoverGcp(api, params.project, params.region, signal);
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
           const boundary = await contract();
-          const plan = planGcpCe(params.intent as GcpCeIntent, discovery);
+          const policyReceipt = await readGcpCePolicy();
+          const plan = planGcpCe(params.intent as GcpCeIntent, discovery, Date.now(), policyReceipt);
           return result(tool, { availability: 'unavailable', boundary, plan });
         }
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
