@@ -536,6 +536,21 @@ def ensure_web_hd(page):
     return result
 
 
+def meeting_state(page, controls):
+    """Prefer visible terminal states over stale background controls."""
+    removed = page.get_by_text("You have been removed", exact=True)
+    if removed.count() == 1 and removed.is_visible():
+        return "removed_by_host"
+    return (
+        "in_meeting"
+        if any(
+            re.fullmatch(r"leave(?: meeting)?", c["name"], re.IGNORECASE)
+            for c in controls
+        )
+        else "unknown"
+    )
+
+
 def observe_or_control(action, requested=None):
     """Observe the owned Zoom browser and use visible semantic controls only."""
     selected = owned_browser_state()
@@ -570,6 +585,7 @@ def observe_or_control(action, requested=None):
             controls = page.get_by_role("button").evaluate_all(
                 "els=>els.filter(e=>e.getBoundingClientRect().width&&e.getBoundingClientRect().height).map(e=>({name:e.getAttribute('aria-label')||e.innerText,pressed:e.getAttribute('aria-pressed')}))"
             )
+            current_meeting = meeting_state(page, controls)
             if action == "awareness":
                 return {
                     "exitCode": 0,
@@ -586,10 +602,17 @@ def observe_or_control(action, requested=None):
                     "hd": json.loads((runtime / "pi-zoom-web-hd.json").read_text())
                     if (runtime / "pi-zoom-web-hd.json").is_file()
                     else {"hd": "pending"},
-                    "meeting_joined": any(
-                        re.search(r"leave", c["name"], re.IGNORECASE) for c in controls
-                    ),
+                    "meeting_state": current_meeting,
+                    "meeting_joined": current_meeting == "in_meeting",
                     "receiver_acceptance": "pending controlled meeting",
+                    "recording": False,
+                }
+            if current_meeting == "removed_by_host":
+                return {
+                    "exitCode": 1,
+                    "backend": "zoom-web",
+                    "error": "removed_by_host",
+                    "meeting_joined": False,
                     "recording": False,
                 }
             patterns = {

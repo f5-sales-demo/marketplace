@@ -104,6 +104,21 @@ class ZoomWebSafety(unittest.TestCase):
         hd.check.assert_called_once_with(timeout=3000)
         self.assertEqual(result, {"hd": True, "verified": True, "changed": True})
 
+    def test_host_removal_overrides_stale_meeting_controls(self):
+        page = MagicMock()
+        removed = page.get_by_text.return_value
+        removed.count.return_value = 1
+        removed.is_visible.return_value = True
+        self.assertEqual(
+            module.meeting_state(page, [{"name": "Leave"}]), "removed_by_host"
+        )
+
+    def test_meeting_state_requires_accessible_leave_control(self):
+        page = MagicMock()
+        page.get_by_text.return_value.count.return_value = 0
+        self.assertEqual(module.meeting_state(page, []), "unknown")
+        self.assertEqual(module.meeting_state(page, [{"name": "Leave"}]), "in_meeting")
+
     def test_video_settings_not_ready_remains_pending(self):
         page = MagicMock()
         tab, menu, more = MagicMock(), MagicMock(), MagicMock()
