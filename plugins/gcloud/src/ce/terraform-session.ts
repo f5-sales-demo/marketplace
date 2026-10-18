@@ -62,6 +62,7 @@ export async function openGcpTerraformSession(
     engine: 'terraform',
     platformContext: inputs.intent.platformContext,
     intentFingerprint: fingerprint(inputs.intent),
+    intent: structuredClone(inputs.intent),
     configurationFingerprint: fingerprint(translated.configuration),
     providerLockSha256: digest,
   };

@@ -38,6 +38,19 @@ it('prepares GCP configuration through shared restricted session and resumes exa
   expect(digest).toMatch(/^[a-f0-9]{64}$/);
   const resumed = await openGcpTerraformSession(platform, inputs(), true);
   expect(await resumed.readConfigurationSha256?.()).toBe(digest);
+  const owner = {
+    deploymentId: inputs().intent.deploymentName,
+    engine: 'terraform' as const,
+    provider: 'gcp' as const,
+    account: inputs().intent.project,
+    region: inputs().intent.region,
+  };
+  const saved = (await (await platform.storage(owner)).read('gcp-terraform-input-identity.json')) as {
+    intent: ReturnType<typeof inputs>['intent'];
+    platformContext: string;
+  };
+  expect(saved.intent).toEqual(inputs().intent);
+  expect(saved.platformContext).toBe(inputs().intent.platformContext);
 });
 it('rejects wrong owning engine, changed lock or unpinned provider before storage access', async () => {
   let calls = 0;
