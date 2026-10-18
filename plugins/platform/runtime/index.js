@@ -5760,6 +5760,11 @@ var factory = async (pi) => {
       storage: (owner) => service().storage(owner),
       capabilities: (contextName) => service().capabilities(contextName),
       runtime: (engine, contextName) => service().runtime(engine, contextName),
+      gcpObservations: (owner, contextName, signal) => {
+        const active = service();
+        if (!active.gcpObservations) throw new Error('GCP observations unavailable');
+        return active.gcpObservations(owner, contextName, signal);
+      },
     });
   }
   const makeDriver = (context) => {
