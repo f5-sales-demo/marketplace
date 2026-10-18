@@ -621,7 +621,14 @@ def meeting_state(page, controls):
     )
 
 
-def observe_or_control(action, requested=None):  # noqa: PLR0911
+def require_active_membership(state):
+    """Reject host removal before any media action."""
+    if state == "removed_by_host":
+        message = "removed_by_host"
+        raise ValueError(message)
+
+
+def observe_or_control(action, requested=None):
     """Observe the owned Zoom browser and use visible semantic controls only."""
     selected = owned_browser_state()
     runtime = Path(os.environ["XDG_RUNTIME_DIR"])
@@ -677,14 +684,7 @@ def observe_or_control(action, requested=None):  # noqa: PLR0911
                     "receiver_acceptance": "pending controlled meeting",
                     "recording": False,
                 }
-            if current_meeting == "removed_by_host":
-                return {
-                    "exitCode": 1,
-                    "backend": "zoom-web",
-                    "error": "removed_by_host",
-                    "meeting_joined": False,
-                    "recording": False,
-                }
+            require_active_membership(current_meeting)
             if action in ("share", "stop-share"):
                 return control_web_share(page, action, requested)
             patterns = {
