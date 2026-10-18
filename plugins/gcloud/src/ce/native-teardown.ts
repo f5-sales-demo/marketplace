@@ -1,7 +1,6 @@
 import type { GcloudExecApi } from '../gcloud/exec';
 import type { GcpBootstrapStore } from './bootstrap-checkout';
 import { fingerprint } from './discovery';
-import { type GcpOperationBinding, reconcileGcpOperation, recordGcpOperation } from './native-operation';
 import { assertGcpResourceOwnership, readGcpResourceInventory } from './ownership';
 import { planGcpOwnedTeardown } from './teardown-plan';
 /** Internal cloud-only teardown; Platform drain/token/site and restoration remain outer lifecycle gates. */
@@ -77,18 +76,6 @@ export async function applyGcpNativeTeardown(
         }
         return v;
       };
-      const id = `delete-${fingerprint({ plan: plan.sha256, resource: resource.selfLink }).slice(7, 47)}`;
-      const binding: GcpOperationBinding = {
-        project: plan.scope.project,
-        deploymentName: plan.scope.deploymentName,
-        engine: 'native',
-        actionId: id,
-        ...(scope === 'zones'
-          ? { zone: location }
-          : scope === 'regions'
-            ? { region: location }
-            : { global: true as const }),
-      };
       const live = await observe();
       if (!live) {
         checkpoint.resources[resource.selfLink] = 'done';
@@ -100,39 +87,14 @@ export async function applyGcpNativeTeardown(
       if (!checkpoint.resources[resource.selfLink]) {
         checkpoint.resources[resource.selfLink] = 'submitting';
         await store.write(filename, checkpoint);
-        const asynchronous = resource.kind === 'instance' || resource.kind === 'disk';
-        const r = await api.exec(
-          'gcloud',
-          [...base, 'delete', name, ...flags, ...(asynchronous ? ['--async'] : []), '--quiet', '--format=json'],
-          {
-            signal,
-          },
-        );
+        const r = await api.exec('gcloud', [...base, 'delete', name, ...flags, '--quiet', '--format=json'], {
+          signal,
+        });
         if (r.exitCode !== 0) throw new Error('Teardown submission requires reconciliation');
-        if (!asynchronous) {
-          if (await observe()) return { state: 'pending', resource: resource.selfLink };
-          checkpoint.resources[resource.selfLink] = 'done';
-          await store.write(filename, checkpoint);
-          continue;
-        }
-        let v: unknown;
-        try {
-          v = JSON.parse(r.stdout);
-        } catch {
-          throw new Error('Teardown operation receipt missing');
-        }
-        await recordGcpOperation(store, binding, Array.isArray(v) ? v[0] : v);
+        if (await observe()) return { state: 'pending', resource: resource.selfLink };
+      } else {
+        throw new Error('Ambiguous deletion requires independent outcome reconciliation');
       }
-      let operation: unknown;
-      try {
-        operation = await store.read(`gcp-operation-${id}.json`);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
-      if (!operation) throw new Error('Ambiguous deletion requires exact receipt reconciliation');
-      const result = await reconcileGcpOperation(store, api, binding, signal);
-      if (result.state === 'failed') throw new Error('Cloud teardown operation failed');
-      if (result.state !== 'done' || (await observe())) return { state: 'pending', resource: resource.selfLink };
       checkpoint.resources[resource.selfLink] = 'done';
       await store.write(filename, checkpoint);
     }

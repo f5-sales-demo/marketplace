@@ -69,3 +69,23 @@ it('wrong approval refuses cloud mutation', async () => {
   ).rejects.toThrow('Reviewed');
   expect(calls).toBe(0);
 });
+
+it('uses supported synchronous deletion and verifies absence before completion', async () => {
+  const f = fixture();
+  await recordGcpResource(f.store, f.resource);
+  const p = planGcpOwnedTeardown([f.resource], { ...f.resource, region: 'northamerica-northeast1' });
+  let deleted = false;
+  const api = {
+    exec: async (_cmd: string, args: string[]) => {
+      expect(args).not.toContain('--async');
+      if (args.includes('delete')) {
+        deleted = true;
+        return { stdout: '[]', stderr: '', exitCode: 0 };
+      }
+      return deleted
+        ? { stdout: '', stderr: 'not found', exitCode: 1 }
+        : { stdout: JSON.stringify(f.resource), stderr: '', exitCode: 0 };
+    },
+  };
+  expect((await applyGcpNativeTeardown(f.store, api, p, p.sha256)).state).toBe('done');
+});
