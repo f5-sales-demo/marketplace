@@ -82,3 +82,20 @@ it('rejects caller threshold changes, duplicate timestamps and impossible loss c
     }),
   ).toThrow('Malformed');
 });
+it('later failures invalidate a transient recovered pair and use the final healthy run', () => {
+  const result = evaluateGcpRecovery({
+    disruptionAtMs: 0,
+    restoredAtMs: 10000,
+    deadlineSeconds: 120,
+    samples: [
+      sample(15, true, true),
+      sample(20, true, true),
+      sample(25, false, false, 10),
+      sample(140, true, true),
+      sample(145, true, true),
+    ],
+  });
+  expect(result.routeRecoverySeconds).toBe(130);
+  expect(result.applicationRecoverySeconds).toBe(130);
+  expect(result.passed).toBe(false);
+});

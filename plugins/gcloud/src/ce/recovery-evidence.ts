@@ -26,8 +26,11 @@ export function evaluateGcpRecovery(window: GcpRecoveryWindow) {
     routeAt: number | undefined,
     applicationAt: number | undefined;
   let requests = 0,
-    failures = 0;
-  for (const [index, sample] of window.samples.entries()) {
+    failures = 0,
+    routeRun = 0,
+    applicationRun = 0;
+  let routeRunAt: number | undefined, applicationRunAt: number | undefined;
+  for (const sample of window.samples) {
     if (
       !Number.isFinite(sample.observedAtMs) ||
       sample.observedAtMs <= last ||
@@ -46,23 +49,23 @@ export function evaluateGcpRecovery(window: GcpRecoveryWindow) {
     requests += sample.requests;
     failures += sample.failedRequests;
     if (sample.observedAtMs >= window.restoredAtMs) {
-      // Require two consecutive healthy observations; a transient success is
-      // not recovery, and the first sample's timestamp is the convergence time.
-      const previous = window.samples[index - 1];
-      if (previous && previous.observedAtMs >= window.restoredAtMs) {
-        if (routeAt === undefined && previous.routeHealthy && sample.routeHealthy) routeAt = previous.observedAtMs;
-        if (
-          applicationAt === undefined &&
-          previous.applicationHealthy &&
-          previous.contentVerified &&
-          previous.requests > 0 &&
-          previous.failedRequests === 0 &&
-          sample.applicationHealthy &&
-          sample.contentVerified &&
-          sample.requests > 0 &&
-          sample.failedRequests === 0
-        )
-          applicationAt = previous.observedAtMs;
+      if (sample.routeHealthy) {
+        if (routeRun === 0) routeRunAt = sample.observedAtMs;
+        routeRun++;
+        if (routeRun >= 2) routeAt = routeRunAt;
+      } else {
+        routeRun = 0;
+        routeAt = undefined;
+        routeRunAt = undefined;
+      }
+      if (sample.applicationHealthy && sample.contentVerified && sample.requests > 0 && sample.failedRequests === 0) {
+        if (applicationRun === 0) applicationRunAt = sample.observedAtMs;
+        applicationRun++;
+        if (applicationRun >= 2) applicationAt = applicationRunAt;
+      } else {
+        applicationRun = 0;
+        applicationAt = undefined;
+        applicationRunAt = undefined;
       }
     }
   }
