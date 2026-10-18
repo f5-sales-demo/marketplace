@@ -166,3 +166,38 @@ test('accepts the ordered Azure SLO, data, and SLI NIC configuration', () => {
   };
   expect(() => verifyRegisteredInterfaceConfiguration(spec, devices, 'azure')).not.toThrow();
 });
+
+test('Azure accelerated networking selects one synthetic NIC from an exact driver pair', () => {
+  const azureInstances = { 'ce-one': '00000000-0000-4000-8000-000000000003' };
+  const response = fixture();
+  response.items[0].get_spec.infra.instance_id = azureInstances['ce-one'];
+  const networks = expected.flatMap((binding, index) => [
+    { name: `vf-${index}`, mac_address: binding.mac, driver: 'mlx5_core' },
+    { name: `eth${index}`, mac_address: binding.mac, driver: 'hv_netvsc' },
+  ]);
+  response.items[0].get_spec.infra.hw_info.network = networks;
+  const devices = correlateRegistrationDevices(response, 'site-one', azureInstances, expected, 'azure');
+  expect(devices.map((item) => item.device)).toEqual(['eth0', 'eth1']);
+  expect(devices[0]).not.toHaveProperty('linkUp');
+  for (const drivers of [
+    ['hv_netvsc', 'hv_netvsc'],
+    ['mlx5_core', 'mlx5_core'],
+    ['hv_netvsc', 'unknown'],
+    ['', 'mlx5_core'],
+  ]) {
+    const ambiguous = structuredClone(response);
+    Object.assign(ambiguous.items[0].get_spec.infra.hw_info.network[0], { driver: drivers[0] });
+    Object.assign(ambiguous.items[0].get_spec.infra.hw_info.network[1], { driver: drivers[1] });
+    expect(() => correlateRegistrationDevices(ambiguous, 'site-one', azureInstances, expected, 'azure')).toThrow(
+      /duplicated/,
+    );
+  }
+  const third = structuredClone(response);
+  third.items[0].get_spec.infra.hw_info.network.push(structuredClone(networks[0]));
+  expect(() => correlateRegistrationDevices(third, 'site-one', azureInstances, expected, 'azure')).toThrow(
+    /duplicated/,
+  );
+  const aws = structuredClone(response);
+  aws.items[0].get_spec.infra.instance_id = instances['ce-one'];
+  expect(() => correlateRegistrationDevices(aws, 'site-one', instances, expected, 'aws')).toThrow(/duplicated/);
+});

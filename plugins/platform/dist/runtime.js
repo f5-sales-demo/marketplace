@@ -1513,7 +1513,12 @@ function correlateRegistrationDevices(response, siteName, instances, expected, p
       throw new Error('Duplicate or unsupported expected interface');
     seenMacs.add(normalized);
     seenRoles.add(role);
-    const matches = inventory.get(binding.node)?.filter((item) => mac2(item.mac_address) === normalized);
+    let matches = inventory.get(binding.node)?.filter((item) => mac2(item.mac_address) === normalized);
+    if (provider === 'azure' && matches?.length === 2) {
+      const synthetic = matches.filter((item) => item.driver === 'hv_netvsc');
+      const vf = matches.filter((item) => item.driver === 'mlx5_core');
+      if (synthetic.length === 1 && vf.length === 1 && synthetic[0].name !== vf[0].name) matches = synthetic;
+    }
     if (matches?.length !== 1) throw new Error('Guest MAC identity is unavailable or duplicated');
     const device = matches[0].name;
     if (typeof device !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(device))
