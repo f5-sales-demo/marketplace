@@ -72,6 +72,12 @@
     state.streams.push(stream);
     return stream;
   };
+  // Wayland desktop audio capture is unavailable here. Meeting audio remains
+  // on the explicitly selected virtual microphone, independent of screen share.
+  if (media.getDisplayMedia) {
+    const displayCapture = media.getDisplayMedia.bind(media);
+    media.getDisplayMedia = (requested) => displayCapture({ ...requested, audio: false });
+  }
   if (HTMLMediaElement.prototype.setSinkId) {
     const setSink = HTMLMediaElement.prototype.setSinkId;
     HTMLMediaElement.prototype.setSinkId = async function () {
