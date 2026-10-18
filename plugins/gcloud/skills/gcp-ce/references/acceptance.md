@@ -4,6 +4,15 @@ Current status: discovery/readiness only. Native and Terraform deployment,
 bootstrap, upgrades, repair, replacement, failover, interruption recovery,
 restoration and teardown are unavailable. Full parity is unclaimed.
 
+Disposable qualification established single-node boot, ONLINE registration and
+both physical NIC joins for native and Terraform. Later native and shared
+Terraform runner campaigns observed matching-node `PROVISIONED` global health
+after initial software/OS convergence and completed owned cleanup with independent
+absence checks. The runner recorded one healthy sample; sustained health remains
+unqualified. Initial convergence is separate from explicit upgrade acceptance and
+the 120-second recovery requirement. These results do not enable public lifecycle
+tools or qualify HA, routing, application traffic, replacement, repair or failover.
+
 Fresh installed prompts must route GCP CE requests to this skill and typed tools,
 preserve explicit Terraform choice, reject wrong-engine requests and report
 unavailable gates without generic CLI fallback. Cloud provisioning must never
