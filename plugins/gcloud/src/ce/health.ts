@@ -17,7 +17,9 @@ export function parseGcpGlobalHealth(value: unknown, nodeName: string): GcpHealt
     return { ...base, status: 'unknown', reason: 'node-identity-mismatch' };
   if (
     typeof row.state !== 'string' ||
-    !['PROVISIONED', 'PROVISIONING', 'INITIALIZING', 'FAILED', 'DEGRADED', 'NOT_PROVISIONED'].includes(row.state)
+    !['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
+      row.state,
+    )
   )
     return { ...base, status: 'unknown', reason: 'unknown-health-state' };
   return { ...base, state: row.state, status: row.state === 'PROVISIONED' ? 'healthy' : 'degraded' };

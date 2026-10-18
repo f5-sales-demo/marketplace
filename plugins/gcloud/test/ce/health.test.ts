@@ -18,3 +18,10 @@ it('does not export private runtime fields or treat registration as health', () 
   expect(result.scope).toBe('site-global-only');
   expect(parseGcpGlobalHealth({ current_state: 'ONLINE' }, 'node-a').status).toBe('unknown');
 });
+
+it('recognizes only the immutable debugVpmState schema enum', () => {
+  for (const state of ['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'FAILED', 'RESETTING'])
+    expect(parseGcpGlobalHealth({ hostname: 'node-a', state }, 'node-a').status).toBe('degraded');
+  for (const state of ['INITIALIZING', 'DEGRADED', 'NOT_PROVISIONED'])
+    expect(parseGcpGlobalHealth({ hostname: 'node-a', state }, 'node-a').status).toBe('unknown');
+});
