@@ -47,7 +47,10 @@ const DEFAULT_SESSION = 'desktop';
 const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
 const ZOOM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'zoom-setup.py');
 const ZOOM_WEB = resolve(import.meta.dir, '..', 'scripts', 'zoom-web.py');
-export const zoomBackend = () => process.platform === 'linux' && (process.arch === 'arm64' || process.env.XCSH_ZOOM_BACKEND === 'web') ? 'web' : 'workplace';
+export const zoomBackend = () =>
+  process.platform === 'linux' && (process.arch === 'arm64' || process.env.XCSH_ZOOM_BACKEND === 'web')
+    ? 'web'
+    : 'workplace';
 type AccessibilityItem = {
   name?: string;
   role?: string;
@@ -1009,10 +1012,14 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
   if (zoomBackend() === 'web') {
-    if (!['status', 'awareness', 'join'].includes(action)) return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
+    if (!['status', 'awareness', 'join'].includes(action))
+      return { exitCode: 1, backend: 'zoom-web', error: 'web_control_not_qualified' };
     const result = Bun.spawnSync(['python3', ZOOM_WEB, action === 'awareness' ? 'status' : action, ...args, '--json']);
-    try { return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode }; }
-    catch { return { exitCode: 1, backend: 'zoom-web', error: 'invalid_response' }; }
+    try {
+      return { ...JSON.parse(new TextDecoder().decode(result.stdout)), exitCode: result.exitCode };
+    } catch {
+      return { exitCode: 1, backend: 'zoom-web', error: 'invalid_response' };
+    }
   }
   const windowsBySession = sessionInventory();
   const activeMeetingSession =
@@ -1167,7 +1174,7 @@ export default function zoomIntegration(pi: ExtensionApi) {
       call,
       pi.sendMessage
         ? (result) =>
-            pi.sendMessage!({
+            pi.sendMessage?.({
               customType: 'zoom',
               content: JSON.stringify(result),
               display: true,

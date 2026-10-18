@@ -16,25 +16,14 @@
       "category": "productivity",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom",
       "license": "Apache-2.0",
-      "keywords": [
-        "zoom",
-        "meeting",
-        "accessibility",
-        "virtual-camera"
-      ],
-      "tags": [
-        "zoom",
-        "meeting",
-        "automation"
-      ],
+      "keywords": ["zoom", "meeting", "accessibility", "virtual-camera"],
+      "tags": ["zoom", "meeting", "automation"],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     }
   },
   "lifecycle": {
     "mode": "integrated",
-    "integrations": [
-      "zoom"
-    ],
+    "integrations": ["zoom"],
     "requirements": [
       "Chrome and configured virtual media for ARM64 Zoom Web",
       "Verified local desktop backend and Herdr",
@@ -42,14 +31,9 @@
     ],
     "setupRequired": true,
     "collectedData": [],
-    "pluginDependencies": [
-      "xorg",
-      "herdr"
-    ]
+    "pluginDependencies": ["xorg", "herdr"]
   },
-  "extensions": [
-    "extensions/integration.ts"
-  ],
+  "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Zoom",
     "version": "1.4.0"

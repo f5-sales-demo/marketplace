@@ -15,19 +15,8 @@
       },
       "source": "./plugins/herdr",
       "category": "development",
-      "keywords": [
-        "herdr",
-        "terminal",
-        "multiplexer",
-        "panes",
-        "agents"
-      ],
-      "tags": [
-        "terminal",
-        "orchestration",
-        "agents",
-        "xcsh-extension"
-      ],
+      "keywords": ["herdr", "terminal", "multiplexer", "panes", "agents"],
+      "tags": ["terminal", "orchestration", "agents", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
       "repository": "https://github.com/f5-sales-demo/marketplace"
@@ -35,9 +24,7 @@
   },
   "lifecycle": {
     "mode": "integrated",
-    "integrations": [
-      "herdr"
-    ],
+    "integrations": ["herdr"],
     "requirements": [
       "Supported 64-bit Linux, macOS, or Windows host",
       "HTTPS access to the f5-sales-demo/herdr stable manifest and release"
@@ -46,9 +33,7 @@
     "collectedData": [],
     "pluginDependencies": []
   },
-  "extensions": [
-    "extensions/integration.ts"
-  ],
+  "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Herdr",
     "version": "1.4.0"
