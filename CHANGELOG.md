@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** bumped to v1.6.0
+
 - Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
   readiness planning to the Google Cloud plugin, with topology, sizing and engine
   validation. Lifecycle mutation remains unavailable pending qualified GCP API
