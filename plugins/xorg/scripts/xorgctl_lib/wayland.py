@@ -39,7 +39,12 @@ class Hyprland:
             raise Fault(message)
 
     def command(self, argv, **kwargs):
-        return run(argv, env=self.env, **kwargs).stdout
+        result = run(argv, env=self.env, **kwargs).stdout
+        if argv[:2] in (["hyprctl", "dispatch"], ["hyprctl", "keyword"]):
+            if result.strip() != b"ok":
+                message = "Compositor rejected the operation"
+                raise Fault(message)
+        return result
 
     def query(self, name):
         return json.loads(self.command(["hyprctl", "-j", name]))
@@ -297,7 +302,7 @@ class Hyprland:
                             "hyprctl",
                             "dispatch",
                             "sendshortcut",
-                            f",mouse:{code},",
+                            f",mouse:{code}, ",
                         ]
                     )
                 elif kind == "text":

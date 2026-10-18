@@ -143,7 +143,15 @@ class WaylandContract(unittest.TestCase):
                     "input", "batch", {"steps": [{"action": "click", "button": 1}]}
                 )
             command.assert_called_once_with(
-                ["hyprctl", "dispatch", "sendshortcut", ",mouse:272,"],
+                ["hyprctl", "dispatch", "sendshortcut", ",mouse:272, "],
                 timeout=2,
             )
             self.assertFalse(result["held_input"])
+
+    def test_compositor_error_with_zero_exit_is_not_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backend = self.backend(directory)
+            with patch("xorgctl_lib.wayland.run") as run:
+                run.return_value.stdout = b"sendshortcut: invalid args\n"
+                with self.assertRaises(Fault):
+                    backend.command(["hyprctl", "dispatch", "sendshortcut", "invalid"])
