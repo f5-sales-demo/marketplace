@@ -32,13 +32,20 @@ function activeContextEnvironment(
 const factory: ExtensionFactory = async (pi) => {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('F5 Distributed Cloud Platform');
-  if (pi.events) registerCePlatformService(pi.events, createCePlatformService(activeContextEnvironment(pi)));
   let sessionSettings: PlatformToolContext['settings'];
   const observeSession = (_event: unknown, context: PlatformToolContext) => {
     sessionSettings = context.settings;
   };
   pi.on?.('session_start', observeSession);
   pi.on?.('context', observeSession);
+  if (pi.events) {
+    const service = () => createCePlatformService(activeContextEnvironment(pi, sessionSettings));
+    registerCePlatformService(pi.events, {
+      storage: (owner) => service().storage(owner),
+      capabilities: (contextName) => service().capabilities(contextName),
+      runtime: (engine, contextName) => service().runtime(engine, contextName),
+    });
+  }
   const makeDriver = (context?: PlatformToolContext) => {
     if (context?.settings) sessionSettings = context.settings;
     return new HttpCeV2Driver(activeContextEnvironment(pi, context?.settings ?? sessionSettings));
