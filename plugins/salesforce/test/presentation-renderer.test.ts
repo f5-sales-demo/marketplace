@@ -90,3 +90,30 @@ test('pipeline monthly distributions remain compact tables at normal transcript 
   expect(text).not.toContain('Year Month:');
   expect(text).not.toContain('Commit:');
 });
+
+test('top deals preserve amount stage timing owner and next steps in readable tables', () => {
+  const tool = presentTool({ name: 'sf_pipeline_report' }, presentation);
+  const deal = {
+    oppId: 'synthetic-opportunity',
+    name: 'Example deal',
+    accountName: 'Example account',
+    stage: 'Review',
+    closeDate: '2027-01-01',
+    forecast: 'Best case',
+    amount: 0,
+    ownerName: 'Example owner',
+    nextStep: 'Confirm scope',
+  };
+  const result = {
+    content: [],
+    details: { pipelineReport: { currency: 'USD', topDeals: [deal], topRenewals: [deal] } },
+  };
+  const output = tool.renderResult(result, { expanded: false, isPartial: false }, theme, {}).render(76).join('\n');
+  expect(output).toContain('Stage and timing');
+  expect(output).toContain('Next steps');
+  expect(output).toContain('Confirm scope');
+  expect(output).not.toContain('Opp Id:');
+  expect(output).not.toContain('Name:');
+  expect(output).not.toContain('Owner:');
+  expect(output).toContain('|');
+});

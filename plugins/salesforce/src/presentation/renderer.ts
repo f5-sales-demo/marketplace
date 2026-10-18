@@ -73,6 +73,7 @@ function renderTable(
     widths[widest]--;
   }
   if (
+    headers[0] !== 'Deal' &&
     widths.some(
       (n, i) =>
         n <

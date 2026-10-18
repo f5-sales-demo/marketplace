@@ -134,7 +134,27 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       if (renewalsUnavailable && (key === 'topRenewals' || key === 'renewalDistribution')) continue;
       if (group[key] === undefined || group[key] === null) absent.push(title);
       else if (Array.isArray(group[key]) && !(group[key] as unknown[]).length) empty.push(title);
-      else if ((key === 'closeDistribution' || key === 'renewalDistribution') && !options.expanded)
+      else if ((key === 'topDeals' || key === 'topRenewals') && !options.expanded) {
+        const deals = rows(group[key]);
+        sections.push(
+          table(p, deals, `${title} · ${currency}`, ['name', 'accountName', 'amount'], {
+            name: 'Deal',
+            accountName: 'Account',
+            amount: 'Amount',
+          }),
+          table(p, deals, `${title} · Stage and timing`, ['name', 'stage', 'closeDate', 'forecast'], {
+            name: 'Deal',
+            stage: 'Stage',
+            closeDate: 'Close date',
+            forecast: 'Forecast',
+          }),
+          table(p, deals, `${title} · Next steps`, ['name', 'ownerName', 'nextStep'], {
+            name: 'Deal',
+            ownerName: 'Owner',
+            nextStep: 'Next step',
+          }),
+        );
+      } else if ((key === 'closeDistribution' || key === 'renewalDistribution') && !options.expanded)
         sections.push(
           table(p, rows(group[key]), `${title} · ${currency}`, ['label', 'amount', 'oppCount'], {
             label: 'Month',
