@@ -208,6 +208,7 @@ def join(target):
         [
             "google-chrome-stable",
             "--ozone-platform=wayland",
+            "--enable-features=WebRTCPipeWireCapturer",
             "--no-first-run",
             "--no-default-browser-check",
             "--user-data-dir=" + str(profile),
@@ -215,6 +216,11 @@ def join(target):
             "--remote-debugging-port=" + str(port),
             "--app=about:blank",
         ],
+        env={
+            **os.environ,
+            "XDG_SESSION_TYPE": "wayland",
+            "XDG_CURRENT_DESKTOP": "Hyprland",
+        },
         stdout=browser_log,
         stderr=browser_log,
         start_new_session=True,
