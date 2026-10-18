@@ -165,3 +165,18 @@ performed Salesforce service probes or authentication repair.
 
 Task worktree cleanup remains separate until adoption and receipt worktrees are
 retired after merge. Historical receipts and private captures remain preserved.
+
+## Acceptance follow-up delivery and cleanup
+
+Acceptance/capture reliability PR [#1621](https://github.com/f5-sales-demo/marketplace/pull/1621)
+merged as `36513f6aca96faf208abf5d0db33c9cdfb476c5b` with green plugin suites,
+manifest, security, shell, prose, Markdown and Python gates. The source/plugin
+provenance for installed acceptance remains `6baa863dd26919ba8e2e906bc716d23de6e06f1a`,
+Salesforce 2.3.12 and runtime 23.8.0.
+
+Task-owned adoption, release and acceptance worktrees and branches have been
+retired on both hosts after ignored-file inspection. Private recovery bundles,
+capture evidence and original receipts remain preserved. Fixture/live panes and
+terminal leases are closed; root and unrelated workspaces are untouched.
+The final cleanup bookkeeping worktrees are removed after this follow-up merges.
+No fleet-managed files changed, so no downstream propagation is required.
