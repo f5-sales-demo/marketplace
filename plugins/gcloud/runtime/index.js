@@ -840,6 +840,7 @@ function validateIntent(intent) {
     'diskGiB',
     'image',
     'ipForwarding',
+    'initialVersions',
     'egress',
     'ingress',
     'routing',
@@ -857,6 +858,14 @@ function validateIntent(intent) {
   if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
   if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
   validateImage(intent.image);
+  if (intent.initialVersions) {
+    keys(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
   if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
     throw new Error('Unsupported egress');
   if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
