@@ -143,7 +143,7 @@ class WaylandContract(unittest.TestCase):
                     "input", "batch", {"steps": [{"action": "click", "button": 1}]}
                 )
             command.assert_called_once_with(
-                ["hyprctl", "dispatch", "sendshortcut", ",mouse:272,activewindow"],
+                ["hyprctl", "dispatch", "sendshortcut", ",mouse:272,"],
                 timeout=2,
             )
             self.assertFalse(result["held_input"])

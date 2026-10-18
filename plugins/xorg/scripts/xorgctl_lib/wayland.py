@@ -297,7 +297,7 @@ class Hyprland:
                             "hyprctl",
                             "dispatch",
                             "sendshortcut",
-                            f",mouse:{code},activewindow",
+                            f",mouse:{code},",
                         ]
                     )
                 elif kind == "text":
