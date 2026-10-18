@@ -40,10 +40,12 @@ class Hyprland:
 
     def command(self, argv, **kwargs):
         result = run(argv, env=self.env, **kwargs).stdout
-        if argv[:2] in (["hyprctl", "dispatch"], ["hyprctl", "keyword"]):
-            if result.strip() != b"ok":
-                message = "Compositor rejected the operation"
-                raise Fault(message)
+        if (
+            argv[:2] in (["hyprctl", "dispatch"], ["hyprctl", "keyword"])
+            and result.strip() != b"ok"
+        ):
+            message = "Compositor rejected the operation"
+            raise Fault(message)
         return result
 
     def query(self, name):
