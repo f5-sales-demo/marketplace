@@ -1,7 +1,7 @@
 # GCP provider contract
 
-The consumer verifies the immutable `api-specs-enriched` v12.1.1 contract asset
-against SHA-256 `93c430e884be34fb80de9e572e1aa6dddbb1e804df65867b9479cb77660c0f16`.
+The consumer verifies the immutable `api-specs-enriched` v12.1.2 contract asset
+against SHA-256 `07f797c5d48fe8fc7557add08242cb5fff04ffe69f669c84ce377ca7c6abc325`.
 It declares GCP schema mappings and observational registration/interface joins,
 with single-node boot, registration and physical interface evidence for both
 engines. Its GCP executable capabilities remain unavailable. The readiness plan
@@ -36,7 +36,8 @@ independently verified absent.
 Full-window native and shared Terraform runner campaigns subsequently observed
 the expected node in `PROVISIONED` global health after initial software and OS
 convergence. These private campaign receipts extend the published boot evidence;
-v12.1.1 does not yet publish health acceptance. Global health establishes neither
+v12.1.2 publishes read-only global-health observation with the exact node join,
+state enum and sanitized native/shared-runner evidence. Global health establishes neither
 routing nor application traffic. HA, explicit upgrade operations, replacement,
 repair, failover and route/application recovery within 120 seconds still require
 their own installed and live acceptance.
