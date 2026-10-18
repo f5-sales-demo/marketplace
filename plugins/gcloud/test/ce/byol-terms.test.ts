@@ -6,7 +6,7 @@ import { intent } from './fixtures';
 
 const digest = (value: string | Uint8Array) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
 async function fixture() {
-  const i = intent();
+  const i = structuredClone(intent());
   i.image.name = profile.evidence.imageVersion;
   i.image.id = profile.evidence.imageId;
   i.image.licenses = [profile.evidence.licenseSelfLink];

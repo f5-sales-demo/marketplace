@@ -88,7 +88,6 @@ require independent absence evidence; partial outcomes never authorize blind
 reapplication. Final reconciliation requires a current empty destroy plan.
 Full installed live GCP cloud teardown remains unqualified for this candidate.
 
-
 The pinned BYOL VM has a separate evidence-backed terms profile in
 `byol-vm-contract.json`. It fixes publisher image ID, license ID/code, billing
 service and Google Marketplace/F5 Platform document hashes. Exact reviewed
