@@ -1,19 +1,33 @@
 # GCP disposable single-node teardown acceptance
 
-Fresh installed runtime qualification covers one node, two NICs, external-IP egress, no ingress and no destination routes. Both campaigns used confirmed corporate funding, exact BYOL image/document authorization, private deployment storage and the owning engine. No billing association, payment method or software order was changed.
+Fresh installed runtime qualification covers one node, two NICs, external-IP egress, no ingress and
+no destination routes. Both campaigns used confirmed corporate funding, exact BYOL image/document
+authorization, private deployment storage and the owning engine. No billing association, payment
+method or software order was changed.
 
 | Engine | Installed observations | Typed cleanup | Independent absence | Source |
 | --- | --- | --- | --- | --- |
 | Native | Two consecutive ONLINE registrations, physical NIC joins and healthy matching-node global-health observations | Passed without fallback | Six cloud objects and two XC objects absent | `dbcc0113` |
 | Terraform | Two consecutive ONLINE registrations, physical NIC joins and healthy matching-node global-health observations | Passed without fallback | Six cloud objects and two XC objects absent | `1cfd2dbf` |
 
-Terraform creation used an isolated locked state, pinned Terraform/Google/XC providers and the exact seven-create saved plan. Applied-plan attestation preceded recording the original Platform identities. A no-change follow-up plan passed. Typed teardown verified the exact seven-delete saved plan, original cloud/Platform identities, final empty destroy plan and fresh absence.
+Terraform creation used an isolated locked state, pinned Terraform/Google/XC providers and the exact
+seven-create saved plan. Applied-plan attestation preceded recording the original Platform
+identities. A no-change follow-up plan passed. Typed teardown verified the exact seven-delete saved
+plan, original cloud/Platform identities, final empty destroy plan and fresh absence.
 
-The earlier Terraform review failure came from requesting the provider-sensitive whole boot-disk block. The repaired shared runner projects only explicit nonsensitive nested fields and array counts. The GCP adapter checks exact disk identity, automatic deletion, NIC count and NIC order. Whole sensitive blocks and sensitive ancestors remain rejected. The preserved live-plan replay and fresh installed live review also passed.
+The earlier Terraform review failure came from requesting the provider-sensitive whole boot-disk
+block. The repaired shared runner projects only explicit nonsensitive nested fields and array
+counts. The GCP adapter checks exact disk identity, automatic deletion, NIC count and NIC order.
+Whole sensitive blocks and sensitive ancestors remain rejected. The preserved live-plan replay and
+fresh installed live review also passed.
 
-Validation: 548 lifecycle/runtime tests, 11 presentation tests, TypeScript, Biome, plugin/catalog validation and PII checks passed. Required CI passed on the executable source head.
+Validation: 548 lifecycle/runtime tests, 11 presentation tests, TypeScript, Biome, plugin/catalog
+validation and PII checks passed. Required CI passed on the executable source head.
 
-This receipt qualifies the narrow disposable single-node teardown profile. Public deployment apply, HA, routing/return paths, application traffic, explicit upgrades, repair, replacement, failover, interrupted recovery and recovery within 120 seconds remain separate acceptance gates. Full parity and immutable marketplace publication remain incomplete.
+This receipt qualifies the narrow disposable single-node teardown profile. Public deployment apply,
+HA, routing/return paths, application traffic, explicit upgrades, repair, replacement, failover,
+interrupted recovery and recovery within 120 seconds remain separate acceptance gates. Full parity
+and immutable marketplace publication remain incomplete.
 
 ## Evidence identities
 
