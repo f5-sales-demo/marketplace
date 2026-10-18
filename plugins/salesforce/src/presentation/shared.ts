@@ -64,7 +64,7 @@ export function value(value: unknown, numeric = false): unknown {
   return `${match[1]}${match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${match[3] ?? ''}${match[4] ?? ''}`;
 }
 export function money(input: unknown): unknown {
-  if (typeof input !== 'number' || !Number.isFinite(input)) return input;
+  if (typeof input !== 'number' || !Number.isFinite(input)) return value(input, true);
   return input.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 const monetaryFields =

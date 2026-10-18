@@ -134,7 +134,7 @@ export function queryView(
     records.length === 1 && aggregate
       ? Object.entries(records[0]).map(([key, val]) => ({
           Metric: metricLabels[key] ?? label(key),
-          Value: value(val, true),
+          Value: /amount/.test(metricLabels[key] ?? '') ? money(raw[0][key]) : value(val, true),
         }))
       : undefined;
   return {
