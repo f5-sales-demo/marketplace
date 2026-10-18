@@ -49,7 +49,7 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
       zone: scope.zone,
       deploymentName: resource.deploymentName,
       engine: 'native',
-      actionId: action.id,
+      actionId: action.executionId ?? action.id,
     };
   };
   return {
@@ -150,7 +150,7 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
       if (!operationReceipt) {
         let saved: unknown;
         try {
-          saved = await store.read(`gcp-operation-${action.id}.json`);
+          saved = await store.read(`gcp-operation-${action.executionId ?? action.id}.json`);
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         }

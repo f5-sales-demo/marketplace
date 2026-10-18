@@ -7,6 +7,7 @@ export interface GcpLifecycleAction {
   argv: string[];
   dependencies: string[];
   resources: GcpResourceIdentity[];
+  executionId?: string;
 }
 export interface GcpLifecyclePlan {
   schemaVersion: 1;
@@ -107,9 +108,10 @@ export async function applyGcpNativeLifecycle(
   signal?.throwIfAborted();
   validate(plan, approvedHash);
   return store.exclusive(async () => {
+    const checkpointName = `gcp-lifecycle-${plan.sha256.slice(7)}.json`;
     let checkpoint: Checkpoint;
     try {
-      checkpoint = (await store.read('gcp-lifecycle-checkpoint.json')) as Checkpoint;
+      checkpoint = (await store.read(checkpointName)) as Checkpoint;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       checkpoint = { schemaVersion: 1, planSha256: plan.sha256, approvedPlanSha256: approvedHash, actions: {} };
@@ -133,12 +135,16 @@ export async function applyGcpNativeLifecycle(
       if (recorded?.state === 'done' && action.dependencies.some((id) => checkpoint.actions[id]?.state !== 'done'))
         throw new Error('Checkpoint violates lifecycle dependency order');
     }
-    const save = () => store.write('gcp-lifecycle-checkpoint.json', checkpoint);
+    const save = () => store.write(checkpointName, checkpoint);
     await save();
     for (const action of plan.actions) {
       signal?.throwIfAborted();
       if (action.dependencies.some((id) => checkpoint.actions[id]?.state !== 'done'))
         return { state: 'pending', actionId: action.id };
+      const executionAction = {
+        ...action,
+        executionId: `action-${fingerprint({ plan: plan.sha256, action: action.id }).slice(7, 47)}`,
+      };
       let current = checkpoint.actions[action.id];
       if (current?.state === 'done') continue;
       if (current?.state === 'failed')
@@ -155,17 +161,17 @@ export async function applyGcpNativeLifecycle(
       if (current.state === 'prepared') {
         if (action.argv[2] === 'set-machine-type' && !driver.assertPreconditions)
           throw new Error('Resize requires fresh stopped-state and sizing prechecks');
-        await driver.assertPreconditions?.(action, signal);
+        await driver.assertPreconditions?.(executionAction, signal);
         signal?.throwIfAborted();
         current.state = 'submitting';
         await save();
         // Persist 'submitting' first. If submit or the following durable write
         // fails, the next invocation must use outcome reconciliation.
-        current.receipt = await driver.submit(action, signal);
+        current.receipt = await driver.submit(executionAction, signal);
         current.state = 'pending';
         await save();
       }
-      const result = await driver.reconcile(action, current.receipt, signal);
+      const result = await driver.reconcile(executionAction, current.receipt, signal);
       if (!['pending', 'done', 'failed'].includes(result)) throw new Error('Unknown native operation outcome');
       current.state = result;
       await save();

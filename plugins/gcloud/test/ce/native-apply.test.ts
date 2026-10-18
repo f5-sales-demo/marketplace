@@ -151,7 +151,7 @@ it('rejects foreign or dependency-forged checkpoint actions without executing', 
   const s = store();
   await recordGcpResource(s, resource);
   const p = plan();
-  await s.write('gcp-lifecycle-checkpoint.json', {
+  await s.write(`gcp-lifecycle-${p.sha256.slice(7)}.json`, {
     schemaVersion: 1,
     planSha256: p.sha256,
     approvedPlanSha256: p.sha256,
@@ -225,10 +225,33 @@ it('cancellation before mutation preserves authorization without submission', as
     ),
   ).rejects.toThrow();
   expect(submitted).toBe(0);
-  const checkpoint = (await s.read('gcp-lifecycle-checkpoint.json')) as {
+  const checkpoint = (await s.read(`gcp-lifecycle-${p.sha256.slice(7)}.json`)) as {
     approvedPlanSha256: string;
     actions: Record<string, { state: string }>;
   };
   expect(checkpoint.approvedPlanSha256).toBe(p.sha256);
   expect(checkpoint.actions['stop-node'].state).toBe('prepared');
+});
+
+it('independent reviewed plans retain separate checkpoints and operation identities', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const first = plan();
+  const second = structuredClone(first);
+  second.actions[0].argv[2] = 'start';
+  const { sha256: _hash, ...body } = second;
+  second.sha256 = fingerprint(body);
+  const ids: string[] = [];
+  const driver = {
+    observe: async () => resource,
+    submit: async (action: { executionId?: string }) => {
+      ids.push(action.executionId ?? 'missing');
+      return {};
+    },
+    reconcile: async () => 'done' as const,
+  };
+  await applyGcpNativeLifecycle(s, first, first.sha256, driver);
+  await applyGcpNativeLifecycle(s, second, second.sha256, driver);
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).not.toBe(ids[1]);
 });
