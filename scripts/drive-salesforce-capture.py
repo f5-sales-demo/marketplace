@@ -53,7 +53,10 @@ def expected_argv(case: dict[str, Any]) -> list[str] | None:
     elif tool == "sf_org_display":
         result = ["org", "display"]
     elif tool == "sf_help":
-        return [*filter(None, re.split(r"[ :]+", args.get("command_path", "").strip())), "--help"]
+        return [
+            *filter(None, re.split(r"[ :]+", args.get("command_path", "").strip())),
+            "--help",
+        ]
     elif tool == "sf_exec":
         return args["args"]
     else:
@@ -78,7 +81,10 @@ def verify_commands(
         return {"passed": False, "reason": "No declared command argv captured"}
     argv = declared[0].get("argv")
     if not isinstance(argv, list) or argv != ["sf", *expected]:
-        return {"passed": False, "reason": "Declared argv differs from the scoped invocation"}
+        return {
+            "passed": False,
+            "reason": "Declared argv differs from the scoped invocation",
+        }
     expected = argv[1:]
     command_lines: list[str] = []
     for row in frame["lines"]:

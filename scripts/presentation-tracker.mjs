@@ -315,7 +315,12 @@ export function parseRetiredTasks(text) {
         .split('|')
         .map((cell) => decode(cell.trim()));
       if (cells.length !== retirementFields.length) throw new Error('Malformed retired task row');
-      return Object.fromEntries(retirementFields.map((field, i) => [field, cells[i]]));
+      return Object.fromEntries(
+        retirementFields.map((field, i) => [
+          field,
+          field === 'removalDelivery' ? cells[i].replace(/^<(.+)>$/, '$1') : cells[i],
+        ]),
+      );
     });
 }
 export function renderRetiredTasks(retired) {
@@ -326,7 +331,12 @@ export function renderRetiredTasks(retired) {
     '| ' +
     retirementFields.map(() => '---').join(' | ') +
     ' |\n' +
-    retired.map((t) => '| ' + retirementFields.map((f) => encode(t[f])).join(' | ') + ' |').join('\n') +
+    retired
+      .map(
+        (t) =>
+          '| ' + retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ') + ' |',
+      )
+      .join('\n') +
     '\n\n'
   );
 }
