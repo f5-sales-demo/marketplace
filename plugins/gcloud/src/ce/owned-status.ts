@@ -1,3 +1,4 @@
+import { fingerprint } from './discovery';
 import type { GcpOperationStore } from './native-operation';
 import { readGcpResourceInventory } from './ownership';
 import { type GcpStatusSource, observeGcpSiteStatus } from './status';
@@ -13,6 +14,20 @@ export async function observeGcpOwnedDeployment(
 ) {
   signal?.throwIfAborted();
   validateIntent(intent);
+  const saved = (await store.read(
+    intent.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+  )) as {
+    intent?: GcpCeIntent;
+    intentFingerprint?: string;
+    platformContext?: string;
+  };
+  if (
+    !saved?.intent ||
+    saved.intentFingerprint !== fingerprint(saved.intent) ||
+    saved.intentFingerprint !== fingerprint(intent) ||
+    saved.platformContext !== intent.platformContext
+  )
+    throw new Error('Status intent is not bound to persisted deployment context');
   const resources = await readGcpResourceInventory(store, intent);
   const instances = resources.filter((resource) => resource.kind === 'instance');
   const nodes = intent.sites.flatMap((site) => site.nodes.map((node) => ({ site, node })));

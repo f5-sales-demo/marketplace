@@ -1,4 +1,5 @@
 import { expect, it } from 'bun:test';
+import { fingerprint } from '../../src/ce/discovery';
 import { observeGcpOwnedDeployment } from '../../src/ce/owned-status';
 import { recordGcpResource } from '../../src/ce/ownership';
 import { intent } from './fixtures';
@@ -24,6 +25,11 @@ it('requires exact complete ledger topology before any external observation', as
     throw new Error('must not read');
   };
   await expect(observeGcpOwnedDeployment(s, i, source)).rejects.toThrow();
+  await s.write('gcp-deployment-intent.json', {
+    intent: i,
+    intentFingerprint: fingerprint(i),
+    platformContext: i.platformContext,
+  });
   await recordGcpResource(s, {
     id: '123',
     kind: 'instance',
@@ -41,6 +47,11 @@ it('collects cloud provisioning from exact ledger identities without inferring a
   const s = store(),
     i = intent();
   const zone = i.sites[0].nodes[0].zone;
+  await s.write('gcp-deployment-intent.json', {
+    intent: i,
+    intentFingerprint: fingerprint(i),
+    platformContext: i.platformContext,
+  });
   await recordGcpResource(s, {
     id: '123',
     kind: 'instance',
@@ -77,4 +88,24 @@ it('collects cloud provisioning from exact ledger identities without inferring a
   expect(evidence.haHealth).toBe('not-established');
   expect(evidence.absence).toBe('not-established');
   expect(JSON.stringify(evidence)).not.toContain('PRIVATE');
+});
+
+it('rejects caller topology or F5 context drift before external observation', async () => {
+  const s = store(),
+    i = intent();
+  await s.write('gcp-deployment-intent.json', {
+    intent: i,
+    intentFingerprint: fingerprint(i),
+    platformContext: i.platformContext,
+  });
+  const changed = structuredClone(i);
+  changed.platformContext = 'another-context';
+  let reads = 0;
+  await expect(
+    observeGcpOwnedDeployment(s, changed, () => {
+      reads++;
+      throw new Error('must not read');
+    }),
+  ).rejects.toThrow('persisted deployment');
+  expect(reads).toBe(0);
 });
