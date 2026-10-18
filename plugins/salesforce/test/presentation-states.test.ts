@@ -31,10 +31,12 @@ test('missing cells use one quiet legend while zero false empty and customer tex
     Amount: '0.00',
     Flag: false,
     Empty: '',
-    Nullable: 'host:status.disabled',
+    Nullable: '—',
   });
   expect(
-    view.sections.filter((s) => s.kind === 'markdown' && s.text === 'host:status.disabled Value not returned'),
+    view.sections.filter(
+      (s) => s.kind === 'markdown' && s.text === 'A dash means Salesforce did not supply this field.',
+    ),
   ).toHaveLength(1);
   const metadata = render('sf_query', result, true).sections.find((s) => s.title === 'Metadata');
   expect(metadata?.kind).toBe('code');
@@ -113,7 +115,9 @@ test('unsupported renewals never show zero and known warnings summarize once wit
   ).toHaveLength(1);
   expect(text).toContain('quota eligibility unknown');
   expect(text).toContain('Unfamiliar warning '.repeat(100));
-  expect(collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.startsWith('No '))).toHaveLength(2);
+  expect(
+    collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.includes('no entries in this report')),
+  ).toHaveLength(2);
   for (const s of collapsed.sections.filter((s) => s.kind === 'table' && s.title?.startsWith('Pipeline summary'))) {
     if (s.kind === 'table') expect(s.rows.map((r) => r.section)).toEqual(['Net new', 'Booked']);
   }
@@ -182,9 +186,9 @@ test('currency scope appears once and missing-cell legend stays beside its table
   };
   const output = render('sf_pipeline_report', result);
   expect(JSON.stringify(output).match(/USD/g)).toHaveLength(1);
-  expect(JSON.stringify(output)).toContain('booked accounts');
+  expect(JSON.stringify(output)).toContain('Booked by account');
   expect(JSON.stringify(output)).not.toContain('No records');
-  const legend = output.sections.findIndex((s) => s.kind === 'markdown' && s.text.includes('Value not returned'));
+  const legend = output.sections.findIndex((s) => s.kind === 'markdown' && s.text.includes('A dash means'));
   expect(legend).toBeGreaterThan(0);
   expect(output.sections[legend + 1].kind).toBe('table');
 });

@@ -41,7 +41,7 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
             const value = row[key];
             if (value !== null && value !== undefined) return [key, value];
             missing = true;
-            return [key, resolve('status.disabled') ?? 'No value'];
+            return [key, '—'];
           }),
         ),
       ),
@@ -51,7 +51,7 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
       return [
         {
           kind: 'markdown' as const,
-          text: [resolve('status.disabled'), 'Value not returned'].filter(Boolean).join(' '),
+          text: 'A dash means Salesforce did not supply this field.',
         },
         formatted,
       ];
