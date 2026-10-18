@@ -38,7 +38,7 @@ export const sharedGates = {
   inventory:
     'Inventory actual registrations and shipped invocation surfaces; record starting source SHA and installed plugin/runtime versions on Mac and Ubuntu. Registration discovery is source evidence only.',
   contract:
-    'Define reusable presentation behavior from accepted Salesforce 2.3.11 results; locate and qualify original receipts for all six tools, command width, tables, currency grouping, monetary formatting and live spinner behavior.',
+    'Define reusable presentation behavior from Salesforce 2.3.11 results; preserve qualified original receipts and generate a reproducible installed native baseline when visual receipts are missing. Audit all six tools, command width, tables, currency grouping, monetary formatting and live spinner behavior.',
   renderer:
     'Track runtime renderer changes separately from plugin domain adapters. Use the common presentation API; prohibit copying Salesforce private renderer code into other plugins.',
   matrix:
@@ -46,7 +46,7 @@ export const sharedGates = {
 };
 export const focus = {
   salesforce:
-    'Locate accepted 2.3.11 receipts; audit all six registered tools. Preserve command width, tables, currency grouping, monetary formatting and live spinner behavior through shared-renderer adoption.',
+    'Locate accepted 2.3.11 receipts; audit all six registered tools. Preserve command width, tables, currency grouping, monetary formatting and live spinner behavior through shared-renderer adoption. In this campaign, Salesforce service checks use the authorized corporate MDM MacBook. Ubuntu/NUC service access is unavailable by policy; source, immutable-artifact and unavailable-state checks remain separate.',
   aws: 'Identity/profile/region, EC2/S3, Exec/Help and CE discovery/plans/status/diagnostics. Distinguish unsupported lifecycle actions from empty results.',
   azure:
     'Tenant/subscription, resources/VMs/groups, Resource Graph/activity logs, Exec/Help, CE plans/status/diagnostics and cloud-init analysis.',

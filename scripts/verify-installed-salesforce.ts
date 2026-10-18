@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,7 +13,10 @@ if (!runtimeRoot || !pluginRoot || !['review', 'acceptance'].includes(mode)) {
 }
 const { host } = await import(pathToFileURL(resolve(runtimeRoot, 'src/host/host.ts')).href);
 const { software } = await import(pathToFileURL(resolve(runtimeRoot, 'src/host/software.ts')).href);
-const runtime = { host, software };
+const { presentation } = await import(pathToFileURL(resolve(runtimeRoot, 'src/extensibility/presentation.ts')).href);
+const runtime = { host, software, presentation };
+const runtimeManifest = JSON.parse(await readFile(resolve(runtimeRoot, 'package.json'), 'utf8'));
+const pluginManifest = JSON.parse(await readFile(resolve(pluginRoot, '.xcsh-plugin/plugin.json'), 'utf8'));
 const factory = (await import(pathToFileURL(resolve(pluginRoot, 'src/index.ts')).href)).default;
 const tools: Array<{
   name: string;
@@ -29,6 +32,7 @@ const requireRuntime = createRequire(resolve(runtimeRoot, 'package.json'));
 const { Type } = requireRuntime('@sinclair/typebox');
 const pi = {
   host: runtime.host,
+  presentation: runtime.presentation,
   software: runtime.software,
   typebox: { Type },
   setLabel() {},
@@ -70,6 +74,11 @@ if (process.platform === 'darwin') {
 }
 const receipt: Record<string, unknown> = {
   mode,
+  evidenceTier: 'installed-plugin-module',
+  runtimePackageVersion: runtimeManifest.version,
+  installedPluginVersion: pluginManifest.version,
+  host: process.platform,
+  setupExecuted: false,
   reviewed: true,
   installSteps: plan.steps.filter((step) => step.kind !== 'login').length,
   loginCommandPreserved: plan.steps.some(
@@ -82,15 +91,27 @@ const receipt: Record<string, unknown> = {
 };
 if (mode === 'acceptance') {
   const snapshot = await definition.probe(AbortSignal.timeout(120_000));
-  if (snapshot.state !== 'ready') throw new Error(`Installed Salesforce readiness: ${snapshot.state}`);
-  const tool = tools.find((entry) => entry.name === 'sf_org_display');
-  if (!tool) throw new Error('Installed org-display tool is missing');
-  const result = await tool.execute('salesforce-acceptance', {}, AbortSignal.timeout(30_000), undefined, {
-    cwd: process.cwd(),
-  });
-  if (result.isError) throw new Error('Installed Salesforce read-only org-display tool failed');
-  receipt.state = 'ready';
+  receipt.state = snapshot.state;
   receipt.readOnlyTool = 'sf_org_display';
-  receipt.readOnlyToolPassed = true;
+  if (snapshot.state !== 'ready') {
+    receipt.blocked = true;
+    receipt.readOnlyToolAttempted = false;
+    receipt.nextAction =
+      'Use a host authorized for the expected Salesforce org, qualify readiness there, then rerun read-only acceptance.';
+    process.exitCode = 1;
+  } else {
+    const tool = tools.find((entry) => entry.name === 'sf_org_display');
+    if (!tool) throw new Error('Installed org-display tool is missing');
+    const result = await tool.execute('salesforce-acceptance', {}, AbortSignal.timeout(30_000), undefined, {
+      cwd: process.cwd(),
+    });
+    receipt.readOnlyToolAttempted = true;
+    receipt.readOnlyToolPassed = !result.isError;
+    if (result.isError) {
+      receipt.blocked = true;
+      receipt.nextAction = 'Diagnose the read-only org-display failure using private evidence, then rerun acceptance.';
+      process.exitCode = 1;
+    }
+  }
 }
 console.log(JSON.stringify(receipt));
