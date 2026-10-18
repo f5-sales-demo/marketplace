@@ -452,9 +452,7 @@ def ensure_web_hd(page):
             "reason": "zoom_web_does_not_offer_hd_control",
         }
     # Settings close is scoped to its container; leave meeting controls untouched.
-    close = page.locator(
-        ".settings-dialog, .settings-container, .settings-modal"
-    ).locator('button[aria-label="Close"]')
+    close = page.locator('button.settings-dialog__close[aria-label="close"]')
     if close.count() == 1 and close.is_visible():
         close.click(timeout=3000)
     return result
