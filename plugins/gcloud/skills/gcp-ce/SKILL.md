@@ -19,22 +19,29 @@ Read [provider contract](references/provider-contract.md) before planning and
 2. Use `gcp_compute_discover` with the explicit region. Pin the exact F5 image ID,
    selfLink and licenses. Unknown IAM, organization policy, capacity, NIC limits,
    quotas or legal acceptance cannot become a passing prerequisite.
-   Use `gcp_marketplace_agreement` with the pinned schema-v1 intent to qualify
-   Marketplace consent. It derives the billing service from the exact license,
-   discovers existing agreement references and checks current consent. If mapping
-   is unavailable, require an exact agreement/document reference that Google can
-   validate. Review the saved plan and supply its `approvedPlanHash` to accept
-   programmatically. Set `enableMarketplaceApi=true` only when API enablement is
-   explicitly requested. Report API, permission, mapping and prerequisite cloud
-   terms failures; no usage fee does not prove acceptance. The tool places no orders.
-   If Google returns `UREQ_TOS_NOT_ACCEPTED`, open the tool's
-   [Google Cloud terms acceptance link](https://console.developers.google.com/terms/cloud)
-   and have the user sign in with the same Google account used by `gcloud`, review
-   and accept the terms, selecting the intended project if prompted. This is a
-   prerequisite for enabling the Consumer Procurement API. No supported API for
-   this prerequisite acceptance has been qualified. After the user reports
-   acceptance, retry scoped API enablement and agreement qualification. Verify
-   the results; accepting these terms does not establish F5 Marketplace consent.
+   Use `gcp_marketplace_agreement` with the pinned schema-v1 intent. For the
+   qualified BYOL image, it reviews the exact Google Marketplace and F5 Platform
+   documents, image/license identities, F5 context and confirmed corporate funding.
+   Supply the saved `approvedPlanHash` to authorize access or use programmatically.
+   This records authorization in restricted storage; it acquires no software license,
+   places no order and makes no remote procurement consent grant. Document changes
+   require requalification. Read [BYOL contract](references/byol-vm-contract.json).
+   For products with qualified procurement agreement references, the tool uses
+   server validation and independently checks active consent. Do not require that
+   procurement path universally for BYOL; report unavailable mappings explicitly.
+   Set `enableMarketplaceApi=true` only when API enablement is requested.
+   If Google returns `UREQ_TOS_NOT_ACCEPTED`, use the returned
+   [Google Cloud terms acceptance link](https://console.developers.google.com/terms/cloud).
+   No supported API for this prerequisite acceptance has been qualified. Verify
+   scoped recovery after acceptance; these terms are separate from product terms.
+   Missing `alpha` or `beta` CLI groups install automatically without prompts;
+   component-manager failures remain explicit.
+   Before billable execution, require an owner-only corporate funding policy at
+   `~/.config/xcsh/gcp-ce-funding.json` (or `XCSH_GCP_FUNDING_POLICY_FILE`). Bind the
+   explicit project, corporate account/organization domains and existing billing
+   account confirmed by the user as IT-funded. Both engines recheck this association
+   against the reviewed plan. Never create payment methods or switch billing to
+   satisfy a failed check. Owned deletion remains available without funding access.
 3. Use `gcp_ce_plan` with a schema-v1 intent. Name each independent site and each
    node; one node and three HA nodes are distinct topologies. NIC zero is SLO;
    each NIC requires a distinct VPC and non-overlapping subnet. HA uses identical
@@ -69,5 +76,5 @@ and teardown plans must be reviewed before required approvals. Immutable SLO
 identity changes require replacement. Keep ingress separate from routing and
 prove return-path symmetry. Bootstrap belongs only in restricted deployment
 storage with deployment/site/node binding and one-use checkout. Marketplace
-acceptance requires exact document authorization and independently observed
-active consent. Do not invent consent, agreement mappings or unsupported APIs.
+acceptance requires the qualified product-specific mechanism: exact document
+authorization for BYOL access/use, or independently observed procurement consent. Do not invent consent, agreement mappings or unsupported APIs.

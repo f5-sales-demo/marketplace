@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** binds native and Terraform billable execution to confirmed corporate
+  funding and the unchanged existing billing association. The pinned BYOL product
+  supports exact document authorization for access/use separately from procurement
+  consent and license acquisition; it creates no resources or orders (#1559).
+
 - **`gcloud`** adds candidate Terraform teardown through the owning plan/apply
   lifecycle, with stored session inputs, original Platform identity, exact saved
   destroy projection, interrupted outcome reconciliation and final absence checks.
@@ -25,8 +30,8 @@ and this project adheres to
   reports `UREQ_TOS_NOT_ACCEPTED` (#1559).
 - **`gcloud`** adds programmatic Marketplace consent review and grant through
   scoped Google APIs, with exact image/license/document binding, server dry runs
-  and independent acceptance checks. Live grant remains gated by Google's cloud
-  terms prerequisite; no usage fee is treated as acceptance (#1559).
+  and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
+  qualified terms mechanism and no usage fee is treated as acceptance (#1559).
 - **`gcloud`** v1.7.0 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact

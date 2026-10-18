@@ -1,8 +1,10 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { Deployment } from '../../../terraform/src/runner';
 import { createCeTerraformService, type TerraformSession } from '../../../terraform/src/service';
+import { makeExecApi } from '../tools/shared';
 import { translateGcpTerraformSiteCompute } from './compute-plan';
 import { fingerprint } from './discovery';
+import { withGcpCorporateFunding } from './funding-session';
 import type { GcpCeIntent } from './types';
 
 export interface GcpTerraformInputs {
@@ -80,7 +82,15 @@ export async function openGcpTerraformSession(
     await store.write('gcp-terraform-input-identity.json', identity);
     await store.write('gcp-terraform-session-inputs.json', { schemaVersion: 1, inputs: structuredClone(inputs) });
   }
-  return createCeTerraformService(async () => platform).open(owner, deployment, resume);
+  const session = await createCeTerraformService(async () => platform).open(owner, deployment, resume);
+  return withGcpCorporateFunding(
+    session,
+    store,
+    makeExecApi(store.directory),
+    inputs.intent.project,
+    undefined,
+    inputs.intent,
+  );
 }
 
 /** Resume from the owning deployment's private inputs; callers cannot supply replacement locks or context. */

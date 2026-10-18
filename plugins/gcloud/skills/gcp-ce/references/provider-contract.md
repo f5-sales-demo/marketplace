@@ -87,3 +87,15 @@ inputs preserve provider locks, context and engine across resume. Lost applies
 require independent absence evidence; partial outcomes never authorize blind
 reapplication. Final reconciliation requires a current empty destroy plan.
 Full installed live GCP cloud teardown remains unqualified for this candidate.
+
+
+The pinned BYOL VM has a separate evidence-backed terms profile in
+`byol-vm-contract.json`. It fixes publisher image ID, license ID/code, billing
+service and Google Marketplace/F5 Platform document hashes. Exact reviewed
+access/use authorization is persisted in restricted deployment storage and
+revalidated against the intent, engine, F5 context, documents and corporate
+funding before billable execution. It makes no procurement grant and acquires
+no software license. Corporate funding classification comes from the user's
+explicit confirmation; scoped live identity, organization and billing reads
+verify the unchanged association. Neither engine switches billing or creates
+payment methods to resolve failures. Deletion can proceed without funding access.

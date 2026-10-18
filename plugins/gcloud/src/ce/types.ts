@@ -73,6 +73,8 @@ export interface GcpCeDiscovery {
   checks: Record<'iam' | 'organizationPolicy' | 'zoneCapacity' | 'machineNicLimit' | 'licenseAcceptance', 'unknown'>;
 }
 export interface GcpCePlan {
+  byolAuthorization?: Awaited<ReturnType<typeof import('./byol-terms').authorizeGcpByolTerms>>;
+  fundingReceipt?: import('./corporate-funding').GcpCorporateFundingReceipt;
   preflight?: import('./preflight').GcpLaunchPreflight;
   policyReceipt?: { identity: string; url: string; observedAt: string; normalizedSha256: string };
   apiRelease: { repository: string; tag: string; contractDigest: string };

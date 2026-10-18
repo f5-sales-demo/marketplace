@@ -1,4 +1,6 @@
+import type { authorizeGcpByolTerms } from './byol-terms';
 import { GCP_CE_API_RELEASE } from './contract';
+import { assertGcpCorporateFundingCurrent, type GcpCorporateFundingReceipt } from './corporate-funding';
 import { fingerprint } from './discovery';
 import type { GcpPolicyReceipt } from './policy';
 import type { GcpLaunchPreflight } from './preflight';
@@ -11,8 +13,24 @@ export function planGcpCe(
   now = Date.now(),
   policyReceipt?: GcpPolicyReceipt,
   preflight?: GcpLaunchPreflight,
+  fundingReceipt?: GcpCorporateFundingReceipt,
+  byolAuthorization?: Awaited<ReturnType<typeof authorizeGcpByolTerms>>,
 ): GcpCePlan {
   validateIntent(intent);
+  if (fundingReceipt)
+    assertGcpCorporateFundingCurrent(fundingReceipt, intent.project, fundingReceipt.billingAccountName);
+  if (byolAuthorization) {
+    const { authorizationHash, ...authorizationBody } = byolAuthorization;
+    if (
+      authorizationHash !== fingerprint(authorizationBody) ||
+      byolAuthorization.state !== 'authorized-for-access-or-use' ||
+      byolAuthorization.binding.intentFingerprint !== fingerprint(intent) ||
+      !fundingReceipt ||
+      byolAuthorization.fundingPolicySha256 !== fundingReceipt.policySha256 ||
+      byolAuthorization.billingAccountName !== fundingReceipt.billingAccountName
+    )
+      throw new Error('BYOL authorization does not match readiness intent/funding');
+  }
   if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
     throw new Error('Discovery scope does not match the intent');
   const observed = Date.parse(discovery.observedAt);
@@ -51,6 +69,7 @@ export function planGcpCe(
     'shared_platform_gcp_runtime_not_available',
     ...(intent.engine === 'terraform' ? ['shared_terraform_gcp_runner_not_available'] : []),
     ...(discovery.billingEnabled !== true ? ['billing_not_verified'] : []),
+    ...(fundingReceipt ? [] : ['corporate_funding_not_verified']),
     ...['compute.googleapis.com', 'serviceusage.googleapis.com']
       .filter((api) => !discovery.enabledApis.includes(api))
       .map((api) => `api_not_enabled:${api}`),
@@ -60,7 +79,7 @@ export function planGcpCe(
             .filter((check) => preflight.checks[check] !== 'verified')
             .map((check) => `${check}_not_verified`),
           ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
-          'licenseAcceptance_not_verified',
+          ...(byolAuthorization ? [] : ['licenseAcceptance_not_verified']),
           'zone_capacity_not_reserved',
         ]
       : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
@@ -71,6 +90,8 @@ export function planGcpCe(
     policyIdentity: GCP_CE_POLICY,
     ...(policyReceipt ? { policyReceipt } : {}),
     ...(preflight ? { preflight: structuredClone(preflight) } : {}),
+    ...(fundingReceipt ? { fundingReceipt: structuredClone(fundingReceipt) } : {}),
+    ...(byolAuthorization ? { byolAuthorization: structuredClone(byolAuthorization) } : {}),
     apiRelease: GCP_CE_API_RELEASE,
     engine: intent.engine,
     intent: structuredClone(intent),

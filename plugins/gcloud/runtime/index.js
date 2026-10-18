@@ -1644,6 +1644,371 @@ var init_service = __esm(() => {
   init_verified_contract();
 });
 
+// plugins/gcloud/skills/gcp-ce/references/byol-vm-contract.json
+var byol_vm_contract_default;
+var init_byol_vm_contract = __esm(() => {
+  byol_vm_contract_default = {
+    contractId: 'f5xc-gcp-byol-terms/v1',
+    publisherProject: 'f5-7626-networks-public',
+    billingService: 'f5-distributed-cloud-customer-edge.endpoints.f5-7626-networks-public.cloud.goog',
+    productUrl:
+      'https://console.cloud.google.com/marketplace/product/f5-7626-networks-public/f5-distributed-cloud-customer-edge',
+    configurationUrl:
+      'https://console.cloud.google.com/marketplace/vm/config/f5-7626-networks-public/f5-distributed-cloud-customer-edge',
+    productType: 'BYOL',
+    acceptanceMechanism: 'explicit-authorization-for-access-or-use',
+    evidence: {
+      source: 'authenticated Chrome CDP product and launch-form observation',
+      imageVersion: 'f5xc-ce-crt-20260801-0205-byol',
+      observedSeparatePurchaseOrConsentControl: false,
+      softwareLicenseAcquired: false,
+      deploymentSubmitted: false,
+      imageId: '1689146860273445475',
+      licenseId: '2214615995702558918',
+      licenseCode: '8535603005418881222',
+      licenseSelfLink:
+        'https://www.googleapis.com/compute/v1/projects/f5-7626-networks-public/global/licenses/cloud-marketplace-59c41a5addf4dd72-df1ebeb69c0ba664',
+    },
+    documents: [
+      {
+        role: 'google-marketplace',
+        url: 'https://cloud.google.com/terms/marketplace/launcher?hl=en_US',
+        version: 'November 13, 2025',
+        digestKind: 'normalized-current-legal-text',
+        sha256: 'sha256:0b7cc7b34a8cf50f1da72c4e73905b7d640e3084a3ee6599d768a73e5118e14a',
+      },
+      {
+        role: 'f5-platform',
+        url: 'https://www.f5.com/pdf/customer-support/eusa.pdf',
+        version: 'July 1, 2026',
+        digestKind: 'document-bytes',
+        sha256: 'sha256:48ca1f9f22f4b399213e723de36c9853ad767283645b0721e5b74452b3862b97',
+      },
+    ],
+  };
+});
+
+// plugins/gcloud/src/ce/corporate-funding.ts
+import { createHash as createHash3 } from 'node:crypto';
+import { lstat as lstat3, readFile as readFile2 } from 'node:fs/promises';
+import { homedir as homedir2 } from 'node:os';
+import { join as join3 } from 'node:path';
+
+async function readGcpCorporateFundingPolicy(
+  project,
+  filename = process.env.XCSH_GCP_FUNDING_POLICY_FILE ?? join3(homedir2(), '.config', 'xcsh', 'gcp-ce-funding.json'),
+) {
+  validateScope(project);
+  const stat = await lstat3(filename);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    stat.uid !== process.getuid?.() ||
+    (stat.mode & 63) !== 0 ||
+    stat.size > 64 * 1024
+  )
+    throw new Error('Restricted corporate funding policy required');
+  const raw = await readFile2(filename, 'utf8');
+  const policy = JSON.parse(raw);
+  validatePolicy(policy, project);
+  return { policy, policySha256: `sha256:${createHash3('sha256').update(raw).digest('hex')}` };
+}
+function validatePolicy(policy, project) {
+  if (
+    policy.schemaVersion !== 1 ||
+    policy.project !== project ||
+    !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(policy.expectedOrganizationDomain) ||
+    !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(policy.expectedAccountDomain) ||
+    !/^billingAccounts\/[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}$/.test(policy.expectedBillingAccountName) ||
+    policy.fundingAuthority !== 'explicit-user-confirmation-in-current-session' ||
+    policy.billingChangesAuthorized !== false ||
+    policy.personalPaymentAuthorized !== false
+  )
+    throw new Error('Explicit corporate funding binding required');
+}
+async function collectGcpCorporateFunding(api, policy, policySha256, signal) {
+  validateScope(policy.project);
+  validatePolicy(policy, policy.project);
+  if (!/^sha256:[a-f0-9]{64}$/.test(policySha256)) throw new Error('Corporate funding policy digest required');
+  const sourceReceipts = [];
+  const read = async (source, args) => {
+    signal?.throwIfAborted();
+    const result = await api.exec('gcloud', [...args, `--project=${policy.project}`, '--format=json', '--quiet'], {
+      signal,
+    });
+    signal?.throwIfAborted();
+    if (result.exitCode !== 0) throw new Error('Corporate funding observation unavailable');
+    const value = JSON.parse(result.stdout);
+    sourceReceipts.push({ source, sha256: fingerprint(value) });
+    return value;
+  };
+  const accounts = await read('active-account', ['auth', 'list', '--filter=status:ACTIVE']);
+  if (
+    !Array.isArray(accounts) ||
+    accounts.length !== 1 ||
+    accounts[0].status !== 'ACTIVE' ||
+    typeof accounts[0].account !== 'string' ||
+    accounts[0].account.split('@').length !== 2 ||
+    accounts[0].account.split('@')[1].toLowerCase() !== policy.expectedAccountDomain
+  )
+    throw new Error('Active Google account is not the approved corporate identity');
+  const billing = await read('project-billing', ['billing', 'projects', 'describe', policy.project]);
+  if (
+    billing.projectId !== policy.project ||
+    billing.billingEnabled !== true ||
+    billing.billingAccountName !== policy.expectedBillingAccountName
+  )
+    throw new Error('Project corporate billing association changed or is unavailable');
+  const ancestors = await read('project-ancestors', ['projects', 'get-ancestors', policy.project]);
+  const organizations = Array.isArray(ancestors)
+    ? ancestors.filter((row) => row.type === 'organization' && /^\d+$/.test(row.id))
+    : [];
+  if (organizations.length !== 1) throw new Error('Corporate project organization unavailable');
+  const organization = await read('organization', ['organizations', 'describe', organizations[0].id]);
+  if (organization.displayName?.toLowerCase() !== policy.expectedOrganizationDomain)
+    throw new Error('Project is outside the approved corporate organization');
+  return {
+    schemaVersion: 1,
+    project: policy.project,
+    accountDomain: policy.expectedAccountDomain,
+    organizationDomain: policy.expectedOrganizationDomain,
+    billingAccountName: policy.expectedBillingAccountName,
+    billingEnabled: true,
+    policySha256,
+    observedAt: new Date().toISOString(),
+    sourceReceipts,
+  };
+}
+async function collectCurrentGcpCorporateFunding(api, project, signal) {
+  const { policy, policySha256 } = await readGcpCorporateFundingPolicy(project);
+  return collectGcpCorporateFunding(api, policy, policySha256, signal);
+}
+function assertGcpCorporateFundingCurrent(receipt, project, expectedBillingAccountName) {
+  const age = Date.now() - Date.parse(receipt.observedAt);
+  if (
+    receipt.schemaVersion !== 1 ||
+    receipt.project !== project ||
+    receipt.billingEnabled !== true ||
+    receipt.billingAccountName !== expectedBillingAccountName ||
+    !/^billingAccounts\/[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}$/.test(receipt.billingAccountName) ||
+    !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(receipt.accountDomain) ||
+    !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(receipt.organizationDomain) ||
+    !Array.isArray(receipt.sourceReceipts) ||
+    receipt.sourceReceipts.length !== 4 ||
+    receipt.sourceReceipts.some((source) => !/^sha256:[a-f0-9]{64}$/.test(source.sha256)) ||
+    !/^sha256:[a-f0-9]{64}$/.test(receipt.policySha256) ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age > 5 * 60000
+  )
+    throw new Error('Current corporate funding receipt required before billable execution');
+}
+var init_corporate_funding = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/byol-terms.ts
+import { createHash as createHash4 } from 'node:crypto';
+
+async function normalizedGoogleMarketplaceTerms(bytes) {
+  const cleaned = await new HTMLRewriter()
+    .on('script,style,head', {
+      element(element) {
+        element.remove();
+      },
+    })
+    .transform(new Response(new Uint8Array(bytes)))
+    .text();
+  const chunks = [];
+  await new HTMLRewriter()
+    .onDocument({
+      text(text) {
+        chunks.push(text.text);
+      },
+    })
+    .transform(new Response(cleaned))
+    .text();
+  const text = chunks.join(' ').replace(/\s+/g, ' ').trim();
+  const start = text.indexOf('Google Cloud Marketplace Terms of Service');
+  const end = text.indexOf('Previous versions', start);
+  if (start < 0 || end <= start || end - start < 1000 || !text.slice(start, end).includes('By using the Marketplace'))
+    throw new Error('Current Google Marketplace legal text unavailable');
+  return text.slice(start, end).trim();
+}
+async function fetchGcpByolDocument(url, signal) {
+  if (!byol_vm_contract_default.documents.some((document) => document.url === url))
+    throw new Error('Unqualified BYOL document URL');
+  const response = await fetch(url, {
+    credentials: 'omit',
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000),
+  });
+  if (!response.ok || !response.body) throw new Error('BYOL legal document unavailable');
+  const reader = response.body.getReader();
+  const parts = [];
+  let size = 0;
+  try {
+    for (;;) {
+      signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 4 * 1024 * 1024) throw new Error('BYOL document exceeds size limit');
+      parts.push(value);
+    }
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
+  }
+  return Buffer.concat(parts);
+}
+async function binding(intent, source, signal, profile = byol_vm_contract_default) {
+  const contract = profile;
+  validateIntent(intent);
+  if (
+    intent.image.name !== contract.evidence.imageVersion ||
+    intent.image.id !== contract.evidence.imageId ||
+    intent.image.licenses.length !== 1 ||
+    intent.image.licenses[0] !== contract.evidence.licenseSelfLink
+  )
+    throw new Error('Evidence-backed BYOL image profile unavailable');
+  const image = await source.query(intent.image.selfLink.replace('https://www.googleapis.com', ''), undefined, signal);
+  if (
+    String(image.id) !== intent.image.id ||
+    image.name !== intent.image.name ||
+    image.selfLink !== intent.image.selfLink ||
+    image.status !== 'READY' ||
+    fingerprint(image.licenses) !== fingerprint(intent.image.licenses)
+  )
+    throw new Error('BYOL image identity changed');
+  const link = intent.image.licenses[0];
+  const license = await source.query(link.replace('https://www.googleapis.com', ''), undefined, signal);
+  if (
+    String(license.id) !== contract.evidence.licenseId ||
+    String(license.licenseCode) !== contract.evidence.licenseCode ||
+    license.selfLink !== link ||
+    license.chargesUseFee !== false ||
+    license.description !==
+      `License for Cloud Marketplace virtual machine image solution with billing service ${contract.billingService}: default`
+  )
+    throw new Error('BYOL license/product identity unqualified');
+  const documents = [];
+  for (const expected of contract.documents) {
+    const bytes = await source.document(expected.url, signal);
+    const content =
+      expected.digestKind === 'normalized-current-legal-text' ? await normalizedGoogleMarketplaceTerms(bytes) : bytes;
+    const sha256 = `sha256:${createHash4('sha256').update(content).digest('hex')}`;
+    if (sha256 !== expected.sha256) throw new Error('BYOL legal document changed; requalification required');
+    documents.push({ role: expected.role, url: expected.url, version: expected.version, sha256 });
+  }
+  return {
+    contractId: contract.contractId,
+    contractSha256: fingerprint(contract),
+    apiRelease: GCP_CE_API_RELEASE,
+    intentFingerprint: fingerprint(intent),
+    project: intent.project,
+    engine: intent.engine,
+    platformContext: intent.platformContext,
+    imageId: intent.image.id,
+    imageSelfLink: intent.image.selfLink,
+    licenseId: String(license.id),
+    licenseCode: String(license.licenseCode),
+    licenseSelfLink: link,
+    billingService: contract.billingService,
+    productUrl: contract.productUrl,
+    documents,
+  };
+}
+async function planGcpByolTerms(intent, source, funding, store, signal, profile = byol_vm_contract_default) {
+  assertGcpCorporateFundingCurrent(funding, intent.project, funding.billingAccountName);
+  const evidence = await binding(intent, source, signal, profile);
+  const body = {
+    schemaVersion: 1,
+    operation: 'authorize-byol-terms',
+    acceptanceMechanism: profile.acceptanceMechanism,
+    binding: evidence,
+    funding,
+    createdAt: new Date().toISOString(),
+    approval: 'required',
+    purchases: 0,
+    resourcesCreated: 0,
+    softwareLicenseAcquired: false,
+  };
+  const plan = { ...body, planHash: fingerprint(body) };
+  await store.write(`gcp-byol-reviewed-${plan.planHash.slice(7)}.json`, plan);
+  return plan;
+}
+async function authorizeGcpByolTerms(
+  intent,
+  source,
+  funding,
+  store,
+  approvedHash,
+  signal,
+  profile = byol_vm_contract_default,
+) {
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact BYOL terms review required');
+  const plan = await store.read(`gcp-byol-reviewed-${approvedHash.slice(7)}.json`);
+  const { planHash, ...body } = plan;
+  const age = Date.now() - Date.parse(plan.createdAt);
+  if (
+    planHash !== approvedHash ||
+    fingerprint(body) !== approvedHash ||
+    plan.schemaVersion !== 1 ||
+    plan.operation !== 'authorize-byol-terms' ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age > 5 * 60000
+  )
+    throw new Error('BYOL terms review changed or expired');
+  assertGcpCorporateFundingCurrent(funding, intent.project, plan.funding.billingAccountName);
+  if (funding.policySha256 !== plan.funding.policySha256)
+    throw new Error('Corporate funding changed after terms review');
+  const current = await binding(intent, source, signal, profile);
+  if (fingerprint(current) !== fingerprint(plan.binding)) throw new Error('BYOL terms/image/context binding changed');
+  const authorization = {
+    schemaVersion: 1,
+    state: 'authorized-for-access-or-use',
+    planHash: approvedHash,
+    binding: current,
+    fundingPolicySha256: funding.policySha256,
+    billingAccountName: funding.billingAccountName,
+    authorizedAt: new Date().toISOString(),
+    remoteConsentGranted: false,
+    purchases: 0,
+    resourcesCreated: 0,
+    softwareLicenseAcquired: false,
+  };
+  const receipt = { ...authorization, authorizationHash: fingerprint(authorization) };
+  await store.write('gcp-byol-authorization.json', receipt);
+  return receipt;
+}
+async function assertGcpByolAuthorization(intent, source, funding, store, signal) {
+  const receipt = await store.read('gcp-byol-authorization.json');
+  const { authorizationHash, ...body } = receipt;
+  if (
+    receipt.schemaVersion !== 1 ||
+    receipt.state !== 'authorized-for-access-or-use' ||
+    authorizationHash !== fingerprint(body) ||
+    !/^sha256:[a-f0-9]{64}$/.test(receipt.planHash)
+  )
+    throw new Error('Original BYOL terms authorization required');
+  assertGcpCorporateFundingCurrent(funding, intent.project, receipt.billingAccountName);
+  if (receipt.fundingPolicySha256 !== funding.policySha256) throw new Error('BYOL corporate funding policy changed');
+  const current = await binding(intent, source, signal);
+  if (fingerprint(current) !== fingerprint(receipt.binding))
+    throw new Error('BYOL authorization image/context/documents changed');
+  return receipt;
+}
+var init_byol_terms = __esm(() => {
+  init_byol_vm_contract();
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_validation();
+});
+
 // plugins/gcloud/src/ce/ownership.ts
 function validateGcpResourceIdentity(resource) {
   if (
@@ -1875,7 +2240,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/deployment-teardown.ts
-import { join as join3 } from 'node:path';
+import { join as join4 } from 'node:path';
 
 function assertGcpTeardownProfile(intent, contract, engine = 'native') {
   validateIntent(intent);
@@ -2068,7 +2433,7 @@ async function applyGcpDeploymentTeardown(platform, api, intent, approvedHash, c
   const age = Date.now() - Date.parse(plan.createdAt);
   if (authorization ? authorization.planHash !== approvedHash : !Number.isFinite(age) || age < 0 || age > 5 * 60000)
     throw new Error('Teardown authorization missing or review stale');
-  const release = await acquireProcessLock(join3(store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join4(store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(store, intent);
     assertGcpTeardownTopology(intent, resources);
@@ -2794,8 +3159,22 @@ var init_owned_status = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/planner.ts
-function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight) {
+function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight, fundingReceipt, byolAuthorization) {
   validateIntent(intent);
+  if (fundingReceipt)
+    assertGcpCorporateFundingCurrent(fundingReceipt, intent.project, fundingReceipt.billingAccountName);
+  if (byolAuthorization) {
+    const { authorizationHash, ...authorizationBody } = byolAuthorization;
+    if (
+      authorizationHash !== fingerprint(authorizationBody) ||
+      byolAuthorization.state !== 'authorized-for-access-or-use' ||
+      byolAuthorization.binding.intentFingerprint !== fingerprint(intent) ||
+      !fundingReceipt ||
+      byolAuthorization.fundingPolicySha256 !== fundingReceipt.policySha256 ||
+      byolAuthorization.billingAccountName !== fundingReceipt.billingAccountName
+    )
+      throw new Error('BYOL authorization does not match readiness intent/funding');
+  }
   if (discovery.schemaVersion !== 1 || discovery.project !== intent.project || discovery.region !== intent.region)
     throw new Error('Discovery scope does not match the intent');
   const observed = Date.parse(discovery.observedAt);
@@ -2833,6 +3212,7 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight
     'shared_platform_gcp_runtime_not_available',
     ...(intent.engine === 'terraform' ? ['shared_terraform_gcp_runner_not_available'] : []),
     ...(discovery.billingEnabled !== true ? ['billing_not_verified'] : []),
+    ...(fundingReceipt ? [] : ['corporate_funding_not_verified']),
     ...['compute.googleapis.com', 'serviceusage.googleapis.com']
       .filter((api) => !discovery.enabledApis.includes(api))
       .map((api) => `api_not_enabled:${api}`),
@@ -2842,7 +3222,7 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight
             .filter((check) => preflight.checks[check] !== 'verified')
             .map((check) => `${check}_not_verified`),
           ...(preflight.checks.quota === 'verified' ? [] : ['quota_headroom_not_qualified']),
-          'licenseAcceptance_not_verified',
+          ...(byolAuthorization ? [] : ['licenseAcceptance_not_verified']),
           'zone_capacity_not_reserved',
         ]
       : [...Object.keys(discovery.checks).map((check) => `${check}_not_verified`), 'quota_headroom_not_qualified']),
@@ -2853,6 +3233,8 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight
     policyIdentity: GCP_CE_POLICY,
     ...(policyReceipt ? { policyReceipt } : {}),
     ...(preflight ? { preflight: structuredClone(preflight) } : {}),
+    ...(fundingReceipt ? { fundingReceipt: structuredClone(fundingReceipt) } : {}),
+    ...(byolAuthorization ? { byolAuthorization: structuredClone(byolAuthorization) } : {}),
     apiRelease: GCP_CE_API_RELEASE,
     engine: intent.engine,
     intent: structuredClone(intent),
@@ -2866,13 +3248,14 @@ function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight
 }
 var init_planner = __esm(() => {
   init_contract();
+  init_corporate_funding();
   init_discovery();
   init_types2();
   init_validation();
 });
 
 // plugins/gcloud/src/ce/policy.ts
-import { createHash as createHash3 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 
 function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
   if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
@@ -2891,7 +3274,7 @@ function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
     identity: 'f5xc-ce-automation-policy/v2',
     url: GCP_CE_POLICY_URL,
     observedAt,
-    normalizedSha256: `sha256:${createHash3('sha256').update(normalized).digest('hex')}`,
+    normalizedSha256: `sha256:${createHash5('sha256').update(normalized).digest('hex')}`,
   };
 }
 async function readGcpCePolicy(fetcher = fetch) {
@@ -3245,18 +3628,18 @@ var init_failure = __esm(() => {
 });
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash4, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
-  lstat as lstat3,
+  lstat as lstat4,
   mkdir as mkdir3,
-  readFile as readFile2,
+  readFile as readFile3,
   realpath as realpath2,
   rename as rename2,
   rm as rm2,
   writeFile as writeFile2,
 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute2, join as join4, resolve } from 'node:path';
+import { isAbsolute as isAbsolute2, join as join5, resolve } from 'node:path';
 
 function object4(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -3333,7 +3716,7 @@ function inspectActionInvocations(plan, expected) {
 }
 async function privateDirectory(path) {
   await mkdir3(path, { recursive: true, mode: 448 });
-  const stat = await lstat3(path);
+  const stat = await lstat4(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
@@ -3344,7 +3727,7 @@ async function privateDirectory(path) {
   await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat3(path);
+  const stat = await lstat4(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -3353,7 +3736,7 @@ async function privateRead(path) {
     (stat.mode & 63) !== 0
   )
     throw new Error('Terraform artifact ownership is invalid');
-  return readFile2(path);
+  return readFile3(path);
 }
 async function persist(path, value) {
   const temporary = `${path}.new`;
@@ -3435,9 +3818,9 @@ function terraformExecutor(
       const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
       if (code !== 0 && retainFailure) {
         await privateDirectory(cwd);
-        const directory = join4(cwd, 'failure-diagnostics');
+        const directory = join5(cwd, 'failure-diagnostics');
         await privateDirectory(directory);
-        await persist(join4(directory, `${randomUUID2()}.json`), {
+        await persist(join5(directory, `${randomUUID2()}.json`), {
           schemaVersion: 1,
           observedAt: new Date().toISOString(),
           operation: args[0],
@@ -3493,14 +3876,14 @@ class TerraformRunner {
     )
       throw new Error('Explicit deployment scope is required');
     await privateDirectory(this.root);
-    const directory = join4(this.root, deployment.deploymentId);
+    const directory = join5(this.root, deployment.deploymentId);
     await mkdir3(directory, { mode: 448 });
     const { configuration: source, providerLock, ...identity } = deployment;
     const manifest = { ...identity, configurationSha256: digest2(source), providerLockSha256: digest2(providerLock) };
-    await writeFile2(join4(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
-    await writeFile2(join4(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
-    await writeFile2(join4(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
-    await persist(join4(directory, 'deployment.json'), manifest);
+    await writeFile2(join5(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
+    await writeFile2(join5(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
+    await writeFile2(join5(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
+    await persist(join5(directory, 'deployment.json'), manifest);
     this.#directory = directory;
     this.#manifest = manifest;
   }
@@ -3515,7 +3898,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
-      const configuration = await privateRead(join4(directory, 'main.tf.json'));
+      const configuration = await privateRead(join5(directory, 'main.tf.json'));
       if (digest2(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
       return configuration.toString();
     });
@@ -3524,7 +3907,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
         canonical(receipt) !== canonical(journal.receipt) ||
@@ -3533,12 +3916,12 @@ class TerraformRunner {
         receipt.backendIdentity !== manifest.backendIdentity ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join4(directory, 'saved.tfplan'))) ||
+        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan'))) ||
         !/^[a-f0-9]{64}$/.test(evidenceSha256)
       )
         throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
       await this.#replacePrivate(
-        join4(directory, 'plan-receipt.json'),
+        join5(directory, 'plan-receipt.json'),
         JSON.stringify({ state: 'applied', receipt, reconciledEvidenceSha256: evidenceSha256 }),
       );
     });
@@ -3548,12 +3931,12 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-      this.#validateRevision(configuration, (await privateRead(join4(directory, 'main.tf.json'))).toString());
+      this.#validateRevision(configuration, (await privateRead(join5(directory, 'main.tf.json'))).toString());
       const nextSha256 = digest2(configuration);
       if (nextSha256 === expectedSha256) return nextSha256;
       let receipt;
       try {
-        receipt = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+        receipt = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
@@ -3565,7 +3948,7 @@ class TerraformRunner {
         configuration,
         archiveId: randomUUID2(),
       };
-      await this.#replacePrivate(join4(directory, 'configuration-transition.json'), JSON.stringify(transition));
+      await this.#replacePrivate(join5(directory, 'configuration-transition.json'), JSON.stringify(transition));
       await this.#recoverRevision();
       return nextSha256;
     });
@@ -3590,7 +3973,7 @@ class TerraformRunner {
     const { directory } = this.#state();
     let transition;
     try {
-      transition = decode((await privateRead(join4(directory, 'configuration-transition.json'))).toString());
+      transition = decode((await privateRead(join5(directory, 'configuration-transition.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3607,48 +3990,48 @@ class TerraformRunner {
     )
       throw new Error('Terraform configuration transition is malformed');
     this.#validateRevision(transition.configuration);
-    const owner = decode((await privateRead(join4(directory, 'deployment.json'))).toString());
-    const current = await privateRead(join4(directory, 'main.tf.json'));
+    const owner = decode((await privateRead(join5(directory, 'deployment.json'))).toString());
+    const current = await privateRead(join5(directory, 'main.tf.json'));
     if (
       ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
-      digest2(await privateRead(join4(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
-      digest2(await privateRead(join4(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
+      digest2(await privateRead(join5(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
+      digest2(await privateRead(join5(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
     )
       throw new Error('Terraform configuration transition ownership or inputs changed');
-    const archive = join4(directory, 'revisions', transition.archiveId);
+    const archive = join5(directory, 'revisions', transition.archiveId);
     await privateDirectory(archive);
     const archiveFile = async (name, content) => {
       try {
-        await writeFile2(join4(archive, name), content, { mode: 384, flag: 'wx' });
+        await writeFile2(join5(archive, name), content, { mode: 384, flag: 'wx' });
       } catch (error) {
-        if (error.code !== 'EEXIST' || digest2(await privateRead(join4(archive, name))) !== digest2(content))
+        if (error.code !== 'EEXIST' || digest2(await privateRead(join5(archive, name))) !== digest2(content))
           throw error;
       }
     };
     if (digest2(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
-    if (digest2(await privateRead(join4(archive, 'main.tf.json'))) !== previous.configurationSha256)
+    if (digest2(await privateRead(join5(archive, 'main.tf.json'))) !== previous.configurationSha256)
       throw new Error('Previous Terraform configuration archive is missing');
-    this.#validateRevision(transition.configuration, (await privateRead(join4(archive, 'main.tf.json'))).toString());
+    this.#validateRevision(transition.configuration, (await privateRead(join5(archive, 'main.tf.json'))).toString());
     await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        await archiveFile(name, await privateRead(join4(directory, name)));
+        await archiveFile(name, await privateRead(join5(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
-    await this.#replacePrivate(join4(directory, 'main.tf.json'), transition.configuration);
-    await this.#replacePrivate(join4(directory, 'deployment.json'), JSON.stringify(next));
+    await this.#replacePrivate(join5(directory, 'main.tf.json'), transition.configuration);
+    await this.#replacePrivate(join5(directory, 'deployment.json'), JSON.stringify(next));
     this.#manifest = next;
-    await rm2(join4(directory, 'configuration-transition.json'));
+    await rm2(join5(directory, 'configuration-transition.json'));
   }
   async resume(deploymentId, expected, configurationMode = 'exact') {
     if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
-    const directory = join4(this.root, deploymentId);
+    const directory = join5(this.root, deploymentId);
     await privateDirectory(directory);
-    const manifest = decode((await privateRead(join4(directory, 'deployment.json'))).toString());
+    const manifest = decode((await privateRead(join5(directory, 'deployment.json'))).toString());
     if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
       throw new Error('Terraform deployment ownership is invalid');
     this.#directory = directory;
@@ -3666,7 +4049,7 @@ class TerraformRunner {
       if (canonical(recoveredManifest) !== canonical(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
-        this.#validateRevision((await privateRead(join4(directory, 'main.tf.json'))).toString(), configuration);
+        this.#validateRevision((await privateRead(join5(directory, 'main.tf.json'))).toString(), configuration);
     }
     this.#directory = directory;
     this.#manifest = recoveredManifest;
@@ -3679,12 +4062,12 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat3(join4(this.#directory, 'configuration-transition.json'));
+      await lstat4(join5(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    const owner = decode((await privateRead(join4(this.#directory, 'deployment.json'))).toString());
+    const owner = decode((await privateRead(join5(this.#directory, 'deployment.json'))).toString());
     if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
@@ -3692,7 +4075,7 @@ class TerraformRunner {
       ['.terraform.lock.hcl', this.#manifest.providerLockSha256],
       ['deployment.tfrc', digest2(cliConfig)],
     ]) {
-      if (digest2(await privateRead(join4(this.#directory, file))) !== expected)
+      if (digest2(await privateRead(join5(this.#directory, file))) !== expected)
         throw new Error('Terraform configuration or provider lock changed');
     }
   }
@@ -3700,8 +4083,8 @@ class TerraformRunner {
     const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => !key.startsWith('TF_')));
     return {
       ...env,
-      TF_CLI_CONFIG_FILE: join4(this.#state().directory, 'deployment.tfrc'),
-      TF_DATA_DIR: join4(this.#state().directory, '.terraform'),
+      TF_CLI_CONFIG_FILE: join5(this.#state().directory, 'deployment.tfrc'),
+      TF_DATA_DIR: join5(this.#state().directory, '.terraform'),
       TF_IN_AUTOMATION: '1',
       TF_INPUT: '0',
       TF_WORKSPACE: 'default',
@@ -3717,7 +4100,7 @@ class TerraformRunner {
     if (this.#busy) throw new Error('Terraform deployment operation is already running');
     if (!this.#directory) throw new Error('Prepare or resume the deployment first');
     this.#busy = true;
-    const lock = join4(this.#directory, '.runner-lock');
+    const lock = join5(this.#directory, '.runner-lock');
     let release;
     try {
       release = await acquireProcessLock(lock);
@@ -3732,24 +4115,24 @@ class TerraformRunner {
     const files = new Map();
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        files.set(name, await privateRead(join4(directory, name)));
+        files.set(name, await privateRead(join5(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
     if (!files.size) return;
     for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
-      files.set(name, await privateRead(join4(directory, name)));
+      files.set(name, await privateRead(join5(directory, name)));
     const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest2(bytes)])));
-    const archive = join4(directory, 'plan-history', digest2(inventory));
+    const archive = join5(directory, 'plan-history', digest2(inventory));
     await privateDirectory(archive);
     files.set('inventory.json', Buffer.from(inventory));
     for (const [name, bytes] of files) {
       try {
-        await writeFile2(join4(archive, name), bytes, { mode: 384, flag: 'wx' });
+        await writeFile2(join5(archive, name), bytes, { mode: 384, flag: 'wx' });
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
-        if (digest2(await privateRead(join4(archive, name))) !== digest2(bytes))
+        if (digest2(await privateRead(join5(archive, name))) !== digest2(bytes))
           throw new Error('Terraform plan history differs');
       }
     }
@@ -3841,19 +4224,19 @@ class TerraformRunner {
         backendIdentity: manifest.backendIdentity,
         configurationSha256: manifest.configurationSha256,
         providerLockSha256: manifest.providerLockSha256,
-        planSha256: digest2(await privateRead(join4(this.#state().directory, 'saved.tfplan'))),
+        planSha256: digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan'))),
         changes,
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
         ...(destroy ? { operation: 'destroy' } : {}),
       };
-      await persist(join4(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
+      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
       return receipt;
     });
   }
   async #assertActionUnsubmitted() {
     try {
-      await privateRead(join4(this.#state().directory, 'action-attempt.json'));
+      await privateRead(join5(this.#state().directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3864,7 +4247,7 @@ class TerraformRunner {
     const directory = this.#state().directory;
     let journal;
     try {
-      journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+      journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3873,10 +4256,10 @@ class TerraformRunner {
     const actions = object4(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
-      await privateRead(join4(directory, 'action-attempt.json'));
+      await privateRead(join5(directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      await persist(join4(directory, 'action-attempt.json'), {
+      await persist(join5(directory, 'action-attempt.json'), {
         schemaVersion: 1,
         legacyJournalState: journal.state,
         receipt: journal.receipt,
@@ -3894,7 +4277,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
       const receipt = object4(journal.receipt);
       if (
         !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
@@ -3920,7 +4303,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'applied' ||
         canonical(journal.receipt) !== canonical(receipt) ||
@@ -3929,7 +4312,7 @@ class TerraformRunner {
         receipt.backendIdentity !== manifest.backendIdentity ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join4(directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan')))
       )
         throw new Error('Exact applied Terraform receipt required for ownership capture');
     });
@@ -3981,12 +4364,12 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join5(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
         canonical(journal.receipt) !== canonical(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join4(directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan')))
       )
         throw new Error('Terraform identity inspection saved plan differs');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -4022,7 +4405,7 @@ class TerraformRunner {
         }
         result[address] = selected;
       }
-      if (receipt.planSha256 !== digest2(await privateRead(join4(directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join5(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
       return result;
     });
@@ -4030,7 +4413,7 @@ class TerraformRunner {
   async apply(receipt, env, signal) {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
-      const journal = decode((await privateRead(join4(this.#state().directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join5(this.#state().directory, 'plan-receipt.json'))).toString());
       if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
       if (
         canonical(receipt) !== canonical(journal.receipt) ||
@@ -4038,7 +4421,7 @@ class TerraformRunner {
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
         receipt.providerLockSha256 !== this.#state().manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join4(this.#state().directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan')))
       )
         throw new Error('Terraform saved-plan receipt does not match');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -4050,19 +4433,19 @@ class TerraformRunner {
       if (expectedActions.length) validateActionIntent(expectedActions[0]);
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
       inspectActionInvocations(plan, expectedActions[0]);
-      if (receipt.planSha256 !== digest2(await privateRead(join4(this.#state().directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join5(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
       if (expectedActions.length) {
         await this.#assertActionUnsubmitted();
-        await persist(join4(this.#state().directory, 'action-attempt.json'), {
+        await persist(join5(this.#state().directory, 'action-attempt.json'), {
           schemaVersion: 1,
           submittedAt: new Date().toISOString(),
           receipt,
         });
       }
-      await persist(join4(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
+      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
-      await persist(join4(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+      await persist(join5(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
     });
   }
 }
@@ -4071,7 +4454,7 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash4('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash6('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -4082,7 +4465,7 @@ var init_runner = __esm(() => {
 });
 
 // plugins/terraform/src/service.ts
-import { join as join5 } from 'node:path';
+import { join as join6 } from 'node:path';
 
 function createCeTerraformService(platform) {
   return {
@@ -4103,7 +4486,7 @@ function createCeTerraformService(platform) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
-        deployment.stage ? join5(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+        deployment.stage ? join6(store.directory, 'terraform-stages', deployment.stage) : store.directory,
       );
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
@@ -4339,6 +4722,57 @@ var init_compute_plan = __esm(() => {
   init_validation();
 });
 
+// plugins/gcloud/src/ce/funding-session.ts
+function billable(receipt) {
+  return receipt.changes.some(
+    (change) =>
+      change.type.startsWith('google_') && change.actions.some((action) => action === 'create' || action === 'update'),
+  );
+}
+function withGcpCorporateFunding(session, store, api, project, collect = collectCurrentGcpCorporateFunding, intent) {
+  return {
+    ...session,
+    async plan(environment, signal) {
+      const receipt = await session.plan(environment, signal);
+      if (billable(receipt)) {
+        const funding = await collect(api, project, signal);
+        await store.write(`gcp-funding-${receipt.planSha256}.json`, {
+          schemaVersion: 1,
+          receiptFingerprint: fingerprint(receipt),
+          funding,
+        });
+      }
+      return receipt;
+    },
+    async apply(receipt, environment, signal) {
+      if (billable(receipt)) {
+        const saved = await store.read(`gcp-funding-${receipt.planSha256}.json`);
+        if (saved.schemaVersion !== 1 || saved.receiptFingerprint !== fingerprint(receipt))
+          throw new Error('Reviewed Terraform corporate funding binding differs');
+        const current = await collect(api, project, signal);
+        assertGcpCorporateFundingCurrent(current, project, saved.funding.billingAccountName);
+        if (current.policySha256 !== saved.funding.policySha256)
+          throw new Error('Corporate funding policy changed after Terraform review');
+        if (intent?.image.name.endsWith('-byol'))
+          await assertGcpByolAuthorization(
+            intent,
+            { query: createGcpPreflightPort(api, project).query, document: fetchGcpByolDocument },
+            current,
+            store,
+            signal,
+          );
+      }
+      return session.apply(receipt, environment, signal);
+    },
+  };
+}
+var init_funding_session = __esm(() => {
+  init_byol_terms();
+  init_corporate_funding();
+  init_discovery();
+  init_preflight_port();
+});
+
 // plugins/gcloud/src/ce/terraform-session.ts
 async function openGcpTerraformSession(platform, inputs, resume = false) {
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
@@ -4402,7 +4836,15 @@ async function openGcpTerraformSession(platform, inputs, resume = false) {
     await store.write('gcp-terraform-input-identity.json', identity);
     await store.write('gcp-terraform-session-inputs.json', { schemaVersion: 1, inputs: structuredClone(inputs) });
   }
-  return createCeTerraformService(async () => platform).open(owner, deployment, resume);
+  const session = await createCeTerraformService(async () => platform).open(owner, deployment, resume);
+  return withGcpCorporateFunding(
+    session,
+    store,
+    makeExecApi(store.directory),
+    inputs.intent.project,
+    undefined,
+    inputs.intent,
+  );
 }
 async function resumeGcpTerraformSession(platform, intent) {
   if (intent.engine !== 'terraform') throw new Error('Terraform session cannot change owning engine');
@@ -4420,8 +4862,10 @@ async function resumeGcpTerraformSession(platform, intent) {
 }
 var init_terraform_session = __esm(() => {
   init_service2();
+  init_shared();
   init_compute_plan();
   init_discovery();
+  init_funding_session();
 });
 
 // plugins/gcloud/src/ce/terraform-admission.ts
@@ -4511,7 +4955,7 @@ var init_terraform_admission = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/terraform-teardown.ts
-import { join as join6 } from 'node:path';
+import { join as join7 } from 'node:path';
 
 function addresses(intent) {
   const site = intent.sites[0],
@@ -4686,7 +5130,7 @@ async function planGcpTerraformTeardown(runtime, intent, contract, policy, signa
   assertGcpTeardownProfile(intent, contract, 'terraform');
   assertGcpTeardownPolicyFresh(policy);
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join6(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join7(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(runtime.store, intent);
     assertGcpTeardownTopology(intent, resources);
@@ -4722,7 +5166,7 @@ async function applyGcpTerraformTeardown(runtime, intent, contract, policy, appr
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact Terraform teardown review required');
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join6(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join7(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const plan = await runtime.store.read(`gcp-tf-reviewed-${approvedHash.slice(7)}.json`);
     const { planHash, ...body } = plan;
@@ -4824,7 +5268,7 @@ var init_terraform_teardown = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join7 } from 'node:path';
+import { join as join8 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -4854,6 +5298,7 @@ function createGcpCeTools(
   preflight = collectGcpLaunchPreflight,
   policy = readGcpCePolicy,
   terraformSession = resumeGcpTerraformSession,
+  funding = collectCurrentGcpCorporateFunding,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -4974,9 +5419,29 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join7(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join8(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
+            if (intent.image.name.endsWith('-byol') && !params.agreement) {
+              const currentFunding = await funding(api, intent.project, signal);
+              const source = {
+                query: createGcpPreflightPort(api, intent.project).query,
+                document: fetchGcpByolDocument,
+              };
+              if (params.approvedPlanHash) {
+                const authorization = await authorizeGcpByolTerms(
+                  intent,
+                  source,
+                  currentFunding,
+                  store,
+                  params.approvedPlanHash,
+                  signal,
+                );
+                return result(tool, { availability: 'byol-terms-authorized', authorization, mutationAttempted: false });
+              }
+              const plan = await planGcpByolTerms(intent, source, currentFunding, store, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
             if (params.approvedPlanHash) {
               const receipt = await applyGcpMarketplaceAcceptance(port, store, params.approvedPlanHash, () => {
                 mutationAttempted = true;
@@ -5138,7 +5603,43 @@ function createGcpCeTools(
           const prerequisites = profileSupported
             ? await preflight(intent, createGcpPreflightPort(api, params.project), signal)
             : undefined;
-          const plan = planGcpCe(intent, discovery, Date.now(), policyReceipt, prerequisites);
+          let fundingReceipt;
+          try {
+            fundingReceipt = await funding(api, intent.project, signal);
+          } catch {
+            signal?.throwIfAborted();
+          }
+          let byolAuthorization;
+          if (fundingReceipt && intent.image.name.endsWith('-byol')) {
+            try {
+              const platform = await getPlatform();
+              const store = await platform.storage({
+                deploymentId: intent.deploymentName,
+                provider: 'gcp',
+                engine: intent.engine,
+                account: intent.project,
+                region: intent.region,
+              });
+              byolAuthorization = await assertGcpByolAuthorization(
+                intent,
+                { query: createGcpPreflightPort(api, intent.project).query, document: fetchGcpByolDocument },
+                fundingReceipt,
+                store,
+                signal,
+              );
+            } catch {
+              signal?.throwIfAborted();
+            }
+          }
+          const plan = planGcpCe(
+            intent,
+            discovery,
+            Date.now(),
+            policyReceipt,
+            prerequisites,
+            fundingReceipt,
+            byolAuthorization,
+          );
           return result(tool, { availability: 'unavailable', boundary, plan });
         }
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {
@@ -5273,7 +5774,9 @@ var UNKNOWN;
 var init_gcp_ce = __esm(() => {
   init_process_lock();
   init_service();
+  init_byol_terms();
   init_contract();
+  init_corporate_funding();
   init_deployment_teardown();
   init_discovery();
   init_marketplace_agreement();

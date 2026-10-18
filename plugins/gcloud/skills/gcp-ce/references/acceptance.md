@@ -26,6 +26,18 @@ independent service read confirmed `ENABLED`. The next live consent inspection
 returned `Method not found.` This separate API compatibility gate remains
 unqualified; terms acceptance does not establish image agreement acceptance.
 
+Fresh isolated installed BYOL qualification passed with live corporate identity,
+organization and existing billing association reads, exact publisher image and
+license identity checks, and the pinned Google Marketplace and F5 Platform
+legal-document hashes. The tool saved an exact review, recorded authorized
+access/use, and bound that receipt and corporate funding into readiness. No
+remote consent grant, software-license acquisition, order or cloud creation
+occurred. Private installed staging was removed. Procurement method failure is
+not a universal BYOL prerequisite; the product-specific terms mechanism applies.
+Automated checks reject personal identities, billing/organization changes,
+expired observations, shared policy files, symlinks, altered review bindings and
+legal-document changes. Owned cleanup does not depend on funding access.
+
 Installed native teardown qualification used six synthetic Compute identities
 and a live disposable XC site and node-bound token. The typed tool saved a review,
 applied its exact approved hash and verified absence; independent API reads

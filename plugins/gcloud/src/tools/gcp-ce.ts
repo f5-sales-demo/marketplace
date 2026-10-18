@@ -1,7 +1,14 @@
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { CE_SERVICE_CHANNEL, type CePlatformService } from '../../../platform/src/ce/service';
+import {
+  assertGcpByolAuthorization,
+  authorizeGcpByolTerms,
+  fetchGcpByolDocument,
+  planGcpByolTerms,
+} from '../ce/byol-terms';
 import { resolveGcpContract } from '../ce/contract';
+import { collectCurrentGcpCorporateFunding } from '../ce/corporate-funding';
 import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../ce/deployment-teardown';
 import { discoverGcp } from '../ce/discovery';
 import { applyGcpMarketplaceAcceptance, planGcpMarketplaceAcceptance } from '../ce/marketplace-agreement';
@@ -59,6 +66,7 @@ export function createGcpCeTools(
   preflight = collectGcpLaunchPreflight,
   policy = readGcpCePolicy,
   terraformSession = resumeGcpTerraformSession,
+  funding = collectCurrentGcpCorporateFunding,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -200,6 +208,26 @@ export function createGcpCeTools(
           const release = await acquireProcessLock(join(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
+            if (intent.image.name.endsWith('-byol') && !params.agreement) {
+              const currentFunding = await funding(api, intent.project, signal);
+              const source = {
+                query: createGcpPreflightPort(api, intent.project).query,
+                document: fetchGcpByolDocument,
+              };
+              if (params.approvedPlanHash) {
+                const authorization = await authorizeGcpByolTerms(
+                  intent,
+                  source,
+                  currentFunding,
+                  store,
+                  params.approvedPlanHash,
+                  signal,
+                );
+                return result(tool, { availability: 'byol-terms-authorized', authorization, mutationAttempted: false });
+              }
+              const plan = await planGcpByolTerms(intent, source, currentFunding, store, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
             if (params.approvedPlanHash) {
               const receipt = await applyGcpMarketplaceAcceptance(port, store, params.approvedPlanHash, () => {
                 mutationAttempted = true;
@@ -361,7 +389,43 @@ export function createGcpCeTools(
           const prerequisites = profileSupported
             ? await preflight(intent, createGcpPreflightPort(api, params.project), signal)
             : undefined;
-          const plan = planGcpCe(intent, discovery, Date.now(), policyReceipt, prerequisites);
+          let fundingReceipt: Awaited<ReturnType<typeof collectCurrentGcpCorporateFunding>> | undefined;
+          try {
+            fundingReceipt = await funding(api, intent.project, signal);
+          } catch {
+            signal?.throwIfAborted();
+          }
+          let byolAuthorization: Awaited<ReturnType<typeof assertGcpByolAuthorization>> | undefined;
+          if (fundingReceipt && intent.image.name.endsWith('-byol')) {
+            try {
+              const platform = await getPlatform();
+              const store = await platform.storage({
+                deploymentId: intent.deploymentName,
+                provider: 'gcp',
+                engine: intent.engine,
+                account: intent.project,
+                region: intent.region,
+              });
+              byolAuthorization = await assertGcpByolAuthorization(
+                intent,
+                { query: createGcpPreflightPort(api, intent.project).query, document: fetchGcpByolDocument },
+                fundingReceipt,
+                store,
+                signal,
+              );
+            } catch {
+              signal?.throwIfAborted();
+            }
+          }
+          const plan = planGcpCe(
+            intent,
+            discovery,
+            Date.now(),
+            policyReceipt,
+            prerequisites,
+            fundingReceipt,
+            byolAuthorization,
+          );
           return result(tool, { availability: 'unavailable', boundary, plan });
         }
         if (['gcp_ce_inventory', 'gcp_ce_status', 'gcp_ce_diagnose'].includes(tool)) {

@@ -75,13 +75,46 @@ checks. They retain sanitized source hashes and reject stale evidence or a chang
 intent. Capacity reservation and verified Marketplace acceptance remain explicit;
 passing cloud prerequisites alone does not enable deployment.
 
-`gcp_marketplace_agreement` qualifies the pinned image's agreement and can accept
-an exact reviewed document programmatically. Supply the versioned intent, review
-the returned plan and use its `approvedPlanHash`. Existing consent references are
-discovered from Google; an absent or ambiguous mapping requires an exact agreement
-and document reference for server validation. Optional `enableMarketplaceApi=true`
-requests scoped API enablement. The tool checks active consent after granting and
-reconciles interrupted grants without duplicate acceptance. It places no orders.
+`gcp_marketplace_agreement` reviews the pinned image's product terms. For the
+qualified BYOL image, supply the versioned intent, review the exact Google
+Marketplace and F5 Platform documents, then use the saved `approvedPlanHash` to
+record authorization for access or use. The receipt binds document hashes, image,
+license, F5 context, engine and corporate funding. Changed documents or identities
+require a new review. Authorization does not acquire a software license, grant
+remote procurement consent, place an order or create cloud resources.
+
+Products with qualified procurement agreement references use server validation
+and independent active-consent checks. This path is not a universal BYOL
+prerequisite. Optional `enableMarketplaceApi=true` requests scoped API enablement;
+unsupported methods remain explicit. Required `alpha` and `beta` CLI command
+groups install automatically without prompts and are verified before execution.
+
+### Corporate funding
+
+Before billable execution, install an owner-only `0600` policy at
+`~/.config/xcsh/gcp-ce-funding.json`, or set `XCSH_GCP_FUNDING_POLICY_FILE` to an
+owner-only file. Use this schema with your explicitly confirmed corporate values:
+
+```json
+{
+  "schemaVersion": 1,
+  "project": "demo-project",
+  "expectedOrganizationDomain": "example.com",
+  "expectedAccountDomain": "example.com",
+  "expectedBillingAccountName": "billingAccounts/000000-000000-000000",
+  "fundingAuthority": "explicit-user-confirmation-in-current-session",
+  "billingChangesAuthorized": false,
+  "personalPaymentAuthorized": false
+}
+```
+
+The plugin checks the active corporate account, project organization and exact
+existing billing association through scoped reads. The user's confirmation
+establishes who funds that account; cloud visibility alone does not prove the
+payer. Native and Terraform execution bind this evidence to the reviewed plan
+and recheck it before creating or updating GCP resources. A changed association
+fails before execution. The plugin does not switch billing, create payment
+methods or buy licenses. Owned cleanup can proceed if funding visibility is lost.
 
 ### Google Cloud terms prerequisite
 
@@ -95,8 +128,9 @@ provider code `UREQ_TOS_NOT_ACCEPTED`, an acceptance link and recovery steps.
 4. Retry scoped API enablement and agreement qualification to verify recovery.
 
 No supported API for this prerequisite acceptance has been qualified. These
-terms are separate from the F5 Marketplace agreement; verify current F5 consent
-afterward. Successful live Marketplace acceptance remains unqualified.
+terms are separate from the product agreement; verify the qualified BYOL
+authorization or procurement consent afterward. Live procurement grant remains
+unqualified.
 
 For an existing disposable native single-node deployment, `gcp_ce_teardown`
 prepares an exact saved review from its persisted intent and ownership ledger.

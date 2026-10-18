@@ -4,11 +4,14 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { checkoutGcpBootstrap } from './bootstrap-checkout';
 import { issueGcpBootstrap } from './bootstrap-issue';
+import { assertGcpByolAuthorization, fetchGcpByolDocument } from './byol-terms';
 import { translateGcpNativeCompute } from './compute-plan';
 import { GCP_CE_API_RELEASE } from './contract';
+import { assertGcpCorporateFundingCurrent, collectCurrentGcpCorporateFunding } from './corporate-funding';
 import { fingerprint } from './discovery';
 import { applyGcpNativeCreation } from './native-create';
 import { createGcpNativeCreationDriver } from './native-create-driver';
+import { createGcpPreflightPort } from './preflight-port';
 import { assertGcpLaunchGates, type GcpQualificationGates } from './qualification-gates';
 import type { GcpCeIntent } from './types';
 
@@ -20,6 +23,7 @@ export async function applyGcpNativeDeployment(
   approvedHash: string,
   gates: GcpQualificationGates,
   signal?: AbortSignal,
+  funding = collectCurrentGcpCorporateFunding,
 ) {
   const plan = translateGcpNativeCompute(intent);
   assertGcpLaunchGates(gates, approvedHash);
@@ -33,6 +37,12 @@ export async function applyGcpNativeDeployment(
     !platform.gcpLifecycle
   )
     throw new Error('Native deployment ownership/qualified contract differs');
+  if (!gates.fundingReceipt) throw new Error('Reviewed corporate funding binding required');
+  assertGcpCorporateFundingCurrent(gates.fundingReceipt, intent.project, gates.fundingReceipt.billingAccountName);
+  const currentFunding = await funding(api, intent.project, signal);
+  assertGcpCorporateFundingCurrent(currentFunding, intent.project, gates.fundingReceipt.billingAccountName);
+  if (currentFunding.policySha256 !== gates.fundingReceipt.policySha256)
+    throw new Error('Corporate funding policy changed after launch review');
   const owner = {
     deploymentId: intent.deploymentName,
     provider: 'gcp' as const,
@@ -43,6 +53,14 @@ export async function applyGcpNativeDeployment(
   const store = await platform.storage(owner);
   const release = await acquireProcessLock(join(store.directory, '.gcp-deployment-lock'));
   try {
+    if (intent.image.name.endsWith('-byol') || gates.legalAcceptance === 'authorized-for-access-or-use')
+      await assertGcpByolAuthorization(
+        intent,
+        { query: createGcpPreflightPort(api, intent.project).query, document: fetchGcpByolDocument },
+        currentFunding,
+        store,
+        signal,
+      );
     const identity = {
       intent: structuredClone(intent),
       intentFingerprint: fingerprint(intent),
