@@ -174,6 +174,7 @@
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.5.1",
+      "extensions": ["runtime/index.js"],
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -424,6 +425,7 @@
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.5.1",
+      "extensions": ["runtime/index.js"],
       "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud", "gcp-ce", "customer-edge"],
@@ -557,7 +559,7 @@
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.5.1",
-      "extensions": ["extensions/integration.ts", "src/index.ts"],
+      "extensions": ["extensions/integration.ts", "runtime/index.js"],
       "source": "./plugins/terraform",
       "category": "development",
       "keywords": ["terraform", "hcl", "iac", "devops", "hashicorp", "testing", "troubleshooting"],

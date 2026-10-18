@@ -11,7 +11,7 @@
     "name": "Platform",
     "version": "6.3.0",
     "extensions": [
-      "src/index.ts"
+      "runtime/index.js"
     ]
   },
   "peerDependencies": {

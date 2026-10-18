@@ -44,5 +44,6 @@
     "collectedData": [],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.5.1"
+  "minimumRuntimeVersion": "23.5.1",
+  "extensions": ["runtime/index.js"]
 }

@@ -11,7 +11,7 @@
     "name": "GCloud",
     "version": "1.7.0",
     "extensions": [
-      "src/index.ts"
+      "runtime/index.js"
     ]
   },
   "peerDependencies": {

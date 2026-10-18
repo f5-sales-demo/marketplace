@@ -31,5 +31,5 @@
     "pluginDependencies": []
   },
   "minimumRuntimeVersion": "23.5.1",
-  "extensions": ["extensions/integration.ts", "src/index.ts"]
+  "extensions": ["extensions/integration.ts", "runtime/index.js"]
 }
