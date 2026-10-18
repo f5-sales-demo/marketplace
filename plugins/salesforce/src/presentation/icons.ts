@@ -29,9 +29,10 @@ export function sessionSymbols() {
 
 export function decorate(view: View, resolve: SymbolResolver, options: Options): View {
   const { states = [], ...output } = view;
-  let missing = false;
+  let legendShown = false;
   const sections = view.sections.flatMap((section) => {
     if (section.kind !== 'table' || !ownedTables.has(section)) return [section];
+    let missing = false;
     const formatted = {
       ...section,
       rows: section.rows.map((row) =>
@@ -40,11 +41,21 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
             const value = row[key];
             if (value !== null && value !== undefined) return [key, value];
             missing = true;
-            return [key, resolve('status.disabled') ?? 'No value'];
+            return [key, '—'];
           }),
         ),
       ),
     };
+    if (missing && !legendShown) {
+      legendShown = true;
+      return [
+        {
+          kind: 'markdown' as const,
+          text: 'A dash means Salesforce did not supply this field.',
+        },
+        formatted,
+      ];
+    }
     return [formatted];
   });
   const cues = states.map(({ kind, text }) => ({
@@ -55,13 +66,6 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
   const insert = cueIndex < 0 ? sections.length : cueIndex;
   return {
     ...output,
-    sections: [
-      ...sections.slice(0, insert),
-      ...cues,
-      ...sections.slice(insert),
-      ...(missing
-        ? [{ kind: 'markdown' as const, text: [resolve('status.disabled'), 'No value'].filter(Boolean).join(' ') }]
-        : []),
-    ],
+    sections: [...sections.slice(0, insert), ...cues, ...sections.slice(insert)],
   };
 }

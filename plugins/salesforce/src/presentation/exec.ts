@@ -149,7 +149,14 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
                   ? ['alias', 'username', 'id', 'instanceUrl', 'connectedStatus', 'isSandbox', 'isDefaultUsername']
                   : ['alias', 'username', 'instanceUrl', 'connectedStatus', 'isSandbox']
                 )
-                  .filter((k) => k in r)
+                  .filter(
+                    (k) =>
+                      k in r &&
+                      (options.expanded ||
+                        (r[k] !== null &&
+                          r[k] !== '' &&
+                          !(k === 'connectedStatus' && /^connected$/i.test(String(r[k]))))),
+                  )
                   .map((k) => [k, r[k]]),
               ),
             ),

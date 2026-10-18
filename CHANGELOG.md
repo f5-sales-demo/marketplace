@@ -18,6 +18,12 @@ and this project adheres to
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`terraform`** v2.4.0 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
+- **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
+
+- **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).
+
+- **`salesforce`** v2.3.9 groups Pipeline currency once, uses natural empty outcomes, and places missing-value legends beside their tables (#1573).
+
 - **`salesforce`** v2.3.8 animates Pipeline progress using the active host spinner frames (#1571).
 
 - **`salesforce`** v2.3.7 shows one concise Pipeline progress status and readable deal, renewal and monthly distribution tables, with complete evidence retained in expansion (#1569).

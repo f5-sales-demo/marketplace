@@ -34,14 +34,14 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       ? [{ kind: 'info' as const, text: 'Currency unknown' }]
       : []),
     ...(report.fyBookedTotal !== undefined
-      ? [{ kind: 'info' as const, text: 'FY aggregate bookings in expansion · currency unknown' }]
+      ? [{ kind: 'info' as const, text: 'Fiscal-year bookings shown in details because their currency is unknown' }]
       : []),
     ...unavailable.map((text) => ({
       kind: 'disabled' as const,
       text: text.startsWith('Renewals section:')
         ? 'Renewals unavailable'
         : text.startsWith('SKU-level breakdown:')
-          ? 'SKU breakdown unavailable · amounts from opportunities'
+          ? 'Product breakdown unavailable; showing opportunity amounts'
           : text,
     })),
     ...rows(report.anomalies).flatMap((a): State[] => {
@@ -49,7 +49,8 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         'stalled-deals': 'Activity needs review',
         'sku-classification': 'Product classification needs review',
         'sku-config': 'Product classification needs review',
-        unverified_product_classification: 'Product classification and quota eligibility unknown · amounts under Other',
+        unverified_product_classification:
+          'Product classification and quota eligibility unknown; amounts shown under Other',
         'missing-territory': 'Territory coverage needs review',
         'forecast-hygiene': 'Forecast needs review',
         'slipped-close-date': 'Close dates need review',
@@ -83,6 +84,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
   ];
   for (const group of groups.length ? groups : [{ ...report, currency: report.currency ?? 'unverified' }]) {
     const currency = String(group.currency === 'unverified' || !group.currency ? 'Currency unknown' : group.currency);
+    sections.push(hint(`Pipeline — ${currency}`));
     const summary = table(
       p,
       ['netNew', 'booked', 'renewals']
@@ -95,11 +97,11 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
             quotaTotal: section.quotaTotal,
           };
         }),
-      `Pipeline summary · ${currency}`,
+      'Pipeline summary',
       ['section', 'platform', 'shape', 'other', 'quotaTotal'],
     );
     if (summary.kind === 'table' && summary.rows.length) sections.push(summary);
-    else states.push({ kind: 'info', text: `Pipeline totals unknown · ${currency}` });
+    else states.push({ kind: 'info', text: 'Pipeline totals not returned' });
     const forecast = record(group.forecast);
     if (Object.keys(forecast).length)
       sections.push(
@@ -109,7 +111,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
             Forecast: key === 'bestCase' ? 'Best case' : key,
             Amount: amount,
           })),
-          `Forecast · ${currency}`,
+          'Forecast',
         ),
       );
     const empty: string[] = [];
@@ -123,7 +125,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       const accounts = record(group[key]).accounts;
       if (accounts === undefined || accounts === null) absent.push(title);
       else if (Array.isArray(accounts) && !accounts.length) empty.push(title);
-      else sections.push(...data(p, accounts, `${title} · ${currency}`));
+      else sections.push(...data(p, accounts, title));
     }
     for (const [key, title] of [
       ['topDeals', 'Top deals'],
@@ -137,7 +139,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       else if ((key === 'topDeals' || key === 'topRenewals') && !options.expanded) {
         const deals = rows(group[key]);
         sections.push(
-          table(p, deals, `${title} · ${currency}`, ['name', 'accountName', 'amount'], {
+          table(p, deals, title, ['name', 'accountName', 'amount'], {
             name: 'Deal',
             accountName: 'Account',
             amount: 'Amount',
@@ -156,16 +158,18 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         );
       } else if ((key === 'closeDistribution' || key === 'renewalDistribution') && !options.expanded)
         sections.push(
-          table(p, rows(group[key]), `${title} · ${currency}`, ['label', 'amount', 'oppCount'], {
+          table(p, rows(group[key]), title, ['label', 'amount', 'oppCount'], {
             label: 'Month',
             amount: 'Amount',
             oppCount: 'Opportunities',
           }),
         );
-      else sections.push(...data(p, group[key], `${title} · ${currency}`));
+      else sections.push(...data(p, group[key], title));
     }
-    if (empty.length) sections.push(hint(`No records · ${currency}: ${empty.join(', ')}`));
-    if (absent.length) states.push({ kind: 'info', text: `Breakdowns unknown · ${currency}: ${absent.join(', ')}` });
+    if (empty.length) {
+      sections.push(hint(`${empty.join(', ')}: no entries in this report.`));
+    }
+    if (absent.length) states.push({ kind: 'info', text: `Data not returned: ${absent.join(', ')}` });
   }
   if (options.expanded) {
     sections.push(

@@ -40,6 +40,9 @@ fi
 (cd scripts/agent-validation-runtime && bun install --frozen-lockfile) || exit 1
 XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/package.json" \
   bun scripts/validate-agent-permissions.ts || exit 1
+# Inventory discovery is isolated because registrations populate process-wide caches.
+bun test tests/presentation-tracker.test.ts || exit 1
+bun test scripts/presentation-inventory.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
 bun test tests/integration-lifecycle.test.ts || {
