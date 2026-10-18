@@ -199,3 +199,36 @@ it('resize requires fresh stopped-state and machine preconditions before submiss
   ).rejects.toThrow('prechecks');
   expect(calls).toBe(0);
 });
+it('cancellation before mutation preserves authorization without submission', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const p = plan();
+  const controller = new AbortController();
+  let submitted = 0;
+  await expect(
+    applyGcpNativeLifecycle(
+      s,
+      p,
+      p.sha256,
+      {
+        observe: async () => resource,
+        assertPreconditions: async () => {
+          controller.abort();
+        },
+        submit: async () => {
+          submitted++;
+          return {};
+        },
+        reconcile: async () => 'done',
+      },
+      controller.signal,
+    ),
+  ).rejects.toThrow();
+  expect(submitted).toBe(0);
+  const checkpoint = (await s.read('gcp-lifecycle-checkpoint.json')) as {
+    approvedPlanSha256: string;
+    actions: Record<string, { state: string }>;
+  };
+  expect(checkpoint.approvedPlanSha256).toBe(p.sha256);
+  expect(checkpoint.actions['stop-node'].state).toBe('prepared');
+});

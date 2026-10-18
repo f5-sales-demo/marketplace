@@ -17,10 +17,10 @@ export interface GcpLifecyclePlan {
   sha256: string;
 }
 export interface GcpNativeDriver {
-  observe(resource: GcpResourceIdentity): Promise<{ id: string; selfLink: string }>;
-  submit(action: GcpLifecycleAction): Promise<unknown>;
-  reconcile(action: GcpLifecycleAction, receipt: unknown): Promise<'pending' | 'done' | 'failed'>;
-  assertPreconditions?(action: GcpLifecycleAction): Promise<void>;
+  observe(resource: GcpResourceIdentity, signal?: AbortSignal): Promise<{ id: string; selfLink: string }>;
+  submit(action: GcpLifecycleAction, signal?: AbortSignal): Promise<unknown>;
+  reconcile(action: GcpLifecycleAction, receipt: unknown, signal?: AbortSignal): Promise<'pending' | 'done' | 'failed'>;
+  assertPreconditions?(action: GcpLifecycleAction, signal?: AbortSignal): Promise<void>;
 }
 interface ActionCheckpoint {
   state: 'prepared' | 'submitting' | 'pending' | 'done' | 'failed';
@@ -102,7 +102,9 @@ export async function applyGcpNativeLifecycle(
   plan: GcpLifecyclePlan,
   approvedHash: string,
   driver: GcpNativeDriver,
+  signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
   validate(plan, approvedHash);
   return store.exclusive(async () => {
     let checkpoint: Checkpoint;
@@ -134,6 +136,7 @@ export async function applyGcpNativeLifecycle(
     const save = () => store.write('gcp-lifecycle-checkpoint.json', checkpoint);
     await save();
     for (const action of plan.actions) {
+      signal?.throwIfAborted();
       if (action.dependencies.some((id) => checkpoint.actions[id]?.state !== 'done'))
         return { state: 'pending', actionId: action.id };
       let current = checkpoint.actions[action.id];
@@ -143,7 +146,7 @@ export async function applyGcpNativeLifecycle(
       if (current && !['prepared', 'submitting', 'pending'].includes(current.state))
         throw new Error('Malformed lifecycle action checkpoint');
       for (const resource of action.resources)
-        await assertGcpResourceOwnership(store, resource, await driver.observe(resource));
+        await assertGcpResourceOwnership(store, resource, await driver.observe(resource, signal));
       if (!current) {
         current = { state: 'prepared' };
         checkpoint.actions[action.id] = current;
@@ -152,16 +155,17 @@ export async function applyGcpNativeLifecycle(
       if (current.state === 'prepared') {
         if (action.argv[2] === 'set-machine-type' && !driver.assertPreconditions)
           throw new Error('Resize requires fresh stopped-state and sizing prechecks');
-        await driver.assertPreconditions?.(action);
+        await driver.assertPreconditions?.(action, signal);
+        signal?.throwIfAborted();
         current.state = 'submitting';
         await save();
         // Persist 'submitting' first. If submit or the following durable write
         // fails, the next invocation must use outcome reconciliation.
-        current.receipt = await driver.submit(action);
+        current.receipt = await driver.submit(action, signal);
         current.state = 'pending';
         await save();
       }
-      const result = await driver.reconcile(action, current.receipt);
+      const result = await driver.reconcile(action, current.receipt, signal);
       if (!['pending', 'done', 'failed'].includes(result)) throw new Error('Unknown native operation outcome');
       current.state = result;
       await save();

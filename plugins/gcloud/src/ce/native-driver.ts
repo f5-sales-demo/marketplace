@@ -17,8 +17,8 @@ function object(value: unknown): Record<string, unknown> {
 }
 /** Internal driver only; the plan executor admits reviewed arguments and owns authorization. */
 export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapStore): GcpNativeDriver {
-  const query = async (args: string[]) => {
-    const result = await api.exec('gcloud', args);
+  const query = async (args: string[], signal?: AbortSignal) => {
+    const result = await api.exec('gcloud', args, { signal });
     if (result.exitCode !== 0) throw new Error('Scoped GCP VM request failed');
     try {
       return object(JSON.parse(result.stdout));
@@ -26,17 +26,20 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
       throw new Error('Malformed scoped GCP VM response');
     }
   };
-  const observe = async (resource: GcpResourceIdentity) => {
+  const observe = async (resource: GcpResourceIdentity, signal?: AbortSignal) => {
     const scope = vmIdentity(resource);
-    return query([
-      'compute',
-      'instances',
-      'describe',
-      scope.name,
-      `--project=${scope.project}`,
-      `--zone=${scope.zone}`,
-      '--format=json(id,selfLink,status,machineType,networkInterfaces.name)',
-    ]);
+    return query(
+      [
+        'compute',
+        'instances',
+        'describe',
+        scope.name,
+        `--project=${scope.project}`,
+        `--zone=${scope.zone}`,
+        '--format=json(id,selfLink,status,machineType,networkInterfaces.name)',
+      ],
+      signal,
+    );
   };
   const operationBinding = (action: GcpLifecycleAction): GcpOperationBinding => {
     const resource = action.resources[0],
@@ -50,15 +53,15 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
     };
   };
   return {
-    async observe(resource) {
-      const result = await observe(resource);
+    async observe(resource, signal) {
+      const result = await observe(resource, signal);
       if (String(result.id) !== resource.id || result.selfLink !== resource.selfLink)
         throw new Error('Observed VM was replaced');
       return { id: String(result.id), selfLink: String(result.selfLink) };
     },
-    async assertPreconditions(action) {
+    async assertPreconditions(action, signal) {
       const resource = action.resources[0],
-        result = await observe(resource);
+        result = await observe(resource, signal);
       if (String(result.id) !== resource.id || result.selfLink !== resource.selfLink)
         throw new Error('VM identity changed before mutation');
       const operation = action.argv[2];
@@ -67,15 +70,18 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
         const type = action.argv.find((arg) => arg.startsWith('--machine-type='))?.split('=')[1];
         if (!type) throw new Error('Resize target missing');
         const scope = vmIdentity(resource);
-        const machine = await query([
-          'compute',
-          'machine-types',
-          'describe',
-          type,
-          `--project=${scope.project}`,
-          `--zone=${scope.zone}`,
-          '--format=json(name,guestCpus,memoryMb)',
-        ]);
+        const machine = await query(
+          [
+            'compute',
+            'machine-types',
+            'describe',
+            type,
+            `--project=${scope.project}`,
+            `--zone=${scope.zone}`,
+            '--format=json(name,guestCpus,memoryMb)',
+          ],
+          signal,
+        );
         const count = Array.isArray(result.networkInterfaces) ? result.networkInterfaces.length : 0;
         if (
           machine.name !== type ||
@@ -92,7 +98,7 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
         throw new Error('Start requires a stopped VM');
       else if (operation === 'stop' && result.status !== 'RUNNING') throw new Error('Stop requires a running VM');
     },
-    async submit(action) {
+    async submit(action, signal) {
       if (action.resources.length !== 1) throw new Error('Exact single VM mutation required');
       const scope = vmIdentity(action.resources[0]);
       if (
@@ -121,7 +127,7 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
           )
       )
         throw new Error('Unsupported native VM mutation argument');
-      const result = await api.exec('gcloud', action.argv);
+      const result = await api.exec('gcloud', action.argv, { signal });
       if (result.exitCode !== 0) throw new Error('VM mutation outcome requires reconciliation');
       let value: unknown;
       try {
@@ -138,15 +144,15 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
       // establish success only by a subsequent exact VM observation.
       return { kind: 'completed-command' };
     },
-    async reconcile(action, receipt) {
+    async reconcile(action, receipt, signal) {
       const operationReceipt =
         receipt && typeof receipt === 'object' ? (receipt as Record<string, unknown>) : undefined;
       if (operationReceipt?.kind === 'operation') {
-        const op = await reconcileGcpOperation(store, api, operationBinding(action));
+        const op = await reconcileGcpOperation(store, api, operationBinding(action), signal);
         if (op.state === 'pending' || op.state === 'failed') return op.state;
       }
       const resource = action.resources[0],
-        row = await observe(resource);
+        row = await observe(resource, signal);
       if (String(row.id) !== resource.id || row.selfLink !== resource.selfLink)
         throw new Error('VM identity changed during operation reconciliation');
       const operation = action.argv[2];
