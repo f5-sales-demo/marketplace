@@ -1,4 +1,7 @@
 import { expect, it } from 'bun:test';
+import { mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { translateGcpNativeCompute } from '../../src/ce/compute-plan';
 import { createGcpNativeCreationDriver } from '../../src/ce/native-create-driver';
 import { intent } from './fixtures';
@@ -69,4 +72,47 @@ it('native driver records and reconciles exact global async operation without fo
   expect(await d.reconcile(action, id, {})).toBe('done');
   expect(calls[1]).toContain('--global');
   await expect(d.reconcile(action, `create-${'b'.repeat(40)}`, {})).rejects.toThrow('Ambiguous');
+});
+
+it('checkpoint write failure removes private bootstrap staging before any cloud submit', async () => {
+  const i = intent();
+  i.routing.destinationCidrs = [];
+  const action = translateGcpNativeCompute(i).actions.find((a) => a.kind === 'instance');
+  if (!action) throw new Error('missing instance');
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'gcp-bootstrap-stage-')));
+  let calls = 0;
+  try {
+    const privateStore = {
+      read: async () => ({
+        nodeName: 'node-a',
+        project: i.project,
+        deploymentName: i.deploymentName,
+        siteName: i.sites[0].name,
+        engine: 'native',
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+        userData: '#cloud-config\n',
+        consumed: false,
+      }),
+      write: async () => {
+        throw new Error('checkpoint interrupted');
+      },
+      exclusive: async <T>(fn: () => Promise<T>) => fn(),
+    };
+    const driver = createGcpNativeCreationDriver(
+      {
+        exec: async () => {
+          calls++;
+          throw new Error('must not execute');
+        },
+      },
+      privateStore,
+      root,
+      i,
+    );
+    await expect(driver.submit(action, `create-${'a'.repeat(40)}`)).rejects.toThrow('checkpoint interrupted');
+    expect(await readdir(root)).toEqual([]);
+    expect(calls).toBe(0);
+  } finally {
+    await rm(root, { recursive: true });
+  }
 });
