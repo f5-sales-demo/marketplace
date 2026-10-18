@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import * as nodeFs from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -2086,5 +2087,24 @@ it('preserves ARM64 Zoom Web diagnostics with explicit backend selection', () =>
     spawn.mockRestore();
     if (prior === undefined) delete process.env.XCSH_ZOOM_BACKEND;
     else process.env.XCSH_ZOOM_BACKEND = prior;
+  }
+});
+
+it('baked desktop provider activation retains authentication without software installs', async () => {
+  const actual = nodeFs.existsSync;
+  const exists = spyOn(nodeFs, 'existsSync').mockImplementation(
+    (path) => path === '/etc/pi-desktop/desktop-lock.json' || actual(path),
+  );
+  try {
+    for (const plugin of ['aws', 'azure', 'gcloud', 'gitlab', 'terraform', 'kvm']) {
+      const defs = await definitionsFor(plugin);
+      expect(defs.length).toBeGreaterThan(0);
+      for (const def of defs) {
+        expect(def.setup?.steps.filter((step) => step.kind === 'install')).toEqual([]);
+        expect(def.setup?.verification.length).toBeGreaterThan(0);
+      }
+    }
+  } finally {
+    exists.mockRestore();
   }
 });
