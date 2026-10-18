@@ -33,7 +33,6 @@ producer arguments, frame rate, and managed profile/unit hashes. Keep the
 original Herdr session and unrelated terminals running. Setup reconciles only
 an exactly matching legacy camera override; conflicting overrides fail closed.
 
-
 ## Linux ARM64
 
 Linux ARM64 uses Zoom Web in Chrome automatically. The native Linux Workplace
@@ -53,14 +52,12 @@ never fall back to physical devices.
 Unqualified meeting actions return a capability gate. A launched browser or local
 virtual-device probe does not establish receiver-observed video, audio, or sharing.
 
-
 For the authorized development-lab meeting workflow, automatically acknowledge
 Zoom recording notices with their `Got it` control and AI/transcript notices
 with their `OK` control. Resolve each visible notice dialog by its recording or
 transcription text, then verify it closed. This acknowledgement does not start a
 recording or configure host recording settings. Do not treat these known lab
 notices as a meeting blocker or dismiss unrelated dialogs.
-
 
 Enable HD automatically before video-on whenever the selected backend exposes
 an HD setting, and verify that setting. For Zoom Web, open Video Settings and

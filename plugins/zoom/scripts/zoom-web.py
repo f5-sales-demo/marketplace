@@ -500,6 +500,13 @@ def observe_or_control(action, requested=None):
                     "backend": "zoom-web",
                     "controls": controls,
                     "acknowledged_notices": acknowledgements,
+                    "outbound_video": page.evaluate(
+                        "window.__piZoomMediaGuard.stats?.()"
+                    )
+                    or [],
+                    "virtual_media": page.evaluate(
+                        "window.__piZoomMediaGuard.status()"
+                    ),
                     "hd": json.loads((runtime / "pi-zoom-web-hd.json").read_text())
                     if (runtime / "pi-zoom-web-hd.json").is_file()
                     else {"hd": "pending"},
