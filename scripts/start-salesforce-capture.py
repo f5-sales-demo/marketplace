@@ -241,8 +241,11 @@ def main() -> None:
         "--extension",
         str(ROOT / "scripts/capture-salesforce-native.ts"),
     ]
+    launch = root / "launch.sh"
+    launch.write_text("#!/bin/sh\numask 077\nexec " + shlex.join(command) + "\n")
+    launch.chmod(0o700)
     subprocess.run(  # noqa: S603 - argv is fixed or comes from the owner-controlled capture protocol
-        ["herdr", "pane", "run", pane, "umask 077; " + shlex.join(command)],  # noqa: S607 - argv is fixed or comes from the owner-controlled capture protocol
+        ["herdr", "pane", "run", pane, "exec " + shlex.quote(str(launch))],  # noqa: S607 - argv is fixed or comes from the owner-controlled capture protocol
         stdout=subprocess.DEVNULL,
         check=True,
     )
