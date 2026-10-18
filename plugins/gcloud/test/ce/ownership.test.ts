@@ -1,5 +1,10 @@
 import { expect, it } from 'bun:test';
-import { assertGcpResourceOwnership, type GcpResourceIdentity, recordGcpResource } from '../../src/ce/ownership';
+import {
+  assertGcpResourceOwnership,
+  type GcpResourceIdentity,
+  readGcpResourceInventory,
+  recordGcpResource,
+} from '../../src/ce/ownership';
 
 const resource: GcpResourceIdentity = {
   id: '123',
@@ -58,4 +63,25 @@ it('rejects resource selfLinks in a scope unsupported by their kind', async () =
     selfLink: resource.selfLink.replace('/instances/', '/networks/'),
   };
   await expect(recordGcpResource(s, network)).rejects.toThrow('selfLink');
+});
+
+it('rejects unexpected private fields before retaining ownership identity', async () => {
+  const s = store();
+  await expect(
+    recordGcpResource(s, { ...resource, metadata: { token: 'PRIVATE' } } as GcpResourceIdentity),
+  ).rejects.toThrow('fields');
+  await expect(s.read()).rejects.toThrow('missing');
+});
+
+it('validates every resumed inventory record and returns an isolated copy', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const inventory = await readGcpResourceInventory(s, resource);
+  inventory[0].id = '456';
+  expect((await readGcpResourceInventory(s, resource))[0].id).toBe('123');
+  const ledger = (await s.read()) as { resources: GcpResourceIdentity[] };
+  ledger.resources.push({ ...resource, engine: 'terraform', id: '456' });
+  await s.write('gcp-resources.json', ledger);
+  await expect(readGcpResourceInventory(s, resource)).rejects.toThrow('mixed ownership');
+  await expect(assertGcpResourceOwnership(s, resource, resource)).rejects.toThrow('mixed ownership');
 });

@@ -10,7 +10,9 @@ const scope = {
 };
 function resource(kind: GcpResourceIdentity['kind'], collection: string, name: string): GcpResourceIdentity {
   return {
-    ...scope,
+    project: scope.project,
+    deploymentName: scope.deploymentName,
+    engine: scope.engine,
     id: '123',
     kind,
     selfLink: `https://www.googleapis.com/compute/v1/projects/test-project/${kind === 'instance' ? 'zones/northamerica-northeast1-a' : kind === 'subnetwork' ? 'regions/northamerica-northeast1' : 'global'}/${collection}/${name}`,
