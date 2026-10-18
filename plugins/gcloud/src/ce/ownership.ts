@@ -43,7 +43,9 @@ export function validateGcpResourceIdentity(resource: GcpResourceIdentity) {
   const suffix = resource.selfLink.slice(prefix.length);
   if (
     !resource.selfLink.startsWith(prefix) ||
-    !new RegExp(`^(?:global|zones/[a-z0-9-]+|regions/[a-z0-9-]+)/${collection}/[a-z][a-z0-9-]{0,62}$`).test(suffix)
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
   )
     throw new Error('Resource must have an exact scoped selfLink');
 }

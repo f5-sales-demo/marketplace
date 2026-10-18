@@ -44,3 +44,18 @@ it('missing ledger never authorizes deletion and repeated receipts are idempoten
   await recordGcpResource(s, resource);
   expect(((await s.read()) as { resources: unknown[] }).resources).toHaveLength(1);
 });
+it('rejects resource selfLinks in a scope unsupported by their kind', async () => {
+  const s = store();
+  await expect(
+    recordGcpResource(s, {
+      ...resource,
+      selfLink: resource.selfLink.replace('zones/northamerica-northeast1-a', 'global'),
+    }),
+  ).rejects.toThrow('selfLink');
+  const network = {
+    ...resource,
+    kind: 'network' as const,
+    selfLink: resource.selfLink.replace('/instances/', '/networks/'),
+  };
+  await expect(recordGcpResource(s, network)).rejects.toThrow('selfLink');
+});
