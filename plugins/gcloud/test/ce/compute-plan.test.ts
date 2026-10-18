@@ -4,6 +4,7 @@ import { intent } from './fixtures';
 
 it('native candidate preserves ordered NICs, scoped argv and private bootstrap input', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   const plan = translateGcpNativeCompute(i);
   expect(plan.executable).toBe(false);
   const vm = plan.actions.find((a) => a.kind === 'instance');
@@ -21,6 +22,7 @@ it('native candidate preserves ordered NICs, scoped argv and private bootstrap i
 });
 it('Terraform candidate pins provider, sensitive node input and identical NIC order', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   i.engine = 'terraform';
   const plan = translateGcpTerraformCompute(i, '7.0.0');
   expect(plan.executable).toBe(false);
@@ -38,9 +40,20 @@ it('Terraform candidate pins provider, sensitive node input and identical NIC or
 });
 it('compute translators reject wrong engine and unimplemented egress profiles', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   expect(() => translateGcpTerraformCompute(i, '7.0.0')).toThrow('ownership');
   i.engine = 'terraform';
   expect(() => translateGcpNativeCompute(i)).toThrow('ownership');
   i.egress.mode = 'cloud-nat';
   expect(() => translateGcpTerraformCompute(i, '7.0.0')).toThrow('external-IP');
+});
+
+it('compute translation rejects requested routes and load-balancer ingress instead of silently omitting them', () => {
+  const i = intent();
+  expect(() => translateGcpNativeCompute(i)).toThrow('destination routes');
+  i.engine = 'terraform';
+  expect(() => translateGcpTerraformCompute(i, '8.7.0')).toThrow('destination routes');
+  i.routing.destinationCidrs = [];
+  i.ingress.profile = 'internal-passthrough-lb';
+  expect(() => translateGcpTerraformCompute(i, '8.7.0')).toThrow('ingress');
 });

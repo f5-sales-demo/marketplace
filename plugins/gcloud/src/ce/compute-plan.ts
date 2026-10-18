@@ -10,12 +10,22 @@ export interface GcpNativeAction {
   sensitiveInput?: 'restricted-node-metadata-file';
 }
 
+function assertComputeOnly(intent: GcpCeIntent): void {
+  if (
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Compute translation cannot configure ingress or destination routes');
+}
+
 /** Candidate translation only. Execution requires immutable contract, approval and shared ledger. */
 export function translateGcpNativeCompute(intent: GcpCeIntent) {
   validateIntent(intent);
   if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
   const actions: GcpNativeAction[] = [];
   const networks = new Map<string, { subnet: string; cidr: string }>();
   for (const site of intent.sites)
@@ -106,6 +116,7 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
   if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
   const networks: Record<string, unknown> = {},
     subnets: Record<string, unknown> = {},
     instances: Record<string, unknown> = {};
