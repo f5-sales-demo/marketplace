@@ -1352,6 +1352,7 @@ function sameScope(a, b) {
 }
 var COLLECTIONS;
 var init_ownership = __esm(() => {
+  init_discovery();
   COLLECTIONS = {
     instance: 'instances',
     disk: 'disks',

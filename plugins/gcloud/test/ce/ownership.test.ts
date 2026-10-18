@@ -85,3 +85,12 @@ it('validates every resumed inventory record and returns an isolated copy', asyn
   await expect(readGcpResourceInventory(s, resource)).rejects.toThrow('mixed ownership');
   await expect(assertGcpResourceOwnership(s, resource, resource)).rejects.toThrow('mixed ownership');
 });
+
+it('equivalent identity key order does not change ownership or duplicate its ledger entry', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const reordered = Object.fromEntries(Object.entries(resource).reverse()) as unknown as GcpResourceIdentity;
+  await recordGcpResource(s, reordered);
+  await assertGcpResourceOwnership(s, reordered, resource);
+  expect((await readGcpResourceInventory(s, resource)).length).toBe(1);
+});

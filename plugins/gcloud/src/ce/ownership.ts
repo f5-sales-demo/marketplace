@@ -1,3 +1,4 @@
+import { fingerprint } from './discovery';
 import type { GcpOperationStore } from './native-operation';
 import type { GcpCeEngine } from './types';
 
@@ -102,7 +103,7 @@ export async function recordGcpResource(store: GcpOperationStore, resource: GcpR
     throw new Error('GCP ledger scope differs');
   if (ledger.resources.length) await readGcpResourceInventory(store, resource);
   const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
-  if (prior && JSON.stringify(prior) !== JSON.stringify(resource))
+  if (prior && fingerprint(prior) !== fingerprint(resource))
     throw new Error('GCP resource identity changed; explicit replacement required');
   if (!prior) {
     ledger.resources.push(structuredClone(resource));
@@ -120,7 +121,7 @@ export async function assertGcpResourceOwnership(
   const owned = resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
   if (
     !owned ||
-    JSON.stringify(owned) !== JSON.stringify(expected) ||
+    fingerprint(owned) !== fingerprint(expected) ||
     observed.id !== expected.id ||
     observed.selfLink !== expected.selfLink
   )
