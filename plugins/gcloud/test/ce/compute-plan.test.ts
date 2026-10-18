@@ -57,3 +57,22 @@ it('compute translation rejects requested routes and load-balancer ingress inste
   i.ingress.profile = 'internal-passthrough-lb';
   expect(() => translateGcpTerraformCompute(i, '8.7.0')).toThrow('ingress');
 });
+
+it('site compute qualification binds each node token to its site with sensitive metadata and no token inputs or outputs', async () => {
+  const { translateGcpTerraformSiteCompute } = await import('../../src/ce/compute-plan');
+  const i = intent();
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  const result = translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' });
+  expect(result.configuration.terraform.required_providers.xcsh.version).toBe('= 15.10.5');
+  expect(result.configuration.resource.xcsh_token.node_a).toMatchObject({
+    type: 1,
+    site_name: `\${xcsh_securemesh_site_v2.ce_site.name}`,
+  });
+  expect(result.configuration.resource.google_compute_instance.node_a).toMatchObject({
+    metadata: { 'user-data': expect.stringContaining('sensitive(') },
+  });
+  expect(Object.hasOwn(result.configuration, 'variable')).toBe(false);
+  expect(Object.hasOwn(result.configuration, 'output')).toBe(false);
+  expect(result.executable).toBe(false);
+});

@@ -192,3 +192,71 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
     },
   };
 }
+
+/** Qualification configuration: site-bound JWT remains in sensitive Terraform state, never in exported plans. */
+export function translateGcpTerraformSiteCompute(
+  intent: GcpCeIntent,
+  versions: { google: string; xcsh: string; terraform: string },
+) {
+  for (const version of Object.values(versions))
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
+  const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const sites: Record<string, unknown> = {};
+  const tokens: Record<string, unknown> = {};
+  const instances = cloud.configuration.resource.google_compute_instance as Record<string, Record<string, unknown>>;
+  for (const site of intent.sites) {
+    const siteKey = site.name.replaceAll('-', '_');
+    sites[siteKey] = {
+      name: site.name,
+      namespace: 'system',
+      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
+      gcp: { not_managed: {} },
+      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
+      disable_management_network: {},
+      block_all_services: {},
+      no_network_policy: {},
+      no_forward_proxy: {},
+      f5_proxy: {},
+      no_proxy_bypass: {},
+      logs_streaming_disabled: {},
+      no_s2s_connectivity_sli: {},
+      no_s2s_connectivity_slo: {},
+      disable_url_categorization: {},
+      local_vrf: { default_config: {}, default_sli_config: {} },
+    };
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
+      tokens[key] = {
+        name: `${node.name}-token`,
+        namespace: 'system',
+        type: 1,
+        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
+        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
+      };
+      // Terraform marks token.content sensitive in the exact provider schema.
+      // Deliberately do not create outputs or caller-supplied token variables.
+      const userData = `#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    permissions: "0600"\n    owner: root\n    content: |\n      token: \${xcsh_token.${key}.content}\n`;
+      instances[key].metadata = {
+        VmDnsSetting: 'ZonePreferred',
+        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
+      };
+    }
+  }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_version: `= ${versions.terraform}`,
+        required_providers: {
+          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
+          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
+        },
+      },
+      provider: { ...cloud.configuration.provider, xcsh: [{}] },
+      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
+    },
+  };
+}
