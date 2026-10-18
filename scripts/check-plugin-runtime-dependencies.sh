@@ -105,7 +105,10 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   fi
 
   expected_xcsh="$EXPECTED_XCSH"
-  expected_pi_utils="$EXPECTED_XCSH"
+  case "$plugin" in
+    aws|azure) expected_xcsh="23.6.8" ;;
+  esac
+  expected_pi_utils="$expected_xcsh"
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
@@ -121,7 +124,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
       ">=$expected_pi_utils" "$plugin pi-utils peer range"
   fi
 
-  require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$EXPECTED_XCSH" "$plugin pinned development runtime"
+  require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$expected_xcsh" "$plugin pinned development runtime"
 
   require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"
   require_lock_version "$lock" '@f5-sales-demo/pi-utils' "$expected_pi_utils"

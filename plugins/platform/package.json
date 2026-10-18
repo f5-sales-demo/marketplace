@@ -1,6 +1,6 @@
 {
   "name": "platform",
-  "version": "7.0.0-uat.4",
+  "version": "7.0.0-uat.5",
   "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
   "license": "Apache-2.0",
   "main": "dist/runtime.js",
@@ -10,17 +10,17 @@
   },
   "xcsh": {
     "name": "Platform",
-    "version": "7.0.0-uat.4",
+    "version": "7.0.0-uat.5",
     "extensions": [
       "dist/runtime.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.5.1"
+    "@f5-sales-demo/xcsh": ">=23.6.8"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.2",
-    "@f5-sales-demo/xcsh": "23.5.1"
+    "@f5-sales-demo/xcsh": "23.6.8"
   }
 }

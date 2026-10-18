@@ -7,12 +7,12 @@
     "draftPullRequest": 1327
   },
   "cohort": {
-    "revision": 4,
+    "revision": 5,
     "versions": {
-      "platform": "7.0.0-uat.4",
-      "aws": "3.0.0-uat.4",
-      "azure": "5.0.0-uat.4",
-      "terraform": "3.0.0-uat.4"
+      "platform": "7.0.0-uat.5",
+      "aws": "3.0.0-uat.5",
+      "azure": "5.0.0-uat.5",
+      "terraform": "3.0.0-uat.5"
     },
     "stableBaseVersions": {
       "platform": "6.2.0",
@@ -20,7 +20,7 @@
       "azure": "4.6.0",
       "terraform": "2.3.0"
     },
-    "runtimePeer": "23.5.1",
+    "runtimePeer": "23.6.8",
     "sourceCommit": "pending-validation",
     "deliverable": false
   },
