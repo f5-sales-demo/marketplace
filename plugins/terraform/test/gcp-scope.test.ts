@@ -20,7 +20,7 @@ test('shared Terraform runner persists GCP scope and rejects project/engine drif
     schemaVersion: 1 as const,
     deploymentId: 'gcp-ce-test',
     engine: 'terraform' as const,
-    scope: { cloud: 'gcp' as const, account: 'test-project', region: 'northamerica-northeast1' },
+    scope: { cloud: 'gcp' as const, account: 'example-project', region: 'northamerica-northeast1' },
     terraformVersion: '1.14.0',
     configuration: '{"terraform":{"required_version":"= 1.14.0"}}',
     providerLock: '# locked fixture',
@@ -33,7 +33,7 @@ test('shared Terraform runner persists GCP scope and rejects project/engine drif
   await expect(
     new TerraformRunner(root, exec).resume(deployment.deploymentId, {
       ...deployment,
-      scope: { ...deployment.scope, account: 'other-project' },
+      scope: { ...deployment.scope, account: 'example-other-project' },
     }),
   ).rejects.toThrow();
 });

@@ -34,7 +34,7 @@ test('deployment storage survives a new service instance and rejects engine migr
 test('GCP deployment storage resumes exact project and engine bindings with private modes', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gcp-ce-store-'));
   dirs.push(root);
-  const gcp = { ...owner, provider: 'gcp' as const, account: 'test-project', region: 'northamerica-northeast1' };
+  const gcp = { ...owner, provider: 'gcp' as const, account: 'example-project', region: 'northamerica-northeast1' };
   const store = await CeDeploymentStore.open(root, gcp);
   await store.write('checkpoint.json', {
     schemaVersion: 1,
@@ -45,7 +45,7 @@ test('GCP deployment storage resumes exact project and engine bindings with priv
   const resumed = await CeDeploymentStore.open(root, gcp);
   expect(await resumed.read('checkpoint.json')).toEqual({
     schemaVersion: 1,
-    project: 'test-project',
+    project: 'example-project',
     authorization: 'retained',
     operation: 'pending',
   });

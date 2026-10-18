@@ -74,7 +74,7 @@ test('rejects unresolved addresses, duplicate sites, invalid ports, arbitrary de
     { port: 65536 },
     { port: 80.5 },
     { port: '80' },
-    { namespace: '../system' },
+    { namespace: 'EXAMPLE_INVALID_NAMESPACE' },
     { endpoint_selection: 'DISTRIBUTED' },
     { outside_network: {} },
   ])

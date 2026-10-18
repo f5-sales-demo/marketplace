@@ -98,7 +98,7 @@ test('platform drain rejects changed persisted plans, foreign engines, duplicate
   for (const mode of ['owner', 'engine', 'duplicate', 'site', 'persisted'] as const) {
     const f = await fixture();
     const input = structuredClone(plan);
-    if (mode === 'owner') input.owner.account = 'other';
+    if (mode === 'owner') input.owner.account = 'example-other';
     if (mode === 'engine') f.state.engine = 'native';
     if (mode === 'duplicate') input.sites[0].routing.push(input.sites[0].routing[0]);
     if (mode === 'site') f.state.siteUid = 'replaced';

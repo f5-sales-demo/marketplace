@@ -694,7 +694,7 @@ test('reserves an Azure Route Server prefix through the schema-valid SLO local V
       ...binding.owner,
       engine: 'terraform',
       provider: 'azure',
-      account: 'demo-subscription',
+      account: 'example-subscription',
       region: 'australiacentral',
     },
   };
