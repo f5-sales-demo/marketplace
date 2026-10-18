@@ -45,7 +45,30 @@ export type CeResourceMutation = (
   init: RequestInit,
   signal?: AbortSignal,
 ) => Promise<Json>;
+const CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
 export class CeApiError extends Error {
+  readonly [CE_API_ERROR_BRAND] = true;
+  static [Symbol.hasInstance](value: unknown): value is CeApiError {
+    if (!(value instanceof Error)) return false;
+    const candidate = value as Error & { [CE_API_ERROR_BRAND]?: unknown; category?: unknown; status?: unknown };
+    return (
+      candidate[CE_API_ERROR_BRAND] === true &&
+      [
+        'authorization',
+        'expired',
+        'throttled',
+        'not-found',
+        'conflict',
+        'invalid-request',
+        'transient',
+        'malformed',
+        'cancelled',
+        'deadline',
+      ].includes(String(candidate.category)) &&
+      (candidate.status === undefined ||
+        (Number.isInteger(candidate.status) && Number(candidate.status) >= 100 && Number(candidate.status) <= 599))
+    );
+  }
   constructor(
     readonly category:
       | 'authorization'

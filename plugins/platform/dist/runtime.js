@@ -3569,7 +3569,7 @@ class CeRuntime {
     return this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
   }
 }
-var CeApiError, safeName;
+var CE_API_ERROR_BRAND, CeApiError, safeName;
 var init_runtime = __esm(() => {
   init_bgp_evidence();
   init_bgp_route_evidence();
@@ -3580,9 +3580,32 @@ var init_runtime = __esm(() => {
   init_platform_drain();
   init_teardown_inventory();
   init_upgrade_evidence();
+  CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
   CeApiError = class CeApiError extends Error {
     category;
     status;
+    [CE_API_ERROR_BRAND] = true;
+    static [Symbol.hasInstance](value) {
+      if (!(value instanceof Error)) return false;
+      const candidate = value;
+      return (
+        candidate[CE_API_ERROR_BRAND] === true &&
+        [
+          'authorization',
+          'expired',
+          'throttled',
+          'not-found',
+          'conflict',
+          'invalid-request',
+          'transient',
+          'malformed',
+          'cancelled',
+          'deadline',
+        ].includes(String(candidate.category)) &&
+        (candidate.status === undefined ||
+          (Number.isInteger(candidate.status) && Number(candidate.status) >= 100 && Number(candidate.status) <= 599))
+      );
+    }
     constructor(category, status) {
       super(`F5 CE API ${category}${status ? ` (HTTP ${status})` : ''}`);
       this.category = category;

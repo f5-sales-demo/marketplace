@@ -126,6 +126,9 @@ async function acquireProcessLock(path) {
   throw new Error('Operation lock could not be acquired');
 }
 
+// plugins/platform/src/ce/runtime.ts
+var CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
+
 // plugins/platform/src/ce/verified-api-release.ts
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v12.0.9';
