@@ -7,7 +7,6 @@ import {
   evidence,
   fields,
   formatSoql,
-  hint,
   incomplete,
   label,
   record,
@@ -114,22 +113,16 @@ export function queryView(
       );
   const warnings = [
     ...(query.done !== true
-      ? [
-          query.done === false
-            ? 'Results are incomplete. Counts and conclusions apply only to returned records.'
-            : 'Completeness was not returned.',
-        ]
+      ? [query.done === false ? 'Partial results · returned records only' : 'Completeness unknown']
       : []),
     ...(query.totalSize !== undefined && query.totalSize !== raw.length
       ? [`${value(query.totalSize)} records reported; ${value(raw.length)} returned.`]
       : []),
-    ...(incomplete(raw)
-      ? ['Related records are incomplete; inspect child-query scope before drawing conclusions.']
-      : []),
+    ...(incomplete(raw) ? ['Partial related records'] : []),
     ...(aggregate && Object.values(metricLabels).some((l) => /amount/.test(l)) && !keys.includes('CurrencyIsoCode')
-      ? ['Amount currency was not returned.']
+      ? ['Currency unknown']
       : []),
-    ...(options.isPartial ? ['Execution is still in progress; results are provisional.'] : []),
+    ...(options.isPartial ? ['Provisional results'] : []),
   ];
   const metricRows =
     records.length === 1 && aggregate
@@ -140,16 +133,21 @@ export function queryView(
       : undefined;
   return {
     summary: `${purpose} · ${value(raw.length)} ${aggregate ? 'aggregate rows' : 'records'} returned`,
-    warnings,
+    states: warnings.map((text) => ({
+      kind:
+        text === 'Provisional results'
+          ? 'running'
+          : text === 'Completeness unknown' || text === 'Currency unknown'
+            ? 'info'
+            : 'warning',
+      text,
+    })),
     sections: [
       ...context(operation, args),
       ...(soql
         ? [code(formatSoql(soql), operation === 'sf data search' ? 'SOSL' : 'SOQL')]
         : [fields({ Query: 'Not returned' })]),
       ...(metricRows ? [table(p, metricRows, undefined)] : [table(p, records, undefined, visible, metricLabels)]),
-      ...(!options.expanded && omitted.length
-        ? [hint(`${omitted.length} columns in expanded details: ${omitted.map(label).join(', ')}`)]
-        : []),
       ...(options.expanded
         ? [
             fields(

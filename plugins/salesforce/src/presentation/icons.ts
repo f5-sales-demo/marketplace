@@ -1,6 +1,15 @@
-import type { View } from './shared';
+import { type Options, ownedTables, type View } from './shared';
 
-type SymbolKey = 'icon.extensionSlashCommand' | 'lang.sql' | 'icon.file' | 'icon.host' | 'icon.extensionInstruction';
+type SymbolKey =
+  | 'status.info'
+  | 'status.warning'
+  | 'status.running'
+  | 'status.disabled'
+  | 'icon.extensionSlashCommand'
+  | 'lang.sql'
+  | 'icon.file'
+  | 'icon.host'
+  | 'icon.extensionInstruction';
 export type SymbolResolver = (key: SymbolKey) => string | undefined;
 export interface PresentationContext {
   hasUI: boolean;
@@ -18,28 +27,41 @@ export function sessionSymbols() {
   };
 }
 
-export function decorate(view: View, resolve: SymbolResolver, summaryKey?: SymbolKey): View {
-  const title = (key: SymbolKey, text = '') => [resolve(key), text].filter(Boolean).join(' ') || undefined;
+export function decorate(view: View, resolve: SymbolResolver, options: Options): View {
+  const { states = [], ...output } = view;
+  let missing = false;
+  const sections = view.sections.flatMap((section) => {
+    if (section.kind !== 'table' || !ownedTables.has(section)) return [section];
+    const formatted = {
+      ...section,
+      rows: section.rows.map((row) =>
+        Object.fromEntries(
+          section.columns.map(({ key }) => {
+            const value = row[key];
+            if (value !== null && value !== undefined) return [key, value];
+            missing = true;
+            return [key, resolve('status.disabled') ?? 'No value'];
+          }),
+        ),
+      ),
+    };
+    return [formatted];
+  });
+  const cues = states.map(({ kind, text }) => ({
+    kind: 'markdown' as const,
+    text: [resolve(`status.${kind}`), text].filter(Boolean).join(' '),
+  }));
+  const cueIndex = sections.findIndex((section) => section.kind === 'table');
+  const insert = cueIndex < 0 ? sections.length : cueIndex;
   return {
-    ...view,
-    ...(view.summary && summaryKey ? { summary: title(summaryKey, view.summary) } : {}),
-    sections: view.sections.map((section, index) => {
-      const name = section.title ?? '';
-      const key =
-        (index === 0 && section.kind === 'code' && !name) || /^Source query \d+$/.test(name)
-          ? 'icon.extensionSlashCommand'
-          : /^(Standard fields|Matching fields|Fields|Child relationships|Selected field metadata|Objects|Limits)$/.test(
-                name,
-              )
-            ? 'icon.file'
-            : name === 'Usage'
-              ? 'icon.extensionInstruction'
-              : name === 'Report scope'
-                ? 'icon.host'
-                : /^Pipeline summary/.test(name)
-                  ? 'lang.sql'
-                  : undefined;
-      return key ? { ...section, title: title(key, name) } : section;
-    }),
+    ...output,
+    sections: [
+      ...sections.slice(0, insert),
+      ...cues,
+      ...sections.slice(insert),
+      ...(missing
+        ? [{ kind: 'markdown' as const, text: [resolve('status.disabled'), 'No value'].filter(Boolean).join(' ') }]
+        : []),
+    ],
   };
 }
