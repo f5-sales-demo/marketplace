@@ -8,6 +8,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../../src/aws/exec';
 import { runAwsSiteReplacement } from '../../src/ce/site-replacement';
+import { runAwsTerraformInitialReplacement } from '../../src/ce/terraform-initial-replacement';
 import { createTerraformAwsSiteReplacementDriver } from '../../src/ce/terraform-site-replacement';
 import { replacementContract, replacementObservation } from './replacement-version-fixtures';
 import { terraformReplacementFixture } from './terraform-replacement-fixtures';
@@ -217,6 +218,8 @@ async function fixture(ha = false, connect = false) {
     createTerraformAwsSiteReplacementDriver(f.base, f.replacement, hash(f.configuration), session, store, api, {});
   return {
     ...f,
+    session,
+    api,
     open,
     store,
     flags,
@@ -508,6 +511,82 @@ test('Connect replacement rejects missing automatic routing recovery after routi
     await expect(f.open()).rejects.toThrow('automatic routing recovery');
     expect(f.events).toHaveLength(0);
     await expect(f.store.read(`${f.replacement.planId}-terraform-source.json`)).rejects.toThrow();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('initial Terraform admission resumes its frozen replacement through the owning driver', async () => {
+  const f = await fixture();
+  try {
+    const originalBootstrap = Object.fromEntries(
+      Object.entries(f.original.resource.aws_instance).map(([name, value]) => [
+        name.slice(5),
+        Buffer.from((value as Json).user_data_base64, 'base64').toString('utf8'),
+      ]),
+    );
+    const admittedSites = f.base.intent.topology.sites?.map((site) => site.name) ?? ['site'];
+    await f.store.write('terraform-admission.json', {
+      schemaVersion: 1,
+      planSha256: f.base.planSha256,
+      configurationSha256: hash(f.configuration),
+      bootstrapByNode: originalBootstrap,
+      admittedSites,
+    });
+    await f.store.write(`terraform-initial-replacement-${f.replacement.binding.siteName}.json`, {
+      sourcePlanSha256: f.base.planSha256,
+      configurationSha256: hash(f.configuration),
+      plan: f.replacement,
+    });
+    let uid: string | undefined = 'old-site';
+    let creates = 0;
+    const runtime = {
+      engine: 'terraform' as const,
+      observeUpgrade: async () => replacementObservation(f.replacement.binding, uid),
+      ownedSiteConfiguration: () => ({ routing: 'original' }),
+      observeOwnedSite: async () => {
+        if (!uid) throw Object.assign(new Error('absent'), { category: 'not-found' });
+        return { system_metadata: { uid }, resource_version: 'one' };
+      },
+      deleteBootstrapToken: async () => {},
+      deleteSite: async () => {
+        uid = undefined;
+      },
+      ensureAwsPreparedSite: async (
+        _binding: unknown,
+        _preparation: unknown,
+        save: (record: unknown) => Promise<void>,
+      ) => {
+        if (!uid) {
+          uid = 'new-site';
+          creates++;
+        }
+        await save({ uid });
+      },
+      bootstrap: async () => '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture\n',
+      approveRegistrations: async () => ({ status: 'healthy' }),
+      observeRegistrations: async () => ({ status: 'healthy' }),
+      observeAwsRegisteredConfiguration: async () => ({ status: 'configured' }),
+      ensureAwsInterfaceMtu: async () => {},
+    };
+    const run = () =>
+      runAwsTerraformInitialReplacement(
+        f.base,
+        { open: async () => f.session },
+        runtime as never,
+        f.store,
+        f.api,
+        fetch,
+        undefined,
+        async () => replacementContract,
+      );
+    expect(await run()).toEqual({ handled: true, status: 'registered' });
+    expect(await run()).toEqual({ handled: true, status: 'registered' });
+    expect(creates).toBe(1);
+    const admission = (await f.store.read('terraform-admission.json')) as Json;
+    expect(admission.bootstrapByNode['1']).not.toBe(originalBootstrap['1']);
+    expect(admission.bootstrapByNode['2']).toBe(originalBootstrap['2']);
+    expect(admission.admittedSites).toEqual(admittedSites);
   } finally {
     await f.cleanup();
   }
