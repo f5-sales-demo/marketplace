@@ -4,7 +4,8 @@ The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset
 against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc`.
 It declares GCP schema mappings and observational registration/interface joins,
 with single-node boot, registration and physical interface evidence for both
-engines. Its GCP executable capabilities remain unavailable. The readiness plan
+engines. Public deployment and broader lifecycle tools remain unavailable; narrow
+teardown qualification is recorded below. The readiness plan
 binds the current verified `f5xc-ce-automation-policy/v2` receipt when available;
 it contains zero executable actions and requests no approval.
 
@@ -65,7 +66,8 @@ independent absence checks on the same narrow disposable single-node profile.
 Terraform ownership projections select exact nested disk/NIC identities and array
 counts while rejecting sensitive provider fields. A preserved live-plan replay
 passes with the rebuilt installed runner; fresh live typed Terraform teardown
-remains unqualified. Full parity remains unqualified.
+also passed without fallback, including final empty destroy and eight independent
+absence checks on the narrow disposable profile. Full parity remains unqualified.
 
 Marketplace consent uses the Google Cloud SDK's Consumer Procurement v1alpha1
 project consent `check` and `grant` methods. Grant dry runs validate the exact
@@ -91,7 +93,8 @@ live cloud/Platform identities are rechecked before application. Stored session
 inputs preserve provider locks, context and engine across resume. Lost applies
 require independent absence evidence; partial outcomes never authorize blind
 reapplication. Final reconciliation requires a current empty destroy plan.
-Full installed live GCP cloud teardown remains unqualified for this candidate.
+Fresh installed live typed teardown passed on the narrow disposable single-node
+profile. Other topologies and full lifecycle parity remain unqualified.
 
 The pinned BYOL VM has a separate evidence-backed terms profile in
 `byol-vm-contract.json`. It fixes publisher image ID, license ID/code, billing

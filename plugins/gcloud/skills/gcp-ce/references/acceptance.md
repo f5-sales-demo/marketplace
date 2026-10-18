@@ -4,7 +4,7 @@ Current status: discovery/readiness, owned observations and narrow native teardo
 Native and Terraform deployment,
 bootstrap, upgrades, repair, replacement, failover, interruption recovery,
 restoration remain unavailable through public tools. Terraform teardown has a
-candidate owning-engine plan/apply path with installed live cloud acceptance pending.
+qualified owning-engine plan/apply path for the same narrow disposable profile.
 Full parity is unclaimed.
 
 Installed Terraform Platform identity qualification created one disposable XC
@@ -13,7 +13,7 @@ attestation preceded recording the original site UID and token identity hash.
 The follow-up plan contained only no-op actions; reviewed saved destroy, two
 independent API absence reads and a final empty destroy plan passed. Private
 staging was removed. No GCP VM or network was created. This qualifies identity
-capture and runner integration, with full live cloud teardown still unqualified.
+capture and runner integration only; later cloud qualification is recorded below.
 
 A later Terraform cloud campaign reached two healthy installed observations.
 Typed teardown review rejected the Google provider's sensitive boot-disk block.
@@ -21,7 +21,11 @@ The exact owning-engine fallback destroy and all eight independent absence check
 passed. The repaired projection reads only disk/NIC identities, array counts and
 order; a preserved live saved-plan replay through the rebuilt installed Terraform
 runner passes and still rejects the whole sensitive block. This replay establishes
-the projection repair; fresh installed live typed teardown remains unqualified.
+the projection repair. Fresh installed live requalification then passed: two
+consecutive healthy observations, exact typed review/apply without fallback,
+final empty destroy plan and all eight independent absence checks. This qualifies
+only the narrow disposable single-node Terraform teardown profile.
+See [acceptance evidence in PR #1566](https://github.com/f5-sales-demo/marketplace/pull/1566).
 
 The installed `gcp_marketplace_agreement` tool correctly reported the disabled
 Consumer Procurement API and Google's cloud-terms prerequisite on explicit

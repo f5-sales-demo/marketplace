@@ -18,7 +18,8 @@ and this project adheres to
 - **`gcloud`** adds candidate Terraform teardown through the owning plan/apply
   lifecycle, with stored session inputs, original Platform identity, exact saved
   destroy projection, interrupted outcome reconciliation and final absence checks.
-  Installed XC identity capture passed; full live cloud teardown remains pending (#1559).
+  Installed XC identity capture and fresh live cloud teardown passed on the narrow
+  disposable single-node profile, with final empty destroy and eight absence checks (#1559).
 - **`terraform`** attests exact completed saved plans before post-apply ownership
   capture. **`platform`** provides scoped site/token identity observations and a
   private Terraform execution context without exporting bootstrap material (#1559).
@@ -45,8 +46,8 @@ and this project adheres to
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
-  live saved-plan replay passes through the rebuilt installed runner; fresh live
-  typed Terraform teardown acceptance remains pending (#1559).
+  live saved-plan replay and fresh installed live typed Terraform teardown pass,
+  with exact saved-plan apply, final empty destroy and independent absence (#1559).
 - **`terraform`** v2.4.0 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
 - **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).

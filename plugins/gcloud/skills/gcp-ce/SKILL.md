@@ -68,8 +68,9 @@ Read [provider contract](references/provider-contract.md) before planning and
    creation plan completed. Missing ledgers cannot be replaced with labels or
    caller assertions. Partial interrupted application remains pending until
    independently reconciled. Final Terraform evidence requires an empty current
-   destroy plan and fresh absence checks. Installed live cloud teardown through
-   the Terraform candidate and other topologies remain unqualified.
+   destroy plan and fresh absence checks. Installed live cloud teardown passed for
+   both engines on this narrow disposable profile; other topologies remain
+   unqualified.
 
 When executable support is qualified, concrete billable, intrusive diagnostic
 and teardown plans must be reviewed before required approvals. Immutable SLO
