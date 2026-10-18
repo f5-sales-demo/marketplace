@@ -253,7 +253,7 @@ function literal(value) {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, literal(item)]));
   return value;
 }
-function renderProviderResource(request, resourceSchema) {
+function renderProviderResource(request, resourceSchema, resourceType) {
   const metadata = object(request.metadata),
     spec = object(request.spec);
   const convert = (values, schema) => {
@@ -296,11 +296,26 @@ function renderProviderResource(request, resourceSchema) {
     }
     return result;
   };
+  const discovered = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+  const siteDiscovery = ['xcsh_securemesh_site_v2', 'xcsh_voltstack_site', 'xcsh_aws_tgw_site'].includes(
+    resourceType ?? '',
+  );
+  const labels =
+    metadata.labels === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(object(metadata.labels)).filter(
+            ([key]) =>
+              !key.startsWith('ves.io/') &&
+              !key.startsWith('internal.ves.io/') &&
+              !(siteDiscovery && discovered.has(key)),
+          ),
+        );
   return convert(
     {
       name: metadata.name,
       namespace: metadata.namespace,
-      ...(metadata.labels ? { labels: metadata.labels } : {}),
+      ...(labels ? { labels } : {}),
       ...spec,
     },
     object(object(resourceSchema).block),
@@ -481,7 +496,7 @@ async function executeF5TerraformResource(platform, terraform, owner, path, init
     else
       next[addressName] = {
         type,
-        values: renderProviderResource(request, resourceSchema),
+        values: renderProviderResource(request, resourceSchema, type),
         path: itemPath,
         uid: book.resources[addressName]?.uid,
       };

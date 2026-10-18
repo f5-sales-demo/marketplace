@@ -75,3 +75,25 @@ test('omits only unsupported empty description defaults from nested API readback
   expect(() => renderProviderResource(request, schema)).toThrow('does not expose request field: description');
   expect(() => renderProviderResource({ ...request, spec: { unsupported: '' } }, schema)).toThrow('does not expose');
 });
+
+test('provider site labels exclude discovered hardware while retaining user and deployment ownership', () => {
+  const labels = {
+    domain: 'discovered',
+    'host-os-version': 'old-os',
+    'hw-model': 'model',
+    'hw-serial-number': 'old-node',
+    'hw-vendor': 'vendor',
+    'hw-version': '',
+    'ves.io/provider': 'aws',
+    'internal.ves.io/owner': 'system',
+    'xcsh-ce-deployment': 'owned',
+    custom: 'value',
+  };
+  const request = { metadata: { name: 'site', namespace: 'system', labels }, spec: {} };
+  const rendered = renderProviderResource(request, schema, 'xcsh_securemesh_site_v2');
+  expect(rendered.labels).toEqual({ 'xcsh-ce-deployment': 'owned', custom: 'value' });
+  expect(labels['hw-serial-number']).toBe('old-node');
+  const other = renderProviderResource(request, schema, 'xcsh_origin_pool');
+  expect((other.labels as Record<string, string>).domain).toBe('discovered');
+  expect((other.labels as Record<string, string>)['ves.io/provider']).toBeUndefined();
+});

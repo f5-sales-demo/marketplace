@@ -15,7 +15,7 @@ function literal(value: unknown): unknown {
 }
 
 /** Translate a validated F5 request using the exact installed provider schema, never guessed block shapes. */
-export function renderProviderResource(request: Json, resourceSchema: unknown): Json {
+export function renderProviderResource(request: Json, resourceSchema: unknown, resourceType?: string): Json {
   const metadata = object(request.metadata),
     spec = object(request.spec);
   const convert = (values: Json, schema: Json): Json => {
@@ -58,11 +58,28 @@ export function renderProviderResource(request: Json, resourceSchema: unknown): 
     }
     return result;
   };
+  // Pinned xcsh provider v8.0.0 treats these keys as platform-owned on node-backed sites.
+  // Other resources may legitimately use discovery-named labels such as domain.
+  const discovered = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+  const siteDiscovery = ['xcsh_securemesh_site_v2', 'xcsh_voltstack_site', 'xcsh_aws_tgw_site'].includes(
+    resourceType ?? '',
+  );
+  const labels =
+    metadata.labels === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(object(metadata.labels)).filter(
+            ([key]) =>
+              !key.startsWith('ves.io/') &&
+              !key.startsWith('internal.ves.io/') &&
+              !(siteDiscovery && discovered.has(key)),
+          ),
+        );
   return convert(
     {
       name: metadata.name,
       namespace: metadata.namespace,
-      ...(metadata.labels ? { labels: metadata.labels } : {}),
+      ...(labels ? { labels } : {}),
       ...spec,
     },
     object(object(resourceSchema).block),

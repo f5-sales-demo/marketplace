@@ -212,7 +212,7 @@ export async function executeF5TerraformResource(
     else
       next[addressName] = {
         type,
-        values: renderProviderResource(request!, resourceSchema),
+        values: renderProviderResource(request!, resourceSchema, type),
         path: itemPath,
         uid: book.resources[addressName]?.uid,
       };
