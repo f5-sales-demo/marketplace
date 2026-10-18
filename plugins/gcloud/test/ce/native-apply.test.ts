@@ -170,3 +170,32 @@ it('rejects foreign or dependency-forged checkpoint actions without executing', 
   ).rejects.toThrow('foreign');
   expect(calls).toBe(0);
 });
+it('resize requires fresh stopped-state and machine preconditions before submission', async () => {
+  const s = store();
+  await recordGcpResource(s, resource);
+  const p = plan();
+  p.actions[0].argv = [
+    'compute',
+    'instances',
+    'set-machine-type',
+    'node-a',
+    '--project=example-project',
+    '--zone=northamerica-northeast1-a',
+    '--machine-type=n2-standard-16',
+    '--format=json',
+  ];
+  const { sha256: _hash, ...body } = p;
+  p.sha256 = fingerprint(body);
+  let calls = 0;
+  await expect(
+    applyGcpNativeLifecycle(s, p, p.sha256, {
+      observe: async () => resource,
+      submit: async () => {
+        calls++;
+        return {};
+      },
+      reconcile: async () => 'done',
+    }),
+  ).rejects.toThrow('prechecks');
+  expect(calls).toBe(0);
+});

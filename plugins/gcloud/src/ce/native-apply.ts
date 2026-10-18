@@ -20,6 +20,7 @@ export interface GcpNativeDriver {
   observe(resource: GcpResourceIdentity): Promise<{ id: string; selfLink: string }>;
   submit(action: GcpLifecycleAction): Promise<unknown>;
   reconcile(action: GcpLifecycleAction, receipt: unknown): Promise<'pending' | 'done' | 'failed'>;
+  assertPreconditions?(action: GcpLifecycleAction): Promise<void>;
 }
 interface ActionCheckpoint {
   state: 'prepared' | 'submitting' | 'pending' | 'done' | 'failed';
@@ -149,6 +150,9 @@ export async function applyGcpNativeLifecycle(
         await save();
       }
       if (current.state === 'prepared') {
+        if (action.argv[2] === 'set-machine-type' && !driver.assertPreconditions)
+          throw new Error('Resize requires fresh stopped-state and sizing prechecks');
+        await driver.assertPreconditions?.(action);
         current.state = 'submitting';
         await save();
         // Persist 'submitting' first. If submit or the following durable write
