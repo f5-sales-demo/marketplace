@@ -23,7 +23,7 @@ const binding = {
   deploymentName: 'ce-test',
   siteName: 'site-test',
   nodeName: 'node-test',
-  jwt: 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl',
+  jwt: ['fixtureheader', 'fixturepayload', 'fixturesignature'].join('.'),
   expiresAt: '2026-10-18T01:00:00Z',
 };
 it('formats the documented GCP user-data without overwriting certified config', () => {
