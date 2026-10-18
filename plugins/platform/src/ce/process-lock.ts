@@ -41,7 +41,7 @@ if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
 elif result==0 and ctypes.get_errno()==3: sys.exit(3)
 else: sys.exit(2)
 `;
-    const child = Bun.spawn(['python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
     const start = (await new Response(child.stdout).text()).trim();
     const code = await child.exited;
     if (code === 3) return undefined;
