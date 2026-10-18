@@ -327,23 +327,34 @@ def playwright_runtime():
 
 
 def maintain_browser_guard(page, selected):
-    """Keep notice, identity and HD automation attached to the owned browser."""
+    """Keep virtual-device protection alive while bounded UI checks retry."""
+    # pylint: disable=import-outside-toplevel
+    from playwright.sync_api import Error as BrowserError  # noqa: PLC0415
+
     hd_attempted = False
     while not page.is_closed():
-        acknowledge_meeting_notices(page)
-        name = page.locator("#input-for-name")
-        if name.count() == 1 and name.is_visible() and not name.input_value():
-            name.fill(selected.get("display_name", "xcsh"))
-        if (
-            not hd_attempted
-            and page.locator('button[aria-label="More video controls"]').count() == 1
-        ):
-            hd_result = ensure_web_hd(page)
-            if hd_result.get("hd") != "pending":
-                hd_path = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-hd.json"
-                hd_path.write_text(json.dumps(hd_result))
-                hd_path.chmod(0o600)
-                hd_attempted = True
+        try:
+            acknowledge_meeting_notices(page)
+            name = page.locator("#input-for-name")
+            if name.count() == 1 and name.is_visible() and not name.input_value():
+                name.fill(selected.get("display_name", "xcsh"))
+            if (
+                not hd_attempted
+                and page.locator('button[aria-label="More video controls"]').count()
+                == 1
+            ):
+                hd_result = ensure_web_hd(page)
+                if hd_result.get("hd") != "pending":
+                    hd_path = (
+                        Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-hd.json"
+                    )
+                    hd_path.write_text(json.dumps(hd_result))
+                    hd_path.chmod(0o600)
+                    hd_attempted = True
+        except BrowserError:
+            if page.is_closed():
+                break
+            # A stale optional dialog is retried; the capture guard stays active.
         page.wait_for_timeout(1000)
 
 
@@ -456,7 +467,7 @@ def acknowledge_meeting_notices(page):
                         has_text=re.compile("^" + re.escape(label) + "$")
                     )
             if notice.count() == 1 and buttons.count() == 1 and buttons.is_visible():
-                buttons.click(timeout=5000)
+                buttons.evaluate("button => button.click()")
                 notice.wait_for(state="hidden", timeout=5000)
                 acknowledgements.append(kind)
                 matched = True
