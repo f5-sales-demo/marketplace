@@ -1,5 +1,8 @@
 # ruff: noqa: ANN201, D101, D102, PT009, PT027
 import importlib.util
+import json
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -60,3 +63,20 @@ class ZoomWebSafety(unittest.TestCase):
             ),
             "https://us06web.zoom.us/wc/join/12345678901?pwd=synthetic-token",
         )
+
+    def test_owned_browser_rejects_foreign_or_invalid_state_before_attach(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "pi-zoom-web-state.json"
+            state.write_text(json.dumps({"port": True, "pid": 1, "profile": directory}))
+            state.chmod(0o600)
+            with (
+                patch.dict(os.environ, {"XDG_RUNTIME_DIR": directory}),
+                self.assertRaises(ValueError),
+            ):
+                module.owned_browser_state()
+            state.chmod(0o644)
+            with (
+                patch.dict(os.environ, {"XDG_RUNTIME_DIR": directory}),
+                self.assertRaises(ValueError),
+            ):
+                module.owned_browser_state()
