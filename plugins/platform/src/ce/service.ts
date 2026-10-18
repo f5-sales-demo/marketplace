@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { resolveGcpContract } from '../../../gcloud/src/ce/contract';
 import { CeDeploymentStore } from './deployment-store';
+import { createGcpPlatformObservations, type GcpPlatformObservations } from './gcp-observation';
 import { type CeOwner, CeRuntime } from './runtime';
 import { type AzureRouteServerEbgpMultihopCapability, VerifiedCeContract } from './verified-contract';
 
@@ -31,6 +33,7 @@ export interface CePlatformService {
   storage(owner: CeOwner): Promise<CeDeploymentStore>;
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
+  gcpObservations?(owner: CeOwner, contextName: string, signal?: AbortSignal): Promise<GcpPlatformObservations>;
 }
 export type PublishedCeContractLoader = () => Promise<VerifiedCeContract>;
 async function context(
@@ -65,6 +68,16 @@ export function createCePlatformService(
     return loaded;
   };
   return {
+    async gcpObservations(owner, contextName, signal) {
+      const credentials = await context(env, contextName);
+      const artifact = await resolveGcpContract(undefined, signal);
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join(env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      return createGcpPlatformObservations(store, contextName, credentials.url, credentials.credential, artifact);
+    },
     storage(owner) {
       return CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??

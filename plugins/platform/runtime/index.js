@@ -644,7 +644,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash8, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash10, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -657,7 +657,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash4(value) {
-  return createHash8('sha256').update(canonical5(value)).digest('hex');
+  return createHash10('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -816,7 +816,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash9, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash11, randomUUID as randomUUID3 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute3, join as join5, resolve, sep } from 'node:path';
@@ -848,7 +848,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash9('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash11('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -1010,25 +1010,134 @@ var init_f5xc_ce_v2_capabilities = __esm(() => {
 // plugins/platform/src/index.ts
 init_driver();
 
-// plugins/platform/src/ce/deployment-store.ts
-import { createHash as createHash2, randomUUID } from 'node:crypto';
+// plugins/gcloud/src/ce/contract.ts
+// plugins/gcloud/src/ce/discovery.ts
+import { createHash as createHash2, createHash as createHash3 } from 'node:crypto';
 // plugins/platform/src/ce/service.ts
-import {
-  chmod,
-  lstat,
-  mkdir,
-  readFile,
-  readFile as readFile3,
-  realpath,
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute as isAbsolute2, join, join as join4 } from 'node:path';
+import { join as join4 } from 'node:path';
+
+function fingerprint(value) {
+  const stable = (item) =>
+    Array.isArray(item)
+      ? item.map(stable)
+      : item && typeof item === 'object'
+        ? Object.fromEntries(
+            Object.entries(item)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => [k, stable(v)]),
+          )
+        : item;
+  return `sha256:${createHash2('sha256')
+    .update(JSON.stringify(stable(value)))
+    .digest('hex')}`;
+}
+
+// plugins/gcloud/src/ce/contract.ts
+var GCP_CE_API_RELEASE = {
+  repository: 'f5-sales-demo/api-specs-enriched',
+  tag: 'v12.1.2',
+  contractDigest: 'sha256:07f797c5d48fe8fc7557add08242cb5fff04ffe69f669c84ce377ca7c6abc325',
+};
+async function resolveGcpContract(fetcher = fetch, signal) {
+  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+  const read = async (url, maximum = 1024 * 1024) => {
+    combined.throwIfAborted();
+    const response = await fetcher(url, {
+      signal: combined,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
+    if (!response.body) throw new Error('Contract response body unavailable');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > maximum) throw new Error('Contract response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const base = `https://api.github.com/repos/${GCP_CE_API_RELEASE.repository}`;
+  const release = decode(await read(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`));
+  if (
+    release.tag_name !== GCP_CE_API_RELEASE.tag ||
+    release.immutable !== true ||
+    release.draft !== false ||
+    release.prerelease !== false
+  )
+    throw new Error('Contract release is not final and immutable');
+  const assets = release.assets;
+  if (!Array.isArray(assets)) throw new Error('Malformed contract release assets');
+  const matches = assets.filter((asset) => asset.name === 'smsv2-contract.json');
+  const expectedUrl = `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/smsv2-contract.json`;
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== GCP_CE_API_RELEASE.contractDigest ||
+    matches[0].browser_download_url !== expectedUrl
+  )
+    throw new Error('Contract asset identity mismatch');
+  const bytes = await read(expectedUrl, 4 * 1024 * 1024);
+  if (`sha256:${createHash3('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+    throw new Error('Contract asset digest mismatch');
+  const contract = decode(bytes);
+  if (
+    contract.contract_id !== 'f5xc-smsv2-api/v1' ||
+    !contract.providers ||
+    typeof contract.providers !== 'object' ||
+    Array.isArray(contract.providers)
+  )
+    throw new Error('Malformed executable CE contract');
+  const gcp = contract.providers.gcp;
+  const observations =
+    gcp?.registration_observation?.availability === 'observational_read_only' &&
+    gcp.registration_observation.path === '/api/register/namespaces/system/registrations_by_site/{site_name}' &&
+    gcp.registration_observation.method === 'GET' &&
+    gcp.registration_observation.required_provider === 'GOOGLE' &&
+    gcp.physical_interface_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation.path === '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' &&
+    gcp.global_health_observation.method === 'GET' &&
+    gcp.global_health_observation.healthy_state === 'PROVISIONED' &&
+    gcp.global_health_observation.exact_node_join_required === true &&
+    fingerprint(gcp.global_health_observation.state_values) ===
+      fingerprint(['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'])
+      ? {
+          configuration: '/api/config/namespaces/system/securemesh_site_v2s/{site}',
+          registrations: '/api/register/namespaces/system/registrations_by_site/{site}',
+          health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health',
+        }
+      : undefined;
+  return {
+    release: GCP_CE_API_RELEASE,
+    fingerprint: fingerprint(contract),
+    availability: 'unavailable',
+    reason: Object.hasOwn(contract.providers, 'gcp')
+      ? 'gcp_provider_requires_consumer_qualification'
+      : 'gcp_provider_not_published',
+    ...(observations ? { observations } : {}),
+  };
+}
+
+// plugins/platform/src/ce/deployment-store.ts
+import { createHash as createHash4, randomUUID } from 'node:crypto';
+import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { isAbsolute as isAbsolute2, join } from 'node:path';
 
 function key(owner) {
-  return createHash2('sha256')
+  return createHash4('sha256')
     .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
     .digest('hex');
 }
@@ -1338,7 +1447,7 @@ function bindAwsCloudInit(response, jwt) {
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 // plugins/platform/src/ce/process-lock.ts
-import { createHash as createHash3, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash5, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   lstat as lstat2,
   mkdir as mkdir2,
@@ -1511,7 +1620,7 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash = (value) => createHash3('sha256').update(canonical(value)).digest('hex');
+var hash = (value) => createHash5('sha256').update(canonical(value)).digest('hex');
 var same = (a, b) => canonical(a) === canonical(b);
 var uid = (value) => {
   const result = object5(value.system_metadata).uid;
@@ -2160,7 +2269,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
 }
 
 // plugins/platform/src/ce/origin-teardown.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 
 function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed origin evidence');
@@ -2175,7 +2284,7 @@ function canonical2(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var digest = (value) => createHash4('sha256').update(canonical2(value)).digest('hex');
+var digest = (value) => createHash6('sha256').update(canonical2(value)).digest('hex');
 function path(locator, kind) {
   if (
     !locator ||
@@ -2306,7 +2415,7 @@ class CeOriginTeardown {
 }
 
 // plugins/platform/src/ce/platform-drain.ts
-import { createHash as createHash5 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 
 function canonical3(value) {
   if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
@@ -2318,7 +2427,7 @@ function canonical3(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash2 = (value) => createHash5('sha256').update(canonical3(value)).digest('hex');
+var hash2 = (value) => createHash7('sha256').update(canonical3(value)).digest('hex');
 var name = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text = (value) => typeof value === 'string' && !!value.trim();
 var list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
@@ -4391,9 +4500,114 @@ class CeRuntime {
   }
 }
 
+// plugins/platform/src/ce/gcp-observation.ts
+async function createGcpPlatformObservations(store, contextName, apiUrl, credential, contract, fetcher = fetch) {
+  const base = new URL(apiUrl);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
+    throw new Error('Explicit HTTPS GCP platform context required');
+  if (store.owner.provider !== 'gcp' || !contract.observations)
+    throw new Error('Verified GCP observations unavailable');
+  const mappings = structuredClone(contract.observations);
+  const journalName =
+    store.owner.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json';
+  const loadIntent = async () => {
+    await store.verify();
+    const saved = await store.read(journalName);
+    const intent = saved?.intent;
+    if (
+      !intent ||
+      saved.intentFingerprint !== fingerprint(intent) ||
+      saved.platformContext !== contextName ||
+      intent.platformContext !== contextName ||
+      intent.project !== store.owner.account ||
+      intent.region !== store.owner.region ||
+      intent.engine !== store.owner.engine ||
+      intent.deploymentName !== store.owner.deploymentId ||
+      !Array.isArray(intent.sites)
+    )
+      throw new Error('GCP observation context/ownership differs');
+    return intent;
+  };
+  const original = await loadIntent();
+  const request = async (path, signal) => {
+    const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+    combined.throwIfAborted();
+    const response = await fetcher(new URL(path, base), {
+      method: 'GET',
+      redirect: 'error',
+      signal: combined,
+      headers: { Accept: 'application/json', Authorization: `APIToken ${credential}` },
+    });
+    if (!response.ok)
+      throw new CeApiError(
+        response.status === 404
+          ? 'not-found'
+          : response.status === 401
+            ? 'expired'
+            : response.status === 403
+              ? 'authorization'
+              : 'transient',
+        response.status,
+      );
+    if (!response.body) throw new CeApiError('malformed');
+    const reader = response.body.getReader(),
+      chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > 16 * 1024 * 1024) throw new CeApiError('malformed');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    let result;
+    try {
+      result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+      throw new CeApiError('malformed');
+    }
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new CeApiError('malformed');
+    return result;
+  };
+  const configPath = (site) => mappings.configuration.replace('{site}', site);
+  const read = async (site, kind, signal) => {
+    signal?.throwIfAborted();
+    const current = await loadIntent();
+    if (
+      fingerprint(current) !== fingerprint(original) ||
+      !/^[a-z][a-z0-9-]{0,62}$/.test(site) ||
+      current.sites.filter((s) => s.name === site).length !== 1
+    )
+      throw new Error('GCP observation site/intent differs');
+    const configuration = await request(configPath(site), signal);
+    const metadata = configuration.metadata;
+    if (
+      metadata?.name !== site ||
+      metadata.namespace !== 'system' ||
+      metadata.labels?.['xcsh-deployment'] !== store.owner.deploymentId ||
+      metadata.labels['xcsh-engine'] !== store.owner.engine
+    )
+      throw new Error('Live GCP site ownership differs');
+    if (kind === 'configuration') return configuration;
+    return request(mappings[kind].replace('{site}', site), signal);
+  };
+  return {
+    configuration: (site, signal) => read(site, 'configuration', signal),
+    registrations: (site, signal) => read(site, 'registrations', signal),
+    health: (site, signal) => read(site, 'health', signal),
+  };
+}
+
 // plugins/platform/src/ce/verified-contract.ts
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash6, createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8, createHash as createHash9 } from 'node:crypto';
 
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v7.0.1';
@@ -4454,7 +4668,7 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
   const resolved = parse(await read(`https://api.github.com/repos/${repository}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash6('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash8('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -5089,7 +5303,7 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash3 = (bytes) => `sha256:${createHash7('sha256').update(bytes).digest('hex')}`;
+var hash3 = (bytes) => `sha256:${createHash9('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
 function object16(value) {
@@ -5439,6 +5653,16 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
     return loaded;
   };
   return {
+    async gcpObservations(owner, contextName, signal) {
+      const credentials = await context(env, contextName);
+      const artifact = await resolveGcpContract(undefined, signal);
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join4(env.XDG_STATE_HOME ?? join4(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      return createGcpPlatformObservations(store, contextName, credentials.url, credentials.credential, artifact);
+    },
     storage(owner) {
       return CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??

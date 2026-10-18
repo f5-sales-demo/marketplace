@@ -11,6 +11,11 @@ export interface GcpCeContractBoundary {
   fingerprint: string;
   availability: 'unavailable';
   reason: 'gcp_provider_not_published' | 'gcp_provider_requires_consumer_qualification';
+  observations?: {
+    configuration: '/api/config/namespaces/system/securemesh_site_v2s/{site}';
+    registrations: '/api/register/namespaces/system/registrations_by_site/{site}';
+    health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health';
+  };
 }
 export async function resolveGcpContract(
   fetcher: typeof fetch = fetch,
@@ -77,6 +82,26 @@ export async function resolveGcpContract(
     throw new Error('Malformed executable CE contract');
   // A newly declared provider is insufficient: explicit wire/bootstrap/runtime
   // mappings must be qualified by the consumer before any mutation is enabled.
+  const gcp = contract.providers.gcp;
+  const observations =
+    gcp?.registration_observation?.availability === 'observational_read_only' &&
+    gcp.registration_observation.path === '/api/register/namespaces/system/registrations_by_site/{site_name}' &&
+    gcp.registration_observation.method === 'GET' &&
+    gcp.registration_observation.required_provider === 'GOOGLE' &&
+    gcp.physical_interface_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation.path === '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' &&
+    gcp.global_health_observation.method === 'GET' &&
+    gcp.global_health_observation.healthy_state === 'PROVISIONED' &&
+    gcp.global_health_observation.exact_node_join_required === true &&
+    fingerprint(gcp.global_health_observation.state_values) ===
+      fingerprint(['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'])
+      ? {
+          configuration: '/api/config/namespaces/system/securemesh_site_v2s/{site}' as const,
+          registrations: '/api/register/namespaces/system/registrations_by_site/{site}' as const,
+          health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' as const,
+        }
+      : undefined;
   return {
     release: GCP_CE_API_RELEASE,
     fingerprint: fingerprint(contract),
@@ -84,5 +109,6 @@ export async function resolveGcpContract(
     reason: Object.hasOwn(contract.providers, 'gcp')
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
+    ...(observations ? { observations } : {}),
   };
 }
