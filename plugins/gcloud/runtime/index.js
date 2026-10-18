@@ -12,6 +12,161 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// plugins/platform/src/ce/process-lock.ts
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+
+async function bootId() {
+  let value;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
+  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
+  return value;
+}
+async function processStartTicks(pid) {
+  if (process.platform === 'darwin') {
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const end = value.lastIndexOf(') ');
+    const fields =
+      end < 0
+        ? []
+        : value
+            .slice(end + 2)
+            .trim()
+            .split(/\s+/);
+    const start = fields[19];
+    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
+    return start;
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+}
+function claim(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  const row = value;
+  if (
+    row.schemaVersion !== 1 ||
+    typeof row.token !== 'string' ||
+    !tokenPattern.test(row.token) ||
+    !Number.isSafeInteger(row.pid) ||
+    Number(row.pid) < 1 ||
+    typeof row.bootId !== 'string' ||
+    !bootPattern.test(row.bootId) ||
+    typeof row.processStartTicks !== 'string' ||
+    !/^\d+$/.test(row.processStartTicks)
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  return row;
+}
+async function readClaim(path) {
+  const stat = await lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
+    throw new Error('Operation lock evidence cannot be reconciled');
+  try {
+    const claimPath = join(path, 'claim.json');
+    const claimStat = await lstat(claimPath);
+    if (
+      !claimStat.isFile() ||
+      claimStat.isSymbolicLink() ||
+      claimStat.nlink !== 1 ||
+      claimStat.uid !== process.getuid?.() ||
+      (claimStat.mode & 63) !== 0
+    )
+      throw new Error('Operation lock evidence cannot be reconciled');
+    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
+  } catch (error) {
+    if (error instanceof SyntaxError || error.code === 'ENOENT')
+      throw new Error('Operation lock evidence cannot be reconciled');
+    throw error;
+  }
+}
+async function acquireProcessLock(path) {
+  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
+    throw new Error('Invalid operation lock path');
+  const currentBootId = await bootId();
+  const currentStart = await processStartTicks(process.pid);
+  if (!currentStart) throw new Error('Current process identity is unavailable');
+  const mine = {
+    schemaVersion: 1,
+    token: randomUUID(),
+    pid: process.pid,
+    bootId: currentBootId,
+    processStartTicks: currentStart,
+  };
+  const parent = dirname(path);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = join(parent, `${basename(path)}.claim-${mine.token}`);
+    await mkdir(candidate, { mode: 448 });
+    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
+    try {
+      await rename(candidate, path);
+      return async () => {
+        const owned = await readClaim(path);
+        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
+        await rm(path, { recursive: true });
+      };
+    } catch (error) {
+      await rm(candidate, { recursive: true });
+      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
+    }
+    let existing;
+    try {
+      existing = await readClaim(path);
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
+    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
+      throw new Error('Operation lock is held by a live process');
+    const stale = join(parent, `${basename(path)}.stale-${randomUUID()}`);
+    try {
+      await rename(path, stale);
+      await rm(stale, { recursive: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error('Operation lock could not be acquired');
+}
+var tokenPattern, bootPattern;
+var init_process_lock = __esm(() => {
+  tokenPattern = /^[a-f0-9-]{36}$/;
+  bootPattern = /^[a-f0-9-]{36}$/;
+});
+
 // plugins/gcloud/src/gcloud/exec.ts
 function detectGcloudError(stderr, exitCode) {
   const lower = stderr.toLowerCase();
@@ -114,6 +269,119 @@ var init_exec = __esm(() => {
   };
 });
 
+// plugins/gcloud/src/gcloud/command-groups.ts
+import { lstat as lstat2, mkdir as mkdir2, realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { isAbsolute, join as join2 } from 'node:path';
+
+async function componentLock(signal) {
+  const directory = join2(
+    process.env.XDG_STATE_HOME ?? join2(homedir(), '.local', 'state'),
+    'xcsh',
+    'gcloud-command-groups',
+  );
+  if (!isAbsolute(directory)) throw new Error('SDK component lock directory must be absolute');
+  await mkdir2(directory, { recursive: true, mode: 448 });
+  const stat = await lstat2(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 63) !== 0)
+    throw new Error('SDK component lock directory ownership differs');
+  const path = join2(await realpath(directory), '.gcloud-components-lock');
+  const deadline = Date.now() + 5 * 60000;
+  for (;;) {
+    signal?.throwIfAborted();
+    try {
+      return await acquireProcessLock(path);
+    } catch (error) {
+      if (error.message !== 'Operation lock is held by a live process' || Date.now() >= deadline) throw error;
+      await Bun.sleep(250);
+    }
+  }
+}
+function withGcloudCommandGroups(raw, lock = componentLock) {
+  return {
+    async exec(command, args, options) {
+      const group = args[0];
+      if (command !== 'gcloud' || (group !== 'alpha' && group !== 'beta')) return raw.exec(command, args, options);
+      const signal = options?.signal;
+      signal?.throwIfAborted();
+      const installed = async () => {
+        signal?.throwIfAborted();
+        const response = await raw.exec(
+          'gcloud',
+          [
+            'components',
+            'list',
+            '--only-local-state',
+            `--filter=id=${group}`,
+            '--format=json(id,current_version_string)',
+            '--quiet',
+          ],
+          options,
+        );
+        signal?.throwIfAborted();
+        if (response.exitCode !== 0) throw new GcloudCommandGroupError(group, 'inspection_unavailable');
+        let rows;
+        try {
+          rows = JSON.parse(response.stdout);
+        } catch {
+          throw new GcloudCommandGroupError(group, 'inspection_unavailable');
+        }
+        if (!Array.isArray(rows) || rows.length > 1) throw new GcloudCommandGroupError(group, 'inspection_unavailable');
+        if (!rows.length) return false;
+        const row = rows[0];
+        if (
+          !row ||
+          typeof row !== 'object' ||
+          row.id !== group ||
+          (row.current_version_string !== undefined &&
+            row.current_version_string !== null &&
+            typeof row.current_version_string !== 'string')
+        )
+          throw new GcloudCommandGroupError(group, 'inspection_unavailable');
+        return typeof row.current_version_string === 'string' && row.current_version_string.length > 0;
+      };
+      if (!(await installed())) {
+        let release;
+        try {
+          release = await lock(signal);
+        } catch {
+          throw new GcloudCommandGroupError(group, 'lock_unavailable');
+        }
+        try {
+          if (!(await installed())) {
+            signal?.throwIfAborted();
+            const response = await raw.exec('gcloud', ['components', 'install', group, '--quiet'], options);
+            signal?.throwIfAborted();
+            if (response.exitCode !== 0) throw new GcloudCommandGroupError(group, 'installation_unavailable');
+            if (!(await installed())) throw new GcloudCommandGroupError(group, 'installation_not_verified');
+          }
+        } finally {
+          await release();
+        }
+      }
+      signal?.throwIfAborted();
+      return raw.exec(command, args, options);
+    },
+  };
+}
+var GcloudCommandGroupError;
+var init_command_groups = __esm(() => {
+  init_process_lock();
+  init_exec();
+  GcloudCommandGroupError = class GcloudCommandGroupError extends GcloudExecError {
+    group;
+    reason;
+    constructor(group, reason) {
+      super(
+        `Google Cloud ${group} command group ${reason.replaceAll('_', ' ')}. Install the matching SDK component using this installation's supported package manager, then retry.`,
+      );
+      this.group = group;
+      this.reason = reason;
+      this.name = 'GcloudCommandGroupError';
+    }
+  };
+});
+
 // plugins/gcloud/src/tools/shared.ts
 function textResult(text, details) {
   return { content: [{ type: 'text', text }], details };
@@ -139,7 +407,7 @@ function hasControlChars(arg) {
   return false;
 }
 function makeExecApi(cwd) {
-  return {
+  return withGcloudCommandGroups({
     async exec(command, args, options) {
       const signal = options?.signal;
       const child = Bun.spawn([command, ...args], {
@@ -147,6 +415,7 @@ function makeExecApi(cwd) {
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
+        env: { ...process.env, CLOUDSDK_CORE_DISABLE_PROMPTS: '1' },
         ...(signal && !signal.aborted ? { signal } : {}),
       });
       if (!child.stdout || !child.stderr) {
@@ -159,14 +428,15 @@ function makeExecApi(cwd) {
       ]);
       return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode: exitCode ?? 0 };
     },
-  };
+  });
 }
 var init_shared = __esm(() => {
+  init_command_groups();
   init_exec();
 });
 
 // plugins/gcloud/src/gcloud/formatters.ts
-function basename(url) {
+function basename2(url) {
   const idx = url.lastIndexOf('/');
   return idx === -1 ? url : url.slice(idx + 1);
 }
@@ -195,8 +465,8 @@ function normalizeInstance(raw) {
   const primaryAccess = accessConfigs[0] ?? {};
   return {
     name: String(raw.name ?? ''),
-    zone: basename(String(raw.zone ?? '')),
-    machineType: basename(String(raw.machineType ?? '')),
+    zone: basename2(String(raw.zone ?? '')),
+    machineType: basename2(String(raw.machineType ?? '')),
     status: String(raw.status ?? ''),
     internalIp: String(primary.networkIP ?? ''),
     externalIp: String(primaryAccess.natIP ?? ''),
@@ -435,8 +705,74 @@ var init_gcloud_storage_buckets_list2 = __esm(() => {
 });
 
 // plugins/gcloud/src/prompts/gcloud-exec.md
-var gcloud_exec_default =
-  '# Execute Google Cloud CLI Commands\n\nExecute any `gcloud` CLI command directly.\n\nThis is the general-purpose tool for running Google Cloud CLI commands that are not covered by the typed tools. Use typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the group, verb, and flags as an array of arguments. Do NOT include `gcloud` itself \u2014 it is prepended automatically.\n\n**Example:** To run `gcloud compute instances list --filter="status=RUNNING"`:\n\n```json\n{ "args": ["compute", "instances", "list", "--filter=status=RUNNING"] }\n```\n\n## Safety\n\n- Arguments are passed as an array directly to the `gcloud` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `gcloud` invocation runs, including full `--filter` and `--format` expressions. Only NUL/control bytes are rejected.\n- **Read-only by default.** Only recognized read verbs run:\n  - Exact reads: `list`, `describe`, `get-iam-policy`, `get-value`, `get-server-config`, `get-ancestors`, `list-grantable-roles`, `print-settings`, `version`, `info`.\n  - Read prefixes: any verb starting with `list-` or `describe-`.\n  - Top-level: `version`, `info`, `help`, `topic`, `cheat-sheet`.\n- **Mutating verbs are blocked** (`create`, `delete`, `update`, `patch`, `set`, `deploy`, `enable`, `disable`, `set-iam-policy`, `add-iam-policy-binding`, \u2026). Run write/destructive operations through an explicitly confirmed path \u2014 delegate to the `gcloud:cli-operator` agent, not `gcloud_exec`.\n- **Execution and credential vectors are blocked** even though some look read-shaped: `ssh`, `scp`, `connect`, `call`, `execute`, `interactive`, `login`, `revoke`, `get-credentials`, `print-access-token`, `print-identity-token`, `reset-windows-password`, `simulate-maintenance-event`, `enable-service`, `configure-docker`.\n  These open sessions, run code, or mint/print credentials \u2014 route them through the `gcloud:cli-operator` agent.\n- Unrecognized verbs are blocked (fail-safe): provide an explicit read-only verb.\n- Output is capped to prevent context overflow.\n\n## Querying: `--filter` vs `--format`\n\ngcloud splits querying into two distinct, complementary flags. This is **not** Azure `--query` (JMESPath): filtering and projection are separate.\n\n### `--filter` \u2014 server-side selection (which resources)\n\nRestricts *which* resources are returned, evaluated before results are sent back.\n\n- Equality: `--filter="status=RUNNING"` (`key=value`)\n- Boolean logic: `--filter="status=RUNNING AND zone:us-central1"` (`AND` / `OR`)\n- Substring match: `--filter="name:prod"` (`:` \u2014 has-substring)\n- Regex match: `--filter="name~^web-.*"` (`~`)\n\n### `--format` \u2014 client-side projection (how to show it)\n\nShapes *how* the selected resources are rendered locally.\n\n- `--format=json` (default when you pass no `--format`)\n- `--format=value(name)` \u2014 bare field value(s), no keys\n- `--format="table(name,status,zone)"` \u2014 tabular columns\n- `--format=csv(name,status)` \u2014 comma-separated\n- `--format=yaml` \u2014 YAML document\n- `--format=flattened` \u2014 flat `key: value` lines\n\n## Tips\n\n- `--format=json` is added automatically unless you pass your own `--format` (e.g. `--format="table(name)"`, `--format=yaml`), which is respected.\n- `--limit=N` caps the number of results; `--sort-by=field` orders them.\n- `--project=PROJECT_ID` targets a specific Google Cloud project.\n- Combine freely: `["compute", "instances", "list", "--filter=status=RUNNING", "--sort-by=name", "--format=value(name)"]`.\n';
+var gcloud_exec_default = `# Execute Google Cloud CLI Commands
+
+Execute any \`gcloud\` CLI command directly.
+
+This is the general-purpose tool for running Google Cloud CLI commands that are not covered by the typed tools. Use typed tools when available \u2014 they validate inputs and return structured data.
+
+## Usage
+
+Pass the group, verb, and flags as an array of arguments. Do NOT include \`gcloud\` itself \u2014 it is prepended automatically.
+
+**Example:** To run \`gcloud compute instances list --filter="status=RUNNING"\`:
+
+\`\`\`json
+{ "args": ["compute", "instances", "list", "--filter=status=RUNNING"] }
+\`\`\`
+
+When the command starts with \`alpha\` or \`beta\`, the plugin checks local SDK
+component state and automatically installs that missing command group with
+\`gcloud components install <group> --quiet\`. Installation is coordinated across
+callers and verified before the requested command runs. Child CLI prompts are
+disabled. If the installation's component manager is unavailable or installation
+cannot be verified, the command fails with package-manager recovery guidance.
+Cloud write and credential guards still apply before group preparation.
+
+## Safety
+
+- Arguments are passed as an array directly to the \`gcloud\` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid \`gcloud\` invocation runs, including full \`--filter\` and \`--format\` expressions. Only NUL/control bytes are rejected.
+- **Read-only by default.** Only recognized read verbs run:
+  - Exact reads: \`list\`, \`describe\`, \`get-iam-policy\`, \`get-value\`, \`get-server-config\`, \`get-ancestors\`, \`list-grantable-roles\`, \`print-settings\`, \`version\`, \`info\`.
+  - Read prefixes: any verb starting with \`list-\` or \`describe-\`.
+  - Top-level: \`version\`, \`info\`, \`help\`, \`topic\`, \`cheat-sheet\`.
+- **Mutating verbs are blocked** (\`create\`, \`delete\`, \`update\`, \`patch\`, \`set\`, \`deploy\`, \`enable\`, \`disable\`, \`set-iam-policy\`, \`add-iam-policy-binding\`, \u2026). Run write/destructive operations through an explicitly confirmed path \u2014 delegate to the \`gcloud:cli-operator\` agent, not \`gcloud_exec\`.
+- **Execution and credential vectors are blocked** even though some look read-shaped: \`ssh\`, \`scp\`, \`connect\`, \`call\`, \`execute\`, \`interactive\`, \`login\`, \`revoke\`, \`get-credentials\`, \`print-access-token\`, \`print-identity-token\`, \`reset-windows-password\`, \`simulate-maintenance-event\`, \`enable-service\`, \`configure-docker\`.
+  These open sessions, run code, or mint/print credentials \u2014 route them through the \`gcloud:cli-operator\` agent.
+- Unrecognized verbs are blocked (fail-safe): provide an explicit read-only verb.
+- Output is capped to prevent context overflow.
+
+## Querying: \`--filter\` vs \`--format\`
+
+gcloud splits querying into two distinct, complementary flags. This is **not** Azure \`--query\` (JMESPath): filtering and projection are separate.
+
+### \`--filter\` \u2014 server-side selection (which resources)
+
+Restricts *which* resources are returned, evaluated before results are sent back.
+
+- Equality: \`--filter="status=RUNNING"\` (\`key=value\`)
+- Boolean logic: \`--filter="status=RUNNING AND zone:us-central1"\` (\`AND\` / \`OR\`)
+- Substring match: \`--filter="name:prod"\` (\`:\` \u2014 has-substring)
+- Regex match: \`--filter="name~^web-.*"\` (\`~\`)
+
+### \`--format\` \u2014 client-side projection (how to show it)
+
+Shapes *how* the selected resources are rendered locally.
+
+- \`--format=json\` (default when you pass no \`--format\`)
+- \`--format=value(name)\` \u2014 bare field value(s), no keys
+- \`--format="table(name,status,zone)"\` \u2014 tabular columns
+- \`--format=csv(name,status)\` \u2014 comma-separated
+- \`--format=yaml\` \u2014 YAML document
+- \`--format=flattened\` \u2014 flat \`key: value\` lines
+
+## Tips
+
+- \`--format=json\` is added automatically unless you pass your own \`--format\` (e.g. \`--format="table(name)"\`, \`--format=yaml\`), which is respected.
+- \`--limit=N\` caps the number of results; \`--sort-by=field\` orders them.
+- \`--project=PROJECT_ID\` targets a specific Google Cloud project.
+- Combine freely: \`["compute", "instances", "list", "--filter=status=RUNNING", "--sort-by=name", "--format=value(name)"]\`.
+`;
 var init_gcloud_exec = () => {};
 
 // plugins/gcloud/src/tools/gcloud-exec-guard.ts
@@ -669,6 +1005,11 @@ Use this tool to discover available groups, commands, and flags for Google Cloud
 
 Pass the command path (without the \`gcloud\` prefix) to get help. The tool appends \`--help\` for you.
 
+Paths beginning with \`alpha\` or \`beta\` automatically prepare the matching missing
+SDK command group before loading help. Installation uses noninteractive CLI
+arguments and verifies local component state. An unavailable component manager
+returns explicit package-manager recovery guidance.
+
 **Example:** To see help for the \`compute instances\` group:
 
 \`\`\`json
@@ -758,161 +1099,6 @@ var init_gcloud_help2 = __esm(() => {
   init_types();
   init_gcloud_help();
   init_shared();
-});
-
-// plugins/platform/src/ce/process-lock.ts
-import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { basename as basename2, dirname, join } from 'node:path';
-
-async function bootId() {
-  let value;
-  if (process.platform === 'darwin') {
-    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
-    value = (await new Response(child.stdout).text()).trim().toLowerCase();
-    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
-  } else {
-    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-  }
-  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
-  return value;
-}
-async function processStartTicks(pid) {
-  if (process.platform === 'darwin') {
-    const script = `import ctypes, sys
-class Info(ctypes.Structure):
- _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
-lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
-lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
-info=Info()
-result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
-if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
-elif result==0 and ctypes.get_errno()==3: sys.exit(3)
-else: sys.exit(2)
-`;
-    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
-    const start = (await new Response(child.stdout).text()).trim();
-    const code = await child.exited;
-    if (code === 3) return;
-    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
-    return start;
-  }
-  try {
-    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
-    const end = value.lastIndexOf(') ');
-    const fields =
-      end < 0
-        ? []
-        : value
-            .slice(end + 2)
-            .trim()
-            .split(/\s+/);
-    const start = fields[19];
-    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
-    return start;
-  } catch (error) {
-    if (error.code === 'ENOENT') return;
-    throw error;
-  }
-}
-function claim(value) {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  const row = value;
-  if (
-    row.schemaVersion !== 1 ||
-    typeof row.token !== 'string' ||
-    !tokenPattern.test(row.token) ||
-    !Number.isSafeInteger(row.pid) ||
-    Number(row.pid) < 1 ||
-    typeof row.bootId !== 'string' ||
-    !bootPattern.test(row.bootId) ||
-    typeof row.processStartTicks !== 'string' ||
-    !/^\d+$/.test(row.processStartTicks)
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  return row;
-}
-async function readClaim(path) {
-  const stat = await lstat(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
-    throw new Error('Operation lock evidence cannot be reconciled');
-  try {
-    const claimPath = join(path, 'claim.json');
-    const claimStat = await lstat(claimPath);
-    if (
-      !claimStat.isFile() ||
-      claimStat.isSymbolicLink() ||
-      claimStat.nlink !== 1 ||
-      claimStat.uid !== process.getuid?.() ||
-      (claimStat.mode & 63) !== 0
-    )
-      throw new Error('Operation lock evidence cannot be reconciled');
-    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
-  } catch (error) {
-    if (error instanceof SyntaxError || error.code === 'ENOENT')
-      throw new Error('Operation lock evidence cannot be reconciled');
-    throw error;
-  }
-}
-async function acquireProcessLock(path) {
-  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename2(path)))
-    throw new Error('Invalid operation lock path');
-  const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
-  if (!currentStart) throw new Error('Current process identity is unavailable');
-  const mine = {
-    schemaVersion: 1,
-    token: randomUUID(),
-    pid: process.pid,
-    bootId: currentBootId,
-    processStartTicks: currentStart,
-  };
-  const parent = dirname(path);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const candidate = join(parent, `${basename2(path)}.claim-${mine.token}`);
-    await mkdir(candidate, { mode: 448 });
-    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
-    try {
-      await rename(candidate, path);
-      return async () => {
-        const owned = await readClaim(path);
-        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
-        await rm(path, { recursive: true });
-      };
-    } catch (error) {
-      await rm(candidate, { recursive: true });
-      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
-    }
-    let existing;
-    try {
-      existing = await readClaim(path);
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
-    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
-      throw new Error('Operation lock is held by a live process');
-    const stale = join(parent, `${basename2(path)}.stale-${randomUUID()}`);
-    try {
-      await rename(path, stale);
-      await rm(stale, { recursive: true });
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw new Error('Operation lock could not be acquired');
-}
-var tokenPattern, bootPattern;
-var init_process_lock = __esm(() => {
-  tokenPattern = /^[a-f0-9-]{36}$/;
-  bootPattern = /^[a-f0-9-]{36}$/;
 });
 
 // plugins/gcloud/src/ce/types.ts
@@ -1686,7 +1872,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/deployment-teardown.ts
-import { join as join2 } from 'node:path';
+import { join as join3 } from 'node:path';
 
 function profile(intent, contract) {
   validateIntent(intent);
@@ -1869,7 +2055,7 @@ async function applyGcpDeploymentTeardown(platform, api, intent, approvedHash, c
   const age = Date.now() - Date.parse(plan.createdAt);
   if (authorization ? authorization.planHash !== approvedHash : !Number.isFinite(age) || age < 0 || age > 5 * 60000)
     throw new Error('Teardown authorization missing or review stale');
-  const release = await acquireProcessLock(join2(store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join3(store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(store, intent);
     topology(intent, resources);
@@ -3011,7 +3197,7 @@ var init_preflight_port = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join3 } from 'node:path';
+import { join as join4 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -3160,7 +3346,7 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join3(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join4(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
             if (params.approvedPlanHash) {

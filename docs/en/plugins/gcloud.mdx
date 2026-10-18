@@ -40,6 +40,19 @@ Use `gcloud_config_list` to confirm the active account, configuration, and proje
 
 If credentials expire, repeat human setup and reconfirm the active project before continuing.
 
+## Optional command groups
+
+For commands or help paths beginning with `alpha` or `beta`, the plugin checks
+the installed SDK components and automatically installs the missing group with
+noninteractive arguments. It coordinates installation across callers and verifies
+the group before executing the requested command. Child CLI prompts are disabled.
+Existing cloud write and credential guards still apply.
+
+If the component manager is disabled by the SDK's package installation, or the
+group cannot be verified after installation, the tool returns recovery guidance
+for that installation's supported package manager. It does not launch the cloud
+command after a failed preparation.
+
 ## Customer Edge readiness
 
 Use the `gcp-ce` skill for GCP Customer Edge planning and inspection.

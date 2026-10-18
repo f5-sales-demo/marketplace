@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** automatically prepares missing `alpha` and `beta` command groups
+  before commands and help, with noninteractive installation, coordinated
+  preparation, verification and explicit component-manager failures (#1559).
 - **`gcloud`** documents Google's prerequisite Cloud terms and returns the
   acceptance link, account guidance and verification steps when API enablement
   reports `UREQ_TOS_NOT_ACCEPTED` (#1559).
