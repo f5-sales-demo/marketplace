@@ -14,6 +14,10 @@ and this project adheres to
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).
+- **`gcloud`** adds reviewed native single-node teardown through typed plan/apply
+  tools, with exact ownership checks, durable interruption authorization and final
+  absence evidence. Installed qualification covers synthetic Compute identities
+  and live owned XC cleanup; installed live cloud teardown remains pending (#1559).
 - **`platform`** v6.3.0 registers shared CE storage/runtime service with portable
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`terraform`** v2.4.0 loads the isolated CE runner alongside existing CLI integration,

@@ -1173,7 +1173,159 @@ var init_bgp_route_evidence = () => {};
 var init_bootstrap = () => {};
 
 // plugins/platform/src/ce/process-lock.ts
-var init_process_lock = () => {};
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename as basename2, dirname, join } from 'node:path';
+
+async function bootId() {
+  let value;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
+  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
+  return value;
+}
+async function processStartTicks(pid) {
+  if (process.platform === 'darwin') {
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const end = value.lastIndexOf(') ');
+    const fields =
+      end < 0
+        ? []
+        : value
+            .slice(end + 2)
+            .trim()
+            .split(/\s+/);
+    const start = fields[19];
+    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
+    return start;
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+}
+function claim(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  const row = value;
+  if (
+    row.schemaVersion !== 1 ||
+    typeof row.token !== 'string' ||
+    !tokenPattern.test(row.token) ||
+    !Number.isSafeInteger(row.pid) ||
+    Number(row.pid) < 1 ||
+    typeof row.bootId !== 'string' ||
+    !bootPattern.test(row.bootId) ||
+    typeof row.processStartTicks !== 'string' ||
+    !/^\d+$/.test(row.processStartTicks)
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  return row;
+}
+async function readClaim(path) {
+  const stat = await lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
+    throw new Error('Operation lock evidence cannot be reconciled');
+  try {
+    const claimPath = join(path, 'claim.json');
+    const claimStat = await lstat(claimPath);
+    if (
+      !claimStat.isFile() ||
+      claimStat.isSymbolicLink() ||
+      claimStat.nlink !== 1 ||
+      claimStat.uid !== process.getuid?.() ||
+      (claimStat.mode & 63) !== 0
+    )
+      throw new Error('Operation lock evidence cannot be reconciled');
+    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
+  } catch (error) {
+    if (error instanceof SyntaxError || error.code === 'ENOENT')
+      throw new Error('Operation lock evidence cannot be reconciled');
+    throw error;
+  }
+}
+async function acquireProcessLock(path) {
+  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename2(path)))
+    throw new Error('Invalid operation lock path');
+  const currentBootId = await bootId();
+  const currentStart = await processStartTicks(process.pid);
+  if (!currentStart) throw new Error('Current process identity is unavailable');
+  const mine = {
+    schemaVersion: 1,
+    token: randomUUID(),
+    pid: process.pid,
+    bootId: currentBootId,
+    processStartTicks: currentStart,
+  };
+  const parent = dirname(path);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = join(parent, `${basename2(path)}.claim-${mine.token}`);
+    await mkdir(candidate, { mode: 448 });
+    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
+    try {
+      await rename(candidate, path);
+      return async () => {
+        const owned = await readClaim(path);
+        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
+        await rm(path, { recursive: true });
+      };
+    } catch (error) {
+      await rm(candidate, { recursive: true });
+      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
+    }
+    let existing;
+    try {
+      existing = await readClaim(path);
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
+    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
+      throw new Error('Operation lock is held by a live process');
+    const stale = join(parent, `${basename2(path)}.stale-${randomUUID()}`);
+    try {
+      await rename(path, stale);
+      await rm(stale, { recursive: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error('Operation lock could not be acquired');
+}
+var tokenPattern, bootPattern;
+var init_process_lock = __esm(() => {
+  tokenPattern = /^[a-f0-9-]{36}$/;
+  bootPattern = /^[a-f0-9-]{36}$/;
+});
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 var init_ingress_lifecycle = __esm(() => {
@@ -1350,6 +1502,18 @@ async function readGcpResourceInventory(store, scope) {
 function sameScope(a, b) {
   return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
 }
+async function assertGcpResourceOwnership(store, expected, observed) {
+  validateGcpResourceIdentity(expected);
+  const resources = await readGcpResourceInventory(store, expected);
+  const owned = resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
+  if (
+    !owned ||
+    fingerprint(owned) !== fingerprint(expected) ||
+    observed.id !== expected.id ||
+    observed.selfLink !== expected.selfLink
+  )
+    throw new Error('GCP resource ownership mismatch');
+}
 var COLLECTIONS;
 var init_ownership = __esm(() => {
   init_discovery();
@@ -1363,6 +1527,436 @@ var init_ownership = __esm(() => {
     router: 'routers',
     route: 'routes',
   };
+});
+
+// plugins/gcloud/src/ce/teardown-plan.ts
+function planGcpOwnedTeardown(resources, scope) {
+  if (!/^[a-z]+(?:-[a-z]+)+\d$/.test(scope.region)) throw new Error('Explicit teardown region required');
+  if (!resources.length) throw new Error('Independent absence verification required for empty teardown inventory');
+  const identities = new Set();
+  for (const r of resources) {
+    validateGcpResourceIdentity(r);
+    if (
+      r.project !== scope.project ||
+      r.deploymentName !== scope.deploymentName ||
+      r.engine !== scope.engine ||
+      !/^\d+$/.test(r.id) ||
+      identities.has(r.selfLink)
+    )
+      throw new Error('Teardown inventory ownership differs or duplicates');
+    identities.add(r.selfLink);
+    const prefix = `https://www.googleapis.com/compute/v1/projects/${scope.project}/`;
+    if (!r.selfLink.startsWith(prefix) || !Number.isInteger(ORDER[r.kind]))
+      throw new Error('Teardown inventory identity is invalid');
+    const segments = r.selfLink.slice(prefix.length).split('/');
+    if (
+      (segments[0] === 'regions' && segments[1] !== scope.region) ||
+      (segments[0] === 'zones' && !new RegExp(`^${scope.region}-[a-z]$`).test(segments[1]))
+    )
+      throw new Error('Teardown resource region differs');
+  }
+  const ordered = [...resources].sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.selfLink.localeCompare(b.selfLink));
+  return {
+    schemaVersion: 1,
+    scope: structuredClone(scope),
+    resources: structuredClone(ordered),
+    executable: false,
+    required: [
+      'exact ledger/live ownership recheck',
+      'reviewed teardown approval',
+      'platform drain and registration cleanup',
+      'brownfield restoration inventory',
+      'independent absence checks',
+    ],
+    sha256: fingerprint({ scope, resources: ordered }),
+  };
+}
+var ORDER;
+var init_teardown_plan = __esm(() => {
+  init_discovery();
+  init_ownership();
+  ORDER = {
+    route: 0,
+    firewall: 1,
+    instance: 2,
+    disk: 3,
+    address: 4,
+    router: 5,
+    subnetwork: 6,
+    network: 7,
+  };
+});
+
+// plugins/gcloud/src/ce/native-teardown.ts
+async function applyGcpNativeTeardown(store, api, plan, approvedHash, signal) {
+  const expected = planGcpOwnedTeardown(plan.resources, plan.scope);
+  if (plan.scope.engine !== 'native' || approvedHash !== expected.sha256 || plan.sha256 !== expected.sha256)
+    throw new Error('Reviewed native teardown differs');
+  signal?.throwIfAborted();
+  return store.exclusive(async () => {
+    const owned = await readGcpResourceInventory(store, plan.scope);
+    if (
+      fingerprint(owned.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink))) !==
+      fingerprint(plan.resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink)))
+    )
+      throw new Error('Complete teardown ledger differs');
+    const filename = `gcp-teardown-${plan.sha256.slice(7)}.json`;
+    let checkpoint;
+    try {
+      checkpoint = await store.read(filename);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      checkpoint = { planHash: plan.sha256, resources: {} };
+    }
+    if (checkpoint.planHash !== approvedHash || !checkpoint.resources) throw new Error('Teardown checkpoint differs');
+    for (const resource of plan.resources) {
+      signal?.throwIfAborted();
+      const parts = resource.selfLink.split('/'),
+        scope = parts[7],
+        location = scope === 'global' ? undefined : parts[8],
+        name = parts.at(-1);
+      const base =
+        resource.kind === 'subnetwork'
+          ? ['compute', 'networks', 'subnets']
+          : [
+              'compute',
+              resource.kind === 'instance'
+                ? 'instances'
+                : resource.kind === 'network'
+                  ? 'networks'
+                  : resource.kind === 'disk'
+                    ? 'disks'
+                    : resource.kind === 'address'
+                      ? 'addresses'
+                      : resource.kind === 'firewall'
+                        ? 'firewall-rules'
+                        : resource.kind === 'router'
+                          ? 'routers'
+                          : 'routes',
+            ];
+      const flags = [
+        `--project=${plan.scope.project}`,
+        ...(scope === 'zones' ? [`--zone=${location}`] : scope === 'regions' ? [`--region=${location}`] : []),
+      ];
+      const observe = async () => {
+        const r = await api.exec('gcloud', [...base, 'describe', name, ...flags, '--format=json(id,selfLink)'], {
+          signal,
+        });
+        if (r.exitCode !== 0) {
+          if (/\b404\b|was not found|not found/i.test(r.stderr)) return null;
+          throw new Error('Teardown observation unavailable');
+        }
+        let v;
+        try {
+          v = JSON.parse(r.stdout);
+        } catch {
+          throw new Error('Malformed teardown identity');
+        }
+        return v;
+      };
+      const live = await observe();
+      if (!live) {
+        checkpoint.resources[resource.selfLink] = 'done';
+        await store.write(filename, checkpoint);
+        continue;
+      }
+      await assertGcpResourceOwnership(store, resource, live);
+      if (checkpoint.resources[resource.selfLink] === 'done') throw new Error('Deleted resource reappeared');
+      if (!checkpoint.resources[resource.selfLink]) {
+        checkpoint.resources[resource.selfLink] = 'submitting';
+        await store.write(filename, checkpoint);
+        const r = await api.exec('gcloud', [...base, 'delete', name, ...flags, '--quiet', '--format=json'], {
+          signal,
+        });
+        if (r.exitCode !== 0) throw new Error('Teardown submission requires reconciliation');
+        if (await observe()) return { state: 'pending', resource: resource.selfLink };
+      } else {
+        throw new Error('Ambiguous deletion requires independent outcome reconciliation');
+      }
+      checkpoint.resources[resource.selfLink] = 'done';
+      await store.write(filename, checkpoint);
+    }
+    return { state: 'done', absence: 'cloud-observed', independentAbsence: 'not-established', planHash: plan.sha256 };
+  });
+}
+var init_native_teardown = __esm(() => {
+  init_discovery();
+  init_ownership();
+  init_teardown_plan();
+});
+
+// plugins/gcloud/src/ce/deployment-teardown.ts
+import { join as join2 } from 'node:path';
+
+function profile(intent, contract) {
+  validateIntent(intent);
+  if (intent.engine !== 'native') throw new Error('Teardown requires owning engine native');
+  if (!contract.singleNodeLifecycle || fingerprint(contract.release) !== fingerprint(GCP_CE_API_RELEASE))
+    throw new Error('Qualified immutable teardown contract required');
+  if (
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 1 ||
+    intent.sites[0].nodes[0].interfaces.length !== 2 ||
+    intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Qualified disposable single-node teardown profile required');
+}
+async function storage(platform, intent) {
+  const store = await platform.storage({
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: 'native',
+    account: intent.project,
+    region: intent.region,
+  });
+  const saved = await store.read('gcp-deployment-intent.json');
+  if (
+    !saved.intent ||
+    saved.intentFingerprint !== fingerprint(intent) ||
+    fingerprint(saved.intent) !== fingerprint(intent) ||
+    saved.platformContext !== intent.platformContext
+  )
+    throw new Error('Persisted teardown deployment context differs');
+  return store;
+}
+function topology(intent, resources) {
+  const node = intent.sites[0].nodes[0],
+    site = intent.sites[0].name;
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const required = [
+    `${prefix}/zones/${node.zone}/instances/${node.name}`,
+    ...node.interfaces.flatMap((nic) => [
+      `${prefix}/global/networks/${nic.network}`,
+      `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}`,
+    ]),
+  ];
+  const disks = resources.filter((resource) => resource.kind === 'disk');
+  if (
+    resources.length !== 6 ||
+    disks.length !== 1 ||
+    disks[0].nodeName !== node.name ||
+    disks[0].siteName !== site ||
+    !disks[0].selfLink.startsWith(`${prefix}/zones/${node.zone}/disks/`) ||
+    required.some((link) => resources.filter((r) => r.selfLink === link).length !== 1)
+  )
+    throw new Error('Complete disposable teardown topology required');
+}
+async function observe(api, resource, signal) {
+  const parts = resource.selfLink.split('/'),
+    scope = parts[7],
+    location = parts[8],
+    name = parts.at(-1);
+  const base =
+    resource.kind === 'subnetwork'
+      ? ['compute', 'networks', 'subnets']
+      : ['compute', resource.kind === 'instance' ? 'instances' : resource.kind === 'disk' ? 'disks' : 'networks'];
+  const response = await api.exec(
+    'gcloud',
+    [
+      ...base,
+      'describe',
+      name,
+      `--project=${resource.project}`,
+      ...(scope === 'zones' ? [`--zone=${location}`] : scope === 'regions' ? [`--region=${location}`] : []),
+      '--format=json(id,selfLink)',
+    ],
+    { signal },
+  );
+  signal?.throwIfAborted();
+  if (response.exitCode !== 0) {
+    if (/\b404\b|was not found|not found/i.test(response.stderr)) return null;
+    throw new Error('Teardown ownership observation unavailable');
+  }
+  const result = JSON.parse(response.stdout);
+  return { id: String(result.id), selfLink: result.selfLink };
+}
+function policyFresh(policy) {
+  const age = Date.now() - Date.parse(policy.observedAt);
+  if (
+    policy.identity !== 'f5xc-ce-automation-policy/v2' ||
+    !/^sha256:[a-f0-9]{64}$/.test(policy.normalizedSha256) ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age > 5 * 60000
+  )
+    throw new Error('Current teardown policy required');
+}
+async function planGcpDeploymentTeardown(platform, api, intent, contract, policy, signal) {
+  profile(intent, contract);
+  policyFresh(policy);
+  signal?.throwIfAborted();
+  if (!platform.gcpLifecycle) throw new Error('Qualified shared teardown lifecycle unavailable');
+  const store = await storage(platform, intent),
+    resources = await readGcpResourceInventory(store, intent);
+  topology(intent, resources);
+  const cloud = planGcpOwnedTeardown(resources, {
+    project: intent.project,
+    region: intent.region,
+    deploymentName: intent.deploymentName,
+    engine: 'native',
+  });
+  const sources = [];
+  for (const resource of resources) {
+    const live = await observe(api, resource, signal);
+    if (!live) throw new Error('Initial teardown planning requires complete live inventory');
+    await assertGcpResourceOwnership(store, resource, live);
+    sources.push({ source: resource.selfLink, sha256: fingerprint(live) });
+  }
+  const lifecycle = await platform.gcpLifecycle(
+    {
+      deploymentId: intent.deploymentName,
+      provider: 'gcp',
+      engine: 'native',
+      account: intent.project,
+      region: intent.region,
+    },
+    intent.platformContext,
+    signal,
+  );
+  const node = intent.sites[0].nodes[0],
+    tokenName = `${node.name}-token`;
+  const binding = await lifecycle.observeTeardown(tokenName, signal);
+  const body = {
+    schemaVersion: 1,
+    operation: 'teardown',
+    engine: 'native',
+    intentFingerprint: fingerprint(intent),
+    deploymentName: intent.deploymentName,
+    project: intent.project,
+    region: intent.region,
+    platformContext: intent.platformContext,
+    apiRelease: contract.release,
+    policyReceipt: policy,
+    createdAt: new Date().toISOString(),
+    cloud,
+    platform: binding,
+    sourceReceipts: sources,
+    approval: 'required',
+    independentAbsence: 'required',
+  };
+  const plan = { ...body, planHash: fingerprint(body) };
+  await store.write(`gcp-reviewed-${plan.planHash.slice(7)}.json`, plan);
+  return plan;
+}
+async function applyGcpDeploymentTeardown(platform, api, intent, approvedHash, contract, policy, signal, onMutation) {
+  profile(intent, contract);
+  policyFresh(policy);
+  signal?.throwIfAborted();
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash) || !platform.gcpLifecycle)
+    throw new Error('Exact reviewed teardown authorization required');
+  const store = await storage(platform, intent);
+  const plan = await store.read(`gcp-reviewed-${approvedHash.slice(7)}.json`);
+  const { planHash, ...body } = plan;
+  if (
+    planHash !== approvedHash ||
+    fingerprint(body) !== approvedHash ||
+    plan.intentFingerprint !== fingerprint(intent) ||
+    fingerprint(plan.apiRelease) !== fingerprint(contract.release) ||
+    plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
+  )
+    throw new Error('Reviewed teardown plan/contract differs');
+  const authorizationName = `gcp-authorized-${approvedHash.slice(7)}.json`;
+  let authorization;
+  try {
+    authorization = await store.read(authorizationName);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const age = Date.now() - Date.parse(plan.createdAt);
+  if (authorization ? authorization.planHash !== approvedHash : !Number.isFinite(age) || age < 0 || age > 5 * 60000)
+    throw new Error('Teardown authorization missing or review stale');
+  const release = await acquireProcessLock(join2(store.directory, '.gcp-deployment-lock'));
+  try {
+    const resources = await readGcpResourceInventory(store, intent);
+    topology(intent, resources);
+    if (
+      fingerprint(plan.cloud.resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink))) !==
+      fingerprint(resources.slice().sort((a, b) => a.selfLink.localeCompare(b.selfLink)))
+    )
+      throw new Error('Reviewed teardown inventory differs');
+    for (const resource of resources) {
+      const live = await observe(api, resource, signal);
+      if (live) await assertGcpResourceOwnership(store, resource, live);
+    }
+    const lifecycle = await platform.gcpLifecycle(
+      {
+        deploymentId: intent.deploymentName,
+        provider: 'gcp',
+        engine: 'native',
+        account: intent.project,
+        region: intent.region,
+      },
+      intent.platformContext,
+      signal,
+    );
+    const current = await lifecycle.observeTeardown(plan.platform.tokenName, signal);
+    if (
+      current.siteUid !== plan.platform.siteUid ||
+      (plan.platform.siteAbsent && !current.siteAbsent) ||
+      (!current.tokenAbsent && current.tokenIdentityHash !== plan.platform.tokenIdentityHash)
+    )
+      throw new Error('Reviewed teardown platform identity differs');
+    await store.write(authorizationName, { planHash: approvedHash });
+    const mutatingApi = {
+      exec: async (command, args, options) => {
+        if (args.includes('delete')) onMutation?.();
+        return api.exec(command, args, options);
+      },
+    };
+    const shared = {
+      read: (name) => store.read(name),
+      write: (name, value) => store.write(name, value),
+      exclusive: async (fn) => fn(),
+    };
+    const outcome = await applyGcpNativeTeardown(shared, mutatingApi, plan.cloud, plan.cloud.sha256, signal);
+    if (outcome.state !== 'done') return { state: 'pending', phase: 'cloud', planHash: approvedHash };
+    const token = current.tokenAbsent
+      ? { absent: true }
+      : await (async () => {
+          onMutation?.();
+          return lifecycle.revokeToken(plan.platform.tokenName, signal, plan.platform.tokenIdentityHash);
+        })();
+    if (!token.absent) return { state: 'pending', phase: 'token-revocation', planHash: approvedHash };
+    const site = current.siteAbsent
+      ? { absent: true }
+      : await (async () => {
+          onMutation?.();
+          return lifecycle.deleteSite(signal);
+        })();
+    if (!site.absent) return { state: 'pending', phase: 'site-deletion', planHash: approvedHash };
+    for (const resource of resources)
+      if (await observe(api, resource, signal)) throw new Error('Independent cloud absence check failed');
+    const absence = await lifecycle.observeTeardown(plan.platform.tokenName, signal);
+    if (!absence.siteAbsent || !absence.tokenAbsent) throw new Error('Independent platform absence check failed');
+    const evidence = {
+      schemaVersion: 1,
+      engine: 'native',
+      deploymentName: intent.deploymentName,
+      planHash: approvedHash,
+      observedAt: new Date().toISOString(),
+      cloudAbsent: resources.length,
+      siteAbsent: true,
+      tokenAbsent: true,
+      state: 'done',
+    };
+    await store.write(`gcp-evidence-${approvedHash.slice(7)}.json`, evidence);
+    return evidence;
+  } finally {
+    await release();
+  }
+}
+var init_deployment_teardown = __esm(() => {
+  init_process_lock();
+  init_contract();
+  init_discovery();
+  init_native_teardown();
+  init_ownership();
+  init_teardown_plan();
+  init_validation();
 });
 
 // plugins/gcloud/src/ce/health.ts
@@ -2106,6 +2700,7 @@ function createGcpCeTools(
   contract = resolveGcpContract,
   getPlatform = () => platformService(pi),
   preflight = collectGcpLaunchPreflight,
+  policy = readGcpCePolicy,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -2120,11 +2715,11 @@ function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Validate a versioned GCP CE intent and return a hashed, non-executable readiness plan. Supports native or explicit Terraform. Never accepts caller discovery/health evidence.',
+      'Return a non-executable deployment readiness plan, or an exact owned native teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
     ],
     [
       'gcp_ce_apply',
-      'Report GCP CE execution availability. Native/Terraform mutation is unavailable until verified API mappings and shared runtime/runner are integrated.',
+      'Apply an exact reviewed native single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Other mutations report unavailable.',
     ],
     [
       'gcp_ce_status',
@@ -2136,7 +2731,10 @@ function createGcpCeTools(
     ],
     ['gcp_ce_upgrade', 'Report GCP upgrade availability; upgrades require a reviewed plan and qualified F5 contract.'],
     ['gcp_ce_failover', 'Report GCP failover availability; no outage is induced without a qualified reviewed plan.'],
-    ['gcp_ce_teardown', 'Report GCP teardown availability; labels alone never authorize deletion.'],
+    [
+      'gcp_ce_teardown',
+      'Prepare a native single-node teardown plan from exact deployment ownership. Apply only with its approvedPlanHash; labels alone never authorize deletion.',
+    ],
   ];
   return definitions.map(([tool, description]) => ({
     name: tool,
@@ -2157,14 +2755,80 @@ function createGcpCeTools(
         }),
       ),
       intent: Type.Optional(Type.Unknown({ description: 'Versioned GCP CE intent; only used by gcp_ce_plan' })),
+      operation: Type.Optional(
+        Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
+      ),
+      approvedPlanHash: Type.Optional(
+        Type.String({ description: 'Exact SHA-256 of the saved teardown plan explicitly approved for execution' }),
+      ),
     }),
     async execute(_id, params, signal, _update, ctx) {
+      let mutationAttempted = false;
       try {
         validateScope(params.project, params.region);
         if (params.engine !== undefined && !['native', 'terraform'].includes(params.engine))
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (
+          (tool === 'gcp_ce_teardown' && params.deploymentName) ||
+          (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'teardown')
+        ) {
+          if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
+            throw new Error('Planning tool cannot apply teardown authorization');
+          if ((params.engine ?? 'native') !== 'native') throw new Error('Teardown cannot change owning engine');
+          if (
+            !params.region ||
+            !params.deploymentName ||
+            !/^[a-z][a-z0-9-]{0,62}$/.test(params.deploymentName) ||
+            !params.platformContext ||
+            !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(params.platformContext)
+          )
+            throw new Error('Explicit persisted teardown scope required');
+          const platform = await getPlatform();
+          const store = await platform.storage({
+            deploymentId: params.deploymentName,
+            provider: 'gcp',
+            engine: 'native',
+            account: params.project,
+            region: params.region,
+          });
+          const saved = await store.read('gcp-deployment-intent.json');
+          const intent = saved.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.deploymentName !== params.deploymentName ||
+            intent.platformContext !== params.platformContext ||
+            intent.engine !== 'native'
+          )
+            throw new Error('Persisted teardown intent differs');
+          const boundary = await contract(undefined, signal);
+          const receipt = await policy();
+          if (params.approvedPlanHash) {
+            const evidence = await applyGcpDeploymentTeardown(
+              platform,
+              api,
+              intent,
+              params.approvedPlanHash,
+              boundary,
+              receipt,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(tool, {
+              availability: 'supported-native-teardown',
+              ...evidence,
+              mutationAttempted,
+            });
+          }
+          if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed hash required');
+          const plan = await planGcpDeploymentTeardown(platform, api, intent, boundary, receipt, signal);
+          return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+        }
         if (tool === 'gcp_project_identity') {
           const raw = await execGcloudJson(
             api,
@@ -2193,7 +2857,7 @@ function createGcpCeTools(
           const discovery = await discoverGcp(api, params.project, params.region, signal);
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
           const boundary = await contract(undefined, signal);
-          const policyReceipt = await readGcpCePolicy();
+          const policyReceipt = await policy();
           const intent = params.intent;
           const profileSupported =
             intent.sites.length === 1 &&
@@ -2317,7 +2981,11 @@ function createGcpCeTools(
         signal?.throwIfAborted();
         return result(
           tool,
-          { availability: 'unavailable', reason: 'validation_or_read_failed', mutationAttempted: false },
+          {
+            availability: 'unavailable',
+            reason: mutationAttempted ? 'teardown_requires_reconciliation' : 'validation_or_read_failed',
+            mutationAttempted,
+          },
           true,
         );
       }
@@ -2328,6 +2996,7 @@ var UNKNOWN;
 var init_gcp_ce = __esm(() => {
   init_service();
   init_contract();
+  init_deployment_teardown();
   init_discovery();
   init_owned_status();
   init_planner();

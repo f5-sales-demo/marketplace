@@ -53,3 +53,11 @@ The v12.1.3 single-node lifecycle profile records exact site creation and
 site-bound bootstrap mappings for one node and two interfaces. Consumers must
 qualify their execution runtime before enabling mutation. HA, routing and explicit
 upgrade operations remain unqualified.
+
+The native teardown consumer binds a saved review to the immutable release,
+current policy, persisted intent, six exact disposable cloud resource identities
+and the owned XC site/token identities. It rechecks every identity before cloud
+deletion and records durable authorization for interruption recovery. Final
+evidence requires fresh cloud, site and token absence. Its installed runtime was
+qualified against synthetic Compute identities and live disposable XC objects;
+this does not establish installed live GCP cloud teardown or full parity.

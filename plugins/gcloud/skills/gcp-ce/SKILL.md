@@ -25,13 +25,22 @@ Read [provider contract](references/provider-contract.md) before planning and
    NIC order and VRFs. Minimum sizing is 8 vCPUs, 32 GiB RAM and 80 GiB disk.
 4. The current plan is non-executable. Report its unavailable gates. Do not use
    `gcloud_exec`, CLI commands, Terraform or generic Platform tools to bypass it.
-   Apply, upgrade, failover and teardown tools report unavailable before mutation.
+   Deployment apply, upgrade and failover tools report unavailable before mutation.
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
    `platformContext` use the shared Platform service and exact ledger topology to
    observe registration, physical interface identity and global health. Candidate
    labels do not prove ledger ownership. Routing, application traffic, HA health
    and independent absence remain separate unqualified gates.
+6. For teardown of an existing disposable native single-node deployment, supply
+   its explicit project, region, deployment name and persisted F5 context to
+   `gcp_ce_teardown`, or use `gcp_ce_plan` with `operation=teardown`. Review the
+   saved plan, then supply its exact `approvedPlanHash` to `gcp_ce_apply` with
+   `operation=teardown`. The supported profile has two interfaces, external IP
+   egress, no ingress and no destination routes. Six exact cloud ledger identities
+   and the owned site/token binding are required. Authorization survives
+   interruption; changed identities and reappeared objects fail closed. Terraform
+   teardown and other topologies remain unavailable through these tools.
 
 When executable support is qualified, concrete billable, intrusive diagnostic
 and teardown plans must be reviewed before required approvals. Immutable SLO

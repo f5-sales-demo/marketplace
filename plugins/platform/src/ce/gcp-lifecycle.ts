@@ -124,6 +124,7 @@ export class GcpPlatformLifecycle {
     if (!checkpoint?.uid) throw new Error('Exact owned GCP site deletion checkpoint required');
     const observed = await this.port.read(this.#path(), signal);
     if (observed) {
+      if (checkpoint.state === 'absent') throw new Error('Deleted GCP site reappeared');
       if (this.#owned(observed) !== checkpoint.uid) throw new Error('GCP site was replaced before deletion');
       if (checkpoint.state !== 'deleting') {
         await this.store.write(`gcp-site-${this.#site}.json`, { ...checkpoint, state: 'deleting' });
@@ -133,6 +134,54 @@ export class GcpPlatformLifecycle {
     }
     await this.store.write(`gcp-site-${this.#site}.json`, { ...checkpoint, state: 'absent' });
     return { siteName: this.#site, absent: true };
+  }
+  async observeTeardown(tokenName: string, signal?: AbortSignal) {
+    this.#unchanged();
+    signal?.throwIfAborted();
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)) throw new Error('Invalid bound token name');
+    const checkpoint = await this.#checkpoint();
+    if (!checkpoint?.uid) throw new Error('Exact owned site checkpoint required for teardown');
+    const site = await this.port.read(this.#path(), signal);
+    if (site && checkpoint.state === 'absent') throw new Error('Deleted GCP site reappeared');
+    if (site && this.#owned(site) !== checkpoint.uid) throw new Error('GCP teardown site was replaced');
+    const value = await this.port.read(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
+    let tokenIdentityHash: string | undefined;
+    if (value) {
+      let revoked: { binding?: string; state?: string } | undefined;
+      try {
+        revoked = (await this.store.read(`gcp-token-revoke-${tokenName}.json`)) as typeof revoked;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      if (revoked && (revoked.binding !== this.#binding || !['deleting', 'absent'].includes(revoked.state ?? '')))
+        throw new Error('Token revocation checkpoint differs');
+      if (revoked?.state === 'absent') throw new Error('Revoked GCP token reappeared');
+      const metadata = value.metadata as
+        | { name?: string; namespace?: string; labels?: Record<string, string> }
+        | undefined;
+      const spec = value.spec as { site_name?: string } | undefined;
+      const uid = (value.system_metadata as { uid?: string } | undefined)?.uid;
+      if (
+        metadata?.name !== tokenName ||
+        metadata.namespace !== 'system' ||
+        metadata.labels?.['xcsh-deployment'] !== this.intent.deploymentName ||
+        metadata.labels['xcsh-engine'] !== 'native' ||
+        metadata.labels['xcsh-node'] !== this.#node ||
+        spec?.site_name !== this.#site ||
+        typeof uid !== 'string' ||
+        !uid
+      )
+        throw new Error('GCP teardown token identity/ownership differs');
+      tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: this.#site, nodeName: this.#node });
+    }
+    return {
+      siteName: this.#site,
+      siteUid: checkpoint.uid,
+      tokenName,
+      tokenIdentityHash,
+      siteAbsent: site === null,
+      tokenAbsent: value === null,
+    };
   }
   bootstrapDriver(): GcpBootstrapIssueDriver {
     return {
@@ -167,7 +216,7 @@ export class GcpPlatformLifecycle {
         ),
     };
   }
-  async revokeToken(tokenName: string, signal?: AbortSignal) {
+  async revokeToken(tokenName: string, signal?: AbortSignal, expectedIdentityHash?: string) {
     this.#unchanged();
     signal?.throwIfAborted();
     if (!/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)) throw new Error('Invalid bound token name');
@@ -179,13 +228,23 @@ export class GcpPlatformLifecycle {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
-    if (saved && saved.binding !== this.#binding) throw new Error('Token revocation checkpoint differs');
+    if (saved && (saved.binding !== this.#binding || !['deleting', 'absent'].includes(saved.state)))
+      throw new Error('Token revocation checkpoint differs');
     const value = await this.port.read(path, signal);
     if (value) {
+      if (saved?.state === 'absent') throw new Error('Revoked GCP token reappeared');
       const metadata = value.metadata as
         | { name?: string; namespace?: string; labels?: Record<string, string> }
         | undefined;
       const spec = value.spec as { site_name?: string } | undefined;
+      if (expectedIdentityHash) {
+        const uid = (value.system_metadata as { uid?: string } | undefined)?.uid;
+        if (
+          typeof uid !== 'string' ||
+          fingerprint({ name: tokenName, uid, siteName: this.#site, nodeName: this.#node }) !== expectedIdentityHash
+        )
+          throw new Error('GCP revocation token was replaced after review');
+      }
       if (
         metadata?.name !== tokenName ||
         metadata.namespace !== 'system' ||

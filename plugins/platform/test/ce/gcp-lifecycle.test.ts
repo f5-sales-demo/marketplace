@@ -123,7 +123,7 @@ it('token revocation requires exact node/site labels and reconciles lost deletio
     },
     spec: { site_name: f.i.sites[0].name },
   };
-  await expect(driver.revokeToken('node-a-token')).rejects.toThrow('ownership');
+  await expect(driver.revokeToken('node-a-token')).rejects.toThrow('reappeared');
   expect(deletes).toBe(1);
 });
 
@@ -147,4 +147,66 @@ it('native site creation preserves the explicit reviewed initial version pair', 
       os: { operating_system_version: '9.2026.20' },
     },
   });
+});
+
+it('teardown observations exclude secrets and bind the token UID against replacement', async () => {
+  const f = fixture();
+  let site: Record<string, unknown> | null = null;
+  let deletes = 0;
+  const token = {
+    metadata: {
+      name: 'node-a-token',
+      namespace: 'system',
+      labels: { 'xcsh-deployment': f.i.deploymentName, 'xcsh-engine': 'native', 'xcsh-node': 'node-a' },
+    },
+    system_metadata: { uid: 'token-uid' },
+    spec: { site_name: f.i.sites[0].name, token: 'private-bootstrap-fixture' },
+  };
+  const driver = new GcpPlatformLifecycle(f.store, f.i, f.contract, {
+    read: async (path) => (path.includes('/tokens/') ? token : site),
+    mutate: async (_path, method) => {
+      if (method === 'POST') site = f.site;
+      else deletes++;
+      return {};
+    },
+  });
+  await driver.ensureSite();
+  const review = await driver.observeTeardown('node-a-token');
+  expect(JSON.stringify(review)).not.toContain('private-bootstrap-fixture');
+  expect(JSON.stringify(review)).not.toContain('token-uid');
+  expect(review.siteUid).toBe('site-uid');
+  token.system_metadata.uid = 'replacement-uid';
+  await expect(driver.revokeToken('node-a-token', undefined, review.tokenIdentityHash)).rejects.toThrow('replaced');
+  token.metadata.labels['xcsh-deployment'] = 'foreign';
+  await expect(driver.observeTeardown('node-a-token')).rejects.toThrow('ownership');
+  expect(deletes).toBe(0);
+});
+
+it('confirmed absent site and token checkpoints reject reappearance without a new mutation', async () => {
+  const f = fixture();
+  let site: Record<string, unknown> | null = null;
+  let token: Record<string, unknown> | null = null;
+  let deletes = 0;
+  const driver = new GcpPlatformLifecycle(f.store, f.i, f.contract, {
+    read: async (path) => (path.includes('/tokens/') ? token : site),
+    mutate: async (_path, method) => {
+      if (method === 'POST') site = f.site;
+      else {
+        deletes++;
+        site = null;
+      }
+      return {};
+    },
+  });
+  await driver.ensureSite();
+  await driver.revokeToken('node-a-token');
+  token = {};
+  await expect(driver.revokeToken('node-a-token')).rejects.toThrow('reappeared');
+  await expect(driver.observeTeardown('node-a-token')).rejects.toThrow('reappeared');
+  token = null;
+  await driver.deleteSite();
+  site = f.site;
+  await expect(driver.deleteSite()).rejects.toThrow('reappeared');
+  await expect(driver.observeTeardown('node-a-token')).rejects.toThrow('reappeared');
+  expect(deletes).toBe(1);
 });

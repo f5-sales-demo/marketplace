@@ -1,8 +1,18 @@
 # GCP installed and live acceptance
 
-Current status: discovery/readiness only. Native and Terraform deployment,
+Current status: discovery/readiness, owned observations and narrow native teardown.
+Native and Terraform deployment,
 bootstrap, upgrades, repair, replacement, failover, interruption recovery,
-restoration and teardown are unavailable. Full parity is unclaimed.
+restoration and Terraform teardown remain unavailable through public tools.
+Full parity is unclaimed.
+
+Installed native teardown qualification used six synthetic Compute identities
+and a live disposable XC site and node-bound token. The typed tool saved a review,
+applied its exact approved hash and verified absence; independent API reads
+confirmed both XC objects absent and private staging was removed. Automated
+tests cover lost-response recovery after review expiry, no repeated deletion,
+replacement rejection and reappeared site/token rejection. Installed live GCP
+cloud teardown remains a separate acceptance gate.
 
 Disposable qualification established single-node boot, ONLINE registration and
 both physical NIC joins for native and Terraform. Later native and shared

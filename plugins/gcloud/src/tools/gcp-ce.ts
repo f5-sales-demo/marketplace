@@ -1,5 +1,6 @@
 import { CE_SERVICE_CHANNEL, type CePlatformService } from '../../../platform/src/ce/service';
 import { resolveGcpContract } from '../ce/contract';
+import { applyGcpDeploymentTeardown, planGcpDeploymentTeardown } from '../ce/deployment-teardown';
 import { discoverGcp } from '../ce/discovery';
 import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
@@ -45,6 +46,7 @@ export function createGcpCeTools(
   contract = resolveGcpContract,
   getPlatform: () => Promise<CePlatformService> = () => platformService(pi),
   preflight = collectGcpLaunchPreflight,
+  policy = readGcpCePolicy,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -59,11 +61,11 @@ export function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Validate a versioned GCP CE intent and return a hashed, non-executable readiness plan. Supports native or explicit Terraform. Never accepts caller discovery/health evidence.',
+      'Return a non-executable deployment readiness plan, or an exact owned native teardown review when operation=teardown. Never accepts caller discovery/health evidence.',
     ],
     [
       'gcp_ce_apply',
-      'Report GCP CE execution availability. Native/Terraform mutation is unavailable until verified API mappings and shared runtime/runner are integrated.',
+      'Apply an exact reviewed native single-node teardown plan when operation=teardown and approvedPlanHash is supplied. Other mutations report unavailable.',
     ],
     [
       'gcp_ce_status',
@@ -75,7 +77,10 @@ export function createGcpCeTools(
     ],
     ['gcp_ce_upgrade', 'Report GCP upgrade availability; upgrades require a reviewed plan and qualified F5 contract.'],
     ['gcp_ce_failover', 'Report GCP failover availability; no outage is induced without a qualified reviewed plan.'],
-    ['gcp_ce_teardown', 'Report GCP teardown availability; labels alone never authorize deletion.'],
+    [
+      'gcp_ce_teardown',
+      'Prepare a native single-node teardown plan from exact deployment ownership. Apply only with its approvedPlanHash; labels alone never authorize deletion.',
+    ],
   ];
   return definitions.map(([tool, description]) => ({
     name: tool,
@@ -96,6 +101,12 @@ export function createGcpCeTools(
         }),
       ),
       intent: Type.Optional(Type.Unknown({ description: 'Versioned GCP CE intent; only used by gcp_ce_plan' })),
+      operation: Type.Optional(
+        Type.Literal('teardown', { description: 'Use the owned teardown plan/apply lifecycle' }),
+      ),
+      approvedPlanHash: Type.Optional(
+        Type.String({ description: 'Exact SHA-256 of the saved teardown plan explicitly approved for execution' }),
+      ),
     }),
     async execute(
       _id: string,
@@ -106,17 +117,79 @@ export function createGcpCeTools(
         platformContext?: string;
         engine?: GcpCeEngine;
         intent?: GcpCeIntent;
+        operation?: 'teardown';
+        approvedPlanHash?: string;
       },
       signal: AbortSignal | undefined,
       _update: unknown,
       ctx: { cwd: string },
     ) {
+      let mutationAttempted = false;
       try {
         validateScope(params.project, params.region);
         if (params.engine !== undefined && !['native', 'terraform'].includes(params.engine))
           throw new Error('Invalid owning engine');
         if (signal?.aborted) throw new Error('Operation cancelled');
         const api = makeApi(ctx.cwd);
+        if (
+          (tool === 'gcp_ce_teardown' && params.deploymentName) ||
+          (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'teardown')
+        ) {
+          if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
+            throw new Error('Planning tool cannot apply teardown authorization');
+          if ((params.engine ?? 'native') !== 'native') throw new Error('Teardown cannot change owning engine');
+          if (
+            !params.region ||
+            !params.deploymentName ||
+            !/^[a-z][a-z0-9-]{0,62}$/.test(params.deploymentName) ||
+            !params.platformContext ||
+            !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(params.platformContext)
+          )
+            throw new Error('Explicit persisted teardown scope required');
+          const platform = await getPlatform();
+          const store = await platform.storage({
+            deploymentId: params.deploymentName,
+            provider: 'gcp',
+            engine: 'native',
+            account: params.project,
+            region: params.region,
+          });
+          const saved = (await store.read('gcp-deployment-intent.json')) as { intent?: GcpCeIntent };
+          const intent = saved.intent;
+          if (
+            !intent ||
+            intent.project !== params.project ||
+            intent.region !== params.region ||
+            intent.deploymentName !== params.deploymentName ||
+            intent.platformContext !== params.platformContext ||
+            intent.engine !== 'native'
+          )
+            throw new Error('Persisted teardown intent differs');
+          const boundary = await contract(undefined, signal);
+          const receipt = await policy();
+          if (params.approvedPlanHash) {
+            const evidence = await applyGcpDeploymentTeardown(
+              platform,
+              api,
+              intent,
+              params.approvedPlanHash,
+              boundary,
+              receipt,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(tool, {
+              availability: 'supported-native-teardown',
+              ...evidence,
+              mutationAttempted,
+            });
+          }
+          if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed hash required');
+          const plan = await planGcpDeploymentTeardown(platform, api, intent, boundary, receipt, signal);
+          return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+        }
         if (tool === 'gcp_project_identity') {
           const raw = await execGcloudJson<{ projectId?: string; projectNumber?: string; lifecycleState?: string }>(
             api,
@@ -145,7 +218,7 @@ export function createGcpCeTools(
           const discovery = await discoverGcp(api, params.project, params.region, signal);
           if (tool === 'gcp_compute_discover') return result(tool, { discovery });
           const boundary = await contract(undefined, signal);
-          const policyReceipt = await readGcpCePolicy();
+          const policyReceipt = await policy();
           const intent = params.intent as GcpCeIntent;
           const profileSupported =
             intent.sites.length === 1 &&
@@ -273,7 +346,11 @@ export function createGcpCeTools(
         // Cloud errors and caller-controlled fields can contain private values.
         return result(
           tool,
-          { availability: 'unavailable', reason: 'validation_or_read_failed', mutationAttempted: false },
+          {
+            availability: 'unavailable',
+            reason: mutationAttempted ? 'teardown_requires_reconciliation' : 'validation_or_read_failed',
+            mutationAttempted,
+          },
           true,
         );
       }

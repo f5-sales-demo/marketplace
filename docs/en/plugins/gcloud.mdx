@@ -50,8 +50,8 @@ an explicit Terraform choice must match the intent.
 
 The plan contains no executable actions. Immutable API v12.1.3 includes GCP
 schema and observational mappings with both-engine single-node boot evidence.
-Public GCP Platform/Terraform execution remains unavailable pending full integration.
-Apply, upgrade, failover and teardown tools report these gaps before mutation.
+Public deployment, upgrade, failover and Terraform teardown remain unavailable
+pending full integration. Their tools report these gaps before mutation.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
 remain separate unknown gates. Deployment labels alone cannot authorize deletion.
@@ -61,6 +61,16 @@ readiness plans collect live IAM, quota, effective policy, zone and image/licens
 checks. They retain sanitized source hashes and reject stale evidence or a changed
 intent. Capacity reservation and human Marketplace acceptance remain explicit;
 passing cloud prerequisites alone does not enable deployment.
+
+For an existing disposable native single-node deployment, `gcp_ce_teardown`
+prepares an exact saved review from its persisted intent and ownership ledger.
+Supply the explicit project, region, deployment name and F5 context. After review,
+use `gcp_ce_apply` with `operation=teardown` and that plan's `approvedPlanHash`.
+The profile requires two interfaces, external IP egress, no ingress and no
+destination routes. It rechecks all six cloud identities and the owned XC
+site/token binding before deleting, preserves authorization across interruption,
+and verifies fresh absence. Installed qualification covers synthetic Compute
+resources and live XC cleanup; installed live GCP cloud teardown remains pending.
 
 For an existing ledger-owned deployment, status and diagnostics with explicit
 region and its persisted `platformContext` use shared Platform observations.
