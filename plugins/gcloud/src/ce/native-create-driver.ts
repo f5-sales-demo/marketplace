@@ -6,6 +6,7 @@ import { type GcpNativeAction, translateGcpNativeCompute } from './compute-plan'
 import { fingerprint } from './discovery';
 import type { GcpNativeCreateDriver } from './native-create';
 import { type GcpOperationBinding, reconcileGcpOperation, recordGcpOperation } from './native-operation';
+import { recordGcpResource } from './ownership';
 import type { GcpCeIntent } from './types';
 
 /** Scoped cloud driver; outer lifecycle must have admitted policy, plan, bootstrap and ownership. */
@@ -161,7 +162,67 @@ export function createGcpNativeCreationDriver(
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
       if (!recorded) throw new Error('Ambiguous creation needs exact operation receipt reconciliation');
-      return (await reconcileGcpOperation(store, api, binding(action, executionId), signal)).state;
+      const outcome = await reconcileGcpOperation(store, api, binding(action, executionId), signal);
+      if (outcome.state === 'done' && action.kind === 'instance') {
+        const { node, site } = admit(action);
+        if (!node || !site) throw new Error('Exact node binding required');
+        const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/${node.zone}`;
+        const vmResult = await api.exec(
+          'gcloud',
+          [
+            'compute',
+            'instances',
+            'describe',
+            node.name,
+            `--project=${intent.project}`,
+            `--zone=${node.zone}`,
+            '--format=json(id,selfLink,disks)',
+          ],
+          { signal },
+        );
+        if (vmResult.exitCode !== 0) throw new Error('Boot disk ownership observation unavailable');
+        const vm = JSON.parse(vmResult.stdout) as {
+          selfLink: string;
+          disks?: Array<{ boot?: boolean; source?: string }>;
+        };
+        const boots = vm.disks?.filter((d) => d.boot === true) ?? [];
+        if (
+          vm.selfLink !== `${prefix}/instances/${node.name}` ||
+          boots.length !== 1 ||
+          !boots[0].source?.startsWith(`${prefix}/disks/`)
+        )
+          throw new Error('Exact owned boot disk link required');
+        const diskName = boots[0].source.split('/').at(-1) as string;
+        if (!/^[a-z][a-z0-9-]{0,62}$/.test(diskName)) throw new Error('Invalid boot disk name');
+        const diskResult = await api.exec(
+          'gcloud',
+          [
+            'compute',
+            'disks',
+            'describe',
+            diskName,
+            `--project=${intent.project}`,
+            `--zone=${node.zone}`,
+            '--format=json(id,selfLink,users)',
+          ],
+          { signal },
+        );
+        if (diskResult.exitCode !== 0) throw new Error('Boot disk identity observation unavailable');
+        const disk = JSON.parse(diskResult.stdout) as { id: string; selfLink: string; users?: string[] };
+        if (disk.selfLink !== boots[0].source || disk.users?.length !== 1 || disk.users[0] !== vm.selfLink)
+          throw new Error('Boot disk attachment ownership differs');
+        await recordGcpResource(store, {
+          id: disk.id,
+          selfLink: disk.selfLink,
+          kind: 'disk',
+          project: intent.project,
+          deploymentName: intent.deploymentName,
+          siteName: site.name,
+          nodeName: node.name,
+          engine: 'native',
+        });
+      }
+      return outcome.state;
     },
   };
 }

@@ -116,3 +116,47 @@ it('checkpoint write failure removes private bootstrap staging before any cloud 
     await rm(root, { recursive: true });
   }
 });
+
+it('completed VM operations record only the exact attached boot disk identity', async () => {
+  const i = intent();
+  i.routing.destinationCidrs = [];
+  const s = store();
+  const action = translateGcpNativeCompute(i).actions.find((a) => a.kind === 'instance');
+  if (!action) throw new Error('missing instance');
+  const id = `create-${'a'.repeat(40)}`,
+    prefix = `https://www.googleapis.com/compute/v1/projects/${i.project}/zones/${i.sites[0].nodes[0].zone}`;
+  await s.write(`gcp-operation-${id}.json`, {
+    schemaVersion: 1,
+    binding: {
+      project: i.project,
+      zone: i.sites[0].nodes[0].zone,
+      deploymentName: i.deploymentName,
+      engine: 'native',
+      actionId: id,
+    },
+    operationName: 'operation-123',
+    state: 'done',
+    errorCodes: [],
+  });
+  const vmLink = `${prefix}/instances/node-a`,
+    diskLink = `${prefix}/disks/node-a`;
+  const driver = createGcpNativeCreationDriver(
+    {
+      exec: async (_cmd, args) => ({
+        stdout: JSON.stringify(
+          args[1] === 'instances'
+            ? { selfLink: vmLink, disks: [{ boot: true, source: diskLink }] }
+            : { id: '456', selfLink: diskLink, users: [vmLink] },
+        ),
+        stderr: '',
+        exitCode: 0,
+      }),
+    },
+    s,
+    '/private/tmp',
+    i,
+  );
+  expect(await driver.reconcile(action, id, {})).toBe('done');
+  const ledger = (await s.read('gcp-resources.json')) as { resources: Array<{ kind: string; id: string }> };
+  expect(ledger.resources[0]).toMatchObject({ kind: 'disk', id: '456' });
+});
