@@ -1,7 +1,17 @@
-import { expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { VerifiedIngressContract } from '../../src/ce/ingress-contract';
 import { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import fixture from '../fixtures/inside-listener-schema.json';
+
+const previousGithubToken = process.env.GH_TOKEN;
+beforeEach(() => {
+  // Inject authentication for the fake release transport rather than spawning gh.
+  process.env.GH_TOKEN = 'fixture-contract-credential';
+});
+afterEach(() => {
+  if (previousGithubToken === undefined) delete process.env.GH_TOKEN;
+  else process.env.GH_TOKEN = previousGithubToken;
+});
 
 const sha = `sha256:${fixture.provenance.sha256}`;
 const commit = 'a5fa987f876db955666bd94fefed35f283bb5364';
