@@ -7,12 +7,12 @@
     "draftPullRequest": 1327
   },
   "cohort": {
-    "revision": 1,
+    "revision": 2,
     "versions": {
-      "platform": "7.0.0-uat.1",
-      "aws": "3.0.0-uat.1",
-      "azure": "5.0.0-uat.1",
-      "terraform": "3.0.0-uat.1"
+      "platform": "7.0.0-uat.2",
+      "aws": "3.0.0-uat.2",
+      "azure": "5.0.0-uat.2",
+      "terraform": "3.0.0-uat.2"
     },
     "stableBaseVersions": {
       "platform": "6.2.0",
@@ -8381,7 +8381,7 @@
     {
       "id": "installed-cohort",
       "status": "blocked",
-      "requirement": "One validated commit, archive digests, exact installed loader identity and all public executions"
+      "requirement": "One validated commit, archive digests, exact installed loader identity and all public executions; clean runtime dependency install without supplemental development packages"
     },
     {
       "id": "human-uat",
