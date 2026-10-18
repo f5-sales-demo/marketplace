@@ -2,7 +2,7 @@ import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 
 export type Section = ReturnType<PresentationAPI['data']>[number];
 export type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
-export type Options = { expanded: boolean; isPartial: boolean };
+export type Options = { expanded: boolean; isPartial: boolean; width?: number };
 export type State = { kind: 'info' | 'warning' | 'running' | 'disabled'; text: string };
 export type View = { summary?: string; warnings?: string[]; states?: State[]; sections: Section[] };
 export type Args = Record<string, unknown>;

@@ -18,7 +18,7 @@ test('generated command sections round trip exact argv through Bash and zsh with
     ['sf', 'data', 'query', '--query', query, '--json'],
     ['sf', 'help', '', 'quotes\'\\"', 'a'.repeat(100), '北方'.repeat(30), 'line one\nline two'],
   ]) {
-    const section = copyableCommand(presentation, argv, undefined, 28);
+    const section = copyableCommand(presentation, argv, undefined, 25);
     expect(section.kind).toBe('code');
     expect(
       section.text

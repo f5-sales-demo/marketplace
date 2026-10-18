@@ -140,26 +140,6 @@ test('empty help and relationship sections are omitted', () => {
   expect(JSON.stringify(schema)).not.toContain('0 fields');
 });
 
-test('ordinary results show twelve rows before expansion and long sets retain the rest', () => {
-  for (const count of [10, 15]) {
-    const result = {
-      content: [],
-      details: {
-        queryResult: {
-          records: Array.from({ length: count }, (_, i) => ({ Name: `Example ${i}` })),
-          done: true,
-          totalSize: count,
-        },
-      },
-    };
-    const collapsed = render('sf_query', result);
-    const tables = collapsed.sections.filter((s) => s.kind === 'table');
-    expect(tables.flatMap((s) => (s.kind === 'table' ? s.rows : []))).toHaveLength(Math.min(count, 12));
-    expect(JSON.stringify(collapsed).includes('more rows in expanded details')).toBe(count > 12);
-    expect(JSON.stringify(render('sf_query', result, true))).toContain(`Example ${count - 1}`);
-  }
-});
-
 test('normal connected status is quiet while explicit connection problems remain visible', () => {
   for (const status of ['Connected', 'Disconnected']) {
     const result = {

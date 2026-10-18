@@ -45,19 +45,7 @@ export function decorate(view: View, resolve: SymbolResolver, options: Options):
         ),
       ),
     };
-    if (options.expanded || formatted.rows.length <= 3) return [formatted];
-    // xcsh 23.5.1 previews three rows per table. Keep ordinary result sets visible
-    // in sequential table blocks without changing the shared presentation contract.
-    const visible = formatted.rows.slice(0, 12);
-    const blocks = [];
-    for (let i = 0; i < visible.length; i += 3)
-      blocks.push({ ...formatted, ...(i ? { title: undefined } : {}), rows: visible.slice(i, i + 3) });
-    if (formatted.rows.length > visible.length)
-      blocks.push({
-        kind: 'markdown' as const,
-        text: `${formatted.rows.length - visible.length} more rows in expanded details`,
-      });
-    return blocks;
+    return [formatted];
   });
   const cues = states.map(({ kind, text }) => ({
     kind: 'markdown' as const,

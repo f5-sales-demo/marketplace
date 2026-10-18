@@ -211,7 +211,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
             expect(collapsed.replace(/[\s│|]/g, '')).toContain('Opportunitycount');
           if (tool.name === 'sf_query' && (args as any).query.includes('partial'))
             expect(collapsed).toContain('Partial results');
-          if (result.isError) expect(collapsed).toContain('No such column');
+          if (result.isError) expect(collapsed.replace(/[\s│|]/g, '')).toContain('Nosuchcolumn');
           if ((args as any).query === taskQuery || (args as any).args?.includes(taskQuery)) {
             expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo9');
             expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo3');
@@ -301,7 +301,7 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
       await setTheme(theme);
       for (const expanded of [false, true]) {
         for (const width of [40, 76, 120, 153]) {
-          const section = copyableCommand(presentation, argv, undefined, width - 7);
+          const section = copyableCommand(presentation, argv, undefined, width - 10);
           const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
           const copied = plain(component.render(width - 10));
           for (const shell of shells) {

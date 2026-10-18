@@ -16,7 +16,7 @@ export function copyableCommand(
   title?: string,
   columns = process.stdout.columns ?? 40,
 ) {
-  const available = Math.max(25, columns - 3);
+  const available = Math.max(25, columns);
   const single = p.command(argv).text;
   if (!single.includes('\n') && width(single) <= available) return { kind: 'code' as const, title, text: single };
   const quote = (arg: string) => p.command([arg]).text;
