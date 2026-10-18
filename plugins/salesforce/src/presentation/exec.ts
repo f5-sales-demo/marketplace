@@ -145,7 +145,10 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
             p,
             rows(v).map((r) =>
               Object.fromEntries(
-                ['alias', 'username', 'id', 'instanceUrl', 'connectedStatus', 'isSandbox', 'isDefaultUsername']
+                (options.expanded
+                  ? ['alias', 'username', 'id', 'instanceUrl', 'connectedStatus', 'isSandbox', 'isDefaultUsername']
+                  : ['alias', 'username', 'instanceUrl', 'connectedStatus', 'isSandbox']
+                )
                   .filter((k) => k in r)
                   .map((k) => [k, r[k]]),
               ),
@@ -157,12 +160,12 @@ export function execView(p: PresentationAPI, result: Result, options: Options, a
     };
   } else
     view = {
-      summary: parsed ? 'Generic CLI result · unrecognized payload' : 'Salesforce CLI output',
+      summary: 'CLI output',
       warnings,
       sections: [
         ...context(operation, params),
         ...(parsed
-          ? data(p, payload ?? decoded, 'Generic CLI result')
+          ? data(p, payload ?? decoded, 'CLI output')
           : blocks.filter((t) => !t.startsWith('CLI warnings:\n')).map((t) => code(t, 'Literal CLI output'))),
       ],
     };

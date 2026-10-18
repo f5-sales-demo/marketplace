@@ -8,7 +8,7 @@ import { orgView } from './presentation/org';
 import { pipelineView } from './presentation/pipeline';
 import { queryView } from './presentation/query';
 import type { Args, Options, Result, View } from './presentation/shared';
-import { code, context, evidence, record, texts } from './presentation/shared';
+import { code, context, evidence, literal, record, texts } from './presentation/shared';
 
 const adapters = {
   sf_exec: execView,
@@ -23,22 +23,13 @@ export function presentTool<T extends { name: string; label?: string }>(
   p: PresentationAPI,
   symbols: SymbolResolver = () => undefined,
 ) {
-  const styled = (view: View, family?: string) =>
-    decorate(
-      view,
-      symbols,
-      tool.name === 'sf_org_display' || family === 'org display'
-        ? 'icon.host'
-        : tool.name === 'sf_query' || family === 'data query' || family === 'data search'
-          ? 'lang.sql'
-          : undefined,
-    );
+  const styled = (view: View, _family?: string) => decorate(view, symbols);
   return p.withPresentation(tool, {
     call: (input: unknown, options: Options): View => {
       const args = record(input);
       if (options.expanded)
         // The host labels expanded call arguments; the result owns the runnable block.
-        return { sections: p.data(tool.name === 'sf_exec' ? commandContext(args).argv : args) };
+        return { sections: [literal(tool.name === 'sf_exec' ? commandContext(args).argv : args)] };
       if (tool.name === 'sf_exec') {
         const c = commandContext(args);
         return styled({

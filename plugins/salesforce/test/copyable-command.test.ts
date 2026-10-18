@@ -77,3 +77,12 @@ test('all direct tools show their complete executable command once in the defaul
   ]);
   expect(toolArgv('sf_help', cases[4][1])).toEqual(['sf', 'data', 'query', '--help']);
 });
+
+test('commands that fit remain on one line and narrower terminals retain exact argv', () => {
+  const argv = ['sf', 'sobject', 'describe', '--sobject', 'Opportunity', '--json'];
+  expect(copyableCommand(presentation, argv, undefined, 120).text).toBe(presentation.command(argv).text);
+  expect(copyableCommand(presentation, argv, undefined, 40).text).toContain('\\\n');
+  expect(copyableCommand(presentation, ['sf', 'org', 'display', '--json'], undefined, 40).text).toBe(
+    'sf org display --json',
+  );
+});

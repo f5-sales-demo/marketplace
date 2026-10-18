@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
+
 - **`gcloud`** bumped to v1.6.0
 
 - Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed

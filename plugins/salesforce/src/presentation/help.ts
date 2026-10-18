@@ -1,8 +1,8 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args, Options, Result, View } from './shared';
-import { code, fields, texts } from './shared';
+import { code, evidence, hint, texts } from './shared';
 
-export function helpView(_p: PresentationAPI, result: Result, options: Options, args: Args): View {
+export function helpView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const text = texts(result).join('\n');
   const sections: Record<string, string[]> = {};
   const purpose: string[] = [];
@@ -38,14 +38,15 @@ export function helpView(_p: PresentationAPI, result: Result, options: Options, 
       `Help for sf ${String(args.command_path ?? '')}`.trim(),
     sections: [
       code(usage, 'Usage'),
-      ...(required.length
-        ? [code(required.join('\n'), 'Required inputs')]
-        : [fields({ Inputs: 'No required inputs identified in returned help' }, 'Required inputs')]),
-      ...(optional.length
-        ? [code(optional.join('\n'), 'Optional flags')]
-        : [fields({ Flags: 'Not returned' }, 'Optional flags')]),
-      ...(sections.EXAMPLES ? [code(sections.EXAMPLES.join('\n').trim(), 'Examples')] : []),
-      ...(options.expanded ? [code(text, 'CLI output')] : []),
+      ...(required.length ? [code(required.join('\n'), 'Required inputs')] : []),
+      ...(optional.length ? [code(optional.join('\n'), 'Optional flags')] : []),
+      ...(sections.EXAMPLES?.join('').trim() ? [code(sections.EXAMPLES.join('\n').trim(), 'Examples')] : []),
+      ...(options.expanded
+        ? [
+            hint('Help sections parsed from returned headings; required markers may be absent.'),
+            ...evidence(p, result, args),
+          ]
+        : []),
     ],
   };
 }
