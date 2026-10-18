@@ -44,3 +44,76 @@ test('actual render width keeps fitting commands literal and shows ordinary tabl
   expect(expanded).toContain('Example 14');
   expect(expanded).toContain('Arguments');
 });
+
+test('interim pipeline shows one status and retains raw progress only in expansion', () => {
+  const tool = presentTool({ name: 'sf_pipeline_report', label: 'Salesforce Pipeline Report' }, presentation);
+  const result = {
+    content: [{ type: 'text', text: 'Pipeline queries: 0 completed, 1 running.' }],
+    details: { tool: 'sf_pipeline_report' },
+  };
+  const collapsed = tool.renderResult(result, { expanded: false, isPartial: true }, theme, {}).render(76).join('\n');
+  expect(collapsed).toContain('Pipeline: 0 completed · 1 query running');
+  for (const noise of ['CLI output', 'Metadata', 'Output is still streaming', 'In progress', 'sf_pipeline_report'])
+    expect(collapsed).not.toContain(noise);
+  const expanded = tool.renderResult(result, { expanded: true, isPartial: true }, theme, {}).render(76).join('\n');
+  expect(expanded).toContain('Pipeline queries: 0 completed, 1 running.');
+  expect(expanded).toContain('Metadata');
+  expect(expanded).toContain('sf_pipeline_report');
+});
+
+test('pipeline monthly distributions remain compact tables at normal transcript width', () => {
+  const tool = presentTool({ name: 'sf_pipeline_report', label: 'Salesforce Pipeline Report' }, presentation);
+  const result = {
+    content: [],
+    details: {
+      pipelineReport: {
+        currency: 'USD',
+        closeDistribution: [
+          {
+            label: 'January 2029',
+            yearMonth: '2029-01',
+            amount: 123456.78,
+            commit: 0,
+            bestCase: 0,
+            pipeline: 123456.78,
+            oppCount: 2,
+          },
+        ],
+        renewalDistribution: [{ label: 'February 2029', amount: 0, commit: 0, bestCase: 0, pipeline: 0, oppCount: 1 }],
+      },
+    },
+  };
+  const text = tool.renderResult(result, { expanded: false, isPartial: false }, theme, {}).render(76).join('\n');
+  expect(text).toContain('Month');
+  expect(text).toContain('Opportunities');
+  expect(text).toContain('January 2029');
+  expect(text).not.toContain('Year Month:');
+  expect(text).not.toContain('Commit:');
+});
+
+test('top deals preserve amount stage timing owner and next steps in readable tables', () => {
+  const tool = presentTool({ name: 'sf_pipeline_report' }, presentation);
+  const deal = {
+    oppId: 'synthetic-opportunity',
+    name: 'Example deal',
+    accountName: 'Example account',
+    stage: 'Review',
+    closeDate: '2027-01-01',
+    forecast: 'Best case',
+    amount: 0,
+    ownerName: 'Example owner',
+    nextStep: 'Confirm scope',
+  };
+  const result = {
+    content: [],
+    details: { pipelineReport: { currency: 'USD', topDeals: [deal], topRenewals: [deal] } },
+  };
+  const output = tool.renderResult(result, { expanded: false, isPartial: false }, theme, {}).render(76).join('\n');
+  expect(output).toContain('Stage and timing');
+  expect(output).toContain('Next steps');
+  expect(output).toContain('Confirm scope');
+  expect(output).not.toContain('Opp Id:');
+  expect(output).not.toContain('Name:');
+  expect(output).not.toContain('Owner:');
+  expect(output).toContain('|');
+});
