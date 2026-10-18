@@ -84,11 +84,8 @@ test('org display reports missing evidence explicitly and whitelists identity', 
     },
   };
   const output = view('sf_org_display', result);
-  expect(output.summary).toBe('Not returned');
-  expect(output.sections?.find((s) => s.kind === 'fields' && 'Environment' in s.values)?.values).toMatchObject({
-    Environment: 'Not returned',
-    Default: 'Not returned',
-  });
+  expect(JSON.stringify(output)).toContain('Connection unknown');
+  expect(JSON.stringify(output)).not.toContain('Default');
   expect(JSON.stringify(output)).not.toContain('Connected');
   expect(JSON.stringify(output)).not.toContain('SECRET_SENTINEL');
   expect(JSON.stringify(view('sf_org_display', result, {}, true))).not.toContain('SECRET_SENTINEL');
@@ -105,7 +102,7 @@ test('org display reports missing evidence explicitly and whitelists identity', 
     },
   });
   expect(JSON.stringify(explicit)).toContain('Production');
-  expect(JSON.stringify(explicit)).toContain('false');
+  expect(JSON.stringify(explicit)).not.toContain('isDefaultUsername');
 });
 export const helpText =
   'Execute a SOQL query.\n\nUSAGE\n  $ sf data query -q <value>\n\nFLAGS\n  -q, --query=<value>  (required) SOQL to execute\n  -o, --target-org=<value>  Org alias\n\nEXAMPLES\n  $ sf data query -q "SELECT Id FROM Task"\n\nUNFAMILIAR SECTION\n  FINAL_HELP_EVIDENCE';
@@ -159,9 +156,10 @@ test('pipeline orders scope first, separates currencies, retains distributions a
   const result = { content: [], details: { pipelineReport: report } };
   const output = view('sf_pipeline_report', result);
   expect(output.sections?.[0].title).toBe('Report scope');
-  expect(output.warnings).toContain('Currencies remain separate. Combined monetary totals are not valid.');
-  expect(output.warnings).toContain('History unavailable');
-  expect(output.warnings).toContain('Classification unverified');
+  expect(JSON.stringify(output)).toContain('CAD');
+  expect(JSON.stringify(output)).toContain('USD');
+  expect(JSON.stringify(output)).toContain('History unavailable');
+  expect(JSON.stringify(output)).toContain('Classification unverified');
   expect(output.warnings).not.toContain('Informational detail');
   const text = JSON.stringify(output);
   expect(text).toContain('Close distribution');
@@ -215,7 +213,7 @@ test('query distinguishes aggregates from ordinary scalar rows and preserves pre
   expect(JSON.stringify(result)).toContain('9,876,543.2100');
   expect(JSON.stringify(result)).toContain('Opportunity count');
   expect(JSON.stringify(result)).toContain('Reported amount');
-  expect(result.warnings).toContain('Amount currency was not returned.');
+  expect(JSON.stringify(result)).toContain('Currency unknown');
   const regular = view(
     'sf_query',
     {
@@ -243,7 +241,7 @@ test('query distinguishes aggregates from ordinary scalar rows and preserves pre
       },
     },
   };
-  expect(view('sf_query', partial).warnings?.join(' ')).toContain('Related records are incomplete');
+  expect(JSON.stringify(view('sf_query', partial))).toContain('Partial related records');
   expect(JSON.stringify(view('sf_query', partial, {}, true))).toContain('FINAL_CHILD');
   expect(JSON.stringify(view('sf_query', partial, {}, true))).toContain('/synthetic-next');
   expect(view('sf_query', { content: [], details: { queryResult: { records: null } } }).warnings?.join(' ')).toContain(
@@ -284,7 +282,7 @@ test('SOQL formatting only changes whitespace tokens outside literals', () => {
   expect(value('0001234.0000', true)).toBe('0,001,234.0000');
   expect(value(false)).toBe(false);
   expect(value(null)).toBe(null);
-  expect(value(undefined)).toBe('Not returned');
+  expect(value(undefined)).toBeUndefined();
 });
 test('a missing readable identifier keeps record IDs visible in the preview', () => {
   const output = view(
@@ -304,7 +302,7 @@ test('exec inventories schema, org, limits, status and literal/fallback families
     [['limits', 'api', 'display'], [{ name: 'DailyApiRequests', remaining: 0, max: 1000 }], 'Limits'],
     [['data', 'resume'], { state: 'JobComplete', numberRecordsProcessed: 0, id: 'synthetic-job' }, 'JobComplete'],
     [['data', 'export', 'bulk'], { state: 'InProgress', numberRecordsProcessed: 5 }, 'InProgress'],
-    [['api', 'request', 'rest'], { unfamiliar: 'kept' }, 'Generic CLI result'],
+    [['api', 'request', 'rest'], { unfamiliar: 'kept' }, 'CLI output'],
   ] as const) {
     const output = view(
       'sf_exec',

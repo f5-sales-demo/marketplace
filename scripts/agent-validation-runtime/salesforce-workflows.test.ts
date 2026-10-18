@@ -210,18 +210,18 @@ test('project account lookup, ambiguity, opportunities and scope render through 
           )
             expect(collapsed.replace(/[\s│|]/g, '')).toContain('Opportunitycount');
           if (tool.name === 'sf_query' && (args as any).query.includes('partial'))
-            expect(collapsed).toContain('incomplete');
-          if (result.isError) expect(collapsed).toContain('No such column');
+            expect(collapsed).toContain('Partial results');
+          if (result.isError) expect(collapsed.replace(/[\s│|]/g, '')).toContain('Nosuchcolumn');
           if ((args as any).query === taskQuery || (args as any).args?.includes(taskQuery)) {
-            expect(collapsed).toContain('7 more rows');
-            expect(collapsed).not.toContain('Prepare demo 3');
+            expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo9');
+            expect(collapsed.replace(/[\s│|]/g, '')).toContain('demo3');
             expect((collapsed.match(/SELECT/g) ?? []).length).toBe(1);
             expect(collapsed).toContain('--json');
           }
           if ((args as any).query === aggregateQuery) {
             expect(collapsed).toContain('1,234');
             expect(collapsed).toContain('9,876,543.2100');
-            expect(collapsed).toContain('Amount currency was not returned');
+            expect(collapsed).toContain('Currency unknown');
           }
           if ((args as any).sobject === 'Event') {
             expect(collapsed).toContain('Standard fields');
@@ -295,13 +295,13 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
     'demo',
     '--json',
   ];
-  const section = copyableCommand(presentation, argv);
   for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
     await setSymbolPreset(preset);
     for (const theme of ['xcsh-dark', 'xcsh-light']) {
       await setTheme(theme);
       for (const expanded of [false, true]) {
         for (const width of [40, 76, 120, 153]) {
+          const section = copyableCommand(presentation, argv, undefined, width - 10);
           const component = new PluginViewComponent(() => ({ sections: [{ ...section, title: undefined }] }), expanded);
           const copied = plain(component.render(width - 10));
           for (const shell of shells) {
@@ -320,7 +320,7 @@ test('copyable command survives terminal reflow and preserves exact arguments', 
 });
 
 test('existing tool output follows live host theme and symbol switches', async () => {
-  const { tool, result, args } = await invoke('sf_query', { query: 'SELECT COUNT(Id) total FROM Opportunity' });
+  const { tool, result, args } = await invoke('sf_query', { query: 'SELECT Id FROM Opportunity /* partial */' });
   const view = component(tool, result, args);
   for (const preset of ['nerd', 'unicode', 'ascii'] as const) {
     await setSymbolPreset(preset);
@@ -329,10 +329,10 @@ test('existing tool output follows live host theme and symbol switches', async (
       for (const expanded of [false, true]) {
         view.setExpanded(expanded);
         const presented = tool.presentation.result(result, { expanded, isPartial: false }, args);
-        expect(presented.sections[0].title).toBe(theme.symbol('icon.extensionSlashCommand'));
-        expect(presented.summary).toStartWith(theme.symbol('lang.sql'));
-        expect(plain(view.render(76))).toContain(theme.symbol('icon.extensionSlashCommand'));
-        expect(plain(view.render(76))).toContain(theme.symbol('lang.sql'));
+        expect(presented.sections[0].title).toBeUndefined();
+        expect(JSON.stringify(presented)).toContain(theme.symbol('status.warning'));
+        expect(plain(view.render(76))).toContain('sf data query');
+        expect(plain(view.render(76))).toContain(theme.symbol('status.warning'));
       }
     }
   }

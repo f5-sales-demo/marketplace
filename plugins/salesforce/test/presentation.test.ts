@@ -18,7 +18,7 @@ test('query aggregates retain zero and incomplete-result guidance in the summary
     {},
   );
   expect(JSON.stringify(view.sections)).toContain('"Value":"0"');
-  expect(view.warnings?.join(' ')).toContain('incomplete');
+  expect(JSON.stringify(view)).toContain('Partial results');
 });
 test('exec displays a readable exact command and exposes zero JSON aggregates', () => {
   const tool = presentTool({ name: 'sf_exec' });
@@ -66,7 +66,7 @@ test('describe applies its requested match while retaining total scope', () => {
     { match: 'Id' },
   );
   expect(JSON.stringify(view.sections)).toContain('Matching fields');
-  expect(JSON.stringify(view.sections)).toContain('full catalog of 2 fields retained');
+  expect(JSON.stringify(view.sections)).toContain('1 fields outside filter');
   expect(JSON.stringify(view.sections)).toContain('Identifier');
   expect(JSON.stringify(view.sections)).not.toContain('Synthetic__c');
 });
@@ -92,7 +92,7 @@ test('pipeline uses summary tables with warnings and detail records', () => {
   );
   expect(JSON.stringify(view.sections)).toContain('Pipeline summary');
   expect(JSON.stringify(view.sections)).toContain('Synthetic account');
-  expect(view.warnings).toContain('Synthetic warning');
+  expect(JSON.stringify(view)).toContain('Synthetic warning');
 });
 test('org, help and errors preserve their supplied data', () => {
   for (const name of ['sf_org_display', 'sf_help']) {

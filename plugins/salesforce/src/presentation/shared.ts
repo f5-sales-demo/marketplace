@@ -2,8 +2,9 @@ import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 
 export type Section = ReturnType<PresentationAPI['data']>[number];
 export type Result = { content: readonly { type: string; text?: string }[]; details?: unknown; isError?: boolean };
-export type Options = { expanded: boolean; isPartial: boolean };
-export type View = { summary?: string; warnings?: string[]; sections: Section[] };
+export type Options = { expanded: boolean; isPartial: boolean; width?: number };
+export type State = { kind: 'info' | 'warning' | 'running' | 'disabled'; text: string };
+export type View = { summary?: string; warnings?: string[]; states?: State[]; sections: Section[] };
 export type Args = Record<string, unknown>;
 export const record = (value: unknown): Args =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Args) : {};
@@ -55,13 +56,14 @@ export const label = (key: string): string =>
 
 // Group decimal digits without rounding, coercing numeric strings, or adding a currency.
 export function value(value: unknown, numeric = false): unknown {
-  if (value === undefined) return 'Not returned';
+  if (value === undefined) return undefined;
   if (typeof value !== 'number' && !(numeric && typeof value === 'string')) return value;
   const text = String(value);
   const match = /^(-?)(\d+)(\.\d+)?([eE][+-]?\d+)?$/.exec(text);
   if (!match) return value;
   return `${match[1]}${match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${match[3] ?? ''}${match[4] ?? ''}`;
 }
+export const ownedTables = new WeakSet<object>();
 export function table(
   p: PresentationAPI,
   data: Args[],
@@ -70,7 +72,7 @@ export function table(
   labels?: Record<string, string>,
 ): Section {
   const columns = keys ?? [...new Set(data.flatMap((row) => Object.keys(row)))];
-  return p.table(
+  const section = p.table(
     data.map((row) =>
       Object.fromEntries(
         columns.map((key) => [
@@ -89,6 +91,8 @@ export function table(
     })),
     title,
   );
+  ownedTables.add(section);
+  return section;
 }
 export function data(p: PresentationAPI, input: unknown, title: string): Section[] {
   if (Array.isArray(input) && input.every((v) => v && typeof v === 'object' && !Array.isArray(v)))
@@ -109,7 +113,7 @@ export function flag(argv: string[], ...names: string[]): string | undefined {
 export function context(_operation: string, args: Args): Section[] {
   return [
     fields({
-      ...(args.target_org ? {} : { Org: 'CLI default org (identity not returned)' }),
+      'Salesforce organization': args.target_org || 'CLI default organization',
       ...(args.use_tooling_api ? { API: 'Tooling' } : {}),
       ...(args.all_rows ? { Records: 'Includes deleted records' } : {}),
       ...(args.options && Object.keys(record(args.options)).length ? { Options: args.options } : {}),
@@ -191,15 +195,12 @@ export function formatSoql(query: string): string {
   });
   return output;
 }
-export function evidence(p: PresentationAPI, result: Result, _args: Args, _argv?: string[]): Section[] {
-  const formattedReport = ['sf_describe', 'sf_org_display', 'sf_pipeline_report'].includes(
-    String(record(result.details).tool ?? ''),
-  );
+export function literal(input: unknown, title?: string): Section {
+  return code(JSON.stringify(input, null, 2) ?? 'undefined', title);
+}
+export function evidence(_p: PresentationAPI, result: Result, _args: Args, _argv?: string[]): Section[] {
   return [
-    // Expanded call arguments are already rendered and labeled by xcsh.
-    ...texts(result).map(
-      (text): Section => (formattedReport ? { kind: 'markdown', title: 'CLI output', text } : code(text, 'CLI output')),
-    ),
-    ...(result.details === undefined ? [] : p.data(result.details, 'Metadata')),
+    ...texts(result).map((text) => code(text, 'CLI output')),
+    ...(result.details === undefined ? [] : [literal(result.details, 'Metadata')]),
   ];
 }

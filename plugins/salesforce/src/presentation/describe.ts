@@ -1,6 +1,6 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args, Options, Result, View } from './shared';
-import { context, data, evidence, fields, hint, record, rows, table } from './shared';
+import { context, data, evidence, fields, hint, literal, record, rows, table } from './shared';
 
 const types: Record<string, string> = {
   string: 'Text',
@@ -16,8 +16,8 @@ const types: Record<string, string> = {
   picklist: 'Picklist',
   multipicklist: 'Multiple choices',
 };
-function queryUse(field: Args): string {
-  if (typeof field.filterable !== 'boolean' || typeof field.groupable !== 'boolean') return 'Not returned';
+function queryUse(field: Args): string | undefined {
+  if (typeof field.filterable !== 'boolean' || typeof field.groupable !== 'boolean') return undefined;
   return field.filterable && field.groupable
     ? 'Filter, group'
     : field.filterable
@@ -83,14 +83,16 @@ export function describeView(
             ),
           ]
         : []),
-      ...(match || options.expanded ? data(p, selectedRels, 'Child relationships') : []),
+      ...((match || options.expanded) && selectedRels.length ? data(p, selectedRels, 'Child relationships') : []),
       ...(!options.expanded
-        ? [
-            hint(
-              `${match ? `${all.length - selected.length} fields outside filter` : `${selected.length - preview.length} custom fields omitted`}; complete picklists and ${relationships.length - (match ? selectedRels.length : 0)} relationships in expanded details${match ? `; full catalog of ${all.length} fields retained` : ''}`,
-            ),
-          ]
-        : [...data(p, selected, 'Selected field metadata'), ...evidence(p, result, args)]),
+        ? (match ? all.length - selected.length : selected.length - preview.length) > 0
+          ? [
+              hint(
+                `${match ? `${all.length - selected.length} fields outside filter` : `${selected.length - preview.length} custom fields omitted`} · details in expansion`,
+              ),
+            ]
+          : []
+        : [...(selected.length ? [literal(selected, 'Selected field metadata')] : []), ...evidence(p, result, args)]),
     ],
   };
 }

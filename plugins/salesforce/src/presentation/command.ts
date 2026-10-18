@@ -10,25 +10,55 @@ const width = (text: string) =>
       .split('\n')
       .map((line) => [...line].reduce((n, c) => n + (c === '\t' ? 8 : c.charCodeAt(0) > 127 ? 2 : 1), 0)),
   );
-export function copyableCommand(p: PresentationAPI, argv: readonly string[], title?: string) {
+export function copyableCommand(
+  p: PresentationAPI,
+  argv: readonly string[],
+  title?: string,
+  columns = process.stdout.columns ?? 40,
+) {
+  const available = Math.max(25, columns);
+  const single = p.command(argv).text;
+  if (!single.includes('\n') && width(single) <= available) return { kind: 'code' as const, title, text: single };
   const quote = (arg: string) => p.command([arg]).text;
-  const argumentsText = argv.map((arg) => {
-    if (width(quote(arg)) <= 24) return quote(arg);
+  const lines: string[] = [];
+  let line = '';
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+    const encoded = quote(arg);
+    const separator = line ? ' ' : '';
+    const last = index === argv.length - 1;
+    if (!encoded.includes('\n') && width(line + separator + encoded) <= available - (last ? 0 : 2)) {
+      line += separator + encoded;
+      continue;
+    }
+    // Start a new line only if this argument fits there without splitting.
+    if (!encoded.includes('\n') && width(encoded) <= available - (last ? 0 : 2)) {
+      if (line) lines.push(line + ' \\');
+      line = encoded;
+      continue;
+    }
     const characters = [...arg];
-    const chunks: string[] = [];
+    if (line) line += ' ';
     while (characters.length) {
-      let count = 1;
-      while (count < characters.length && width(quote(characters.slice(0, count + 1).join(''))) <= 24) count++;
+      let count = 0;
+      while (count < characters.length && width(line + quote(characters.slice(0, count + 1).join(''))) <= available - 1)
+        count++;
+      if (!count) {
+        lines.push(line.trimEnd() + ' \\');
+        line = '';
+        continue;
+      }
       const space = characters.slice(0, count).lastIndexOf(' ');
       if (space >= count / 2) count = space + 1;
-      chunks.push(quote(characters.splice(0, count).join('')));
+      line += quote(characters.splice(0, count).join(''));
+      if (characters.length) {
+        lines.push(line + '\\');
+        line = '';
+      }
     }
-    return chunks.join('\\\n');
-  });
-  let head = argumentsText.shift() ?? 'sf';
-  while (argumentsText.length && /^[a-z][a-z:]*$/.test(argumentsText[0]) && width(`${head} ${argumentsText[0]}`) <= 24)
-    head += ` ${argumentsText.shift()}`;
-  return { kind: 'code' as const, title, text: [head, ...argumentsText].join(' \\\n') };
+  }
+  if (line) lines.push(line);
+  return { kind: 'code' as const, title, text: lines.join('\n') };
 }
 
 export function toolArgv(name: string, args: Args): string[] | undefined {

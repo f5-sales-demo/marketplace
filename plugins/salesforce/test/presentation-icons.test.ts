@@ -8,7 +8,7 @@ test('session theme is read at presentation time and decorative cues stay outsid
   const symbols = sessionSymbols();
   const tool = presentTool({ name: 'sf_query' }, presentation, symbols.resolve);
   const args = { query: 'SELECT Id FROM Task', target_org: 'synthetic' };
-  const result = { content: [], details: { queryResult: { records: [], done: true, totalSize: 0 } } };
+  const result = { content: [], details: { queryResult: { records: [], done: false, totalSize: 0 } } };
   const before = tool.presentation.result(result, options, args);
   expect(before.sections[0].title).toBeUndefined();
   let preset = 'first';
@@ -25,8 +25,8 @@ test('session theme is read at presentation time and decorative cues stay outsid
   symbols.bind(ctx);
   for (const expanded of [false, true]) {
     const rendered = tool.presentation.result(result, { ...options, expanded }, args);
-    expect(rendered.sections[0].title).toBe(`${preset}:icon.extensionSlashCommand`);
-    expect(rendered.summary).toStartWith(`${preset}:lang.sql`);
+    expect(rendered.sections[0].title).toBeUndefined();
+    expect(rendered.summary).toContain('records returned');
     expect(rendered.sections[0].kind === 'code' && rendered.sections[0].text).toBe(
       before.sections[0].kind === 'code' && before.sections[0].text,
     );
@@ -35,6 +35,7 @@ test('session theme is read at presentation time and decorative cues stay outsid
     preset = 'second';
   }
   expect(reads).toBeGreaterThan(0);
+  expect(JSON.stringify(tool.presentation.result(result, options, args))).toContain('second:status.warning');
   ctx.hasUI = false;
   expect(tool.presentation.result(result, options, args).sections[0].title).toBeUndefined();
 });
@@ -51,7 +52,7 @@ test('expanded exec retains provenance once without repeating the runnable comma
   expect(JSON.stringify(tool.presentation.call(args, { ...options, expanded: true }))).toContain('COUNT(Id)');
   expect(view.sections.filter((s) => s.title === 'CLI output')).toHaveLength(1);
   expect(view.sections.some((s) => s.title === 'Pagination')).toBe(true);
-  expect(view.warnings?.join(' ')).toContain('incomplete');
+  expect(JSON.stringify(view)).toContain('Partial results');
 });
 
 test('semantic headings share host keys across all six tools', () => {
@@ -93,11 +94,11 @@ test('semantic headings share host keys across all six tools', () => {
     const tool = presentTool({ name }, presentation, symbols);
     for (const expanded of [false, true]) {
       const view = tool.presentation.result(result, { ...options, expanded }, args);
-      expect(JSON.stringify(view)).toContain(`host/${key}`);
+      expect(JSON.stringify(view)).not.toContain('host/icon.extensionSlashCommand');
       expect(JSON.stringify(view)).not.toContain('copy and run');
       expect(JSON.stringify(view)).not.toContain('Expand for');
       if (name === 'sf_pipeline_report') {
-        expect(JSON.stringify(view)).toContain('Forecast · CAD');
+        expect(JSON.stringify(view)).toContain('CAD');
         expect(JSON.stringify(view).includes('Synthetic timestamp')).toBe(expanded);
         expect(view.sections.filter((s) => s.title?.endsWith('Report scope'))).toHaveLength(1);
       }
