@@ -1,4 +1,4 @@
-import { expect, it } from 'bun:test';
+import { afterEach, expect, it } from 'bun:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,12 +11,18 @@ import { recordGcpResource } from '../../src/ce/ownership';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
 
+const temporaryDirectories = new Set<string>();
+afterEach(async () => {
+  for (const directory of temporaryDirectories) await rm(directory, { recursive: true, force: true });
+  temporaryDirectories.clear();
+});
+
 async function fixture() {
   const i = intent();
   i.routing.destinationCidrs = [];
   const files = new Map<string, unknown>();
   const store = {
-    directory: '/private/tmp',
+    directory: await realpath(await mkdtemp(join(tmpdir(), 'gcp-teardown-fixture-'))),
     verify: async () => {},
     read: async (name: string) => {
       if (!files.has(name)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
@@ -27,6 +33,7 @@ async function fixture() {
     },
     exclusive: async <T>(fn: () => Promise<T>) => fn(),
   };
+  temporaryDirectories.add(store.directory);
   await store.write('gcp-deployment-intent.json', {
     intent: i,
     intentFingerprint: fingerprint(i),
