@@ -60,6 +60,8 @@ export async function openGcpTerraformSession(
   const identity = {
     schemaVersion: 1,
     engine: 'terraform',
+    platformContext: inputs.intent.platformContext,
+    intentFingerprint: fingerprint(inputs.intent),
     configurationFingerprint: fingerprint(translated.configuration),
     providerLockSha256: digest,
   };

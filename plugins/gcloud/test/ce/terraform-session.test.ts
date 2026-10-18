@@ -67,3 +67,17 @@ it('resume refuses changed configuration and preserves recorded identity', async
   await expect(openGcpTerraformSession(platform, first)).rejects.toThrow('must resume');
   await openGcpTerraformSession(platform, first, true);
 });
+
+it('resume rejects F5 context changes even when generated Terraform configuration is identical', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'gcp-session-context-')));
+  roots.push(root);
+  const platform = { storage: (owner) => CeDeploymentStore.open(root, owner) } as CePlatformService;
+  const first = inputs();
+  const session = await openGcpTerraformSession(platform, first);
+  const digest = await session.readConfigurationSha256?.();
+  const changed = inputs();
+  changed.intent.platformContext = 'another-context';
+  await expect(openGcpTerraformSession(platform, changed, true)).rejects.toThrow('resume input identity');
+  const resumed = await openGcpTerraformSession(platform, first, true);
+  expect(await resumed.readConfigurationSha256?.()).toBe(digest);
+});
