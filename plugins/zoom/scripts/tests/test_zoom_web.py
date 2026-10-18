@@ -24,7 +24,7 @@ class ZoomWebSafety(unittest.TestCase):
         )
         self.assertEqual(
             module.invitation("https://us06web.zoom.us/j/12345678901"),
-            "https://us06web.zoom.us/wc/join/12345678901",
+            "https://app.zoom.us/wc/join/12345678901",
         )
         for url in (
             "http://zoom.us/j/12345678901",
@@ -61,7 +61,7 @@ class ZoomWebSafety(unittest.TestCase):
             module.invitation(
                 "https://us06web.zoom.us/j/12345678901?pwd=synthetic-token#fragment"
             ),
-            "https://us06web.zoom.us/wc/join/12345678901?pwd=synthetic-token",
+            "https://app.zoom.us/wc/join/12345678901?pwd=synthetic-token",
         )
 
     def test_owned_browser_rejects_foreign_or_invalid_state_before_attach(self):
@@ -113,3 +113,14 @@ class ZoomWebSafety(unittest.TestCase):
         result = module.ensure_web_hd(page)
         self.assertEqual(result["hd"], "unavailable")
         self.assertFalse(result["verified"])
+
+    def test_browser_process_title_supports_chrome_rewritten_and_normal_argv(self):
+        for raw in (
+            b"/opt/google/chrome/chrome\x00--user-data-dir=/run/profile\x00",
+            b"/opt/google/chrome/chrome --user-data-dir=/run/profile\x00",
+        ):
+            with patch.object(Path, "read_bytes", return_value=raw):
+                self.assertEqual(
+                    module.browser_process_arguments(1),
+                    [b"/opt/google/chrome/chrome", b"--user-data-dir=/run/profile"],
+                )

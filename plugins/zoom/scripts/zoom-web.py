@@ -91,7 +91,7 @@ def invitation(target):
         message = "Unrecognized Zoom invitation path"
         raise ValueError(message)
     path = re.sub(r"^/j/", "/wc/join/", parsed.path)
-    return urlunparse(parsed._replace(path=path, fragment=""))
+    return urlunparse(parsed._replace(netloc="app.zoom.us", path=path, fragment=""))
 
 
 MAX_DISPLAY_NAME = 64
@@ -112,6 +112,53 @@ def display_name(value=None):
         message = "Zoom display name must contain 1-64 printable characters"
         raise ValueError(message)
     return name
+
+
+def browser_process_arguments(pid):
+    """Handle Chrome's Linux process-title rewrite without evaluating shell text."""
+    raw = Path(f"/proc/{pid}/cmdline").read_bytes().rstrip(b"\x00")
+    parts = raw.split(b"\x00")
+    if len(parts) == 1:
+        parts = raw.split(b" ")
+    return parts
+
+
+def launched_browser_pid(process, profile, port):
+    """Bind the main browser identity reported by the owned CDP endpoint."""
+    endpoint = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            with urllib.request.urlopen(endpoint + "/json/version", timeout=1):  # noqa: S310 - fixed loopback endpoint
+                break
+        except OSError:
+            if time.monotonic() >= deadline:
+                process.terminate()
+                message = "Owned Chrome endpoint did not initialize"
+                raise ValueError(message) from None
+            time.sleep(0.2)
+    with playwright_runtime()() as playwright:
+        browser = playwright.chromium.connect_over_cdp(endpoint, timeout=10000)
+        try:
+            session = browser.new_browser_cdp_session()
+            rows = session.send("SystemInfo.getProcessInfo")["processInfo"]
+            main = [row for row in rows if row["type"] == "browser"]
+            if len(main) != 1:
+                message = "One owned main Chrome process required"
+                raise ValueError(message)
+            pid = int(main[0]["id"])
+            entry = Path(f"/proc/{pid}")
+            argv = browser_process_arguments(pid)
+            if (
+                entry.stat().st_uid != os.getuid()
+                or f"--user-data-dir={profile}".encode() not in argv
+                or f"--remote-debugging-port={port}".encode() not in argv
+            ):
+                message = "Owned Chrome identity does not match launch"
+                raise ValueError(message)
+            return pid
+        finally:
+            browser.close()
 
 
 def join(target):
@@ -155,30 +202,31 @@ def join(target):
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
+    browser_log = (runtime / "pi-zoom-web-browser.log").open("w")
+    Path(browser_log.name).chmod(0o600)
     process = subprocess.Popen(
         [
             "google-chrome-stable",
             "--ozone-platform=wayland",
             "--no-first-run",
             "--no-default-browser-check",
-            # Acknowledge capture permission in this owned profile. The injected
-            # guard forces real virtual devices; no fake capture device is used.
-            "--use-fake-ui-for-media-stream",
             "--user-data-dir=" + str(profile),
             "--remote-debugging-address=127.0.0.1",
             "--remote-debugging-port=" + str(port),
             "--app=about:blank",
         ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=browser_log,
+        stderr=browser_log,
         start_new_session=True,
     )
+    browser_log.close()
+    browser_pid = launched_browser_pid(process, profile, port)
     state = runtime / "pi-zoom-web-state.json"
     state.write_text(
         json.dumps(
             {
                 "port": port,
-                "pid": process.pid,
+                "pid": browser_pid,
                 "profile": str(profile),
                 "display_name": display_name(),
             }
@@ -188,13 +236,17 @@ def join(target):
     ready_file = runtime / "pi-zoom-web-guard-ready"
     ready_file.unlink(missing_ok=True)
     (runtime / "pi-zoom-web-guard-error").unlink(missing_ok=True)
+    guard_log_path = runtime / "pi-zoom-web-guard.log"
+    guard_log = guard_log_path.open("w")
+    guard_log_path.chmod(0o600)
     worker = subprocess.Popen(
         [sys.executable, str(Path(__file__).resolve()), "_guard"],
         stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=guard_log,
+        stderr=guard_log,
         start_new_session=True,
     )
+    guard_log.close()
     if worker.stdin is None:
         message = "Browser guard input unavailable"
         raise ValueError(message)
@@ -246,7 +298,7 @@ def owned_browser_state():
         message = "Invalid owned browser port"
         raise ValueError(message)
     # Do not attach to a replaced process or profile after an interrupted session.
-    argv = Path(f"/proc/{selected['pid']}/cmdline").read_bytes().split(b"\x00")
+    argv = browser_process_arguments(selected["pid"])
     if (
         f"--user-data-dir={selected['profile']}".encode() not in argv
         or f"--remote-debugging-port={port}".encode() not in argv
@@ -272,6 +324,27 @@ def playwright_runtime():
     from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
     return sync_playwright
+
+
+def maintain_browser_guard(page, selected):
+    """Keep notice, identity and HD automation attached to the owned browser."""
+    hd_attempted = False
+    while not page.is_closed():
+        acknowledge_meeting_notices(page)
+        name = page.locator("#input-for-name")
+        if name.count() == 1 and name.is_visible() and not name.input_value():
+            name.fill(selected.get("display_name", "xcsh"))
+        if (
+            not hd_attempted
+            and page.locator('button[aria-label="More video controls"]').count() == 1
+        ):
+            hd_result = ensure_web_hd(page)
+            if hd_result.get("hd") != "pending":
+                hd_path = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-hd.json"
+                hd_path.write_text(json.dumps(hd_result))
+                hd_path.chmod(0o600)
+                hd_attempted = True
+        page.wait_for_timeout(1000)
 
 
 def initialize_browser(url, persistent=False):
@@ -306,7 +379,14 @@ def initialize_browser(url, persistent=False):
             guard = Path(__file__).with_name("virtual-media-guard.js").read_text()
             page = context.pages[0]
             context.add_init_script(guard)
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.goto(url, wait_until="commit", timeout=30000)
+            navigation_deadline = time.monotonic() + 30
+            while page.url == "about:blank":
+                if time.monotonic() >= navigation_deadline:
+                    message = "Zoom navigation did not commit"
+                    raise ValueError(message)
+                page.wait_for_timeout(200)
+            page.wait_for_timeout(500)
             final = urlparse(page.url)
             if not final.hostname or not (
                 final.hostname == "zoom.us" or final.hostname.endswith(".zoom.us")
@@ -321,32 +401,13 @@ def initialize_browser(url, persistent=False):
                 message = "Virtual media guard did not initialize"
                 raise ValueError(message)
             name = page.locator("#input-for-name")
-            if name.count() == 1:
+            if name.count() == 1 and name.is_visible():
                 name.fill(selected.get("display_name", "xcsh"))
             if persistent:
                 ready = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-ready"
                 ready.write_text("ready")
                 ready.chmod(0o600)
-                hd_attempted = False
-                while browser.is_connected() and not page.is_closed():
-                    acknowledge_meeting_notices(page)
-                    if (
-                        not hd_attempted
-                        and page.locator(
-                            'button[aria-label="More video controls"]'
-                        ).count()
-                        == 1
-                    ):
-                        hd_result = ensure_web_hd(page)
-                        if hd_result.get("hd") != "pending":
-                            hd_path = (
-                                Path(os.environ["XDG_RUNTIME_DIR"])
-                                / "pi-zoom-web-hd.json"
-                            )
-                            hd_path.write_text(json.dumps(hd_result))
-                            hd_path.chmod(0o600)
-                            hd_attempted = True
-                    page.wait_for_timeout(1000)
+                maintain_browser_guard(page, selected)
         finally:
             if persistent:
                 with contextlib.suppress(ProcessLookupError):
@@ -629,8 +690,14 @@ if __name__ == "__main__":
     except (ValueError, OSError, subprocess.TimeoutExpired, RuntimeError) as error:
         if sys.argv[1:] == ["_guard"]:
             diagnostic = Path(os.environ["XDG_RUNTIME_DIR"]) / "pi-zoom-web-guard-error"
+            missing = (
+                Path(error.filename).name
+                if isinstance(error, FileNotFoundError) and error.filename
+                else ""
+            )
             diagnostic.write_text(
                 type(error).__name__
+                + (":" + missing if missing else "")
                 + ": "
                 + (str(error) if isinstance(error, ValueError) else "startup failed")
             )
