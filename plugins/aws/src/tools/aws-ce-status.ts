@@ -6,6 +6,7 @@ import { loadAwsCheckpoint, loadAwsPlan } from '../ce/artifacts';
 import { collectAwsCeInventory } from '../ce/inventory';
 import { awsPlatformService } from '../ce/platform';
 import { collectAwsCeStatus } from '../ce/status';
+import { readAwsTerraformWorkflowStatus } from '../ce/terraform-status';
 import { makeExecApi } from './shared';
 
 export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
@@ -108,14 +109,41 @@ export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string
               },
             },
           };
-        const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+        let checkpoint =
+          plan.engine === 'native'
+            ? await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256)
+            : undefined;
+        let workflowProgress: Record<string, unknown> | undefined;
         let runtime: CeRuntime | undefined;
         try {
-          runtime = await (await awsPlatformService(pi, signal)).runtime(plan.engine, plan.intent.platformContext);
+          const platform = await awsPlatformService(pi, signal);
+          if (plan.engine === 'terraform') {
+            try {
+              const workflow = await readAwsTerraformWorkflowStatus(
+                plan,
+                await platform.storage({
+                  deploymentId: plan.deploymentName,
+                  engine: 'terraform',
+                  provider: 'aws',
+                  account: plan.accountId,
+                  region: plan.region,
+                }),
+              );
+              workflowProgress = workflow.progress;
+              checkpoint = workflow.routing;
+            } catch (error) {
+              if (signal?.aborted) throw error;
+              workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };
+            }
+          }
+          runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         } catch {
           signal?.throwIfAborted();
+          if (plan.engine === 'terraform' && !workflowProgress)
+            workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'platform-service-unavailable' };
         }
         const status = await collectAwsCeStatus(plan, checkpoint, makeApi(ctx.cwd), runtime, signal);
+        if (workflowProgress) Object.assign(status.checkpoint, workflowProgress);
         return {
           content: [
             {

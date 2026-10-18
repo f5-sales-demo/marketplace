@@ -15478,6 +15478,59 @@ var init_status = __esm(() => {
   init_network_health();
 });
 
+// plugins/aws/src/ce/terraform-status.ts
+async function readAwsTerraformWorkflowStatus(plan, storage) {
+  if (plan.engine !== 'terraform') throw new Error('Terraform status requires the owning engine');
+  await storage.verify();
+  let raw;
+  try {
+    raw = await storage.read('terraform-workflow.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return { progress: { state: 'not-started', engine: 'terraform', source: 'terraform-workflow.json' } };
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Malformed Terraform workflow');
+  const record = raw;
+  if (
+    record.schemaVersion !== 1 ||
+    record.engine !== 'terraform' ||
+    record.planSha256 !== plan.planSha256 ||
+    !['network-pending', 'registration-pending', 'registered'].includes(String(record.stage))
+  )
+    throw new Error('Terraform workflow identity differs from the owning plan');
+  let routing;
+  try {
+    const value = await storage.read('terraform-routing-checkpoint.json');
+    if (
+      !value ||
+      value.schemaVersion !== plan.schemaVersion ||
+      value.engine !== 'terraform' ||
+      value.planId !== plan.planId ||
+      value.planSha256 !== plan.planSha256 ||
+      !['running', 'partial', 'complete'].includes(value.state) ||
+      !Array.isArray(value.completedActionIds) ||
+      !value.completedActionIds.every((id) => typeof id === 'string') ||
+      !value.resolvedValues ||
+      typeof value.resolvedValues !== 'object' ||
+      Array.isArray(value.resolvedValues) ||
+      !Object.values(value.resolvedValues).every((value) => typeof value === 'string')
+    )
+      throw new Error('Terraform routing checkpoint identity differs');
+    routing = value;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  return {
+    progress: {
+      state: String(record.stage),
+      engine: 'terraform',
+      source: 'terraform-workflow.json',
+      planSha256: plan.planSha256,
+    },
+    routing,
+  };
+}
+
 // plugins/aws/src/tools/aws-ce-status.ts
 function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
@@ -15569,14 +15622,41 @@ function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
               },
             },
           };
-        const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+        let checkpoint =
+          plan.engine === 'native'
+            ? await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256)
+            : undefined;
+        let workflowProgress;
         let runtime;
         try {
-          runtime = await (await awsPlatformService(pi, signal)).runtime(plan.engine, plan.intent.platformContext);
+          const platform = await awsPlatformService(pi, signal);
+          if (plan.engine === 'terraform') {
+            try {
+              const workflow = await readAwsTerraformWorkflowStatus(
+                plan,
+                await platform.storage({
+                  deploymentId: plan.deploymentName,
+                  engine: 'terraform',
+                  provider: 'aws',
+                  account: plan.accountId,
+                  region: plan.region,
+                }),
+              );
+              workflowProgress = workflow.progress;
+              checkpoint = workflow.routing;
+            } catch (error) {
+              if (signal?.aborted) throw error;
+              workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };
+            }
+          }
+          runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         } catch {
           signal?.throwIfAborted();
+          if (plan.engine === 'terraform' && !workflowProgress)
+            workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'platform-service-unavailable' };
         }
         const status = await collectAwsCeStatus(plan, checkpoint, makeApi(ctx.cwd), runtime, signal);
+        if (workflowProgress) Object.assign(status.checkpoint, workflowProgress);
         return {
           content: [
             {
