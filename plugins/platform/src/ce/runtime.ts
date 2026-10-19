@@ -804,6 +804,8 @@ export class CeRuntime {
       verifyRegisteredInterfaceConfiguration(object(configuration.spec), evidence.interfaces, binding.owner.provider);
       const uid = object(configuration.system_metadata).uid;
       if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+      // Seed identity bindings before public status observes links; configuration alone is not link evidence.
+      await this.recordBinding?.(binding, uid, evidence.interfaces);
       return {
         ...evidence,
         configurationSource: this.#sitePath(binding),
