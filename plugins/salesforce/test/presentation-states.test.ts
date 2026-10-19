@@ -64,7 +64,7 @@ test('optional org values stay quiet and missing connection is never inferred', 
   expect(collapsed).not.toContain('isDefaultUsername');
   expect(JSON.stringify(render('sf_org_display', result, true))).toContain('isDefaultUsername');
 });
-test('unsupported renewals never show zero and known warnings summarize once with originals in expansion', () => {
+test('unsupported renewals never show zero and anomaly explanations remain visible', () => {
   const zero = { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0, accounts: [] };
   const group = {
     netNew: zero,
@@ -108,10 +108,11 @@ test('unsupported renewals never show zero and known warnings summarize once wit
   const text = JSON.stringify(collapsed);
   expect(text).toContain('Renewals unavailable');
   expect(text).not.toContain('Renewals by account');
-  expect(text).not.toContain('987654321');
-  expect(text).not.toContain('>30 days');
+  expect(text).toContain('987,654,321');
+  expect(text).toContain('>30 days');
+  expect(text).toContain('no activity recorded');
   expect(
-    collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.endsWith('Activity needs review')),
+    collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.includes('Original no activity in >30 days')),
   ).toHaveLength(1);
   expect(text).toContain('quota eligibility unknown');
   expect(text).toContain('Unfamiliar warning '.repeat(100));
@@ -140,11 +141,12 @@ test('empty help and relationship sections are omitted', () => {
     false,
     { match: 'Name' },
   );
-  expect(JSON.stringify(schema)).not.toContain('Child relationships');
+  expect(schema.sections.some((section) => section.title === 'Child relationships')).toBe(false);
+  expect(JSON.stringify(schema)).toContain('Child relationships');
   expect(JSON.stringify(schema)).not.toContain('0 fields');
 });
 
-test('normal connected status is quiet while explicit connection problems remain visible', () => {
+test('normal and problematic connection status remain visible', () => {
   for (const status of ['Connected', 'Disconnected']) {
     const result = {
       content: [],
@@ -157,7 +159,7 @@ test('normal connected status is quiet while explicit connection problems remain
       },
     };
     const view = render('sf_org_display', result);
-    expect(JSON.stringify(view).includes(status)).toBe(status !== 'Connected');
+    expect(JSON.stringify(view)).toContain(status);
     expect(JSON.stringify(render('sf_org_display', result, true))).toContain(status);
   }
 });
