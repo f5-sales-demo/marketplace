@@ -15,11 +15,12 @@ from pathlib import Path
 from typing import Any
 
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
 
 def plain(value: str) -> str:
     """Remove styling escapes without modifying literal text."""
-    return ANSI.sub("", value)
+    return ANSI.sub("", OSC.sub("", value))
 
 
 def columns(value: str) -> int:
