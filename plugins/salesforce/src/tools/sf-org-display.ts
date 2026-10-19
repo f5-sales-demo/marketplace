@@ -6,7 +6,14 @@ import { formatOrgDetail } from '../sf/formatters';
 import type { SfOrg } from '../sf/types';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
+import {
+  detectErrorType,
+  errorResult,
+  makeExecApi,
+  rethrowCancellation,
+  textResult,
+  withCommandEvidence,
+} from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -19,7 +26,7 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
     target_org: Type.Optional(Type.String({ description: 'Org alias or username to display' })),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_org_display',
     label: 'Salesforce Org Display',
     description: sfOrgDisplayDescription,
@@ -80,5 +87,5 @@ export function createSfOrgDisplayTool(pi: PluginHost, makeApi: (cwd: string) =>
         return errorResult(message, { ...base, errorType });
       }
     },
-  };
+  });
 }

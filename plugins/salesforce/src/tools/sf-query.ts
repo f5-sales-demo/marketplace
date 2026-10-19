@@ -5,7 +5,14 @@ import { deriveQueryLabel, formatQueryResults } from '../sf/formatters';
 import type { SfQueryResult } from '../sf/types';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
+import {
+  detectErrorType,
+  errorResult,
+  makeExecApi,
+  rethrowCancellation,
+  textResult,
+  withCommandEvidence,
+} from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -29,7 +36,7 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
     all_rows: Type.Optional(Type.Boolean({ description: 'Include deleted records in results' })),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_query',
     label: 'Salesforce Query',
     description: sfQueryDescription,
@@ -93,5 +100,5 @@ export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
         return errorResult(message, { ...base, errorType });
       }
     },
-  };
+  });
 }

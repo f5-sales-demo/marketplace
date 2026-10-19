@@ -40,3 +40,15 @@ export function createCaptureExecution<T>(component: {
     },
   };
 }
+
+export function validAppearanceControl(control: any): boolean {
+  return (
+    typeof control?.id === 'string' &&
+    /^[\w.-]+$/.test(control.id) &&
+    ['xcsh-dark', 'xcsh-light'].includes(control.theme) &&
+    ['unicode', 'ascii', 'nerd'].includes(control.preset) &&
+    Number.isInteger(control.width) &&
+    control.width >= 30 &&
+    control.width <= 200
+  );
+}

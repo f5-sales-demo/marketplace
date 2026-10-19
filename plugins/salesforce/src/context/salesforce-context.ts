@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { recordSalesforceCommand } from '../sf/command-evidence';
 import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
 import { normalizeDescribe } from '../sf/describe';
 import type { SfRawResult } from '../sf/types';
@@ -11,7 +12,9 @@ async function runSalesforce(args: readonly string[]): Promise<SfRawResult> {
   if (!salesforceExecutor) throw new Error('Salesforce host executor is unavailable');
   discoveryScope.getStore()?.throwIfAborted();
   const target = discoveryOrgScope.getStore();
-  return salesforceExecutor(target ? [...args, '--target-org', target] : args, discoveryScope.getStore());
+  const argv = target ? [...args, '--target-org', target] : args;
+  recordSalesforceCommand(argv);
+  return salesforceExecutor(argv, discoveryScope.getStore());
 }
 const discoveryScope = new AsyncLocalStorage<AbortSignal>();
 const discoveryOrgScope = new AsyncLocalStorage<string>();

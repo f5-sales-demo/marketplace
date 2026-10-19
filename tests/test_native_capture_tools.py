@@ -1,12 +1,14 @@
 # Standalone unittest runner, not an import package.
 # ruff: noqa: INP001, PT027
 # unittest is the repository standalone runner; keep it dependency-free.
+import gzip
 import importlib.util
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / "scripts" / "drive-salesforce-capture.py"
 spec = importlib.util.spec_from_file_location("capture_driver", MODULE)
@@ -15,12 +17,106 @@ assert spec.loader is not None
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 
+STARTER = MODULE.with_name("start-salesforce-capture.py")
+start_spec = importlib.util.spec_from_file_location("capture_starter", STARTER)
+assert start_spec is not None
+assert start_spec.loader is not None
+starter = importlib.util.module_from_spec(start_spec)
+start_spec.loader.exec_module(starter)
+
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_scroll_capture_retains_compressed_evidence_and_rejects_missing_rows(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_driver", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "frames").mkdir()
+            frame = {
+                "terminalColumns": 160,
+                "viewport": {"rows": ["first", "second"], "offset": 0, "totalLines": 2},
+            }
+            path = root / "frames" / "page.json"
+            payload = json.dumps(frame).encode()
+            for observed, passed in [(b"first\nsecond\n", True), (b"first\n", False)]:
+                path.write_bytes(payload)
+                with (
+                    patch.object(surface.time, "sleep"),
+                    patch.object(
+                        surface.subprocess, "check_output", return_value=observed
+                    ),
+                ):
+                    result = surface.capture_page(root, "owned-pane", "page", 153)
+                assert result["passed"] is passed
+                assert not path.exists()
+                assert (
+                    gzip.decompress(path.with_suffix(".json.gz").read_bytes())
+                    == payload
+                )
+
+    def test_remaining_outcomes_are_independent_and_fixture_only(self):
+        cases = starter.cases("fixture", "remaining")
+        assert len(cases) == 24
+        assert len({case["id"] for case in cases}) == 24
+        for tool in {case["tool"] for case in cases}:
+            assert {
+                case["fixtureOutcome"] for case in cases if case["tool"] == tool
+            } == {"empty", "unavailable", "partial", "failed"}
+        assert len({case["tool"] for case in cases}) == 6
+        assert all(case["expectedText"] for case in cases)
+        with self.assertRaises(ValueError):
+            starter.cases("live", "remaining")
+
+    def test_case_selection_rejects_unknown_and_duplicate_ids(self):
+        available = starter.cases("fixture", "remaining")
+        selected = starter.select_cases(available, ["sf_pipeline_report-empty"])
+        assert [case["id"] for case in selected] == ["sf_pipeline_report-empty"]
+        assert starter.select_cases(available, []) == available
+        for ids in (["unknown"], ["sf_query-empty", "sf_query-empty"]):
+            with self.assertRaises(ValueError):
+                starter.select_cases(available, ids)
+
+    def test_outcome_evidence_is_checked_after_terminal_reflow(self):
+        case = {
+            "id": "fault",
+            "tool": "sf_pipeline_report",
+            "args": {},
+            "expectedError": True,
+            "expectedText": ["Select an authenticated target_org"],
+        }
+        frame = {
+            "id": "fault",
+            "width": 40,
+            "terminalColumns": 160,
+            "theme": "xcsh-dark",
+            "preset": "ascii",
+            "expanded": False,
+            "resultIsError": True,
+            "lines": ["| Select an authenticated |", "| target_org |"],
+        }
+        with tempfile.TemporaryDirectory() as root:
+            assert driver.inspect_frame(Path(root), frame, case)["passed"]
+            frame["lines"] = ["unexplained error"]
+            assert not driver.inspect_frame(Path(root), frame, case)["passed"]
+
     def test_width_uses_visible_cells_not_ansi_or_combining_marks(self):
         assert driver.columns("\x1b[31m北方\x1b[0m") == 4
         assert driver.columns("é") == 1
         assert driver.columns("false") == 5
+
+    def test_hyperlink_metadata_has_no_visible_width(self):
+        for ending in ["\x07", "\x1b\\"]:
+            link = "\x1b]8;;https://example.com/long-hidden-path" + ending
+            close = "\x1b]8;;" + ending
+            value = link + "\x1b[34mexample\x1b[0m" + close
+            assert driver.plain(value) == "example"
+            assert driver.columns(value) == 7
+            assert driver.columns(value + " too wide") == 16
 
     def test_actual_frame_command_is_reconstructed_in_both_shells(self):
         query = (

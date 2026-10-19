@@ -4,7 +4,14 @@ import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN, SOBJECT_NAME_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { detectErrorType, errorResult, makeExecApi, rethrowCancellation, textResult } from './shared';
+import {
+  detectErrorType,
+  errorResult,
+  makeExecApi,
+  rethrowCancellation,
+  textResult,
+  withCommandEvidence,
+} from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -24,7 +31,7 @@ export function createSfDescribeTool(pi: PluginHost, makeApi: (cwd: string) => S
     target_org: Type.Optional(Type.String({ description: 'Org alias or username to describe against' })),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_describe',
     label: 'Salesforce Describe',
     description: sfDescribeDescription,
@@ -80,5 +87,5 @@ export function createSfDescribeTool(pi: PluginHost, makeApi: (cwd: string) => S
         return errorResult(message, { ...base, errorType });
       }
     },
-  };
+  });
 }

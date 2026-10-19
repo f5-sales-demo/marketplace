@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import Any
 
 STARTUP_TIMEOUT = 60
+DEFAULT_DELAY_MS = 40
+MAX_DELAY_MS = 30000
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def cases(mode: str) -> list[dict[str, Any]]:
+def cases(mode: str, coverage: str = "baseline") -> list[dict[str, Any]]:
     """Build safe fixture cases or supported-MacBook read-only service cases."""
-    basic = [
+    basic: list[dict[str, Any]] = [
         {
             "id": "query-zero",
             "tool": "sf_query",
@@ -47,6 +49,53 @@ def cases(mode: str) -> list[dict[str, Any]]:
         },
         {"id": "pipeline", "tool": "sf_pipeline_report", "args": {}},
     ]
+    if coverage == "remaining":
+        if mode != "fixture":
+            msg = "Fault coverage is fixture-only"
+            raise ValueError(msg)
+        expected = {
+            "sf_query": {
+                "empty": ["0 records returned"],
+                "partial": ["Partial results"],
+            },
+            "sf_exec": {"empty": ["(no output)"], "partial": ["Partial results"]},
+            "sf_describe": {"empty": ["0"], "partial": ["Synthetic partial catalog"]},
+            "sf_org_display": {
+                "empty": ["authenticated identity is not verified"],
+                "partial": ["Synthetic partial identity"],
+            },
+            "sf_help": {
+                "empty": ["No help output"],
+                "partial": ["Synthetic partial help"],
+            },
+            "sf_pipeline_report": {
+                "empty": ["no entries in this report"],
+                "partial": ["incomplete results", "narrower scope", "complete export"],
+            },
+        }
+        return [
+            {
+                **case,
+                "id": case["tool"] + "-" + outcome,
+                "fixtureOutcome": outcome,
+                "expectedError": outcome in {"unavailable", "failed"}
+                or (case["tool"] == "sf_org_display" and outcome == "empty")
+                or (case["tool"] == "sf_pipeline_report" and outcome == "partial"),
+                "expectedText": expected[case["tool"]].get(
+                    outcome,
+                    [
+                        "Synthetic service unavailable"
+                        if outcome == "unavailable"
+                        else "Synthetic command failed",
+                        "Select an authenticated target_org"
+                        if outcome == "unavailable"
+                        else "Run sf help",
+                    ],
+                ),
+            }
+            for case in basic
+            for outcome in ["empty", "unavailable", "partial", "failed"]
+        ]
     if mode == "live":
         return basic
     return [
@@ -97,11 +146,37 @@ def cases(mode: str) -> list[dict[str, Any]]:
     ]
 
 
+def select_cases(
+    available: list[dict[str, Any]], requested: list[str]
+) -> list[dict[str, Any]]:
+    """Select explicit known cases without silently dropping typos or duplicates."""
+    if not requested:
+        return available
+    if len(set(requested)) != len(requested):
+        msg = "Duplicate capture case IDs"
+        raise ValueError(msg)
+    known = {case["id"]: case for case in available}
+    if set(requested) - known.keys():
+        msg = "Unknown capture case IDs"
+        raise ValueError(msg)
+    return [known[identifier] for identifier in requested]
+
+
 def main() -> None:
     """Run the explicitly scoped capture workflow."""
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     parser.add_argument("--mode", choices=["fixture", "live"], default="fixture")
+    parser.add_argument("--delay-ms", type=int, default=40)
+    parser.add_argument(
+        "--case",
+        action="append",
+        default=[],
+        help="Capture only this known case ID; repeat for multiple cases",
+    )
+    parser.add_argument(
+        "--coverage", choices=["baseline", "remaining"], default="baseline"
+    )
     parser.add_argument(
         "--pane",
         help="Reuse a pane previously recorded as owned in this capture directory",
@@ -110,6 +185,13 @@ def main() -> None:
     if platform.system() != "Darwin" or os.environ.get("HERDR_ENV") != "1":
         msg = "This campaign requires the authorized MacBook's managed Herdr binding"
         raise RuntimeError(msg)
+    if args.mode == "live" and args.delay_ms != DEFAULT_DELAY_MS:
+        msg = "Synthetic delay controls are fixture-only"
+        raise ValueError(msg)
+    if not 0 <= args.delay_ms <= MAX_DELAY_MS:
+        msg = "Synthetic delay must be between 0 and 30000 ms"
+        raise ValueError(msg)
+    selected_cases = select_cases(cases(args.mode, args.coverage), args.case)
     root = args.root.resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     root.chmod(0o700)
@@ -193,7 +275,7 @@ def main() -> None:
         check=True,
     )
     (root / "agent").mkdir(mode=0o700, exist_ok=True)
-    (root / "cases.json").write_text(json.dumps(cases(args.mode)))
+    (root / "cases.json").write_text(json.dumps(selected_cases))
     env = [
         "PI_CODING_AGENT_DIR=" + str(root / "agent"),
         "PRESENTATION_CAPTURE_ROOT=" + str(root),
@@ -215,6 +297,13 @@ def main() -> None:
             "else if (query.includes('COUNT('))",
             "else if (query.includes('SyntheticPresentation__c')) result = {records:[{Count__c:0,Enabled__c:false,Empty__c:'',Literal__c:\"$HOME $(printf safe) ; | 北方\"}],totalSize:1,done:true};\nelse if (query.includes('COUNT('))",
         )
+        code = code.replace(
+            "const args = process.argv.slice(2);",
+            (
+                "const args = process.argv.slice(2);\n"
+                + (ROOT / "scripts/salesforce-fixture-outcomes.ts").read_text()
+            ),
+        )
         (fixture / "fixture-sf.ts").write_text(code)
         (root / "bin").mkdir(mode=0o700, exist_ok=True)
         wrapper = root / "bin/sf"
@@ -226,6 +315,8 @@ def main() -> None:
             + ' "$@"\n'
         )
         wrapper.chmod(0o700)
+        env.append("PRESENTATION_FIXTURE_DELAY_MS=" + str(args.delay_ms))
+        env.append("PRESENTATION_FIXTURE_CONTROL=" + str(root / "fixture-control.json"))
         env.append("PATH=" + str(root / "bin") + ":" + os.environ["PATH"])
     command = [
         "env",

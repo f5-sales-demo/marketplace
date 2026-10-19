@@ -9,6 +9,7 @@ import { pipelineView } from './presentation/pipeline';
 import { queryView } from './presentation/query';
 import type { Args, Options, Result, View } from './presentation/shared';
 import { code, context, evidence, incomplete, literal, record, texts } from './presentation/shared';
+import { type CommandEvidence, commandEvidenceText } from './sf/command-evidence';
 
 const adapters = {
   sf_exec: execView,
@@ -58,6 +59,15 @@ export function presentTool<T extends { name: string; label?: string }>(
       );
     },
     result: (result: Result, options: Options, input: unknown): View => {
+      const modelEvidence = record(result.details).commandEvidence as CommandEvidence | undefined;
+      if (modelEvidence) {
+        const { commandEvidence: _modelEvidence, ...details } = record(result.details);
+        result = {
+          ...result,
+          details,
+          content: result.content.filter((block) => block.text !== commandEvidenceText(modelEvidence)),
+        };
+      }
       const args: Args = record(input);
       const argv = toolArgv(tool.name, args);
       if (result.isError && tool.name !== 'sf_exec')
