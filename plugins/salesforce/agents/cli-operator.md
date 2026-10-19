@@ -55,7 +55,7 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 ### Command Executed
 
-<the exact sf command run>
+<native tool name and supplied arguments, followed by the exact executed CLI argv from the tool's Executed Salesforce CLI argv (JSON) evidence>
 
 ### Output Summary
 
@@ -65,6 +65,14 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 <any errors, warnings, or items needing attention>
 ```
+
+For typed tools, use only the returned command evidence to report underlying CLI
+invocations. The `commands` array lists actual executor attempts in order, including
+failed attempts and pipeline discovery queries. An empty array means no safe CLI
+invocation is verified. `withheld` counts sensitive invocations whose argv must not
+be reconstructed. A failed attempt does not establish successful process completion.
+Never infer a CLI command from native arguments or report an unexecuted source query.
+Keep each argv element intact; quote it safely if presenting a runnable shell command.
 
 ## Environment Variables
 

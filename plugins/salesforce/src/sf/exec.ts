@@ -1,3 +1,4 @@
+import { recordSalesforceCommand } from './command-evidence';
 import type { SfJsonResult, SfRawResult } from './types';
 
 export type { SfRawResult } from './types';
@@ -135,7 +136,9 @@ export async function execSfJson(
   signal?: AbortSignal,
   query?: string,
 ): Promise<SfJsonResult> {
-  const result = await api.exec('sf', [...args, '--json'], { signal });
+  const argv = [...args, '--json'];
+  recordSalesforceCommand(argv);
+  const result = await api.exec('sf', argv, { signal });
   if (!result.stdout.trim() && result.exitCode !== 0) {
     throw detectSfError(result.stderr || 'Salesforce CLI returned no output', result.exitCode, query);
   }
@@ -152,6 +155,7 @@ export async function execSfJson(
 }
 
 export async function execSfRaw(api: SfExecApi, args: string[], signal?: AbortSignal): Promise<SfRawResult> {
+  recordSalesforceCommand(args);
   const result = await api.exec('sf', args, { signal });
   const queryIndex = args.indexOf('--query');
   const query = queryIndex >= 0 ? args[queryIndex + 1] : args.find((arg) => arg.startsWith('--query='))?.slice(8);

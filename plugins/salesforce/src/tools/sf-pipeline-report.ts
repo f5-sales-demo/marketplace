@@ -10,7 +10,7 @@ import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import type { SfErrorType, SfToolDetails } from './shared';
-import { detectErrorType, makeExecApi } from './shared';
+import { detectErrorType, makeExecApi, withCommandEvidence } from './shared';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +92,7 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
     target_org: Type.Optional(Type.String({ description: 'Org alias or username to run report against' })),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_pipeline_report',
     label: 'Salesforce Pipeline Report',
     description: sfPipelineReportDescription,
@@ -251,5 +251,5 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
         };
       }
     },
-  };
+  });
 }

@@ -1,4 +1,5 @@
 import type { PipelineReportData } from '../pipeline-report/types';
+import { type CommandEvidence, commandEvidenceText, commandScope } from '../sf/command-evidence';
 import { SfAuthError, type SfExecApi, SfNoDefaultOrgError, SfQueryError, SfSessionExpiredError } from '../sf/exec';
 import type { SfOrg, SfQueryResult, SfRawResult } from '../sf/types';
 
@@ -11,6 +12,7 @@ export type SfErrorType = 'auth_required' | 'session_expired' | 'no_default_org'
 export interface SfToolDetails {
   tool: 'sf_query' | 'sf_org_display' | 'sf_pipeline_report' | 'sf_help' | 'sf_exec' | 'sf_describe';
   action?: string;
+  commandEvidence?: CommandEvidence;
   orgs?: SfOrg[];
   queryResult?: SfQueryResult;
   queryDescription?: string;
@@ -156,4 +158,38 @@ export function collectAllOrgs(orgList: Record<string, unknown[]>): SfOrg[] {
     seen.add(org.orgId);
     return true;
   });
+}
+
+/** Per-call scope also captures context discovery, without mixing concurrent tool calls. */
+export function withCommandEvidence<T extends { name: string; execute: (...args: never[]) => Promise<unknown> }>(
+  tool: T,
+): T {
+  const execute = tool.execute.bind(tool) as (
+    ...args: unknown[]
+  ) => Promise<{ content: { type: string; text?: string }[]; details: SfToolDetails }>;
+  return {
+    ...tool,
+    execute: (async (...args: unknown[]) => {
+      const evidence: CommandEvidence = { commands: [], withheld: 0 };
+      return commandScope.run(evidence, async () => {
+        let result: Awaited<ReturnType<typeof execute>>;
+        try {
+          result = await execute(...args);
+        } catch (err) {
+          rethrowCancellation(err);
+          result = errorResult(renderError(err), {
+            tool: tool.name as SfToolDetails['tool'],
+            errorType: detectErrorType(err),
+          });
+        }
+        // Snapshot before returning: late asynchronous work must not mutate delivered evidence.
+        const snapshot = { commands: evidence.commands.map((argv) => [...argv]), withheld: evidence.withheld };
+        return {
+          ...result,
+          content: [...result.content, { type: 'text', text: commandEvidenceText(snapshot) }],
+          details: { ...result.details, commandEvidence: snapshot },
+        };
+      });
+    }) as T['execute'],
+  };
 }
