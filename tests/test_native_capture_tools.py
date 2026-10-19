@@ -37,19 +37,27 @@ class NativeCaptureChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "frames").mkdir()
-            frame = {"terminalColumns": 160,
-                     "viewport": {"rows": ["first", "second"], "offset": 0, "totalLines": 2}}
+            frame = {
+                "terminalColumns": 160,
+                "viewport": {"rows": ["first", "second"], "offset": 0, "totalLines": 2},
+            }
             path = root / "frames" / "page.json"
             payload = json.dumps(frame).encode()
             for observed, passed in [(b"first\nsecond\n", True), (b"first\n", False)]:
                 path.write_bytes(payload)
-                with patch.object(surface.time, "sleep"), patch.object(
-                    surface.subprocess, "check_output", return_value=observed
+                with (
+                    patch.object(surface.time, "sleep"),
+                    patch.object(
+                        surface.subprocess, "check_output", return_value=observed
+                    ),
                 ):
                     result = surface.capture_page(root, "owned-pane", "page", 153)
                 assert result["passed"] is passed
                 assert not path.exists()
-                assert gzip.decompress(path.with_suffix(".json.gz").read_bytes()) == payload
+                assert (
+                    gzip.decompress(path.with_suffix(".json.gz").read_bytes())
+                    == payload
+                )
 
     def test_remaining_outcomes_are_independent_and_fixture_only(self):
         cases = starter.cases("fixture", "remaining")

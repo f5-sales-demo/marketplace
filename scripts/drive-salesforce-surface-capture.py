@@ -22,9 +22,7 @@ spec.loader.exec_module(driver)
 
 def capture_page(root: Path, pane: str, identifier: str, width: int) -> dict:
     """Retain a compressed frame and independently inspect its visible rows."""
-    frame = json.loads(
-        (root / "frames" / (identifier + ".json")).read_text()
-    )
+    frame = json.loads((root / "frames" / (identifier + ".json")).read_text())
     frame_path = root / "frames" / (identifier + ".json")
     packed = gzip.compress(frame_path.read_bytes())
     archive = frame_path.with_suffix(".json.gz")
@@ -48,18 +46,11 @@ def capture_page(root: Path, pane: str, identifier: str, width: int) -> dict:
             "ansi",
         ]
     )
-    (root / "visible" / (identifier + ".ansi")).parent.mkdir(
-        mode=0o700, exist_ok=True
-    )
-    (root / "visible" / (identifier + ".ansi")).write_bytes(
-        observation
-    )
+    (root / "visible" / (identifier + ".ansi")).parent.mkdir(mode=0o700, exist_ok=True)
+    (root / "visible" / (identifier + ".ansi")).write_bytes(observation)
     actual = driver.plain(observation.decode()).splitlines()
     # Independent terminal viewport must contain every requested native row.
-    expected = [
-        driver.plain(line).rstrip()
-        for line in frame["viewport"]["rows"]
-    ]
+    expected = [driver.plain(line).rstrip() for line in frame["viewport"]["rows"]]
     actual = [line.rstrip() for line in actual]
     passed = frame["terminalColumns"] >= width and all(
         line in actual for line in expected
@@ -86,7 +77,10 @@ def main() -> None:
     cases = json.loads((root / "cases.json").read_text())
     previous = []
     if args.resume and (root / "surface-inspection.jsonl").exists():
-        previous = [json.loads(line) for line in (root / "surface-inspection.jsonl").read_text().splitlines()]
+        previous = [
+            json.loads(line)
+            for line in (root / "surface-inspection.jsonl").read_text().splitlines()
+        ]
     completed = {item["id"]: item for item in previous if item["passed"]}
     failures = []
     pages = 0
@@ -102,7 +96,10 @@ def main() -> None:
                             )
                             prior = completed.get(identifier)
                             if prior:
-                                if prior["offset"] + prior["pageLines"] >= prior["totalLines"]:
+                                if (
+                                    prior["offset"] + prior["pageLines"]
+                                    >= prior["totalLines"]
+                                ):
                                     break
                                 offset += max(1, prior["pageLines"] - 1)
                                 continue
@@ -125,7 +122,10 @@ def main() -> None:
                             if not finding["passed"]:
                                 failures.append(identifier)
                             pages += 1
-                            if finding["offset"] + finding["pageLines"] >= finding["totalLines"]:
+                            if (
+                                finding["offset"] + finding["pageLines"]
+                                >= finding["totalLines"]
+                            ):
                                 break
                             offset += max(1, finding["pageLines"] - 1)
                     print(
