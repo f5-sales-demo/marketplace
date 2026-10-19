@@ -23,6 +23,8 @@ The private campaign receipt SHA-256 is
 Public artifact packaging passed exact-head CI at
 `92a2a0c9e8ac96604d83373d33a2755ab99994f7`. The first public cloud campaign
 stopped at prelaunch authentication before review or submission because the Mac
-Google CLI session requires reauthentication. Successful Montréal deployment,
-interrupted recovery and partial cleanup remain unqualified. Prior native acceptance
+Google CLI session required reauthentication. After refreshing that session, fresh
+Montréal deployment, interrupted recovery and partial disk cleanup passed at source
+`a92f2c9778a3ff57811e29707196a8412b5cfc65`; see the
+[installed acceptance receipt](gcp-public-terraform-deployment-20261019.md). Prior native acceptance
 retains its original source and bundle attribution. PR #1566 remains draft.
