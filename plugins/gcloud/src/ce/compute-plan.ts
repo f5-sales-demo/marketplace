@@ -268,3 +268,37 @@ export function translateGcpTerraformSiteCompute(
     },
   };
 }
+
+/** Public v2 configuration owns the disk even when VM creation never reaches state. */
+export function translateGcpPublicTerraformSiteCompute(
+  intent: GcpCeIntent,
+  versions: { google: string; xcsh: string; terraform: string },
+) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions);
+  const disks: Record<
+    string,
+    { name: string; project: string; zone: string; image: string; size: number; type: string }
+  > = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      disks[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        image: intent.image.selfLink,
+        size: intent.diskGiB,
+        type: 'pd-balanced',
+      };
+      const instance = translated.configuration.resource.google_compute_instance[key] as Record<string, unknown>;
+      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
+    }
+  return {
+    ...translated,
+    schemaVersion: 2 as const,
+    configuration: {
+      ...translated.configuration,
+      resource: { ...translated.configuration.resource, google_compute_disk: disks },
+    },
+  };
+}

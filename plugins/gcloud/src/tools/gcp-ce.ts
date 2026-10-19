@@ -24,6 +24,9 @@ import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
 import { collectGcpLaunchPreflight } from '../ce/preflight';
 import { createGcpPreflightPort } from '../ce/preflight-port';
+import { applyPublicTerraformDeployment, planPublicTerraformDeployment } from '../ce/terraform-public';
+import { openPublicTerraformRuntime } from '../ce/terraform-public-runtime';
+import { applyPublicTerraformTeardown, planPublicTerraformTeardown } from '../ce/terraform-public-teardown';
 import { resumeGcpTerraformSession } from '../ce/terraform-session';
 import { applyGcpTerraformTeardown, planGcpTerraformTeardown } from '../ce/terraform-teardown';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
@@ -68,6 +71,7 @@ export function createGcpCeTools(
   policy = readGcpCePolicy,
   terraformSession = resumeGcpTerraformSession,
   funding = collectCurrentGcpCorporateFunding,
+  publicTerraformRuntime = openPublicTerraformRuntime,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -86,11 +90,11 @@ export function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Review a native single-node BYOL deployment when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Without an operation, returns non-executable readiness.',
+      'Review a single-node BYOL deployment through the selected native or qualified Terraform engine when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Terraform requires the packaged creation-identity provider. Without an operation, returns non-executable readiness.',
     ],
     [
       'gcp_ce_apply',
-      'Apply or resume an exact reviewed native single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform deployment remains unavailable. Cloud creation does not imply registration, health or traffic.',
+      'Apply or resume an exact reviewed single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform inspects consumed submissions and requires a separate delete-only review for partial cleanup. Cloud creation does not imply registration, health or traffic.',
     ],
     [
       'gcp_ce_status',
@@ -194,7 +198,6 @@ export function createGcpCeTools(
           )
             throw new Error('Explicit deployment intent scope required');
           validateIntent(intent);
-          if (intent.engine !== 'native') throw new Error('Public Terraform deployment qualification unavailable');
           if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
             throw new Error('Planning tool cannot apply authorization');
           if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
@@ -206,6 +209,29 @@ export function createGcpCeTools(
           sources.preflight = (intent, signal) =>
             preflight(intent, createGcpPreflightPort(api, intent.project), signal);
           sources.funding = (intent, signal) => funding(api, intent.project, signal);
+          if (intent.engine === 'terraform') {
+            const runtime = await publicTerraformRuntime(platform, api, intent, signal);
+            if (tool === 'gcp_ce_plan') {
+              const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
+            const evidence = await applyPublicTerraformDeployment(
+              runtime,
+              platform,
+              intent,
+              params.approvedPlanHash as string,
+              sources,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(
+              tool,
+              { availability: 'terraform-deployment', ...evidence, mutationAttempted },
+              evidence.state === 'reconciliation-required',
+            );
+          }
           if (tool === 'gcp_ce_apply') {
             const evidence = await applyGcpDeploymentReview(
               platform,
@@ -356,6 +382,35 @@ export function createGcpCeTools(
               observePlatform: observations.teardown,
               environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
             };
+            let storedInputs: { inputs?: { configurationVersion?: number } } | undefined;
+            try {
+              storedInputs = (await store.read('gcp-terraform-session-inputs.json')) as typeof storedInputs;
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+            }
+            if (storedInputs?.inputs?.configurationVersion === 2) {
+              if (params.approvedPlanHash) {
+                const evidence = await applyPublicTerraformTeardown(
+                  runtime,
+                  intent,
+                  boundary,
+                  receipt,
+                  params.approvedPlanHash,
+                  signal,
+                  () => {
+                    mutationAttempted = true;
+                  },
+                );
+                return result(
+                  tool,
+                  { availability: 'terraform-teardown', ...evidence, mutationAttempted },
+                  evidence.state === 'reconciliation-required',
+                );
+              }
+              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
+              const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
             if (params.approvedPlanHash) {
               const evidence = await applyGcpTerraformTeardown(
                 runtime,

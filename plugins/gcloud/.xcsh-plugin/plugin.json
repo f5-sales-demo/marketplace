@@ -1,7 +1,7 @@
 {
   "name": "gcloud",
-  "description": "Google Cloud authentication, Customer Edge readiness, reviewed native teardown and programmatic Marketplace consent qualification",
-  "version": "1.7.0",
+  "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
+  "version": "1.7.1",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
   "license": "Apache-2.0",
   "author": {

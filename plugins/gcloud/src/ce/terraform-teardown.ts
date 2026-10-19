@@ -79,7 +79,17 @@ async function savedIntent(store: GcpOperationStore, intent: GcpCeIntent) {
 function platformNames(intent: GcpCeIntent, observation: Observation) {
   if (
     Object.keys(observation).some(
-      (key) => !['siteName', 'siteUid', 'tokenName', 'tokenIdentityHash', 'siteAbsent', 'tokenAbsent'].includes(key),
+      (key) =>
+        ![
+          'siteName',
+          'siteUid',
+          'tokenName',
+          'tokenIdentityHash',
+          'siteIdentitySha256',
+          'tokenIdentitySha256',
+          'siteAbsent',
+          'tokenAbsent',
+        ].includes(key),
     ) ||
     typeof observation.siteAbsent !== 'boolean' ||
     typeof observation.tokenAbsent !== 'boolean' ||

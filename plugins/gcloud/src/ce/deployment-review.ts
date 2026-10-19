@@ -67,7 +67,7 @@ function profile(intent: GcpCeIntent, boundary: GcpCeContractBoundary, platform:
     throw new Error('Qualified native single-node BYOL deployment profile required');
   if (!platform.gcpLifecycle) throw new Error('Qualified native shared deployment runtime unavailable');
 }
-function fundingBinding(funding: GcpCorporateFundingReceipt) {
+export function fundingBinding(funding: GcpCorporateFundingReceipt) {
   return {
     project: funding.project,
     billingAccountName: funding.billingAccountName,
@@ -76,16 +76,27 @@ function fundingBinding(funding: GcpCorporateFundingReceipt) {
     organizationDomain: funding.organizationDomain,
   };
 }
-async function collect(
+export async function collectGcpDeploymentPrerequisites(
   platform: CePlatformService,
   intent: GcpCeIntent,
   sources: GcpDeploymentSources,
   signal?: AbortSignal,
   resume = false,
+  engine: 'native' | 'terraform' = 'native',
 ) {
   signal?.throwIfAborted();
   const boundary = await sources.contract(signal);
-  profile(intent, boundary, platform);
+  if (engine === 'native') profile(intent, boundary, platform);
+  else {
+    assertGcpTeardownProfile(intent, boundary, 'terraform');
+    if (
+      intent.operation !== 'deploy' ||
+      intent.machineType !== 'n2-standard-8' ||
+      !intent.image.name.endsWith('-byol') ||
+      !platform.gcpObservations
+    )
+      throw new Error('Qualified Terraform single-node BYOL profile required');
+  }
   const policy = await sources.policy();
   assertGcpTeardownPolicyFresh(policy);
   const discovery = await sources.discovery(intent, signal);
@@ -119,7 +130,7 @@ export async function planGcpDeploymentReview(
   signal?: AbortSignal,
 ) {
   intent = structuredClone(intent);
-  const current = await collect(platform, intent, sources, signal);
+  const current = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal);
   const cloud = translateGcpNativeCompute(intent);
   const store = await storage(platform, intent);
   const release = await acquireProcessLock(join(store.directory, '.gcp-review-lock'));
@@ -263,7 +274,7 @@ export async function applyGcpDeploymentReview(
     {
       // Revalidate image, APIs, IAM, policy and zone on every invocation. Only initial launch
       // repeats free-quota checks; resume reconciles resources already admitted by the journal.
-      const launch = await collect(platform, intent, sources, signal, !!authorization);
+      const launch = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal, !!authorization);
       if (
         fingerprint(fundingBinding(launch.funding)) !== fingerprint(plan.funding) ||
         launch.byol.authorizationHash !== plan.byolAuthorizationHash ||

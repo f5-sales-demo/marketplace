@@ -1,5 +1,19 @@
 # GCP provider contract
 
+The public Terraform deployment adapter uses configuration version 2 with an
+explicitly managed boot disk. Its overall review binds the isolated saved binary,
+configuration, backend, provider lock, F5 context and prerequisite receipts.
+Only the exact `approvedPlanHash` authorizes submission. Resume inspects consumed
+attempts, verifies the original executor stopped, compares cloud numeric identities
+and XC original creation hashes, and requires an exact no-op follow-up for a
+complete outcome. Partial ownership requires a separate delete-only cleanup review
+bound to the original attempt and stable state. Missing state or replacement
+identities require reconciliation. Cleanup remains available without billing access
+and finishes only after an empty destroy plan and eight independent absence checks.
+Legacy stored configurations retain their existing teardown behavior. Enabling
+this adapter requires the published and qualified identity provider and its
+packaged exact lock; the current artifact gate remains closed.
+
 The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset
 against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc`.
 It declares GCP schema mappings and observational registration/interface joins,

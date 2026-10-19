@@ -119,16 +119,17 @@ async function readClaim(path) {
     throw error;
   }
 }
-async function acquireProcessLock(path) {
+async function acquireProcessLock(path, ownerPid = process.pid) {
   if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
     throw new Error('Invalid operation lock path');
   const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
   if (!currentStart) throw new Error('Current process identity is unavailable');
   const mine = {
     schemaVersion: 1,
     token: randomUUID(),
-    pid: process.pid,
+    pid: ownerPid,
     bootId: currentBootId,
     processStartTicks: currentStart,
   };
@@ -322,13 +323,34 @@ function terraformExecutor(
 ) {
   return async ({ cwd, args, env, signal }) => {
     signal?.throwIfAborted();
-    const child = Bun.spawn(['/bin/sh', '-c', 'umask 077; exec "$@"', 'ce-terraform', 'terraform', ...args], {
-      cwd,
-      env,
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
+    const child = Bun.spawn(
+      [
+        '/bin/sh',
+        '-c',
+        'umask 077; IFS= read -r gate && test "$gate" = go && exec "$@"',
+        'ce-terraform',
+        'terraform',
+        ...args,
+      ],
+      {
+        cwd,
+        env,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    let releaseExecutor;
+    try {
+      releaseExecutor = await acquireProcessLock(join2(cwd, '.terraform-executor-lock'), child.pid);
+      child.stdin.write(`go
+`);
+      child.stdin.end();
+    } catch {
+      child.kill('SIGKILL');
+      await child.exited;
+      throw new Error('Terraform executor identity could not be persisted');
+    }
     let failure;
     let escalation;
     const stop = (reason) => {
@@ -407,6 +429,7 @@ function terraformExecutor(
       clearTimeout(timer);
       if (escalation) clearTimeout(escalation);
       signal?.removeEventListener('abort', abort);
+      await releaseExecutor?.();
     }
   };
 }
@@ -726,11 +749,28 @@ class TerraformRunner {
     let release;
     try {
       release = await acquireProcessLock(lock);
+      const executorStopped = await acquireProcessLock(join2(this.#directory, '.terraform-executor-lock'));
+      await executorStopped();
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
+  }
+  async readStateIdentity() {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const state = await privateRead(join2(this.#state().directory, 'terraform.tfstate'));
+      const value = decode(state.toString());
+      if (
+        typeof value.lineage !== 'string' ||
+        !value.lineage.trim() ||
+        !Number.isSafeInteger(value.serial) ||
+        value.serial < 0
+      )
+        throw new Error('Stable Terraform state identity unavailable');
+      return { sha256: digest(state), lineage: value.lineage, serial: value.serial };
+    });
   }
   async #archivePlanAttempt() {
     const { directory } = this.#state();
@@ -1073,6 +1113,13 @@ class TerraformRunner {
       const module = object(object(state.values ?? {}).root_module ?? {});
       const resources = module.resources ?? [];
       if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+      if (
+        (Array.isArray(module.child_modules) && module.child_modules.length) ||
+        resources
+          .map(object)
+          .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
+      )
+        throw new Error('Foreign state resource requires reconciliation');
       const result = {};
       for (const [address, fields] of Object.entries(selections)) {
         const reviewed = receipt.changes.filter((change) => change.address === address);
@@ -1180,6 +1227,10 @@ function createCeTerraformService(platform) {
         await shared.storage(owner);
       };
       return {
+        async readStateIdentity() {
+          await checkOwner();
+          return runner.readStateIdentity();
+        },
         async assertApplied(receipt) {
           await checkOwner();
           return runner.assertApplied(receipt);

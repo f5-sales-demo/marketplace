@@ -14,6 +14,7 @@ import {
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
   /** Optional on older installed runners; required before recording post-apply ownership. */
+  readStateIdentity?(): Promise<{ sha256: string; lineage: string; serial: number }>;
   assertApplied?(receipt: PlanReceipt): Promise<void>;
   /** Current private configuration identity, used to reconcile an interrupted revision. */
   readConfigurationSha256?(): Promise<string>;
@@ -96,6 +97,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async readStateIdentity() {
+          await checkOwner();
+          return runner.readStateIdentity();
+        },
         async assertApplied(receipt) {
           await checkOwner();
           return runner.assertApplied(receipt);

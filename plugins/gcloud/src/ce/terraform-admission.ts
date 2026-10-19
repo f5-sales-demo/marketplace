@@ -35,6 +35,7 @@ export function admitGcpTerraformTransition(intent: GcpTerraformTransition, rece
   if (receipt.actionInvocations?.length) throw new Error('Compute transitions do not admit implicit provider actions');
   const allowedTypes = new Set([
     'google_compute_instance',
+    'google_compute_disk',
     'google_compute_network',
     'google_compute_subnetwork',
     'google_compute_address',

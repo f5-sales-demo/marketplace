@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError } from '../src/failure';
 import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
 import actionFixture from './fixtures/site-upgrade-action.json';
@@ -946,3 +947,38 @@ test('destroy plans use refresh and exact saved-plan application and reject non-
   });
   await expect(invalid.runner.planDestroy({})).rejects.toThrow();
 });
+
+test('refuses recovery mutation while the original Terraform child remains alive', async () => {
+  const { runner, root } = await fixture();
+  const child = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
+  const release = await acquireProcessLock(join(root, 'ce-test', '.terraform-executor-lock'), child.pid);
+  try {
+    await expect(runner.plan({})).rejects.toThrow('live process');
+  } finally {
+    child.kill('SIGKILL');
+    await child.exited;
+    await release();
+  }
+  expect((await runner.plan({})).engine).toBe('terraform');
+}, 30_000);
+
+test('rejects unselected foreign resources even alongside correctly reviewed resources', async () => {
+  const owned = {
+    address: 'terraform_data.ce',
+    type: 'terraform_data',
+    mode: 'managed',
+    values: { id: 'owned' },
+    sensitive_values: {},
+  };
+  const { runner } = await fixture({}, {}, undefined, undefined, {
+    values: { root_module: { resources: [owned, { ...owned, address: 'terraform_data.foreign' }] } },
+  });
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  await expect(runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    'Foreign state',
+  );
+  const state = await runner.readStateIdentity();
+  expect(state.lineage).toBe('fixture-lineage');
+  expect(state.sha256).toMatch(/^[a-f0-9]{64}$/);
+}, 30_000);

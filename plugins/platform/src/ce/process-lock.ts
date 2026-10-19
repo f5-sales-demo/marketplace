@@ -118,16 +118,17 @@ async function readClaim(path: string): Promise<Claim> {
  * Acquire an atomic process-bound lock. A claim is reclaimed only when verified boot/process-start
  * evidence proves that its owner no longer exists, so PID reuse cannot authorize removal.
  */
-export async function acquireProcessLock(path: string): Promise<() => Promise<void>> {
+export async function acquireProcessLock(path: string, ownerPid = process.pid): Promise<() => Promise<void>> {
   if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
     throw new Error('Invalid operation lock path');
   const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
   if (!currentStart) throw new Error('Current process identity is unavailable');
   const mine: Claim = {
     schemaVersion: 1,
     token: randomUUID(),
-    pid: process.pid,
+    pid: ownerPid,
     bootId: currentBootId,
     processStartTicks: currentStart,
   };

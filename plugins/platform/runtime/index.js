@@ -644,7 +644,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash10, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash11, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -657,7 +657,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash4(value) {
-  return createHash10('sha256').update(canonical5(value)).digest('hex');
+  return createHash11('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -816,7 +816,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash11, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash12, randomUUID as randomUUID3 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute3, join as join5, resolve, sep } from 'node:path';
@@ -848,7 +848,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash11('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash12('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -1722,16 +1722,17 @@ async function readClaim(path) {
     throw error;
   }
 }
-async function acquireProcessLock(path) {
+async function acquireProcessLock(path, ownerPid = process.pid) {
   if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
     throw new Error('Invalid operation lock path');
   const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
   if (!currentStart) throw new Error('Current process identity is unavailable');
   const mine = {
     schemaVersion: 1,
     token: randomUUID2(),
-    pid: process.pid,
+    pid: ownerPid,
     bootId: currentBootId,
     processStartTicks: currentStart,
   };
@@ -4987,6 +4988,8 @@ class GcpPlatformLifecycle {
 }
 
 // plugins/platform/src/ce/gcp-observation.ts
+import { createHash as createHash8 } from 'node:crypto';
+
 async function createGcpPlatformObservations(store, contextName, apiUrl, credential, contract, fetcher = fetch) {
   const base = new URL(apiUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
@@ -5129,11 +5132,13 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
       const siteUid = configuration ? owned(configuration, site) : undefined;
       const token = await port.read(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
       let tokenIdentityHash;
+      let tokenIdentitySha256;
       if (token) {
         const uid = owned(token, tokenName);
         const labels = token.metadata.labels;
         if (labels['xcsh-node'] !== node.name || token.spec?.site_name !== site)
           throw new Error('GCP teardown observation token binding differs');
+        tokenIdentitySha256 = `sha256:${createHash8('sha256').update(uid).digest('hex')}`;
         tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: site, nodeName: node.name });
       }
       if (fingerprint(await loadIntent()) !== fingerprint(original))
@@ -5143,6 +5148,12 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
         siteUid,
         tokenName,
         tokenIdentityHash,
+        ...(store.owner.engine === 'terraform'
+          ? {
+              siteIdentitySha256: siteUid ? `sha256:${createHash8('sha256').update(siteUid).digest('hex')}` : undefined,
+              tokenIdentitySha256,
+            }
+          : {}),
         siteAbsent: configuration === null,
         tokenAbsent: token === null,
       };
@@ -5152,7 +5163,7 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
 
 // plugins/platform/src/ce/verified-contract.ts
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash8, createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash9, createHash as createHash10 } from 'node:crypto';
 
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v7.0.1';
@@ -5213,7 +5224,7 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
   const resolved = parse(await read(`https://api.github.com/repos/${repository}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash8('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash9('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -5848,7 +5859,7 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash3 = (bytes) => `sha256:${createHash9('sha256').update(bytes).digest('hex')}`;
+var hash3 = (bytes) => `sha256:${createHash10('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
 function object16(value) {

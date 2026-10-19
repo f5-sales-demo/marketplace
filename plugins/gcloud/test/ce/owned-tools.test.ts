@@ -37,6 +37,56 @@ it('public deploy rejects wrong scope, engine and missing review before cloud ac
   expect(calls).toBe(0);
 });
 
+it('public Terraform tools preserve explicit engine and intent at the server-owned runtime gate', async () => {
+  const i = structuredClone(intent());
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  let gates = 0;
+  let executions = 0;
+  const tools = createGcpCeTools(
+    { typebox: { Type } },
+    () => ({
+      exec: async () => {
+        executions++;
+        throw new Error('must not execute');
+      },
+    }),
+    undefined,
+    async () => ({}) as CePlatformService,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    async (_platform, _api, supplied) => {
+      gates++;
+      expect(supplied).toEqual(i);
+      throw new Error('qualified provider unavailable');
+    },
+  );
+  for (const name of ['gcp_ce_plan', 'gcp_ce_apply']) {
+    const tool = tools.find((tool) => tool.name === name);
+    if (!tool) throw new Error('missing public Terraform tool');
+    const result = await tool.execute(
+      'id',
+      {
+        project: i.project,
+        region: i.region,
+        engine: 'terraform',
+        operation: 'deploy',
+        intent: i,
+        ...(name === 'gcp_ce_apply' ? { approvedPlanHash: fingerprint('review') } : {}),
+      },
+      undefined,
+      null,
+      { cwd: '/tmp' },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.details.mutationAttempted).toBe(false);
+  }
+  expect(gates).toBe(2);
+  expect(executions).toBe(0);
+});
+
 it('typed status refuses wrong persisted context before cloud or platform observations', async () => {
   const i = intent();
   let reads = 0;

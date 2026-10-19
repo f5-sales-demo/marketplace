@@ -2,13 +2,14 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { Deployment } from '../../../terraform/src/runner';
 import { createCeTerraformService, type TerraformSession } from '../../../terraform/src/service';
 import { makeExecApi } from '../tools/shared';
-import { translateGcpTerraformSiteCompute } from './compute-plan';
+import { translateGcpPublicTerraformSiteCompute, translateGcpTerraformSiteCompute } from './compute-plan';
 import { fingerprint } from './discovery';
 import { withGcpCorporateFunding } from './funding-session';
 import type { GcpCeIntent } from './types';
 
 export interface GcpTerraformInputs {
   intent: GcpCeIntent;
+  configurationVersion?: 2;
   versions: { terraform: string; google: string; xcsh: string };
   providerLock: string;
   expectedLockSha256: string;
@@ -39,7 +40,10 @@ export async function openGcpTerraformSession(
     )
       throw new Error('Pinned provider version/checksums missing from lock');
   }
-  const translated = translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
+  const translated =
+    inputs.configurationVersion === 2
+      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions)
+      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
   const owner = {
     deploymentId: inputs.intent.deploymentName,
     engine: 'terraform' as const,

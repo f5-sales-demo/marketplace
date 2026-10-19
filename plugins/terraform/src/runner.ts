@@ -184,13 +184,33 @@ export function terraformExecutor(
 ): Executor {
   return async ({ cwd, args, env, signal }) => {
     signal?.throwIfAborted();
-    const child = Bun.spawn(['/bin/sh', '-c', 'umask 077; exec "$@"', 'ce-terraform', 'terraform', ...args], {
-      cwd,
-      env,
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
+    const child = Bun.spawn(
+      [
+        '/bin/sh',
+        '-c',
+        'umask 077; IFS= read -r gate && test "$gate" = go && exec "$@"',
+        'ce-terraform',
+        'terraform',
+        ...args,
+      ],
+      {
+        cwd,
+        env,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    let releaseExecutor: (() => Promise<void>) | undefined;
+    try {
+      releaseExecutor = await acquireProcessLock(join(cwd, '.terraform-executor-lock'), child.pid);
+      child.stdin.write('go\n');
+      child.stdin.end();
+    } catch {
+      child.kill('SIGKILL');
+      await child.exited;
+      throw new Error('Terraform executor identity could not be persisted');
+    }
     let failure: string | undefined;
     let escalation: ReturnType<typeof setTimeout> | undefined;
     const stop = (reason: string) => {
@@ -272,6 +292,7 @@ export function terraformExecutor(
       clearTimeout(timer);
       if (escalation) clearTimeout(escalation);
       signal?.removeEventListener('abort', abort);
+      await releaseExecutor?.();
     }
   };
 }
@@ -609,11 +630,30 @@ export class TerraformRunner {
     let release: (() => Promise<void>) | undefined;
     try {
       release = await acquireProcessLock(lock);
+      // A dead runner parent cannot establish that its Terraform executor has stopped.
+      const executorStopped = await acquireProcessLock(join(this.#directory, '.terraform-executor-lock'));
+      await executorStopped();
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
+  }
+  /** Restricted stable state binding for a separately reviewed recovery destroy. */
+  async readStateIdentity(): Promise<{ sha256: string; lineage: string; serial: number }> {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const state = await privateRead(join(this.#state().directory, 'terraform.tfstate'));
+      const value = decode(state.toString());
+      if (
+        typeof value.lineage !== 'string' ||
+        !value.lineage.trim() ||
+        !Number.isSafeInteger(value.serial) ||
+        (value.serial as number) < 0
+      )
+        throw new Error('Stable Terraform state identity unavailable');
+      return { sha256: digest(state), lineage: value.lineage, serial: value.serial as number };
+    });
   }
   /** Preserve even an interrupted attempt before Terraform can overwrite its binary plan. */
   async #archivePlanAttempt(): Promise<void> {
@@ -1008,6 +1048,13 @@ export class TerraformRunner {
       const module = object(object(state.values ?? {}).root_module ?? {});
       const resources = module.resources ?? [];
       if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+      if (
+        (Array.isArray(module.child_modules) && module.child_modules.length) ||
+        resources
+          .map(object)
+          .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
+      )
+        throw new Error('Foreign state resource requires reconciliation');
       const result: AppliedResourceProjection['resources'] = {};
       for (const [address, fields] of Object.entries(selections)) {
         const reviewed = receipt.changes.filter((change) => change.address === address);

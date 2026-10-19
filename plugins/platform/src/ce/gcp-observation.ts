@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { GcpCeContractBoundary } from '../../../gcloud/src/ce/contract';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import type { CeDeploymentStore } from './deployment-store';
@@ -19,6 +20,8 @@ export interface GcpPlatformObservations {
     siteUid?: string;
     tokenName: string;
     tokenIdentityHash?: string;
+    siteIdentitySha256?: string;
+    tokenIdentitySha256?: string;
     siteAbsent: boolean;
     tokenAbsent: boolean;
   }>;
@@ -190,11 +193,13 @@ export async function createGcpPlatformObservations(
       const siteUid = configuration ? owned(configuration, site) : undefined;
       const token = await port.read(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
       let tokenIdentityHash: string | undefined;
+      let tokenIdentitySha256: string | undefined;
       if (token) {
         const uid = owned(token, tokenName);
         const labels = (token.metadata as { labels: Record<string, string> }).labels;
         if (labels['xcsh-node'] !== node.name || (token.spec as { site_name?: string } | undefined)?.site_name !== site)
           throw new Error('GCP teardown observation token binding differs');
+        tokenIdentitySha256 = `sha256:${createHash('sha256').update(uid).digest('hex')}`;
         tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: site, nodeName: node.name });
       }
       if (fingerprint(await loadIntent()) !== fingerprint(original))
@@ -204,6 +209,12 @@ export async function createGcpPlatformObservations(
         siteUid,
         tokenName,
         tokenIdentityHash,
+        ...(store.owner.engine === 'terraform'
+          ? {
+              siteIdentitySha256: siteUid ? `sha256:${createHash('sha256').update(siteUid).digest('hex')}` : undefined,
+              tokenIdentitySha256,
+            }
+          : {}),
         siteAbsent: configuration === null,
         tokenAbsent: token === null,
       };

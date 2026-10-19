@@ -112,16 +112,17 @@ async function readClaim(path) {
     throw error;
   }
 }
-async function acquireProcessLock(path) {
+async function acquireProcessLock(path, ownerPid = process.pid) {
   if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
     throw new Error('Invalid operation lock path');
   const currentBootId = await bootId();
-  const currentStart = await processStartTicks(process.pid);
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
   if (!currentStart) throw new Error('Current process identity is unavailable');
   const mine = {
     schemaVersion: 1,
     token: randomUUID(),
-    pid: process.pid,
+    pid: ownerPid,
     bootId: currentBootId,
     processStartTicks: currentStart,
   };
@@ -2264,6 +2265,32 @@ write_files:
     },
   };
 }
+function translateGcpPublicTerraformSiteCompute(intent, versions) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions);
+  const disks = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      disks[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        image: intent.image.selfLink,
+        size: intent.diskGiB,
+        type: 'pd-balanced',
+      };
+      const instance = translated.configuration.resource.google_compute_instance[key];
+      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
+    }
+  return {
+    ...translated,
+    schemaVersion: 2,
+    configuration: {
+      ...translated.configuration,
+      resource: { ...translated.configuration.resource, google_compute_disk: disks },
+    },
+  };
+}
 var init_compute_plan = __esm(() => {
   init_discovery();
   init_validation();
@@ -4122,10 +4149,20 @@ function fundingBinding(funding) {
     organizationDomain: funding.organizationDomain,
   };
 }
-async function collect(platform, intent, sources, signal, resume = false) {
+async function collectGcpDeploymentPrerequisites(platform, intent, sources, signal, resume = false, engine = 'native') {
   signal?.throwIfAborted();
   const boundary = await sources.contract(signal);
-  profile(intent, boundary, platform);
+  if (engine === 'native') profile(intent, boundary, platform);
+  else {
+    assertGcpTeardownProfile(intent, boundary, 'terraform');
+    if (
+      intent.operation !== 'deploy' ||
+      intent.machineType !== 'n2-standard-8' ||
+      !intent.image.name.endsWith('-byol') ||
+      !platform.gcpObservations
+    )
+      throw new Error('Qualified Terraform single-node BYOL profile required');
+  }
   const policy = await sources.policy();
   assertGcpTeardownPolicyFresh(policy);
   const discovery = await sources.discovery(intent, signal);
@@ -4156,7 +4193,7 @@ async function planGcpDeploymentReview(
   signal,
 ) {
   intent = structuredClone(intent);
-  const current = await collect(platform, intent, sources, signal);
+  const current = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal);
   const cloud = translateGcpNativeCompute(intent);
   const store = await storage2(platform, intent);
   const release = await acquireProcessLock(join7(store.directory, '.gcp-review-lock'));
@@ -4293,7 +4330,7 @@ async function applyGcpDeploymentReview(
     const byol = await sources.byol(intent, funding, signal);
     if (byol.authorizationHash !== plan.byolAuthorizationHash) throw new Error('Reviewed BYOL authorization changed');
     {
-      const launch = await collect(platform, intent, sources, signal, !!authorization);
+      const launch = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal, !!authorization);
       if (
         fingerprint(fundingBinding(launch.funding)) !== fingerprint(plan.funding) ||
         launch.byol.authorizationHash !== plan.byolAuthorizationHash ||
@@ -5007,1252 +5044,201 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
-// plugins/terraform/src/failure.ts
-function terraformFailureCategories(text) {
-  const plain = Bun.stripANSI(text);
-  return patterns.filter(([, pattern]) => pattern.test(plain)).map(([category]) => category);
-}
-var patterns, TerraformCommandError;
-var init_failure = __esm(() => {
-  patterns = [
-    ['capacity', /\bInsufficientInstanceCapacity\b/],
-    ['quota', /\bVpcLimitExceeded\b/],
-    ['authorization', /\b(?:AccessDenied|AccessDeniedException|UnauthorizedOperation|AuthorizationFailed)\b/],
-    ['expired', /\b(?:ExpiredToken|ExpiredTokenException|AuthenticationTokenExpired)\b/],
-    ['throttled', /\b(?:Throttling|ThrottlingException|RequestLimitExceeded|TooManyRequests)\b/],
-    [
-      'configuration',
-      /(?:Error: (?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)|"summary"\s*:\s*"(?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)")/,
-    ],
-    ['state-lock', /Error (?:acquiring|releasing) the state lock/],
+// plugins/gcloud/src/ce/terraform-public-ownership.ts
+function publicTerraformAddresses(intent) {
+  const node = intent.sites[0].nodes[0];
+  return [
+    `google_compute_instance.${node.name.replaceAll('-', '_')}`,
+    `google_compute_disk.${node.name.replaceAll('-', '_')}`,
+    ...node.interfaces.flatMap((nic) => [
+      `google_compute_network.${nic.network.replaceAll('-', '_')}`,
+      `google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}`,
+    ]),
+    `xcsh_securemesh_site_v2.${intent.sites[0].name.replaceAll('-', '_')}`,
+    `xcsh_token.${node.name.replaceAll('-', '_')}`,
   ];
-  TerraformCommandError = class TerraformCommandError extends Error {
-    operation;
-    exitCode;
-    category;
-    constructor(operation, exitCode, category = 'unknown') {
-      const safe = category === 'unknown' || patterns.some(([value]) => value === category) ? category : 'unknown';
-      super(`Terraform ${operation} failed (${safe}); exit code ${exitCode}`);
-      this.operation = operation;
-      this.exitCode = exitCode;
-      this.name = 'TerraformCommandError';
-      this.category = safe;
-    }
-  };
-});
-
-// plugins/terraform/src/runner.ts
-import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
-import {
-  chmod,
-  lstat as lstat5,
-  mkdir as mkdir3,
-  readFile as readFile3,
-  realpath as realpath3,
-  rename as rename2,
-  rm as rm3,
-  writeFile as writeFile3,
-} from 'node:fs/promises';
-import { isAbsolute as isAbsolute2, join as join8, resolve } from 'node:path';
-
-function object4(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Terraform JSON object is malformed');
-  return value;
 }
-function decode(value) {
-  try {
-    return object4(JSON.parse(value));
-  } catch {
-    throw new Error('Terraform returned malformed JSON');
-  }
-}
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object')
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-function changeActions(value, output = false) {
-  const allowed = output
-    ? ['no-op', 'create', 'update', 'delete']
-    : ['no-op', 'read', 'create', 'update', 'delete', 'delete,create', 'create,delete'];
-  if (
-    !Array.isArray(value) ||
-    value.some((item) => typeof item !== 'string' || item.includes(',')) ||
-    !allowed.includes(value.join(','))
-  )
-    throw new Error('Terraform change actions are malformed or unsupported');
-  return value;
-}
-function validateActionIntent(intent) {
-  if (
-    !intent ||
-    Object.keys(intent).sort().join(',') !== 'address,configValuesSha256,providerName,type' ||
-    Object.values(intent).some((value) => typeof value !== 'string') ||
-    !/^[a-z][a-z0-9_]*$/.test(intent.type) ||
-    !new RegExp(`^action\\.${intent.type}\\.[a-z][a-z0-9_]*(?:\\["[a-z][a-z0-9_-]*"\\])?$`).test(intent.address) ||
-    !/^[a-z0-9.-]+\/[a-z0-9-]+\/[a-z0-9-]+$/.test(intent.providerName) ||
-    !/^[a-f0-9]{64}$/.test(intent.configValuesSha256)
-  )
-    throw new Error('Explicit action address, provider and configuration digest required');
-}
-function allFalse(value) {
-  return value === false || (value !== null && typeof value === 'object' && Object.values(value).every(allFalse));
-}
-function inspectActionInvocations(plan, expected) {
-  const invocations = plan.action_invocations === undefined ? [] : plan.action_invocations;
-  const deferred = plan.deferred_action_invocations === undefined ? [] : plan.deferred_action_invocations;
-  if (
-    !Array.isArray(invocations) ||
-    !Array.isArray(deferred) ||
-    deferred.length ||
-    invocations.length !== (expected ? 1 : 0)
-  )
-    throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
-  if (!expected) return [];
-  const action = object4(invocations[0]);
-  if (
-    action.address !== expected.address ||
-    action.type !== expected.type ||
-    action.provider_name !== expected.providerName ||
-    action.lifecycle_action_trigger !== undefined ||
-    Object.keys(object4(action.invoke_action_trigger)).length ||
-    !allFalse(action.config_unknown) ||
-    !allFalse(action.config_sensitive) ||
-    digest2(canonical(object4(action.config_values))) !== expected.configValuesSha256
-  )
-    throw new Error('Terraform action identity, trigger or configuration differs');
-  return [{ ...expected }];
-}
-async function privateDirectory(path) {
-  await mkdir3(path, { recursive: true, mode: 448 });
-  const stat = await lstat5(path);
-  if (
-    !stat.isDirectory() ||
-    stat.isSymbolicLink() ||
-    stat.uid !== process.getuid?.() ||
-    (await realpath3(path)) !== path
-  )
-    throw new Error('Terraform storage ownership is invalid');
-  await chmod(path, 448);
-}
-async function privateRead(path) {
-  const stat = await lstat5(path);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.nlink !== 1 ||
-    stat.uid !== process.getuid?.() ||
-    (stat.mode & 63) !== 0
-  )
-    throw new Error('Terraform artifact ownership is invalid');
-  return readFile3(path);
-}
-async function persist(path, value) {
-  const temporary = `${path}.new`;
-  await writeFile3(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
-  await rename2(temporary, path);
-}
-function terraformExecutor(
-  limits = {
-    timeoutMs: 900000,
-    applyTimeoutMs: 3600000,
-    maxOutputBytes: 64 * 1024 * 1024,
-    killAfterMs: 5000,
-  },
-  retainFailure = false,
-) {
-  return async ({ cwd, args, env, signal }) => {
-    signal?.throwIfAborted();
-    const child = Bun.spawn(['/bin/sh', '-c', 'umask 077; exec "$@"', 'ce-terraform', 'terraform', ...args], {
-      cwd,
-      env,
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    let failure;
-    let escalation;
-    const stop = (reason) => {
-      if (failure) return;
-      failure = reason;
-      child.kill('SIGTERM');
-      escalation = setTimeout(() => child.kill('SIGKILL'), limits.killAfterMs);
-    };
-    const abort = () => stop('Terraform operation cancelled');
-    signal?.addEventListener('abort', abort, { once: true });
-    if (signal?.aborted) abort();
-    const timeoutMs = args[0] === 'apply' ? limits.applyTimeoutMs : limits.timeoutMs;
-    const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), timeoutMs);
-    const categories = new Set();
-    const collect = async (stream, retain, classify = false) => {
-      const reader = stream.getReader();
-      const chunks = [];
-      let size = 0;
-      let tail = '';
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          size += value.byteLength;
-          if (size > limits.maxOutputBytes) stop('Terraform response exceeded size limit');
-          if (retain && !failure) chunks.push(value);
-          if (classify && !failure) {
-            const text = tail + Buffer.from(value).toString('utf8');
-            for (const category of terraformFailureCategories(text)) categories.add(category);
-            tail = text.slice(-512);
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-      return retain && !failure ? Buffer.concat(chunks).toString('utf8') : '';
-    };
-    try {
-      const [stdout, stderr, code] = await Promise.all([
-        collect(child.stdout, true),
-        collect(child.stderr, retainFailure, true),
-        child.exited,
-      ]);
-      if (failure) throw new Error(failure);
-      if (code !== 0 && args[0] === 'validate') {
-        try {
-          const diagnostics = JSON.parse(stdout).diagnostics;
-          if (Array.isArray(diagnostics)) {
-            for (const item of diagnostics)
-              if (item?.severity === 'error' && typeof item.summary === 'string')
-                for (const category of terraformFailureCategories(`Error: ${item.summary}`)) categories.add(category);
-          }
-        } catch {}
-      }
-      const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
-      if (code !== 0 && retainFailure) {
-        await privateDirectory(cwd);
-        const directory = join8(cwd, 'failure-diagnostics');
-        await privateDirectory(directory);
-        await persist(join8(directory, `${randomUUID2()}.json`), {
-          schemaVersion: 1,
-          observedAt: new Date().toISOString(),
-          operation: args[0],
-          exitCode: code,
-          category: failureCategory,
-          stdout,
-          stderr,
-        });
-      }
-      return code === 0 ? { code, stdout } : { code, stdout: '', failureCategory };
-    } catch {
-      stop('Terraform process failed');
-      await child.exited;
-      throw new Error(failure ?? 'Terraform process failed');
-    } finally {
-      clearTimeout(timer);
-      if (escalation) clearTimeout(escalation);
-      signal?.removeEventListener('abort', abort);
-    }
-  };
-}
-function validateResourceSelections(selections) {
-  if (
-    !selections ||
-    typeof selections !== 'object' ||
-    Array.isArray(selections) ||
-    !Object.keys(selections).length ||
-    Object.entries(selections).some(
-      ([address, fields]) =>
-        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
-        !Array.isArray(fields) ||
-        !fields.length ||
-        new Set(fields).size !== fields.length ||
-        fields.some(
-          (field) =>
-            typeof field !== 'string' ||
-            !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
-            field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
-        ),
-    )
-  )
-    throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
-}
-function projectResourceFields(values, sensitivity, fields) {
-  const nonsensitive = (value) =>
-    value === undefined ||
-    value === false ||
-    (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
-  const selected = {};
-  for (const field of fields) {
-    let value = values;
-    let marker = sensitivity;
-    const parts = field.split('.');
-    for (const [index, part] of parts.entries()) {
-      if (
-        marker === true ||
-        !value ||
-        typeof value !== 'object' ||
-        !Object.hasOwn(value, part) ||
-        (Array.isArray(value) && !(part === 'length' && index === parts.length - 1) && !/^(0|[1-9][0-9]*)$/.test(part))
-      )
-        throw new Error('Terraform resource field is unavailable or sensitive');
-      marker =
-        Array.isArray(value) && part === 'length'
-          ? false
-          : marker !== null && typeof marker === 'object'
-            ? marker[part]
-            : marker;
-      value = value[part];
-    }
-    if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
-    selected[field] = value;
-  }
-  return selected;
-}
-
-class TerraformRunner {
-  root;
-  execute;
-  #directory;
-  #manifest;
-  #busy = false;
-  constructor(root, execute = executeTerraform) {
-    this.root = root;
-    this.execute = execute;
-    if (!isAbsolute2(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
-  }
-  async prepare(deployment) {
-    if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
-      throw new Error('Terraform deployment identity or owning engine is unsupported');
-    if (deployment.stage !== undefined && !safeId.test(deployment.stage))
-      throw new Error('Invalid Terraform stage identity');
-    if (!/^\d+\.\d+\.\d+$/.test(deployment.terraformVersion) || !deployment.providerLock.trim())
-      throw new Error('Exact Terraform version and provider lock are required');
-    const configuration = decode(deployment.configuration);
-    if (
-      object4(configuration.terraform ?? {}).backend ||
-      object4(configuration.terraform ?? {}).cloud ||
-      deployment.backendIdentity !==
-        `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
-    )
-      throw new Error('This runner currently admits isolated local backends only');
-    if (
-      !deployment.scope.account ||
-      !deployment.scope.region ||
-      !['aws', 'azure', 'gcp'].includes(deployment.scope.cloud)
-    )
-      throw new Error('Explicit deployment scope is required');
-    await privateDirectory(this.root);
-    const directory = join8(this.root, deployment.deploymentId);
-    await mkdir3(directory, { mode: 448 });
-    const { configuration: source, providerLock, ...identity } = deployment;
-    const manifest = { ...identity, configurationSha256: digest2(source), providerLockSha256: digest2(providerLock) };
-    await writeFile3(join8(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
-    await writeFile3(join8(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
-    await writeFile3(join8(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
-    await persist(join8(directory, 'deployment.json'), manifest);
-    this.#directory = directory;
-    this.#manifest = manifest;
-  }
-  async readConfigurationSha256() {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      return this.#state().manifest.configurationSha256;
-    });
-  }
-  async readConfiguration(expectedSha256) {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
-      const configuration = await privateRead(join8(directory, 'main.tf.json'));
-      if (digest2(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
-      return configuration.toString();
-    });
-  }
-  async reconcileApplyFromEvidence(receipt, evidenceSha256) {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      if (
-        !['applying', 'applied'].includes(String(journal.state)) ||
-        canonical(receipt) !== canonical(journal.receipt) ||
-        receipt.engine !== 'terraform' ||
-        receipt.deploymentId !== manifest.deploymentId ||
-        receipt.backendIdentity !== manifest.backendIdentity ||
-        receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))) ||
-        !/^[a-f0-9]{64}$/.test(evidenceSha256)
-      )
-        throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
-      await this.#replacePrivate(
-        join8(directory, 'plan-receipt.json'),
-        JSON.stringify({ state: 'applied', receipt, reconciledEvidenceSha256: evidenceSha256 }),
-      );
-    });
-  }
-  async reviseConfiguration(expectedSha256, configuration) {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-      this.#validateRevision(configuration, (await privateRead(join8(directory, 'main.tf.json'))).toString());
-      const nextSha256 = digest2(configuration);
-      if (nextSha256 === expectedSha256) return nextSha256;
-      let receipt;
-      try {
-        receipt = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-      if (receipt?.state === 'applying')
-        throw new Error('Reconcile interrupted Terraform apply before revising configuration');
-      const transition = {
-        previous: manifest,
-        next: { ...manifest, configurationSha256: nextSha256 },
-        configuration,
-        archiveId: randomUUID2(),
-      };
-      await this.#replacePrivate(join8(directory, 'configuration-transition.json'), JSON.stringify(transition));
-      await this.#recoverRevision();
-      return nextSha256;
-    });
-  }
-  #validateRevision(configuration, previousConfiguration) {
-    const next = decode(configuration);
-    const terraform = object4(next.terraform ?? {});
-    if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
-    if (previousConfiguration !== undefined) {
-      const previous = decode(previousConfiguration);
-      for (const key of ['terraform', 'provider'])
-        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
-          throw new Error('Terraform configuration revision cannot change provider or execution identity');
-    }
-  }
-  async #replacePrivate(path, content) {
-    const temporary = `${path}.${randomUUID2()}.new`;
-    await writeFile3(temporary, content, { mode: 384, flag: 'wx' });
-    await rename2(temporary, path);
-  }
-  async #recoverRevision() {
-    const { directory } = this.#state();
-    let transition;
-    try {
-      transition = decode((await privateRead(join8(directory, 'configuration-transition.json'))).toString());
-    } catch (error) {
-      if (error.code === 'ENOENT') return;
-      throw error;
-    }
-    const previous = object4(transition.previous);
-    const next = object4(transition.next);
-    if (
-      typeof transition.configuration !== 'string' ||
-      typeof transition.archiveId !== 'string' ||
-      !/^[0-9a-f-]{36}$/.test(transition.archiveId) ||
-      !/^[0-9a-f]{64}$/.test(previous.configurationSha256) ||
-      canonical({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical(next) ||
-      next.configurationSha256 !== digest2(transition.configuration)
-    )
-      throw new Error('Terraform configuration transition is malformed');
-    this.#validateRevision(transition.configuration);
-    const owner = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
-    const current = await privateRead(join8(directory, 'main.tf.json'));
-    if (
-      ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
-      ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
-      digest2(await privateRead(join8(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
-      digest2(await privateRead(join8(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
-    )
-      throw new Error('Terraform configuration transition ownership or inputs changed');
-    const archive = join8(directory, 'revisions', transition.archiveId);
-    await privateDirectory(archive);
-    const archiveFile = async (name, content) => {
-      try {
-        await writeFile3(join8(archive, name), content, { mode: 384, flag: 'wx' });
-      } catch (error) {
-        if (error.code !== 'EEXIST' || digest2(await privateRead(join8(archive, name))) !== digest2(content))
-          throw error;
-      }
-    };
-    if (digest2(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
-    if (digest2(await privateRead(join8(archive, 'main.tf.json'))) !== previous.configurationSha256)
-      throw new Error('Previous Terraform configuration archive is missing');
-    this.#validateRevision(transition.configuration, (await privateRead(join8(archive, 'main.tf.json'))).toString());
-    await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
-    for (const name of ['saved.tfplan', 'plan-receipt.json']) {
-      try {
-        await archiveFile(name, await privateRead(join8(directory, name)));
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-    }
-    await this.#replacePrivate(join8(directory, 'main.tf.json'), transition.configuration);
-    await this.#replacePrivate(join8(directory, 'deployment.json'), JSON.stringify(next));
-    this.#manifest = next;
-    await rm3(join8(directory, 'configuration-transition.json'));
-  }
-  async resume(deploymentId, expected, configurationMode = 'exact') {
-    if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
-    if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
-    const directory = join8(this.root, deploymentId);
-    await privateDirectory(directory);
-    const manifest = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
-    if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
-      throw new Error('Terraform deployment ownership is invalid');
-    this.#directory = directory;
-    this.#manifest = manifest;
-    await this.#exclusive(() => this.#recoverRevision());
-    const recoveredManifest = this.#state().manifest;
-    if (expected) {
-      const { configuration, providerLock, ...identity } = expected;
-      const expectedManifest = {
-        ...identity,
-        configurationSha256:
-          configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest2(configuration),
-        providerLockSha256: digest2(providerLock),
-      };
-      if (canonical(recoveredManifest) !== canonical(expectedManifest))
-        throw new Error('Terraform deployment differs from the requested identity or configuration');
-      if (configurationMode === 'current')
-        this.#validateRevision((await privateRead(join8(directory, 'main.tf.json'))).toString(), configuration);
-    }
-    this.#directory = directory;
-    this.#manifest = recoveredManifest;
-    await this.#verifyInputs();
-  }
-  #state() {
-    if (!this.#directory || !this.#manifest) throw new Error('Prepare or resume the deployment first');
-    return { directory: this.#directory, manifest: this.#manifest };
-  }
-  async #verifyInputs() {
-    if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
-    try {
-      await lstat5(join8(this.#directory, 'configuration-transition.json'));
-      throw new Error('Resume the interrupted Terraform configuration transition before execution');
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-    const owner = decode((await privateRead(join8(this.#directory, 'deployment.json'))).toString());
-    if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
-      throw new Error('Terraform deployment ownership changed');
-    for (const [file, expected] of [
-      ['main.tf.json', this.#manifest.configurationSha256],
-      ['.terraform.lock.hcl', this.#manifest.providerLockSha256],
-      ['deployment.tfrc', digest2(cliConfig)],
-    ]) {
-      if (digest2(await privateRead(join8(this.#directory, file))) !== expected)
-        throw new Error('Terraform configuration or provider lock changed');
-    }
-  }
-  #environment(ambient) {
-    const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => !key.startsWith('TF_')));
-    return {
-      ...env,
-      TF_CLI_CONFIG_FILE: join8(this.#state().directory, 'deployment.tfrc'),
-      TF_DATA_DIR: join8(this.#state().directory, '.terraform'),
-      TF_IN_AUTOMATION: '1',
-      TF_INPUT: '0',
-      TF_WORKSPACE: 'default',
-    };
-  }
-  async #run(args, env, signal) {
-    signal?.throwIfAborted();
-    const result = await this.execute({ cwd: this.#state().directory, args, env: this.#environment(env), signal });
-    if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
-    return result.stdout;
-  }
-  async #exclusive(operation) {
-    if (this.#busy) throw new Error('Terraform deployment operation is already running');
-    if (!this.#directory) throw new Error('Prepare or resume the deployment first');
-    this.#busy = true;
-    const lock = join8(this.#directory, '.runner-lock');
-    let release;
-    try {
-      release = await acquireProcessLock(lock);
-      return await operation();
-    } finally {
-      if (release) await release();
-      this.#busy = false;
-    }
-  }
-  async #archivePlanAttempt() {
-    const { directory } = this.#state();
-    const files = new Map();
-    for (const name of ['saved.tfplan', 'plan-receipt.json']) {
-      try {
-        files.set(name, await privateRead(join8(directory, name)));
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-    }
-    if (!files.size) return;
-    for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
-      files.set(name, await privateRead(join8(directory, name)));
-    const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest2(bytes)])));
-    const archive = join8(directory, 'plan-history', digest2(inventory));
-    await privateDirectory(archive);
-    files.set('inventory.json', Buffer.from(inventory));
-    for (const [name, bytes] of files) {
-      try {
-        await writeFile3(join8(archive, name), bytes, { mode: 384, flag: 'wx' });
-      } catch (error) {
-        if (error.code !== 'EEXIST') throw error;
-        if (digest2(await privateRead(join8(archive, name))) !== digest2(bytes))
-          throw new Error('Terraform plan history differs');
-      }
-    }
-  }
-  async plan(env, signal) {
-    return this.#plan(env, signal);
-  }
-  async planDestroy(env, signal) {
-    return this.#plan(env, signal, undefined, true);
-  }
-  async planAction(intent, env, signal) {
-    intent = structuredClone(intent);
-    validateActionIntent(intent);
-    return this.#plan(env, signal, intent);
-  }
-  async #plan(env, signal, action, destroy = false) {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      await this.#preserveActionSubmission();
-      if (action) await this.#assertActionUnsubmitted();
-      await this.#archivePlanAttempt();
-      const version = decode(await this.#run(['version', '-json'], env, signal));
-      if (version.terraform_version !== this.#state().manifest.terraformVersion)
-        throw new Error('Terraform version changed');
-      await this.#run(['init', '-input=false', '-lockfile=readonly'], env, signal);
-      await this.#verifyInputs();
-      await this.#run(['validate', '-json'], env, signal);
-      await this.#run(
-        [
-          'plan',
-          '-input=false',
-          '-lock=true',
-          '-lock-timeout=60s',
-          '-refresh=true',
-          '-out=saved.tfplan',
-          ...(action ? [`-invoke=${action.address}`] : []),
-          ...(destroy ? ['-destroy'] : []),
-        ],
-        env,
-        signal,
-      );
-      const raw = await this.#run(['show', '-json', 'saved.tfplan'], env, signal);
-      const plan = decode(raw);
-      if (
-        !plan ||
-        typeof plan.format_version !== 'string' ||
-        !/^1\.\d+$/.test(plan.format_version) ||
-        plan.terraform_version !== this.#state().manifest.terraformVersion ||
-        plan.errored !== false ||
-        plan.complete !== true ||
-        typeof plan[['apply', 'able'].join('')] !== 'boolean' ||
-        !Array.isArray(plan.resource_changes ?? [])
-      )
-        throw new Error('Terraform plan JSON is malformed or unsupported');
-      const actionInvocations = inspectActionInvocations(plan, action);
-      const changes = [];
-      for (const value of plan.resource_changes ?? []) {
-        const resource = object4(value);
-        const actions = changeActions(object4(resource.change).actions);
-        if (
-          typeof resource.address !== 'string' ||
-          typeof resource.type !== 'string' ||
-          changes.some((change) => change.address === resource.address)
-        )
-          throw new Error('Terraform resource change is malformed');
-        changes.push({ address: resource.address, type: resource.type, actions });
-      }
-      const outputs = Object.values(object4(plan.output_changes ?? {})).map((output) =>
-        changeActions(object4(output).actions, true),
-      );
-      const resourcesUnchanged =
-        changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
-      if (action && !resourcesUnchanged)
-        throw new Error('Terraform action plan contains unrelated resource or output changes');
-      if (
-        destroy &&
-        (changes.some((change) => !['delete', 'no-op'].includes(change.actions.join(','))) ||
-          outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
-      )
-        throw new Error('Terraform destroy plan contains non-delete changes');
-      const noChanges = resourcesUnchanged && actionInvocations.length === 0;
-      if (!noChanges && !plan[['apply', 'able'].join('')])
-        throw new Error('Terraform plan has changes but cannot be applied');
-      const manifest = this.#state().manifest;
-      const receipt = {
-        schemaVersion: 1,
-        deploymentId: manifest.deploymentId,
-        engine: 'terraform',
-        backendIdentity: manifest.backendIdentity,
-        configurationSha256: manifest.configurationSha256,
-        providerLockSha256: manifest.providerLockSha256,
-        planSha256: digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))),
-        changes,
-        noChanges,
-        ...(actionInvocations.length ? { actionInvocations } : {}),
-        ...(destroy ? { operation: 'destroy' } : {}),
-      };
-      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
-      return receipt;
-    });
-  }
-  async #assertActionUnsubmitted() {
-    try {
-      await privateRead(join8(this.#state().directory, 'action-attempt.json'));
-    } catch (error) {
-      if (error.code === 'ENOENT') return;
-      throw error;
-    }
-    throw new Error('This stage already recorded an action submission; observe its outcome instead of replaying it');
-  }
-  async #preserveActionSubmission() {
-    const directory = this.#state().directory;
-    let journal;
-    try {
-      journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-    } catch (error) {
-      if (error.code === 'ENOENT') return;
-      throw error;
-    }
-    if (!['applying', 'applied'].includes(String(journal.state))) return;
-    const actions = object4(journal.receipt).actionInvocations;
-    if (!Array.isArray(actions) || actions.length === 0) return;
-    try {
-      await privateRead(join8(directory, 'action-attempt.json'));
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-      await persist(join8(directory, 'action-attempt.json'), {
-        schemaVersion: 1,
-        legacyJournalState: journal.state,
-        receipt: journal.receipt,
-      });
-    }
-  }
-  async readOutputs(names, env, signal) {
-    names = [...names];
-    if (
-      !names.length ||
-      new Set(names).size !== names.length ||
-      names.some((name) => !/^[a-z][a-z0-9_]{0,63}$/.test(name))
-    )
-      throw new Error('Explicit unique Terraform output names are required');
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      const receipt = object4(journal.receipt);
-      if (
-        !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
-        receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.providerLockSha256 !== manifest.providerLockSha256
-      )
-        throw new Error('Terraform outputs require an applied or converged current configuration');
-      const version = decode(await this.#run(['version', '-json'], env, signal));
-      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const outputs = decode(await this.#run(['output', '-json'], env, signal));
-      const selected = {};
-      for (const name of names) {
-        const output = object4(outputs[name]);
-        if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
-          throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
-        selected[name] = output.value;
-      }
-      return selected;
-    });
-  }
-  async assertApplied(receipt) {
-    receipt = structuredClone(receipt);
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      if (
-        journal.state !== 'applied' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
-        receipt.deploymentId !== manifest.deploymentId ||
-        receipt.engine !== 'terraform' ||
-        receipt.backendIdentity !== manifest.backendIdentity ||
-        receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
-      )
-        throw new Error('Exact applied Terraform receipt required for ownership capture');
-    });
-  }
-  async readPlannedResourceIds(receipt, addresses, env, signal) {
-    if (
-      !addresses.length ||
-      new Set(addresses).size !== addresses.length ||
-      addresses.some((address) => !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address))
-    )
-      throw new Error('Explicit unique root resource addresses are required');
-    const projected = await this.readPlannedResourceFields(
-      receipt,
-      Object.fromEntries(addresses.map((address) => [address, ['id']])),
-      env,
-      signal,
-    );
-    return Object.fromEntries(
-      Object.entries(projected).map(([address, values]) => {
-        if (values === null) return [address, null];
-        if (typeof values.id !== 'string' || !values.id)
-          throw new Error('Terraform resource ID is unavailable or sensitive');
-        return [address, values.id];
-      }),
-    );
-  }
-  async readPlannedResourceFields(receipt, selections, env, signal) {
-    validateResourceSelections(selections);
-    selections = structuredClone(selections);
-    receipt = structuredClone(receipt);
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      if (
-        journal.state !== 'planned' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
-        receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
-      )
-        throw new Error('Terraform identity inspection saved plan differs');
-      const version = decode(await this.#run(['version', '-json'], env, signal));
-      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
-      const changes = plan.resource_changes === undefined ? [] : plan.resource_changes;
-      if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
-      const result = {};
-      for (const [address, fields] of Object.entries(selections)) {
-        const matches = changes.map(object4).filter((resource) => resource.address === address);
-        if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
-        if (!matches.length) {
-          result[address] = null;
-          continue;
-        }
-        const change = object4(matches[0].change);
-        if (change.before === null || change.before === undefined) {
-          result[address] = null;
-          continue;
-        }
-        const before = object4(change.before);
-        const sensitivity =
-          change.before_sensitive === undefined || change.before_sensitive === false
-            ? {}
-            : change.before_sensitive === true
-              ? true
-              : object4(change.before_sensitive);
-        const selected = projectResourceFields(before, sensitivity, fields);
-        result[address] = selected;
-      }
-      if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
-        throw new Error('Terraform identity inspection saved plan changed');
-      return result;
-    });
-  }
-  async readAppliedResourceFields(receipt, selections, env, signal) {
-    const { applyState: _applyState, ...projection } = await this.#readApplyStateFields(
-      receipt,
-      selections,
-      env,
-      signal,
-      ['applied'],
-    );
-    return projection;
-  }
-  async readApplyAttemptResourceFields(receipt, selections, env, signal) {
-    return this.#readApplyStateFields(receipt, selections, env, signal, ['applying', 'applied']);
-  }
-  async readApplyCheckpoint(receipt) {
-    receipt = structuredClone(receipt);
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const state = await this.#verifyApplyReceipt(receipt, ['planned', 'applying', 'applied']);
-      return { schemaVersion: 1, planSha256: receipt.planSha256, state };
-    });
-  }
-  async #verifyApplyReceipt(receipt, states) {
-    const { directory, manifest } = this.#state();
-    const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-    const state = journal.state;
-    if (
-      !states.includes(state) ||
-      canonical(journal.receipt) !== canonical(receipt) ||
-      receipt.engine !== 'terraform' ||
-      receipt.deploymentId !== manifest.deploymentId ||
-      receipt.backendIdentity !== manifest.backendIdentity ||
-      receipt.configurationSha256 !== manifest.configurationSha256 ||
-      receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-      receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
-    )
-      throw new Error(`Exact ${states.join('/')} Terraform receipt required for state identity inspection`);
-    return state;
-  }
-  async #readApplyStateFields(receipt, selections, env, signal, states) {
-    validateResourceSelections(selections);
-    selections = structuredClone(selections);
-    receipt = structuredClone(receipt);
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const { directory, manifest } = this.#state();
-      const applyState = await this.#verifyApplyReceipt(receipt, states);
-      const statePath = join8(directory, 'terraform.tfstate');
-      const snapshot = await privateRead(statePath);
-      const identity = decode(snapshot.toString());
-      if (
-        typeof identity.lineage !== 'string' ||
-        !identity.lineage.trim() ||
-        !Number.isSafeInteger(identity.serial) ||
-        identity.serial < 0
-      )
-        throw new Error('Terraform state identity is malformed');
-      const version = decode(await this.#run(['version', '-json'], env, signal));
-      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
-      if (state.format_version !== '1.0' || state.terraform_version !== manifest.terraformVersion)
-        throw new Error('Terraform state format or version changed');
-      const module = object4(object4(state.values ?? {}).root_module ?? {});
-      const resources = module.resources ?? [];
-      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
-      const result = {};
-      for (const [address, fields] of Object.entries(selections)) {
-        const reviewed = receipt.changes.filter((change) => change.address === address);
-        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-        const matches = resources.map(object4).filter((resource) => resource.address === address);
-        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
-        if (!matches.length) {
-          result[address] = null;
-          continue;
-        }
-        const resource = matches[0];
-        if (
-          resource.mode !== 'managed' ||
-          resource.type !== reviewed[0].type ||
-          resource.type !== address.split('.')[0]
-        )
-          throw new Error('Terraform state resource differs from reviewed identity');
-        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-        result[address] = projectResourceFields(object4(resource.values), resource.sensitive_values, fields);
-      }
-      if (digest2(snapshot) !== digest2(await privateRead(statePath)))
-        throw new Error('Terraform state changed during identity inspection');
-      await this.#verifyInputs();
-      if ((await this.#verifyApplyReceipt(receipt, states)) !== applyState)
-        throw new Error('Terraform apply checkpoint changed during inspection');
-      if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
-        throw new Error('Terraform saved plan changed during state identity inspection');
-      return {
-        schemaVersion: 1,
-        applyState,
-        planSha256: receipt.planSha256,
-        stateSha256: digest2(snapshot),
-        lineage: identity.lineage,
-        serial: identity.serial,
-        resources: result,
-      };
-    });
-  }
-  async apply(receipt, env, signal) {
-    return this.#exclusive(async () => {
-      await this.#verifyInputs();
-      const journal = decode((await privateRead(join8(this.#state().directory, 'plan-receipt.json'))).toString());
-      if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
-      if (
-        canonical(receipt) !== canonical(journal.receipt) ||
-        receipt.engine !== 'terraform' ||
-        receipt.deploymentId !== this.#state().manifest.deploymentId ||
-        receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
-        receipt.providerLockSha256 !== this.#state().manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan')))
-      )
-        throw new Error('Terraform saved-plan receipt does not match');
-      const version = decode(await this.#run(['version', '-json'], env, signal));
-      if (version.terraform_version !== this.#state().manifest.terraformVersion)
-        throw new Error('Terraform version changed');
-      const expectedActions = receipt.actionInvocations ?? [];
-      if (!Array.isArray(expectedActions) || expectedActions.length > 1)
-        throw new Error('Saved action receipt is malformed');
-      if (expectedActions.length) validateActionIntent(expectedActions[0]);
-      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
-      inspectActionInvocations(plan, expectedActions[0]);
-      if (receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))))
-        throw new Error('Terraform saved plan changed during action inspection');
-      if (expectedActions.length) {
-        await this.#assertActionUnsubmitted();
-        await persist(join8(this.#state().directory, 'action-attempt.json'), {
-          schemaVersion: 1,
-          submittedAt: new Date().toISOString(),
-          receipt,
-        });
-      }
-      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
-      await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
-      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
-    });
-  }
-}
-var cliConfig = `provider_installation {
-  direct {}
-}
-disable_checkpoint = true
-`,
-  digest2 = (value) => createHash6('sha256').update(value).digest('hex'),
-  safeId,
-  executeTerraform;
-var init_runner = __esm(() => {
-  init_process_lock();
-  init_failure();
-  safeId = /^[a-z][a-z0-9-]{0,62}$/;
-  executeTerraform = terraformExecutor(undefined, true);
-});
-
-// plugins/terraform/src/service.ts
-import { join as join9 } from 'node:path';
-
-function createCeTerraformService(platform) {
-  return {
-    async open(owner, deployment, resume) {
-      owner = structuredClone(owner);
-      deployment = structuredClone(deployment);
-      if (
-        owner.engine !== 'terraform' ||
-        deployment.engine !== 'terraform' ||
-        owner.deploymentId !== deployment.deploymentId ||
-        owner.provider !== deployment.scope.cloud ||
-        owner.account !== deployment.scope.account ||
-        owner.region !== deployment.scope.region
-      )
-        throw new Error('Terraform deployment and cloud ownership differ');
-      const shared = await platform();
-      const store = await shared.storage(owner);
-      if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
-        throw new Error('Invalid Terraform stage identity');
-      const runner = new TerraformRunner(
-        deployment.stage ? join9(store.directory, 'terraform-stages', deployment.stage) : store.directory,
-      );
-      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
-      else await runner.prepare(deployment);
-      const checkOwner = async () => {
-        await shared.storage(owner);
-      };
-      return {
-        async assertApplied(receipt) {
-          await checkOwner();
-          return runner.assertApplied(receipt);
-        },
-        async readConfigurationSha256() {
-          await checkOwner();
-          return runner.readConfigurationSha256();
-        },
-        async readPlannedResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readPlannedResourceFields(receipt, selections, env, signal);
-        },
-        async readAppliedResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readAppliedResourceFields(receipt, selections, env, signal);
-        },
-        async readApplyCheckpoint(receipt) {
-          await checkOwner();
-          return runner.readApplyCheckpoint(receipt);
-        },
-        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
-        },
-        async readPlannedResourceIds(receipt, addresses, env, signal) {
-          await checkOwner();
-          return runner.readPlannedResourceIds(receipt, addresses, env, signal);
-        },
-        async readConfiguration(expectedSha256) {
-          await checkOwner();
-          return runner.readConfiguration(expectedSha256);
-        },
-        async readOutputs(names, env, signal) {
-          await checkOwner();
-          return runner.readOutputs(names, env, signal);
-        },
-        async reviseConfiguration(expectedSha256, configuration) {
-          await checkOwner();
-          return runner.reviseConfiguration(expectedSha256, configuration);
-        },
-        async reconcileApplyFromEvidence(receipt, evidenceSha256) {
-          await checkOwner();
-          return runner.reconcileApplyFromEvidence(receipt, evidenceSha256);
-        },
-        async planDestroy(env, signal) {
-          await checkOwner();
-          return runner.planDestroy(env, signal);
-        },
-        async planAction(intent, env, signal) {
-          await checkOwner();
-          return runner.planAction(intent, env, signal);
-        },
-        async plan(env, signal) {
-          await checkOwner();
-          return runner.plan(env, signal);
-        },
-        async apply(receipt, env, signal) {
-          await checkOwner();
-          await runner.apply(receipt, env, signal);
-        },
-      };
-    },
-  };
-}
-var init_service2 = __esm(() => {
-  init_runner();
-});
-
-// plugins/gcloud/src/ce/funding-session.ts
-function billable(receipt) {
-  return receipt.changes.some(
-    (change) =>
-      change.type.startsWith('google_') && change.actions.some((action) => action === 'create' || action === 'update'),
+function publicTerraformSelections(intent) {
+  return Object.fromEntries(
+    publicTerraformAddresses(intent).map((address) => {
+      const common = ['name', 'project', 'self_link'];
+      if (address.startsWith('google_compute_instance.'))
+        return [
+          address,
+          [
+            ...common,
+            'zone',
+            'instance_id',
+            'boot_disk.length',
+            'boot_disk.0.source',
+            'boot_disk.0.auto_delete',
+            'network_interface.length',
+            ...[0, 1].flatMap((n) => [`network_interface.${n}.network`, `network_interface.${n}.subnetwork`]),
+          ],
+        ];
+      if (address.startsWith('google_compute_disk.')) return [address, [...common, 'zone', 'disk_id']];
+      if (address.startsWith('google_compute_network.')) return [address, [...common, 'numeric_id']];
+      if (address.startsWith('google_compute_subnetwork.'))
+        return [address, [...common, 'region', 'subnetwork_id', 'network', 'ip_cidr_range']];
+      return [
+        address,
+        ['name', 'namespace', 'creation_identity_sha256', ...(address.startsWith('xcsh_token.') ? ['site_name'] : [])],
+      ];
+    }),
   );
 }
-function withGcpCorporateFunding(session, store, api, project, collect = collectCurrentGcpCorporateFunding, intent) {
-  return {
-    ...session,
-    async plan(environment, signal) {
-      const receipt = await session.plan(environment, signal);
-      if (billable(receipt)) {
-        const funding = await collect(api, project, signal);
-        await store.write(`gcp-funding-${receipt.planSha256}.json`, {
-          schemaVersion: 1,
-          receiptFingerprint: fingerprint(receipt),
-          funding,
-        });
-      }
-      return receipt;
-    },
-    async apply(receipt, environment, signal) {
-      if (billable(receipt)) {
-        const saved = await store.read(`gcp-funding-${receipt.planSha256}.json`);
-        if (saved.schemaVersion !== 1 || saved.receiptFingerprint !== fingerprint(receipt))
-          throw new Error('Reviewed Terraform corporate funding binding differs');
-        const current = await collect(api, project, signal);
-        assertGcpCorporateFundingCurrent(current, project, saved.funding.billingAccountName);
-        if (current.policySha256 !== saved.funding.policySha256)
-          throw new Error('Corporate funding policy changed after Terraform review');
-        if (intent?.image.name.endsWith('-byol'))
-          await assertGcpByolAuthorization(
-            intent,
-            { query: createGcpPreflightPort(api, project).query, document: fetchGcpByolDocument },
-            current,
-            store,
-            signal,
-          );
-      }
-      return session.apply(receipt, environment, signal);
-    },
-  };
+function publicTerraformCloudScope(intent) {
+  const node = intent.sites[0].nodes[0];
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  return [
+    { kind: 'instance', selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}` },
+    { kind: 'disk', selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}` },
+    ...node.interfaces.flatMap((nic) => [
+      { kind: 'network', selfLink: `${prefix}/global/networks/${nic.network}` },
+      { kind: 'subnetwork', selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+    ]),
+  ].map((resource) => ({
+    ...resource,
+    id: '0',
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+    ...(['instance', 'disk'].includes(resource.kind) ? { siteName: intent.sites[0].name, nodeName: node.name } : {}),
+  }));
 }
-var init_funding_session = __esm(() => {
-  init_byol_terms();
-  init_corporate_funding();
-  init_discovery();
-  init_preflight_port();
-});
-
-// plugins/gcloud/src/ce/terraform-session.ts
-async function openGcpTerraformSession(platform, inputs, resume = false) {
-  if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
-  if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
-  const { createHash } = await import('node:crypto');
-  const digest = `sha256:${createHash('sha256').update(inputs.providerLock).digest('hex')}`;
-  if (digest !== inputs.expectedLockSha256) throw new Error('GCP Terraform provider lock bytes changed');
-  for (const [provider, version] of [
-    ['hashicorp/google', inputs.versions.google],
-    ['f5-sales-demo/xcsh', inputs.versions.xcsh],
+async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal) {
+  if (!runtime.session.readApplyAttemptResourceFields) throw new Error('Restricted attempt inspection unavailable');
+  const selections = publicTerraformSelections(intent);
+  const projected = await runtime.session.readApplyAttemptResourceFields(
+    receipt,
+    selections,
+    runtime.environment,
+    signal,
+  );
+  assertPublicTerraformSnapshot(intent, receipt, projected);
+  const resources = [];
+  const scope = publicTerraformCloudScope(intent);
+  for (let index = 0; index < scope.length; index++) {
+    const address = publicTerraformAddresses(intent)[index];
+    const value = projected.resources[address];
+    const expected = scope[index];
+    const live = await observeGcpTeardownResource(runtime.api, expected, signal);
+    if (!value) {
+      if (live) throw new Error('Unidentified cloud object requires reconciliation');
+      continue;
+    }
+    if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
+      throw new Error('Missing owning cloud object requires reconciliation');
+    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
+      ['instance', 'disk', 'network', 'subnetwork'].indexOf(expected.kind)
+    ];
+    if (
+      value.name !== expected.selfLink.split('/').at(-1) ||
+      value.project !== intent.project ||
+      value.self_link !== expected.selfLink ||
+      String(value[idField]) !== live.id
+    )
+      throw new Error('Replacement cloud identity requires reconciliation');
+    if (['instance', 'disk'].includes(expected.kind) && value.zone !== intent.sites[0].nodes[0].zone)
+      throw new Error('Cloud zone identity differs');
+    if (expected.kind === 'subnetwork') {
+      const nic = intent.sites[0].nodes[0].interfaces.find((n) =>
+        expected.selfLink.endsWith(`/subnetworks/${n.subnet}`),
+      );
+      if (
+        !nic ||
+        value.region !== intent.region ||
+        value.ip_cidr_range !== nic.cidr ||
+        value.network !==
+          scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
+      )
+        throw new Error('Subnet ownership topology differs');
+    }
+    resources.push({ ...expected, id: live.id });
+  }
+  const instance = projected.resources[publicTerraformAddresses(intent)[0]];
+  if (instance) {
+    if (
+      instance['boot_disk.length'] !== 1 ||
+      instance['boot_disk.0.source'] !== scope[1].selfLink ||
+      instance['boot_disk.0.auto_delete'] !== false ||
+      !projected.resources[publicTerraformAddresses(intent)[1]] ||
+      instance['network_interface.length'] !== 2 ||
+      [0, 1].some(
+        (n) =>
+          instance[`network_interface.${n}.network`] !== scope[2 + n * 2].selfLink ||
+          instance[`network_interface.${n}.subnetwork`] !== scope[3 + n * 2].selfLink,
+      )
+    )
+      throw new Error('VM/disk/NIC owning topology differs');
+  }
+  const observed = await runtime.observePlatform(
+    intent.sites[0].name,
+    `${intent.sites[0].nodes[0].name}-token`,
+    signal,
+  );
+  if (
+    observed.siteName !== intent.sites[0].name ||
+    observed.tokenName !== `${intent.sites[0].nodes[0].name}-token` ||
+    typeof observed.siteAbsent !== 'boolean' ||
+    typeof observed.tokenAbsent !== 'boolean'
+  )
+    throw new Error('Scoped Platform observation differs');
+  const platform = {};
+  for (const [address, absent, hash] of [
+    [publicTerraformAddresses(intent)[6], observed.siteAbsent, observed.siteIdentitySha256],
+    [publicTerraformAddresses(intent)[7], observed.tokenAbsent, observed.tokenIdentitySha256],
   ]) {
-    const blocks = inputs.providerLock
-      .split('provider "')
-      .filter((block) => block.startsWith(`registry.terraform.io/${provider}"`));
-    if (
-      blocks.length !== 1 ||
-      !blocks[0].includes(`version     = "${version}"`) ||
-      !/"(?:h1:[A-Za-z0-9+/=]+|zh:[a-f0-9]{64})"/.test(blocks[0])
-    )
-      throw new Error('Pinned provider version/checksums missing from lock');
-  }
-  const translated = translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
-  const owner = {
-    deploymentId: inputs.intent.deploymentName,
-    engine: 'terraform',
-    provider: 'gcp',
-    account: inputs.intent.project,
-    region: inputs.intent.region,
-  };
-  const deployment = {
-    schemaVersion: 1,
-    deploymentId: owner.deploymentId,
-    engine: 'terraform',
-    scope: { cloud: 'gcp', account: owner.account, region: owner.region },
-    terraformVersion: inputs.versions.terraform,
-    configuration: JSON.stringify(translated.configuration),
-    providerLock: inputs.providerLock,
-    backendIdentity: `local:${owner.deploymentId}`,
-  };
-  const store = await platform.storage(owner);
-  const identity = {
-    schemaVersion: 1,
-    engine: 'terraform',
-    platformContext: inputs.intent.platformContext,
-    intentFingerprint: fingerprint(inputs.intent),
-    intent: structuredClone(inputs.intent),
-    configurationFingerprint: fingerprint(translated.configuration),
-    providerLockSha256: digest,
-  };
-  if (resume) {
-    const saved = await store.read('gcp-terraform-input-identity.json');
-    if (fingerprint(saved) !== fingerprint(identity)) throw new Error('GCP Terraform resume input identity differs');
-  } else {
-    let prior;
-    try {
-      prior = await store.read('gcp-terraform-input-identity.json');
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+    const value = projected.resources[address];
+    if (!value) {
+      if (!absent) throw new Error('Unidentified XC object requires reconciliation');
+      continue;
     }
-    if (prior !== undefined) throw new Error('Existing GCP Terraform deployment must resume');
-    await store.write('gcp-terraform-input-identity.json', identity);
-    await store.write('gcp-terraform-session-inputs.json', { schemaVersion: 1, inputs: structuredClone(inputs) });
+    if (
+      absent ||
+      typeof hash !== 'string' ||
+      !/^sha256:[a-f0-9]{64}$/.test(hash) ||
+      value.creation_identity_sha256 !== hash ||
+      value.namespace !== 'system' ||
+      value.name !== (address.startsWith('xcsh_token.') ? observed.tokenName : observed.siteName) ||
+      (address.startsWith('xcsh_token.') && value.site_name !== observed.siteName)
+    )
+      throw new Error('Original XC creation identity differs');
+    platform[address] = hash;
   }
-  const session = await createCeTerraformService(async () => platform).open(owner, deployment, resume);
-  return withGcpCorporateFunding(
-    session,
-    store,
-    makeExecApi(store.directory),
-    inputs.intent.project,
-    undefined,
-    inputs.intent,
-  );
+  const addresses = Object.keys(projected.resources).filter((address) => projected.resources[address] !== null);
+  return {
+    schemaVersion: 2,
+    intentFingerprint: fingerprint(intent),
+    receiptFingerprint: fingerprint(receipt),
+    state: { sha256: projected.stateSha256, lineage: projected.lineage, serial: projected.serial },
+    projectionHash: fingerprint(projected.resources),
+    addresses,
+    resources,
+    platform,
+    complete: addresses.length === publicTerraformAddresses(intent).length,
+  };
 }
-async function resumeGcpTerraformSession(platform, intent) {
-  if (intent.engine !== 'terraform') throw new Error('Terraform session cannot change owning engine');
-  const store = await platform.storage({
-    deploymentId: intent.deploymentName,
-    provider: 'gcp',
-    engine: 'terraform',
-    account: intent.project,
-    region: intent.region,
-  });
-  const saved = await store.read('gcp-terraform-session-inputs.json');
-  if (saved.schemaVersion !== 1 || !saved.inputs || fingerprint(saved.inputs.intent) !== fingerprint(intent))
-    throw new Error('Persisted Terraform session inputs unavailable or changed');
-  return openGcpTerraformSession(platform, saved.inputs, 'current');
+function assertPublicTerraformSnapshot(intent, receipt, projected) {
+  const selections = publicTerraformSelections(intent);
+  if (
+    projected.schemaVersion !== 1 ||
+    projected.planSha256 !== receipt.planSha256 ||
+    !['applying', 'applied'].includes(projected.applyState) ||
+    !/^[a-f0-9]{64}$/.test(projected.stateSha256) ||
+    !projected.lineage?.trim() ||
+    !Number.isSafeInteger(projected.serial) ||
+    projected.serial < 0 ||
+    fingerprint(Object.keys(projected.resources).sort()) !== fingerprint(Object.keys(selections).sort())
+  )
+    throw new Error('Original state snapshot binding differs');
+  for (const [address, value] of Object.entries(projected.resources))
+    if (value !== null && fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort()))
+      throw new Error('Unexpected or sensitive state projection');
 }
-var init_terraform_session = __esm(() => {
-  init_service2();
-  init_shared();
-  init_compute_plan();
+var init_terraform_public_ownership = __esm(() => {
+  init_deployment_teardown();
   init_discovery();
-  init_funding_session();
 });
 
 // plugins/gcloud/src/ce/terraform-admission.ts
@@ -6280,6 +5266,7 @@ function admitGcpTerraformTransition(intent, receipt) {
   if (receipt.actionInvocations?.length) throw new Error('Compute transitions do not admit implicit provider actions');
   const allowedTypes = new Set([
     'google_compute_instance',
+    'google_compute_disk',
     'google_compute_network',
     'google_compute_subnetwork',
     'google_compute_address',
@@ -6342,7 +5329,7 @@ var init_terraform_admission = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/terraform-teardown.ts
-import { join as join10 } from 'node:path';
+import { join as join8 } from 'node:path';
 
 function gcpTerraformResourceAddresses(intent) {
   const site = intent.sites[0],
@@ -6388,7 +5375,17 @@ async function savedIntent(store, intent) {
 function platformNames(intent, observation) {
   if (
     Object.keys(observation).some(
-      (key) => !['siteName', 'siteUid', 'tokenName', 'tokenIdentityHash', 'siteAbsent', 'tokenAbsent'].includes(key),
+      (key) =>
+        ![
+          'siteName',
+          'siteUid',
+          'tokenName',
+          'tokenIdentityHash',
+          'siteIdentitySha256',
+          'tokenIdentitySha256',
+          'siteAbsent',
+          'tokenAbsent',
+        ].includes(key),
     ) ||
     typeof observation.siteAbsent !== 'boolean' ||
     typeof observation.tokenAbsent !== 'boolean' ||
@@ -6536,7 +5533,7 @@ async function planGcpTerraformTeardown(runtime, intent, contract, policy, signa
   assertGcpTeardownProfile(intent, contract, 'terraform');
   assertGcpTeardownPolicyFresh(policy);
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join8(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const resources = await readGcpResourceInventory(runtime.store, intent);
     assertGcpTeardownTopology(intent, resources);
@@ -6572,7 +5569,7 @@ async function applyGcpTerraformTeardown(runtime, intent, contract, policy, appr
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact Terraform teardown review required');
   await savedIntent(runtime.store, intent);
-  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
+  const release = await acquireProcessLock(join8(runtime.store.directory, '.gcp-deployment-lock'));
   try {
     const plan = await runtime.store.read(`gcp-tf-reviewed-${approvedHash.slice(7)}.json`);
     const { planHash, ...body } = plan;
@@ -6673,8 +5670,1925 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_admission();
 });
 
+// plugins/gcloud/src/ce/terraform-public-teardown.ts
+import { join as join9 } from 'node:path';
+
+async function verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal, allowAbsent = true) {
+  if (
+    owned.schemaVersion !== 2 ||
+    owned.intentFingerprint !== fingerprint(intent) ||
+    new Set(owned.addresses).size !== owned.addresses.length ||
+    owned.addresses.some((a) => !publicTerraformAddresses(intent).includes(a))
+  )
+    throw new Error('Original Terraform ownership binding differs');
+  const absent = [];
+  const addresses = publicTerraformAddresses(intent),
+    scope = publicTerraformCloudScope(intent);
+  for (let n = 0; n < scope.length; n++) {
+    const original = owned.resources.find((resource) => resource.selfLink === scope[n].selfLink);
+    const live = await observeGcpTeardownResource(runtime.api, scope[n], signal);
+    if (live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent)
+      throw new Error('Original cloud identity replaced or unavailable');
+    if (!live) absent.push(addresses[n]);
+  }
+  const observation = await runtime.observePlatform(
+    intent.sites[0].name,
+    `${intent.sites[0].nodes[0].name}-token`,
+    signal,
+  );
+  if (
+    observation.siteName !== intent.sites[0].name ||
+    observation.tokenName !== `${intent.sites[0].nodes[0].name}-token` ||
+    typeof observation.siteAbsent !== 'boolean' ||
+    typeof observation.tokenAbsent !== 'boolean'
+  )
+    throw new Error('Scoped Platform observation differs');
+  for (const [address, isAbsent, hash] of [
+    [addresses[6], observation.siteAbsent, observation.siteIdentitySha256],
+    [addresses[7], observation.tokenAbsent, observation.tokenIdentitySha256],
+  ]) {
+    if (
+      isAbsent
+        ? !!owned.platform[address] && !allowAbsent
+        : !owned.platform[address] || hash !== owned.platform[address]
+    )
+      throw new Error('Original XC identity replaced or unavailable');
+    if (isAbsent) absent.push(address);
+  }
+  return absent;
+}
+async function stableState(runtime) {
+  if (!runtime.session.readStateIdentity) throw new Error('Stable owning state binding unavailable');
+  return runtime.session.readStateIdentity();
+}
+async function ownership(runtime, intent) {
+  const original = await runtime.store.read('gcp-tf-deploy-original-authorization.json');
+  const owned = await runtime.store.read('gcp-tf-public-ownership.json');
+  const journal = await runtime.store.read('gcp-tf-public-deployment.json');
+  if (
+    original.intentFingerprint !== fingerprint(intent) ||
+    owned.intentFingerprint !== fingerprint(intent) ||
+    owned.receiptFingerprint !== original.receiptFingerprint ||
+    journal.planHash !== original.planHash ||
+    journal.receiptFingerprint !== original.receiptFingerprint ||
+    !['completed', 'partial'].includes(journal.phase)
+  )
+    throw new Error('Reconciled original creation subset required for cleanup');
+  return { original, owned };
+}
+function assertDeleteOnly(intent, receipt, addresses) {
+  if (!addresses.length) {
+    if (
+      !receipt.noChanges ||
+      receipt.changes.length ||
+      receipt.operation !== 'destroy' ||
+      receipt.actionInvocations?.length
+    )
+      throw new Error('Expected empty destroy plan');
+  } else assertGcpTerraformOwnedTransition(intent, receipt, 'teardown', addresses);
+}
+async function projectDestroy(runtime, intent, receipt, owned, absent, signal) {
+  const selections = publicTerraformSelections(intent);
+  const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
+  if (fingerprint(Object.keys(fields).sort()) !== fingerprint(Object.keys(selections).sort()))
+    throw new Error('Destroy projection escaped owning configuration');
+  const remaining = [];
+  for (const [address, value] of Object.entries(fields)) {
+    if (!value) {
+      if (!absent.includes(address)) throw new Error('Live object is missing from owning state');
+      continue;
+    }
+    if (
+      absent.includes(address) ||
+      !owned.addresses.includes(address) ||
+      fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort())
+    )
+      throw new Error('Destroy projection contains absent, foreign or sensitive identity');
+    if (address.startsWith('xcsh_')) {
+      if (
+        value.creation_identity_sha256 !== owned.platform[address] ||
+        value.namespace !== 'system' ||
+        value.name !==
+          (address.startsWith('xcsh_token.') ? `${intent.sites[0].nodes[0].name}-token` : intent.sites[0].name)
+      )
+        throw new Error('Destroy XC original identity differs');
+    } else {
+      const resource = owned.resources.find((r) => r.selfLink === value.self_link);
+      const field = address.startsWith('google_compute_instance.')
+        ? 'instance_id'
+        : address.startsWith('google_compute_disk.')
+          ? 'disk_id'
+          : address.startsWith('google_compute_network.')
+            ? 'numeric_id'
+            : 'subnetwork_id';
+      if (
+        !resource ||
+        String(value[field]) !== resource.id ||
+        value.project !== intent.project ||
+        value.name !== resource.selfLink.split('/').at(-1)
+      )
+        throw new Error('Destroy cloud original identity differs');
+    }
+    remaining.push(address);
+  }
+  assertDeleteOnly(intent, receipt, remaining);
+  return { remaining, projectionHash: fingerprint(fields) };
+}
+async function planPublicTerraformTeardown(runtime, intent, contract, policy, signal) {
+  assertGcpTeardownProfile(intent, contract, 'terraform');
+  assertGcpTeardownPolicyFresh(policy);
+  const release = await acquireProcessLock(join9(runtime.store.directory, '.gcp-deployment-lock'));
+  try {
+    const { original, owned } = await ownership(runtime, intent);
+    const absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
+    const before = await stableState(runtime);
+    if (before.lineage !== owned.state.lineage || before.serial < owned.state.serial)
+      throw new Error('Foreign or rolled-back cleanup state');
+    const receipt = await runtime.session.planDestroy(runtime.environment, signal);
+    const projection = await projectDestroy(runtime, intent, receipt, owned, absent, signal);
+    const state = await stableState(runtime);
+    if (state.lineage !== before.lineage || state.serial < before.serial)
+      throw new Error('Cleanup state lineage changed');
+    const body = {
+      schemaVersion: 2,
+      operation: 'teardown',
+      engine: 'terraform',
+      intentFingerprint: fingerprint(intent),
+      apiRelease: contract.release,
+      policyReceipt: policy,
+      originalAuthorization: original,
+      ownershipHash: fingerprint(owned),
+      state,
+      savedPlan: receipt,
+      ...projection,
+      createdAt: new Date().toISOString(),
+    };
+    const plan = { ...body, planHash: fingerprint(body) };
+    await runtime.store.write(`gcp-tf-public-cleanup-reviewed-${plan.planHash.slice(7)}.json`, plan);
+    return plan;
+  } finally {
+    await release();
+  }
+}
+async function applyPublicTerraformTeardown(runtime, intent, contract, policy, approvedHash, signal, onMutation) {
+  assertGcpTeardownProfile(intent, contract, 'terraform');
+  assertGcpTeardownPolicyFresh(policy);
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact cleanup review required');
+  const release = await acquireProcessLock(join9(runtime.store.directory, '.gcp-deployment-lock'));
+  try {
+    const plan = await runtime.store.read(`gcp-tf-public-cleanup-reviewed-${approvedHash.slice(7)}.json`);
+    const { planHash, ...body } = plan;
+    if (
+      plan.schemaVersion !== 2 ||
+      plan.operation !== 'teardown' ||
+      plan.engine !== 'terraform' ||
+      planHash !== approvedHash ||
+      fingerprint(body) !== approvedHash ||
+      plan.intentFingerprint !== fingerprint(intent) ||
+      fingerprint(plan.apiRelease) !== fingerprint(contract.release) ||
+      plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
+    )
+      throw new Error('Reviewed cleanup binding changed');
+    const { original, owned } = await ownership(runtime, intent);
+    if (fingerprint(original) !== fingerprint(plan.originalAuthorization) || fingerprint(owned) !== plan.ownershipHash)
+      throw new Error('Original cleanup attempt changed');
+    const name = `gcp-tf-public-cleanup-authorized-${approvedHash.slice(7)}.json`;
+    let journal = await readOptional(runtime, name);
+    if (journal && journal.planHash !== approvedHash) throw new Error('Cleanup authorization changed');
+    let absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
+    if (!journal) {
+      const age = Date.now() - Date.parse(plan.createdAt);
+      if (!Number.isFinite(age) || age < 0 || age > 300000) throw new Error('Initial cleanup review is stale');
+      if (fingerprint(await stableState(runtime)) !== fingerprint(plan.state))
+        throw new Error('Reviewed stable cleanup state changed');
+      const projection = await projectDestroy(runtime, intent, plan.savedPlan, owned, absent, signal);
+      if (
+        projection.projectionHash !== plan.projectionHash ||
+        fingerprint(projection.remaining) !== fingerprint(plan.remaining)
+      )
+        throw new Error('Reviewed delete projection changed');
+      journal = { planHash: approvedHash, phase: 'authorized' };
+      await runtime.store.write(name, journal);
+    }
+    if (['authorized', 'submitting'].includes(journal.phase)) {
+      if (plan.remaining.length) {
+        if (!runtime.session.readApplyCheckpoint) throw new Error('Executor/checkpoint inspection unavailable');
+        const checkpoint = await runtime.session.readApplyCheckpoint(plan.savedPlan);
+        if (checkpoint.state === 'planned') {
+          if (fingerprint(await stableState(runtime)) !== fingerprint(plan.state))
+            throw new Error('Authorized cleanup state changed before submission');
+          journal.phase = 'submitting';
+          await runtime.store.write(name, journal);
+          signal?.throwIfAborted();
+          onMutation?.();
+          try {
+            await runtime.session.apply(plan.savedPlan, runtime.environment, signal);
+          } catch {
+            signal?.throwIfAborted();
+          }
+        }
+      }
+      absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
+      if (absent.length !== 8)
+        return {
+          state: 'reconciliation-required',
+          phase: 'partial-cleanup',
+          planHash: approvedHash,
+          engine: 'terraform',
+          reconciliation: 'new-delete-only-review-required',
+        };
+      if (plan.remaining.length) {
+        const checkpoint = await runtime.session.readApplyCheckpoint?.(plan.savedPlan);
+        if (!checkpoint) throw new Error('Original cleanup checkpoint unavailable');
+        if (checkpoint.state === 'applying')
+          await runtime.session.reconcileApplyFromEvidence(
+            plan.savedPlan,
+            fingerprint({ planHash: approvedHash, absent }).slice(7),
+          );
+        else if (checkpoint.state !== 'applied') throw new Error('Unsubmitted cleanup cannot be attested');
+      }
+      journal.phase = 'applied';
+      await runtime.store.write(name, journal);
+    }
+    if (absent.length !== 8) throw new Error('Resources reappeared after cleanup');
+    if (journal.phase !== 'absent') {
+      const finalPlan = await runtime.session.planDestroy(runtime.environment, signal);
+      assertDeleteOnly(intent, finalPlan, []);
+      if (
+        finalPlan.engine !== 'terraform' ||
+        finalPlan.deploymentId !== intent.deploymentName ||
+        finalPlan.backendIdentity !== plan.savedPlan.backendIdentity ||
+        finalPlan.configurationSha256 !== plan.savedPlan.configurationSha256 ||
+        finalPlan.providerLockSha256 !== plan.savedPlan.providerLockSha256
+      )
+        throw new Error('Final empty destroy ownership binding differs');
+      const after = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
+      if (after.length !== 8) throw new Error('Independent absence changed');
+      journal = { ...journal, phase: 'absent', finalPlan };
+      await runtime.store.write(name, journal);
+    }
+    return {
+      schemaVersion: 2,
+      engine: 'terraform',
+      state: 'done',
+      phase: 'independent-absence',
+      planHash: approvedHash,
+      absentObjects: absent.length,
+      finalPlanSha256: journal.finalPlan?.planSha256,
+    };
+  } finally {
+    await release();
+  }
+}
+var init_terraform_public_teardown = __esm(() => {
+  init_process_lock();
+  init_deployment_teardown();
+  init_discovery();
+  init_terraform_public();
+  init_terraform_public_ownership();
+  init_terraform_teardown();
+});
+
+// plugins/gcloud/src/ce/terraform-public.ts
+import { join as join10 } from 'node:path';
+
+async function readOptional(runtime, name) {
+  try {
+    return await runtime.store.read(name);
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+}
+async function sessionBinding(runtime, intent) {
+  const saved = await runtime.store.read('gcp-terraform-session-inputs.json');
+  const identity = await runtime.store.read('gcp-terraform-input-identity.json');
+  if (
+    saved.schemaVersion !== 1 ||
+    saved.inputs?.configurationVersion !== 2 ||
+    intent.engine !== 'terraform' ||
+    fingerprint(saved.inputs.intent) !== fingerprint(intent) ||
+    fingerprint(identity.intent) !== fingerprint(intent) ||
+    identity.intentFingerprint !== fingerprint(intent) ||
+    identity.platformContext !== intent.platformContext ||
+    saved.inputs.expectedLockSha256 !== identity.providerLockSha256 ||
+    !runtime.session.readConfigurationSha256
+  )
+    throw new Error('Original public Terraform input binding differs');
+  return {
+    inputHash: fingerprint(saved),
+    configurationSha256: await runtime.session.readConfigurationSha256(),
+    providerLockSha256: saved.inputs.expectedLockSha256.slice(7),
+    versions: saved.inputs.versions,
+  };
+}
+async function planPublicTerraformDeployment(runtime, platform, intent, sources, signal) {
+  intent = structuredClone(intent);
+  const current = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal, false, 'terraform');
+  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
+  try {
+    if (await readOptional(runtime, 'gcp-tf-deploy-original-authorization.json'))
+      throw new Error('Deployment must resume its original authorization');
+    await verifyPublicTerraformLiveOwnership(
+      runtime,
+      intent,
+      {
+        schemaVersion: 2,
+        intentFingerprint: fingerprint(intent),
+        receiptFingerprint: '',
+        state: { sha256: '', lineage: '', serial: 0 },
+        projectionHash: '',
+        addresses: [],
+        resources: [],
+        platform: {},
+        complete: false,
+      },
+      signal,
+    );
+    const binding = await sessionBinding(runtime, intent);
+    const receipt = await runtime.session.plan(runtime.environment, signal);
+    assertGcpTerraformOwnedTransition(intent, receipt, 'deploy', publicTerraformAddresses(intent));
+    if (
+      receipt.configurationSha256 !== binding.configurationSha256 ||
+      receipt.providerLockSha256 !== binding.providerLockSha256
+    )
+      throw new Error('Saved-plan configuration/lock differs');
+    const body = {
+      schemaVersion: 2,
+      operation: 'deploy',
+      engine: 'terraform',
+      intentFingerprint: fingerprint(intent),
+      platformContext: intent.platformContext,
+      apiRelease: current.boundary.release,
+      contractFingerprint: current.boundary.fingerprint,
+      lifecycleFingerprint: fingerprint(current.boundary.singleNodeLifecycle),
+      policyReceipt: current.policy,
+      funding: fundingBinding(current.funding),
+      byolAuthorizationHash: current.byol.authorizationHash,
+      discoveryFingerprint: fingerprint(current.discovery),
+      preflight: current.preflight,
+      binding,
+      savedPlan: receipt,
+      createdAt: new Date().toISOString(),
+      approval: 'required',
+    };
+    const plan = { ...body, planHash: fingerprint(body) };
+    await runtime.store.write(`gcp-tf-deploy-reviewed-${plan.planHash.slice(7)}.json`, plan);
+    return plan;
+  } finally {
+    await release();
+  }
+}
+function publicResult(journal, ownership) {
+  return {
+    schemaVersion: 2,
+    engine: 'terraform',
+    planHash: journal.planHash,
+    state: journal.phase === 'completed' ? 'done' : journal.phase === 'partial' ? 'partial' : 'reconciliation-required',
+    phase: journal.phase,
+    cloudProvisioning: journal.phase === 'completed' ? 'created' : 'incomplete',
+    ...(ownership ? { ownedObjects: ownership.addresses.length, ownershipHash: fingerprint(ownership) } : {}),
+    ...(journal.followUp ? { finalPlanSha256: journal.followUp.planSha256 } : {}),
+    registration: 'unknown',
+    physicalInterfaceIdentity: 'unknown',
+    platformHealth: 'unknown',
+    routing: 'unknown',
+    applicationTraffic: 'unknown',
+    ...(journal.phase === 'partial'
+      ? { cleanup: 'separate-delete-only-review-required' }
+      : journal.phase !== 'completed'
+        ? { reconciliation: 'original-attempt-inspection-required' }
+        : {}),
+  };
+}
+function assertPublicTerraformNoChange(intent, original, followUp) {
+  if (
+    !followUp.noChanges ||
+    followUp.engine !== 'terraform' ||
+    followUp.deploymentId !== intent.deploymentName ||
+    followUp.backendIdentity !== original.backendIdentity ||
+    followUp.configurationSha256 !== original.configurationSha256 ||
+    followUp.providerLockSha256 !== original.providerLockSha256 ||
+    followUp.operation ||
+    followUp.actionInvocations?.length ||
+    followUp.changes.some((c) => c.actions.join(',') !== 'no-op') ||
+    fingerprint(followUp.changes.map((c) => c.address).sort()) !== fingerprint(publicTerraformAddresses(intent).sort())
+  )
+    throw new Error('Follow-up Terraform plan is not an exact no-op');
+}
+async function applyPublicTerraformDeployment(runtime, platform, intent, approvedHash, sources, signal, onMutation) {
+  intent = structuredClone(intent);
+  signal?.throwIfAborted();
+  if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact Terraform deployment review required');
+  const boundary = await sources.contract(signal);
+  assertGcpTeardownProfile(intent, boundary, 'terraform');
+  const release = await acquireProcessLock(join10(runtime.store.directory, '.gcp-deployment-lock'));
+  try {
+    const plan = await runtime.store.read(`gcp-tf-deploy-reviewed-${approvedHash.slice(7)}.json`);
+    const { planHash, ...body } = plan;
+    if (
+      plan.schemaVersion !== 2 ||
+      plan.engine !== 'terraform' ||
+      plan.operation !== 'deploy' ||
+      planHash !== approvedHash ||
+      fingerprint(body) !== approvedHash ||
+      plan.intentFingerprint !== fingerprint(intent) ||
+      plan.platformContext !== intent.platformContext ||
+      fingerprint(plan.apiRelease) !== fingerprint(boundary.release) ||
+      plan.contractFingerprint !== boundary.fingerprint ||
+      plan.lifecycleFingerprint !== fingerprint(boundary.singleNodeLifecycle) ||
+      fingerprint(plan.binding) !== fingerprint(await sessionBinding(runtime, intent))
+    )
+      throw new Error('Reviewed Terraform deployment bindings changed');
+    assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'deploy', publicTerraformAddresses(intent));
+    const original = await readOptional(runtime, 'gcp-tf-deploy-original-authorization.json');
+    const authorization = {
+      planHash: approvedHash,
+      receiptFingerprint: fingerprint(plan.savedPlan),
+      intentFingerprint: fingerprint(intent),
+    };
+    if (original && fingerprint(original) !== fingerprint(authorization))
+      throw new Error('Original Terraform authorization differs');
+    let journal = await readOptional(runtime, 'gcp-tf-public-deployment.json');
+    if (
+      journal &&
+      (!original ||
+        journal.schemaVersion !== 2 ||
+        journal.planHash !== approvedHash ||
+        journal.receiptFingerprint !== authorization.receiptFingerprint)
+    )
+      throw new Error('Original Terraform deployment journal differs');
+    if (
+      plan.savedPlan.configurationSha256 !== plan.binding.configurationSha256 ||
+      plan.savedPlan.providerLockSha256 !== plan.binding.providerLockSha256
+    )
+      throw new Error('Reviewed saved binary bindings differ');
+    if (!original) {
+      if (
+        !runtime.session.readApplyCheckpoint ||
+        (await runtime.session.readApplyCheckpoint(plan.savedPlan)).state !== 'planned'
+      )
+        throw new Error('Initial saved plan is not unsubmitted');
+    }
+    if (!original) {
+      const age = Date.now() - Date.parse(plan.createdAt);
+      if (!Number.isFinite(age) || age < 0 || age > 300000) throw new Error('Initial Terraform review is stale');
+    }
+    const current = await collectGcpDeploymentPrerequisites(platform, intent, sources, signal, !!original, 'terraform');
+    if (
+      current.policy.normalizedSha256 !== plan.policyReceipt.normalizedSha256 ||
+      fingerprint(fundingBinding(current.funding)) !== fingerprint(plan.funding) ||
+      current.byol.authorizationHash !== plan.byolAuthorizationHash ||
+      current.boundary.fingerprint !== plan.contractFingerprint
+    )
+      throw new Error('Reviewed prerequisites/funding/BYOL changed');
+    signal?.throwIfAborted();
+    if (!original) {
+      const age = Date.now() - Date.parse(plan.createdAt);
+      if (!Number.isFinite(age) || age < 0 || age > 300000)
+        throw new Error('Initial Terraform review expired during qualification');
+      await runtime.store.write('gcp-tf-deploy-original-authorization.json', authorization);
+    }
+    journal ??= {
+      schemaVersion: 2,
+      planHash: approvedHash,
+      receiptFingerprint: authorization.receiptFingerprint,
+      phase: 'authorized',
+    };
+    await runtime.store.write('gcp-tf-public-deployment.json', journal);
+    let ownership = await readOptional(runtime, 'gcp-tf-public-ownership.json');
+    if (journal.phase === 'completed') {
+      if (!ownership?.complete || !journal.followUp) throw new Error('Completed Terraform evidence missing');
+      assertPublicTerraformNoChange(intent, plan.savedPlan, journal.followUp);
+      await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+      return publicResult(journal, ownership);
+    }
+    try {
+      if (journal.phase !== 'reconciling') {
+        if (!runtime.session.readApplyCheckpoint)
+          throw new Error('Original executor/checkpoint inspection unavailable');
+        const checkpoint = await runtime.session.readApplyCheckpoint(plan.savedPlan);
+        if (checkpoint.state === 'planned') {
+          if (!['authorized', 'submitting'].includes(journal.phase))
+            throw new Error('Consumed submission reverted to planned');
+          journal.phase = 'submitting';
+          await runtime.store.write('gcp-tf-public-deployment.json', journal);
+          signal?.throwIfAborted();
+          onMutation?.();
+          try {
+            await runtime.session.apply(plan.savedPlan, runtime.environment, signal);
+          } catch {
+            signal?.throwIfAborted();
+          }
+          const submitted = await runtime.session.readApplyCheckpoint(plan.savedPlan);
+          if (submitted.state === 'planned') return publicResult(journal);
+        }
+        journal.phase = 'inspecting';
+        await runtime.store.write('gcp-tf-public-deployment.json', journal);
+        const inspected = await inspectPublicTerraformOwnership(runtime, intent, plan.savedPlan, signal);
+        if (ownership && fingerprint(ownership) !== fingerprint(inspected))
+          throw new Error('Original ownership snapshot changed');
+        ownership = inspected;
+        await runtime.store.write('gcp-tf-public-ownership.json', ownership);
+        for (const resource of ownership.resources) await recordGcpResource(runtime.store, resource);
+        if (!ownership.complete) {
+          journal.phase = 'partial';
+          await runtime.store.write('gcp-tf-public-deployment.json', journal);
+          return publicResult(journal, ownership);
+        }
+        journal.phase = 'ownership-captured';
+        await runtime.store.write('gcp-tf-public-deployment.json', journal);
+        const applied = await runtime.session.readApplyCheckpoint(plan.savedPlan);
+        if (applied.state === 'applying')
+          await runtime.session.reconcileApplyFromEvidence(plan.savedPlan, fingerprint(ownership).slice(7));
+        journal.phase = 'reconciling';
+        await runtime.store.write('gcp-tf-public-deployment.json', journal);
+      }
+      if (!ownership?.complete) throw new Error('Complete ownership evidence required before follow-up');
+      await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+      journal.followUp = await runtime.session.plan(runtime.environment, signal);
+      assertPublicTerraformNoChange(intent, plan.savedPlan, journal.followUp);
+      journal.phase = 'completed';
+      await runtime.store.write('gcp-tf-public-deployment.json', journal);
+      return publicResult(journal, ownership);
+    } catch (_error) {
+      signal?.throwIfAborted();
+      if (journal.phase !== 'reconciling') journal.phase = 'reconciliation-required';
+      await runtime.store.write('gcp-tf-public-deployment.json', journal);
+      return publicResult(journal);
+    }
+  } finally {
+    await release();
+  }
+}
+var init_terraform_public = __esm(() => {
+  init_process_lock();
+  init_deployment_review();
+  init_deployment_teardown();
+  init_discovery();
+  init_ownership();
+  init_terraform_public_ownership();
+  init_terraform_public_teardown();
+  init_terraform_teardown();
+});
+
+// plugins/gcloud/src/ce/terraform-public-artifacts.ts
+var GCP_PUBLIC_TERRAFORM_ARTIFACTS;
+
+// plugins/terraform/src/failure.ts
+function terraformFailureCategories(text) {
+  const plain = Bun.stripANSI(text);
+  return patterns.filter(([, pattern]) => pattern.test(plain)).map(([category]) => category);
+}
+var patterns, TerraformCommandError;
+var init_failure = __esm(() => {
+  patterns = [
+    ['capacity', /\bInsufficientInstanceCapacity\b/],
+    ['quota', /\bVpcLimitExceeded\b/],
+    ['authorization', /\b(?:AccessDenied|AccessDeniedException|UnauthorizedOperation|AuthorizationFailed)\b/],
+    ['expired', /\b(?:ExpiredToken|ExpiredTokenException|AuthenticationTokenExpired)\b/],
+    ['throttled', /\b(?:Throttling|ThrottlingException|RequestLimitExceeded|TooManyRequests)\b/],
+    [
+      'configuration',
+      /(?:Error: (?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)|"summary"\s*:\s*"(?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)")/,
+    ],
+    ['state-lock', /Error (?:acquiring|releasing) the state lock/],
+  ];
+  TerraformCommandError = class TerraformCommandError extends Error {
+    operation;
+    exitCode;
+    category;
+    constructor(operation, exitCode, category = 'unknown') {
+      const safe = category === 'unknown' || patterns.some(([value]) => value === category) ? category : 'unknown';
+      super(`Terraform ${operation} failed (${safe}); exit code ${exitCode}`);
+      this.operation = operation;
+      this.exitCode = exitCode;
+      this.name = 'TerraformCommandError';
+      this.category = safe;
+    }
+  };
+});
+
+// plugins/terraform/src/runner.ts
+import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
+import {
+  chmod,
+  lstat as lstat5,
+  mkdir as mkdir3,
+  readFile as readFile3,
+  realpath as realpath3,
+  rename as rename2,
+  rm as rm3,
+  writeFile as writeFile3,
+} from 'node:fs/promises';
+import { isAbsolute as isAbsolute2, join as join11, resolve } from 'node:path';
+
+function object4(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Terraform JSON object is malformed');
+  return value;
+}
+function decode(value) {
+  try {
+    return object4(JSON.parse(value));
+  } catch {
+    throw new Error('Terraform returned malformed JSON');
+  }
+}
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value !== null && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+function changeActions(value, output = false) {
+  const allowed = output
+    ? ['no-op', 'create', 'update', 'delete']
+    : ['no-op', 'read', 'create', 'update', 'delete', 'delete,create', 'create,delete'];
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== 'string' || item.includes(',')) ||
+    !allowed.includes(value.join(','))
+  )
+    throw new Error('Terraform change actions are malformed or unsupported');
+  return value;
+}
+function validateActionIntent(intent) {
+  if (
+    !intent ||
+    Object.keys(intent).sort().join(',') !== 'address,configValuesSha256,providerName,type' ||
+    Object.values(intent).some((value) => typeof value !== 'string') ||
+    !/^[a-z][a-z0-9_]*$/.test(intent.type) ||
+    !new RegExp(`^action\\.${intent.type}\\.[a-z][a-z0-9_]*(?:\\["[a-z][a-z0-9_-]*"\\])?$`).test(intent.address) ||
+    !/^[a-z0-9.-]+\/[a-z0-9-]+\/[a-z0-9-]+$/.test(intent.providerName) ||
+    !/^[a-f0-9]{64}$/.test(intent.configValuesSha256)
+  )
+    throw new Error('Explicit action address, provider and configuration digest required');
+}
+function allFalse(value) {
+  return value === false || (value !== null && typeof value === 'object' && Object.values(value).every(allFalse));
+}
+function inspectActionInvocations(plan, expected) {
+  const invocations = plan.action_invocations === undefined ? [] : plan.action_invocations;
+  const deferred = plan.deferred_action_invocations === undefined ? [] : plan.deferred_action_invocations;
+  if (
+    !Array.isArray(invocations) ||
+    !Array.isArray(deferred) ||
+    deferred.length ||
+    invocations.length !== (expected ? 1 : 0)
+  )
+    throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
+  if (!expected) return [];
+  const action = object4(invocations[0]);
+  if (
+    action.address !== expected.address ||
+    action.type !== expected.type ||
+    action.provider_name !== expected.providerName ||
+    action.lifecycle_action_trigger !== undefined ||
+    Object.keys(object4(action.invoke_action_trigger)).length ||
+    !allFalse(action.config_unknown) ||
+    !allFalse(action.config_sensitive) ||
+    digest2(canonical(object4(action.config_values))) !== expected.configValuesSha256
+  )
+    throw new Error('Terraform action identity, trigger or configuration differs');
+  return [{ ...expected }];
+}
+async function privateDirectory(path) {
+  await mkdir3(path, { recursive: true, mode: 448 });
+  const stat = await lstat5(path);
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== process.getuid?.() ||
+    (await realpath3(path)) !== path
+  )
+    throw new Error('Terraform storage ownership is invalid');
+  await chmod(path, 448);
+}
+async function privateRead(path) {
+  const stat = await lstat5(path);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    stat.uid !== process.getuid?.() ||
+    (stat.mode & 63) !== 0
+  )
+    throw new Error('Terraform artifact ownership is invalid');
+  return readFile3(path);
+}
+async function persist(path, value) {
+  const temporary = `${path}.new`;
+  await writeFile3(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
+  await rename2(temporary, path);
+}
+function terraformExecutor(
+  limits = {
+    timeoutMs: 900000,
+    applyTimeoutMs: 3600000,
+    maxOutputBytes: 64 * 1024 * 1024,
+    killAfterMs: 5000,
+  },
+  retainFailure = false,
+) {
+  return async ({ cwd, args, env, signal }) => {
+    signal?.throwIfAborted();
+    const child = Bun.spawn(
+      [
+        '/bin/sh',
+        '-c',
+        'umask 077; IFS= read -r gate && test "$gate" = go && exec "$@"',
+        'ce-terraform',
+        'terraform',
+        ...args,
+      ],
+      {
+        cwd,
+        env,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    let releaseExecutor;
+    try {
+      releaseExecutor = await acquireProcessLock(join11(cwd, '.terraform-executor-lock'), child.pid);
+      child.stdin.write(`go
+`);
+      child.stdin.end();
+    } catch {
+      child.kill('SIGKILL');
+      await child.exited;
+      throw new Error('Terraform executor identity could not be persisted');
+    }
+    let failure;
+    let escalation;
+    const stop = (reason) => {
+      if (failure) return;
+      failure = reason;
+      child.kill('SIGTERM');
+      escalation = setTimeout(() => child.kill('SIGKILL'), limits.killAfterMs);
+    };
+    const abort = () => stop('Terraform operation cancelled');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    const timeoutMs = args[0] === 'apply' ? limits.applyTimeoutMs : limits.timeoutMs;
+    const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), timeoutMs);
+    const categories = new Set();
+    const collect = async (stream, retain, classify = false) => {
+      const reader = stream.getReader();
+      const chunks = [];
+      let size = 0;
+      let tail = '';
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > limits.maxOutputBytes) stop('Terraform response exceeded size limit');
+          if (retain && !failure) chunks.push(value);
+          if (classify && !failure) {
+            const text = tail + Buffer.from(value).toString('utf8');
+            for (const category of terraformFailureCategories(text)) categories.add(category);
+            tail = text.slice(-512);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return retain && !failure ? Buffer.concat(chunks).toString('utf8') : '';
+    };
+    try {
+      const [stdout, stderr, code] = await Promise.all([
+        collect(child.stdout, true),
+        collect(child.stderr, retainFailure, true),
+        child.exited,
+      ]);
+      if (failure) throw new Error(failure);
+      if (code !== 0 && args[0] === 'validate') {
+        try {
+          const diagnostics = JSON.parse(stdout).diagnostics;
+          if (Array.isArray(diagnostics)) {
+            for (const item of diagnostics)
+              if (item?.severity === 'error' && typeof item.summary === 'string')
+                for (const category of terraformFailureCategories(`Error: ${item.summary}`)) categories.add(category);
+          }
+        } catch {}
+      }
+      const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
+      if (code !== 0 && retainFailure) {
+        await privateDirectory(cwd);
+        const directory = join11(cwd, 'failure-diagnostics');
+        await privateDirectory(directory);
+        await persist(join11(directory, `${randomUUID2()}.json`), {
+          schemaVersion: 1,
+          observedAt: new Date().toISOString(),
+          operation: args[0],
+          exitCode: code,
+          category: failureCategory,
+          stdout,
+          stderr,
+        });
+      }
+      return code === 0 ? { code, stdout } : { code, stdout: '', failureCategory };
+    } catch {
+      stop('Terraform process failed');
+      await child.exited;
+      throw new Error(failure ?? 'Terraform process failed');
+    } finally {
+      clearTimeout(timer);
+      if (escalation) clearTimeout(escalation);
+      signal?.removeEventListener('abort', abort);
+      await releaseExecutor?.();
+    }
+  };
+}
+function validateResourceSelections(selections) {
+  if (
+    !selections ||
+    typeof selections !== 'object' ||
+    Array.isArray(selections) ||
+    !Object.keys(selections).length ||
+    Object.entries(selections).some(
+      ([address, fields]) =>
+        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+        !Array.isArray(fields) ||
+        !fields.length ||
+        new Set(fields).size !== fields.length ||
+        fields.some(
+          (field) =>
+            typeof field !== 'string' ||
+            !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
+            field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
+        ),
+    )
+  )
+    throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
+}
+function projectResourceFields(values, sensitivity, fields) {
+  const nonsensitive = (value) =>
+    value === undefined ||
+    value === false ||
+    (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
+  const selected = {};
+  for (const field of fields) {
+    let value = values;
+    let marker = sensitivity;
+    const parts = field.split('.');
+    for (const [index, part] of parts.entries()) {
+      if (
+        marker === true ||
+        !value ||
+        typeof value !== 'object' ||
+        !Object.hasOwn(value, part) ||
+        (Array.isArray(value) && !(part === 'length' && index === parts.length - 1) && !/^(0|[1-9][0-9]*)$/.test(part))
+      )
+        throw new Error('Terraform resource field is unavailable or sensitive');
+      marker =
+        Array.isArray(value) && part === 'length'
+          ? false
+          : marker !== null && typeof marker === 'object'
+            ? marker[part]
+            : marker;
+      value = value[part];
+    }
+    if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
+    selected[field] = value;
+  }
+  return selected;
+}
+
+class TerraformRunner {
+  root;
+  execute;
+  #directory;
+  #manifest;
+  #busy = false;
+  constructor(root, execute = executeTerraform) {
+    this.root = root;
+    this.execute = execute;
+    if (!isAbsolute2(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
+  }
+  async prepare(deployment) {
+    if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
+      throw new Error('Terraform deployment identity or owning engine is unsupported');
+    if (deployment.stage !== undefined && !safeId.test(deployment.stage))
+      throw new Error('Invalid Terraform stage identity');
+    if (!/^\d+\.\d+\.\d+$/.test(deployment.terraformVersion) || !deployment.providerLock.trim())
+      throw new Error('Exact Terraform version and provider lock are required');
+    const configuration = decode(deployment.configuration);
+    if (
+      object4(configuration.terraform ?? {}).backend ||
+      object4(configuration.terraform ?? {}).cloud ||
+      deployment.backendIdentity !==
+        `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
+    )
+      throw new Error('This runner currently admits isolated local backends only');
+    if (
+      !deployment.scope.account ||
+      !deployment.scope.region ||
+      !['aws', 'azure', 'gcp'].includes(deployment.scope.cloud)
+    )
+      throw new Error('Explicit deployment scope is required');
+    await privateDirectory(this.root);
+    const directory = join11(this.root, deployment.deploymentId);
+    await mkdir3(directory, { mode: 448 });
+    const { configuration: source, providerLock, ...identity } = deployment;
+    const manifest = { ...identity, configurationSha256: digest2(source), providerLockSha256: digest2(providerLock) };
+    await writeFile3(join11(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
+    await writeFile3(join11(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
+    await writeFile3(join11(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
+    await persist(join11(directory, 'deployment.json'), manifest);
+    this.#directory = directory;
+    this.#manifest = manifest;
+  }
+  async readConfigurationSha256() {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      return this.#state().manifest.configurationSha256;
+    });
+  }
+  async readConfiguration(expectedSha256) {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
+      const configuration = await privateRead(join11(directory, 'main.tf.json'));
+      if (digest2(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
+      return configuration.toString();
+    });
+  }
+  async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+      if (
+        !['applying', 'applied'].includes(String(journal.state)) ||
+        canonical(receipt) !== canonical(journal.receipt) ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan'))) ||
+        !/^[a-f0-9]{64}$/.test(evidenceSha256)
+      )
+        throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
+      await this.#replacePrivate(
+        join11(directory, 'plan-receipt.json'),
+        JSON.stringify({ state: 'applied', receipt, reconciledEvidenceSha256: evidenceSha256 }),
+      );
+    });
+  }
+  async reviseConfiguration(expectedSha256, configuration) {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
+      this.#validateRevision(configuration, (await privateRead(join11(directory, 'main.tf.json'))).toString());
+      const nextSha256 = digest2(configuration);
+      if (nextSha256 === expectedSha256) return nextSha256;
+      let receipt;
+      try {
+        receipt = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      if (receipt?.state === 'applying')
+        throw new Error('Reconcile interrupted Terraform apply before revising configuration');
+      const transition = {
+        previous: manifest,
+        next: { ...manifest, configurationSha256: nextSha256 },
+        configuration,
+        archiveId: randomUUID2(),
+      };
+      await this.#replacePrivate(join11(directory, 'configuration-transition.json'), JSON.stringify(transition));
+      await this.#recoverRevision();
+      return nextSha256;
+    });
+  }
+  #validateRevision(configuration, previousConfiguration) {
+    const next = decode(configuration);
+    const terraform = object4(next.terraform ?? {});
+    if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
+    if (previousConfiguration !== undefined) {
+      const previous = decode(previousConfiguration);
+      for (const key of ['terraform', 'provider'])
+        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
+          throw new Error('Terraform configuration revision cannot change provider or execution identity');
+    }
+  }
+  async #replacePrivate(path, content) {
+    const temporary = `${path}.${randomUUID2()}.new`;
+    await writeFile3(temporary, content, { mode: 384, flag: 'wx' });
+    await rename2(temporary, path);
+  }
+  async #recoverRevision() {
+    const { directory } = this.#state();
+    let transition;
+    try {
+      transition = decode((await privateRead(join11(directory, 'configuration-transition.json'))).toString());
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    const previous = object4(transition.previous);
+    const next = object4(transition.next);
+    if (
+      typeof transition.configuration !== 'string' ||
+      typeof transition.archiveId !== 'string' ||
+      !/^[0-9a-f-]{36}$/.test(transition.archiveId) ||
+      !/^[0-9a-f]{64}$/.test(previous.configurationSha256) ||
+      canonical({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical(next) ||
+      next.configurationSha256 !== digest2(transition.configuration)
+    )
+      throw new Error('Terraform configuration transition is malformed');
+    this.#validateRevision(transition.configuration);
+    const owner = decode((await privateRead(join11(directory, 'deployment.json'))).toString());
+    const current = await privateRead(join11(directory, 'main.tf.json'));
+    if (
+      ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
+      ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
+      digest2(await privateRead(join11(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
+      digest2(await privateRead(join11(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
+    )
+      throw new Error('Terraform configuration transition ownership or inputs changed');
+    const archive = join11(directory, 'revisions', transition.archiveId);
+    await privateDirectory(archive);
+    const archiveFile = async (name, content) => {
+      try {
+        await writeFile3(join11(archive, name), content, { mode: 384, flag: 'wx' });
+      } catch (error) {
+        if (error.code !== 'EEXIST' || digest2(await privateRead(join11(archive, name))) !== digest2(content))
+          throw error;
+      }
+    };
+    if (digest2(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
+    if (digest2(await privateRead(join11(archive, 'main.tf.json'))) !== previous.configurationSha256)
+      throw new Error('Previous Terraform configuration archive is missing');
+    this.#validateRevision(transition.configuration, (await privateRead(join11(archive, 'main.tf.json'))).toString());
+    await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
+    for (const name of ['saved.tfplan', 'plan-receipt.json']) {
+      try {
+        await archiveFile(name, await privateRead(join11(directory, name)));
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    await this.#replacePrivate(join11(directory, 'main.tf.json'), transition.configuration);
+    await this.#replacePrivate(join11(directory, 'deployment.json'), JSON.stringify(next));
+    this.#manifest = next;
+    await rm3(join11(directory, 'configuration-transition.json'));
+  }
+  async resume(deploymentId, expected, configurationMode = 'exact') {
+    if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
+    if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
+    const directory = join11(this.root, deploymentId);
+    await privateDirectory(directory);
+    const manifest = decode((await privateRead(join11(directory, 'deployment.json'))).toString());
+    if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
+      throw new Error('Terraform deployment ownership is invalid');
+    this.#directory = directory;
+    this.#manifest = manifest;
+    await this.#exclusive(() => this.#recoverRevision());
+    const recoveredManifest = this.#state().manifest;
+    if (expected) {
+      const { configuration, providerLock, ...identity } = expected;
+      const expectedManifest = {
+        ...identity,
+        configurationSha256:
+          configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest2(configuration),
+        providerLockSha256: digest2(providerLock),
+      };
+      if (canonical(recoveredManifest) !== canonical(expectedManifest))
+        throw new Error('Terraform deployment differs from the requested identity or configuration');
+      if (configurationMode === 'current')
+        this.#validateRevision((await privateRead(join11(directory, 'main.tf.json'))).toString(), configuration);
+    }
+    this.#directory = directory;
+    this.#manifest = recoveredManifest;
+    await this.#verifyInputs();
+  }
+  #state() {
+    if (!this.#directory || !this.#manifest) throw new Error('Prepare or resume the deployment first');
+    return { directory: this.#directory, manifest: this.#manifest };
+  }
+  async #verifyInputs() {
+    if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
+    try {
+      await lstat5(join11(this.#directory, 'configuration-transition.json'));
+      throw new Error('Resume the interrupted Terraform configuration transition before execution');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const owner = decode((await privateRead(join11(this.#directory, 'deployment.json'))).toString());
+    if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
+      throw new Error('Terraform deployment ownership changed');
+    for (const [file, expected] of [
+      ['main.tf.json', this.#manifest.configurationSha256],
+      ['.terraform.lock.hcl', this.#manifest.providerLockSha256],
+      ['deployment.tfrc', digest2(cliConfig)],
+    ]) {
+      if (digest2(await privateRead(join11(this.#directory, file))) !== expected)
+        throw new Error('Terraform configuration or provider lock changed');
+    }
+  }
+  #environment(ambient) {
+    const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => !key.startsWith('TF_')));
+    return {
+      ...env,
+      TF_CLI_CONFIG_FILE: join11(this.#state().directory, 'deployment.tfrc'),
+      TF_DATA_DIR: join11(this.#state().directory, '.terraform'),
+      TF_IN_AUTOMATION: '1',
+      TF_INPUT: '0',
+      TF_WORKSPACE: 'default',
+    };
+  }
+  async #run(args, env, signal) {
+    signal?.throwIfAborted();
+    const result = await this.execute({ cwd: this.#state().directory, args, env: this.#environment(env), signal });
+    if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
+    return result.stdout;
+  }
+  async #exclusive(operation) {
+    if (this.#busy) throw new Error('Terraform deployment operation is already running');
+    if (!this.#directory) throw new Error('Prepare or resume the deployment first');
+    this.#busy = true;
+    const lock = join11(this.#directory, '.runner-lock');
+    let release;
+    try {
+      release = await acquireProcessLock(lock);
+      const executorStopped = await acquireProcessLock(join11(this.#directory, '.terraform-executor-lock'));
+      await executorStopped();
+      return await operation();
+    } finally {
+      if (release) await release();
+      this.#busy = false;
+    }
+  }
+  async readStateIdentity() {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const state = await privateRead(join11(this.#state().directory, 'terraform.tfstate'));
+      const value = decode(state.toString());
+      if (
+        typeof value.lineage !== 'string' ||
+        !value.lineage.trim() ||
+        !Number.isSafeInteger(value.serial) ||
+        value.serial < 0
+      )
+        throw new Error('Stable Terraform state identity unavailable');
+      return { sha256: digest2(state), lineage: value.lineage, serial: value.serial };
+    });
+  }
+  async #archivePlanAttempt() {
+    const { directory } = this.#state();
+    const files = new Map();
+    for (const name of ['saved.tfplan', 'plan-receipt.json']) {
+      try {
+        files.set(name, await privateRead(join11(directory, name)));
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    if (!files.size) return;
+    for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
+      files.set(name, await privateRead(join11(directory, name)));
+    const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest2(bytes)])));
+    const archive = join11(directory, 'plan-history', digest2(inventory));
+    await privateDirectory(archive);
+    files.set('inventory.json', Buffer.from(inventory));
+    for (const [name, bytes] of files) {
+      try {
+        await writeFile3(join11(archive, name), bytes, { mode: 384, flag: 'wx' });
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        if (digest2(await privateRead(join11(archive, name))) !== digest2(bytes))
+          throw new Error('Terraform plan history differs');
+      }
+    }
+  }
+  async plan(env, signal) {
+    return this.#plan(env, signal);
+  }
+  async planDestroy(env, signal) {
+    return this.#plan(env, signal, undefined, true);
+  }
+  async planAction(intent, env, signal) {
+    intent = structuredClone(intent);
+    validateActionIntent(intent);
+    return this.#plan(env, signal, intent);
+  }
+  async #plan(env, signal, action, destroy = false) {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      await this.#preserveActionSubmission();
+      if (action) await this.#assertActionUnsubmitted();
+      await this.#archivePlanAttempt();
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== this.#state().manifest.terraformVersion)
+        throw new Error('Terraform version changed');
+      await this.#run(['init', '-input=false', '-lockfile=readonly'], env, signal);
+      await this.#verifyInputs();
+      await this.#run(['validate', '-json'], env, signal);
+      await this.#run(
+        [
+          'plan',
+          '-input=false',
+          '-lock=true',
+          '-lock-timeout=60s',
+          '-refresh=true',
+          '-out=saved.tfplan',
+          ...(action ? [`-invoke=${action.address}`] : []),
+          ...(destroy ? ['-destroy'] : []),
+        ],
+        env,
+        signal,
+      );
+      const raw = await this.#run(['show', '-json', 'saved.tfplan'], env, signal);
+      const plan = decode(raw);
+      if (
+        !plan ||
+        typeof plan.format_version !== 'string' ||
+        !/^1\.\d+$/.test(plan.format_version) ||
+        plan.terraform_version !== this.#state().manifest.terraformVersion ||
+        plan.errored !== false ||
+        plan.complete !== true ||
+        typeof plan[['apply', 'able'].join('')] !== 'boolean' ||
+        !Array.isArray(plan.resource_changes ?? [])
+      )
+        throw new Error('Terraform plan JSON is malformed or unsupported');
+      const actionInvocations = inspectActionInvocations(plan, action);
+      const changes = [];
+      for (const value of plan.resource_changes ?? []) {
+        const resource = object4(value);
+        const actions = changeActions(object4(resource.change).actions);
+        if (
+          typeof resource.address !== 'string' ||
+          typeof resource.type !== 'string' ||
+          changes.some((change) => change.address === resource.address)
+        )
+          throw new Error('Terraform resource change is malformed');
+        changes.push({ address: resource.address, type: resource.type, actions });
+      }
+      const outputs = Object.values(object4(plan.output_changes ?? {})).map((output) =>
+        changeActions(object4(output).actions, true),
+      );
+      const resourcesUnchanged =
+        changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
+      if (action && !resourcesUnchanged)
+        throw new Error('Terraform action plan contains unrelated resource or output changes');
+      if (
+        destroy &&
+        (changes.some((change) => !['delete', 'no-op'].includes(change.actions.join(','))) ||
+          outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
+      )
+        throw new Error('Terraform destroy plan contains non-delete changes');
+      const noChanges = resourcesUnchanged && actionInvocations.length === 0;
+      if (!noChanges && !plan[['apply', 'able'].join('')])
+        throw new Error('Terraform plan has changes but cannot be applied');
+      const manifest = this.#state().manifest;
+      const receipt = {
+        schemaVersion: 1,
+        deploymentId: manifest.deploymentId,
+        engine: 'terraform',
+        backendIdentity: manifest.backendIdentity,
+        configurationSha256: manifest.configurationSha256,
+        providerLockSha256: manifest.providerLockSha256,
+        planSha256: digest2(await privateRead(join11(this.#state().directory, 'saved.tfplan'))),
+        changes,
+        noChanges,
+        ...(actionInvocations.length ? { actionInvocations } : {}),
+        ...(destroy ? { operation: 'destroy' } : {}),
+      };
+      await persist(join11(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
+      return receipt;
+    });
+  }
+  async #assertActionUnsubmitted() {
+    try {
+      await privateRead(join11(this.#state().directory, 'action-attempt.json'));
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    throw new Error('This stage already recorded an action submission; observe its outcome instead of replaying it');
+  }
+  async #preserveActionSubmission() {
+    const directory = this.#state().directory;
+    let journal;
+    try {
+      journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    if (!['applying', 'applied'].includes(String(journal.state))) return;
+    const actions = object4(journal.receipt).actionInvocations;
+    if (!Array.isArray(actions) || actions.length === 0) return;
+    try {
+      await privateRead(join11(directory, 'action-attempt.json'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await persist(join11(directory, 'action-attempt.json'), {
+        schemaVersion: 1,
+        legacyJournalState: journal.state,
+        receipt: journal.receipt,
+      });
+    }
+  }
+  async readOutputs(names, env, signal) {
+    names = [...names];
+    if (
+      !names.length ||
+      new Set(names).size !== names.length ||
+      names.some((name) => !/^[a-z][a-z0-9_]{0,63}$/.test(name))
+    )
+      throw new Error('Explicit unique Terraform output names are required');
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+      const receipt = object4(journal.receipt);
+      if (
+        !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256
+      )
+        throw new Error('Terraform outputs require an applied or converged current configuration');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const outputs = decode(await this.#run(['output', '-json'], env, signal));
+      const selected = {};
+      for (const name of names) {
+        const output = object4(outputs[name]);
+        if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
+          throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
+        selected[name] = output.value;
+      }
+      return selected;
+    });
+  }
+  async assertApplied(receipt) {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'applied' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.engine !== 'terraform' ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan')))
+      )
+        throw new Error('Exact applied Terraform receipt required for ownership capture');
+    });
+  }
+  async readPlannedResourceIds(receipt, addresses, env, signal) {
+    if (
+      !addresses.length ||
+      new Set(addresses).size !== addresses.length ||
+      addresses.some((address) => !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address))
+    )
+      throw new Error('Explicit unique root resource addresses are required');
+    const projected = await this.readPlannedResourceFields(
+      receipt,
+      Object.fromEntries(addresses.map((address) => [address, ['id']])),
+      env,
+      signal,
+    );
+    return Object.fromEntries(
+      Object.entries(projected).map(([address, values]) => {
+        if (values === null) return [address, null];
+        if (typeof values.id !== 'string' || !values.id)
+          throw new Error('Terraform resource ID is unavailable or sensitive');
+        return [address, values.id];
+      }),
+    );
+  }
+  async readPlannedResourceFields(receipt, selections, env, signal) {
+    validateResourceSelections(selections);
+    selections = structuredClone(selections);
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'planned' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan')))
+      )
+        throw new Error('Terraform identity inspection saved plan differs');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+      const changes = plan.resource_changes === undefined ? [] : plan.resource_changes;
+      if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
+      const result = {};
+      for (const [address, fields] of Object.entries(selections)) {
+        const matches = changes.map(object4).filter((resource) => resource.address === address);
+        if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const change = object4(matches[0].change);
+        if (change.before === null || change.before === undefined) {
+          result[address] = null;
+          continue;
+        }
+        const before = object4(change.before);
+        const sensitivity =
+          change.before_sensitive === undefined || change.before_sensitive === false
+            ? {}
+            : change.before_sensitive === true
+              ? true
+              : object4(change.before_sensitive);
+        const selected = projectResourceFields(before, sensitivity, fields);
+        result[address] = selected;
+      }
+      if (receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan'))))
+        throw new Error('Terraform identity inspection saved plan changed');
+      return result;
+    });
+  }
+  async readAppliedResourceFields(receipt, selections, env, signal) {
+    const { applyState: _applyState, ...projection } = await this.#readApplyStateFields(
+      receipt,
+      selections,
+      env,
+      signal,
+      ['applied'],
+    );
+    return projection;
+  }
+  async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+    return this.#readApplyStateFields(receipt, selections, env, signal, ['applying', 'applied']);
+  }
+  async readApplyCheckpoint(receipt) {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const state = await this.#verifyApplyReceipt(receipt, ['planned', 'applying', 'applied']);
+      return { schemaVersion: 1, planSha256: receipt.planSha256, state };
+    });
+  }
+  async #verifyApplyReceipt(receipt, states) {
+    const { directory, manifest } = this.#state();
+    const journal = decode((await privateRead(join11(directory, 'plan-receipt.json'))).toString());
+    const state = journal.state;
+    if (
+      !states.includes(state) ||
+      canonical(journal.receipt) !== canonical(receipt) ||
+      receipt.engine !== 'terraform' ||
+      receipt.deploymentId !== manifest.deploymentId ||
+      receipt.backendIdentity !== manifest.backendIdentity ||
+      receipt.configurationSha256 !== manifest.configurationSha256 ||
+      receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+      receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan')))
+    )
+      throw new Error(`Exact ${states.join('/')} Terraform receipt required for state identity inspection`);
+    return state;
+  }
+  async #readApplyStateFields(receipt, selections, env, signal, states) {
+    validateResourceSelections(selections);
+    selections = structuredClone(selections);
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const applyState = await this.#verifyApplyReceipt(receipt, states);
+      const statePath = join11(directory, 'terraform.tfstate');
+      const snapshot = await privateRead(statePath);
+      const identity = decode(snapshot.toString());
+      if (
+        typeof identity.lineage !== 'string' ||
+        !identity.lineage.trim() ||
+        !Number.isSafeInteger(identity.serial) ||
+        identity.serial < 0
+      )
+        throw new Error('Terraform state identity is malformed');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (state.format_version !== '1.0' || state.terraform_version !== manifest.terraformVersion)
+        throw new Error('Terraform state format or version changed');
+      const module = object4(object4(state.values ?? {}).root_module ?? {});
+      const resources = module.resources ?? [];
+      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+      if (
+        (Array.isArray(module.child_modules) && module.child_modules.length) ||
+        resources
+          .map(object4)
+          .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
+      )
+        throw new Error('Foreign state resource requires reconciliation');
+      const result = {};
+      for (const [address, fields] of Object.entries(selections)) {
+        const reviewed = receipt.changes.filter((change) => change.address === address);
+        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
+        const matches = resources.map(object4).filter((resource) => resource.address === address);
+        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const resource = matches[0];
+        if (
+          resource.mode !== 'managed' ||
+          resource.type !== reviewed[0].type ||
+          resource.type !== address.split('.')[0]
+        )
+          throw new Error('Terraform state resource differs from reviewed identity');
+        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
+        result[address] = projectResourceFields(object4(resource.values), resource.sensitive_values, fields);
+      }
+      if (digest2(snapshot) !== digest2(await privateRead(statePath)))
+        throw new Error('Terraform state changed during identity inspection');
+      await this.#verifyInputs();
+      if ((await this.#verifyApplyReceipt(receipt, states)) !== applyState)
+        throw new Error('Terraform apply checkpoint changed during inspection');
+      if (receipt.planSha256 !== digest2(await privateRead(join11(directory, 'saved.tfplan'))))
+        throw new Error('Terraform saved plan changed during state identity inspection');
+      return {
+        schemaVersion: 1,
+        applyState,
+        planSha256: receipt.planSha256,
+        stateSha256: digest2(snapshot),
+        lineage: identity.lineage,
+        serial: identity.serial,
+        resources: result,
+      };
+    });
+  }
+  async apply(receipt, env, signal) {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const journal = decode((await privateRead(join11(this.#state().directory, 'plan-receipt.json'))).toString());
+      if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
+      if (
+        canonical(receipt) !== canonical(journal.receipt) ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== this.#state().manifest.deploymentId ||
+        receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== this.#state().manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest2(await privateRead(join11(this.#state().directory, 'saved.tfplan')))
+      )
+        throw new Error('Terraform saved-plan receipt does not match');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== this.#state().manifest.terraformVersion)
+        throw new Error('Terraform version changed');
+      const expectedActions = receipt.actionInvocations ?? [];
+      if (!Array.isArray(expectedActions) || expectedActions.length > 1)
+        throw new Error('Saved action receipt is malformed');
+      if (expectedActions.length) validateActionIntent(expectedActions[0]);
+      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+      inspectActionInvocations(plan, expectedActions[0]);
+      if (receipt.planSha256 !== digest2(await privateRead(join11(this.#state().directory, 'saved.tfplan'))))
+        throw new Error('Terraform saved plan changed during action inspection');
+      if (expectedActions.length) {
+        await this.#assertActionUnsubmitted();
+        await persist(join11(this.#state().directory, 'action-attempt.json'), {
+          schemaVersion: 1,
+          submittedAt: new Date().toISOString(),
+          receipt,
+        });
+      }
+      await persist(join11(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
+      await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
+      await persist(join11(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+    });
+  }
+}
+var cliConfig = `provider_installation {
+  direct {}
+}
+disable_checkpoint = true
+`,
+  digest2 = (value) => createHash6('sha256').update(value).digest('hex'),
+  safeId,
+  executeTerraform;
+var init_runner = __esm(() => {
+  init_process_lock();
+  init_failure();
+  safeId = /^[a-z][a-z0-9-]{0,62}$/;
+  executeTerraform = terraformExecutor(undefined, true);
+});
+
+// plugins/terraform/src/service.ts
+import { join as join12 } from 'node:path';
+
+function createCeTerraformService(platform) {
+  return {
+    async open(owner, deployment, resume) {
+      owner = structuredClone(owner);
+      deployment = structuredClone(deployment);
+      if (
+        owner.engine !== 'terraform' ||
+        deployment.engine !== 'terraform' ||
+        owner.deploymentId !== deployment.deploymentId ||
+        owner.provider !== deployment.scope.cloud ||
+        owner.account !== deployment.scope.account ||
+        owner.region !== deployment.scope.region
+      )
+        throw new Error('Terraform deployment and cloud ownership differ');
+      const shared = await platform();
+      const store = await shared.storage(owner);
+      if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
+        throw new Error('Invalid Terraform stage identity');
+      const runner = new TerraformRunner(
+        deployment.stage ? join12(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+      );
+      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
+      else await runner.prepare(deployment);
+      const checkOwner = async () => {
+        await shared.storage(owner);
+      };
+      return {
+        async readStateIdentity() {
+          await checkOwner();
+          return runner.readStateIdentity();
+        },
+        async assertApplied(receipt) {
+          await checkOwner();
+          return runner.assertApplied(receipt);
+        },
+        async readConfigurationSha256() {
+          await checkOwner();
+          return runner.readConfigurationSha256();
+        },
+        async readPlannedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceFields(receipt, selections, env, signal);
+        },
+        async readAppliedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readApplyCheckpoint(receipt) {
+          await checkOwner();
+          return runner.readApplyCheckpoint(receipt);
+        },
+        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
+        },
+        async readPlannedResourceIds(receipt, addresses, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceIds(receipt, addresses, env, signal);
+        },
+        async readConfiguration(expectedSha256) {
+          await checkOwner();
+          return runner.readConfiguration(expectedSha256);
+        },
+        async readOutputs(names, env, signal) {
+          await checkOwner();
+          return runner.readOutputs(names, env, signal);
+        },
+        async reviseConfiguration(expectedSha256, configuration) {
+          await checkOwner();
+          return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+          await checkOwner();
+          return runner.reconcileApplyFromEvidence(receipt, evidenceSha256);
+        },
+        async planDestroy(env, signal) {
+          await checkOwner();
+          return runner.planDestroy(env, signal);
+        },
+        async planAction(intent, env, signal) {
+          await checkOwner();
+          return runner.planAction(intent, env, signal);
+        },
+        async plan(env, signal) {
+          await checkOwner();
+          return runner.plan(env, signal);
+        },
+        async apply(receipt, env, signal) {
+          await checkOwner();
+          await runner.apply(receipt, env, signal);
+        },
+      };
+    },
+  };
+}
+var init_service2 = __esm(() => {
+  init_runner();
+});
+
+// plugins/gcloud/src/ce/funding-session.ts
+function billable(receipt) {
+  return receipt.changes.some(
+    (change) =>
+      change.type.startsWith('google_') && change.actions.some((action) => action === 'create' || action === 'update'),
+  );
+}
+function withGcpCorporateFunding(session, store, api, project, collect = collectCurrentGcpCorporateFunding, intent) {
+  return {
+    ...session,
+    async plan(environment, signal) {
+      const receipt = await session.plan(environment, signal);
+      if (billable(receipt)) {
+        const funding = await collect(api, project, signal);
+        await store.write(`gcp-funding-${receipt.planSha256}.json`, {
+          schemaVersion: 1,
+          receiptFingerprint: fingerprint(receipt),
+          funding,
+        });
+      }
+      return receipt;
+    },
+    async apply(receipt, environment, signal) {
+      if (billable(receipt)) {
+        const saved = await store.read(`gcp-funding-${receipt.planSha256}.json`);
+        if (saved.schemaVersion !== 1 || saved.receiptFingerprint !== fingerprint(receipt))
+          throw new Error('Reviewed Terraform corporate funding binding differs');
+        const current = await collect(api, project, signal);
+        assertGcpCorporateFundingCurrent(current, project, saved.funding.billingAccountName);
+        if (current.policySha256 !== saved.funding.policySha256)
+          throw new Error('Corporate funding policy changed after Terraform review');
+        if (intent?.image.name.endsWith('-byol'))
+          await assertGcpByolAuthorization(
+            intent,
+            { query: createGcpPreflightPort(api, project).query, document: fetchGcpByolDocument },
+            current,
+            store,
+            signal,
+          );
+      }
+      return session.apply(receipt, environment, signal);
+    },
+  };
+}
+var init_funding_session = __esm(() => {
+  init_byol_terms();
+  init_corporate_funding();
+  init_discovery();
+  init_preflight_port();
+});
+
+// plugins/gcloud/src/ce/terraform-session.ts
+async function openGcpTerraformSession(platform, inputs, resume = false) {
+  if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
+  if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
+  const { createHash } = await import('node:crypto');
+  const digest = `sha256:${createHash('sha256').update(inputs.providerLock).digest('hex')}`;
+  if (digest !== inputs.expectedLockSha256) throw new Error('GCP Terraform provider lock bytes changed');
+  for (const [provider, version] of [
+    ['hashicorp/google', inputs.versions.google],
+    ['f5-sales-demo/xcsh', inputs.versions.xcsh],
+  ]) {
+    const blocks = inputs.providerLock
+      .split('provider "')
+      .filter((block) => block.startsWith(`registry.terraform.io/${provider}"`));
+    if (
+      blocks.length !== 1 ||
+      !blocks[0].includes(`version     = "${version}"`) ||
+      !/"(?:h1:[A-Za-z0-9+/=]+|zh:[a-f0-9]{64})"/.test(blocks[0])
+    )
+      throw new Error('Pinned provider version/checksums missing from lock');
+  }
+  const translated =
+    inputs.configurationVersion === 2
+      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions)
+      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
+  const owner = {
+    deploymentId: inputs.intent.deploymentName,
+    engine: 'terraform',
+    provider: 'gcp',
+    account: inputs.intent.project,
+    region: inputs.intent.region,
+  };
+  const deployment = {
+    schemaVersion: 1,
+    deploymentId: owner.deploymentId,
+    engine: 'terraform',
+    scope: { cloud: 'gcp', account: owner.account, region: owner.region },
+    terraformVersion: inputs.versions.terraform,
+    configuration: JSON.stringify(translated.configuration),
+    providerLock: inputs.providerLock,
+    backendIdentity: `local:${owner.deploymentId}`,
+  };
+  const store = await platform.storage(owner);
+  const identity = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    platformContext: inputs.intent.platformContext,
+    intentFingerprint: fingerprint(inputs.intent),
+    intent: structuredClone(inputs.intent),
+    configurationFingerprint: fingerprint(translated.configuration),
+    providerLockSha256: digest,
+  };
+  if (resume) {
+    const saved = await store.read('gcp-terraform-input-identity.json');
+    if (fingerprint(saved) !== fingerprint(identity)) throw new Error('GCP Terraform resume input identity differs');
+  } else {
+    let prior;
+    try {
+      prior = await store.read('gcp-terraform-input-identity.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (prior !== undefined) throw new Error('Existing GCP Terraform deployment must resume');
+    await store.write('gcp-terraform-input-identity.json', identity);
+    await store.write('gcp-terraform-session-inputs.json', { schemaVersion: 1, inputs: structuredClone(inputs) });
+  }
+  const session = await createCeTerraformService(async () => platform).open(owner, deployment, resume);
+  return withGcpCorporateFunding(
+    session,
+    store,
+    makeExecApi(store.directory),
+    inputs.intent.project,
+    undefined,
+    inputs.intent,
+  );
+}
+async function resumeGcpTerraformSession(platform, intent) {
+  if (intent.engine !== 'terraform') throw new Error('Terraform session cannot change owning engine');
+  const store = await platform.storage({
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: 'terraform',
+    account: intent.project,
+    region: intent.region,
+  });
+  const saved = await store.read('gcp-terraform-session-inputs.json');
+  if (saved.schemaVersion !== 1 || !saved.inputs || fingerprint(saved.inputs.intent) !== fingerprint(intent))
+    throw new Error('Persisted Terraform session inputs unavailable or changed');
+  return openGcpTerraformSession(platform, saved.inputs, 'current');
+}
+var init_terraform_session = __esm(() => {
+  init_service2();
+  init_shared();
+  init_compute_plan();
+  init_discovery();
+  init_funding_session();
+});
+
+// plugins/gcloud/src/ce/terraform-public-runtime.ts
+async function openPublicTerraformRuntime(platform, api, intent, signal) {
+  if (
+    intent.engine !== 'terraform' ||
+    !GCP_PUBLIC_TERRAFORM_ARTIFACTS ||
+    GCP_PUBLIC_TERRAFORM_ARTIFACTS.configurationVersion !== 2
+  )
+    throw new Error('Published creation identity provider qualification unavailable');
+  const owner = {
+    deploymentId: intent.deploymentName,
+    provider: 'gcp',
+    engine: 'terraform',
+    account: intent.project,
+    region: intent.region,
+  };
+  const store = await platform.storage(owner);
+  let inputs;
+  try {
+    inputs = await store.read('gcp-terraform-session-inputs.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const expected = { schemaVersion: 1, inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent } };
+  if (inputs && fingerprint(inputs) !== fingerprint(expected))
+    throw new Error('Public Terraform original packaged inputs differ');
+  const session = inputs
+    ? await resumeGcpTerraformSession(platform, intent)
+    : await openGcpTerraformSession(platform, expected.inputs);
+  if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
+  const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
+  if (!observations.teardown || !observations.terraformEnvironment)
+    throw new Error('Qualified Terraform runtime channels unavailable');
+  const credentials = await observations.terraformEnvironment();
+  const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
+    signal,
+  });
+  if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
+    throw new Error('Scoped Terraform Google authentication unavailable');
+  return {
+    store,
+    session,
+    api,
+    observePlatform: observations.teardown,
+    environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
+  };
+}
+var init_terraform_public_runtime = __esm(() => {
+  init_discovery();
+  init_terraform_session();
+});
+
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join11 } from 'node:path';
+import { join as join13 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -6705,6 +7619,7 @@ function createGcpCeTools(
   policy = readGcpCePolicy,
   terraformSession = resumeGcpTerraformSession,
   funding = collectCurrentGcpCorporateFunding,
+  publicTerraformRuntime = openPublicTerraformRuntime,
 ) {
   const { Type } = pi.typebox;
   const definitions = [
@@ -6723,11 +7638,11 @@ function createGcpCeTools(
     ],
     [
       'gcp_ce_plan',
-      'Review a native single-node BYOL deployment when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Without an operation, returns non-executable readiness.',
+      'Review a single-node BYOL deployment through the selected native or qualified Terraform engine when operation=deploy, or exact owning-engine teardown when operation=teardown. Collects prerequisites server-side. Terraform requires the packaged creation-identity provider. Without an operation, returns non-executable readiness.',
     ],
     [
       'gcp_ce_apply',
-      'Apply or resume an exact reviewed native single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform deployment remains unavailable. Cloud creation does not imply registration, health or traffic.',
+      'Apply or resume an exact reviewed single-node deployment or owning-engine teardown with operation and approvedPlanHash. Terraform inspects consumed submissions and requires a separate delete-only review for partial cleanup. Cloud creation does not imply registration, health or traffic.',
     ],
     [
       'gcp_ce_status',
@@ -6813,7 +7728,6 @@ function createGcpCeTools(
           )
             throw new Error('Explicit deployment intent scope required');
           validateIntent(intent);
-          if (intent.engine !== 'native') throw new Error('Public Terraform deployment qualification unavailable');
           if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
             throw new Error('Planning tool cannot apply authorization');
           if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
@@ -6825,6 +7739,29 @@ function createGcpCeTools(
           sources.preflight = (intent, signal) =>
             preflight(intent, createGcpPreflightPort(api, intent.project), signal);
           sources.funding = (intent, signal) => funding(api, intent.project, signal);
+          if (intent.engine === 'terraform') {
+            const runtime = await publicTerraformRuntime(platform, api, intent, signal);
+            if (tool === 'gcp_ce_plan') {
+              const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
+            const evidence = await applyPublicTerraformDeployment(
+              runtime,
+              platform,
+              intent,
+              params.approvedPlanHash,
+              sources,
+              signal,
+              () => {
+                mutationAttempted = true;
+              },
+            );
+            return result(
+              tool,
+              { availability: 'terraform-deployment', ...evidence, mutationAttempted },
+              evidence.state === 'reconciliation-required',
+            );
+          }
           if (tool === 'gcp_ce_apply') {
             const evidence = await applyGcpDeploymentReview(
               platform,
@@ -6871,7 +7808,7 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join11(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join13(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
             if (intent.image.name.endsWith('-byol') && !params.agreement) {
@@ -6975,6 +7912,35 @@ function createGcpCeTools(
               observePlatform: observations.teardown,
               environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
             };
+            let storedInputs;
+            try {
+              storedInputs = await store.read('gcp-terraform-session-inputs.json');
+            } catch (error) {
+              if (error.code !== 'ENOENT') throw error;
+            }
+            if (storedInputs?.inputs?.configurationVersion === 2) {
+              if (params.approvedPlanHash) {
+                const evidence = await applyPublicTerraformTeardown(
+                  runtime,
+                  intent,
+                  boundary,
+                  receipt,
+                  params.approvedPlanHash,
+                  signal,
+                  () => {
+                    mutationAttempted = true;
+                  },
+                );
+                return result(
+                  tool,
+                  { availability: 'terraform-teardown', ...evidence, mutationAttempted },
+                  evidence.state === 'reconciliation-required',
+                );
+              }
+              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
+              const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            }
             if (params.approvedPlanHash) {
               const evidence = await applyGcpTerraformTeardown(
                 runtime,
@@ -7241,6 +8207,9 @@ var init_gcp_ce = __esm(() => {
   init_policy();
   init_preflight();
   init_preflight_port();
+  init_terraform_public();
+  init_terraform_public_runtime();
+  init_terraform_public_teardown();
   init_terraform_session();
   init_terraform_teardown();
   init_validation();

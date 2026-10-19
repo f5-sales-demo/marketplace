@@ -10,6 +10,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** adds public Terraform saved-plan authorization, original-attempt
+  recovery and separate delete-only partial cleanup for the single-node BYOL
+  profile. The versioned configuration owns the boot disk explicitly. Deployment
+  remains gated until the creation-identity provider is published and qualified,
+  its exact lock is packaged, and fresh installed/live campaigns pass (#1559).
+  **`terraform`** tracks the original executor process before submission and
+  refuses recovery while that process remains live.
+
 - **`terraform`** exposes restricted inspection of the exact original interrupted
   apply checkpoint and state. Inspection preserves pending state and does not
   attest success or authorize resubmission; owning adapters must independently
@@ -51,7 +59,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.0 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.1 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).
@@ -60,13 +68,13 @@ and this project adheres to
   absence evidence. Installed qualification covers synthetic Compute identities
   and live owned XC cleanup; fresh installed native live cloud teardown and eight
   independent absence checks now pass on the narrow disposable single-node profile (#1559).
-- **`platform`** v6.3.0 registers shared CE storage/runtime service with portable
+- **`platform`** v6.3.1 registers shared CE storage/runtime service with portable
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
   live saved-plan replay and fresh installed live typed Terraform teardown pass,
   with exact saved-plan apply, final empty destroy and independent absence (#1559).
-- **`terraform`** v2.4.0 loads the isolated CE runner alongside existing CLI integration,
+- **`terraform`** v2.4.1 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
 - **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).
 
