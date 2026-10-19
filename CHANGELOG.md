@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.3.14 — show connection status, schema catalog counts and filtering guidance, fiscal-year bookings with explicit unknown currency, and actionable anomaly explanations in the default shared-renderer output.
+
 - **`salesforce`** v2.3.13: preserve exact lifecycle aggregate amounts without inventing currency; use safe typed org status and human-owned authentication guidance.
 
 - **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).

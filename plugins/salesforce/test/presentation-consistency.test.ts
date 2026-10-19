@@ -26,7 +26,7 @@ test('Query and Exec share monetary values, partial scope, missing cells and lit
     expect(JSON.stringify(view)).not.toContain('Org:');
   }
 });
-test('Org and Exec org display share quiet normal identity and complete safe evidence', () => {
+test('Org and Exec org display share connection status and complete safe evidence', () => {
   const org = {
     username: 'synthetic@example.com',
     instanceUrl: 'https://salesforce.example.com',
@@ -43,7 +43,7 @@ test('Org and Exec org display share quiet normal identity and complete safe evi
     ),
   ]) {
     expect(JSON.stringify(view)).toContain('Production');
-    expect(JSON.stringify(view)).not.toContain('Connected');
+    expect(JSON.stringify(view)).toContain('Connected');
     expect(JSON.stringify(view)).not.toContain('Not returned');
   }
 });

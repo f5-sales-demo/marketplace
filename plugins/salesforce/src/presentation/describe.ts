@@ -63,6 +63,14 @@ export function describeView(
   return {
     sections: [
       ...context(operation, args),
+      fields(
+        {
+          'Standard fields': all.filter((field) => !field.custom).length,
+          'Custom fields': all.filter((field) => field.custom).length,
+          'Child relationships': relationships.length,
+        },
+        'Schema catalog',
+      ),
       ...(match ? [fields({ Filter: args.match })] : []),
       ...(match && !selected.length && !selectedRels.length
         ? [hint('No matching fields or child relationships. Try a shorter or different filter.')]
@@ -88,7 +96,7 @@ export function describeView(
         ? (match ? all.length - selected.length : selected.length - preview.length) > 0
           ? [
               hint(
-                `${match ? `${all.length - selected.length} fields outside filter` : `${selected.length - preview.length} custom fields omitted`} · details in expansion`,
+                `${match ? `${all.length - selected.length} fields outside filter` : `${selected.length - preview.length} custom fields omitted`} · use match to find fields or relationships; expand for full metadata`,
               ),
             ]
           : []
