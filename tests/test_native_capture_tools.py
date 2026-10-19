@@ -1,12 +1,14 @@
 # Standalone unittest runner, not an import package.
 # ruff: noqa: INP001, PT027
 # unittest is the repository standalone runner; keep it dependency-free.
+import gzip
 import importlib.util
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / "scripts" / "drive-salesforce-capture.py"
 spec = importlib.util.spec_from_file_location("capture_driver", MODULE)
@@ -24,6 +26,39 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_scroll_capture_retains_compressed_evidence_and_rejects_missing_rows(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_driver", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "frames").mkdir()
+            frame = {
+                "terminalColumns": 160,
+                "viewport": {"rows": ["first", "second"], "offset": 0, "totalLines": 2},
+            }
+            path = root / "frames" / "page.json"
+            payload = json.dumps(frame).encode()
+            for observed, passed in [(b"first\nsecond\n", True), (b"first\n", False)]:
+                path.write_bytes(payload)
+                with (
+                    patch.object(surface.time, "sleep"),
+                    patch.object(
+                        surface.subprocess, "check_output", return_value=observed
+                    ),
+                ):
+                    result = surface.capture_page(root, "owned-pane", "page", 153)
+                assert result["passed"] is passed
+                assert not path.exists()
+                assert (
+                    gzip.decompress(path.with_suffix(".json.gz").read_bytes())
+                    == payload
+                )
+
     def test_remaining_outcomes_are_independent_and_fixture_only(self):
         cases = starter.cases("fixture", "remaining")
         assert len(cases) == 24
@@ -73,6 +108,15 @@ class NativeCaptureChecks(unittest.TestCase):
         assert driver.columns("\x1b[31m北方\x1b[0m") == 4
         assert driver.columns("é") == 1
         assert driver.columns("false") == 5
+
+    def test_hyperlink_metadata_has_no_visible_width(self):
+        for ending in ["\x07", "\x1b\\"]:
+            link = "\x1b]8;;https://example.com/long-hidden-path" + ending
+            close = "\x1b]8;;" + ending
+            value = link + "\x1b[34mexample\x1b[0m" + close
+            assert driver.plain(value) == "example"
+            assert driver.columns(value) == 7
+            assert driver.columns(value + " too wide") == 16
 
     def test_actual_frame_command_is_reconstructed_in_both_shells(self):
         query = (

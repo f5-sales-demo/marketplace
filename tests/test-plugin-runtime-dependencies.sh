@@ -141,6 +141,7 @@ mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
 mkdir -p "$BAD_INSTALL/tests"
 cp "$REPO_ROOT/tests/test_native_capture_tools.py" "$BAD_INSTALL/tests/test_native_capture_tools.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-capture.py"
+cp "$REPO_ROOT/scripts/drive-salesforce-surface-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-surface-capture.py"
 cp "$REPO_ROOT/scripts/start-salesforce-capture.py" "$BAD_INSTALL/scripts/start-salesforce-capture.py"
 
 cat >"$BAD_INSTALL/plugins/aws/scripts/tests/run-tests.sh" <<'EOF'
