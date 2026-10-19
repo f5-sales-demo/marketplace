@@ -2629,6 +2629,7 @@ class CeRuntime {
       verifyRegisteredInterfaceConfiguration(object11(configuration.spec), evidence.interfaces, binding.owner.provider);
       const uid = object11(configuration.system_metadata).uid;
       if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+      await this.recordBinding?.(binding, uid, evidence.interfaces);
       return {
         ...evidence,
         configurationSource: this.#sitePath(binding),

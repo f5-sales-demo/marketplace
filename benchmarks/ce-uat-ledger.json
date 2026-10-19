@@ -7,12 +7,12 @@
     "draftPullRequest": 1327
   },
   "cohort": {
-    "revision": 30,
+    "revision": 31,
     "versions": {
-      "platform": "7.0.0-uat.30",
-      "aws": "3.0.0-uat.30",
-      "azure": "5.0.0-uat.30",
-      "terraform": "3.0.0-uat.30"
+      "platform": "7.0.0-uat.31",
+      "aws": "3.0.0-uat.31",
+      "azure": "5.0.0-uat.31",
+      "terraform": "3.0.0-uat.31"
     },
     "stableBaseVersions": {
       "platform": "6.2.0",
