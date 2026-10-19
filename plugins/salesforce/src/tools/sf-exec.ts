@@ -3,7 +3,7 @@ import type { SfExecApi } from '../sf/exec';
 import { execSfRaw } from '../sf/exec';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { findMutation } from './sf-exec-guard';
-import { errorResult, hasControlChars, makeExecApi, textResult } from './shared';
+import { errorResult, hasControlChars, makeExecApi, textResult, withCommandEvidence } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -18,7 +18,7 @@ export function createSfExecTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
     }),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_exec',
     label: 'Salesforce CLI Execute',
     description: sfExecDescription,
@@ -58,5 +58,5 @@ export function createSfExecTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
         ],
       };
     },
-  };
+  });
 }

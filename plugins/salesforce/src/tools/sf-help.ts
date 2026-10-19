@@ -1,7 +1,8 @@
 import sfHelpDescription from '../prompts/sf-help.md' with { type: 'text' };
+import { recordSalesforceCommand } from '../sf/command-evidence';
 import type { SfExecApi } from '../sf/exec';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
-import { errorResult, makeExecApi, textResult } from './shared';
+import { errorResult, makeExecApi, textResult, withCommandEvidence } from './shared';
 
 // Lowercase letters, spaces, colons, and hyphens only. The colon supports sf's
 // `topic:command` grammar. This blocks shell metacharacters and flag smuggling at
@@ -25,7 +26,7 @@ export function createSfHelpTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
     ),
   });
 
-  return {
+  return withCommandEvidence({
     name: 'sf_help',
     label: 'Salesforce CLI Help',
     description: sfHelpDescription,
@@ -54,7 +55,9 @@ export function createSfHelpTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
       }
 
       const api = makeApi(ctx.cwd);
-      const result = await api.exec('sf', [...parts, '--help'], { signal });
+      const argv = [...parts, '--help'];
+      recordSalesforceCommand(argv);
+      const result = await api.exec('sf', argv, { signal });
       const output = result.stdout || result.stderr;
       if (result.exitCode !== 0)
         return errorResult(output || `Salesforce help failed (exit ${result.exitCode}).`, base);
@@ -63,5 +66,5 @@ export function createSfHelpTool(pi: PluginHost, makeApi: (cwd: string) => SfExe
         cliWarnings: result.stdout && result.stderr ? [result.stderr] : [],
       });
     },
-  };
+  });
 }
