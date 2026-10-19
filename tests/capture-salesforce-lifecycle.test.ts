@@ -39,3 +39,19 @@ test('completed executions reject late callbacks without affecting a replacement
   expect(stops).toBe(1);
   expect(updates).toEqual([{ current: true }]);
 });
+
+import { validAppearanceControl } from '../scripts/salesforce-capture-controls';
+
+test('active appearance changes require safe complete controls', () => {
+  const control = { id: 'active-1', action: 'appearance', theme: 'xcsh-light', preset: 'ascii', width: 153 };
+  expect(validAppearanceControl(control)).toBe(true);
+  for (const change of [
+    { id: '../escape' },
+    { theme: 'unknown' },
+    { preset: 'unknown' },
+    { width: 29 },
+    { width: 201 },
+    { width: 40.5 },
+  ])
+    expect(validAppearanceControl({ ...control, ...change })).toBe(false);
+});

@@ -120,7 +120,7 @@ def verify_commands(
             "PRESENTATION_CAPTURE_ARGV_PATH": str(target),
         }
         child = subprocess.run(  # noqa: S603 - argv is fixed or comes from the owner-controlled capture protocol
-            [shell, "-c", commands[0]],
+            [shell, "-f", "-c", commands[0]],
             env=env,
             check=False,
             capture_output=True,
@@ -159,6 +159,12 @@ def inspect_frame(
         failures.append("monetary-grouping")
     if case["id"] == "query-failure" and "DefinitelyMissingDemoField__c" not in text:
         failures.append("lost-error-evidence")
+    reflowed = re.sub(r"[\s│|]", "", text)
+    failures.extend(
+        "lost-outcome-evidence:" + expected
+        for expected in case.get("expectedText", [])
+        if re.sub(r"[\s│|]", "", expected) not in reflowed
+    )
     commands = verify_commands(root, frame, case)
     if commands.get("passed") is False:
         failures.append("command-copy")
