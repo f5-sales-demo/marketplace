@@ -418,7 +418,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-      "version": "1.7.13",
+      "version": "1.7.14",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {

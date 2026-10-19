@@ -122,3 +122,10 @@ firewall identities, networks, directions, ranges and protocols are checked
 before cleanup. The original installed
 fourteen-object readiness receipt remains attributed to its earlier executable
 source; the firewall-inclusive candidate requires fresh installed evidence.
+
+A private eighteen-object HA candidate completed deployment, ownership
+reconciliation without replay, no-change verification and delete-only cleanup.
+Two matching observations confirmed three ONLINE nodes and both NIC joins; all
+returned component rows were Ready, while exhaustive health remains unqualified.
+See [the candidate receipt](../../../../../docs/receipts/gcp-ha-candidate-deployment-20261019.md).
+Public HA admission and interrupted/partial campaigns remain gated.
