@@ -48,7 +48,6 @@ versions, retrieval commands, and source digests. Only CE-specific guidance was 
 Its installer, AWS MCP configuration, generic service catalog, and global mutation rules
 are outside this workflow.
 
-
 For static IPv4 deployment, set each interface's `addressing.mode` to `static`
 and supply exactly one CIDR in `addressing.addresses` per node, in subnet order.
 The CIDR prefix must match the subnet; AWS reserves its first four and final addresses.
