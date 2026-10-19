@@ -3607,6 +3607,19 @@ function connectAttachmentCount(intent) {
     (intent.routing.insideCidrs ?? []).map(() => 0);
   return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
+function awsCeNlbInterfacePrivateAddresses(intent, node, interfaceIndex) {
+  const item = intent.interfaces.find((item) => item.index === interfaceIndex);
+  if (!item) fail('NLB interface binding is missing');
+  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return [];
+  const siteIndex = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
+  const listener = siteIndex < 0 ? undefined : intent.ingress.listener.privateAddresses?.[siteIndex];
+  const subnet = item.subnets[node - 1]?.cidr;
+  if (!listener || !subnet) fail('NLB SLI subnet or site listener binding is missing');
+  const primary = cidrHost(subnet, 5);
+  if (!usableSubnetAddress(listener, subnet) || listener === primary)
+    fail('NLB site listener must be a distinct usable SLI subnet address');
+  return [primary, listener];
+}
 function awsCeNlbIngress(intent) {
   if (intent.ingress?.mode === 'nlb') return { port: intent.ingress.port, scheme: intent.ingress.scheme };
   return intent.routing.profile === 'nlb-ingress' ? { port: 443, scheme: 'internet-facing' } : undefined;
@@ -4915,13 +4928,9 @@ function compileActions(intent, observation, restorationById) {
           destructive: false,
         });
       }
-  const listenerAddressForNode = (node) => {
-    if (intent.ingress?.mode !== 'nlb') return;
-    const index = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
-    return index < 0 ? undefined : intent.ingress.listener.privateAddresses?.[index];
-  };
   for (let node = 1; node <= intent.topology.nodeCount; node++) {
-    for (const item of intent.interfaces)
+    for (const item of intent.interfaces) {
+      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
       add({
         phase: 'network',
         kind: 'eni-create',
@@ -4934,11 +4943,10 @@ function compileActions(intent, observation, restorationById) {
           item.subnets[node - 1].subnetId ?? `__SUBNET_${node}_${item.index}__`,
           '--description',
           `${intent.deploymentName} node ${node} ${item.role}`,
-          ...(item.role === 'sli' && listenerAddressForNode(node)
+          ...(privateAddresses.length
             ? [
                 '--private-ip-addresses',
-                `PrivateIpAddress=${cidrHost(item.subnets[node - 1].cidr ?? '', 5)},Primary=true`,
-                `PrivateIpAddress=${listenerAddressForNode(node)},Primary=false`,
+                ...privateAddresses.map((address, index) => `PrivateIpAddress=${address},Primary=${index === 0}`),
               ]
             : []),
           ...['--groups', ...interfaceSecurityGroups(intent, item.index).map((name) => `__SG_${name}__`)],
@@ -4956,6 +4964,7 @@ function compileActions(intent, observation, restorationById) {
           { placeholder: `__NODE_${node}_${item.role.toUpperCase()}_IP__`, path: 'NetworkInterface.PrivateIpAddress' },
         ],
       });
+    }
     if (intent.egress.mode === 'elastic-ip')
       add({
         phase: 'network',
@@ -9897,15 +9906,14 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
         cidr_block: subnet.cidr,
         tags: tags(node, item.index),
       });
+      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
       add('aws_network_interface', name, {
         subnet_id: ref(`aws_subnet.${name}.id`),
         security_groups: interfaceSecurityGroups(intent, item.index).map((name) =>
           ref(`aws_security_group.group_${intent.securityGroups.findIndex((group) => group.name === name)}.id`),
         ),
         source_dest_check: false,
-        ...(item.role === 'sli' && intent.ingress?.mode === 'nlb'
-          ? { private_ips: [intent.ingress.listener.privateAddresses?.[node - 1]] }
-          : {}),
+        ...(privateAddresses.length ? { private_ip_list_enabled: true, private_ip_list: privateAddresses } : {}),
         tags: tags(node, item.index),
       });
       add('aws_route_table_association', name, {

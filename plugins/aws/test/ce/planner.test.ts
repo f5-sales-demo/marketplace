@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import { siteBindings } from '../../src/ce/topology';
 import type { AwsCeF5Capabilities, AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
@@ -1046,6 +1047,26 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     }),
     evidence,
   );
+  const network = JSON.parse(renderAwsTerraformFoundation(valid));
+  const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-only\n';
+  const admitted = JSON.parse(renderAwsTerraformFoundation(valid, { 1: bootstrap, 2: bootstrap, 3: bootstrap }));
+  for (let node = 1; node <= 3; node++) {
+    const action = valid.actions.find(
+      (action) => action.kind === 'eni-create' && action.node === node && action.resourceId.endsWith(`-${node}-1`),
+    );
+    expect(action).toBeDefined();
+    const args = action!.args!;
+    const offset = args.indexOf('--private-ip-addresses');
+    expect(offset).toBeGreaterThan(-1);
+    const requested = args.slice(offset + 1, offset + 3).map((value) => value.split(',')[0].split('=')[1]);
+    const key = `node_${node}_nic_1`;
+    expect(network.resource.aws_network_interface[key].private_ip_list).toEqual(requested);
+    expect(network.resource.aws_network_interface[key].private_ip_list_enabled).toBe(true);
+    expect(network.resource.aws_network_interface[key].private_ips).toBeUndefined();
+    expect(network.resource.aws_network_interface[key].private_ips_count).toBeUndefined();
+    expect(admitted.resource.aws_network_interface[key]).toEqual(network.resource.aws_network_interface[key]);
+    expect(network.resource.aws_network_interface[`node_${node}_nic_0`].private_ip_list).toBeUndefined();
+  }
   const obsolete = structuredClone(valid);
   delete (obsolete.intent.ingress as { listener?: unknown }).listener;
   const { planId: _id, planSha256: _sha, ...obsoleteDraft } = obsolete;

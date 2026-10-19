@@ -101,5 +101,34 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
   expect(Object.keys(admitted.resource.aws_lb_target_group_attachment)).toEqual(['node_1', 'node_2']);
   expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toBe('10.0.4.10');
   expect(admitted.resource.aws_lb_target_group_attachment.node_1.availability_zone).toBe('all');
-  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ips).toEqual(['10.0.4.10']);
+  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.0.4.5', '10.0.4.10']);
+  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ip_list_enabled).toBe(true);
+  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ips).toBeUndefined();
+  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ips_count).toBeUndefined();
+
+  // Input site order is canonicalized by node ownership before alias selection.
+  const reordered = structuredClone(draft);
+  reordered.intent.topology.sites = [
+    reordered.intent.topology.sites[2],
+    reordered.intent.topology.sites[0],
+    reordered.intent.topology.sites[1],
+  ];
+  if (reordered.intent.ingress?.mode !== 'nlb') throw new Error('Expected NLB fixture');
+  const reorderedSha = canonicalSha256(reordered);
+  const reorderedConfig = JSON.parse(
+    renderAwsTerraformFoundation({ ...reordered, planSha256: reorderedSha, planId: `aws-ce-${reorderedSha.slice(0, 24)}` }),
+  );
+  for (const node of [1, 2, 3]) {
+    expect(reorderedConfig.resource.aws_network_interface[`node_${node}_nic_1`].private_ip_list).toEqual([
+      `10.0.${node + 3}.5`,
+      `10.0.${node + 3}.10`,
+    ]);
+  }
+
+  // A digest-valid plan still cannot execute an unresolved listener binding.
+  reordered.intent.ingress.listener.privateAddresses = [];
+  const unresolvedSha = canonicalSha256(reordered);
+  expect(() =>
+    renderAwsTerraformFoundation({ ...reordered, planSha256: unresolvedSha, planId: `aws-ce-${unresolvedSha.slice(0, 24)}` }),
+  ).toThrow('binding is missing');
 });
