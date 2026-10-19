@@ -3,6 +3,7 @@ import {
   buildSalesforceHint,
   configurePersonProfile,
   readPersonFacts,
+  renderSalesforceContextMarkdown,
   type SalesforceContext,
   salesforceContextIsStale,
 } from '../../src/context/salesforce-context';
@@ -80,7 +81,7 @@ describe('buildSalesforceHint', () => {
     };
     const hint = buildSalesforceHint(ctx);
     expect(hint).toBeDefined();
-    expect(hint?.pipelineTotal).toContain('5.0M');
+    expect(hint?.pipelineTotal).toContain('5,000,000');
     expect(hint?.dealCount).toBe(25);
     expect(hint?.accountCount).toBe(2);
     expect(hint?.orgAlias).toBe('SFDC');
@@ -137,4 +138,27 @@ describe('buildSalesforceHint', () => {
     expect(hint?.partnerName).toBe('Profile Partner');
     expect(hint?.partnerName).not.toContain('unconfirmed');
   });
+});
+
+it('lifecycle hint never invents a dollar unit for aggregate amounts without currency evidence', () => {
+  const ctx = {
+    userId: '005000000000001',
+    username: 'synthetic@example.com',
+    instanceUrl: 'https://example.com',
+    collectedAt: new Date().toISOString(),
+    pipelineSummary: {
+      total: 1234567.89,
+      dealCount: 2,
+      byForecast: { Commit: { amount: 1234567.89, count: 1 }, Pipeline: { amount: 0, count: 1 } },
+    },
+  };
+  const hint = buildSalesforceHint(ctx);
+  expect(hint?.pipelineTotal).toContain('Currency unknown');
+  expect(hint?.pipelineTotal).not.toContain('$');
+  expect(hint?.forecastBreakdown).not.toContain('$');
+  expect(hint?.pipelineTotal).toContain('1,234,567.89');
+  const markdown = renderSalesforceContextMarkdown(ctx);
+  expect(markdown).toContain('| Commit | Currency unknown: 1,234,567.89 | 1 |');
+  expect(markdown).toContain('| Pipeline | Currency unknown: 0 | 1 |');
+  expect(markdown).not.toContain('$');
 });

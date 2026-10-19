@@ -711,12 +711,9 @@ export function buildSalesforceHint(
 ): SalesforceHint | undefined {
   if (!ctx?.pipelineSummary) return undefined;
   const total = ctx.pipelineSummary.total;
-  const fmtAmount = (n: number) =>
-    n >= 1_000_000
-      ? `$${(n / 1_000_000).toFixed(1)}M`
-      : n >= 1_000
-        ? `$${(n / 1_000).toFixed(0)}K`
-        : `$${n.toFixed(0)}`;
+  // Salesforce aggregate queries return amounts in the org's aggregate unit.
+  // This context has no verified currency, so never imply USD with a dollar sign.
+  const fmtAmount = (n: number) => `Currency unknown: ${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
   const formatted = fmtAmount(total);
 
   const territorySource = profile?.territories?.length
@@ -793,12 +790,7 @@ export function renderSalesforceContextMarkdown(
       sections.push('\n| Forecast Category | Amount | Deals |');
       sections.push('|---|---|---|');
       for (const [cat, { amount, count }] of entries) {
-        const fmt =
-          amount >= 1_000_000
-            ? `$${(amount / 1_000_000).toFixed(1)}M`
-            : amount >= 1_000
-              ? `$${(amount / 1_000).toFixed(0)}K`
-              : `$${amount.toFixed(0)}`;
+        const fmt = `Currency unknown: ${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
         sections.push(`| ${cat} | ${fmt} | ${count} |`);
       }
     }

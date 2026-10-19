@@ -29,3 +29,6 @@ test('native capture refuses a runtime without the actual renderer capability', 
     else process.env.PRESENTATION_CAPTURE_PLUGIN = oldPlugin;
   }
 });
+
+// Lifecycle control regressions use pure utilities without a Mac service probe.
+import './capture-salesforce-lifecycle.test';
