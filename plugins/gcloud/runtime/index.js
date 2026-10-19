@@ -5407,8 +5407,39 @@ function assertPublicTerraformSnapshot(intent, receipt, projected) {
       throw new Error('Unexpected or sensitive state projection');
 }
 async function assertOriginalFirewallInsert(runtime, intent, value, originalId, signal) {
-  if (typeof value.creation_timestamp !== 'string' || !Number.isFinite(Date.parse(value.creation_timestamp)))
+  if (
+    typeof value.creation_timestamp !== 'string' ||
+    !Number.isFinite(Date.parse(value.creation_timestamp)) ||
+    typeof value.name !== 'string' ||
+    typeof value.self_link !== 'string' ||
+    !/^[1-9]\d*$/.test(originalId)
+  )
     throw new Error('Original firewall insert timestamp unavailable');
+  const creation = Date.parse(value.creation_timestamp);
+  const observation = await runtime.api.exec(
+    'gcloud',
+    [
+      'compute',
+      'firewall-rules',
+      'describe',
+      value.name,
+      '--project',
+      intent.project,
+      '--format=json(id,selfLink,creationTimestamp)',
+      '--quiet',
+    ],
+    { signal },
+  );
+  if (observation.exitCode !== 0) throw new Error('Original firewall creation identity unavailable');
+  const live = parseGcloudJsonOutput(observation.stdout);
+  if (
+    !live ||
+    String(live.id) !== originalId ||
+    live.selfLink !== value.self_link ||
+    typeof live.creationTimestamp !== 'string' ||
+    Date.parse(live.creationTimestamp) !== creation
+  )
+    throw new Error('Original firewall live creation identity differs');
   const result = await runtime.api.exec(
     'gcloud',
     [
@@ -5433,12 +5464,21 @@ async function assertOriginalFirewallInsert(runtime, intent, value, originalId, 
       row.status === 'DONE' &&
       !row.error &&
       row.targetLink === value.self_link &&
+      typeof row.insertTime === 'string' &&
       typeof row.startTime === 'string' &&
-      Date.parse(row.startTime) === Date.parse(value.creation_timestamp),
+      typeof row.endTime === 'string' &&
+      Date.parse(row.insertTime) <= creation &&
+      creation <= Date.parse(row.endTime) &&
+      Date.parse(row.insertTime) <= Date.parse(row.startTime) &&
+      Date.parse(row.startTime) <= Date.parse(row.endTime),
   );
   if (original.length !== 1 || String(original[0].targetId) !== originalId)
     throw new Error('Original firewall insert target identity differs');
-  return { targetId: originalId, creationTimestamp: value.creation_timestamp, evidenceHash: fingerprint(original[0]) };
+  return {
+    targetId: originalId,
+    creationTimestamp: value.creation_timestamp,
+    evidenceHash: fingerprint({ operation: original[0], live }),
+  };
 }
 var init_terraform_public_ownership = __esm(() => {
   init_exec();

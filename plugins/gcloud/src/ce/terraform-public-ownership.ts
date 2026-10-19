@@ -324,8 +324,8 @@ export function assertPublicTerraformSnapshot(
       throw new Error('Unexpected or sensitive state projection');
 }
 
-/** Google 8.7.0 has no numeric firewall ID in state. Bind the original completed insert operation
- * to the provider-retained creation timestamp and the independently observed immutable target ID. */
+/** Google 8.7.0 has no numeric firewall ID in state. Join the retained creation timestamp to
+ * the exact live timestamp and immutable target ID within the original insert operation interval. */
 export async function assertOriginalFirewallInsert(
   runtime: GcpTerraformTeardownRuntime,
   intent: GcpCeIntent,
@@ -333,8 +333,39 @@ export async function assertOriginalFirewallInsert(
   originalId: string,
   signal?: AbortSignal,
 ) {
-  if (typeof value.creation_timestamp !== 'string' || !Number.isFinite(Date.parse(value.creation_timestamp)))
+  if (
+    typeof value.creation_timestamp !== 'string' ||
+    !Number.isFinite(Date.parse(value.creation_timestamp)) ||
+    typeof value.name !== 'string' ||
+    typeof value.self_link !== 'string' ||
+    !/^[1-9]\d*$/.test(originalId)
+  )
     throw new Error('Original firewall insert timestamp unavailable');
+  const creation = Date.parse(value.creation_timestamp);
+  const observation = await runtime.api.exec(
+    'gcloud',
+    [
+      'compute',
+      'firewall-rules',
+      'describe',
+      value.name,
+      '--project',
+      intent.project,
+      '--format=json(id,selfLink,creationTimestamp)',
+      '--quiet',
+    ],
+    { signal },
+  );
+  if (observation.exitCode !== 0) throw new Error('Original firewall creation identity unavailable');
+  const live = parseGcloudJsonOutput<Record<string, unknown>>(observation.stdout);
+  if (
+    !live ||
+    String(live.id) !== originalId ||
+    live.selfLink !== value.self_link ||
+    typeof live.creationTimestamp !== 'string' ||
+    Date.parse(live.creationTimestamp) !== creation
+  )
+    throw new Error('Original firewall live creation identity differs');
   const result = await runtime.api.exec(
     'gcloud',
     [
@@ -359,10 +390,19 @@ export async function assertOriginalFirewallInsert(
       row.status === 'DONE' &&
       !row.error &&
       row.targetLink === value.self_link &&
+      typeof row.insertTime === 'string' &&
       typeof row.startTime === 'string' &&
-      Date.parse(row.startTime) === Date.parse(value.creation_timestamp as string),
+      typeof row.endTime === 'string' &&
+      Date.parse(row.insertTime) <= creation &&
+      creation <= Date.parse(row.endTime) &&
+      Date.parse(row.insertTime) <= Date.parse(row.startTime) &&
+      Date.parse(row.startTime) <= Date.parse(row.endTime),
   );
   if (original.length !== 1 || String(original[0].targetId) !== originalId)
     throw new Error('Original firewall insert target identity differs');
-  return { targetId: originalId, creationTimestamp: value.creation_timestamp, evidenceHash: fingerprint(original[0]) };
+  return {
+    targetId: originalId,
+    creationTimestamp: value.creation_timestamp,
+    evidenceHash: fingerprint({ operation: original[0], live }),
+  };
 }

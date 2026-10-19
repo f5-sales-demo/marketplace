@@ -11,8 +11,10 @@ and this project adheres to
 ## [Unreleased]
 
 - **`gcloud`** binds HA firewall ownership to completed Google insert receipts,
-  provider-retained creation timestamps and exact live target IDs. Google 8.7.0
-  has no numeric firewall ID in Terraform state; missing insert evidence requires reconciliation.
+  equal provider-retained and live creation timestamps, and exact live target IDs.
+  Creation must fall within one completed insert operation's recorded interval;
+  operation start time need not equal resource creation time. Google 8.7.0 has no
+  numeric firewall ID in Terraform state; missing or ambiguous evidence requires reconciliation.
 
 - **`gcloud`** owns four guide-required SLO/SLI interface firewall rules in
   candidate HA Terraform configuration and verifies their exact cloud identities
@@ -84,7 +86,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.14 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.15 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).

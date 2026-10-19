@@ -21,7 +21,7 @@ function fixture() {
   );
   const prefix = `https://www.googleapis.com/compute/v1/projects/${i.project}`;
   const fields: Record<string, Record<string, unknown> | null> = {};
-  const live = new Map<string, { id: string; selfLink: string }>();
+  const live = new Map<string, { id: string; selfLink: string; creationTimestamp?: string }>();
   for (const [index, n] of i.sites[0].nodes.entries()) {
     const key = n.name.replaceAll('-', '_');
     const disk = `${prefix}/zones/${n.zone}/disks/${n.name}`;
@@ -99,7 +99,11 @@ function fixture() {
         target_tags: [`${i.sites[0].name}-ha-peer`],
         allow: [{ protocol: 'all', ports: [] }],
       };
-      live.set(link, { id, selfLink: link });
+      live.set(link, {
+        id,
+        selfLink: link,
+        creationTimestamp: fields[`google_compute_firewall.${name.replaceAll('-', '_')}`]?.creation_timestamp as string,
+      });
     }
   fields['xcsh_securemesh_site_v2.ce_site'] = {
     name: i.sites[0].name,
@@ -124,7 +128,9 @@ function fixture() {
       status: 'DONE',
       targetLink: v.self_link,
       targetId: live.get(v.self_link)?.id,
+      insertTime: v.creation_timestamp,
       startTime: v.creation_timestamp,
+      endTime: v.creation_timestamp,
     }));
   let platformReads = 0;
   const runtime = {
@@ -176,8 +182,38 @@ function fixture() {
     },
     environment: {},
   } as unknown as GcpTerraformTeardownRuntime;
-  return { i, runtime, receipt, fields, live, platformReads: () => platformReads };
+  return { i, runtime, receipt, fields, live, insertOperations, platformReads: () => platformReads };
 }
+it('joins firewall creation between operation insertion and execution without assuming equal timestamps', async () => {
+  const f = fixture();
+  for (const operation of f.insertOperations) {
+    const creation = Date.parse(operation.startTime as string);
+    operation.insertTime = new Date(creation - 8).toISOString();
+    operation.startTime = new Date(creation + 2).toISOString();
+    operation.endTime = new Date(creation + 8000).toISOString();
+  }
+  const owned = await inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt);
+  expect(owned.complete).toBe(true);
+  expect(await verifyPublicTerraformLiveOwnership(f.runtime, f.i, owned, undefined, false)).toEqual([]);
+});
+it('rejects ambiguous operations, changed live creation and creation outside the completed insert interval', async () => {
+  for (const change of ['ambiguous', 'live-time', 'before-insert', 'after-end', 'incomplete', 'target']) {
+    const f = fixture();
+    const operation = f.insertOperations[0];
+    const creation = Date.parse(operation.startTime as string);
+    if (change === 'ambiguous') f.insertOperations.push(structuredClone(operation));
+    if (change === 'live-time') {
+      const resource = f.live.get(operation.targetLink as string);
+      if (!resource) throw new Error('Missing firewall fixture');
+      resource.creationTimestamp = new Date(creation + 1).toISOString();
+    }
+    if (change === 'before-insert') operation.insertTime = new Date(creation + 1).toISOString();
+    if (change === 'after-end') operation.endTime = new Date(creation - 1).toISOString();
+    if (change === 'incomplete') operation.endTime = '';
+    if (change === 'target') operation.targetId = '999';
+    await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow();
+  }
+});
 it('captures all eighteen HA identities with exact per-zone VM and disk joins and deduplicated VPCs', async () => {
   const f = fixture();
   expect(publicTerraformAddresses(f.i)).toHaveLength(18);
