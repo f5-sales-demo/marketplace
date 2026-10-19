@@ -170,3 +170,23 @@ it('malformed bindings and missing bodies remain unknown without projecting inva
     expect(JSON.stringify(result)).not.toContain('private@example.com');
   }
 });
+
+it('cannot qualify a shrinking Secure Mesh inventory or ignore identical voucher rows', () => {
+  const f = fixture();
+  const missing = ['coredns', 'kube-proxy', 'vector-agent', 'voucher'];
+  for (const node of f.expected) {
+    for (const service of missing)
+      f.collection.serviceInventory.value.service.push({ node: node.nodeName, value: service, name: service });
+    f.collection.serviceInventory.value.service.push({ node: node.nodeName, value: 'voucher', name: 'voucher' });
+  }
+  const expanded = evaluate(f);
+  expect(expanded.status).toBe('unknown');
+  expect(expanded.reasonCodes).toContain('service-inventory-duplicate-identity');
+  expect(expanded.nodes.every((node) => node.requiredServices === 5 && node.coveredServices === 1)).toBe(true);
+  f.collection.serviceInventory.value.service = f.collection.serviceInventory.value.service.filter(
+    (row) => row.value === 'service',
+  );
+  const shrunk = evaluate(f, null);
+  expect(shrunk.status).toBe('unknown');
+  expect(shrunk.reasonCodes).toContain('health-contract-unqualified');
+});
