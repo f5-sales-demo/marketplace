@@ -1,6 +1,6 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import type { Args, Options, Result, View } from './shared';
-import { code, evidence, hint, texts } from './shared';
+import { code, evidence, hint, literal, texts } from './shared';
 
 export function helpView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const text = texts(result).join('\n');
@@ -16,7 +16,13 @@ export function helpView(p: PresentationAPI, result: Result, options: Options, a
   }
   const usage = sections.USAGE?.join('\n').trim();
   if (!usage)
-    return { summary: 'Salesforce CLI help', sections: [code(text || '(no help output)', 'Complete help text')] };
+    return {
+      summary: 'Salesforce CLI help',
+      sections: [
+        code(text || '(no help output)', 'Complete help text'),
+        ...(options.expanded && result.details !== undefined ? [literal(result.details, 'Metadata')] : []),
+      ],
+    };
   const required: string[] = [],
     optional: string[] = [];
   let flag = '';

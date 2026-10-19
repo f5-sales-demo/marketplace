@@ -15,6 +15,10 @@ and this project adheres to
 - **`platform`** v7.0.0 consumes verified API v12.0.9 bootstrap and telemetry, exposes the shared CE service, and separates native operations from Terraform resource state.
 
 - **`aws`** v3.0.1 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts. Whole-site stop/start is gated until coordinated service withdrawal and restoration are implemented.
+- **`salesforce`** v2.3.13: preserve exact lifecycle aggregate amounts without inventing currency; use safe typed org status and human-owned authentication guidance.
+
+- **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).
+
 - **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
 
 - **`salesforce`** v2.3.10 uses plain missing-cell dashes and explicit empty report-breakdown labels (#1575).

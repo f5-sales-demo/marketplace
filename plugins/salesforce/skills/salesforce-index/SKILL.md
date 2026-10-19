@@ -31,13 +31,15 @@ Keywords: "login", "authenticate", "connect org", "sf org", "org list",
 
 - Auth setup → invoke `salesforce:salesforce-auth` skill
 - Org switching → invoke `switching-org` skill (afv-library)
-- Org status check → delegate to `salesforce:cli-operator` agent:
+- Org status check → use `sf_org_display` directly. Keep credentials out of
+  output. For optional delegation, give the same typed-tool and safe-evidence
+  instructions to `salesforce:cli-operator`:
 
   ```text
   task(
     subagent_type="salesforce:cli-operator",
     description="Check Salesforce org status",
-    prompt="Run sf org list --json and sf org display --json for the default org. Report which orgs are authenticated and their status."
+    prompt="Use sf_org_display for the default org. Report safe status and scope fields only. Never print raw org JSON, credentials or auth URLs; report setup_required with xcsh plugin setup salesforce when unavailable."
   )
   ```
 

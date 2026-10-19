@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import { presentTool } from '../src/presentation';
-import { copyableCommand, toolArgv } from '../src/presentation/command';
+import { toolArgv } from '../src/presentation/command';
+import { copyableCommand } from './shared-runtime';
 
 const query = "SELECT Subject FROM Task WHERE Subject = 'literal \\' quote $HOME `echo wrong` 北方' LIMIT 10";
 const cases = [
@@ -18,8 +19,7 @@ test('generated command sections round trip exact argv through Bash and zsh with
     ['sf', 'data', 'query', '--query', query, '--json'],
     ['sf', 'help', '', 'quotes\'\\"', 'a'.repeat(100), '北方'.repeat(30), 'line one\nline two'],
   ]) {
-    const section = copyableCommand(presentation, argv, undefined, 25);
-    expect(section.kind).toBe('code');
+    const section = { text: copyableCommand(argv, 25).join('\n') };
     expect(
       section.text
         .split('\n')
@@ -47,7 +47,7 @@ test('all direct tools show their complete executable command once in the defaul
     );
     expect(
       result.sections?.filter(
-        (section) => section.kind === 'code' && section.text === copyableCommand(presentation, argv!).text,
+        (section) => section.kind === 'code' && JSON.stringify(section.argv) === JSON.stringify(argv),
       ),
     ).toHaveLength(1);
     expect(result.sections?.some((section) => section.kind === 'fields' && 'Command' in section.values)).toBe(false);
@@ -80,9 +80,7 @@ test('all direct tools show their complete executable command once in the defaul
 
 test('commands that fit remain on one line and narrower terminals retain exact argv', () => {
   const argv = ['sf', 'sobject', 'describe', '--sobject', 'Opportunity', '--json'];
-  expect(copyableCommand(presentation, argv, undefined, 120).text).toBe(presentation.command(argv).text);
-  expect(copyableCommand(presentation, argv, undefined, 40).text).toContain('\\\n');
-  expect(copyableCommand(presentation, ['sf', 'org', 'display', '--json'], undefined, 40).text).toBe(
-    'sf org display --json',
-  );
+  expect(copyableCommand(argv, 120).join('\n')).toBe(presentation.command(argv).text);
+  expect(copyableCommand(argv, 40).join('\n')).toContain('\\\n');
+  expect(copyableCommand(['sf', 'org', 'display', '--json'], 40).join('\n')).toBe('sf org display --json');
 });

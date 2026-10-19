@@ -1,6 +1,9 @@
 # Standalone unittest runner, not an import package.
-# ruff: noqa: INP001
+# ruff: noqa: INP001, PT027
+# unittest is the repository standalone runner; keep it dependency-free.
 import importlib.util
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,7 +30,10 @@ class NativeCaptureChecks(unittest.TestCase):
         encoded = "'" + query.replace("'", "'\\''") + "'"
         command = "sf data query --query \\\n" + encoded + " --json"
         rows = ["│ " + part + " │" for part in command.splitlines()]
-        frame = {"lines": rows}
+        frame = {
+            "lines": rows,
+            "commands": [{"argv": ["sf", "data", "query", "--query", query, "--json"]}],
+        }
         case = {"tool": "sf_query", "args": {"query": query}}
         with tempfile.TemporaryDirectory() as root:
             result = driver.verify_commands(
@@ -41,6 +47,57 @@ class NativeCaptureChecks(unittest.TestCase):
                 ),
             )
         assert result["passed"], result
+
+    def test_geometry_requires_fresh_same_installation_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "frames").mkdir()
+            ready = {
+                "runtimeVersion": "23.8.0",
+                "pluginVersion": "2.3.12",
+                "binary": "/synthetic/xcsh",
+                "terminalColumns": 150,
+            }
+            (root / "ready.json").write_text(json.dumps(ready))
+            (root / "manifest.json").write_text(json.dumps(ready))
+            frame = {**ready, "terminalColumns": 160}
+            path = root / "frames" / "geometry.json"
+            path.write_text(json.dumps(frame))
+            assert (
+                driver.terminal_allocation(root, ready, "geometry.json", [153]) == 160
+            )
+            for key in ["runtimeVersion", "pluginVersion", "binary"]:
+                path.write_text(json.dumps({**frame, key: "wrong"}))
+                with self.assertRaises(ValueError):
+                    driver.terminal_allocation(root, ready, "geometry.json", [153])
+            path.write_text(json.dumps(frame))
+            os.utime(path, (1, 1))
+            with self.assertRaises(ValueError):
+                driver.terminal_allocation(root, ready, "geometry.json", [153])
+            with self.assertRaises(ValueError):
+                driver.terminal_allocation(root, ready, "../geometry.json", [153])
+            with self.assertRaises(ValueError):
+                driver.terminal_allocation(root, ready, None, [153])
+
+    def test_frame_rejects_insufficient_or_missing_terminal_allocation(self):
+        frame = {
+            "id": "x",
+            "width": 153,
+            "theme": "xcsh-dark",
+            "preset": "ascii",
+            "expanded": False,
+            "lines": ["result"],
+            "resultIsError": False,
+        }
+        case = {"id": "pipeline", "tool": "sf_pipeline_report", "args": {}}
+        with tempfile.TemporaryDirectory() as root:
+            for allocation in [None, 150]:
+                if allocation is not None:
+                    frame["terminalColumns"] = allocation
+                result = driver.inspect_frame(Path(root), frame, case)
+                assert "terminal-allocation-too-narrow" in result["failures"]
+            frame["terminalColumns"] = 160
+            assert driver.inspect_frame(Path(root), frame, case)["passed"]
 
     def test_overflow_and_missing_value_are_not_accepted(self):
         frame = {

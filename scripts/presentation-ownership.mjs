@@ -1,20 +1,11 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
-// This is a migration baseline, not a presentation or host-acceptance exemption.
-const salesforceLegacyTools = new Set([
-  'sf_query',
-  'sf_describe',
-  'sf_org_display',
-  'sf_pipeline_report',
-  'sf_help',
-  'sf_exec',
-]);
 export function rendererOwnershipErrors(plugin, tools) {
   const errors = [];
   for (const tool of tools) {
     if (typeof tool.renderCall !== 'function' && typeof tool.renderResult !== 'function') continue;
-    if (plugin === 'salesforce' && salesforceLegacyTools.has(tool.name)) continue;
     errors.push(
       `${plugin}.${tool.name}: terminal rendering is runtime-owned${plugin === 'salesforce' ? '; unqualified legacy override' : ''}`,
     );
@@ -23,11 +14,25 @@ export function rendererOwnershipErrors(plugin, tools) {
 }
 const normalizer = new Bun.Transpiler({ loader: 'ts', minifyWhitespace: true });
 const normalized = (source) => normalizer.transformSync(source);
+const pinned = JSON.parse(
+  readFileSync(new URL('./salesforce-2.3.11-renderer-signatures.json', import.meta.url), 'utf8'),
+);
+const signatures = new Set(pinned.signatures);
+function copiedRenderer(source) {
+  const tokens = normalized(source).match(/\w+|[^\w\s]/g) ?? [];
+  const found = new Set();
+  for (let i = 0; i + pinned.window <= tokens.length; i++) {
+    const digest = createHash('sha256')
+      .update(tokens.slice(i, i + pinned.window).join('\0'))
+      .digest('hex');
+    if (signatures.has(digest)) found.add(digest);
+    if (found.size >= 3) return true;
+  }
+  return false;
+}
 export function sourceOwnershipErrors(root, catalog, registeredEntrypoints = []) {
   const errors = [];
   const presentationRoot = join(root, 'plugins/salesforce/src/presentation');
-  const privatePath = join(presentationRoot, 'renderer.ts');
-  const baseline = existsSync(privatePath) ? normalized(readFileSync(privatePath, 'utf8')) : '';
   function walk(dir, files) {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -39,7 +44,6 @@ export function sourceOwnershipErrors(root, catalog, registeredEntrypoints = [])
     }
   }
   for (const plugin of catalog.plugins) {
-    if (plugin.name === 'salesforce') continue;
     const files = [];
     const pluginRoot = resolve(root, plugin.source);
     walk(pluginRoot, files);
@@ -47,16 +51,16 @@ export function sourceOwnershipErrors(root, catalog, registeredEntrypoints = [])
     for (const file of new Set(files)) {
       const source = readFileSync(file, 'utf8').replace(/^#![^\n]*(?:\n|$)/, '');
       const path = relative(root, file);
-      if (baseline.length >= 40 && normalized(source).includes(baseline))
-        errors.push(`${path}: copy of Salesforce private renderer`);
+      if (copiedRenderer(source)) errors.push(`${path}: copy of Salesforce private renderer`);
       const imports = new Bun.Transpiler({ loader: file.endsWith('.ts') ? 'ts' : 'js' }).scanImports(source);
       for (const item of imports) {
         const imported = item.path.startsWith('.') ? resolve(dirname(file), item.path) : item.path;
         if (
-          imported === presentationRoot ||
-          imported.startsWith(`${presentationRoot}/`) ||
-          imported === `${presentationRoot}.ts` ||
-          /xcsh-salesforce(?:\/src)?\/presentation(?:\/|$)/.test(imported)
+          plugin.name !== 'salesforce' &&
+          (imported === presentationRoot ||
+            imported.startsWith(`${presentationRoot}/`) ||
+            imported === `${presentationRoot}.ts` ||
+            /xcsh-salesforce(?:\/src)?\/presentation(?:\/|$)/.test(imported))
         )
           errors.push(`${path}: imports Salesforce private renderer`);
         if (/@f5-sales-demo\/xcsh\/src\//.test(imported) || /node_modules\/@f5-sales-demo\/xcsh\/src\//.test(imported))

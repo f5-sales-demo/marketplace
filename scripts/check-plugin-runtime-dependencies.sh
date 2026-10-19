@@ -104,10 +104,17 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     fi
   fi
 
-  expected_xcsh="$EXPECTED_XCSH"
-  case "$plugin" in
-  aws | azure) expected_xcsh="23.6.8" ;;
-  esac
+  manifest="$REPO_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json"
+  if ! expected_xcsh=$(jq -er --arg baseline "$EXPECTED_XCSH" '
+    (.minimumRuntimeVersion // $baseline) as $minimum
+    | if ($minimum | type) != "string" or
+         ($minimum | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) == false
+      then error("minimumRuntimeVersion must be an exact stable version")
+      else [$baseline, $minimum] | max_by(split(".") | map(tonumber)) end
+  ' "$manifest" 2>/dev/null); then
+    fail_static "$plugin minimumRuntimeVersion is missing or invalid"
+    continue
+  fi
   expected_pi_utils="$expected_xcsh"
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"

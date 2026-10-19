@@ -20,7 +20,8 @@ copy_runtime_state() {
   local destination="$1"
   mkdir -p "$destination/plugins"
   for plugin in aws azure gcloud github gitlab salesforce; do
-    mkdir -p "$destination/plugins/$plugin"
+    mkdir -p "$destination/plugins/$plugin/.xcsh-plugin"
+    cp "$REPO_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$destination/plugins/$plugin/.xcsh-plugin/plugin.json"
     cp "$REPO_ROOT/plugins/$plugin/package.json" "$destination/plugins/$plugin/package.json"
     cp "$REPO_ROOT/plugins/$plugin/bun.lock" "$destination/plugins/$plugin/bun.lock"
   done
@@ -54,6 +55,16 @@ if REPO_ROOT="$OLD_PRESENTATION_API" bash "$CHECK" >/dev/null 2>&1; then
   fail "a GitHub peer range predating the presentation API must fail"
 else
   pass "a GitHub peer range predating the presentation API fails"
+fi
+
+BAD_MINIMUM="$WORK/bad-minimum"
+copy_runtime_state "$BAD_MINIMUM"
+jq '.minimumRuntimeVersion = "99.0.0"' "$BAD_MINIMUM/plugins/salesforce/.xcsh-plugin/plugin.json" >"$BAD_MINIMUM/plugin.tmp"
+mv "$BAD_MINIMUM/plugin.tmp" "$BAD_MINIMUM/plugins/salesforce/.xcsh-plugin/plugin.json"
+if REPO_ROOT="$BAD_MINIMUM" bash "$CHECK" >/dev/null 2>&1; then
+  fail "a runtime pin below the declared minimum must fail"
+else
+  pass "a runtime pin below the declared minimum fails"
 fi
 
 BAD_RUNTIME_IMPORT="$WORK/bad-runtime-import"
@@ -110,8 +121,8 @@ mkdir -p \
   "$AWS_NODE_MODULES/@agentclientprotocol/sdk" \
   "$AWS_NODE_MODULES/@google/genai" \
   "$AWS_NODE_MODULES/bun-types"
-printf '{"version":"23.6.8"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
-printf '{"version":"23.6.8"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
 printf '{"version":"0.124.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
 printf '{"version":"1.4.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
 printf '{"version":"2.21.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
@@ -162,16 +173,13 @@ mkdir -p \
   node_modules/@google/genai \
   node_modules/@sinclair/typebox \
   node_modules/bun-types
-xcsh_version="23.5.1"
-pi_utils_version="23.5.1"
-case "$PWD" in
-  */plugins/aws|*/plugins/azure) xcsh_version="23.6.8"; pi_utils_version="23.6.8" ;;
-esac
+xcsh_version=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"]' package.json)
+pi_utils_version="$xcsh_version"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
-printf '{"version":"%s"}\n' "$xcsh_version" >node_modules/@f5-sales-demo/xcsh/package.json
-printf '{"version":"%s"}\n' "$pi_utils_version" >node_modules/@f5-sales-demo/pi-utils/package.json
+jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/xcsh/package.json
+jq -n --arg version "$pi_utils_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
