@@ -2,14 +2,17 @@
 
 The public Terraform deployment adapter uses configuration version 2 with an
 explicitly managed boot disk. Its overall review binds the isolated saved binary,
-configuration, backend, provider lock, F5 context and prerequisite receipts.
+configuration, backend, provider lock, F5 context name and actual API endpoint,
+and prerequisite receipts. Endpoint changes are rejected before deployment or
+cleanup; credentials may rotate at the original endpoint.
 Only the exact `approvedPlanHash` authorizes submission. Resume inspects consumed
 attempts, verifies the original executor stopped, compares cloud numeric identities
 and XC original creation hashes, and requires an exact no-op follow-up for a
 complete outcome. Partial ownership requires a separate delete-only cleanup review
 bound to the original attempt and stable state. Missing state or replacement
 identities require reconciliation. Cleanup remains available without billing access
-and finishes only after an empty destroy plan and eight independent absence checks.
+and finishes only after an empty destroy plan, a matching final state snapshot,
+and eight independent absence checks.
 Legacy stored configurations retain their existing teardown behavior. Enabling
 this adapter requires the published and qualified identity provider and its
 packaged exact lock; the current artifact gate remains closed.

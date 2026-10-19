@@ -12,7 +12,9 @@ and this project adheres to
 
 - **`gcloud`** adds public Terraform saved-plan authorization, original-attempt
   recovery and separate delete-only partial cleanup for the single-node BYOL
-  profile. The versioned configuration owns the boot disk explicitly. Deployment
+  profile. Reviews bind the F5 context name and actual API endpoint; cleanup
+  completion also requires the unchanged final empty-plan state snapshot.
+  The versioned configuration owns the boot disk explicitly. Deployment
   remains gated until the creation-identity provider is published and qualified,
   its exact lock is packaged, and fresh installed/live campaigns pass (#1559).
   **`terraform`** tracks the original executor process before submission and
@@ -59,7 +61,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.3 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.4 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).

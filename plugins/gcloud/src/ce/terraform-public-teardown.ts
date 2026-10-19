@@ -9,6 +9,7 @@ import {
 } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import type { GcpPolicyReceipt } from './policy';
+import { assertPublicTerraformContext } from './terraform-context';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
   type PublicTerraformOwnership,
@@ -177,6 +178,7 @@ export async function planPublicTerraformTeardown(
   signal?: AbortSignal,
 ) {
   assertGcpTeardownProfile(intent, contract, 'terraform');
+  await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   const release = await acquireProcessLock(join(runtime.store.directory, '.gcp-deployment-lock'));
   try {
@@ -223,6 +225,7 @@ export async function applyPublicTerraformTeardown(
   onMutation?: () => void,
 ) {
   assertGcpTeardownProfile(intent, contract, 'terraform');
+  await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact cleanup review required');
   const release = await acquireProcessLock(join(runtime.store.directory, '.gcp-deployment-lock'));

@@ -1,6 +1,7 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { fingerprint } from './discovery';
+import { publicTerraformContextHash } from './terraform-context';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from './terraform-public-artifacts';
 import { openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
 import type { GcpCeIntent } from './types';
@@ -43,6 +44,24 @@ export async function openPublicTerraformRuntime(
   if (!observations.teardown || !observations.terraformEnvironment)
     throw new Error('Qualified Terraform runtime channels unavailable');
   const credentials = await observations.terraformEnvironment();
+  const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
+  let originalContext: unknown;
+  try {
+    originalContext = await store.read('gcp-tf-public-platform-context.json');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    // A crash before the initial context receipt can resume only before authorization.
+    try {
+      await store.read('gcp-tf-deploy-original-authorization.json');
+      throw new Error('Original authorized public Terraform context receipt unavailable');
+    } catch (authorizationError) {
+      if ((authorizationError as NodeJS.ErrnoException).code !== 'ENOENT') throw authorizationError;
+    }
+    await store.write('gcp-tf-public-platform-context.json', context);
+    originalContext = context;
+  }
+  if (fingerprint(originalContext) !== fingerprint(context))
+    throw new Error('Original public Terraform context endpoint changed');
   const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
     signal,
   });

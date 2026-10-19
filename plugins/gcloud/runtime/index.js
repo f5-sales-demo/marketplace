@@ -5044,6 +5044,27 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
+// plugins/gcloud/src/ce/terraform-context.ts
+function publicTerraformContextHash(intent, apiUrl) {
+  if (!apiUrl) throw new Error('Scoped Terraform context endpoint unavailable');
+  const base = new URL(apiUrl);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash)
+    throw new Error('Scoped Terraform context endpoint differs');
+  return fingerprint({ platformContext: intent.platformContext, apiUrl: base.href });
+}
+async function assertPublicTerraformContext(runtime, intent) {
+  const saved = await runtime.store.read('gcp-tf-public-platform-context.json');
+  if (
+    saved.schemaVersion !== 1 ||
+    saved.contextHash !== publicTerraformContextHash(intent, runtime.environment.XCSH_API_URL)
+  )
+    throw new Error('Original public Terraform context endpoint changed');
+  return saved.contextHash;
+}
+var init_terraform_context = __esm(() => {
+  init_discovery();
+});
+
 // plugins/gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformAddresses(intent) {
   const node = intent.sites[0].nodes[0];
@@ -5807,6 +5828,7 @@ async function projectDestroy(runtime, intent, receipt, owned, absent, signal) {
 }
 async function planPublicTerraformTeardown(runtime, intent, contract, policy, signal) {
   assertGcpTeardownProfile(intent, contract, 'terraform');
+  await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   const release = await acquireProcessLock(join9(runtime.store.directory, '.gcp-deployment-lock'));
   try {
@@ -5843,6 +5865,7 @@ async function planPublicTerraformTeardown(runtime, intent, contract, policy, si
 }
 async function applyPublicTerraformTeardown(runtime, intent, contract, policy, approvedHash, signal, onMutation) {
   assertGcpTeardownProfile(intent, contract, 'terraform');
+  await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact cleanup review required');
   const release = await acquireProcessLock(join9(runtime.store.directory, '.gcp-deployment-lock'));
@@ -5959,6 +5982,7 @@ var init_terraform_public_teardown = __esm(() => {
   init_process_lock();
   init_deployment_teardown();
   init_discovery();
+  init_terraform_context();
   init_terraform_public();
   init_terraform_public_ownership();
   init_terraform_teardown();
@@ -5991,6 +6015,7 @@ async function sessionBinding(runtime, intent) {
   )
     throw new Error('Original public Terraform input binding differs');
   return {
+    platformContextHash: await assertPublicTerraformContext(runtime, intent),
     inputHash: fingerprint(saved),
     configurationSha256: await runtime.session.readConfigurationSha256(),
     providerLockSha256: saved.inputs.expectedLockSha256.slice(7),
@@ -6242,6 +6267,7 @@ var init_terraform_public = __esm(() => {
   init_deployment_teardown();
   init_discovery();
   init_ownership();
+  init_terraform_context();
   init_terraform_public_ownership();
   init_terraform_public_teardown();
   init_terraform_teardown();
@@ -7584,6 +7610,23 @@ async function openPublicTerraformRuntime(platform, api, intent, signal) {
   if (!observations.teardown || !observations.terraformEnvironment)
     throw new Error('Qualified Terraform runtime channels unavailable');
   const credentials = await observations.terraformEnvironment();
+  const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
+  let originalContext;
+  try {
+    originalContext = await store.read('gcp-tf-public-platform-context.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    try {
+      await store.read('gcp-tf-deploy-original-authorization.json');
+      throw new Error('Original authorized public Terraform context receipt unavailable');
+    } catch (authorizationError) {
+      if (authorizationError.code !== 'ENOENT') throw authorizationError;
+    }
+    await store.write('gcp-tf-public-platform-context.json', context);
+    originalContext = context;
+  }
+  if (fingerprint(originalContext) !== fingerprint(context))
+    throw new Error('Original public Terraform context endpoint changed');
   const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
     signal,
   });
@@ -7599,6 +7642,7 @@ async function openPublicTerraformRuntime(platform, api, intent, signal) {
 }
 var init_terraform_public_runtime = __esm(() => {
   init_discovery();
+  init_terraform_context();
   init_terraform_session();
 });
 

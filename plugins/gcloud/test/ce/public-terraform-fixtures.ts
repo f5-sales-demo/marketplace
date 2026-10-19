@@ -7,6 +7,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import { GCP_CE_API_RELEASE } from '../../src/ce/contract';
 import type { GcpDeploymentSources } from '../../src/ce/deployment-review';
 import { fingerprint } from '../../src/ce/discovery';
+import { publicTerraformContextHash } from '../../src/ce/terraform-context';
 import {
   publicTerraformAddresses,
   publicTerraformCloudScope,
@@ -211,7 +212,7 @@ export async function fixture() {
   const runtime: GcpTerraformTeardownRuntime = {
     store,
     session,
-    environment: { XCSH_API_TOKEN: 'private-token-fixture' },
+    environment: { XCSH_API_TOKEN: 'private-token-fixture', XCSH_API_URL: 'https://original.example.test' },
     api: {
       exec: async (_command, args) => {
         const name = args[args.indexOf('describe') + 1];
@@ -245,6 +246,10 @@ export async function fixture() {
     },
   };
   files.set('gcp-terraform-session-inputs.json', inputs);
+  files.set('gcp-tf-public-platform-context.json', {
+    schemaVersion: 1,
+    contextHash: publicTerraformContextHash(i, runtime.environment.XCSH_API_URL),
+  });
   files.set('gcp-terraform-input-identity.json', {
     intent: i,
     intentFingerprint: fingerprint(i),

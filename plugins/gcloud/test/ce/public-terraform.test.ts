@@ -34,6 +34,7 @@ it('rejects changed reviews, bindings, documents and engines before submission',
     'engine',
     'raw-lock',
     'context',
+    'context-endpoint',
   ]) {
     const f = await fixture();
     const plan = await planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources);
@@ -54,6 +55,7 @@ it('rejects changed reviews, bindings, documents and engines before submission',
       const saved = f.files.get('gcp-terraform-input-identity.json') as { platformContext: string };
       saved.platformContext = 'replacement-context';
     }
+    if (change === 'context-endpoint') f.runtime.environment.XCSH_API_URL = 'https://replacement.example.test';
     if (change === 'tamper' || change === 'stale') {
       const { planHash: _, ...body } = plan;
       const altered = {

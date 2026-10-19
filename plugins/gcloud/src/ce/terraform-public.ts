@@ -6,6 +6,7 @@ import { collectGcpDeploymentPrerequisites, fundingBinding, type GcpDeploymentSo
 import { assertGcpTeardownProfile } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import { recordGcpResource } from './ownership';
+import { assertPublicTerraformContext } from './terraform-context';
 import {
   inspectPublicTerraformOwnership,
   type PublicTerraformOwnership,
@@ -48,6 +49,7 @@ async function sessionBinding(runtime: GcpTerraformTeardownRuntime, intent: GcpC
   )
     throw new Error('Original public Terraform input binding differs');
   return {
+    platformContextHash: await assertPublicTerraformContext(runtime, intent),
     inputHash: fingerprint(saved),
     configurationSha256: await runtime.session.readConfigurationSha256(),
     providerLockSha256: saved.inputs.expectedLockSha256.slice(7),

@@ -76,10 +76,11 @@ it('deletes partial disk state with separate exact authorization and all eight a
   expect(f.deletes()).toBe(1);
 });
 it('rejects changed stable state, replacement identities, foreign state and altered cleanup reviews', async () => {
-  for (const change of ['state', 'replacement', 'foreign', 'review']) {
+  for (const change of ['state', 'replacement', 'foreign', 'review', 'context-endpoint']) {
     const f = await cleanupFixture();
     const plan = await planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy);
     let hash = plan.planHash;
+    if (change === 'context-endpoint') f.runtime.environment.XCSH_API_URL = 'https://replacement.example.test';
     if (change === 'state')
       f.runtime.session.readStateIdentity = async () => ({ ...plan.state, sha256: 'f'.repeat(64) });
     if (change === 'replacement') {
