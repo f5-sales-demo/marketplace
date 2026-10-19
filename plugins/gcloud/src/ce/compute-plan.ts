@@ -295,25 +295,30 @@ export function translateGcpPublicTerraformSiteCompute(
     }
   const firewalls: Record<string, unknown> = {};
   for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
-    const slo = site.nodes[0].interfaces[0];
-    const name = `${site.name}-ha-slo-icmp`,
-      tag = `${site.name}-ha-peer`;
-    if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for peer rule identity');
-    firewalls[name.replaceAll('-', '_')] = {
-      name,
-      project: intent.project,
-      network: `\${google_compute_network.${slo.network.replaceAll('-', '_')}.self_link}`,
-      direction: 'INGRESS',
-      source_ranges: [slo.cidr],
-      target_tags: [tag],
-      allow: [{ protocol: 'icmp' }],
-    };
+    const tag = `${site.name}-ha-peer`;
+    const dependencies: string[] = [];
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['INGRESS', 'EGRESS']) {
+        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
+        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
+        const key = name.replaceAll('-', '_');
+        firewalls[key] = {
+          name,
+          project: intent.project,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
+          direction,
+          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
+          target_tags: [tag],
+          allow: [{ protocol: 'all' }],
+        };
+        dependencies.push(`google_compute_firewall.${key}`);
+      }
     for (const node of site.nodes) {
       const instance = translated.configuration.resource.google_compute_instance[
         node.name.replaceAll('-', '_')
       ] as Record<string, unknown>;
       instance.tags = [...new Set([...((instance.tags as string[]) ?? []), tag])];
-      instance.depends_on = [`google_compute_firewall.${name.replaceAll('-', '_')}`];
+      instance.depends_on = dependencies;
     }
   }
   return {

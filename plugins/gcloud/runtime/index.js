@@ -2286,23 +2286,28 @@ function translateGcpPublicTerraformSiteCompute(intent, versions) {
     }
   const firewalls = {};
   for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
-    const slo = site.nodes[0].interfaces[0];
-    const name = `${site.name}-ha-slo-icmp`,
-      tag = `${site.name}-ha-peer`;
-    if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for peer rule identity');
-    firewalls[name.replaceAll('-', '_')] = {
-      name,
-      project: intent.project,
-      network: `\${google_compute_network.${slo.network.replaceAll('-', '_')}.self_link}`,
-      direction: 'INGRESS',
-      source_ranges: [slo.cidr],
-      target_tags: [tag],
-      allow: [{ protocol: 'icmp' }],
-    };
+    const tag = `${site.name}-ha-peer`;
+    const dependencies = [];
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['INGRESS', 'EGRESS']) {
+        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
+        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
+        const key = name.replaceAll('-', '_');
+        firewalls[key] = {
+          name,
+          project: intent.project,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
+          direction,
+          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
+          target_tags: [tag],
+          allow: [{ protocol: 'all' }],
+        };
+        dependencies.push(`google_compute_firewall.${key}`);
+      }
     for (const node of site.nodes) {
       const instance = translated.configuration.resource.google_compute_instance[node.name.replaceAll('-', '_')];
       instance.tags = [...new Set([...(instance.tags ?? []), tag])];
-      instance.depends_on = [`google_compute_firewall.${name.replaceAll('-', '_')}`];
+      instance.depends_on = dependencies;
     }
   }
   return {
@@ -5144,13 +5149,26 @@ function publicTerraformSelections(intent) {
             'boot_disk.0.source',
             'boot_disk.0.auto_delete',
             'network_interface.length',
+            ...(intent.sites.some((site) => site.nodes.length === 3) ? ['tags'] : []),
             ...[0, 1].flatMap((n) => [`network_interface.${n}.network`, `network_interface.${n}.subnetwork`]),
           ],
         ];
       if (address.startsWith('google_compute_disk.')) return [address, [...common, 'zone', 'disk_id']];
       if (address.startsWith('google_compute_network.')) return [address, [...common, 'numeric_id']];
       if (address.startsWith('google_compute_firewall.'))
-        return [address, [...common, 'firewall_id', 'network', 'direction', 'source_ranges', 'target_tags', 'allow']];
+        return [
+          address,
+          [
+            ...common,
+            'firewall_id',
+            'network',
+            'direction',
+            'source_ranges',
+            'destination_ranges',
+            'target_tags',
+            'allow',
+          ],
+        ];
       if (address.startsWith('google_compute_subnetwork.'))
         return [address, [...common, 'region', 'subnetwork_id', 'network', 'ip_cidr_range']];
       return [
@@ -5184,7 +5202,12 @@ function publicTerraformCloudScope(intent) {
     ]),
   );
   for (const site of intent.sites.filter((site) => site.nodes.length === 3))
-    resources.push({ kind: 'firewall', selfLink: `${prefix}/global/firewalls/${site.name}-ha-slo-icmp` });
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['ingress', 'egress'])
+        resources.push({
+          kind: 'firewall',
+          selfLink: `${prefix}/global/firewalls/${site.name}-ha-${nic.role}-${direction}`,
+        });
   return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
     ...resource,
     id: '0',
@@ -5246,19 +5269,29 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
         throw new Error('Subnet ownership topology differs');
     }
     if (expected.kind === 'firewall') {
-      const site = intent.sites.find((site) => expected.selfLink.endsWith(`/firewalls/${site.name}-ha-slo-icmp`));
-      const slo = site?.nodes[0].interfaces[0];
+      const binding = intent.sites
+        .flatMap((site) =>
+          site.nodes[0].interfaces.flatMap((nic) =>
+            ['INGRESS', 'EGRESS'].map((direction) => ({
+              site,
+              nic,
+              direction,
+              name: `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`,
+            })),
+          ),
+        )
+        .find((row) => expected.selfLink.endsWith(`/firewalls/${row.name}`));
       if (
-        !site ||
-        !slo ||
+        !binding ||
         value.network !==
-          `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${slo.network}` ||
-        value.direction !== 'INGRESS' ||
-        fingerprint(value.source_ranges) !== fingerprint([slo.cidr]) ||
-        fingerprint(value.target_tags) !== fingerprint([`${site.name}-ha-peer`]) ||
-        fingerprint(value.allow) !== fingerprint([{ protocol: 'icmp', ports: [] }])
+          `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
+        value.direction !== binding.direction ||
+        fingerprint(value.source_ranges) !== fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.destination_ranges) !== fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
+        fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
       )
-        throw new Error('HA peer firewall ownership topology differs');
+        throw new Error('HA interface firewall ownership topology differs');
     }
     resources.push({ ...expected, id: live.id });
   }
@@ -5274,6 +5307,8 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
           instance['boot_disk.0.auto_delete'] !== false ||
           !projected.resources[`google_compute_disk.${key}`] ||
           instance['network_interface.length'] !== node.interfaces.length ||
+          (site.nodes.length === 3 &&
+            (!Array.isArray(instance.tags) || !instance.tags.includes(`${site.name}-ha-peer`))) ||
           node.interfaces.some(
             (nic) =>
               instance[`network_interface.${nic.index}.network`] !== `${prefix}/global/networks/${nic.network}` ||

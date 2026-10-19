@@ -37,6 +37,7 @@ function fixture() {
       'boot_disk.0.source': disk,
       'boot_disk.0.auto_delete': false,
       'network_interface.length': 2,
+      tags: [`${i.sites[0].name}-ha-peer`],
       ...Object.fromEntries(
         n.interfaces.flatMap((nic) => [
           [`network_interface.${nic.index}.network`, `${prefix}/global/networks/${nic.network}`],
@@ -81,20 +82,25 @@ function fixture() {
     live.set(network, { id: `${100 + index}`, selfLink: network });
     live.set(subnet, { id: `${200 + index}`, selfLink: subnet });
   }
-  const firewallName = `${i.sites[0].name}-ha-slo-icmp`;
-  const firewallLink = `${prefix}/global/firewalls/${firewallName}`;
-  fields[`google_compute_firewall.${firewallName.replaceAll('-', '_')}`] = {
-    name: firewallName,
-    project: i.project,
-    self_link: firewallLink,
-    firewall_id: '301',
-    network: `${prefix}/global/networks/${node.interfaces[0].network}`,
-    direction: 'INGRESS',
-    source_ranges: [node.interfaces[0].cidr],
-    target_tags: [`${i.sites[0].name}-ha-peer`],
-    allow: [{ protocol: 'icmp', ports: [] }],
-  };
-  live.set(firewallLink, { id: '301', selfLink: firewallLink });
+  for (const [index, nic] of node.interfaces.entries())
+    for (const direction of ['INGRESS', 'EGRESS']) {
+      const name = `${i.sites[0].name}-ha-${nic.role}-${direction.toLowerCase()}`;
+      const link = `${prefix}/global/firewalls/${name}`;
+      const id = `${301 + index * 2 + (direction === 'EGRESS' ? 1 : 0)}`;
+      fields[`google_compute_firewall.${name.replaceAll('-', '_')}`] = {
+        name,
+        project: i.project,
+        self_link: link,
+        firewall_id: id,
+        network: `${prefix}/global/networks/${nic.network}`,
+        direction,
+        source_ranges: direction === 'INGRESS' ? ['0.0.0.0/0'] : [],
+        destination_ranges: direction === 'EGRESS' ? ['0.0.0.0/0'] : [],
+        target_tags: [`${i.sites[0].name}-ha-peer`],
+        allow: [{ protocol: 'all', ports: [] }],
+      };
+      live.set(link, { id, selfLink: link });
+    }
   fields['xcsh_securemesh_site_v2.ce_site'] = {
     name: i.sites[0].name,
     namespace: 'system',
@@ -159,13 +165,13 @@ function fixture() {
   } as unknown as GcpTerraformTeardownRuntime;
   return { i, runtime, receipt, fields, live, platformReads: () => platformReads };
 }
-it('captures all fifteen HA identities with exact per-zone VM and disk joins and deduplicated VPCs', async () => {
+it('captures all eighteen HA identities with exact per-zone VM and disk joins and deduplicated VPCs', async () => {
   const f = fixture();
-  expect(publicTerraformAddresses(f.i)).toHaveLength(15);
-  expect(publicTerraformCloudScope(f.i)).toHaveLength(11);
+  expect(publicTerraformAddresses(f.i)).toHaveLength(18);
+  expect(publicTerraformCloudScope(f.i)).toHaveLength(14);
   const owned = await inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt);
   expect(owned.complete).toBe(true);
-  expect(owned.resources).toHaveLength(11);
+  expect(owned.resources).toHaveLength(14);
   expect(Object.keys(owned.platform)).toHaveLength(4);
   expect(owned.resources.find((r) => r.nodeName === 'node-c' && r.kind === 'instance')?.id).toBe(
     '18446744073709551604',
@@ -182,7 +188,7 @@ it('captures a later-node orphan disk without inferring its missing VM or token'
   }
   const owned = await inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt);
   expect(owned.complete).toBe(false);
-  expect(owned.addresses).toHaveLength(13);
+  expect(owned.addresses).toHaveLength(16);
   expect(owned.resources.some((r) => r.kind === 'disk' && r.nodeName === 'node-b')).toBe(true);
   expect(await verifyPublicTerraformLiveOwnership(f.runtime, f.i, owned)).toEqual(
     expect.arrayContaining(['google_compute_instance.node_b', 'xcsh_token.node_b']),
@@ -199,7 +205,7 @@ it('rejects a disk attached to another HA node, wrong-zone state and unidentifie
     await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow();
   }
 });
-it('checks every original HA token identity and all fifteen independent absences', async () => {
+it('checks every original HA token identity and all eighteen independent absences', async () => {
   const f = fixture();
   const owned = await inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt);
   const token = f.fields['xcsh_token.node_c'];
@@ -208,7 +214,7 @@ it('checks every original HA token identity and all fifteen independent absences
   await expect(verifyPublicTerraformLiveOwnership(f.runtime, f.i, owned)).rejects.toThrow('XC identity');
   for (const key of Object.keys(f.fields)) f.fields[key] = null;
   f.live.clear();
-  expect(await verifyPublicTerraformLiveOwnership(f.runtime, f.i, owned)).toHaveLength(15);
+  expect(await verifyPublicTerraformLiveOwnership(f.runtime, f.i, owned)).toHaveLength(18);
 });
 it('rejects site identity drift between node-bound token observations', async () => {
   const f = fixture();
@@ -220,7 +226,7 @@ it('rejects site identity drift between node-bound token observations', async ()
   await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('changed during');
 });
 
-it('owns the guide-required HA SLO ICMP rule with its exact network and peer CIDR', async () => {
+it('owns all four guide-required HA interface firewall rules', async () => {
   const f = fixture();
   const { translateGcpPublicTerraformSiteCompute } = await import('../../src/ce/compute-plan');
   const configuration = translateGcpPublicTerraformSiteCompute(f.i, {
@@ -228,31 +234,34 @@ it('owns the guide-required HA SLO ICMP rule with its exact network and peer CID
     google: '8.7.0',
     xcsh: '15.13.0',
   }).configuration;
-  const rules = (configuration.resource as unknown as { google_compute_firewall: Record<string, unknown> })
-    .google_compute_firewall;
-  expect(Object.values(rules)).toEqual([
-    {
-      name: `${f.i.sites[0].name}-ha-slo-icmp`,
-      project: f.i.project,
-      network: `\${google_compute_network.${f.i.sites[0].nodes[0].interfaces[0].network.replaceAll('-', '_')}.self_link}`,
-      direction: 'INGRESS',
-      source_ranges: [f.i.sites[0].nodes[0].interfaces[0].cidr],
-      target_tags: [`${f.i.sites[0].name}-ha-peer`],
-      allow: [{ protocol: 'icmp' }],
-    },
-  ]);
-  for (const instance of Object.values(configuration.resource.google_compute_instance) as Array<{ tags: string[] }>)
-    expect(instance.tags).toContain(`${f.i.sites[0].name}-ha-peer`);
-  expect(publicTerraformCloudScope(f.i).filter((r) => r.kind === 'firewall')).toHaveLength(1);
+  const rules = (
+    configuration.resource as unknown as {
+      google_compute_firewall: Record<
+        string,
+        { direction: string; allow: unknown; source_ranges?: string[]; destination_ranges?: string[] }
+      >;
+    }
+  ).google_compute_firewall;
+  expect(Object.keys(rules)).toHaveLength(4);
+  for (const rule of Object.values(rules)) {
+    expect(rule.allow).toEqual([{ protocol: 'all' }]);
+    expect(rule.direction === 'INGRESS' ? rule.source_ranges : rule.destination_ranges).toEqual(['0.0.0.0/0']);
+  }
+  expect(publicTerraformCloudScope(f.i).filter((r) => r.kind === 'firewall')).toHaveLength(4);
 });
 
-it('rejects changed HA ICMP peer scope and a replaced owning firewall', async () => {
+it('rejects changed firewall direction, network and replaced identity', async () => {
   const f = fixture();
-  const address = `google_compute_firewall.${f.i.sites[0].name.replaceAll('-', '_')}_ha_slo_icmp`;
+  const address = `google_compute_firewall.${f.i.sites[0].name.replaceAll('-', '_')}_ha_slo_ingress`;
   const original = structuredClone(f.fields[address]);
-  f.fields[address].source_ranges = ['0.0.0.0/0'];
-  await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('firewall');
-  f.fields[address] = original;
-  f.fields[address].firewall_id = '999';
-  await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('Replacement');
+  for (const mutation of [{ direction: 'EGRESS' }, { network: 'foreign-network' }, { firewall_id: '999' }]) {
+    f.fields[address] = { ...original, ...mutation };
+    await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow();
+  }
+});
+
+it('rejects an HA VM missing the bound firewall target tag', async () => {
+  const f = fixture();
+  f.fields['google_compute_instance.node_b'].tags = [];
+  await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('topology');
 });
