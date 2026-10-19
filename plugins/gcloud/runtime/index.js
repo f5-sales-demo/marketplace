@@ -5747,6 +5747,17 @@ function assertDeleteOnly(intent, receipt, addresses) {
       throw new Error('Expected empty destroy plan');
   } else assertGcpTerraformOwnedTransition(intent, receipt, 'teardown', addresses);
 }
+function assertFinalDestroy(intent, original, final) {
+  assertDeleteOnly(intent, final, []);
+  if (
+    final.engine !== 'terraform' ||
+    final.deploymentId !== intent.deploymentName ||
+    final.backendIdentity !== original.backendIdentity ||
+    final.configurationSha256 !== original.configurationSha256 ||
+    final.providerLockSha256 !== original.providerLockSha256
+  )
+    throw new Error('Final empty destroy ownership binding differs');
+}
 async function projectDestroy(runtime, intent, receipt, owned, absent, signal) {
   const selections = publicTerraformSelections(intent);
   const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
@@ -5854,7 +5865,11 @@ async function applyPublicTerraformTeardown(runtime, intent, contract, policy, a
       throw new Error('Original cleanup attempt changed');
     const name = `gcp-tf-public-cleanup-authorized-${approvedHash.slice(7)}.json`;
     let journal = await readOptional(runtime, name);
-    if (journal && journal.planHash !== approvedHash) throw new Error('Cleanup authorization changed');
+    if (
+      journal &&
+      (journal.planHash !== approvedHash || !['authorized', 'submitting', 'applied', 'absent'].includes(journal.phase))
+    )
+      throw new Error('Cleanup authorization changed');
     let absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
     if (!journal) {
       const age = Date.now() - Date.parse(plan.createdAt);
@@ -5913,20 +5928,14 @@ async function applyPublicTerraformTeardown(runtime, intent, contract, policy, a
     if (absent.length !== 8) throw new Error('Resources reappeared after cleanup');
     if (journal.phase !== 'absent') {
       const finalPlan = await runtime.session.planDestroy(runtime.environment, signal);
-      assertDeleteOnly(intent, finalPlan, []);
-      if (
-        finalPlan.engine !== 'terraform' ||
-        finalPlan.deploymentId !== intent.deploymentName ||
-        finalPlan.backendIdentity !== plan.savedPlan.backendIdentity ||
-        finalPlan.configurationSha256 !== plan.savedPlan.configurationSha256 ||
-        finalPlan.providerLockSha256 !== plan.savedPlan.providerLockSha256
-      )
-        throw new Error('Final empty destroy ownership binding differs');
+      assertFinalDestroy(intent, plan.savedPlan, finalPlan);
       const after = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
       if (after.length !== 8) throw new Error('Independent absence changed');
       journal = { ...journal, phase: 'absent', finalPlan };
       await runtime.store.write(name, journal);
     }
+    if (!journal.finalPlan) throw new Error('Final empty destroy receipt unavailable');
+    assertFinalDestroy(intent, plan.savedPlan, journal.finalPlan);
     return {
       schemaVersion: 2,
       engine: 'terraform',

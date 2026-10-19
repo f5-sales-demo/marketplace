@@ -119,3 +119,14 @@ it('does not replay interrupted partial deletion and reviews only remaining orig
   );
   expect(f.deletes()).toBe(2);
 });
+
+it('cannot report resumed cleanup complete without the bound empty destroy receipt', async () => {
+  const f = await cleanupFixture();
+  const plan = await planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy);
+  await applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash);
+  const name = `gcp-tf-public-cleanup-authorized-${plan.planHash.slice(7)}.json`;
+  const journal = f.files.get(name) as { finalPlan?: PlanReceipt };
+  delete journal.finalPlan;
+  await expect(applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash)).rejects.toThrow();
+  expect(f.deletes()).toBe(1);
+});
