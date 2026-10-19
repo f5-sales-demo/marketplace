@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createCaptureExecution, viewport } from './salesforce-capture-controls';
+import { createCaptureExecution, validAppearanceControl, viewport } from './salesforce-capture-controls';
 
 // Loaded by the actual installed xcsh binary. No imported runtime or renderer substitute.
 // A private, owner-controlled command file drives the native UI without model calls.
@@ -42,6 +42,8 @@ export default async function captureSalesforce(api: any) {
   const expected = ['sf_query', 'sf_describe', 'sf_org_display', 'sf_pipeline_report', 'sf_help', 'sf_exec'];
   if (expected.some((name) => !tools.has(name))) throw new Error('Installed Salesforce registration is incomplete');
   const cases = JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'));
+  if (mode === 'live' && cases.some((item: any) => item.fixtureOutcome))
+    throw new Error('Synthetic outcome controls are forbidden in live mode');
   const results = new Map<string, any>();
   const components = new Map<string, any>();
   const frames = join(root, 'frames');
@@ -60,6 +62,7 @@ export default async function captureSalesforce(api: any) {
     progress: [],
     teardown: [],
     lifecycle: [],
+    appearance: [],
   };
   api.on('session_start', async (_event: unknown, rawContext: any) => {
     const ctx = wrappedContext(rawContext);
@@ -121,6 +124,27 @@ export default async function captureSalesforce(api: any) {
         if (control === lastControl) return;
         const incoming = JSON.parse(control);
         if (busy) {
+          if (incoming.action === 'appearance' && execution?.active && validAppearanceControl(incoming)) {
+            lastControl = control;
+            await sdk.setSymbolPreset(incoming.preset);
+            if (!(await ctx.ui.setTheme(incoming.theme)).success) throw new Error('Theme switching failed');
+            step.theme = incoming.theme;
+            step.preset = incoming.preset;
+            activeComponent.invalidate();
+            const record = save(incoming.id, activeComponent, incoming.width, { progress: true });
+            record.viewport = viewport(record.lines, process.stdout.rows ?? 45);
+            writeFileSync(join(frames, `${incoming.id}.json`), JSON.stringify(record));
+            manifest.appearance.push({
+              id: incoming.id,
+              case: step.case,
+              theme: incoming.theme,
+              preset: incoming.preset,
+              active: execution.active,
+            });
+            persist();
+            tui.requestRender();
+            writeFileSync(join(root, 'ack.json'), JSON.stringify({ id: incoming.id, active: execution.active }));
+          }
           if (['cancel', 'context-replacement', 'shutdown'].includes(incoming.action) && execution?.active) {
             lastControl = control;
             const retired = execution;
@@ -208,6 +232,11 @@ export default async function captureSalesforce(api: any) {
             const ownedExecution = createCaptureExecution(component);
             execution = ownedExecution;
             try {
+              if (mode === 'fixture')
+                writeFileSync(
+                  join(root, 'fixture-control.json'),
+                  JSON.stringify({ outcome: item.fixtureOutcome, tool: tool.name }),
+                );
               result = await tool.execute(
                 `native-capture-${item.id}`,
                 item.args,
@@ -222,6 +251,7 @@ export default async function captureSalesforce(api: any) {
               if (!ownedExecution.signal.aborted) throw error;
               result = { content: [{ type: 'text', text: 'Capture execution cancelled' }], isError: true };
             } finally {
+              if (mode === 'fixture') writeFileSync(join(root, 'fixture-control.json'), '{}');
               clearInterval(progressTimer);
               await emit('tool_execution_end', { toolName: tool.name, toolCallId: item.id, args: item.args });
             }

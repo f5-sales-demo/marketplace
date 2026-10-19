@@ -24,6 +24,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     parser.add_argument("--pane", required=True)
+    parser.add_argument("--all-cases", action="store_true")
     args = parser.parse_args()
     root = args.root.resolve()
     ready = json.loads((root / "ready.json").read_text())
@@ -33,7 +34,7 @@ def main() -> None:
     with (root / "surface-inspection.jsonl").open("a") as findings:
         for preset in ["unicode", "ascii", "nerd"]:
             for theme in ["xcsh-dark", "xcsh-light"]:
-                for case in cases[:6]:
+                for case in cases if args.all_cases else cases[:6]:
                     for width in [40, 76, 120, 153]:
                         offset = 0
                         while True:
