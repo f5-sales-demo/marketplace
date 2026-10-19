@@ -5160,7 +5160,7 @@ function publicTerraformSelections(intent) {
           address,
           [
             ...common,
-            'firewall_id',
+            'creation_timestamp',
             'network',
             'direction',
             'source_ranges',
@@ -5240,14 +5240,14 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
     }
     if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
       throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id', 'firewall_id'][
+    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
       ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
     ];
     if (
       value.name !== expected.selfLink.split('/').at(-1) ||
       value.project !== intent.project ||
       value.self_link !== expected.selfLink ||
-      String(value[idField]) !== live.id
+      (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
     )
       throw new Error('Replacement cloud identity requires reconciliation');
     if (
@@ -5269,6 +5269,7 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
         throw new Error('Subnet ownership topology differs');
     }
     if (expected.kind === 'firewall') {
+      await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
       const binding = intent.sites
         .flatMap((site) =>
           site.nodes[0].interfaces.flatMap((nic) =>
@@ -5286,8 +5287,9 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
         value.network !==
           `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
         value.direction !== binding.direction ||
-        fingerprint(value.source_ranges) !== fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
-        fingerprint(value.destination_ranges) !== fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.source_ranges ?? []) !== fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.destination_ranges ?? []) !==
+          fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
         fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
         fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
       )
@@ -5404,7 +5406,42 @@ function assertPublicTerraformSnapshot(intent, receipt, projected) {
     if (value !== null && fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort()))
       throw new Error('Unexpected or sensitive state projection');
 }
+async function assertOriginalFirewallInsert(runtime, intent, value, originalId, signal) {
+  if (typeof value.creation_timestamp !== 'string' || !Number.isFinite(Date.parse(value.creation_timestamp)))
+    throw new Error('Original firewall insert timestamp unavailable');
+  const result = await runtime.api.exec(
+    'gcloud',
+    [
+      'compute',
+      'operations',
+      'list',
+      '--project',
+      intent.project,
+      '--filter',
+      `operationType=insert AND targetLink=${value.self_link}`,
+      '--format=json',
+      '--quiet',
+    ],
+    { signal },
+  );
+  if (result.exitCode !== 0) throw new Error('Original firewall insert evidence unavailable');
+  const rows = parseGcloudJsonOutput(result.stdout);
+  if (!Array.isArray(rows)) throw new Error('Original firewall insert evidence malformed');
+  const original = rows.filter(
+    (row) =>
+      row.operationType === 'insert' &&
+      row.status === 'DONE' &&
+      !row.error &&
+      row.targetLink === value.self_link &&
+      typeof row.startTime === 'string' &&
+      Date.parse(row.startTime) === Date.parse(value.creation_timestamp),
+  );
+  if (original.length !== 1 || String(original[0].targetId) !== originalId)
+    throw new Error('Original firewall insert target identity differs');
+  return { targetId: originalId, creationTimestamp: value.creation_timestamp, evidenceHash: fingerprint(original[0]) };
+}
 var init_terraform_public_ownership = __esm(() => {
+  init_exec();
   init_deployment_teardown();
   init_discovery();
   init_validation();
@@ -5951,9 +5988,11 @@ async function projectDestroy(runtime, intent, receipt, owned, absent, signal) {
             : address.startsWith('google_compute_firewall.')
               ? 'firewall_id'
               : 'subnetwork_id';
+      if (resource && address.startsWith('google_compute_firewall.'))
+        await assertOriginalFirewallInsert(runtime, intent, value, resource.id, signal);
       if (
         !resource ||
-        String(value[field]) !== resource.id ||
+        (address.startsWith('google_compute_firewall.') ? false : String(value[field]) !== resource.id) ||
         value.project !== intent.project ||
         value.name !== resource.selfLink.split('/').at(-1)
       )

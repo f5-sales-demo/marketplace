@@ -12,6 +12,7 @@ import type { GcpPolicyReceipt } from './policy';
 import { assertPublicTerraformContext } from './terraform-context';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
+  assertOriginalFirewallInsert,
   observePublicTerraformPlatform,
   type PublicTerraformOwnership,
   publicTerraformAddresses,
@@ -149,9 +150,11 @@ async function projectDestroy(
             : address.startsWith('google_compute_firewall.')
               ? 'firewall_id'
               : 'subnetwork_id';
+      if (resource && address.startsWith('google_compute_firewall.'))
+        await assertOriginalFirewallInsert(runtime, intent, value, resource.id, signal);
       if (
         !resource ||
-        String(value[field]) !== resource.id ||
+        (address.startsWith('google_compute_firewall.') ? false : String(value[field]) !== resource.id) ||
         value.project !== intent.project ||
         value.name !== resource.selfLink.split('/').at(-1)
       )

@@ -1,4 +1,5 @@
 import type { ApplyAttemptResourceProjection, PlanReceipt } from '../../../terraform/src/runner';
+import { parseGcloudJsonOutput } from '../gcloud/exec';
 import { observeGcpTeardownResource } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import type { GcpResourceIdentity } from './ownership';
@@ -51,7 +52,7 @@ export function publicTerraformSelections(intent: GcpCeIntent) {
           address,
           [
             ...common,
-            'firewall_id',
+            'creation_timestamp',
             'network',
             'direction',
             'source_ranges',
@@ -144,14 +145,14 @@ export async function inspectPublicTerraformOwnership(
     }
     if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
       throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id', 'firewall_id'][
+    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
       ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
     ];
     if (
       value.name !== expected.selfLink.split('/').at(-1) ||
       value.project !== intent.project ||
       value.self_link !== expected.selfLink ||
-      String(value[idField]) !== live.id
+      (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
     )
       throw new Error('Replacement cloud identity requires reconciliation');
     if (
@@ -173,6 +174,7 @@ export async function inspectPublicTerraformOwnership(
         throw new Error('Subnet ownership topology differs');
     }
     if (expected.kind === 'firewall') {
+      await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
       const binding = intent.sites
         .flatMap((site) =>
           site.nodes[0].interfaces.flatMap((nic) =>
@@ -190,8 +192,9 @@ export async function inspectPublicTerraformOwnership(
         value.network !==
           `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
         value.direction !== binding.direction ||
-        fingerprint(value.source_ranges) !== fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
-        fingerprint(value.destination_ranges) !== fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.source_ranges ?? []) !== fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
+        fingerprint(value.destination_ranges ?? []) !==
+          fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
         fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
         fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
       )
@@ -319,4 +322,47 @@ export function assertPublicTerraformSnapshot(
   for (const [address, value] of Object.entries(projected.resources))
     if (value !== null && fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort()))
       throw new Error('Unexpected or sensitive state projection');
+}
+
+/** Google 8.7.0 has no numeric firewall ID in state. Bind the original completed insert operation
+ * to the provider-retained creation timestamp and the independently observed immutable target ID. */
+export async function assertOriginalFirewallInsert(
+  runtime: GcpTerraformTeardownRuntime,
+  intent: GcpCeIntent,
+  value: Record<string, unknown>,
+  originalId: string,
+  signal?: AbortSignal,
+) {
+  if (typeof value.creation_timestamp !== 'string' || !Number.isFinite(Date.parse(value.creation_timestamp)))
+    throw new Error('Original firewall insert timestamp unavailable');
+  const result = await runtime.api.exec(
+    'gcloud',
+    [
+      'compute',
+      'operations',
+      'list',
+      '--project',
+      intent.project,
+      '--filter',
+      `operationType=insert AND targetLink=${value.self_link}`,
+      '--format=json',
+      '--quiet',
+    ],
+    { signal },
+  );
+  if (result.exitCode !== 0) throw new Error('Original firewall insert evidence unavailable');
+  const rows = parseGcloudJsonOutput<Array<Record<string, unknown>>>(result.stdout);
+  if (!Array.isArray(rows)) throw new Error('Original firewall insert evidence malformed');
+  const original = rows.filter(
+    (row) =>
+      row.operationType === 'insert' &&
+      row.status === 'DONE' &&
+      !row.error &&
+      row.targetLink === value.self_link &&
+      typeof row.startTime === 'string' &&
+      Date.parse(row.startTime) === Date.parse(value.creation_timestamp as string),
+  );
+  if (original.length !== 1 || String(original[0].targetId) !== originalId)
+    throw new Error('Original firewall insert target identity differs');
+  return { targetId: originalId, creationTimestamp: value.creation_timestamp, evidenceHash: fingerprint(original[0]) };
 }

@@ -164,3 +164,9 @@ selector. It cannot establish health for the other HA nodes. Public admission
 remains single-node pending
 [the HA contract qualification](https://github.com/f5-sales-demo/api-specs-enriched/issues/1951)
 and fresh installed/live evidence.
+
+Google 8.7.0 retains firewall creation timestamps but no numeric firewall ID in
+Terraform state. HA ownership requires the exact completed insert operation,
+matching creation timestamp and immutable target ID from independent live
+observation. Missing operation evidence requires reconciliation; names and tags
+do not establish ownership.

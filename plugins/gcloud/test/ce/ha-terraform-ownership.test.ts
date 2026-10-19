@@ -91,11 +91,11 @@ function fixture() {
         name,
         project: i.project,
         self_link: link,
-        firewall_id: id,
+        creation_timestamp: `2026-10-19T14:00:0${id.slice(-1)}Z`,
         network: `${prefix}/global/networks/${nic.network}`,
         direction,
-        source_ranges: direction === 'INGRESS' ? ['0.0.0.0/0'] : [],
-        destination_ranges: direction === 'EGRESS' ? ['0.0.0.0/0'] : [],
+        source_ranges: direction === 'INGRESS' ? ['0.0.0.0/0'] : null,
+        destination_ranges: direction === 'EGRESS' ? ['0.0.0.0/0'] : null,
         target_tags: [`${i.sites[0].name}-ha-peer`],
         allow: [{ protocol: 'all', ports: [] }],
       };
@@ -117,6 +117,15 @@ function fixture() {
     noChanges: false,
     changes: Object.keys(fields).map((address) => ({ address, type: address.split('.')[0], actions: ['create'] })),
   } as PlanReceipt;
+  const insertOperations = Object.values(fields)
+    .filter((v) => v?.creation_timestamp)
+    .map((v) => ({
+      operationType: 'insert',
+      status: 'DONE',
+      targetLink: v.self_link,
+      targetId: live.get(v.self_link)?.id,
+      startTime: v.creation_timestamp,
+    }));
   let platformReads = 0;
   const runtime = {
     session: {
@@ -132,6 +141,10 @@ function fixture() {
     },
     api: {
       exec: async (_command: string, args: string[]) => {
+        if (args.includes('operations')) {
+          const rows = insertOperations;
+          return { exitCode: 0, stdout: JSON.stringify(rows), stderr: '' };
+        }
         const name = args[args.indexOf('describe') + 1];
         const collection = args.includes('subnets')
           ? 'subnetworks'
@@ -254,7 +267,11 @@ it('rejects changed firewall direction, network and replaced identity', async ()
   const f = fixture();
   const address = `google_compute_firewall.${f.i.sites[0].name.replaceAll('-', '_')}_ha_slo_ingress`;
   const original = structuredClone(f.fields[address]);
-  for (const mutation of [{ direction: 'EGRESS' }, { network: 'foreign-network' }, { firewall_id: '999' }]) {
+  for (const mutation of [
+    { direction: 'EGRESS' },
+    { network: 'foreign-network' },
+    { creation_timestamp: '2000-01-01T00:00:00Z' },
+  ]) {
     f.fields[address] = { ...original, ...mutation };
     await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow();
   }
@@ -264,4 +281,17 @@ it('rejects an HA VM missing the bound firewall target tag', async () => {
   const f = fixture();
   f.fields['google_compute_instance.node_b'].tags = [];
   await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('topology');
+});
+
+it('requires original completed firewall insert evidence and rejects replacement target identity', async () => {
+  const f = fixture();
+  const exec = f.runtime.api.exec;
+  f.runtime.api.exec = async (command, args, options) =>
+    args.includes('operations') ? { exitCode: 0, stdout: '[]', stderr: '' } : exec(command, args, options);
+  await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('insert');
+  f.runtime.api.exec = exec;
+  const resource = [...f.live.values()].find((r) => r.selfLink.includes('/firewalls/'));
+  if (!resource) throw new Error('Missing fixture firewall');
+  resource.id = '999';
+  await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('insert');
 });
