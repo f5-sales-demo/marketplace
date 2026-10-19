@@ -3342,6 +3342,79 @@ function nlbSettings(intent) {
   return { targetInterfaceIndex, healthCheck };
 }
 
+// plugins/aws/src/ce/interface-addressing.ts
+import { isIP as isIP2 } from 'node:net';
+
+function network(cidr) {
+  const parts = cidr.split('/');
+  const prefix = Number(parts[1]);
+  if (parts.length !== 2 || isIP2(parts[0]) !== 4 || !/^\d+$/.test(parts[1]) || prefix < 16 || prefix > 28)
+    throw new Error('AWS interface addressing requires an IPv4 subnet /16 through /28');
+  const size = 2 ** (32 - prefix);
+  const value = parts[0].split('.').reduce((value, part) => value * 256 + Number(part), 0);
+  return { base: Math.floor(value / size) * size, prefix, size };
+}
+function address(value) {
+  return [24, 16, 8, 0].map((shift) => Math.floor(value / 2 ** shift) % 256).join('.');
+}
+function awsSubnetHost(cidr, offset) {
+  return address(network(cidr).base + offset);
+}
+function awsCeStaticIp(intent, node, index) {
+  const item = intent.interfaces.find((item) => item.index === index);
+  if (!item || !Number.isInteger(node) || node < 1 || node > intent.topology.nodeCount)
+    throw new Error('AWS interface node/index binding is missing');
+  if (item.addressing.mode === 'dhcp') {
+    if (item.addressing.addresses?.length) throw new Error('DHCP addressing cannot include static addresses');
+    return;
+  }
+  if (
+    item.addressing.mode !== 'static' ||
+    !Array.isArray(item.addressing.addresses) ||
+    item.addressing.addresses.length !== intent.topology.nodeCount
+  )
+    throw new Error('Static addressing requires one explicit CIDR per node');
+  const cidr = item.addressing.addresses[node - 1];
+  const subnet = item.subnets[node - 1]?.cidr;
+  if (!subnet) throw new Error('Static addressing requires the exact subnet CIDR');
+  const expected = network(subnet);
+  const selected = network(cidr);
+  const ip = cidr.split('/')[0];
+  const value = ip.split('.').reduce((value, part) => value * 256 + Number(part), 0);
+  if (
+    selected.prefix !== expected.prefix ||
+    selected.base !== expected.base ||
+    value < expected.base + 4 ||
+    value >= expected.base + expected.size - 1
+  )
+    throw new Error('Static address must match its subnet prefix and exclude AWS reserved addresses');
+  if (item.role === 'slo') {
+    if (!intent.vpc.cidr) throw new Error('Static SLO requires the exact VPC CIDR for AWS DNS');
+    return { ip_address: cidr, default_gw: address(expected.base + 1), dns_server: awsSubnetHost(intent.vpc.cidr, 2) };
+  }
+  return { ip_address: cidr };
+}
+function validateAwsCeAddressing(intent) {
+  const staticMode = intent.interfaces.some((item) => item.addressing.mode === 'static');
+  if (
+    staticMode &&
+    (intent.interfaces.some((item) => !item.guestDevice) ||
+      new Set(intent.interfaces.map((item) => item.guestDevice)).size !== intent.interfaces.length)
+  )
+    throw new Error('Static addressing requires distinct verified guest device identities before registration');
+  const seen = new Set();
+  for (const item of intent.interfaces) {
+    for (let node = 1; node <= intent.topology.nodeCount; node++) {
+      const selected = awsCeStaticIp(intent, node, item.index);
+      if (!selected) continue;
+      const ip = selected.ip_address.split('/')[0];
+      if (seen.has(ip)) throw new Error('Duplicate static interface address');
+      seen.add(ip);
+    }
+  }
+}
+var init_interface_addressing = () => {};
+
 // plugins/aws/src/ce/interface-security.ts
 function interfaceSecurityGroups(intent, index) {
   const groups =
@@ -3359,7 +3432,7 @@ function interfaceSecurityGroups(intent, index) {
 }
 
 // plugins/aws/src/ce/static-routing.ts
-import { isIP as isIP2 } from 'node:net';
+import { isIP as isIP3 } from 'node:net';
 
 function staticAzRoutes(intent) {
   const routes = intent.routing.staticAzRoutes;
@@ -3385,7 +3458,7 @@ function staticAzRoutes(intent) {
         return values
           .map((value) => {
             const [ip, prefix, extra] = value.split('/');
-            if (isIP2(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || Number(prefix) > 32 || extra !== undefined)
+            if (isIP3(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || Number(prefix) > 32 || extra !== undefined)
               throw new Error('Static TGW route prefix is invalid');
             const octets = ip.split('.').map(Number);
             const address = octets.reduce((acc, octet) => (acc * 256 + octet) >>> 0, 0);
@@ -3476,11 +3549,11 @@ function siteBindings(plan) {
 }
 
 // plugins/aws/src/ce/transport-routes.ts
-import { isIP as isIP3 } from 'node:net';
+import { isIP as isIP4 } from 'node:net';
 
-function network(value) {
+function network2(value) {
   const [address, prefix, extra] = value.split('/');
-  if (extra !== undefined || isIP3(address) !== 4 || !/^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? ''))
+  if (extra !== undefined || isIP4(address) !== 4 || !/^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? ''))
     throw new Error('GRE transport requires canonical IPv4 CIDR evidence');
   const first = address.split('.').reduce((sum, octet) => sum * 256 + Number(octet), 0);
   const size = 2 ** (32 - Number(prefix));
@@ -3512,8 +3585,8 @@ function observedConnectCidrs(intent, observation) {
     new Set(cidrs).size !== cidrs.length
   )
     throw new Error('GRE transport requires observed Transit Gateway CIDR blocks');
-  const ranges = cidrs.map(network);
-  const vpc = intent.vpc.cidr ? network(intent.vpc.cidr) : undefined;
+  const ranges = cidrs.map(network2);
+  const vpc = intent.vpc.cidr ? network2(intent.vpc.cidr) : undefined;
   for (const [index, range] of ranges.entries()) {
     if (
       (vpc && range.first <= vpc.last && vpc.first <= range.last) ||
@@ -3523,7 +3596,7 @@ function observedConnectCidrs(intent, observation) {
   }
   for (const peer of intent.routing.connectPeers ?? []) {
     if (!peer.transitGatewayAddress) continue;
-    const address = network(`${peer.transitGatewayAddress}/32`).first;
+    const address = network2(`${peer.transitGatewayAddress}/32`).first;
     if (!ranges.some((range) => address >= range.first && address <= range.last))
       throw new Error('GRE endpoint is outside the observed Transit Gateway CIDR blocks');
   }
@@ -3532,7 +3605,7 @@ function observedConnectCidrs(intent, observation) {
 var init_transport_routes = () => {};
 
 // plugins/aws/src/ce/planner.ts
-import { isIP as isIP4 } from 'node:net';
+import { isIP as isIP5 } from 'node:net';
 
 function fail(message) {
   throw new Error(`AWS CE plan validation failed: ${message}`);
@@ -3562,13 +3635,13 @@ function cidr(value, label) {
   return normalized;
 }
 function ipv4Number(value) {
-  if (isIP4(value) !== 4) fail('listener service address must be IPv4');
+  if (isIP5(value) !== 4) fail('listener service address must be IPv4');
   return value.split('.').reduce((result, octet) => result * 256 + Number(octet), 0);
 }
 function cidrHost(value, offset) {
   const [address, length] = value.split('/');
   const prefix = Number(length);
-  if (isIP4(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
+  if (isIP5(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
     fail('NLB SLI subnet must be an IPv4 /16 through /28');
   const size = 2 ** (32 - prefix);
   const network = Math.floor(ipv4Number(address) / size) * size;
@@ -3578,7 +3651,7 @@ function cidrHost(value, offset) {
 function usableSubnetAddress(address, subnet) {
   const [base, length] = subnet.split('/');
   const prefix = Number(length);
-  if (isIP4(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
+  if (isIP5(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
   const size = 2 ** (32 - prefix);
   const network = Math.floor(ipv4Number(base) / size) * size;
   const value = ipv4Number(address);
@@ -3607,15 +3680,16 @@ function connectAttachmentCount(intent) {
     (intent.routing.insideCidrs ?? []).map(() => 0);
   return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
-function awsCeNlbInterfacePrivateAddresses(intent, node, interfaceIndex) {
+function awsCeInterfacePrivateAddresses(intent, node, interfaceIndex) {
   const item = intent.interfaces.find((item) => item.index === interfaceIndex);
   if (!item) fail('NLB interface binding is missing');
-  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return [];
+  const staticIp = awsCeStaticIp(intent, node, interfaceIndex);
+  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return staticIp ? [staticIp.ip_address.split('/')[0]] : [];
   const siteIndex = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
   const listener = siteIndex < 0 ? undefined : intent.ingress.listener.privateAddresses?.[siteIndex];
   const subnet = item.subnets[node - 1]?.cidr;
   if (!listener || !subnet) fail('NLB SLI subnet or site listener binding is missing');
-  const primary = cidrHost(subnet, 5);
+  const primary = staticIp?.ip_address.split('/')[0] ?? cidrHost(subnet, 5);
   if (!usableSubnetAddress(listener, subnet) || listener === primary)
     fail('NLB site listener must be a distinct usable SLI subnet address');
   return [primary, listener];
@@ -3698,6 +3772,7 @@ function normalizeIntent(input) {
       },
     };
   });
+  validateAwsCeAddressing({ ...input, interfaces });
   if (
     sites.some((site) => site.nodeIndexes.length === 3) &&
     (interfaces.some((item) => !item.guestDevice) ||
@@ -3809,7 +3884,7 @@ function normalizeIntent(input) {
       if ('transitGatewayAddress' in peer && peer.transitGatewayAddress !== undefined) {
         if (
           typeof peer.transitGatewayAddress !== 'string' ||
-          isIP4(peer.transitGatewayAddress) !== 4 ||
+          isIP5(peer.transitGatewayAddress) !== 4 ||
           endpoints.has(peer.transitGatewayAddress)
         )
           fail('GRE transit gateway endpoints must be unique IPv4 addresses');
@@ -3880,7 +3955,7 @@ function normalizeIntent(input) {
             ) ||
             !Array.isArray(loadBalancer.privateAddresses) ||
             loadBalancer.privateAddresses.length !== loadBalancer.subnetIds.length ||
-            loadBalancer.privateAddresses.some((address) => isIP4(address) !== 4))) ||
+            loadBalancer.privateAddresses.some((address) => isIP5(address) !== 4))) ||
         (listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
         Object.keys(listener.originPool ?? {})
           .sort()
@@ -3901,7 +3976,8 @@ function normalizeIntent(input) {
               return (
                 !subnet ||
                 !usableSubnetAddress(listener.privateAddresses?.[index] ?? '', subnet) ||
-                listener.privateAddresses?.[index] === cidrHost(subnet, 5)
+                listener.privateAddresses?.[index] ===
+                  (awsCeStaticIp(input, node, 1)?.ip_address.split('/')[0] ?? cidrHost(subnet, 5))
               );
             }))) ||
         typeof listener.domain !== 'string' ||
@@ -4930,7 +5006,7 @@ function compileActions(intent, observation, restorationById) {
       }
   for (let node = 1; node <= intent.topology.nodeCount; node++) {
     for (const item of intent.interfaces) {
-      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
+      const privateAddresses = awsCeInterfacePrivateAddresses(intent, node, item.index);
       add({
         phase: 'network',
         kind: 'eni-create',
@@ -5905,6 +5981,7 @@ var init_planner = __esm(() => {
   init_provider_lock();
   init_canonical();
   init_create_recovery();
+  init_interface_addressing();
   init_static_routing();
   init_transport_routes();
   init_types2();
@@ -6165,7 +6242,7 @@ var init_aws_ce_plan = __esm(() => {
 });
 
 // plugins/platform/src/ce/wire-ingress.ts
-import { isIP as isIP5 } from 'node:net';
+import { isIP as isIP6 } from 'node:net';
 
 function projectInsideHttpListener(spec, schemas, validate) {
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new Error('Malformed HTTP listener response');
@@ -6244,7 +6321,7 @@ function buildInsideHttpListener(input, validate) {
       typeof site.name !== 'string' ||
       !name.test(site.name) ||
       typeof site.insideAddress !== 'string' ||
-      isIP5(site.insideAddress) !== 4 ||
+      isIP6(site.insideAddress) !== 4 ||
       names.has(site.name) ||
       addresses.has(site.insideAddress)
     )
@@ -6291,7 +6368,7 @@ function buildInsideHttpListener(input, validate) {
 var init_wire_ingress = () => {};
 
 // plugins/platform/src/ce/wire-origin.ts
-import { isIP as isIP6 } from 'node:net';
+import { isIP as isIP7 } from 'node:net';
 
 function projectSiteLocalHttpOrigin(spec, schemas, validate) {
   const result = projectReplaceSnapshot(spec, schemas, 'viewsorigin_poolCreateSpecType');
@@ -6320,7 +6397,7 @@ function buildSiteLocalHttpOrigin(input, validate) {
     Object.keys(input).sort().join(',') !== 'name,namespace,originAddress,port,siteNames' ||
     ![input.name, input.namespace].every((value) => typeof value === 'string' && name.test(value)) ||
     typeof input.originAddress !== 'string' ||
-    isIP6(input.originAddress) !== 4 ||
+    isIP7(input.originAddress) !== 4 ||
     !Number.isInteger(input.port) ||
     input.port < 1 ||
     input.port > 65535 ||
@@ -7008,7 +7085,7 @@ var init_native_routing_checkpoint = __esm(() => {
 });
 
 // plugins/aws/src/ce/network-health.ts
-import { isIP as isIP7 } from 'node:net';
+import { isIP as isIP8 } from 'node:net';
 
 function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed network evidence');
@@ -7186,7 +7263,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         )
           throw new Error('Peer topology differs');
         if (
-          isIP7(String(config.TransitGatewayAddress)) !== 4 ||
+          isIP8(String(config.TransitGatewayAddress)) !== 4 ||
           !Array.isArray(config.InsideCidrBlocks) ||
           config.InsideCidrBlocks.length !== 1 ||
           typeof config.InsideCidrBlocks[0] !== 'string'
@@ -7198,7 +7275,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         const ipv4 = (address) => address.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
         if (
           config.InsideCidrBlocks[0] !== plannedCidr ||
-          isIP7(insideAddress) !== 4 ||
+          isIP8(insideAddress) !== 4 ||
           insidePrefix !== '29' ||
           ipv4(insideAddress) % 8 !== 0
         )
@@ -7217,8 +7294,8 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
           const session = object7(item);
           const endpoint = String(session.TransitGatewayAddress);
           if (
-            isIP7(endpoint) !== 4 ||
-            isIP7(String(session.PeerAddress)) !== 4 ||
+            isIP8(endpoint) !== 4 ||
+            isIP8(String(session.PeerAddress)) !== 4 ||
             addresses.has(endpoint) ||
             session.TransitGatewayAsn !== plan.routing.transitGatewayAsn ||
             session.PeerAsn !== plan.routing.customerAsn ||
@@ -7284,7 +7361,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
             !/^tgw-rtb-[0-9a-f]{8,21}$/.test(tableId ?? '') || !/^tgw-attach-[0-9a-f]{8,21}$/.test(attachmentId ?? ''),
         ) ||
         routes.some(
-          ({ destination }) => !destination || (isIP7(destination.split('/')[0]) === 0 && destination !== '0.0.0.0/0'),
+          ({ destination }) => !destination || (isIP8(destination.split('/')[0]) === 0 && destination !== '0.0.0.0/0'),
         )
       )
         throw new Error('Missing planned TGW route identities');
@@ -7426,7 +7503,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         ? (plan.intent.ingress.listener.privateAddresses ??
           Array.from({ length: plan.topology.nodeCount }, (_, index) => values[`__NODE_${index + 1}_SLI_IP__`]))
         : Array.from({ length: plan.topology.nodeCount }, (_, index) => values[`__NODE_${index + 1}_SLI_IP__`]);
-    if (expected.some((address) => isIP7(address ?? '') !== 4) || new Set(expected).size !== expected.length)
+    if (expected.some((address) => isIP8(address ?? '') !== 4) || new Set(expected).size !== expected.length)
       throw new Error('Missing target identities');
     const raw = await read(api, ['elbv2', 'describe-target-health', '--target-group-arn', arn], plan.region);
     if (!Array.isArray(raw.TargetHealthDescriptions) || raw.TargetHealthDescriptions.length !== expected.length)
@@ -9190,6 +9267,9 @@ async function assertGate(action, runtime, plan, checkpoint, persist, storage, i
               node: `${plan.deploymentName}-${node}`,
               role: item.role,
               mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+              ...(awsCeStaticIp(plan.intent, node, item.index)
+                ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+                : {}),
             })),
           ),
           signal,
@@ -9201,6 +9281,9 @@ async function assertGate(action, runtime, plan, checkpoint, persist, storage, i
             node: `${plan.deploymentName}-${node}`,
             role: item.role,
             mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+            ...(awsCeStaticIp(plan.intent, node, item.index)
+              ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+              : {}),
             mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
           })),
         );
@@ -9364,11 +9447,9 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
     destructionAuthorized: authorized && existing?.authorization?.destruction,
   });
   api = scopedAwsApi(api, plan.intent.awsProfile, signal);
-  if (
-    plan.intent.operation === 'deploy' &&
-    plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
-  )
+  if (plan.intent.operation === 'deploy' && plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');
+  if (plan.intent.operation === 'deploy') validateAwsCeAddressing(plan.intent);
   const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
   const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
   if (siteBindings(plan).some(({ site }) => site.nodeIndexes.length === 3)) runtime.requireAwsHaContract();
@@ -9578,13 +9659,13 @@ ${plan.planSha256}`,
           if (!selected) throw new Error('Bootstrap node has no site binding');
           const { site, binding } = selected;
           const hostname = `${plan.deploymentName}-${action.node}`;
-          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
+          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
             throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
           const siteCheckpoint = async (record) => {
             checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
             await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
           };
-          if (site.nodeIndexes.length === 3) {
+          if (site.nodeIndexes.length === 3 || plan.interfaces.some((item) => item.addressing.mode === 'static')) {
             const position = site.nodeIndexes.indexOf(action.node);
             const previous = site.nodeIndexes[position - 1];
             if (previous !== undefined) {
@@ -9598,7 +9679,7 @@ ${plan.planSha256}`,
               {
                 schemaVersion: 2,
                 provider: 'aws',
-                haMode: 'three-node',
+                haMode: site.nodeIndexes.length === 3 ? 'three-node' : 'one-node',
                 nodes: site.nodeIndexes.map((node) => ({
                   hostname: `${plan.deploymentName}-${node}`,
                   interfaces: plan.interfaces.map((item) => ({
@@ -9610,7 +9691,9 @@ ${plan.planSha256}`,
                     },
                     network_option:
                       item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
-                    dhcp_client: {},
+                    ...(awsCeStaticIp(plan.intent, node, item.index)
+                      ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
+                      : { dhcp_client: {} }),
                   })),
                 })),
                 settings: {},
@@ -9684,6 +9767,16 @@ ${plan.planSha256}`,
             raw = JSON.parse(result.stdout);
           } catch {
             throw new Error(`AWS action ${action.id} returned invalid capture JSON`);
+          }
+          if (action.kind === 'eni-create' && action.node) {
+            const item = plan.interfaces.find((item) =>
+              action.captures?.some((capture) => capture.placeholder === `__ENI_${action.node}_${item.index}_MAC__`),
+            );
+            if (!item) throw new Error('ENI response has no planned interface binding');
+            const selected = awsCeStaticIp(plan.intent, action.node, item.index);
+            const eni = raw.NetworkInterface;
+            if (selected && eni?.PrivateIpAddress !== selected.ip_address.split('/')[0])
+              throw new Error('Allocated static primary address differs from the plan');
           }
           for (const capture of [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])]) {
             const value = valueAtPath(raw, capture.path);
@@ -9793,6 +9886,7 @@ var init_apply = __esm(() => {
   init_create_recovery();
   init_delete_recovery();
   init_discovery();
+  init_interface_addressing();
   init_native_routing_checkpoint();
   init_native_site_replacement();
   init_network_health();
@@ -9818,8 +9912,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
   const intent = plan.intent;
   if (intent.vpc.mode !== 'greenfield' || intent.egress.mode !== 'elastic-ip')
     throw new Error('Terraform foundation currently requires greenfield VPC and Elastic IP egress');
-  if (intent.interfaces.some((item) => item.addressing.mode !== 'dhcp'))
-    throw new Error('Terraform foundation static addressing requires explicit translation');
+  validateAwsCeAddressing(intent);
   const keys = Object.keys(bootstrapByNode);
   if (keys.some((key) => !/^[1-3]$/.test(key) || Number(key) > intent.topology.nodeCount))
     throw new Error('Invalid Terraform node admission');
@@ -9906,7 +9999,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
         cidr_block: subnet.cidr,
         tags: tags(node, item.index),
       });
-      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
+      const privateAddresses = awsCeInterfacePrivateAddresses(intent, node, item.index);
       add('aws_network_interface', name, {
         subnet_id: ref(`aws_subnet.${name}.id`),
         security_groups: interfaceSecurityGroups(intent, item.index).map((name) =>
@@ -10090,6 +10183,7 @@ async function awsTerraformFoundationDeployment(plan, bootstrapByNode = {}) {
 var ref = (address) => `\${${address}}`,
   literal;
 var init_terraform_foundation = __esm(() => {
+  init_interface_addressing();
   init_static_routing();
   init_artifacts();
   init_planner();
@@ -10473,7 +10567,7 @@ var init_terraform_connect_stage = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-identities.ts
-import { isIP as isIP8 } from 'node:net';
+import { isIP as isIP9 } from 'node:net';
 
 async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
   if (plan.engine !== 'terraform') throw new Error('Terraform interface discovery requires Terraform ownership');
@@ -10546,6 +10640,7 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
       'xcsh-interface-index': String(item.index),
     };
     const mac = typeof eni.MacAddress === 'string' ? eni.MacAddress.toLowerCase() : '';
+    const staticIp = awsCeStaticIp(plan.intent, node, item.index)?.ip_address.split('/')[0];
     if (
       eni.OwnerId !== plan.accountId ||
       eni.VpcId !== outputs.ce_vpc_id ||
@@ -10558,8 +10653,9 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
       typeof candidate.mac !== 'string' ||
       mac !== candidate.mac.toLowerCase() ||
       typeof eni.PrivateIpAddress !== 'string' ||
-      isIP8(eni.PrivateIpAddress) !== 4 ||
+      isIP9(eni.PrivateIpAddress) !== 4 ||
       eni.PrivateIpAddress !== candidate.private_ip ||
+      (staticIp !== undefined && eni.PrivateIpAddress !== staticIp) ||
       Object.entries(expectedTags).some(
         ([key, value]) =>
           tags.filter((tag) => tag.Key === key && tag.Value === value).length !== 1 ||
@@ -10581,7 +10677,9 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
   };
 }
 var object11 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
-var init_terraform_identities = () => {};
+var init_terraform_identities = __esm(() => {
+  init_interface_addressing();
+});
 
 // plugins/aws/src/ce/terraform-replacement-stages.ts
 import { createHash as createHash6 } from 'node:crypto';
@@ -11716,8 +11814,9 @@ import { createHash as createHash8 } from 'node:crypto';
 async function admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal, haSerialDelayMs = 180000) {
   verifyAwsCePlan(plan);
   const initial = renderAwsTerraformFoundation(plan);
-  if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
-    throw new Error('Terraform admission requires supported SLO/SLI DHCP mapping');
+  if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
+    throw new Error('Terraform admission requires supported SLO/SLI mapping');
+  validateAwsCeAddressing(plan.intent);
   let checkpoint;
   try {
     checkpoint = await storage.read('terraform-admission.json');
@@ -11780,13 +11879,13 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
     const outputs = await readOutputs();
     const discoveredBeforeLaunch = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
     if (!checkpoint.admittedSites.includes(site.name)) {
-      if (site.nodeIndexes.length === 3)
+      if (site.nodeIndexes.length === 3 || plan.intent.interfaces.some((item) => item.addressing.mode === 'static'))
         await runtime.ensureSite(
           binding,
           {
             schemaVersion: 2,
             provider: 'aws',
-            haMode: 'three-node',
+            haMode: site.nodeIndexes.length === 3 ? 'three-node' : 'one-node',
             nodes: site.nodeIndexes.map((node) => ({
               hostname: `${plan.deploymentName}-${node}`,
               interfaces: plan.intent.interfaces.map((item) => ({
@@ -11797,7 +11896,9 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
                   mac: discoveredBeforeLaunch.bindings[`__ENI_${node}_${item.index}_MAC__`],
                 },
                 network_option: item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
-                dhcp_client: {},
+                ...(awsCeStaticIp(plan.intent, node, item.index)
+                  ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
+                  : { dhcp_client: {} }),
               })),
             })),
             settings: {},
@@ -11884,6 +11985,9 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
           node: `${plan.deploymentName}-${node}`,
           role: item.role,
           mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+          ...(awsCeStaticIp(plan.intent, node, item.index)
+            ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+            : {}),
         })),
       ),
       signal,
@@ -11897,6 +12001,9 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
             node: `${plan.deploymentName}-${node}`,
             role: item.role,
             mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+            ...(awsCeStaticIp(plan.intent, node, item.index)
+              ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+              : {}),
             mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
           })),
         ),
@@ -11942,6 +12049,7 @@ var hash3 = (value) => createHash8('sha256').update(value).digest('hex'),
   };
 var init_terraform_admission = __esm(() => {
   init_artifacts();
+  init_interface_addressing();
   init_terraform_foundation();
   init_terraform_identities();
   init_types2();
