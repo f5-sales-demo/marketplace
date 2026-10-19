@@ -1,0 +1,123 @@
+{
+  "provenance": {
+    "source": "Sanitized current AWS three-site HTTP listener GET",
+    "rawResponseSha256": "7505b389d4fbe992137c734b1d9e46259dcbdaf415ead62714903a653395cb6a",
+    "schemaRelease": "v6.1.2",
+    "scope": "Response projection only; no traffic or cloud parity claim"
+  },
+  "spec": {
+    "domains": ["ce.example.invalid"],
+    "http": {
+      "dns_volterra_managed": false,
+      "port": 80
+    },
+    "downstream_tls_certificate_expiration_timestamps": [],
+    "advertise_custom": {
+      "advertise_where": [
+        {
+          "site": {
+            "network": "SITE_NETWORK_INSIDE",
+            "site": {
+              "tenant": "example-corp",
+              "namespace": "system",
+              "name": "ce-site-1"
+            },
+            "ip": "10.20.1.10",
+            "ipv6": ""
+          },
+          "use_default_port": {}
+        },
+        {
+          "site": {
+            "network": "SITE_NETWORK_INSIDE",
+            "site": {
+              "tenant": "example-corp",
+              "namespace": "system",
+              "name": "ce-site-2"
+            },
+            "ip": "10.20.2.10",
+            "ipv6": ""
+          },
+          "use_default_port": {}
+        },
+        {
+          "site": {
+            "network": "SITE_NETWORK_INSIDE",
+            "site": {
+              "tenant": "example-corp",
+              "namespace": "system",
+              "name": "ce-site-3"
+            },
+            "ip": "10.20.3.10",
+            "ipv6": ""
+          },
+          "use_default_port": {}
+        }
+      ]
+    },
+    "default_route_pools": [
+      {
+        "pool": {
+          "tenant": "example-corp",
+          "namespace": "default",
+          "name": "ce-origin"
+        },
+        "weight": 1,
+        "priority": 1,
+        "endpoint_subsets": {}
+      }
+    ],
+    "origin_server_subset_rule_list": null,
+    "routes": [],
+    "cors_policy": null,
+    "disable_waf": {},
+    "add_location": false,
+    "no_challenge": {},
+    "more_option": null,
+    "user_id_client_ip": {},
+    "api_rate_limit_legacy": null,
+    "disable_rate_limit": {},
+    "malicious_user_mitigation": null,
+    "waf_exclusion_rules": [],
+    "waf_exclusion": null,
+    "data_guard_rules": [],
+    "blocked_clients": [],
+    "trusted_clients": [],
+    "api_protection_rules": null,
+    "ddos_mitigation_rules": [],
+    "l7_ddos_protection": {
+      "mitigation_block": {},
+      "default_rps_threshold": {},
+      "clientside_action_none": {},
+      "ddos_policy_none": {}
+    },
+    "service_policies_from_namespace": {},
+    "round_robin": {},
+    "disable_trust_client_ip_headers": {},
+    "disable_malicious_user_detection": {},
+    "disable_api_discovery": {},
+    "default_sensitive_data_policy": {},
+    "disable_api_testing": {},
+    "disable_api_definition": {},
+    "csrf_policy": null,
+    "graphql_rules": [],
+    "protected_cookies": [],
+    "host_name": "",
+    "dns_info": [],
+    "state": "VIRTUAL_HOST_READY",
+    "auto_cert_info": {
+      "auto_cert_state": "AutoCertNotApplicable",
+      "auto_cert_expiry": null,
+      "auto_cert_subject": "",
+      "auto_cert_issuer": "",
+      "dns_records": [],
+      "state_start_time": null
+    },
+    "internet_vip_info": [],
+    "jwt_validation": null,
+    "disable_threat_mesh": {},
+    "cert_state": "AutoCertNotApplicable",
+    "sensitive_data_disclosure_rules": null,
+    "disable_malware_protection": {}
+  }
+}

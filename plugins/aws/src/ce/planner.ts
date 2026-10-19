@@ -1,12 +1,29 @@
+import { isIP } from 'node:net';
+import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
+import { XCSH_PROVIDER_LOCK_SHA256, XCSH_PROVIDER_VERSION } from '../../../terraform/src/provider-lock';
 import { canonicalSha256, fingerprintObservation } from './canonical';
+import { prepareRecoverableAction } from './create-recovery';
+import {
+  AWS_CE_PROVIDER_LOCK_SHA256,
+  AWS_CE_TERRAFORM_PROVIDER_VERSION,
+  AWS_CE_TERRAFORM_VERSION,
+  assertAwsWholeSitePowerSupported,
+} from './execution-contract';
+import { nlbSettings } from './ingress-settings';
+import { interfaceSecurityGroups } from './interface-security';
+import { routeNode, staticAzRoutes } from './static-routing';
+import { siteForNode, siteTopology } from './topology';
+import { observedConnectCidrs } from './transport-routes';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
 import {
+  AWS_CE_DEFAULT_INTERFACE_MTU,
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
   AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
   AWS_CE_SCHEMA_VERSION,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
+  AWS_CE_TGW_GUIDE_URL,
 } from './types';
 
 const ACCOUNT = /^\d{12}$/;
@@ -16,7 +33,7 @@ const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const AMI = /^ami-[0-9a-f]{8,17}$/;
 const DEVICE_NAME = /^\/dev\/[a-zA-Z0-9._-]{1,32}$/;
 const AWS_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 
 function fail(message: string): never {
   throw new Error(`AWS CE plan validation failed: ${message}`);
@@ -50,6 +67,32 @@ function cidr(value: string, label: string): string {
   return normalized;
 }
 
+function ipv4Number(value: string): number {
+  if (isIP(value) !== 4) fail('listener service address must be IPv4');
+  return value.split('.').reduce((result, octet) => result * 256 + Number(octet), 0);
+}
+
+function cidrHost(value: string, offset: number): string {
+  const [address, length] = value.split('/');
+  const prefix = Number(length);
+  if (isIP(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
+    fail('NLB SLI subnet must be an IPv4 /16 through /28');
+  const size = 2 ** (32 - prefix);
+  const network = Math.floor(ipv4Number(address) / size) * size;
+  const result = network + offset;
+  return [24, 16, 8, 0].map((shift) => Math.floor(result / 2 ** shift) % 256).join('.');
+}
+
+function usableSubnetAddress(address: string, subnet: string): boolean {
+  const [base, length] = subnet.split('/');
+  const prefix = Number(length);
+  if (isIP(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
+  const size = 2 ** (32 - prefix);
+  const network = Math.floor(ipv4Number(base) / size) * size;
+  const value = ipv4Number(address);
+  return value >= network + 4 && value < network + size - 1;
+}
+
 function asn(value: number | undefined, label: string): number {
   if (value === undefined || !Number.isInteger(value) || value < 1 || value > 4_294_967_294)
     fail(`${label} must be a valid ASN`);
@@ -64,9 +107,39 @@ function tgwInsideNetwork(value: string): number {
   if (third > 255 || fourth > 255 || fourth % 8 !== 0)
     fail('TGW Connect inside CIDR must be a valid /29 network boundary');
   const network = third * 256 + fourth;
-  // AWS reserves the first five /29s plus the EC2 instance metadata /29.
-  if (new Set([0, 8, 16, 24, 32, 43_512]).has(network)) fail('TGW Connect inside CIDR is reserved by AWS');
+  // AWS reserves .0.0/29 through .5.0/29 and the EC2 metadata /29.
+  if (new Set([0, 256, 512, 768, 1024, 1280, 43_512]).has(network)) fail('TGW Connect inside CIDR is reserved by AWS');
   return network;
+}
+
+function connectAttachmentCount(intent: AwsCeIntent): number {
+  if (intent.routing.profile !== 'tgw-connect') return 0;
+  const roles =
+    intent.routing.connectPeers?.map((peer) => peer.transportInterfaceIndex) ??
+    (intent.routing.insideCidrs ?? []).map(() => 0);
+  return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
+}
+
+/** Ordered ENI addresses: transport primary first, site listener alias second. */
+export function awsCeNlbInterfacePrivateAddresses(intent: AwsCeIntent, node: number, interfaceIndex: number): string[] {
+  const item = intent.interfaces.find((item) => item.index === interfaceIndex);
+  if (!item) fail('NLB interface binding is missing');
+  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return [];
+  const siteIndex = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
+  const listener = siteIndex < 0 ? undefined : intent.ingress.listener.privateAddresses?.[siteIndex];
+  const subnet = item.subnets[node - 1]?.cidr;
+  if (!listener || !subnet) fail('NLB SLI subnet or site listener binding is missing');
+  const primary = cidrHost(subnet, 5);
+  if (!usableSubnetAddress(listener, subnet) || listener === primary)
+    fail('NLB site listener must be a distinct usable SLI subnet address');
+  return [primary, listener];
+}
+
+export function awsCeNlbIngress(
+  intent: AwsCeIntent,
+): { port: number; scheme: 'internal' | 'internet-facing' } | undefined {
+  if (intent.ingress?.mode === 'nlb') return { port: intent.ingress.port, scheme: intent.ingress.scheme };
+  return intent.routing.profile === 'nlb-ingress' ? { port: 443, scheme: 'internet-facing' } : undefined;
 }
 
 function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
@@ -76,11 +149,17 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (!REGION.test(input.region)) fail('region is invalid');
   if (!['aws', 'aws-us-gov', 'aws-cn'].includes(input.partition)) fail('partition is invalid');
   if (!regionMatchesPartition(input.region, input.partition)) fail('region does not match partition');
+  const engine = input.engine ?? 'native';
+  if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
+  staticAzRoutes(input);
+
   const deploymentName = name(input.deploymentName, 'deploymentName');
   const siteName = name(input.siteName, 'siteName');
+  if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
   const namespace = name(input.namespace, 'namespace');
   if (input.topology.nodeCount !== 1 && input.topology.nodeCount !== 3)
     fail('topology must contain one or three nodes');
+  const sites = siteTopology(input);
   if (!Array.isArray(input.interfaces) || input.interfaces.length < 1 || input.interfaces.length > 8)
     fail('interfaces must contain between 1 and 8 entries');
   if (input.interfaces.some((item, index) => item.index !== index)) fail('interfaces must be ordered and zero-based');
@@ -92,6 +171,12 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   const interfaces = input.interfaces.map((item, index) => {
     if (!['slo', 'sli', 'management', 'service', 'workload'].includes(item.role))
       fail(`interface ${index} role is invalid`);
+    const mtu = item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU;
+    const guestDevice =
+      item.guestDevice === undefined ? undefined : safeString(item.guestDevice, `interfaces[${index}].guestDevice`);
+    if (guestDevice !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(guestDevice))
+      fail('interface guest device identity is invalid');
+    if (!Number.isInteger(mtu) || mtu < 1500 || mtu > 9000) fail('interface MTU must be an integer from 1500 to 9000');
     const vrf = name(item.vrf, `interfaces[${index}].vrf`);
     if (item.subnets.length !== input.topology.nodeCount) fail('interfaces must be symmetric across every node');
     const subnets = item.subnets.map((subnet, node) => {
@@ -115,6 +200,13 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     return {
       index,
       role: item.role,
+      ...(input.operation === 'deploy'
+        ? { securityGroupNames: interfaceSecurityGroups(input, index) }
+        : item.securityGroupNames
+          ? { securityGroupNames: [...item.securityGroupNames].sort() }
+          : {}),
+      mtu,
+      ...(guestDevice === undefined ? {} : { guestDevice }),
       vrf,
       subnets,
       addressing: {
@@ -125,6 +217,12 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       },
     };
   });
+  if (
+    sites.some((site) => site.nodeIndexes.length === 3) &&
+    (interfaces.some((item) => !item.guestDevice) ||
+      new Set(interfaces.map((item) => item.guestDevice)).size !== interfaces.length)
+  )
+    fail('Three-node HA requires distinct verified guest device identities for every interface');
   if (input.vpc.mode === 'brownfield' && !/^vpc-[0-9a-f]{8,17}$/.test(input.vpc.vpcId ?? ''))
     fail('brownfield VPC requires an exact VPC ID');
   if (input.vpc.mode === 'brownfield') {
@@ -175,6 +273,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   const routes = input.routes.map((route) => ({
     routeTableId: route.routeTableId,
     destinationCidr: cidr(route.destinationCidr, 'routes.destinationCidr'),
+    node: routeNode(input, route),
+    ...(route.availabilityZone ? { availabilityZone: route.availabilityZone } : {}),
   }));
   if (input.routing.profile.startsWith('tgw-')) {
     if (!/^tgw-[0-9a-f]{8,17}$/.test(input.routing.transitGatewayId ?? ''))
@@ -201,22 +301,153 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     }
     if (input.topology.nodeCount !== 3) fail('TGW Connect requires three-zone symmetry');
     if (input.interfaces.length < 2) fail('TGW Connect requires an SLI interface');
-    if (input.routing.insideCidrs?.length !== 3)
-      fail('TGW Connect requires one deterministic 169.254.0.0/16 /29 inside CIDR per node');
-    const insideNetworks = input.routing.insideCidrs.map(tgwInsideNetwork);
+    if (input.routing.connectPeers && input.routing.insideCidrs)
+      fail('Select explicit Connect peers or legacy inside CIDRs, not both');
+    const peers =
+      input.routing.connectPeers ??
+      input.routing.insideCidrs?.map((insideCidr, index) => ({
+        node: index + 1,
+        insideCidr,
+        transportInterfaceIndex: 0,
+      }));
+    if (!peers?.length || peers.length > 12) fail('TGW Connect requires explicit peers or one inside CIDR per node');
+    const counts = new Map<number, number>();
+    const endpoints = new Set<string>();
+    for (const peer of peers) {
+      const transportRole = input.interfaces.find((item) => item.index === peer.transportInterfaceIndex)?.role;
+      if (
+        !Number.isInteger(peer.node) ||
+        peer.node < 1 ||
+        peer.node > input.topology.nodeCount ||
+        !transportRole ||
+        (input.operation === 'deploy' && !['slo', 'sli'].includes(transportRole))
+      )
+        fail(
+          input.operation === 'deploy'
+            ? 'Connect peer must select a real node and an SLO or SLI GRE transport interface'
+            : 'Connect peer teardown must retain its observed transport interface',
+        );
+      counts.set(peer.node, (counts.get(peer.node) ?? 0) + 1);
+      if ('transitGatewayAddress' in peer && peer.transitGatewayAddress !== undefined) {
+        if (
+          typeof peer.transitGatewayAddress !== 'string' ||
+          isIP(peer.transitGatewayAddress) !== 4 ||
+          endpoints.has(peer.transitGatewayAddress)
+        )
+          fail('GRE transit gateway endpoints must be unique IPv4 addresses');
+        endpoints.add(peer.transitGatewayAddress);
+      }
+    }
+    if (counts.size !== input.topology.nodeCount || new Set(counts.values()).size !== 1)
+      fail('Connect topology requires equal peer counts on every node');
+    const insideNetworks = peers.map((peer) => tgwInsideNetwork(peer.insideCidr));
     if (new Set(insideNetworks).size !== insideNetworks.length)
       fail('TGW Connect inside CIDRs must be non-overlapping');
   }
   if (input.routing.profile === 'nlb-ingress') {
+    if (input.ingress !== undefined) fail('Legacy NLB routing profile cannot be combined with explicit ingress');
     if (input.topology.nodeCount !== 3) fail('NLB ingress requires a three-node, three-zone topology');
     if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
+  }
+  if (input.ingress !== undefined) {
+    const ingressKeys = Object.keys(input.ingress)
+      .filter((key) => !['targetInterfaceIndex', 'healthCheck'].includes(key))
+      .sort()
+      .join(',');
+    if (
+      (input.ingress.mode === 'none' && ingressKeys !== 'mode') ||
+      (input.ingress.mode === 'nlb' &&
+        ingressKeys !== 'listener,loadBalancer,mode,port,probe,scheme' &&
+        !(input.operation === 'teardown' && ingressKeys === 'listener,mode,port,probe,scheme'))
+    )
+      fail('Ingress fields differ from the selected mode');
+    if (
+      input.ingress.mode === 'nlb' &&
+      (input.ingress.scheme !== 'internal' ||
+        !Number.isInteger(input.ingress.port) ||
+        input.ingress.port < 1 ||
+        input.ingress.port > 65535)
+    )
+      fail('Explicit NLB ingress requires an internal scheme and a valid TCP port');
+    if (!['none', 'nlb'].includes(input.ingress.mode)) fail('Ingress mode is invalid');
+    if (input.ingress.mode === 'nlb' && input.topology.nodeCount !== 3)
+      fail('NLB ingress requires a three-node, three-zone topology');
+    if (input.ingress.mode === 'nlb' && sites.some((site) => site.nodeIndexes.length !== 1))
+      fail('NLB ingress requires three independent one-node sites');
+    if (input.ingress.mode === 'nlb' && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
+      fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
+    if (input.ingress.mode === 'nlb') {
+      nlbSettings(input);
+      const listener = input.ingress.listener;
+      const loadBalancer = input.ingress.loadBalancer;
+      const probe = input.ingress.probe;
+      const listenerKeys = Object.keys(listener ?? {})
+        .sort()
+        .join(',');
+      const legacyTeardownListener =
+        input.operation === 'teardown' && listenerKeys === 'domain,name,namespace,originPool';
+      const domain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+      if (
+        !listener ||
+        (input.operation !== 'teardown' &&
+          (!loadBalancer ||
+            Object.keys(loadBalancer).sort().join(',') !== 'privateAddresses,subnetIds,vpcId' ||
+            !/^vpc-[0-9a-f]{8,17}$/.test(loadBalancer.vpcId) ||
+            !input.brownfield.resourceIds.includes(loadBalancer.vpcId) ||
+            !Array.isArray(loadBalancer.subnetIds) ||
+            loadBalancer.subnetIds.length < 1 ||
+            loadBalancer.subnetIds.some(
+              (id) => !/^subnet-[0-9a-f]{8,17}$/.test(id) || !input.brownfield.resourceIds.includes(id),
+            ) ||
+            !Array.isArray(loadBalancer.privateAddresses) ||
+            loadBalancer.privateAddresses.length !== loadBalancer.subnetIds.length ||
+            loadBalancer.privateAddresses.some((address) => isIP(address) !== 4))) ||
+        (listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
+        Object.keys(listener.originPool ?? {})
+          .sort()
+          .join(',') !== 'name,namespace' ||
+        name(listener.name, 'ingress.listener.name') !== listener.name ||
+        name(listener.namespace, 'ingress.listener.namespace') !== listener.namespace ||
+        name(listener.originPool.name, 'ingress.listener.originPool.name') !== listener.originPool.name ||
+        name(listener.originPool.namespace, 'ingress.listener.originPool.namespace') !==
+          listener.originPool.namespace ||
+        listener.originPool.namespace !== listener.namespace ||
+        (input.operation !== 'teardown' &&
+          (!Array.isArray(listener.privateAddresses) ||
+            listener.privateAddresses.length !== sites.length ||
+            new Set(listener.privateAddresses).size !== listener.privateAddresses.length ||
+            sites.some((site, index) => {
+              const node = site.nodeIndexes[0];
+              const subnet = input.interfaces.find((item) => item.role === 'sli')?.subnets[node - 1]?.cidr;
+              return (
+                !subnet ||
+                !usableSubnetAddress(listener.privateAddresses?.[index] ?? '', subnet) ||
+                listener.privateAddresses?.[index] === cidrHost(subnet, 5)
+              );
+            }))) ||
+        typeof listener.domain !== 'string' ||
+        listener.domain.length > 253 ||
+        !domain.test(listener.domain) ||
+        !probe ||
+        Object.keys(probe).sort().join(',') !== 'expectedBodySha256,expectedStatus,path,sourceInstanceId' ||
+        !/^i-[0-9a-f]{8,17}$/.test(probe.sourceInstanceId) ||
+        !input.brownfield.resourceIds.includes(probe.sourceInstanceId) ||
+        !/^\/[A-Za-z0-9._~/-]{0,512}$/.test(probe.path) ||
+        !Number.isInteger(probe.expectedStatus) ||
+        probe.expectedStatus < 100 ||
+        probe.expectedStatus > 599 ||
+        !/^[a-f0-9]{64}$/.test(probe.expectedBodySha256)
+      )
+        fail('NLB ingress requires exact listener and allowlisted traffic-probe identities');
+    }
   }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])
     if (!input.brownfield.transitGatewayRouteTableIds.includes(routeTableId))
       fail('TGW association or propagation is outside the explicit route-table allowlist');
   return {
     ...input,
+    engine,
     deploymentName,
     siteName,
     namespace,
@@ -224,13 +455,21 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       ...input.instance,
       diskGiB: upgradeSafeDiskGiB,
     },
+    topology: { nodeCount: input.topology.nodeCount, sites },
     interfaces,
     routing: {
       ...input.routing,
+      ...(input.routing.staticAzRoutes ? { staticAzRoutes: staticAzRoutes(input) } : {}),
       destinationCidrs,
       associations: [...new Set(input.routing.associations)].sort(),
       propagations: [...new Set(input.routing.propagations)].sort(),
     },
+    ingress:
+      input.ingress === undefined
+        ? undefined
+        : input.ingress.mode === 'nlb'
+          ? { ...structuredClone(input.ingress), ...nlbSettings(input) }
+          : structuredClone(input.ingress),
     securityGroups: [...input.securityGroups]
       .map((group) => ({
         ...group,
@@ -238,6 +477,11 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         ingress: group.ingress.map((rule) => normalizeSecurityGroupRule(rule)),
         egress: group.egress.map((rule) => normalizeSecurityGroupRule(rule)),
       }))
+      .map((group, index) =>
+        sites.some((site) => site.nodeIndexes.length === 3) && !group.ingress.some((rule) => rule.self)
+          ? { ...group, ingress: [...group.ingress, { protocol: '-1', cidrs: [], self: true as const }] }
+          : group,
+      )
       .sort((left, right) => left.name.localeCompare(right.name)),
     routes: routes.sort(
       (left, right) =>
@@ -285,8 +529,8 @@ function validateResearch(observation: AwsCeObservation): void {
     fail('live AWS research receipt is required');
   if (
     observation.research.sharedContract?.url !== AWS_CE_SHARED_CONTRACT_URL ||
-    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
-    observation.research.sharedContract.contractVersion !== 'v1' ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation-policy' ||
+    observation.research.sharedContract.contractVersion !== 'v2' ||
     !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
   )
     fail('valid shared Customer Edge automation contract receipt is required');
@@ -302,6 +546,14 @@ function validateResearch(observation: AwsCeObservation): void {
     fail('shared contract digest is inconsistent');
   if (receipts.get(AWS_CE_F5_GUIDE_URL) !== observation.research.f5AwsGuide.normalizedSha256)
     fail('F5 AWS guide digest is inconsistent');
+  const tgwGuide = observation.research.mcnTgwGuide;
+  if (
+    tgwGuide &&
+    (tgwGuide.url !== AWS_CE_TGW_GUIDE_URL ||
+      !/^[a-f0-9]{64}$/.test(tgwGuide.normalizedSha256) ||
+      receipts.get(tgwGuide.url) !== tgwGuide.normalizedSha256)
+  )
+    fail('MCN AWS TGW guide evidence is inconsistent');
   const requiredCommands = [
     'aws sts get-caller-identity',
     'aws ec2 describe-regions --all-regions',
@@ -322,7 +574,7 @@ function validateResearch(observation: AwsCeObservation): void {
 function tags(intent: AwsCeIntent, node?: number, interfaceIndex?: number): string {
   const nodeTag = node === undefined ? '' : `,{Key=xcsh-node-index,Value=${node}}`;
   const interfaceTag = interfaceIndex === undefined ? '' : `,{Key=xcsh-interface-index,Value=${interfaceIndex}}`;
-  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
+  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-execution-engine,Value=${intent.engine}},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${node === undefined ? intent.siteName : siteForNode(intent, node).name}}${nodeTag}${interfaceTag}]`;
 }
 
 function tagSpec(intent: AwsCeIntent, resourceType: string, node?: number, interfaceIndex?: number): string {
@@ -378,6 +630,8 @@ function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], bas
   if (/^sg-/.test(id)) return ['ec2', 'delete-security-group', '--group-id', id, ...base];
   if (/^eipalloc-/.test(id)) return ['ec2', 'release-address', '--allocation-id', id, ...base];
   if (/^eipassoc-/.test(id)) return ['ec2', 'disassociate-address', '--association-id', id, ...base];
+  if (/^igw-/.test(id)) return ['ec2', 'delete-internet-gateway', '--internet-gateway-id', id, ...base];
+  if (/^rtb-/.test(id)) return ['ec2', 'delete-route-table', '--route-table-id', id, ...base];
   if (/^vpc-/.test(id)) return ['ec2', 'delete-vpc', '--vpc-id', id, ...base];
   if (/^tgw-attach-/.test(id))
     return JSON.stringify(resource.state).includes('"ResourceType":"connect"')
@@ -394,16 +648,25 @@ function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], bas
   throw new Error(`AWS CE teardown has no safe deletion driver for owned resource ${id}`);
 }
 
-function deletionPriority(id: string): number {
+function deletionPriority(resource: AwsCeObservation['resources'][number]): number {
+  const { id } = resource;
   if (/listener\//.test(id) || id.startsWith('tgw-connect-peer-')) return 10;
-  if (/targetgroup\//.test(id)) return 20;
-  if (/loadbalancer\//.test(id) || id.startsWith('tgw-attach-')) return 30;
+  if (/loadbalancer\//.test(id)) return 20;
+  if (/targetgroup\//.test(id)) return 30;
+  if (id.startsWith('tgw-attach-')) {
+    const attachments = Array.isArray(resource.state.TransitGatewayAttachments)
+      ? (resource.state.TransitGatewayAttachments as Array<Record<string, unknown>>)
+      : [];
+    return attachments[0]?.ResourceType === 'connect' ? 30 : 35;
+  }
   if (id.startsWith('i-')) return 40;
   if (id.startsWith('eipassoc-')) return 50;
   if (id.startsWith('eipalloc-')) return 60;
   if (id.startsWith('eni-')) return 70;
   if (id.startsWith('sg-')) return 80;
+  if (id.startsWith('rtb-')) return 85;
   if (id.startsWith('subnet-')) return 90;
+  if (id.startsWith('igw-')) return 95;
   if (id.startsWith('vpc-')) return 100;
   return 75;
 }
@@ -583,7 +846,60 @@ function compileActions(
     }
     for (const resource of observation.resources
       .filter((item) => item.owned)
-      .sort((a, b) => deletionPriority(a.id) - deletionPriority(b.id) || a.id.localeCompare(b.id)))
+      .sort((a, b) => deletionPriority(a) - deletionPriority(b) || a.id.localeCompare(b.id))) {
+      if (resource.id.startsWith('rtb-')) {
+        const tables = resource.state.RouteTables as
+          | Array<{ Associations?: Array<{ Main?: boolean; RouteTableAssociationId?: string }> }>
+          | undefined;
+        for (const association of tables?.[0]?.Associations ?? []) {
+          if (association.Main) fail('refusing to delete an owned route table promoted to VPC main');
+          if (!/^rtbassoc-[0-9a-f]{8,21}$/.test(association.RouteTableAssociationId ?? ''))
+            fail('invalid route table association');
+          add({
+            phase: 'teardown',
+            kind: 'route-table-disassociate',
+            description: `Disassociate ${resource.id}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'disassociate-route-table',
+              '--association-id',
+              String(association.RouteTableAssociationId),
+              ...base,
+            ],
+            resourceId: resource.id,
+            mutates: true,
+            destructive: true,
+          });
+        }
+      }
+      if (resource.id.startsWith('igw-')) {
+        const gateways = resource.state.InternetGateways as
+          | Array<{ Attachments?: Array<{ VpcId?: string }> }>
+          | undefined;
+        for (const attachment of gateways?.[0]?.Attachments ?? []) {
+          if (!observation.resources.some((item) => item.id === attachment.VpcId && item.owned))
+            fail('internet gateway attachment is outside the owned deployment');
+          add({
+            phase: 'teardown',
+            kind: 'internet-gateway-detach',
+            description: `Detach ${resource.id}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'detach-internet-gateway',
+              '--internet-gateway-id',
+              resource.id,
+              '--vpc-id',
+              String(attachment.VpcId),
+              ...base,
+            ],
+            resourceId: resource.id,
+            mutates: true,
+            destructive: true,
+          });
+        }
+      }
       add({
         phase: 'teardown',
         kind: 'resource-delete',
@@ -594,31 +910,22 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
+      if (resource.id.startsWith('i-'))
+        add({
+          phase: 'teardown',
+          kind: 'instance-termination-gate',
+          description: `Wait for owned instance ${resource.id} to terminate before deleting its interfaces`,
+          command: 'aws',
+          args: ['ec2', 'wait', 'instance-terminated', '--instance-ids', resource.id, ...base],
+          resourceId: resource.id,
+          mutates: false,
+          destructive: false,
+        });
+    }
     return actions;
   }
+  assertAwsWholeSitePowerSupported(intent);
   const ownedInstances = orderedOwnedInstances(observation, intent.topology.nodeCount);
-  if (intent.operation === 'start' || intent.operation === 'stop') {
-    if (ownedInstances.length !== intent.topology.nodeCount)
-      fail(`${intent.operation} requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);
-    for (const instance of ownedInstances)
-      add({
-        phase: 'nodes',
-        kind: intent.operation === 'start' ? 'instance-start' : 'instance-stop',
-        description: `${intent.operation} ${instance.id}`,
-        command: 'aws',
-        args: [
-          'ec2',
-          intent.operation === 'start' ? 'start-instances' : 'stop-instances',
-          '--instance-ids',
-          instance.id,
-          ...base,
-        ],
-        resourceId: instance.id,
-        mutates: true,
-        destructive: intent.operation === 'stop',
-      });
-    return actions;
-  }
   if (intent.operation === 'resize') {
     if (ownedInstances.length !== intent.topology.nodeCount)
       fail(`resize requires exactly ${intent.topology.nodeCount} observed owned instance(s)`);
@@ -689,7 +996,7 @@ function compileActions(
           mutates: false,
           destructive: false,
         });
-      if (intent.routing.profile === 'nlb-ingress')
+      if (awsCeNlbIngress(intent))
         add({
           phase: 'verify',
           kind: 'nlb-gate',
@@ -737,7 +1044,7 @@ function compileActions(
         destructive: false,
       });
     }
-    if (intent.routing.profile === 'nlb-ingress')
+    if (awsCeNlbIngress(intent))
       add({
         phase: 'verify',
         kind: 'nlb-gate',
@@ -749,7 +1056,7 @@ function compileActions(
       add({
         phase: 'verify',
         kind: 'bgp-gate',
-        description: 'Verify six AWS-managed BGP sessions and learned/advertised routes',
+        description: `Verify ${(intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0) * 2} AWS-managed BGP sessions across ${intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0} Connect peers`,
         mutates: false,
         destructive: false,
       });
@@ -796,7 +1103,7 @@ function compileActions(
           '--destination-cidr-block',
           route.destinationCidr,
           '--network-interface-id',
-          ownedEnis[0][sliIndex].id,
+          ownedEnis[routeNode(intent, route) - 1][sliIndex].id,
           ...base,
         ],
         resourceId: route.routeTableId,
@@ -908,25 +1215,26 @@ function compileActions(
       requiresBootstrap: true,
       capture: { placeholder: `__INSTANCE_${node}_REPLACEMENT__`, path: 'Instances.0.InstanceId' },
     });
-    add({
-      phase: 'nodes',
-      kind: 'source-destination-check-disable',
-      description: `Disable source/destination check for replacement node ${node}`,
-      command: 'aws',
-      args: [
-        'ec2',
-        'modify-instance-attribute',
-        '--instance-id',
-        `__INSTANCE_${node}_REPLACEMENT__`,
-        '--source-dest-check',
-        'Value=false',
-        ...base,
-      ],
-      node,
-      resourceId: `aws://${intent.region}/instance/${intent.deploymentName}-${node}-replacement`,
-      mutates: true,
-      destructive: false,
-    });
+    for (const eni of nodeEnis)
+      add({
+        phase: 'nodes',
+        kind: 'source-destination-check-disable',
+        description: `Disable source/destination check on replacement node ${node} ENI ${eni.id}`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'modify-network-interface-attribute',
+          '--network-interface-id',
+          eni.id,
+          '--source-dest-check',
+          'Value=false',
+          ...base,
+        ],
+        node,
+        resourceId: eni.id,
+        mutates: true,
+        destructive: false,
+      });
     add({
       phase: 'registration',
       kind: 'registration-gate',
@@ -952,7 +1260,7 @@ function compileActions(
         mutates: false,
         destructive: false,
       });
-    if (intent.routing.profile === 'nlb-ingress')
+    if (awsCeNlbIngress(intent))
       add({
         phase: 'verify',
         kind: 'nlb-gate',
@@ -1025,6 +1333,99 @@ function compileActions(
           capture: { placeholder: `__SUBNET_${nodeIndex + 1}_${item.index}__`, path: 'Subnet.SubnetId' },
         });
       }
+  if (intent.vpc.mode === 'greenfield' && intent.egress.mode === 'elastic-ip') {
+    const gateway = `aws://${intent.region}/internet-gateway/${intent.deploymentName}`;
+    const routeTable = `aws://${intent.region}/route-table/${intent.deploymentName}-slo`;
+    add({
+      phase: 'network',
+      kind: 'internet-gateway-create',
+      description: 'Create CE internet gateway',
+      command: 'aws',
+      args: ['ec2', 'create-internet-gateway', '--tag-specifications', tagSpec(intent, 'internet-gateway'), ...base],
+      resourceId: gateway,
+      mutates: true,
+      destructive: false,
+      capture: { placeholder: '__IGW_ID__', path: 'InternetGateway.InternetGatewayId' },
+    });
+    add({
+      phase: 'network',
+      kind: 'internet-gateway-attach',
+      description: 'Attach CE internet gateway',
+      command: 'aws',
+      args: [
+        'ec2',
+        'attach-internet-gateway',
+        '--internet-gateway-id',
+        '__IGW_ID__',
+        '--vpc-id',
+        '__VPC_ID__',
+        ...base,
+      ],
+      resourceId: gateway,
+      mutates: true,
+      destructive: false,
+    });
+    add({
+      phase: 'network',
+      kind: 'route-table-create',
+      description: 'Create dedicated SLO route table',
+      command: 'aws',
+      args: [
+        'ec2',
+        'create-route-table',
+        '--vpc-id',
+        '__VPC_ID__',
+        '--tag-specifications',
+        tagSpec(intent, 'route-table'),
+        ...base,
+      ],
+      resourceId: routeTable,
+      mutates: true,
+      destructive: false,
+      capture: { placeholder: '__SLO_ROUTE_TABLE__', path: 'RouteTable.RouteTableId' },
+    });
+    add({
+      phase: 'network',
+      kind: 'route-create',
+      description: 'Route SLO internet traffic through the CE gateway',
+      command: 'aws',
+      args: [
+        'ec2',
+        'create-route',
+        '--route-table-id',
+        '__SLO_ROUTE_TABLE__',
+        '--destination-cidr-block',
+        '0.0.0.0/0',
+        '--gateway-id',
+        '__IGW_ID__',
+        ...base,
+      ],
+      resourceId: routeTable,
+      mutates: true,
+      destructive: false,
+    });
+    for (let node = 1; node <= intent.topology.nodeCount; node++)
+      add({
+        phase: 'network',
+        kind: 'route-table-associate',
+        description: `Associate node ${node} SLO subnet with internet routing`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'associate-route-table',
+          '--route-table-id',
+          '__SLO_ROUTE_TABLE__',
+          '--subnet-id',
+          `__SUBNET_${node}_0__`,
+          ...base,
+        ],
+        resourceId: routeTable,
+        node,
+        mutates: true,
+        destructive: false,
+        capture: { placeholder: `__SLO_ROUTE_ASSOCIATION_${node}__`, path: 'AssociationId' },
+      });
+  }
   for (const group of intent.securityGroups)
     add({
       phase: 'network',
@@ -1050,6 +1451,15 @@ function compileActions(
       capture: { placeholder: `__SG_${group.name}__`, path: 'GroupId' },
     });
   for (const group of intent.securityGroups)
+    add({
+      phase: 'network',
+      kind: 'security-group-egress-reset',
+      description: `Remove default egress from newly owned security group ${group.name}`,
+      resourceId: `__SG_${group.name}__`,
+      mutates: true,
+      destructive: false,
+    });
+  for (const group of intent.securityGroups)
     for (const direction of ['ingress', 'egress'] as const)
       for (const [ruleIndex, rule] of group[direction].entries()) {
         const permission = {
@@ -1057,6 +1467,7 @@ function compileActions(
           ...(rule.fromPort === undefined ? {} : { FromPort: rule.fromPort }),
           ...(rule.toPort === undefined ? {} : { ToPort: rule.toPort }),
           IpRanges: [...new Set(rule.cidrs)].sort().map((CidrIp) => ({ CidrIp })),
+          ...(rule.self ? { UserIdGroupPairs: [{ GroupId: `__SG_${group.name}__` }] } : {}),
         };
         add({
           phase: 'network',
@@ -1077,9 +1488,9 @@ function compileActions(
           destructive: false,
         });
       }
-  const securityGroupIds = intent.securityGroups.map((group) => `__SG_${group.name}__`);
   for (let node = 1; node <= intent.topology.nodeCount; node++) {
-    for (const item of intent.interfaces)
+    for (const item of intent.interfaces) {
+      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
       add({
         phase: 'network',
         kind: 'eni-create',
@@ -1092,7 +1503,13 @@ function compileActions(
           item.subnets[node - 1].subnetId ?? `__SUBNET_${node}_${item.index}__`,
           '--description',
           `${intent.deploymentName} node ${node} ${item.role}`,
-          ...(securityGroupIds.length ? ['--groups', ...securityGroupIds] : []),
+          ...(privateAddresses.length
+            ? [
+                '--private-ip-addresses',
+                ...privateAddresses.map((address, index) => `PrivateIpAddress=${address},Primary=${index === 0}`),
+              ]
+            : []),
+          ...['--groups', ...interfaceSecurityGroups(intent, item.index).map((name) => `__SG_${name}__`)],
           '--tag-specifications',
           tagSpec(intent, 'network-interface', node, item.index),
           ...base,
@@ -1103,9 +1520,11 @@ function compileActions(
         destructive: false,
         captures: [
           { placeholder: `__ENI_${node}_${item.index}__`, path: 'NetworkInterface.NetworkInterfaceId' },
+          { placeholder: `__ENI_${node}_${item.index}_MAC__`, path: 'NetworkInterface.MacAddress' },
           { placeholder: `__NODE_${node}_${item.role.toUpperCase()}_IP__`, path: 'NetworkInterface.PrivateIpAddress' },
         ],
       });
+    }
     if (intent.egress.mode === 'elastic-ip')
       add({
         phase: 'network',
@@ -1184,25 +1603,26 @@ function compileActions(
         destructive: false,
         capture: { placeholder: `__EIP_ASSOC_${node}__`, path: 'AssociationId' },
       });
-    add({
-      phase: 'nodes',
-      kind: 'source-destination-check-disable',
-      description: `Disable source/destination check for node ${node}`,
-      command: 'aws',
-      args: [
-        'ec2',
-        'modify-instance-attribute',
-        '--instance-id',
-        `__INSTANCE_${node}__`,
-        '--source-dest-check',
-        'Value=false',
-        ...base,
-      ],
-      node,
-      resourceId: `aws://${intent.region}/instance/${intent.deploymentName}-${node}`,
-      mutates: true,
-      destructive: false,
-    });
+    for (const iface of intent.interfaces)
+      add({
+        phase: 'nodes',
+        kind: 'source-destination-check-disable',
+        description: `Disable source/destination check on node ${node} ${iface.role} ENI`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'modify-network-interface-attribute',
+          '--network-interface-id',
+          `__ENI_${node}_${iface.index}__`,
+          '--source-dest-check',
+          'Value=false',
+          ...base,
+        ],
+        node,
+        resourceId: `aws://${intent.region}/eni/${intent.deploymentName}-${node}-${iface.index}`,
+        mutates: true,
+        destructive: false,
+      });
     add({
       phase: 'registration',
       kind: 'registration-gate',
@@ -1242,10 +1662,13 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
-  if (intent.routing.profile === 'nlb-ingress') {
-    const subnetIds = intent.interfaces[0].subnets.map(
-      (subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_0__`,
-    );
+  const nlbIngress = awsCeNlbIngress(intent);
+  const check = nlbIngress ? nlbSettings(intent).healthCheck : undefined;
+  if (nlbIngress) {
+    const subnetIds =
+      intent.ingress?.mode === 'nlb'
+        ? intent.ingress.loadBalancer.subnetIds
+        : intent.interfaces[0].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_0__`);
     add({
       phase: 'routing',
       kind: 'nlb-create',
@@ -1258,10 +1681,19 @@ function compileActions(
         `${intent.deploymentName}-nlb`,
         '--type',
         'network',
-        '--subnets',
-        ...subnetIds,
+        ...(nlbIngress.scheme === 'internal' ? ['--scheme', 'internal'] : []),
+        ...(intent.ingress?.mode === 'nlb'
+          ? [
+              '--subnet-mappings',
+              ...subnetIds.map(
+                (subnetId, index) =>
+                  `SubnetId=${subnetId},PrivateIPv4Address=${intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.privateAddresses[index] : ''}`,
+              ),
+            ]
+          : ['--subnets', ...subnetIds]),
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
+        `Key=xcsh-execution-engine,Value=${intent.engine}`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
         `Key=ves-io-site-name,Value=${intent.siteName}`,
@@ -1275,7 +1707,7 @@ function compileActions(
     add({
       phase: 'routing',
       kind: 'nlb-target-group-create',
-      description: 'Create IP target group for three CE SLO addresses',
+      description: 'Create IP target group for three CE SLI addresses',
       command: 'aws',
       args: [
         'elbv2',
@@ -1285,15 +1717,27 @@ function compileActions(
         '--protocol',
         'TCP',
         '--port',
-        '443',
+        String(nlbIngress.port),
         '--target-type',
         'ip',
         '--vpc-id',
-        intent.vpc.vpcId ?? '__VPC_ID__',
+        intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : (intent.vpc.vpcId ?? '__VPC_ID__'),
         '--health-check-protocol',
-        'TCP',
+        check!.protocol,
+        '--health-check-port',
+        String(check!.port),
+        '--health-check-interval-seconds',
+        String(check!.intervalSeconds),
+        '--health-check-timeout-seconds',
+        String(check!.timeoutSeconds),
+        '--healthy-threshold-count',
+        String(check!.healthyThreshold),
+        '--unhealthy-threshold-count',
+        String(check!.unhealthyThreshold),
+        ...(check!.path ? ['--health-check-path', check!.path!] : []),
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
+        `Key=xcsh-execution-engine,Value=${intent.engine}`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
         `Key=ves-io-site-name,Value=${intent.siteName}`,
@@ -1307,7 +1751,7 @@ function compileActions(
     add({
       phase: 'routing',
       kind: 'nlb-register-targets',
-      description: 'Register three CE SLO IP targets',
+      description: 'Register three CE SLI IP targets',
       command: 'aws',
       args: [
         'elbv2',
@@ -1315,9 +1759,9 @@ function compileActions(
         '--target-group-arn',
         '__NLB_TARGET_GROUP_ARN__',
         '--targets',
-        'Id=__NODE_1_SLO_IP__',
-        'Id=__NODE_2_SLO_IP__',
-        'Id=__NODE_3_SLO_IP__',
+        ...(intent.ingress?.mode === 'nlb'
+          ? (intent.ingress.listener.privateAddresses?.map((address) => `Id=${address},AvailabilityZone=all`) ?? [])
+          : ['Id=__NODE_1_SLI_IP__', 'Id=__NODE_2_SLI_IP__', 'Id=__NODE_3_SLI_IP__']),
         ...base,
       ],
       resourceId: `aws://${intent.region}/nlb-target-registration/${intent.deploymentName}`,
@@ -1337,7 +1781,7 @@ function compileActions(
         '--protocol',
         'TCP',
         '--port',
-        '443',
+        String(nlbIngress.port),
         '--default-actions',
         'Type=forward,TargetGroupArn=__NLB_TARGET_GROUP_ARN__',
         ...base,
@@ -1364,44 +1808,124 @@ function compileActions(
       mutates: true,
       destructive: false,
     });
-    add({
-      phase: 'verify',
-      kind: 'nlb-gate',
-      description: 'Verify NLB targets and health',
-      mutates: false,
-      destructive: false,
-    });
+    if (intent.ingress?.mode === 'nlb')
+      add({
+        phase: 'routing',
+        kind: 'f5-ingress-configure',
+        description: 'Configure the owned XC inside HTTP listener on observed CE SLI addresses',
+        mutates: true,
+        destructive: false,
+      });
   }
   if (intent.routing.profile === 'tgw-static' || intent.routing.profile === 'tgw-connect') {
     const transitGatewayId = intent.routing.transitGatewayId ?? '';
+    if (!intent.routing.transportAttachmentId)
+      add({
+        phase: 'routing',
+        kind: 'tgw-vpc-attachment-create',
+        description: 'Create appliance VPC transport attachment',
+        command: 'aws',
+        args: [
+          'ec2',
+          'create-transit-gateway-vpc-attachment',
+          '--transit-gateway-id',
+          transitGatewayId,
+          '--vpc-id',
+          intent.vpc.vpcId ?? '__VPC_ID__',
+          '--subnet-ids',
+          ...intent.interfaces[1].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_1__`),
+          '--options',
+          'ApplianceModeSupport=enable',
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-attachment'),
+          ...base,
+        ],
+        resourceId: `aws://${intent.region}/tgw-attachment/${intent.deploymentName}`,
+        mutates: true,
+        destructive: false,
+        capture: {
+          placeholder: '__TGW_TRANSPORT_ATTACHMENT__',
+          path: 'TransitGatewayVpcAttachment.TransitGatewayAttachmentId',
+        },
+      });
     add({
       phase: 'routing',
-      kind: 'tgw-vpc-attachment-create',
-      description: 'Create appliance VPC transport attachment',
-      command: 'aws',
-      args: [
-        'ec2',
-        'create-transit-gateway-vpc-attachment',
-        '--transit-gateway-id',
-        transitGatewayId,
-        '--vpc-id',
-        intent.vpc.vpcId ?? '__VPC_ID__',
-        '--subnet-ids',
-        ...intent.interfaces[1].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_1__`),
-        '--options',
-        'ApplianceModeSupport=enable',
-        '--tag-specifications',
-        tagSpec(intent, 'transit-gateway-attachment'),
-        ...base,
-      ],
-      resourceId: `aws://${intent.region}/tgw-attachment/${intent.deploymentName}`,
-      mutates: true,
+      kind: 'tgw-attachment-gate',
+      description: 'Wait for scoped VPC transport attachment availability',
+      resourceId: intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
+      mutates: false,
       destructive: false,
-      capture: {
-        placeholder: '__TGW_TRANSPORT_ATTACHMENT__',
-        path: 'TransitGatewayVpcAttachment.TransitGatewayAttachmentId',
-      },
     });
+    for (const az of staticAzRoutes(intent)) {
+      const table = `__STATIC_ROUTE_TABLE_${az.node}__`;
+      add({
+        phase: 'routing',
+        kind: 'route-table-create',
+        description: `Create appliance route table in ${az.availabilityZone}`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'create-route-table',
+          '--vpc-id',
+          intent.vpc.vpcId ?? '__VPC_ID__',
+          '--tag-specifications',
+          tagSpec(intent, 'route-table', az.node),
+          ...base,
+        ],
+        node: az.node,
+        resourceId: `aws://${intent.region}/route-table/${intent.deploymentName}-static-${az.node}`,
+        mutates: true,
+        destructive: false,
+        capture: { placeholder: table, path: 'RouteTable.RouteTableId' },
+      });
+      add({
+        phase: 'routing',
+        kind: 'route-table-associate',
+        description: `Associate ${az.availabilityZone} appliance subnet`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'associate-route-table',
+          '--route-table-id',
+          table,
+          '--subnet-id',
+          intent.interfaces[1].subnets[az.node - 1].subnetId ?? `__SUBNET_${az.node}_1__`,
+          ...base,
+        ],
+        node: az.node,
+        resourceId: table,
+        mutates: true,
+        destructive: false,
+        capture: { placeholder: `__STATIC_ROUTE_ASSOCIATION_${az.node}__`, path: 'AssociationId' },
+      });
+      for (const [direction, prefixes] of [
+        ['forward', az.forwardCidrs],
+        ['return', az.returnCidrs],
+      ] as const)
+        for (const destination of prefixes)
+          add({
+            phase: 'routing',
+            kind: 'route-create',
+            description: `${direction} route ${destination} in ${az.availabilityZone}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'create-route',
+              '--route-table-id',
+              table,
+              '--destination-cidr-block',
+              destination,
+              ...(direction === 'forward'
+                ? ['--network-interface-id', `__ENI_${az.node}_1__`]
+                : ['--transit-gateway-id', transitGatewayId]),
+              ...base,
+            ],
+            node: az.node,
+            resourceId: table,
+            mutates: true,
+            destructive: false,
+          });
+    }
     for (const routeTableId of intent.routing.associations)
       add({
         phase: 'routing',
@@ -1440,8 +1964,8 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
-    for (const destination of intent.routing.destinationCidrs)
-      if (intent.routing.transitGatewayRouteTableId)
+    for (const destination of intent.routing.destinationCidrs) {
+      if (intent.routing.profile !== 'tgw-connect' && intent.routing.transitGatewayRouteTableId)
         add({
           phase: 'routing',
           kind: 'tgw-route-create',
@@ -1462,6 +1986,7 @@ function compileActions(
           mutates: true,
           destructive: true,
         });
+    }
     for (const route of intent.routes)
       add({
         phase: 'routing',
@@ -1476,7 +2001,7 @@ function compileActions(
           '--destination-cidr-block',
           route.destinationCidr,
           '--network-interface-id',
-          '__ENI_1_1__',
+          `__ENI_${routeNode(intent, route)}_1__`,
           ...base,
         ],
         resourceId: route.routeTableId,
@@ -1485,60 +2010,220 @@ function compileActions(
       });
   }
   if (intent.routing.profile === 'tgw-connect') {
-    const insideCidrs = intent.routing.insideCidrs ?? [];
-    add({
-      phase: 'routing',
-      kind: 'tgw-connect-attachment-create',
-      description: 'Create TGW Connect attachment over the appliance transport attachment',
-      command: 'aws',
-      args: [
-        'ec2',
-        'create-transit-gateway-connect',
-        '--transport-transit-gateway-attachment-id',
-        intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
-        '--options',
-        'Protocol=gre',
-        '--tag-specifications',
-        tagSpec(intent, 'transit-gateway-attachment'),
-        ...base,
-      ],
-      resourceId: `aws://${intent.region}/tgw-connect/${intent.deploymentName}`,
-      mutates: true,
-      destructive: false,
-      capture: { placeholder: '__TGW_CONNECT_ATTACHMENT__', path: 'TransitGatewayConnect.TransitGatewayAttachmentId' },
+    const peers =
+      intent.routing.connectPeers ??
+      (intent.routing.insideCidrs ?? []).map((insideCidr, index) => ({
+        node: index + 1,
+        insideCidr,
+        transportInterfaceIndex: 0,
+        transitGatewayAddress: undefined,
+      }));
+    if (intent.vpc.mode === 'greenfield') {
+      const transportCidrs = observedConnectCidrs(intent, observation);
+      const sliIndex = intent.interfaces.find((item) => item.role === 'sli')?.index;
+      if (sliIndex === undefined) throw new Error('TGW Connect requires an explicit SLI payload interface');
+      const transportRoles = new Set(peers.map((peer) => peer.transportInterfaceIndex));
+      const routingRoles = [...new Set([...transportRoles, sliIndex])].sort();
+      for (const role of routingRoles) {
+        const interfaceRole = intent.interfaces.find((item) => item.index === role)?.role;
+        const reuseSlo = interfaceRole === 'slo' && intent.egress.mode === 'elastic-ip';
+        const table = reuseSlo ? '__SLO_ROUTE_TABLE__' : `__GRE_ROUTE_TABLE_${role}__`;
+        const resourceId = `aws://${intent.region}/route-table/${intent.deploymentName}-${interfaceRole ?? role}`;
+        if (!reuseSlo) {
+          add({
+            phase: 'routing',
+            kind: 'route-table-create',
+            description: `Create interface ${role} GRE transport route table`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'create-route-table',
+              '--vpc-id',
+              '__VPC_ID__',
+              '--tag-specifications',
+              tagSpec(intent, 'route-table'),
+              ...base,
+            ],
+            resourceId,
+            mutates: true,
+            destructive: false,
+            capture: { placeholder: table, path: 'RouteTable.RouteTableId' },
+          });
+          for (let node = 1; node <= intent.topology.nodeCount; node++)
+            add({
+              phase: 'routing',
+              kind: 'route-table-associate',
+              description: `Associate node ${node} interface ${role} subnet with GRE transport routing`,
+              command: 'aws',
+              args: [
+                'ec2',
+                'associate-route-table',
+                '--route-table-id',
+                table,
+                '--subnet-id',
+                `__SUBNET_${node}_${role}__`,
+                ...base,
+              ],
+              resourceId,
+              node,
+              mutates: true,
+              destructive: false,
+              capture: { placeholder: `__GRE_ROUTE_ASSOCIATION_${node}_${role}__`, path: 'AssociationId' },
+            });
+        }
+        if (role === sliIndex)
+          for (const destination of intent.routing.destinationCidrs)
+            add({
+              phase: 'routing',
+              kind: 'route-create',
+              description: `Route remote payload network ${destination} from the SLI subnet through the TGW`,
+              command: 'aws',
+              args: [
+                'ec2',
+                'create-route',
+                '--route-table-id',
+                table,
+                '--destination-cidr-block',
+                destination,
+                '--transit-gateway-id',
+                intent.routing.transitGatewayId ?? '',
+                ...base,
+              ],
+              resourceId,
+              mutates: true,
+              destructive: false,
+            });
+        for (const destination of transportRoles.has(role) ? transportCidrs : [])
+          add({
+            phase: 'routing',
+            kind: 'route-create',
+            description: `Route interface ${role} GRE transport ${destination} to the Transit Gateway`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'create-route',
+              '--route-table-id',
+              table,
+              '--destination-cidr-block',
+              destination,
+              '--transit-gateway-id',
+              intent.routing.transitGatewayId ?? '',
+              ...base,
+            ],
+            resourceId,
+            mutates: true,
+            destructive: false,
+          });
+      }
+    }
+    const roleCounts = new Map<number, number>();
+    const peerGroups = peers.map((peer) => {
+      const position = roleCounts.get(peer.transportInterfaceIndex) ?? 0;
+      roleCounts.set(peer.transportInterfaceIndex, position + 1);
+      return `${peer.transportInterfaceIndex}_${Math.floor(position / 4) + 1}`;
     });
-    for (let node = 1; node <= 3; node++)
+    for (const group of [...new Set(peerGroups)].sort()) {
+      add({
+        phase: 'routing',
+        kind: 'tgw-connect-attachment-create',
+        description: `Create TGW Connect attachment ${group} with at most four peers`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'create-transit-gateway-connect',
+          '--transport-transit-gateway-attachment-id',
+          intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
+          '--options',
+          'Protocol=gre',
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-attachment'),
+          ...base,
+        ],
+        resourceId: `aws://${intent.region}/tgw-connect/${intent.deploymentName}-${group}`,
+        mutates: true,
+        destructive: false,
+        capture: {
+          placeholder: `__TGW_CONNECT_ATTACHMENT_${group}__`,
+          path: 'TransitGatewayConnect.TransitGatewayAttachmentId',
+        },
+      });
+
+      add({
+        phase: 'routing',
+        kind: 'tgw-attachment-gate',
+        description: `Wait for scoped Connect attachment ${group} availability`,
+        resourceId: `__TGW_CONNECT_ATTACHMENT_${group}__`,
+        mutates: false,
+        destructive: false,
+      });
+
+      for (const [tables, operation, kind] of [
+        [intent.routing.associations, 'associate-transit-gateway-route-table', 'tgw-associate'],
+        [intent.routing.propagations, 'enable-transit-gateway-route-table-propagation', 'tgw-propagate'],
+      ] as const)
+        for (const table of tables)
+          add({
+            phase: 'routing',
+            kind,
+            description: `${operation} for Connect attachment ${group}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              operation,
+              '--transit-gateway-route-table-id',
+              table,
+              '--transit-gateway-attachment-id',
+              `__TGW_CONNECT_ATTACHMENT_${group}__`,
+              ...base,
+            ],
+            resourceId: table,
+            mutates: true,
+            destructive: true,
+          });
+    }
+    for (const [index, peer] of peers.entries())
       add({
         phase: 'routing',
         kind: 'tgw-connect-peer-create',
-        description: `Create node ${node} Connect peer with two AWS-managed BGP sessions`,
+        description: `Create node ${peer.node} Connect peer with two AWS-managed BGP sessions`,
         command: 'aws',
         args: [
           'ec2',
           'create-transit-gateway-connect-peer',
           '--transit-gateway-attachment-id',
-          '__TGW_CONNECT_ATTACHMENT__',
+          `__TGW_CONNECT_ATTACHMENT_${peerGroups[index]}__`,
           '--peer-address',
-          `__NODE_${node}_SLI_IP__`,
+          `__NODE_${peer.node}_${intent.interfaces.find((item) => item.index === peer.transportInterfaceIndex)?.role.toUpperCase()}_IP__`,
+          ...(peer.transitGatewayAddress ? ['--transit-gateway-address', peer.transitGatewayAddress] : []),
           '--bgp-options',
           `PeerAsn=${intent.routing.customerAsn}`,
           '--inside-cidr-blocks',
-          insideCidrs[node - 1],
+          peer.insideCidr,
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-connect-peer', peer.node),
           ...base,
         ],
-        node,
-        resourceId: `aws://${intent.region}/tgw-connect-peer/${intent.deploymentName}-${node}`,
+        node: peer.node,
+        resourceId: `aws://${intent.region}/tgw-connect-peer/${intent.deploymentName}-${peer.node}-${index + 1}`,
         mutates: true,
         destructive: false,
         capture: {
-          placeholder: `__TGW_CONNECT_PEER_${node}__`,
+          placeholder: `__TGW_CONNECT_PEER_${index + 1}__`,
           path: 'TransitGatewayConnectPeer.TransitGatewayConnectPeerId',
         },
       });
     add({
+      phase: 'routing',
+      kind: 'f5-routing-configure',
+      description:
+        'Configure site-bound XC GRE connectors and both BGP endpoints from observed interface and AWS peer identities',
+      mutates: true,
+      destructive: false,
+    });
+    add({
       phase: 'verify',
       kind: 'bgp-gate',
-      description: 'Verify six AWS-managed BGP sessions and learned/advertised routes',
+      description: `Verify ${(intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0) * 2} AWS-managed BGP sessions across ${intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0} Connect peers`,
       mutates: false,
       destructive: false,
     });
@@ -1548,6 +2233,14 @@ function compileActions(
       phase: 'verify',
       kind: 'tgw-route-gate',
       description: 'Verify TGW associations, propagations, and routes',
+      mutates: false,
+      destructive: false,
+    });
+  if (nlbIngress)
+    add({
+      phase: 'verify',
+      kind: 'nlb-gate',
+      description: 'Verify NLB targets and health after routing convergence',
       mutates: false,
       destructive: false,
     });
@@ -1566,7 +2259,16 @@ export function compileAwsCePlan(
   observation: AwsCeObservation,
   restorationState: Array<{ id: string; before: Record<string, unknown> }> = [],
 ): AwsCePlan {
-  const intent = normalizeIntent(input);
+  const intent = normalizeIntent({
+    ...input,
+    awsProfile: input.awsProfile ?? observation.identity.awsProfile ?? 'default',
+    platformContext: input.platformContext ?? observation.f5Capabilities.platformContext,
+  });
+  if (
+    intent.awsProfile !== (observation.identity.awsProfile ?? 'default') ||
+    intent.platformContext !== observation.f5Capabilities.platformContext
+  )
+    fail('execution contexts differ from discovery');
   validateResearch(observation);
   if (canonicalSha256(observation.f5Capabilities) !== observation.f5CapabilitiesSha256)
     fail('F5 capability digest is inconsistent');
@@ -1582,6 +2284,7 @@ export function compileAwsCePlan(
     const ownerPlanSha256 = resource.tags['xcsh-plan-sha256'] ?? '';
     if (
       resource.tags['xcsh-managed-by'] !== 'aws-ce' ||
+      resource.tags['xcsh-execution-engine'] !== intent.engine ||
       resource.tags['xcsh-deployment-id'] !== intent.deploymentName ||
       !observation.ownershipPlanSha256s.includes(ownerPlanSha256)
     )
@@ -1604,13 +2307,28 @@ export function compileAwsCePlan(
   if (!instance?.supported) fail(`instance type ${intent.instance.type} is not supported in ${intent.region}`);
   if (intent.topology.nodeCount === 3 && instance.availabilityZones.length < 3)
     fail('three-node topology requires three Availability Zones');
-  if (intent.routing.profile === 'tgw-connect')
-    fail('AWS TGW Connect is unavailable until F5 publishes the separate authenticated telemetry contract');
+  if (
+    intent.routing.profile === 'tgw-connect' &&
+    (!observation.research.mcnTgwGuide?.documented ||
+      !observation.f5Capabilities.awsSmsv2TgwConnect.supported ||
+      observation.f5Capabilities.awsSmsv2TgwConnect.schemaVersion !== 'f5xc-smsv2-aws-tgw-telemetry/v2')
+  )
+    fail('AWS TGW Connect requires the current MCN routing recipe and the authenticated telemetry contract');
   if (
     !observation.f5Capabilities.supportedProviders.includes('aws') ||
     !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes(intent.routing.profile)
   )
     fail(`F5 platform does not advertise ${intent.routing.profile} for AWS SMSv2`);
+  if (
+    intent.ingress?.mode === 'nlb' &&
+    !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes('nlb-ingress')
+  )
+    fail('F5 platform does not advertise NLB ingress for AWS SMSv2');
+  if (
+    intent.ingress?.mode === 'nlb' &&
+    !region.networkQuotas.some((quota) => /network load balancers.*region/i.test(quota.quotaName) && quota.value >= 1)
+  )
+    fail('Fresh regional NLB quota evidence is unavailable');
   if (intent.routing.profile.startsWith('tgw-') && !region.transitGatewaySupported)
     fail('Transit Gateway is unavailable in the selected region');
   const observationById = new Map(observation.resources.map((resource) => [resource.id, resource]));
@@ -1625,6 +2343,26 @@ export function compileAwsCePlan(
     if (!observationById.get(id)?.exists) fail(`brownfield resource was not observed: ${id}`);
   const restorationById = new Map(restorationState.map((item) => [item.id, item.before]));
   const actions = compileActions(intent, observation, restorationById);
+  if (actions.some((action) => action.kind === 'registration-gate'))
+    actions.splice(
+      actions.findIndex((action) => action.kind === 'registration-gate'),
+      0,
+      {
+        id: 'f5-registration-approval',
+        phase: 'registration',
+        kind: 'registration-approve',
+        description: 'Approve registrations only after exact site, node and cloud instance correlation',
+        mutates: true,
+        destructive: false,
+      },
+    );
+  for (const action of actions) {
+    if (intent.routing.transportAttachmentId && action.args)
+      action.args = action.args.map((arg) =>
+        arg.replaceAll('__TGW_TRANSPORT_ATTACHMENT__', intent.routing.transportAttachmentId ?? ''),
+      );
+    prepareRecoverableAction(action);
+  }
   const ownershipInventory = [
     ...brownfieldIds.map((resourceId) => ({ resourceId, owned: false as const, action: 'modify-approved' as const })),
     ...actions.flatMap((action) =>
@@ -1648,12 +2386,37 @@ export function compileAwsCePlan(
     { type: 'ec2-instance', count: intent.topology.nodeCount },
     { type: 'gp3-volume', count: intent.topology.nodeCount },
     ...(intent.egress.mode === 'elastic-ip' ? [{ type: 'elastic-ip', count: intent.topology.nodeCount }] : []),
-    ...(intent.routing.profile === 'nlb-ingress' ? [{ type: 'network-load-balancer', count: 1 }] : []),
-    ...(intent.routing.profile.startsWith('tgw-') ? [{ type: 'transit-gateway-attachment', count: 1 }] : []),
+    ...(awsCeNlbIngress(intent) ? [{ type: 'network-load-balancer', count: 1 }] : []),
+    ...(intent.routing.profile.startsWith('tgw-')
+      ? [
+          {
+            type: 'transit-gateway-attachment',
+            count: 1 + connectAttachmentCount(intent),
+          },
+        ]
+      : []),
   ];
   const draft: AwsCePlanDraft = {
+    execution: {
+      engine: intent.engine,
+      awsProfile: intent.awsProfile ?? 'default',
+      ...(intent.engine === 'terraform'
+        ? {
+            terraform: {
+              version: AWS_CE_TERRAFORM_VERSION,
+              awsProvider: AWS_CE_TERRAFORM_PROVIDER_VERSION,
+              awsProviderLockSha256: AWS_CE_PROVIDER_LOCK_SHA256,
+              f5Provider: XCSH_PROVIDER_VERSION,
+              f5ProviderLockSha256: XCSH_PROVIDER_LOCK_SHA256,
+              backendIdentity: `local:${intent.deploymentName}`,
+              f5BackendIdentity: `local:${intent.deploymentName}:stage:f5-resources`,
+            },
+          }
+        : {}),
+    },
     schemaVersion: AWS_CE_SCHEMA_VERSION,
     intent,
+    engine: intent.engine,
     accountId: intent.accountId,
     partition: intent.partition,
     region: intent.region,
@@ -1672,7 +2435,15 @@ export function compileAwsCePlan(
     securityGroups: intent.securityGroups,
     warnings,
     billableResources,
-    actions,
+    actions:
+      intent.operation === 'deploy'
+        ? [
+            ...actions.filter((action) => action.phase === 'network'),
+            ...actions.filter((action) => action.phase === 'nodes'),
+            ...actions.filter((action) => action.phase === 'registration'),
+            ...actions.filter((action) => !['network', 'nodes', 'registration'].includes(action.phase)),
+          ]
+        : actions,
     rollback: {
       resources: (restorationState.length
         ? restorationState.filter((resource) => brownfieldIds.includes(resource.id))
@@ -1684,6 +2455,7 @@ export function compileAwsCePlan(
     ownershipInventory,
     ownershipTags: {
       'xcsh-managed-by': 'aws-ce',
+      'xcsh-execution-engine': intent.engine,
       'xcsh-deployment-id': intent.deploymentName,
       'xcsh-plan-sha256': '__PLAN_SHA256__',
       'ves-io-site-name': intent.siteName,
