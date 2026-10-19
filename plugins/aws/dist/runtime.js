@@ -1215,6 +1215,8 @@ async function collectAwsCeInventory(input, executor, signal) {
         deploymentId: deployment && name.test(deployment) ? deployment : null,
         ownership: owned ? 'managed' : managed ? 'ambiguous' : 'unmanaged',
         engine: owned ? engine : null,
+        planSha256: resourceTags.get('xcsh-plan-sha256') ?? null,
+        nodeIndex: resourceTags.get('xcsh-node-index') ?? null,
         state: ['pending', 'running', 'shutting-down', 'terminated', 'stopping', 'stopped'].includes(String(rawState))
           ? rawState
           : 'unknown',
@@ -16336,34 +16338,43 @@ async function collectAwsCeStatus(plan, checkpoint, api, runtime, signal) {
       signal,
     );
     const deployed = inventory.nodes.filter((node) => node.deploymentId === plan.deploymentName);
-    const conflicts = deployed.some(
+    const current = deployed.filter((node) => !['terminated', 'shutting-down'].includes(String(node.state)));
+    const historical = deployed.filter((node) => !current.includes(node));
+    const conflicts = current.some(
       (node) =>
         node.ownership !== 'managed' ||
         node.engine !== plan.engine ||
+        (plan.planSha256 !== undefined && node.planSha256 !== plan.planSha256) ||
         !bindings.some(({ site }) => site.name === node.siteName),
     );
     for (const [index, hostname] of nodes.entries()) {
       const id = checkpoint?.resolvedValues[`__INSTANCE_${index + 1}__`];
       if (
         id &&
-        deployed.filter((node) => node.instanceId === id && node.siteName === siteForNode(plan.intent, index + 1).name)
-          .length === 1
+        /^i-[0-9a-f]{8,17}$/.test(id) &&
+        current.filter(
+          (node) =>
+            node.instanceId === id &&
+            node.siteName === siteForNode(plan.intent, index + 1).name &&
+            (node.nodeIndex === String(index + 1) || (plan.engine === 'native' && node.nodeIndex === null)),
+        ).length === 1
       )
         expectedInstances[hostname] = id;
     }
     identitiesVerified =
       !conflicts &&
-      deployed.length === nodes.length &&
+      current.length === nodes.length &&
       Object.keys(expectedInstances).length === nodes.length &&
       new Set(Object.values(expectedInstances)).size === nodes.length;
     aws = {
       status: conflicts ? 'ownership-conflict' : identitiesVerified ? 'observed' : 'incomplete',
       source: inventory.source,
       observedAt: inventory.collectedAt,
-      nodes: deployed,
+      nodes: current,
+      historicalNodes: historical,
       counts: {
-        instances: deployed.length,
-        interfaces: deployed.reduce((sum, node) => sum + node.interfaces.length, 0),
+        instances: current.length,
+        interfaces: current.reduce((sum, node) => sum + node.interfaces.length, 0),
       },
     };
   } catch {
@@ -16501,6 +16512,44 @@ async function readAwsTerraformWorkflowStatus(plan, storage) {
     routing,
   };
 }
+async function readAwsTerraformInstanceBindings(plan, session, env, signal) {
+  if (plan.engine !== 'terraform' || !session.readResourceIdentities)
+    throw new Error('Current instance identities require the owning Terraform reader');
+  signal?.throwIfAborted();
+  const outputs = await session.readOutputs(['ce_instances'], env, signal);
+  const instances = outputs.ce_instances;
+  const identities = (await session.readResourceIdentities(env, signal)).filter((row) => row.type === 'aws_instance');
+  if (
+    !instances ||
+    typeof instances !== 'object' ||
+    Array.isArray(instances) ||
+    Object.keys(instances).length !== plan.topology.nodeCount ||
+    identities.length !== plan.topology.nodeCount
+  )
+    throw new Error('Current Terraform instance evidence is incomplete');
+  const bindings = {};
+  const seen = new Set();
+  for (let node = 1; node <= plan.topology.nodeCount; node++) {
+    const value = instances[String(node)];
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Current Terraform instance output is malformed');
+    const row = value;
+    if (
+      typeof row.id !== 'string' ||
+      !/^i-[0-9a-f]{8,17}$/.test(row.id) ||
+      seen.has(row.id) ||
+      row.site_name !== siteForNode(plan.intent, node).name ||
+      row.hostname !== `${plan.deploymentName}-${node}` ||
+      identities.filter((identity) => identity.address === `aws_instance.node_${node}` && identity.id === row.id)
+        .length !== 1
+    )
+      throw new Error('Current Terraform instance output and state identities differ');
+    seen.add(row.id);
+    bindings[`__INSTANCE_${node}__`] = row.id;
+  }
+  return bindings;
+}
+var init_terraform_status = () => {};
 
 // plugins/aws/src/tools/aws-ce-status.ts
 function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
@@ -16614,7 +16663,31 @@ function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
                 }),
               );
               workflowProgress = workflow.progress;
-              checkpoint = workflow.routing;
+              const owner = {
+                deploymentId: plan.deploymentName,
+                engine: 'terraform',
+                provider: 'aws',
+                account: plan.accountId,
+                region: plan.region,
+              };
+              const session = await (await awsTerraformService(pi, signal)).open(
+                owner,
+                await awsTerraformFoundationDeployment(plan),
+                'current',
+              );
+              const instances = await readAwsTerraformInstanceBindings(plan, session, process.env, signal);
+              checkpoint = {
+                ...(workflow.routing ?? {
+                  schemaVersion: plan.schemaVersion,
+                  engine: 'terraform',
+                  planId: plan.planId,
+                  planSha256: plan.planSha256,
+                  state: 'running',
+                  completedActionIds: [],
+                  resolvedValues: {},
+                }),
+                resolvedValues: { ...workflow.routing?.resolvedValues, ...instances },
+              };
             } catch (error) {
               if (signal?.aborted) throw error;
               workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };
@@ -16658,6 +16731,9 @@ var init_aws_ce_status = __esm(() => {
   init_inventory();
   init_platform();
   init_status();
+  init_terraform_apply();
+  init_terraform_foundation();
+  init_terraform_status();
   init_shared();
 });
 
@@ -17270,6 +17346,63 @@ function createAwsCeDiagnoseTool(pi, makeApi = makeExecApi) {
           throw new Error('Diagnostic account differs from plan');
         if (params.mode === 'active' && plan.engine !== 'native')
           throw new Error('Only the owning native engine may run guest commands');
+        if (plan.engine === 'terraform') {
+          const observed = await createAwsCeStatusTool(pi, makeApi).execute(
+            _id,
+            { planId: params.planId, planSha256: params.planSha256 },
+            signal,
+            _update,
+            ctx,
+          );
+          if (observed.isError) return { ...observed, details: { tool: 'aws_ce_diagnose' } };
+          const value = observed.details.status;
+          const nodes = value.aws?.status === 'observed' ? (value.aws.nodes ?? []) : [];
+          const passive = await collectAwsPassiveEvidence(
+            {
+              accountId: plan.accountId,
+              awsProfile: plan.intent.awsProfile ?? 'default',
+              region: plan.region,
+              instanceIds: nodes.map((node) => node.instanceId),
+              interfaceIds: nodes.flatMap((node) => node.interfaces.map((item) => item.id)),
+              vpcIds: [
+                ...new Set(
+                  nodes.flatMap((node) => node.interfaces.flatMap((item) => (item.vpcId ? [item.vpcId] : []))),
+                ),
+              ],
+            },
+            makeApi(ctx.cwd),
+            signal,
+          );
+          const results = [];
+          for (const node of nodes.filter((node) => node.state === 'running')) {
+            results.push(
+              await collect(
+                api,
+                [
+                  'ec2',
+                  'get-console-output',
+                  '--instance-id',
+                  node.instanceId,
+                  '--latest',
+                  '--region',
+                  plan.region,
+                  '--output',
+                  'json',
+                ],
+                `${node.instanceId}-console`,
+              ),
+            );
+          }
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'AWS Terraform passive diagnostics use verified current workspace and cloud identities. Raw console and bootstrap material are withheld.',
+              },
+            ],
+            details: { tool: 'aws_ce_diagnose', mode: params.mode, status: observed.details.status, passive, results },
+          };
+        }
         const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
         const ownedInstances = Array.from({ length: plan.topology.nodeCount }, (_, index) => ({
           node: index + 1,

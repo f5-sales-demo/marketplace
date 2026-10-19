@@ -6,7 +6,9 @@ import { loadAwsCheckpoint, loadAwsPlan } from '../ce/artifacts';
 import { collectAwsCeInventory } from '../ce/inventory';
 import { awsPlatformService } from '../ce/platform';
 import { collectAwsCeStatus } from '../ce/status';
-import { readAwsTerraformWorkflowStatus } from '../ce/terraform-status';
+import { awsTerraformService } from '../ce/terraform-apply';
+import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
+import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from '../ce/terraform-status';
 import { makeExecApi } from './shared';
 
 export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
@@ -130,7 +132,31 @@ export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string
                 }),
               );
               workflowProgress = workflow.progress;
-              checkpoint = workflow.routing;
+              const owner = {
+                deploymentId: plan.deploymentName,
+                engine: 'terraform' as const,
+                provider: 'aws' as const,
+                account: plan.accountId,
+                region: plan.region,
+              };
+              const session = await (await awsTerraformService(pi, signal)).open(
+                owner,
+                await awsTerraformFoundationDeployment(plan),
+                'current',
+              );
+              const instances = await readAwsTerraformInstanceBindings(plan, session, process.env, signal);
+              checkpoint = {
+                ...(workflow.routing ?? {
+                  schemaVersion: plan.schemaVersion,
+                  engine: 'terraform' as const,
+                  planId: plan.planId,
+                  planSha256: plan.planSha256,
+                  state: 'running' as const,
+                  completedActionIds: [],
+                  resolvedValues: {},
+                }),
+                resolvedValues: { ...workflow.routing?.resolvedValues, ...instances },
+              };
             } catch (error) {
               if (signal?.aborted) throw error;
               workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'workflow-evidence-unavailable' };

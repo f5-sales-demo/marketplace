@@ -126,6 +126,68 @@ export function createAwsCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: stri
           throw new Error('Diagnostic account differs from plan');
         if (params.mode === 'active' && plan.engine !== 'native')
           throw new Error('Only the owning native engine may run guest commands');
+        if (plan.engine === 'terraform') {
+          const observed = await createAwsCeStatusTool(pi, makeApi).execute(
+            _id,
+            { planId: params.planId, planSha256: params.planSha256 },
+            signal,
+            _update,
+            ctx,
+          );
+          if (observed.isError) return { ...observed, details: { tool: 'aws_ce_diagnose' } };
+          const value = observed.details.status as {
+            aws?: {
+              status?: string;
+              nodes?: Array<{ instanceId: string; state: string; interfaces: Array<{ id: string; vpcId?: string }> }>;
+            };
+          };
+          const nodes = value.aws?.status === 'observed' ? (value.aws.nodes ?? []) : [];
+          const passive = await collectAwsPassiveEvidence(
+            {
+              accountId: plan.accountId,
+              awsProfile: plan.intent.awsProfile ?? 'default',
+              region: plan.region,
+              instanceIds: nodes.map((node) => node.instanceId),
+              interfaceIds: nodes.flatMap((node) => node.interfaces.map((item) => item.id)),
+              vpcIds: [
+                ...new Set(
+                  nodes.flatMap((node) => node.interfaces.flatMap((item) => (item.vpcId ? [item.vpcId] : []))),
+                ),
+              ],
+            },
+            makeApi(ctx.cwd),
+            signal,
+          );
+          const results = [];
+          for (const node of nodes.filter((node) => node.state === 'running')) {
+            results.push(
+              await collect(
+                api,
+                [
+                  'ec2',
+                  'get-console-output',
+                  '--instance-id',
+                  node.instanceId,
+                  '--latest',
+                  '--region',
+                  plan.region,
+                  '--output',
+                  'json',
+                ],
+                `${node.instanceId}-console`,
+              ),
+            );
+          }
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'AWS Terraform passive diagnostics use verified current workspace and cloud identities. Raw console and bootstrap material are withheld.',
+              },
+            ],
+            details: { tool: 'aws_ce_diagnose', mode: params.mode, status: observed.details.status, passive, results },
+          };
+        }
         const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
         const ownedInstances = Array.from({ length: plan.topology.nodeCount }, (_, index) => ({
           node: index + 1,

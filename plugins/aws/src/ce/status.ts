@@ -27,34 +27,43 @@ export async function collectAwsCeStatus(
       signal,
     );
     const deployed = inventory.nodes.filter((node) => node.deploymentId === plan.deploymentName);
-    const conflicts = deployed.some(
+    const current = deployed.filter((node) => !['terminated', 'shutting-down'].includes(String(node.state)));
+    const historical = deployed.filter((node) => !current.includes(node));
+    const conflicts = current.some(
       (node) =>
         node.ownership !== 'managed' ||
         node.engine !== plan.engine ||
+        (plan.planSha256 !== undefined && node.planSha256 !== plan.planSha256) ||
         !bindings.some(({ site }) => site.name === node.siteName),
     );
     for (const [index, hostname] of nodes.entries()) {
       const id = checkpoint?.resolvedValues[`__INSTANCE_${index + 1}__`];
       if (
         id &&
-        deployed.filter((node) => node.instanceId === id && node.siteName === siteForNode(plan.intent, index + 1).name)
-          .length === 1
+        /^i-[0-9a-f]{8,17}$/.test(id) &&
+        current.filter(
+          (node) =>
+            node.instanceId === id &&
+            node.siteName === siteForNode(plan.intent, index + 1).name &&
+            (node.nodeIndex === String(index + 1) || (plan.engine === 'native' && node.nodeIndex === null)),
+        ).length === 1
       )
         expectedInstances[hostname] = id;
     }
     identitiesVerified =
       !conflicts &&
-      deployed.length === nodes.length &&
+      current.length === nodes.length &&
       Object.keys(expectedInstances).length === nodes.length &&
       new Set(Object.values(expectedInstances)).size === nodes.length;
     aws = {
       status: conflicts ? 'ownership-conflict' : identitiesVerified ? 'observed' : 'incomplete',
       source: inventory.source,
       observedAt: inventory.collectedAt,
-      nodes: deployed,
+      nodes: current,
+      historicalNodes: historical,
       counts: {
-        instances: deployed.length,
-        interfaces: deployed.reduce((sum, node) => sum + node.interfaces.length, 0),
+        instances: current.length,
+        interfaces: current.reduce((sum, node) => sum + node.interfaces.length, 0),
       },
     };
   } catch {

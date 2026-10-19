@@ -164,6 +164,8 @@ export async function collectAwsCeInventory(input: AwsCeInventoryInput, executor
         deploymentId: deployment && name.test(deployment) ? deployment : null,
         ownership: owned ? 'managed' : managed ? 'ambiguous' : 'unmanaged',
         engine: owned ? engine : null,
+        planSha256: resourceTags.get('xcsh-plan-sha256') ?? null,
+        nodeIndex: resourceTags.get('xcsh-node-index') ?? null,
         state: ['pending', 'running', 'shutting-down', 'terminated', 'stopping', 'stopped'].includes(String(rawState))
           ? rawState
           : 'unknown',

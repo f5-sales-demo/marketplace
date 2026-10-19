@@ -133,3 +133,63 @@ test('observes each independent site using only its own cloud instance binding',
   expect(result.f5.sites).toHaveLength(3);
   expect(result.f5.registration.status).toBe('healthy');
 });
+
+test('correlates the current node while retaining terminated replacement history', async () => {
+  const old = { ...resource, InstanceId: 'i-11111111111111111', State: { Name: 'terminated' } };
+  const executor = {
+    exec: async (_: string, args: string[]) => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify(
+        args[0] === 'sts'
+          ? { Account: plan.accountId }
+          : args[1] === 'describe-instances'
+            ? { Reservations: [{ Instances: [old, resource] }] }
+            : { NetworkInterfaces: [] },
+      ),
+    }),
+  };
+  const result = await collectAwsCeStatus(plan, checkpoint, executor, {
+    observeHealth: async () => ({ status: 'healthy' }),
+    observeRegistrations: async (_, ids) => {
+      expect(ids).toEqual({ 'demo-1': id });
+      return { status: 'healthy' };
+    },
+  });
+  expect(result.aws.status).toBe('observed');
+  expect(result.aws.counts).toEqual({ instances: 1, interfaces: 0 });
+  expect(result.aws.historicalNodes).toHaveLength(1);
+  expect(result.f5.registration.status).toBe('healthy');
+});
+
+test('rejects duplicate active candidates and a terminal checkpoint target', async () => {
+  for (const instances of [
+    [resource, { ...resource, InstanceId: 'i-11111111111111111' }],
+    [{ ...resource, State: { Name: 'terminated' } }],
+  ]) {
+    const executor = {
+      exec: async (_: string, args: string[]) => ({
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          args[0] === 'sts'
+            ? { Account: plan.accountId }
+            : args[1] === 'describe-instances'
+              ? { Reservations: [{ Instances: instances }] }
+              : { NetworkInterfaces: [] },
+        ),
+      }),
+    };
+    let calls = 0;
+    const result = await collectAwsCeStatus(plan, checkpoint, executor, {
+      observeHealth: async () => ({ status: 'healthy' }),
+      observeRegistrations: async () => {
+        calls++;
+        return { status: 'healthy' };
+      },
+    });
+    expect(result.aws.status).toBe('incomplete');
+    expect(result.f5.registration.status).toBe('unknown');
+    expect(calls).toBe(0);
+  }
+});
