@@ -7,8 +7,11 @@ import argparse
 import json
 import os
 import platform
+import re
+import shlex
 import subprocess
 import time
+from contextlib import suppress
 from pathlib import Path
 
 
@@ -55,6 +58,50 @@ def fixture_prompts(plugin: Path, guidance: str) -> list[str]:
         + "Call sf_org_display with target_org=xcsh-style-intentionally-missing-org. Explain unavailable readiness and the corrective next action.",
         *(instructions + query for query in queries),
     ]
+
+
+def audit_model_commands(messages: list[dict]) -> list[dict]:
+    """Compare complete reported argv with the preceding tool's safe evidence."""
+    findings = []
+    for index, message in enumerate(messages):
+        if message.get("role") != "toolResult" or message.get("toolName") not in {
+            "sf_org_display",
+            "sf_query",
+        }:
+            continue
+        commands = (
+            message.get("details", {}).get("commandEvidence", {}).get("commands", [])
+        )
+        candidates = []
+        for following in messages[index + 1 :]:
+            if following.get("role") == "toolResult":
+                break
+            if following.get("role") != "assistant":
+                continue
+            for block in following.get("content", []):
+                text = block.get("text", "")
+                for fenced in re.findall(r"```[^\n]*\n(.*?)```", text, re.DOTALL):
+                    try:
+                        argv = json.loads(fenced)
+                        if isinstance(argv, list) and all(
+                            isinstance(arg, str) for arg in argv
+                        ):
+                            candidates.append(argv)
+                    except json.JSONDecodeError:
+                        pass
+                for command in re.findall(r"`(sf [^`\n]+)`", text):
+                    with suppress(ValueError):
+                        candidates.append(shlex.split(command))
+        matched = sum(command in candidates for command in commands)
+        findings.append(
+            {
+                "tool": message["toolName"],
+                "commandCount": len(commands),
+                "matchingCommandCount": matched,
+                "passed": bool(commands) and matched == len(commands),
+            }
+        )
+    return findings
 
 
 def main() -> None:
@@ -130,6 +177,21 @@ def main() -> None:
                 (root / "workflow-audit.json").write_text(
                     json.dumps(findings, indent=2)
                 )
+                session_messages = [
+                    record["message"]
+                    for session in (root / "sessions").glob("*.jsonl")
+                    for record in rows(session)
+                    if "message" in record
+                ]
+                command_audit = audit_model_commands(session_messages)
+                (root / "model-command-audit.json").write_text(
+                    json.dumps(command_audit, indent=2)
+                )
+                if args.scenario == "live" and any(
+                    not item["passed"] for item in command_audit
+                ):
+                    message = "Model reply does not preserve executed argv; inspect private command audit"
+                    raise RuntimeError(message)
                 print(json.dumps(finding), flush=True)
                 break
             time.sleep(0.25)

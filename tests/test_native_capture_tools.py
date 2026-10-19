@@ -26,6 +26,61 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_model_argv_requires_the_complete_executed_arguments(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        argv = [
+            "sf",
+            "data",
+            "query",
+            "--query",
+            "SELECT Id FROM Opportunity WHERE Name = '$HOME ; 北方'",
+            "--target-org",
+            "synthetic",
+            "--json",
+        ]
+        tool = {
+            "role": "toolResult",
+            "toolName": "sf_query",
+            "details": {"commandEvidence": {"commands": [argv], "withheld": 0}},
+        }
+
+        def reply(command):
+            return {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "```json\n" + json.dumps(command) + "\n```",
+                    }
+                ],
+            }
+
+        assert campaign.audit_model_commands([tool, reply(argv)])[0]["passed"]
+        assert not campaign.audit_model_commands([tool, reply([*argv[:-3], "--json"])])[
+            0
+        ]["passed"]
+        assert not campaign.audit_model_commands([tool, reply([*argv, "--all-rows"])])[
+            0
+        ]["passed"]
+        assert not campaign.audit_model_commands(
+            [
+                tool,
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Used sf_query successfully"}],
+                },
+            ]
+        )[0]["passed"]
+        assert not campaign.audit_model_commands(
+            [tool, {**tool, "toolName": "sf_org_display"}, reply(argv)]
+        )[0]["passed"]
+
     def test_campaign_startup_and_independent_operator_faults(self):
         campaign_spec = importlib.util.spec_from_file_location(
             "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
