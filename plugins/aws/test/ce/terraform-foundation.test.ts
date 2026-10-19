@@ -129,6 +129,27 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
     ]);
   }
 
+  const staticDraft = structuredClone(draft);
+  staticDraft.intent.interfaces[1].addressing = {
+    mode: 'static',
+    addresses: ['10.0.4.20/24', '10.0.5.20/24', '10.0.6.20/24'],
+  };
+  const staticSha = canonicalSha256(staticDraft);
+  const staticConfig = JSON.parse(
+    renderAwsTerraformFoundation({ ...staticDraft, planSha256: staticSha, planId: `aws-ce-${staticSha.slice(0, 24)}` }),
+  );
+  expect(staticConfig.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.0.4.20', '10.0.4.10']);
+  if (staticDraft.intent.ingress?.mode !== 'nlb') throw new Error('Expected NLB fixture');
+  staticDraft.intent.ingress.listener.privateAddresses[0] = '10.0.4.20';
+  const collisionSha = canonicalSha256(staticDraft);
+  expect(() =>
+    renderAwsTerraformFoundation({
+      ...staticDraft,
+      planSha256: collisionSha,
+      planId: `aws-ce-${collisionSha.slice(0, 24)}`,
+    }),
+  ).toThrow('distinct');
+
   // A digest-valid plan still cannot execute an unresolved listener binding.
   reordered.intent.ingress.listener.privateAddresses = [];
   const unresolvedSha = canonicalSha256(reordered);

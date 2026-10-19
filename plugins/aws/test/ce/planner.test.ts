@@ -1195,3 +1195,85 @@ it('binds explicit initial versions into both engine plans and rejects unresolve
     ).toThrow();
   }
 });
+
+it('preserves each static primary address in native and Terraform ENIs', () => {
+  for (const nodeCount of [1, 3] as const) {
+    const configured = interfaces(nodeCount, 2).map((item) => ({
+      ...item,
+      addressing: {
+        mode: 'static' as const,
+        addresses: item.subnets.map((_, node) => `10.${item.index}.${node}.20/24`),
+      },
+    }));
+    const topology = {
+      nodeCount,
+      sites: Array.from({ length: nodeCount }, (_, i) => ({ name: `site-${i + 1}`, nodeIndexes: [i + 1] })),
+    };
+    const routing = {
+      profile: nodeCount === 1 ? ('direct-eni' as const) : ('nlb-ingress' as const),
+      destinationCidrs: [],
+      associations: [],
+      propagations: [],
+    };
+    const native = compileAwsCePlan(intent({ topology, interfaces: configured, routing }), observation());
+    const terraform = compileAwsCePlan(
+      intent({ engine: 'terraform', topology, interfaces: configured, routing }),
+      observation(),
+    );
+    const network = JSON.parse(renderAwsTerraformFoundation(terraform));
+    const actions = native.actions.filter((action) => action.kind === 'eni-create');
+    expect(actions).toHaveLength(nodeCount * 2);
+    for (let node = 1; node <= nodeCount; node++) {
+      for (const item of configured) {
+        const action = actions.find(
+          (action) => action.node === node && action.description.endsWith(`ENI ${item.index}`),
+        );
+        if (!action?.args) throw new Error('Missing ENI action');
+        const selected = `10.${item.index}.${node - 1}.20`;
+        expect(action.args).toContain('--private-ip-addresses');
+        expect(action.args).toContain(`PrivateIpAddress=${selected},Primary=true`);
+        expect(network.resource.aws_network_interface[`node_${node}_nic_${item.index}`].private_ip_list).toEqual([
+          selected,
+        ]);
+        expect(network.resource.aws_network_interface[`node_${node}_nic_${item.index}`].private_ip_list_enabled).toBe(
+          true,
+        );
+      }
+    }
+  }
+});
+
+it('rejects missing, ambiguous, malformed, reserved and prefix-inconsistent static bindings', () => {
+  for (const addresses of [
+    undefined,
+    [],
+    ['10.0.0.20/24', '10.0.0.21/24'],
+    ['10.0.0.20'],
+    ['999.0.0.20/24'],
+    ['2001:db8::20/64'],
+    ['10.0.0.0/24'],
+    ['10.0.0.1/24'],
+    ['10.0.0.3/24'],
+    ['10.0.0.255/24'],
+    ['10.9.0.20/24'],
+    ['10.0.0.20/25'],
+  ]) {
+    for (const engine of ['native', 'terraform'] as const) {
+      const invalid = intent({ engine });
+      invalid.interfaces[0].addressing = { mode: 'static', addresses };
+      expect(() => compileAwsCePlan(invalid, observation())).toThrow();
+    }
+  }
+  const missingDevice = intent();
+  missingDevice.interfaces[0].addressing = { mode: 'static', addresses: ['10.0.0.20/24'] };
+  delete missingDevice.interfaces[1].guestDevice;
+  expect(() => compileAwsCePlan(missingDevice, observation())).toThrow('device');
+});
+
+it('preserves DHCP allocation on a mixed DHCP/static deployment', () => {
+  const mixed = intent({ engine: 'terraform' });
+  mixed.interfaces[1].addressing = { mode: 'static', addresses: ['10.1.0.30/24'] };
+  const network = JSON.parse(renderAwsTerraformFoundation(compileAwsCePlan(mixed, observation())));
+  expect(network.resource.aws_network_interface.node_1_nic_0.private_ip_list).toBeUndefined();
+  expect(network.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.1.0.30']);
+});

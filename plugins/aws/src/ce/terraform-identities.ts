@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import type { AwsExecApi } from '../aws/exec';
+import { awsCeStaticIp } from './interface-addressing';
 import { scopedAwsApi } from './scoped-exec';
 import { siteForNode } from './topology';
 import type { AwsCePlan } from './types';
@@ -84,6 +85,7 @@ export async function discoverAwsTerraformInterfaces(
       'xcsh-interface-index': String(item.index),
     };
     const mac = typeof eni.MacAddress === 'string' ? eni.MacAddress.toLowerCase() : '';
+    const staticIp = awsCeStaticIp(plan.intent, node, item.index)?.ip_address.split('/')[0];
     if (
       eni.OwnerId !== plan.accountId ||
       eni.VpcId !== outputs.ce_vpc_id ||
@@ -98,6 +100,7 @@ export async function discoverAwsTerraformInterfaces(
       typeof eni.PrivateIpAddress !== 'string' ||
       isIP(eni.PrivateIpAddress) !== 4 ||
       eni.PrivateIpAddress !== candidate.private_ip ||
+      (staticIp !== undefined && eni.PrivateIpAddress !== staticIp) ||
       Object.entries(expectedTags).some(
         ([key, value]) =>
           tags.filter((tag) => tag.Key === key && tag.Value === value).length !== 1 ||

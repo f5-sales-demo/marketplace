@@ -5,8 +5,15 @@ import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation'
 import { foundationPlan } from './terraform-fixtures';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-export function admissionFixture(ha = false) {
+export function admissionFixture(ha = false, staticAddressing = false) {
   const base = foundationPlan(ha);
+  if (staticAddressing) {
+    for (const item of base.intent.interfaces)
+      item.addressing = {
+        mode: 'static',
+        addresses: item.subnets.map((subnet) => `${subnet.cidr?.split('/')[0].replace(/\.0$/, '.20')}/24`),
+      };
+  }
   const { planId: _id, planSha256: _sha, ...draft } = base;
   const full = {
     ...draft,
@@ -38,7 +45,7 @@ export function admissionFixture(ha = false) {
             id: `eni-${String(node * 10 + index).padStart(8, '0')}`,
             subnet_id: `subnet-${String(node * 10 + index).padStart(8, '0')}`,
             mac: `00:11:22:33:0${node}:0${index}`,
-            private_ip: `10.0.${node * 2 + index}.4`,
+            private_ip: staticAddressing ? `10.0.${index * 3 + node}.20` : `10.0.${node * 2 + index}.4`,
           },
         ]),
       ),

@@ -4,6 +4,8 @@ export interface ExpectedCeInterface {
   node: string;
   role: 'slo' | 'data' | 'sli';
   mac: string;
+  /** Desired configuration only; this does not establish operational link or freshness. */
+  staticIp?: { ip_address: string; default_gw?: string; dns_server?: string };
 }
 export interface ObservedCeInterface extends ExpectedCeInterface {
   device: string;

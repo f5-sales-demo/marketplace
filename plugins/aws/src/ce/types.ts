@@ -85,6 +85,7 @@ export interface AwsCeInterfaceIntent {
   role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
   vrf: string;
   subnets: Array<{ availabilityZone: string; subnetId?: string; cidr?: string }>;
+  /** Static addresses are CIDRs, exactly one per node in subnet order; DHCP omits addresses. */
   addressing: { mode: 'dhcp' | 'static'; addresses?: string[] };
 }
 

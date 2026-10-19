@@ -10,6 +10,7 @@ import {
   assertAwsWholeSitePowerSupported,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
+import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { interfaceSecurityGroups } from './interface-security';
 import { routeNode, staticAzRoutes } from './static-routing';
 import { siteForNode, siteTopology } from './topology';
@@ -120,16 +121,17 @@ function connectAttachmentCount(intent: AwsCeIntent): number {
   return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
 
-/** Ordered ENI addresses: transport primary first, site listener alias second. */
-export function awsCeNlbInterfacePrivateAddresses(intent: AwsCeIntent, node: number, interfaceIndex: number): string[] {
+/** Ordered ENI addresses: selected primary first, optional site listener alias second. */
+export function awsCeInterfacePrivateAddresses(intent: AwsCeIntent, node: number, interfaceIndex: number): string[] {
   const item = intent.interfaces.find((item) => item.index === interfaceIndex);
   if (!item) fail('NLB interface binding is missing');
-  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return [];
+  const staticIp = awsCeStaticIp(intent, node, interfaceIndex);
+  if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return staticIp ? [staticIp.ip_address.split('/')[0]] : [];
   const siteIndex = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
   const listener = siteIndex < 0 ? undefined : intent.ingress.listener.privateAddresses?.[siteIndex];
   const subnet = item.subnets[node - 1]?.cidr;
   if (!listener || !subnet) fail('NLB SLI subnet or site listener binding is missing');
-  const primary = cidrHost(subnet, 5);
+  const primary = staticIp?.ip_address.split('/')[0] ?? cidrHost(subnet, 5);
   if (!usableSubnetAddress(listener, subnet) || listener === primary)
     fail('NLB site listener must be a distinct usable SLI subnet address');
   return [primary, listener];
@@ -217,6 +219,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       },
     };
   });
+  validateAwsCeAddressing({ ...input, interfaces });
   if (
     sites.some((site) => site.nodeIndexes.length === 3) &&
     (interfaces.some((item) => !item.guestDevice) ||
@@ -423,7 +426,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
               return (
                 !subnet ||
                 !usableSubnetAddress(listener.privateAddresses?.[index] ?? '', subnet) ||
-                listener.privateAddresses?.[index] === cidrHost(subnet, 5)
+                listener.privateAddresses?.[index] ===
+                  (awsCeStaticIp(input, node, 1)?.ip_address.split('/')[0] ?? cidrHost(subnet, 5))
               );
             }))) ||
         typeof listener.domain !== 'string' ||
@@ -1490,7 +1494,7 @@ function compileActions(
       }
   for (let node = 1; node <= intent.topology.nodeCount; node++) {
     for (const item of intent.interfaces) {
-      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
+      const privateAddresses = awsCeInterfacePrivateAddresses(intent, node, item.index);
       add({
         phase: 'network',
         kind: 'eni-create',

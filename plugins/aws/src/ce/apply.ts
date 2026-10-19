@@ -25,6 +25,7 @@ import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { assertAwsWholeSitePowerSupported } from './execution-contract';
+import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
 import { collectAwsNetworkHealth } from './network-health';
@@ -458,6 +459,9 @@ async function assertGate(
               node: `${plan.deploymentName}-${node}`,
               role: item.role as 'slo' | 'sli',
               mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+              ...(awsCeStaticIp(plan.intent, node, item.index)
+                ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+                : {}),
             })),
           ),
           signal,
@@ -469,6 +473,9 @@ async function assertGate(
             node: `${plan.deploymentName}-${node}`,
             role: item.role as 'slo' | 'sli',
             mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+            ...(awsCeStaticIp(plan.intent, node, item.index)
+              ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+              : {}),
             mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
           })),
         );
@@ -640,11 +647,9 @@ export async function executeAwsCeApply(
     destructionAuthorized: authorized && existing?.authorization?.destruction,
   });
   api = scopedAwsApi(api, plan.intent.awsProfile, signal);
-  if (
-    plan.intent.operation === 'deploy' &&
-    plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
-  )
+  if (plan.intent.operation === 'deploy' && plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');
+  if (plan.intent.operation === 'deploy') validateAwsCeAddressing(plan.intent);
   const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
   const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
   if (siteBindings(plan).some(({ site }) => site.nodeIndexes.length === 3)) runtime.requireAwsHaContract();
@@ -850,13 +855,13 @@ export async function executeAwsCeApply(
           if (!selected) throw new Error('Bootstrap node has no site binding');
           const { site, binding } = selected;
           const hostname = `${plan.deploymentName}-${action.node}`;
-          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
+          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
             throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
           const siteCheckpoint = async (record: Record<string, unknown>) => {
             checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
             await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
           };
-          if (site.nodeIndexes.length === 3) {
+          if (site.nodeIndexes.length === 3 || plan.interfaces.some((item) => item.addressing.mode === 'static')) {
             const position = site.nodeIndexes.indexOf(action.node);
             const previous = site.nodeIndexes[position - 1];
             if (previous !== undefined) {
@@ -870,7 +875,7 @@ export async function executeAwsCeApply(
               {
                 schemaVersion: 2,
                 provider: 'aws',
-                haMode: 'three-node',
+                haMode: site.nodeIndexes.length === 3 ? 'three-node' : 'one-node',
                 nodes: site.nodeIndexes.map((node) => ({
                   hostname: `${plan.deploymentName}-${node}`,
                   interfaces: plan.interfaces.map((item) => ({
@@ -882,7 +887,9 @@ export async function executeAwsCeApply(
                     },
                     network_option:
                       item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
-                    dhcp_client: {},
+                    ...(awsCeStaticIp(plan.intent, node, item.index)
+                      ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
+                      : { dhcp_client: {} }),
                   })),
                 })),
                 settings: {},
@@ -956,6 +963,16 @@ export async function executeAwsCeApply(
             raw = JSON.parse(result.stdout);
           } catch {
             throw new Error(`AWS action ${action.id} returned invalid capture JSON`);
+          }
+          if (action.kind === 'eni-create' && action.node) {
+            const item = plan.interfaces.find((item) =>
+              action.captures?.some((capture) => capture.placeholder === `__ENI_${action.node}_${item.index}_MAC__`),
+            );
+            if (!item) throw new Error('ENI response has no planned interface binding');
+            const selected = awsCeStaticIp(plan.intent, action.node, item.index);
+            const eni = (raw as { NetworkInterface?: { PrivateIpAddress?: string } }).NetworkInterface;
+            if (selected && eni?.PrivateIpAddress !== selected.ip_address.split('/')[0])
+              throw new Error('Allocated static primary address differs from the plan');
           }
           for (const capture of [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])]) {
             const value = valueAtPath(raw, capture.path);

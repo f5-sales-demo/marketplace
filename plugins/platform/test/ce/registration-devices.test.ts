@@ -201,3 +201,50 @@ test('Azure accelerated networking selects one synthetic NIC from an exact drive
   aws.items[0].get_spec.infra.instance_id = instances['ce-one'];
   expect(() => correlateRegistrationDevices(aws, 'site-one', instances, expected, 'aws')).toThrow(/duplicated/);
 });
+
+test('verifies selected static CIDR and gateway while rejecting DHCP or mismatched static configuration', () => {
+  const selected = expected.map((item, index) => ({
+    ...item,
+    staticIp: {
+      ip_address: `10.${index}.0.20/24`,
+      ...(index === 0 ? { default_gw: '10.0.0.1', dns_server: '10.0.0.2' } : {}),
+    },
+  }));
+  const devices = correlateRegistrationDevices(fixture(), 'site-one', instances, selected);
+  const spec = {
+    aws: {
+      not_managed: {
+        node_list: [
+          {
+            hostname: 'ce-one',
+            interface_list: devices.map((item) => ({
+              ethernet_interface: { mac: item.mac, device: item.device },
+              network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
+              static_ip: item.staticIp,
+            })),
+          },
+        ],
+      },
+    },
+  };
+  expect(() => verifyRegisteredInterfaceConfiguration(spec, devices)).not.toThrow();
+  const wrongIp = structuredClone(spec);
+  const ipConfiguration = wrongIp.aws.not_managed.node_list[0].interface_list[0].static_ip;
+  if (!ipConfiguration) throw new Error('Expected static configuration');
+  ipConfiguration.ip_address = '10.0.0.21/24';
+  expect(() => verifyRegisteredInterfaceConfiguration(wrongIp, devices)).toThrow();
+  const wrongGateway = structuredClone(spec);
+  const gatewayConfiguration = wrongGateway.aws.not_managed.node_list[0].interface_list[0].static_ip;
+  if (!gatewayConfiguration) throw new Error('Expected static configuration');
+  gatewayConfiguration.default_gw = '10.0.0.9';
+  expect(() => verifyRegisteredInterfaceConfiguration(wrongGateway, devices)).toThrow();
+  const both = structuredClone(spec);
+  Object.assign(both.aws.not_managed.node_list[0].interface_list[0], { dhcp_client: {} });
+  expect(() => verifyRegisteredInterfaceConfiguration(both, devices)).toThrow();
+  expect(() =>
+    verifyRegisteredInterfaceConfiguration(
+      spec,
+      devices.map(({ staticIp: _static, ...item }) => item),
+    ),
+  ).toThrow();
+});

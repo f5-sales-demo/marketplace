@@ -47,3 +47,16 @@ The reviewed [reference inventory](reference-inventory.json) records the selecte
 versions, retrieval commands, and source digests. Only CE-specific guidance was reused.
 Its installer, AWS MCP configuration, generic service catalog, and global mutation rules
 are outside this workflow.
+
+
+For static IPv4 deployment, set each interface's `addressing.mode` to `static`
+and supply exactly one CIDR in `addressing.addresses` per node, in subnet order.
+The CIDR prefix must match the subnet; AWS reserves its first four and final addresses.
+Supply distinct verified `guestDevice` identities for every interface before registration.
+Native and Terraform allocation preserve the selected address as primary; an explicit
+NLB listener remains a distinct secondary SLI address. Mixed DHCP/static configurations
+leave DHCP allocation unchanged. Static SLO configuration uses the subnet router at
+network address plus one and AmazonProvidedDNS at the VPC network address plus two,
+so an exact VPC CIDR is required. CE configuration is installed before bootstrap using
+the pinned SMSv2 schema, then correlated with registered device and MAC identities.
+Configuration evidence does not establish current operational state, freshness, or traffic.

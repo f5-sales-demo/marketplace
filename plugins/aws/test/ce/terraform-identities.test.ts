@@ -12,7 +12,9 @@ const plan = {
     awsProfile: 'ce-profile',
     siteName: 'site',
     topology: { nodeCount: 1 },
-    interfaces: [{ index: 0, role: 'slo', subnets: [{ availabilityZone: 'us-east-1a' }] }],
+    interfaces: [
+      { index: 0, role: 'slo', addressing: { mode: 'dhcp' }, subnets: [{ availabilityZone: 'us-east-1a' }] },
+    ],
   },
 } as unknown as AwsCePlan;
 const tags = {

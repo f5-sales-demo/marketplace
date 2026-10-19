@@ -115,9 +115,15 @@ export function verifyRegisteredInterfaceConfiguration(
         object(item.ethernet_interface).device !== device.device ||
         Object.keys(network).length !== 1 ||
         !Object.hasOwn(network, choice) ||
-        !Object.hasOwn(item, 'dhcp_client') ||
-        Object.hasOwn(item, 'static_ip') ||
-        Object.hasOwn(item, 'no_ipv4_address')
+        Object.hasOwn(item, 'dhcp_server') ||
+        Object.hasOwn(item, 'no_ipv4_address') ||
+        (device.staticIp
+          ? typeof device.staticIp.ip_address !== 'string' ||
+            !device.staticIp.ip_address ||
+            Object.hasOwn(item, 'dhcp_client') ||
+            !Object.hasOwn(item, 'static_ip') ||
+            Object.entries(device.staticIp).some(([key, value]) => object(item.static_ip)[key] !== value)
+          : !Object.hasOwn(item, 'dhcp_client') || Object.hasOwn(item, 'static_ip'))
       )
         throw new Error('Configured guest device, role or addressing differs');
     }

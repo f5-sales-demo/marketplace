@@ -5,6 +5,7 @@ import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { renderAwsCeCloudInit } from './cloud-init';
+import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { siteBindings } from './topology';
@@ -59,8 +60,9 @@ export async function admitAwsTerraformSites(
 ) {
   verifyAwsCePlan(plan);
   const initial = renderAwsTerraformFoundation(plan);
-  if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
-    throw new Error('Terraform admission requires supported SLO/SLI DHCP mapping');
+  if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
+    throw new Error('Terraform admission requires supported SLO/SLI mapping');
+  validateAwsCeAddressing(plan.intent);
   let checkpoint: Admission;
   try {
     checkpoint = (await storage.read('terraform-admission.json')) as Admission;
@@ -124,13 +126,13 @@ export async function admitAwsTerraformSites(
     const outputs = await readOutputs();
     const discoveredBeforeLaunch = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
     if (!checkpoint.admittedSites.includes(site.name)) {
-      if (site.nodeIndexes.length === 3)
+      if (site.nodeIndexes.length === 3 || plan.intent.interfaces.some((item) => item.addressing.mode === 'static'))
         await runtime.ensureSite(
           binding,
           {
             schemaVersion: 2,
             provider: 'aws',
-            haMode: 'three-node',
+            haMode: site.nodeIndexes.length === 3 ? 'three-node' : 'one-node',
             nodes: site.nodeIndexes.map((node) => ({
               hostname: `${plan.deploymentName}-${node}`,
               interfaces: plan.intent.interfaces.map((item) => ({
@@ -141,7 +143,9 @@ export async function admitAwsTerraformSites(
                   mac: discoveredBeforeLaunch.bindings[`__ENI_${node}_${item.index}_MAC__`],
                 },
                 network_option: item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
-                dhcp_client: {},
+                ...(awsCeStaticIp(plan.intent, node, item.index)
+                  ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
+                  : { dhcp_client: {} }),
               })),
             })),
             settings: {},
@@ -229,6 +233,9 @@ export async function admitAwsTerraformSites(
           node: `${plan.deploymentName}-${node}`,
           role: item.role as 'slo' | 'sli',
           mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+          ...(awsCeStaticIp(plan.intent, node, item.index)
+            ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+            : {}),
         })),
       ),
       signal,
@@ -242,6 +249,9 @@ export async function admitAwsTerraformSites(
             node: `${plan.deploymentName}-${node}`,
             role: item.role as 'slo' | 'sli',
             mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+            ...(awsCeStaticIp(plan.intent, node, item.index)
+              ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
+              : {}),
             mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
           })),
         ),

@@ -7,6 +7,7 @@ import {
   assertAwsWholeSitePowerSupported,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
+import { validateAwsCeAddressing } from './interface-addressing';
 import { interfaceSecurityGroups } from './interface-security';
 import { staticAzRoutes } from './static-routing';
 
@@ -15,7 +16,7 @@ export { AWS_CE_TERRAFORM_PROVIDER_VERSION, AWS_CE_TERRAFORM_VERSION } from './e
 import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
 import { verifyAwsCePlan } from './artifacts';
-import { awsCeNlbIngress, awsCeNlbInterfacePrivateAddresses } from './planner';
+import { awsCeInterfacePrivateAddresses, awsCeNlbIngress } from './planner';
 import { siteForNode, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -32,8 +33,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
   const intent = plan.intent;
   if (intent.vpc.mode !== 'greenfield' || intent.egress.mode !== 'elastic-ip')
     throw new Error('Terraform foundation currently requires greenfield VPC and Elastic IP egress');
-  if (intent.interfaces.some((item) => item.addressing.mode !== 'dhcp'))
-    throw new Error('Terraform foundation static addressing requires explicit translation');
+  validateAwsCeAddressing(intent);
   const keys = Object.keys(bootstrapByNode);
   if (keys.some((key) => !/^[1-3]$/.test(key) || Number(key) > intent.topology.nodeCount))
     throw new Error('Invalid Terraform node admission');
@@ -120,7 +120,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         cidr_block: subnet.cidr,
         tags: tags(node, item.index),
       });
-      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
+      const privateAddresses = awsCeInterfacePrivateAddresses(intent, node, item.index);
       add('aws_network_interface', name, {
         subnet_id: ref(`aws_subnet.${name}.id`),
         security_groups: interfaceSecurityGroups(intent, item.index).map((name) =>

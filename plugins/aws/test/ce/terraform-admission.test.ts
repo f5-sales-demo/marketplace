@@ -1,4 +1,6 @@
 import { expect, it } from 'bun:test';
+import { buildWireSite, type WireSiteIntent } from '../../../platform/src/ce/wire-site';
+import schema from '../../../platform/test/fixtures/smsv2-create-schema.json';
 import { admitAwsTerraformSites } from '../../src/ce/terraform-admission';
 import { admissionFixture as fixture } from './terraform-admission-fixture';
 
@@ -93,4 +95,55 @@ it('does not admit the next site when server-populated interface configuration i
   const result = await admitAwsTerraformSites(f.plan, f.session, runtime, f.storage, f.api, {});
   expect(result.status).toBe('pending-interface-configuration');
   expect([...f.nodes]).toEqual([1]);
+});
+
+it('configures static independent sites through the pinned SMSv2 schema before bootstrap', async () => {
+  const f = fixture(false, true);
+  const order: string[] = [];
+  const originalEnsure = f.runtime.ensureSite.bind(f.runtime);
+  const originalBootstrap = f.runtime.bootstrap.bind(f.runtime);
+  f.runtime.ensureSite = async (binding, value) => {
+    const intent = value as WireSiteIntent;
+    const wire = buildWireSite(intent, schema.schemas);
+    expect(wire.disable_ha).toEqual({});
+    const interfaces = intent.nodes[0].interfaces;
+    expect(interfaces[0].static_ip).toEqual({
+      ip_address: '10.0.1.20/24',
+      default_gw: '10.0.1.1',
+      dns_server: '10.0.0.2',
+    });
+    expect(interfaces[1].static_ip).toEqual({ ip_address: '10.0.4.20/24' });
+    expect(interfaces.every((item) => !Object.hasOwn(item, 'dhcp_client'))).toBe(true);
+    order.push('ensure');
+    await originalEnsure(binding, value);
+  };
+  f.runtime.bootstrap = async (binding, node) => {
+    order.push('bootstrap');
+    return originalBootstrap(binding, node);
+  };
+  await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {});
+  expect(order).toEqual(['ensure', 'bootstrap']);
+  expect(f.ensuredSites).toHaveLength(1);
+});
+
+it('rejects a cloud/output address that agrees with itself but differs from the static plan', async () => {
+  const f = fixture(false, true);
+  const originalOutputs = f.session.readOutputs.bind(f.session);
+  f.session.readOutputs = async (...args) => {
+    const output = await originalOutputs(...args);
+    const interfaces = output.ce_interfaces as Record<string, { private_ip: string }>;
+    interfaces['1:0'].private_ip = '10.0.1.21';
+    return output;
+  };
+  const originalExec = f.api.exec.bind(f.api);
+  f.api.exec = async (...args) => {
+    const result = await originalExec(...args);
+    const response = JSON.parse(result.stdout);
+    if (response.NetworkInterfaces) response.NetworkInterfaces[0].PrivateIpAddress = '10.0.1.21';
+    return { ...result, stdout: JSON.stringify(response) };
+  };
+  await expect(admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).rejects.toThrow(
+    'resource binding',
+  );
+  expect(f.bootstrapped).toEqual([]);
 });
