@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** records private three-node HA interrupted-success recovery and
+  partial orphan-disk cleanup. Recovery refuses a live executor without mutation
+  and preserves the original binary before no-change planning. Each separate
+  delete-only cleanup completed an empty destroy plan, stable state and eighteen
+  independent absences without replay. Public HA admission and exhaustive health
+  remain gated; receipts bind the actual executable sources and frozen bundles.
+
 - **`gcloud`** binds HA firewall ownership to completed Google insert receipts,
   equal provider-retained and live creation timestamps, and exact live target IDs.
   Creation must fall within one completed insert operation's recorded interval;
@@ -86,7 +93,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.15 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.16 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).

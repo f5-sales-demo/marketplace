@@ -166,7 +166,12 @@ remains single-node pending
 and fresh installed/live evidence.
 
 Google 8.7.0 retains firewall creation timestamps but no numeric firewall ID in
-Terraform state. HA ownership requires the exact completed insert operation,
-matching creation timestamp and immutable target ID from independent live
-observation. Missing operation evidence requires reconciliation; names and tags
-do not establish ownership.
+Terraform state. HA ownership requires one completed error-free insert operation,
+equal retained/live creation timestamps, exact target link and immutable live
+target ID. Resource creation and operation start must fall within the operation's
+recorded insert-to-completion interval; they need not share a timestamp. Missing,
+ambiguous or replaced evidence requires reconciliation; names and tags do not
+establish ownership. Private interrupted-success and partial-cleanup campaigns
+verified these joins without replay and finished with eighteen independent
+absences. Their receipts retain original executable attribution; public HA
+admission and exhaustive health remain unqualified.

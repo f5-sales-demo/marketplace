@@ -128,4 +128,16 @@ reconciliation without replay, no-change verification and delete-only cleanup.
 Two matching observations confirmed three ONLINE nodes and both NIC joins; all
 returned component rows were Ready, while exhaustive health remains unqualified.
 See [the candidate receipt](../../../../../docs/receipts/gcp-ha-candidate-deployment-20261019.md).
-Public HA admission and interrupted/partial campaigns remain gated.
+Subsequent private campaigns qualified
+[interrupted-success recovery](../../../../../docs/receipts/gcp-ha-interrupted-recovery-20261019.md)
+and [partial orphan-disk cleanup](../../../../../docs/receipts/gcp-ha-partial-cleanup-20261019.md).
+Recovery refused a live executor without mutation, reconciled the original
+eighteen-object attempt after it stopped, and preserved the binary before
+no-change planning. Partial cleanup captured eleven exact objects, including
+three orphan disks, without replay. Each campaign submitted one separate
+delete-only plan and finished with an empty destroy plan, stable state and all
+eighteen independent absences; repeated resumes submitted no new operation.
+The recovery campaign confirmed two matching ONLINE/NIC observations, but its
+component, service-inventory and global-health APIs were unavailable. Exhaustive
+health, owning immutable API admission and fresh public installed/live acceptance
+remain gated. Both PRs remain draft.
