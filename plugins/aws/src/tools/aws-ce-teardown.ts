@@ -1,0 +1,301 @@
+import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import type { CePlatformService } from '../../../platform/src/ce/service';
+import type { CeTerraformService } from '../../../terraform/src/service';
+import type { AwsExecApi } from '../aws/exec';
+import type { PluginInterface } from '../aws/types';
+import { executeAwsCeApply } from '../ce/apply';
+import { type AwsCeToolContext, loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from '../ce/artifacts';
+import { safeHexEqual } from '../ce/canonical';
+import { collectAwsNativeCloudRetirement } from '../ce/delete-recovery';
+import { type AwsNativeTeardownPlan, prepareAwsNativeTeardown, runAwsNativeTeardown } from '../ce/native-teardown';
+import { awsPlatformService } from '../ce/platform';
+import { scopedAwsApi } from '../ce/scoped-exec';
+import { awsTerraformService } from '../ce/terraform-apply';
+import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
+import { type AwsTerraformTeardownPlan, runAwsTerraformTeardown } from '../ce/terraform-teardown';
+import { prepareAwsTerraformTeardown } from '../ce/terraform-teardown-plan';
+import { makeExecApi } from './shared';
+
+interface Dependencies {
+  platform(pi: PluginInterface, signal?: AbortSignal): Promise<CePlatformService>;
+  terraform(pi: PluginInterface, signal?: AbortSignal): Promise<CeTerraformService>;
+  contract(signal?: AbortSignal): Promise<VerifiedIngressContract>;
+  prepare: typeof prepareAwsTerraformTeardown;
+  run: typeof runAwsTerraformTeardown;
+  prepareNative: typeof prepareAwsNativeTeardown;
+  runNative: typeof runAwsNativeTeardown;
+  applyNative: typeof executeAwsCeApply;
+}
+
+const defaults: Dependencies = {
+  platform: awsPlatformService,
+  terraform: awsTerraformService,
+  contract: (signal) => VerifiedIngressContract.release(fetch, signal),
+  prepare: prepareAwsTerraformTeardown,
+  run: runAwsTerraformTeardown,
+  prepareNative: prepareAwsNativeTeardown,
+  runNative: runAwsNativeTeardown,
+  applyNative: executeAwsCeApply,
+};
+
+async function optional(storage: Awaited<ReturnType<CePlatformService['storage']>>, name: string) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
+
+export function createAwsCeTeardownTool(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => AwsExecApi = makeExecApi,
+  dependencies: Dependencies = defaults,
+) {
+  const { Type } = pi.typebox;
+  return {
+    name: 'aws_ce_teardown',
+    label: 'Teardown AWS Customer Edge',
+    description:
+      'Prepare or apply an immutable native- or Terraform-owned AWS Customer Edge teardown. Preparation collects authoritative platform and stored identities; apply drains ingress/routing, executes the exact reviewed cloud plan, retires sites, verifies absence, and resumes without manual state edits.',
+    parameters: Type.Object({
+      operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
+      basePlanId: Type.String(),
+      basePlanSha256: Type.String(),
+      teardownPlanId: Type.Optional(Type.String()),
+      teardownPlanSha256: Type.Optional(Type.String()),
+      cloudPlanId: Type.Optional(Type.String()),
+      cloudPlanSha256: Type.Optional(Type.String()),
+    }),
+    async execute(
+      _id: string,
+      params: {
+        operation: 'prepare' | 'apply';
+        basePlanId: string;
+        basePlanSha256: string;
+        teardownPlanId?: string;
+        teardownPlanSha256?: string;
+        cloudPlanId?: string;
+        cloudPlanSha256?: string;
+      },
+      signal: AbortSignal | undefined,
+      _update: unknown,
+      ctx: AwsCeToolContext,
+    ) {
+      try {
+        const allowed =
+          params.operation === 'prepare'
+            ? ['basePlanId', 'basePlanSha256', 'cloudPlanId', 'cloudPlanSha256', 'operation']
+            : ['basePlanId', 'basePlanSha256', 'operation', 'teardownPlanId', 'teardownPlanSha256'];
+        if (Object.keys(params).some((key) => !allowed.includes(key)))
+          throw new Error(`AWS CE teardown ${params.operation} parameters differ`);
+        const { plan } = await loadAwsPlan(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
+        const platform = await dependencies.platform(pi, signal);
+        const owner = {
+          deploymentId: plan.deploymentName,
+          engine: plan.engine,
+          provider: 'aws' as const,
+          account: plan.accountId,
+          region: plan.region,
+        };
+        const storage = await platform.storage(owner);
+        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
+        const contract = await dependencies.contract(signal);
+        if (params.operation === 'prepare') {
+          const cloud =
+            plan.engine === 'native'
+              ? !params.cloudPlanId || !params.cloudPlanSha256
+                ? undefined
+                : (await loadAwsPlan(ctx.sessionManager, params.cloudPlanId, params.cloudPlanSha256)).plan
+              : undefined;
+          if (plan.engine === 'native' && !cloud)
+            throw new Error(
+              'Native teardown preparation requires the exact reviewed cloud teardown plan ID and SHA-256',
+            );
+          if (plan.engine === 'terraform' && (params.cloudPlanId || params.cloudPlanSha256))
+            throw new Error('Terraform teardown does not accept a separate native cloud plan');
+          const teardown =
+            plan.engine === 'terraform'
+              ? await dependencies.prepare(plan, runtime, contract, storage, signal)
+              : await dependencies.prepareNative(plan, cloud as never, runtime, contract, storage, signal);
+          const artifactId = await ctx.sessionManager.saveArtifact(
+            JSON.stringify({
+              kind: teardown.kind,
+              engine: teardown.engine,
+              planId: teardown.planId,
+              planSha256: teardown.planSha256,
+              sourcePlanSha256: teardown.sourcePlanSha256,
+              siteCount: teardown.retirement.length,
+              listenerCount: teardown.drain.listeners.length,
+              originCount: teardown.drain.origins.length,
+              routingCount: teardown.drain.sites.reduce((total, site) => total + site.routing.length, 0),
+              tokenLocatorCount: teardown.retirement.reduce((total, site) => total + site.tokens.length, 0),
+            }),
+            'aws-ce-teardown-plan',
+          );
+          if (!artifactId) throw new Error('AWS CE teardown plan artifact persistence failed');
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Teardown plan ID: ${teardown.planId}\nSHA-256: ${teardown.planSha256}\nSites: ${teardown.retirement.length}\nListeners/origins/routing objects: ${teardown.drain.listeners.length}/${teardown.drain.origins.length}/${teardown.drain.sites.reduce((total, site) => total + site.routing.length, 0)}\nArtifact: artifact://${artifactId}`,
+              },
+            ],
+            details: {
+              tool: 'aws_ce_teardown',
+              operation: 'prepare',
+              artifactId,
+              planId: teardown.planId,
+              planSha256: teardown.planSha256,
+            },
+          };
+        }
+        if (!params.teardownPlanId || !params.teardownPlanSha256)
+          throw new Error('Teardown apply requires the exact teardown plan ID and SHA-256');
+        const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as
+          | AwsTerraformTeardownPlan
+          | AwsNativeTeardownPlan;
+        if (
+          teardown.planId !== params.teardownPlanId ||
+          !safeHexEqual(teardown.planSha256, params.teardownPlanSha256) ||
+          teardown.sourcePlanSha256 !== plan.planSha256
+        )
+          throw new Error('Persisted AWS CE teardown plan identity differs');
+        const authorizationName = `${teardown.planId}-authorization.json`;
+        const authorization = await optional(storage, authorizationName);
+        if (authorization !== undefined) {
+          if (
+            !authorization ||
+            typeof authorization !== 'object' ||
+            (authorization as Record<string, unknown>).schemaVersion !== 1 ||
+            (authorization as Record<string, unknown>).engine !== plan.engine ||
+            (authorization as Record<string, unknown>).sourcePlanSha256 !== plan.planSha256 ||
+            (authorization as Record<string, unknown>).teardownPlanSha256 !== teardown.planSha256 ||
+            (authorization as Record<string, unknown>).mutations !== true
+          )
+            throw new Error('Persisted AWS CE teardown authorization differs');
+        } else {
+          if (
+            ctx.hasUI &&
+            !(await ctx.ui.confirm(
+              'Apply immutable AWS CE teardown plan',
+              `${teardown.planId}\n${teardown.planSha256}\n${teardown.retirement.length} site(s)`,
+            ))
+          )
+            throw new Error('AWS CE teardown was not approved');
+          await storage.write(authorizationName, {
+            schemaVersion: 1,
+            engine: plan.engine,
+            sourcePlanSha256: plan.planSha256,
+            teardownPlanSha256: teardown.planSha256,
+            mutations: true,
+          });
+        }
+        const result =
+          plan.engine === 'terraform'
+            ? await dependencies.run(
+                plan,
+                teardown as AwsTerraformTeardownPlan,
+                params.teardownPlanSha256,
+                runtime,
+                contract,
+                await (await dependencies.terraform(pi, signal)).open(
+                  owner,
+                  await awsTerraformFoundationDeployment(plan),
+                  'current',
+                ),
+                storage,
+                makeApi(ctx.cwd),
+                process.env,
+                signal,
+              )
+            : await dependencies.runNative(
+                plan,
+                (
+                  await loadAwsPlan(
+                    ctx.sessionManager,
+                    (teardown as AwsNativeTeardownPlan).cloudPlanId,
+                    (teardown as AwsNativeTeardownPlan).cloudPlanSha256,
+                  )
+                ).plan,
+                teardown as AwsNativeTeardownPlan,
+                params.teardownPlanSha256,
+                runtime,
+                contract,
+                storage,
+                async (reference, signal) => {
+                  const { plan: cloud, observation } = await loadAwsPlan(
+                    ctx.sessionManager,
+                    reference.cloudPlanId,
+                    reference.cloudPlanSha256,
+                  );
+                  const existing = await loadAwsCheckpoint(ctx.sessionManager, cloud.planId, cloud.planSha256);
+                  if (!existing)
+                    await saveAwsCheckpoint(ctx.sessionManager, {
+                      schemaVersion: 2,
+                      engine: 'native',
+                      authorization: { planSha256: cloud.planSha256, mutations: true, destruction: true },
+                      planId: cloud.planId,
+                      planSha256: cloud.planSha256,
+                      completedActionIds: [],
+                      resolvedValues: {},
+                      state: 'running',
+                    });
+                  const applied = await dependencies.applyNative(
+                    { planId: cloud.planId, planSha256: cloud.planSha256 },
+                    ctx,
+                    makeApi(ctx.cwd),
+                    platform,
+                    fetch,
+                    signal,
+                  );
+                  if (applied.checkpoint.state !== 'complete') throw new Error('Native cloud teardown remains partial');
+                  const ownerDigests = [
+                    ...new Set([
+                      ...observation.ownershipPlanSha256s,
+                      ...observation.resources
+                        .map((row) => row.tags['xcsh-plan-sha256'])
+                        .filter((value): value is string => /^[a-f0-9]{64}$/.test(value ?? '')),
+                    ]),
+                  ];
+                  const absence = await collectAwsNativeCloudRetirement(
+                    scopedAwsApi(makeApi(ctx.cwd), cloud.intent.awsProfile, signal),
+                    cloud,
+                    ownerDigests,
+                  );
+                  if (absence.status !== 'absent') throw new Error('Native cloud retirement has not converged');
+                  return {
+                    status: 'native-cloud-retired',
+                    cloudPlanId: cloud.planId,
+                    cloudPlanSha256: cloud.planSha256,
+                    absence: 'absent',
+                  };
+                },
+                signal,
+              );
+        const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-teardown-checkpoint');
+        if (!artifactId) throw new Error('AWS CE teardown checkpoint artifact persistence failed');
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `AWS CE teardown ${plan.deploymentName}: ${String(result.status)}; cloud inventory ${String(result.cloudInventory)}. Supporting infrastructure outside the CE plan requires separate ownership and absence evidence.`,
+            },
+          ],
+          details: { tool: 'aws_ce_teardown', operation: 'apply', artifactId, ...result },
+        };
+      } catch (error) {
+        signal?.throwIfAborted();
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `AWS CE teardown failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+          details: { tool: 'aws_ce_teardown', operation: params.operation },
+        };
+      }
+    },
+  };
+}

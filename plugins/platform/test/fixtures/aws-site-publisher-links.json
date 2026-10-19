@@ -1,0 +1,196 @@
+{
+  "provenance": {
+    "observedAt": "2026-09-08T12:59:39.593Z",
+    "source": "Fresh AWS Terraform SMSv2 qualification, site 1, 2026-09-08",
+    "sanitization": "Retained only site/node/interface correlation fields; removed IP addresses, tenant details and unrelated publications."
+  },
+  "configuration": {
+    "metadata": {
+      "name": "ce-parity-tf3-ca-site1",
+      "namespace": "system"
+    },
+    "system_metadata": {
+      "uid": "da448ce0-7481-482f-9f0f-e73110cd68d0"
+    },
+    "spec": {
+      "aws": {
+        "not_managed": {
+          "node_list": [
+            {
+              "hostname": "ce-parity-tf3-ca-1",
+              "interface_list": [
+                {
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "06:15:cb:18:3d:fd"
+                  },
+                  "mtu": 1500,
+                  "network_option": {
+                    "site_local_network": {}
+                  }
+                },
+                {
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "06:75:ac:50:11:4f"
+                  },
+                  "mtu": 1500,
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  }
+                }
+              ],
+              "public_ip": "",
+              "type": "Control"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "objects": {
+    "items": [
+      {
+        "name": "ves-io-securemesh-site-v2-ce-parity-tf3-ca-site1-network-ce-parity-tf3-ca-1-ens5-0",
+        "namespace": "system",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "uid": "da448ce0-7481-482f-9f0f-e73110cd68d0",
+          "namespace": "system",
+          "name": "ce-parity-tf3-ca-site1"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "device": "ens5",
+            "node": "ce-parity-tf3-ca-1",
+            "untagged": {},
+            "dhcp_client": {},
+            "no_ipv6_address": {},
+            "site_local_network": {},
+            "mtu": 1500,
+            "priority": 0,
+            "is_primary": {}
+          }
+        }
+      },
+      {
+        "name": "ves-io-securemesh-site-v2-ce-parity-tf3-ca-site1-network-ce-parity-tf3-ca-1-ens6-0",
+        "namespace": "system",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "uid": "da448ce0-7481-482f-9f0f-e73110cd68d0",
+          "namespace": "system",
+          "name": "ce-parity-tf3-ca-site1"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "device": "ens6",
+            "node": "ce-parity-tf3-ca-1",
+            "untagged": {},
+            "dhcp_client": {},
+            "no_ipv6_address": {},
+            "site_local_inside_network": {},
+            "mtu": 1500,
+            "priority": 0,
+            "not_primary": {}
+          }
+        }
+      }
+    ]
+  },
+  "physical": {
+    "metadata": {
+      "name": "ce-parity-tf3-ca-site1",
+      "namespace": "system"
+    },
+    "system_metadata": {
+      "uid": "713d7c19-2a4c-409e-9eec-5f1593861059"
+    },
+    "status": [
+      {
+        "metadata": {
+          "creator_class": "ver",
+          "creator_id": "sv10-sjc",
+          "status_id": "ce-parity-tf3-ca-site1_SiteStatus",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "713d7c19-2a4c-409e-9eec-5f1593861059"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "master-10-sv10-sjc-int-ves-io",
+          "intf_status": []
+        }
+      },
+      {
+        "metadata": {
+          "creator_class": "ver",
+          "creator_id": "wes-sea",
+          "status_id": "ce-parity-tf3-ca-site1_SiteStatus",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "713d7c19-2a4c-409e-9eec-5f1593861059"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "master-17-wes-sea-int-ves-io",
+          "intf_status": []
+        }
+      },
+      {
+        "metadata": {
+          "creator_class": "ver",
+          "creator_id": "ce-parity-tf3-ca-site1",
+          "status_id": "ce-parity-tf3-ca-1_SiteStatusMgr",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "713d7c19-2a4c-409e-9eec-5f1593861059"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "ce-parity-tf3-ca-1-ce-parity-tf3-ca-site1",
+          "intf_status": [
+            {
+              "name": "ens5",
+              "mac": "06:15:cb:18:3d:fd",
+              "link_state": true,
+              "link_type": "LINK_TYPE_ETHERNET",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL"
+            },
+            {
+              "name": "ens6",
+              "mac": "06:75:ac:50:11:4f",
+              "link_state": true,
+              "link_type": "LINK_TYPE_ETHERNET",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": [
+    {
+      "node": "ce-parity-tf3-ca-1",
+      "role": "slo",
+      "mac": "06:15:cb:18:3d:fd"
+    },
+    {
+      "node": "ce-parity-tf3-ca-1",
+      "role": "sli",
+      "mac": "06:75:ac:50:11:4f"
+    }
+  ]
+}

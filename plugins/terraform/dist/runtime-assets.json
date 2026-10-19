@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "plugin": "terraform",
+  "assets": [
+    {
+      "sourcePath": "plugins/terraform/locks/xcsh-provider.hcl",
+      "runtimePath": "assets/plugins/terraform/locks/xcsh-provider.hcl",
+      "sha256": "6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782"
+    }
+  ]
+}
