@@ -114,3 +114,12 @@ no software license. Corporate funding classification comes from the user's
 explicit confirmation; scoped live identity, organization and billing reads
 verify the unchanged association. Neither engine switches billing or creates
 payment methods to resolve failures. Deletion can proceed without funding access.
+
+The shared runner can privately project explicitly selected nonsensitive fields
+from applied state. The projection binds the original saved-plan receipt,
+backend, configuration, provider lock, state digest, lineage and serial. It
+rejects changed snapshots, sensitive ancestors/leaves, duplicate resource
+identities and addresses outside the reviewed plan. GCP creation ownership also
+checks exact cloud identities, boot-disk retention and ordered NIC links before
+recording the durable ledger. This adapter is a deployment prerequisite; public
+Terraform deployment and interrupted creation recovery remain unavailable.

@@ -1,7 +1,13 @@
 import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
-import { type Deployment, type PlanReceipt, type TerraformActionIntent, TerraformRunner } from './runner';
+import {
+  type AppliedResourceProjection,
+  type Deployment,
+  type PlanReceipt,
+  type TerraformActionIntent,
+  TerraformRunner,
+} from './runner';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
@@ -18,6 +24,13 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Record<string, Record<string, unknown> | null>>;
+  /** Optional for older installed runtimes; exact applied receipt and nonsensitive state identities required. */
+  readAppliedResourceFields?(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<AppliedResourceProjection>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
     addresses: string[],
@@ -84,6 +97,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async readPlannedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceFields(receipt, selections, env, signal);
+        },
+        async readAppliedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readAppliedResourceFields(receipt, selections, env, signal);
         },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();

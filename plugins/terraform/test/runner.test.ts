@@ -17,13 +17,23 @@ async function fixture(
   outputValues: Record<string, unknown> = {},
   configuration = '{"terraform":{"required_version":"= 1.14.0"}}',
   onApply?: () => void,
+  stateJson: Record<string, unknown> = {},
+  onStateShow?: (cwd: string) => Promise<void>,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
   const calls: Invocation[] = [];
   const runner = new TerraformRunner(root, async (request) => {
     calls.push(request);
-    if (request.args[0] === 'apply') onApply?.();
+    if (request.args[0] === 'apply') {
+      onApply?.();
+      await writeFile(
+        join(request.cwd, 'terraform.tfstate'),
+        JSON.stringify({ lineage: 'fixture-lineage', serial: 1 }),
+        { mode: 0o600 },
+      );
+    }
+    if (request.args[0] === 'show' && request.args[2] === 'terraform.tfstate') await onStateShow?.(request.cwd);
     if (request.args[0] === 'plan') await writeFile(join(request.cwd, 'saved.tfplan'), 'binary-plan', { mode: 0o600 });
     return {
       code: 0,
@@ -33,23 +43,25 @@ async function fixture(
           : request.args[0] === 'output'
             ? JSON.stringify(outputValues)
             : request.args[0] === 'show'
-              ? JSON.stringify({
-                  format_version: '1.2',
-                  terraform_version: '1.14.0',
-                  errored: false,
-                  complete: true,
-                  applyable: true, // codespell:ignore applyable
-                  resource_changes: [
-                    {
-                      address: 'terraform_data.ce',
-                      mode: 'managed',
-                      type: 'terraform_data',
-                      change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
-                    },
-                  ],
-                  output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
-                  ...planOverrides,
-                })
+              ? request.args[2] === 'terraform.tfstate'
+                ? JSON.stringify({ format_version: '1.0', terraform_version: '1.14.0', ...stateJson })
+                : JSON.stringify({
+                    format_version: '1.2',
+                    terraform_version: '1.14.0',
+                    errored: false,
+                    complete: true,
+                    applyable: true, // codespell:ignore applyable
+                    resource_changes: [
+                      {
+                        address: 'terraform_data.ce',
+                        mode: 'managed',
+                        type: 'terraform_data',
+                        change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
+                      },
+                    ],
+                    output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
+                    ...planOverrides,
+                  })
               : '',
     };
   });
@@ -106,6 +118,118 @@ test('post-apply ownership capture requires the exact completed saved plan and r
   await runner.plan({});
   await expect(runner.assertApplied(receipt)).rejects.toThrow('applied');
 });
+
+test('projects applied state identities from the original receipt without exporting sensitive siblings', async () => {
+  const resource = {
+    address: 'google_compute_instance.ce',
+    mode: 'managed',
+    type: 'google_compute_instance',
+    values: {
+      id: 'owned-vm',
+      boot_disk: [{ source: 'owned-disk', key: 'PRIVATE_KEY' }],
+      metadata: { token: 'PRIVATE_BOOTSTRAP' },
+    },
+    sensitive_values: { boot_disk: [{ key: true }], metadata: true },
+  };
+  const { runner, calls, root } = await fixture(
+    { resource_changes: [{ address: resource.address, type: resource.type, change: { actions: ['create'] } }] },
+    {},
+    undefined,
+    undefined,
+    { values: { root_module: { resources: [resource] } } },
+  );
+  const receipt = await runner.plan({});
+  await expect(runner.readAppliedResourceFields(receipt, { 'google_compute_instance.ce': ['id'] }, {})).rejects.toThrow(
+    /applied/,
+  );
+  await runner.apply(receipt, {});
+  const projection = await runner.readAppliedResourceFields(
+    receipt,
+    { 'google_compute_instance.ce': ['id', 'boot_disk.0.source', 'boot_disk.length'] },
+    {},
+  );
+  expect(projection).toEqual({
+    schemaVersion: 1,
+    planSha256: receipt.planSha256,
+    stateSha256: hash(JSON.stringify({ lineage: 'fixture-lineage', serial: 1 })),
+    lineage: 'fixture-lineage',
+    serial: 1,
+    resources: {
+      'google_compute_instance.ce': { id: 'owned-vm', 'boot_disk.0.source': 'owned-disk', 'boot_disk.length': 1 },
+    },
+  });
+  expect(JSON.stringify(projection)).not.toMatch(/PRIVATE/);
+  expect(calls.at(-1)?.args).toEqual(['show', '-json', 'terraform.tfstate']);
+  for (const field of ['metadata', 'metadata.token', 'boot_disk', 'boot_disk.0.key', 'missing'])
+    await expect(
+      runner.readAppliedResourceFields(receipt, { 'google_compute_instance.ce': [field] }, {}),
+    ).rejects.toThrow(/sensitive/);
+  await expect(
+    runner.readAppliedResourceFields(
+      { ...receipt, planSha256: '0'.repeat(64) },
+      { 'google_compute_instance.ce': ['id'] },
+      {},
+    ),
+  ).rejects.toThrow(/applied/);
+  await writeFile(
+    join(root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({ lineage: 'fixture-lineage', serial: -1 }),
+    { mode: 0o600 },
+  );
+  await expect(runner.readAppliedResourceFields(receipt, { 'google_compute_instance.ce': ['id'] }, {})).rejects.toThrow(
+    /state identity/,
+  );
+}, 30_000);
+
+test('applied state projection rejects changing state, duplicate addresses and resources outside the reviewed plan', async () => {
+  const resource = {
+    address: 'terraform_data.ce',
+    type: 'terraform_data',
+    mode: 'managed',
+    values: { id: 'owned' },
+    sensitive_values: {},
+  };
+  for (const resources of [[resource, resource], [{ ...resource, address: 'terraform_data.other' }]]) {
+    const { runner } = await fixture({}, {}, undefined, undefined, { values: { root_module: { resources } } });
+    const receipt = await runner.plan({});
+    await runner.apply(receipt, {});
+    await expect(runner.readAppliedResourceFields(receipt, { [resources[0].address]: ['id'] }, {})).rejects.toThrow(
+      /ambiguous|reviewed/,
+    );
+  }
+  const { runner } = await fixture(
+    {},
+    {},
+    undefined,
+    undefined,
+    { values: { root_module: { resources: [resource] } } },
+    async (cwd) => {
+      await writeFile(join(cwd, 'terraform.tfstate'), JSON.stringify({ lineage: 'fixture-lineage', serial: 2 }), {
+        mode: 0o600,
+      });
+    },
+  );
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  await expect(runner.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /state changed/,
+  );
+}, 30_000);
+
+test('applied projection preserves receipt authorization on resume and refuses superseded plans', async () => {
+  const { runner, root } = await fixture({}, {}, undefined, undefined, { values: { root_module: { resources: [] } } });
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  const resumed = new TerraformRunner(root, runner.execute);
+  await resumed.resume('ce-test');
+  expect((await resumed.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).resources).toEqual({
+    'terraform_data.ce': null,
+  });
+  await resumed.plan({});
+  await expect(resumed.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /applied/,
+  );
+}, 30_000);
 
 test('projects resource IDs privately from the exact saved plan and rejects sensitive IDs', async () => {
   const resource = {

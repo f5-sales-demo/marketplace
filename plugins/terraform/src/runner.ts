@@ -34,6 +34,14 @@ export interface TerraformActionIntent {
   providerName: string;
   configValuesSha256: string;
 }
+export interface AppliedResourceProjection {
+  schemaVersion: 1;
+  planSha256: string;
+  stateSha256: string;
+  lineage: string;
+  serial: number;
+  resources: Record<string, Record<string, unknown> | null>;
+}
 export interface PlanReceipt {
   schemaVersion: 1;
   deploymentId: string;
@@ -258,6 +266,62 @@ export function terraformExecutor(
       signal?.removeEventListener('abort', abort);
     }
   };
+}
+
+function validateResourceSelections(selections: Record<string, string[]>): void {
+  if (
+    !selections ||
+    typeof selections !== 'object' ||
+    Array.isArray(selections) ||
+    !Object.keys(selections).length ||
+    Object.entries(selections).some(
+      ([address, fields]) =>
+        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+        !Array.isArray(fields) ||
+        !fields.length ||
+        new Set(fields).size !== fields.length ||
+        fields.some(
+          (field) =>
+            typeof field !== 'string' ||
+            !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
+            field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
+        ),
+    )
+  )
+    throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
+}
+function projectResourceFields(values: Json, sensitivity: unknown, fields: string[]): Record<string, unknown> {
+  const nonsensitive = (value: unknown): boolean =>
+    value === undefined ||
+    value === false ||
+    (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
+  const selected: Record<string, unknown> = {};
+  for (const field of fields) {
+    let value: unknown = values;
+    let marker: unknown = sensitivity;
+    const parts = field.split('.');
+    for (const [index, part] of parts.entries()) {
+      if (
+        marker === true ||
+        !value ||
+        typeof value !== 'object' ||
+        !Object.hasOwn(value, part) ||
+        (Array.isArray(value) && !(part === 'length' && index === parts.length - 1) && !/^(0|[1-9][0-9]*)$/.test(part))
+      )
+        throw new Error('Terraform resource field is unavailable or sensitive');
+      // An explicit array count exports structure only, never sensitive child values.
+      marker =
+        Array.isArray(value) && part === 'length'
+          ? false
+          : marker !== null && typeof marker === 'object'
+            ? (marker as Record<string, unknown>)[part]
+            : marker;
+      value = (value as Record<string, unknown>)[part];
+    }
+    if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
+    selected[field] = value;
+  }
+  return selected;
 }
 
 /** Fixed argv wrapper sets child permissions without changing the host's umask. */
@@ -804,32 +868,9 @@ export class TerraformRunner {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Record<string, Record<string, unknown> | null>> {
-    if (
-      !selections ||
-      typeof selections !== 'object' ||
-      Array.isArray(selections) ||
-      !Object.keys(selections).length ||
-      Object.entries(selections).some(
-        ([address, fields]) =>
-          !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
-          !Array.isArray(fields) ||
-          !fields.length ||
-          new Set(fields).size !== fields.length ||
-          fields.some(
-            (field) =>
-              typeof field !== 'string' ||
-              !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
-              field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
-          ),
-      )
-    )
-      throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
+    validateResourceSelections(selections);
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
-    const nonsensitive = (value: unknown): boolean =>
-      value === undefined ||
-      value === false ||
-      (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -866,39 +907,90 @@ export class TerraformRunner {
             : change.before_sensitive === true
               ? true
               : object(change.before_sensitive);
-        const selected: Record<string, unknown> = {};
-        for (const field of fields) {
-          let value: unknown = before;
-          let marker: unknown = sensitivity;
-          const parts = field.split('.');
-          for (const [index, part] of parts.entries()) {
-            if (
-              marker === true ||
-              !value ||
-              typeof value !== 'object' ||
-              !Object.hasOwn(value, part) ||
-              (Array.isArray(value) &&
-                !(part === 'length' && index === parts.length - 1) &&
-                !/^(0|[1-9][0-9]*)$/.test(part))
-            )
-              throw new Error('Terraform resource field is unavailable or sensitive');
-            // An explicit array count exports structure only, never sensitive child values.
-            marker =
-              Array.isArray(value) && part === 'length'
-                ? false
-                : marker !== null && typeof marker === 'object'
-                  ? (marker as Record<string, unknown>)[part]
-                  : marker;
-            value = (value as Record<string, unknown>)[part];
-          }
-          if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
-          selected[field] = value;
-        }
+        const selected = projectResourceFields(before, sensitivity, fields);
         result[address] = selected;
       }
       if (receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
       return result;
+    });
+  }
+  /** Restricted post-apply state projection, bound to the original binary and a stable isolated state snapshot. */
+  async readAppliedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<AppliedResourceProjection> {
+    validateResourceSelections(selections);
+    selections = structuredClone(selections);
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'applied' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan')))
+      )
+        throw new Error('Exact applied Terraform receipt required for state identity inspection');
+      const statePath = join(directory, 'terraform.tfstate');
+      const snapshot = await privateRead(statePath);
+      const identity = decode(snapshot.toString());
+      if (
+        typeof identity.lineage !== 'string' ||
+        !identity.lineage.trim() ||
+        !Number.isSafeInteger(identity.serial) ||
+        (identity.serial as number) < 0
+      )
+        throw new Error('Terraform state identity is malformed');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (state.format_version !== '1.0' || state.terraform_version !== manifest.terraformVersion)
+        throw new Error('Terraform state format or version changed');
+      const module = object(object(state.values ?? {}).root_module ?? {});
+      const resources = module.resources ?? [];
+      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+      const result: AppliedResourceProjection['resources'] = {};
+      for (const [address, fields] of Object.entries(selections)) {
+        const reviewed = receipt.changes.filter((change) => change.address === address);
+        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
+        const matches = resources.map(object).filter((resource) => resource.address === address);
+        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const resource = matches[0];
+        if (
+          resource.mode !== 'managed' ||
+          resource.type !== reviewed[0].type ||
+          resource.type !== address.split('.')[0]
+        )
+          throw new Error('Terraform state resource differs from reviewed identity');
+        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
+        result[address] = projectResourceFields(object(resource.values), resource.sensitive_values, fields);
+      }
+      if (digest(snapshot) !== digest(await privateRead(statePath)))
+        throw new Error('Terraform state changed during identity inspection');
+      await this.#verifyInputs();
+      if (receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))))
+        throw new Error('Terraform saved plan changed during state identity inspection');
+      return {
+        schemaVersion: 1,
+        planSha256: receipt.planSha256,
+        stateSha256: digest(snapshot),
+        lineage: identity.lineage,
+        serial: identity.serial as number,
+        resources: result,
+      };
     });
   }
   async apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void> {

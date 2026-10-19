@@ -26,7 +26,7 @@ export interface GcpTerraformTeardownRuntime {
   observePlatform: NonNullable<GcpPlatformObservations['teardown']>;
   environment: Record<string, string | undefined>;
 }
-function addresses(intent: GcpCeIntent) {
+export function gcpTerraformResourceAddresses(intent: GcpCeIntent) {
   const site = intent.sites[0],
     node = site.nodes[0];
   return [
@@ -39,7 +39,12 @@ function addresses(intent: GcpCeIntent) {
     `xcsh_token.${node.name.replaceAll('-', '_')}`,
   ];
 }
-function transition(intent: GcpCeIntent, receipt: PlanReceipt, operation: 'deploy' | 'teardown', expected: string[]) {
+export function assertGcpTerraformOwnedTransition(
+  intent: GcpCeIntent,
+  receipt: PlanReceipt,
+  operation: 'deploy' | 'teardown',
+  expected: string[],
+) {
   if (receipt.noChanges || receipt.changes.length !== expected.length)
     throw new Error('Complete Terraform transition inventory required');
   const action = operation === 'deploy' ? 'create' : 'delete';
@@ -96,14 +101,14 @@ export async function recordGcpTerraformPlatformIdentity(
   assertGcpTeardownProfile(intent, contract, 'terraform');
   await savedIntent(runtime.store, intent);
   if (!runtime.session.assertApplied) throw new Error('Shared applied-plan attestation unavailable');
-  const expected = addresses(intent),
+  const expected = gcpTerraformResourceAddresses(intent),
     platformAddresses = expected.slice(-2);
   if (
     creation.changes.some((change) => !expected.includes(change.address)) ||
     platformAddresses.some((address) => !creation.changes.some((change) => change.address === address))
   )
     throw new Error('Exact owned site/token creation receipt required');
-  transition(
+  assertGcpTerraformOwnedTransition(
     intent,
     creation,
     'deploy',
@@ -187,15 +192,9 @@ async function observe(
     throw new Error('Original Terraform Platform object was replaced');
   return { cloudAbsent, siteAbsent: platform.siteAbsent, tokenAbsent: platform.tokenAbsent };
 }
-async function projectSavedPlan(
-  runtime: GcpTerraformTeardownRuntime,
-  intent: GcpCeIntent,
-  receipt: PlanReceipt,
-  resources: Awaited<ReturnType<typeof readGcpResourceInventory>>,
-  signal?: AbortSignal,
-) {
-  const expected = addresses(intent),
-    selections: Record<string, string[]> = {};
+export function gcpTerraformIdentitySelections(intent: GcpCeIntent) {
+  const selections: Record<string, string[]> = {};
+  const expected = gcpTerraformResourceAddresses(intent);
   for (const address of expected) {
     if (address.startsWith('google_compute_instance.'))
       selections[address] = [
@@ -226,16 +225,24 @@ async function projectSavedPlan(
         ...(address.startsWith('xcsh_token.') ? ['site_name'] : []),
       ];
   }
-  const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
+  return selections;
+}
+export function assertGcpTerraformProjectedIdentities(
+  intent: GcpCeIntent,
+  fields: Record<string, Record<string, unknown> | null>,
+  resources: Awaited<ReturnType<typeof readGcpResourceInventory>>,
+) {
+  const expected = gcpTerraformResourceAddresses(intent),
+    selections = gcpTerraformIdentitySelections(intent);
   if (fingerprint(Object.keys(fields).sort()) !== fingerprint(expected.slice().sort()))
-    throw new Error('Saved destroy projection resource inventory differs');
+    throw new Error('Terraform ownership projection resource inventory differs');
   const node = intent.sites[0].nodes[0],
     disk = resources.find((resource) => resource.kind === 'disk');
   for (const address of expected) {
     const value = fields[address];
-    if (!value) throw new Error('Complete saved destroy ownership projection required');
+    if (!value) throw new Error('Complete Terraform ownership ownership projection required');
     if (fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort()))
-      throw new Error('Saved destroy projection contains unexpected fields');
+      throw new Error('Terraform ownership projection contains unexpected fields');
     if (address.startsWith('xcsh_')) {
       const name = address.startsWith('xcsh_token.') ? `${node.name}-token` : intent.sites[0].name;
       const labels = value.labels as Record<string, unknown> | undefined;
@@ -248,11 +255,11 @@ async function projectSavedPlan(
         (address.startsWith('xcsh_token.') &&
           (value.site_name !== intent.sites[0].name || labels['xcsh-node'] !== node.name))
       )
-        throw new Error('Saved destroy Platform ownership differs');
+        throw new Error('Terraform ownership Platform ownership differs');
     } else {
       const resource = resources.find((resource) => resource.selfLink === value.self_link);
       if (!resource || value.project !== intent.project || value.name !== resource.selfLink.split('/').at(-1))
-        throw new Error('Saved destroy cloud identity differs');
+        throw new Error('Terraform ownership cloud identity differs');
       if (address.startsWith('google_compute_instance.')) {
         if (
           resource.kind !== 'instance' ||
@@ -271,16 +278,28 @@ async function projectSavedPlan(
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${node.interfaces[index].subnet}`,
           )
         )
-          throw new Error('Saved destroy VM/disk identity differs');
+          throw new Error('Terraform ownership VM/disk identity differs');
       } else if (address.startsWith('google_compute_network.')) {
         if (resource.kind !== 'network' || String(value.numeric_id) !== resource.id)
-          throw new Error('Saved destroy VPC identity differs');
+          throw new Error('Terraform ownership VPC identity differs');
       } else if (resource.kind !== 'subnetwork' || value.region !== intent.region)
-        throw new Error('Saved destroy subnet identity differs');
+        throw new Error('Terraform ownership subnet identity differs');
     }
   }
   return fingerprint(fields);
 }
+async function projectSavedPlan(
+  runtime: GcpTerraformTeardownRuntime,
+  intent: GcpCeIntent,
+  receipt: PlanReceipt,
+  resources: Awaited<ReturnType<typeof readGcpResourceInventory>>,
+  signal?: AbortSignal,
+) {
+  const selections = gcpTerraformIdentitySelections(intent);
+  const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
+  return assertGcpTerraformProjectedIdentities(intent, fields, resources);
+}
+
 export async function planGcpTerraformTeardown(
   runtime: GcpTerraformTeardownRuntime,
   intent: GcpCeIntent,
@@ -300,7 +319,7 @@ export async function planGcpTerraformTeardown(
     if (current.cloudAbsent || current.siteAbsent || current.tokenAbsent)
       throw new Error('Initial Terraform teardown review requires complete live inventory');
     const receipt = await runtime.session.planDestroy(runtime.environment, signal);
-    transition(intent, receipt, 'teardown', addresses(intent));
+    assertGcpTerraformOwnedTransition(intent, receipt, 'teardown', gcpTerraformResourceAddresses(intent));
     const projectionHash = await projectSavedPlan(runtime, intent, receipt, resources, signal);
     const body = {
       schemaVersion: 1,
@@ -379,7 +398,7 @@ export async function applyGcpTerraformTeardown(
     if (!checkpoint) {
       if (absence.cloudAbsent || absence.siteAbsent || absence.tokenAbsent)
         throw new Error('Initial approved destroy requires complete live inventory');
-      transition(intent, plan.savedPlan, 'teardown', addresses(intent));
+      assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'teardown', gcpTerraformResourceAddresses(intent));
       if ((await projectSavedPlan(runtime, intent, plan.savedPlan, resources, signal)) !== plan.projectionHash)
         throw new Error('Saved destroy ownership projection changed');
       checkpoint = { planHash: approvedHash, state: 'submitting' };

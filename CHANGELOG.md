@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** adds restricted applied-state identity projection bound to the
+  original reviewed binary, isolated state lineage/serial and stable snapshot.
+  **`gcloud`** captures exact Terraform creation ownership with independent cloud
+  identities and ordered disk/NIC checks. Public Terraform deployment remains
+  unavailable while review/apply and interrupted recovery are integrated (#1559).
+
 - **`gcloud`** adds an explicit native single-node deployment plan/apply candidate
   with server-collected prerequisites, persisted overall review, unchanged corporate
   funding/BYOL bindings and durable authorization for asynchronous resume. Completed

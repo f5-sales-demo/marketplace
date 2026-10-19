@@ -8,6 +8,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import { GCP_CE_API_RELEASE } from '../../src/ce/contract';
 import { fingerprint } from '../../src/ce/discovery';
 import { recordGcpResource } from '../../src/ce/ownership';
+import { captureGcpTerraformCreationOwnership } from '../../src/ce/terraform-deployment';
 import {
   applyGcpTerraformTeardown,
   type GcpTerraformTeardownRuntime,
@@ -165,6 +166,14 @@ async function fixture() {
     },
     observePlatform: async () => structuredClone(platform),
     session: {
+      readAppliedResourceFields: async () => ({
+        schemaVersion: 1,
+        planSha256: hash,
+        stateSha256: 'c'.repeat(64),
+        lineage: 'owned-lineage',
+        serial: 1,
+        resources: structuredClone(fields),
+      }),
       assertApplied: async () => {
         if (!created) throw new Error('creation not applied');
       },
@@ -185,7 +194,7 @@ async function fixture() {
       reconcileApplyFromEvidence: async () => {
         reconciliations++;
       },
-    } as GcpTerraformTeardownRuntime['session'],
+    } as unknown as GcpTerraformTeardownRuntime['session'],
   };
   const contract = {
     release: GCP_CE_API_RELEASE,
@@ -402,4 +411,46 @@ it('stale or semantically altered reviewed plans cannot authorize destruction', 
     await expect(applyGcpTerraformTeardown(f.runtime, f.i, f.contract, f.policy, planHash)).rejects.toThrow();
   }
   expect(f.applies()).toBe(0);
+});
+
+it('captures Terraform ownership from exact applied state and independent cloud identities without mutations', async () => {
+  const f = await fixture();
+  const result = await captureGcpTerraformCreationOwnership(f.runtime, f.i, f.contract, f.creation);
+  expect(result.resources).toBe(6);
+  expect(f.applies()).toBe(0);
+  const saved = (await f.runtime.store.read('gcp-terraform-creation-ownership.json')) as {
+    state: { lineage: string };
+    ownershipHash: string;
+  };
+  expect(saved.state.lineage).toBe('owned-lineage');
+  expect(saved.ownershipHash).toBe(result.ownershipHash);
+  expect(JSON.stringify(saved)).not.toMatch(/private-google|bootstrap|sensitive_values/);
+  await captureGcpTerraformCreationOwnership(f.runtime, f.i, f.contract, f.creation);
+});
+it('refuses Terraform ownership capture from wrong state, changed NICs or replacement cloud objects', async () => {
+  for (const failure of ['receipt', 'nic', 'instance', 'network', 'missing', 'runner', 'original']) {
+    const f = await fixture();
+    if (failure === 'receipt') f.creation.planSha256 = 'd'.repeat(64);
+    if (failure === 'nic')
+      f.fields[`google_compute_instance.${f.i.sites[0].nodes[0].name.replaceAll('-', '_')}`][
+        'network_interface.0.network'
+      ] = 'wrong-network';
+    if (failure === 'instance' || failure === 'network')
+      f.live.set(f.resources[failure === 'instance' ? 0 : 2].selfLink, {
+        ...f.resources[failure === 'instance' ? 0 : 2],
+        id: '999',
+      });
+    if (failure === 'missing') f.live.delete(f.resources[3].selfLink);
+    if (failure === 'runner') delete f.runtime.session.readAppliedResourceFields;
+    if (failure === 'original') {
+      await captureGcpTerraformCreationOwnership(f.runtime, f.i, f.contract, f.creation);
+      const old = (await f.runtime.store.read('gcp-terraform-creation-ownership.json')) as Record<string, unknown>;
+      await f.runtime.store.write('gcp-terraform-creation-ownership.json', {
+        ...old,
+        ownershipHash: fingerprint('forged'),
+      });
+    }
+    await expect(captureGcpTerraformCreationOwnership(f.runtime, f.i, f.contract, f.creation)).rejects.toThrow();
+    expect(f.applies()).toBe(0);
+  }
 });

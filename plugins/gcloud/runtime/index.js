@@ -5256,6 +5256,60 @@ function terraformExecutor(
     }
   };
 }
+function validateResourceSelections(selections) {
+  if (
+    !selections ||
+    typeof selections !== 'object' ||
+    Array.isArray(selections) ||
+    !Object.keys(selections).length ||
+    Object.entries(selections).some(
+      ([address, fields]) =>
+        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+        !Array.isArray(fields) ||
+        !fields.length ||
+        new Set(fields).size !== fields.length ||
+        fields.some(
+          (field) =>
+            typeof field !== 'string' ||
+            !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
+            field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
+        ),
+    )
+  )
+    throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
+}
+function projectResourceFields(values, sensitivity, fields) {
+  const nonsensitive = (value) =>
+    value === undefined ||
+    value === false ||
+    (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
+  const selected = {};
+  for (const field of fields) {
+    let value = values;
+    let marker = sensitivity;
+    const parts = field.split('.');
+    for (const [index, part] of parts.entries()) {
+      if (
+        marker === true ||
+        !value ||
+        typeof value !== 'object' ||
+        !Object.hasOwn(value, part) ||
+        (Array.isArray(value) && !(part === 'length' && index === parts.length - 1) && !/^(0|[1-9][0-9]*)$/.test(part))
+      )
+        throw new Error('Terraform resource field is unavailable or sensitive');
+      marker =
+        Array.isArray(value) && part === 'length'
+          ? false
+          : marker !== null && typeof marker === 'object'
+            ? marker[part]
+            : marker;
+      value = value[part];
+    }
+    if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
+    selected[field] = value;
+  }
+  return selected;
+}
 
 class TerraformRunner {
   root;
@@ -5754,32 +5808,9 @@ class TerraformRunner {
     );
   }
   async readPlannedResourceFields(receipt, selections, env, signal) {
-    if (
-      !selections ||
-      typeof selections !== 'object' ||
-      Array.isArray(selections) ||
-      !Object.keys(selections).length ||
-      Object.entries(selections).some(
-        ([address, fields]) =>
-          !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
-          !Array.isArray(fields) ||
-          !fields.length ||
-          new Set(fields).size !== fields.length ||
-          fields.some(
-            (field) =>
-              typeof field !== 'string' ||
-              !/^[a-z][a-z0-9_]*(?:\.(?:[a-z][a-z0-9_]*|0|[1-9][0-9]*))*$/.test(field) ||
-              field.split('.').some((part) => ['__proto__', 'constructor', 'prototype'].includes(part)),
-          ),
-      )
-    )
-      throw new Error('Explicit root resource addresses and unique fields with explicit paths are required');
+    validateResourceSelections(selections);
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
-    const nonsensitive = (value) =>
-      value === undefined ||
-      value === false ||
-      (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -5816,38 +5847,84 @@ class TerraformRunner {
             : change.before_sensitive === true
               ? true
               : object4(change.before_sensitive);
-        const selected = {};
-        for (const field of fields) {
-          let value = before;
-          let marker = sensitivity;
-          const parts = field.split('.');
-          for (const [index, part] of parts.entries()) {
-            if (
-              marker === true ||
-              !value ||
-              typeof value !== 'object' ||
-              !Object.hasOwn(value, part) ||
-              (Array.isArray(value) &&
-                !(part === 'length' && index === parts.length - 1) &&
-                !/^(0|[1-9][0-9]*)$/.test(part))
-            )
-              throw new Error('Terraform resource field is unavailable or sensitive');
-            marker =
-              Array.isArray(value) && part === 'length'
-                ? false
-                : marker !== null && typeof marker === 'object'
-                  ? marker[part]
-                  : marker;
-            value = value[part];
-          }
-          if (!nonsensitive(marker)) throw new Error('Terraform resource field is unavailable or sensitive');
-          selected[field] = value;
-        }
+        const selected = projectResourceFields(before, sensitivity, fields);
         result[address] = selected;
       }
       if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
       return result;
+    });
+  }
+  async readAppliedResourceFields(receipt, selections, env, signal) {
+    validateResourceSelections(selections);
+    selections = structuredClone(selections);
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'applied' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
+      )
+        throw new Error('Exact applied Terraform receipt required for state identity inspection');
+      const statePath = join8(directory, 'terraform.tfstate');
+      const snapshot = await privateRead(statePath);
+      const identity = decode(snapshot.toString());
+      if (
+        typeof identity.lineage !== 'string' ||
+        !identity.lineage.trim() ||
+        !Number.isSafeInteger(identity.serial) ||
+        identity.serial < 0
+      )
+        throw new Error('Terraform state identity is malformed');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (state.format_version !== '1.0' || state.terraform_version !== manifest.terraformVersion)
+        throw new Error('Terraform state format or version changed');
+      const module = object4(object4(state.values ?? {}).root_module ?? {});
+      const resources = module.resources ?? [];
+      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+      const result = {};
+      for (const [address, fields] of Object.entries(selections)) {
+        const reviewed = receipt.changes.filter((change) => change.address === address);
+        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
+        const matches = resources.map(object4).filter((resource) => resource.address === address);
+        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const resource = matches[0];
+        if (
+          resource.mode !== 'managed' ||
+          resource.type !== reviewed[0].type ||
+          resource.type !== address.split('.')[0]
+        )
+          throw new Error('Terraform state resource differs from reviewed identity');
+        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
+        result[address] = projectResourceFields(object4(resource.values), resource.sensitive_values, fields);
+      }
+      if (digest2(snapshot) !== digest2(await privateRead(statePath)))
+        throw new Error('Terraform state changed during identity inspection');
+      await this.#verifyInputs();
+      if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
+        throw new Error('Terraform saved plan changed during state identity inspection');
+      return {
+        schemaVersion: 1,
+        planSha256: receipt.planSha256,
+        stateSha256: digest2(snapshot),
+        lineage: identity.lineage,
+        serial: identity.serial,
+        resources: result,
+      };
     });
   }
   async apply(receipt, env, signal) {
@@ -5945,6 +6022,10 @@ function createCeTerraformService(platform) {
         async readPlannedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceFields(receipt, selections, env, signal);
+        },
+        async readAppliedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readAppliedResourceFields(receipt, selections, env, signal);
         },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();
@@ -6225,7 +6306,7 @@ var init_terraform_admission = __esm(() => {
 // plugins/gcloud/src/ce/terraform-teardown.ts
 import { join as join10 } from 'node:path';
 
-function addresses(intent) {
+function gcpTerraformResourceAddresses(intent) {
   const site = intent.sites[0],
     node = site.nodes[0];
   return [
@@ -6238,7 +6319,7 @@ function addresses(intent) {
     `xcsh_token.${node.name.replaceAll('-', '_')}`,
   ];
 }
-function transition(intent, receipt, operation, expected) {
+function assertGcpTerraformOwnedTransition(intent, receipt, operation, expected) {
   if (receipt.noChanges || receipt.changes.length !== expected.length)
     throw new Error('Complete Terraform transition inventory required');
   const action = operation === 'deploy' ? 'create' : 'delete';
@@ -6316,9 +6397,9 @@ async function observe(runtime, intent, resources, original, signal) {
     throw new Error('Original Terraform Platform object was replaced');
   return { cloudAbsent, siteAbsent: platform.siteAbsent, tokenAbsent: platform.tokenAbsent };
 }
-async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
-  const expected = addresses(intent),
-    selections = {};
+function gcpTerraformIdentitySelections(intent) {
+  const selections = {};
+  const expected = gcpTerraformResourceAddresses(intent);
   for (const address of expected) {
     if (address.startsWith('google_compute_instance.'))
       selections[address] = [
@@ -6349,16 +6430,20 @@ async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
         ...(address.startsWith('xcsh_token.') ? ['site_name'] : []),
       ];
   }
-  const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
+  return selections;
+}
+function assertGcpTerraformProjectedIdentities(intent, fields, resources) {
+  const expected = gcpTerraformResourceAddresses(intent),
+    selections = gcpTerraformIdentitySelections(intent);
   if (fingerprint(Object.keys(fields).sort()) !== fingerprint(expected.slice().sort()))
-    throw new Error('Saved destroy projection resource inventory differs');
+    throw new Error('Terraform ownership projection resource inventory differs');
   const node = intent.sites[0].nodes[0],
     disk = resources.find((resource) => resource.kind === 'disk');
   for (const address of expected) {
     const value = fields[address];
-    if (!value) throw new Error('Complete saved destroy ownership projection required');
+    if (!value) throw new Error('Complete Terraform ownership ownership projection required');
     if (fingerprint(Object.keys(value).sort()) !== fingerprint(selections[address].slice().sort()))
-      throw new Error('Saved destroy projection contains unexpected fields');
+      throw new Error('Terraform ownership projection contains unexpected fields');
     if (address.startsWith('xcsh_')) {
       const name = address.startsWith('xcsh_token.') ? `${node.name}-token` : intent.sites[0].name;
       const labels = value.labels;
@@ -6371,11 +6456,11 @@ async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
         (address.startsWith('xcsh_token.') &&
           (value.site_name !== intent.sites[0].name || labels['xcsh-node'] !== node.name))
       )
-        throw new Error('Saved destroy Platform ownership differs');
+        throw new Error('Terraform ownership Platform ownership differs');
     } else {
       const resource = resources.find((resource) => resource.selfLink === value.self_link);
       if (!resource || value.project !== intent.project || value.name !== resource.selfLink.split('/').at(-1))
-        throw new Error('Saved destroy cloud identity differs');
+        throw new Error('Terraform ownership cloud identity differs');
       if (address.startsWith('google_compute_instance.')) {
         if (
           resource.kind !== 'instance' ||
@@ -6394,15 +6479,20 @@ async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
                 `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${node.interfaces[index].subnet}`,
           )
         )
-          throw new Error('Saved destroy VM/disk identity differs');
+          throw new Error('Terraform ownership VM/disk identity differs');
       } else if (address.startsWith('google_compute_network.')) {
         if (resource.kind !== 'network' || String(value.numeric_id) !== resource.id)
-          throw new Error('Saved destroy VPC identity differs');
+          throw new Error('Terraform ownership VPC identity differs');
       } else if (resource.kind !== 'subnetwork' || value.region !== intent.region)
-        throw new Error('Saved destroy subnet identity differs');
+        throw new Error('Terraform ownership subnet identity differs');
     }
   }
   return fingerprint(fields);
+}
+async function projectSavedPlan(runtime, intent, receipt, resources, signal) {
+  const selections = gcpTerraformIdentitySelections(intent);
+  const fields = await runtime.session.readPlannedResourceFields(receipt, selections, runtime.environment, signal);
+  return assertGcpTerraformProjectedIdentities(intent, fields, resources);
 }
 async function planGcpTerraformTeardown(runtime, intent, contract, policy, signal) {
   assertGcpTeardownProfile(intent, contract, 'terraform');
@@ -6417,7 +6507,7 @@ async function planGcpTerraformTeardown(runtime, intent, contract, policy, signa
     if (current.cloudAbsent || current.siteAbsent || current.tokenAbsent)
       throw new Error('Initial Terraform teardown review requires complete live inventory');
     const receipt = await runtime.session.planDestroy(runtime.environment, signal);
-    transition(intent, receipt, 'teardown', addresses(intent));
+    assertGcpTerraformOwnedTransition(intent, receipt, 'teardown', gcpTerraformResourceAddresses(intent));
     const projectionHash = await projectSavedPlan(runtime, intent, receipt, resources, signal);
     const body = {
       schemaVersion: 1,
@@ -6485,7 +6575,7 @@ async function applyGcpTerraformTeardown(runtime, intent, contract, policy, appr
     if (!checkpoint) {
       if (absence.cloudAbsent || absence.siteAbsent || absence.tokenAbsent)
         throw new Error('Initial approved destroy requires complete live inventory');
-      transition(intent, plan.savedPlan, 'teardown', addresses(intent));
+      assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'teardown', gcpTerraformResourceAddresses(intent));
       if ((await projectSavedPlan(runtime, intent, plan.savedPlan, resources, signal)) !== plan.projectionHash)
         throw new Error('Saved destroy ownership projection changed');
       checkpoint = { planHash: approvedHash, state: 'submitting' };
