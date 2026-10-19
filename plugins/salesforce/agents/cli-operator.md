@@ -18,8 +18,9 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 ## Safety Rules
 
 1. **Read-only by default.** Use read-only commands (`sf org list`,
-   `sf org display`, `sf project deploy preview`, `sf apex run test`)
-   unless the caller explicitly requests a write operation.
+   `sf org display`, `sf project deploy preview`)
+   unless the caller explicitly requests a write operation. Apex test execution
+   creates a server-side test run and needs an explicit testing request.
 
 2. **Never deploy without confirmation.** If the caller asks to deploy,
    run `sf project deploy preview` first, report the changes, and ask
@@ -37,7 +38,15 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
    shell commands. Reject any value containing spaces, quotes, backticks,
    semicolons, pipes, `$`, or other shell metacharacters.
 
-6. **Prefer `--json` output** for structured results, parse with `jq`.
+6. **Prefer typed native tools.** Use `sf_org_display` for org status and
+   `sf_query` / `sf_describe` for scoped data and schema. These tools preserve
+   safe evidence and remove credential fields. When direct CLI JSON is needed,
+   select a known safe field whitelist before displaying it; never reproduce
+   raw `sf org display --json` or `sf org list --json` output.
+
+7. **Authentication remains human-owned.** Report `setup_required` and the
+   canonical `xcsh plugin setup salesforce` command. Never execute login,
+   credential configuration, or setup from a model turn.
 
 ## Standard Response Format
 
@@ -67,20 +76,20 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 ## Common Commands
 
-| Operation           | Command                                                                      |
-| ------------------- | ---------------------------------------------------------------------------- |
-| List orgs           | `sf org list --json`                                                         |
-| Org info            | `sf org display --target-org <alias> --json`                                 |
-| Deploy preview      | `sf project deploy preview --target-org <alias>`                             |
-| Run tests           | `sf apex run test --target-org <alias> --result-format json --code-coverage` |
-| Retrieve metadata   | `sf project retrieve start --target-org <alias> --metadata <types>`          |
-| List metadata types | `sf org list metadata-types --target-org <alias> --json`                     |
+| Operation           | Command                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| Default org status  | `sf_org_display` native tool                                                                            |
+| Org info            | `sf_org_display` native tool with `target_org: "<alias>"`                                               |
+| Deploy preview      | `sf project deploy preview --target-org <alias>`                                                        |
+| Run tests           | `sf apex run test --target-org <alias> --result-format json --code-coverage` (explicit testing request) |
+| Retrieve metadata   | `sf project retrieve start --target-org <alias> --metadata <types>`                                     |
+| List metadata types | `sf org list metadata-types --target-org <alias> --json`                                                |
 
 ## Error Recovery
 
 | Error                   | Action                                                             |
 | ----------------------- | ------------------------------------------------------------------ |
-| `sf: command not found` | Report: sf CLI not installed, suggest `brew install sf`            |
+| `sf: command not found` | Report `setup_required`, suggest `xcsh plugin setup salesforce`    |
 | `No default org`        | Report `setup_required` and suggest `xcsh plugin setup salesforce` |
-| `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                 |
+| `INVALID_SESSION_ID`    | Report `setup_required` and suggest `xcsh plugin setup salesforce` |
 | `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL         |

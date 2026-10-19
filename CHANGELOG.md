@@ -76,6 +76,8 @@ and this project adheres to
   with exact saved-plan apply, final empty destroy and independent absence (#1559).
 - **`terraform`** v2.4.1 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
+- **`salesforce`** v2.3.13: preserve exact lifecycle aggregate amounts without inventing currency; use safe typed org status and human-owned authentication guidance.
+
 - **`salesforce`** v2.3.12 delegates all six tools to shared runtime rendering, preserves full fields and twelve-row previews, and uses runtime command wrapping and progress cleanup (#1618).
 
 - **`salesforce`** v2.3.11 refreshes the animated Pipeline spinner throughout execution and stops the session timer on completion (#1577).
