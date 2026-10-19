@@ -8,7 +8,10 @@ cleanup; credentials may rotate at the original endpoint.
 Only the exact `approvedPlanHash` authorizes submission. Resume inspects consumed
 attempts, verifies the original executor stopped, compares cloud numeric identities
 and XC original creation hashes, and requires an exact no-op follow-up for a
-complete outcome. Partial ownership requires a separate delete-only cleanup review
+complete outcome. Completion binds the stable state snapshot used for no-op verification. Resumed
+completion rechecks that exact snapshot and the original live identities; lost
+or changed state requires reconciliation without another submission.
+Partial ownership requires a separate delete-only cleanup review
 bound to the original attempt and stable state. Missing state or replacement
 identities require reconciliation. Cleanup remains available without billing access
 and finishes only after an empty destroy plan, a matching final state snapshot,

@@ -134,15 +134,18 @@ export interface PublicTerraformJournal {
     | 'partial'
     | 'reconciliation-required';
   followUp?: PlanReceipt;
+  finalState?: PublicTerraformOwnership['state'];
+  completionReconciliation?: boolean;
 }
 function publicResult(journal: PublicTerraformJournal, ownership?: PublicTerraformOwnership) {
+  const phase = journal.completionReconciliation ? 'reconciliation-required' : journal.phase;
   return {
     schemaVersion: 2,
     engine: 'terraform',
     planHash: journal.planHash,
-    state: journal.phase === 'completed' ? 'done' : journal.phase === 'partial' ? 'partial' : 'reconciliation-required',
-    phase: journal.phase,
-    cloudProvisioning: journal.phase === 'completed' ? 'created' : 'incomplete',
+    state: phase === 'completed' ? 'done' : phase === 'partial' ? 'partial' : 'reconciliation-required',
+    phase,
+    cloudProvisioning: phase === 'completed' ? 'created' : 'incomplete',
     ...(ownership ? { ownedObjects: ownership.addresses.length, ownershipHash: fingerprint(ownership) } : {}),
     ...(journal.followUp ? { finalPlanSha256: journal.followUp.planSha256 } : {}),
     registration: 'unknown',
@@ -150,9 +153,9 @@ function publicResult(journal: PublicTerraformJournal, ownership?: PublicTerrafo
     platformHealth: 'unknown',
     routing: 'unknown',
     applicationTraffic: 'unknown',
-    ...(journal.phase === 'partial'
+    ...(phase === 'partial'
       ? { cleanup: 'separate-delete-only-review-required' }
-      : journal.phase !== 'completed'
+      : phase !== 'completed'
         ? { reconciliation: 'original-attempt-inspection-required' }
         : {}),
   };
@@ -267,9 +270,19 @@ export async function applyPublicTerraformDeployment(
     await runtime.store.write('gcp-tf-public-deployment.json', journal);
     let ownership = await readOptional<PublicTerraformOwnership>(runtime, 'gcp-tf-public-ownership.json');
     if (journal.phase === 'completed') {
-      if (!ownership?.complete || !journal.followUp) throw new Error('Completed Terraform evidence missing');
-      assertPublicTerraformNoChange(intent, plan.savedPlan, journal.followUp);
-      await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+      try {
+        if (!ownership?.complete || !journal.followUp || !journal.finalState || !runtime.session.readStateIdentity)
+          throw new Error('Completed Terraform evidence missing');
+        assertPublicTerraformNoChange(intent, plan.savedPlan, journal.followUp);
+        if (fingerprint(journal.finalState) !== fingerprint(await runtime.session.readStateIdentity()))
+          throw new Error('Completed Terraform state binding changed');
+        await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+        delete journal.completionReconciliation;
+      } catch {
+        signal?.throwIfAborted();
+        journal.completionReconciliation = true;
+      }
+      await runtime.store.write('gcp-tf-public-deployment.json', journal);
       return publicResult(journal, ownership);
     }
     try {
@@ -315,9 +328,18 @@ export async function applyPublicTerraformDeployment(
       }
       if (!ownership?.complete) throw new Error('Complete ownership evidence required before follow-up');
       await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+      if (!runtime.session.readStateIdentity) throw new Error('Stable owning state binding unavailable');
+      const before = await runtime.session.readStateIdentity();
+      if (before.lineage !== ownership.state.lineage || before.serial < ownership.state.serial)
+        throw new Error('Foreign or rolled-back completion state');
       // Shared runner archives the original binary, receipt and inputs before this follow-up.
       journal.followUp = await runtime.session.plan(runtime.environment, signal);
       assertPublicTerraformNoChange(intent, plan.savedPlan, journal.followUp);
+      const finalState = await runtime.session.readStateIdentity();
+      if (fingerprint(before) !== fingerprint(finalState))
+        throw new Error('Completion state changed during no-op verification');
+      await verifyPublicTerraformLiveOwnership(runtime, intent, ownership, signal, false);
+      journal.finalState = finalState;
       journal.phase = 'completed';
       await runtime.store.write('gcp-tf-public-deployment.json', journal);
       return publicResult(journal, ownership);

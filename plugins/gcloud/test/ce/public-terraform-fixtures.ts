@@ -167,6 +167,7 @@ export async function fixture() {
       };
     },
     readConfigurationSha256: async () => original.configurationSha256,
+    readStateIdentity: async () => ({ sha256: fingerprint(fields).slice(7), lineage: 'owned-lineage', serial: 1 }),
     readApplyCheckpoint: async (receipt: PlanReceipt) => {
       if (followPlans) throw new Error('superseded');
       if (fingerprint(receipt) !== fingerprint(original)) throw new Error('changed binary');

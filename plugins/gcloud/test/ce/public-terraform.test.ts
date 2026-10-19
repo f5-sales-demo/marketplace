@@ -200,3 +200,54 @@ it('recovers interruption during follow-up planning from frozen original ownersh
   );
   expect(f.applies()).toBe(1);
 });
+
+it('does not attest a completed deployment after owning state is lost or replaced', async () => {
+  for (const change of ['missing', 'foreign', 'changed']) {
+    const f = await fixture();
+    const plan = await planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources);
+    expect((await applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources)).state).toBe(
+      'done',
+    );
+    const read = f.runtime.session.readStateIdentity;
+    f.runtime.session.readStateIdentity = async () => {
+      if (change === 'missing') throw new Error('Owning state unavailable');
+      return { sha256: 'f'.repeat(64), lineage: change === 'foreign' ? 'foreign-lineage' : 'owned-lineage', serial: 2 };
+    };
+    expect((await applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources)).state).toBe(
+      'reconciliation-required',
+    );
+    expect(f.applies()).toBe(1);
+    expect(
+      (f.files.get('gcp-tf-public-deployment.json') as { completionReconciliation: boolean }).completionReconciliation,
+    ).toBe(true);
+    f.runtime.session.readStateIdentity = read;
+    expect((await applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources)).state).toBe(
+      'done',
+    );
+    expect(f.applies()).toBe(1);
+  }
+});
+
+it('requires stable original state throughout completion planning', async () => {
+  const f = await fixture();
+  const plan = await planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources);
+  const read = f.runtime.session.readStateIdentity;
+  if (!read) throw new Error('Fixture state reader unavailable');
+  const followUp = f.runtime.session.plan;
+  f.runtime.session.plan = async (...args) => {
+    const receipt = await followUp(...args);
+    f.runtime.session.readStateIdentity = async () => ({ ...(await read()), sha256: 'f'.repeat(64) });
+    return receipt;
+  };
+  expect((await applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources)).state).toBe(
+    'reconciliation-required',
+  );
+  expect((f.files.get('gcp-tf-public-deployment.json') as { finalState?: unknown }).finalState).toBeUndefined();
+  expect(f.applies()).toBe(1);
+  f.runtime.session.readStateIdentity = read;
+  f.runtime.session.plan = followUp;
+  expect((await applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources)).state).toBe(
+    'done',
+  );
+  expect(f.applies()).toBe(1);
+});
