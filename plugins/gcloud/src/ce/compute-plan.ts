@@ -293,12 +293,39 @@ export function translateGcpPublicTerraformSiteCompute(
       const instance = translated.configuration.resource.google_compute_instance[key] as Record<string, unknown>;
       instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
     }
+  const firewalls: Record<string, unknown> = {};
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const slo = site.nodes[0].interfaces[0];
+    const name = `${site.name}-ha-slo-icmp`,
+      tag = `${site.name}-ha-peer`;
+    if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for peer rule identity');
+    firewalls[name.replaceAll('-', '_')] = {
+      name,
+      project: intent.project,
+      network: `\${google_compute_network.${slo.network.replaceAll('-', '_')}.self_link}`,
+      direction: 'INGRESS',
+      source_ranges: [slo.cidr],
+      target_tags: [tag],
+      allow: [{ protocol: 'icmp' }],
+    };
+    for (const node of site.nodes) {
+      const instance = translated.configuration.resource.google_compute_instance[
+        node.name.replaceAll('-', '_')
+      ] as Record<string, unknown>;
+      instance.tags = [...new Set([...((instance.tags as string[]) ?? []), tag])];
+      instance.depends_on = [`google_compute_firewall.${name.replaceAll('-', '_')}`];
+    }
+  }
   return {
     ...translated,
     schemaVersion: 2 as const,
     configuration: {
       ...translated.configuration,
-      resource: { ...translated.configuration.resource, google_compute_disk: disks },
+      resource: {
+        ...translated.configuration.resource,
+        google_compute_disk: disks,
+        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
+      },
     },
   };
 }

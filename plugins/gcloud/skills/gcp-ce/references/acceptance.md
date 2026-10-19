@@ -107,11 +107,17 @@ Terraform runner changes. A second independent absence check also passed.
 
 HA preparation now collects read-only prerequisites for every requested zone
 and checks quota for every node while counting shared HA VPCs once. Candidate
-Terraform ownership inspects all fourteen objects in a three-node/two-interface
+Terraform ownership inspects all fifteen objects in a three-node/two-interface
 site, including later-node orphan disks and each original node-bound token.
-Automated regressions cover exact per-zone VM/disk joins and fourteen-object
+Automated regressions cover exact per-zone VM/disk joins and fifteen-object
 absence. These source checks do not qualify installed HA deployment or cleanup.
 The immutable HA API contract and per-node health observations are tracked in
 [api-specs-enriched #1951](https://github.com/f5-sales-demo/api-specs-enriched/issues/1951).
 Public deployment and cleanup admission remain single-node until that contract
 and fresh installed/live campaigns pass.
+
+The candidate HA configuration owns a SLO ICMP peer rule restricted to the SLO
+subnet and the site peer tag. Its immutable cloud identity and exact network,
+source range and protocol join are required for cleanup. The original installed
+fourteen-object readiness receipt remains attributed to its earlier executable
+source; the firewall-inclusive candidate requires fresh installed evidence.

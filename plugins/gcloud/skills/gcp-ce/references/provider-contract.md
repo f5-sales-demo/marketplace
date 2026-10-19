@@ -157,7 +157,7 @@ must persist independently verified outcome evidence before reconciliation.
 HA candidate ownership enumerates every VM, separately managed boot disk and
 node-bound token, deduplicates shared networks/subnets, and compares each node's
 exact zone, disk and ordered NIC identities. A three-node site with two shared
-VPCs has fourteen configured objects. Read-only preflight checks every zone and
+VPCs has fifteen configured objects, including the guide-required SLO ICMP firewall. Read-only preflight checks every zone and
 requires total CPU, disk and external-address quota; it does not reserve capacity.
 The pinned global-health endpoint returns one node hostname and declares no node
 selector. It cannot establish health for the other HA nodes. Public admission

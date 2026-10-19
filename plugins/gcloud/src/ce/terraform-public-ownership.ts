@@ -45,6 +45,8 @@ export function publicTerraformSelections(intent: GcpCeIntent) {
         ];
       if (address.startsWith('google_compute_disk.')) return [address, [...common, 'zone', 'disk_id']];
       if (address.startsWith('google_compute_network.')) return [address, [...common, 'numeric_id']];
+      if (address.startsWith('google_compute_firewall.'))
+        return [address, [...common, 'firewall_id', 'network', 'direction', 'source_ranges', 'target_tags', 'allow']];
       if (address.startsWith('google_compute_subnetwork.'))
         return [address, [...common, 'region', 'subnetwork_id', 'network', 'ip_cidr_range']];
       return [
@@ -57,7 +59,12 @@ export function publicTerraformSelections(intent: GcpCeIntent) {
 export function publicTerraformCloudScope(intent: GcpCeIntent) {
   validateIntent(intent);
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
-  const resources = intent.sites.flatMap((site) =>
+  const resources: Array<{
+    kind: GcpResourceIdentity['kind'];
+    selfLink: string;
+    siteName?: string;
+    nodeName?: string;
+  }> = intent.sites.flatMap((site) =>
     site.nodes.flatMap((node) => [
       {
         kind: 'instance' as const,
@@ -77,6 +84,8 @@ export function publicTerraformCloudScope(intent: GcpCeIntent) {
       ]),
     ]),
   );
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
+    resources.push({ kind: 'firewall', selfLink: `${prefix}/global/firewalls/${site.name}-ha-slo-icmp` });
   return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
     ...resource,
     id: '0',
@@ -117,8 +126,8 @@ export async function inspectPublicTerraformOwnership(
     }
     if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
       throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
-      ['instance', 'disk', 'network', 'subnetwork'].indexOf(expected.kind)
+    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id', 'firewall_id'][
+      ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
     ];
     if (
       value.name !== expected.selfLink.split('/').at(-1) ||
@@ -144,6 +153,21 @@ export async function inspectPublicTerraformOwnership(
           scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
       )
         throw new Error('Subnet ownership topology differs');
+    }
+    if (expected.kind === 'firewall') {
+      const site = intent.sites.find((site) => expected.selfLink.endsWith(`/firewalls/${site.name}-ha-slo-icmp`));
+      const slo = site?.nodes[0].interfaces[0];
+      if (
+        !site ||
+        !slo ||
+        value.network !==
+          `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${slo.network}` ||
+        value.direction !== 'INGRESS' ||
+        fingerprint(value.source_ranges) !== fingerprint([slo.cidr]) ||
+        fingerprint(value.target_tags) !== fingerprint([`${site.name}-ha-peer`]) ||
+        fingerprint(value.allow) !== fingerprint([{ protocol: 'icmp', ports: [] }])
+      )
+        throw new Error('HA peer firewall ownership topology differs');
     }
     resources.push({ ...expected, id: live.id });
   }

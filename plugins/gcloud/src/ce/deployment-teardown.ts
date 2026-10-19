@@ -141,7 +141,7 @@ export async function observeGcpTeardownResource(
   signal?: AbortSignal,
 ) {
   validateGcpResourceIdentity(resource);
-  if (!['instance', 'disk', 'network', 'subnetwork'].includes(resource.kind))
+  if (!['instance', 'disk', 'network', 'subnetwork', 'firewall'].includes(resource.kind))
     throw new Error('Qualified disposable teardown resource kind required');
   const parts = resource.selfLink.split('/'),
     scope = parts[7],
@@ -150,7 +150,16 @@ export async function observeGcpTeardownResource(
   const base =
     resource.kind === 'subnetwork'
       ? ['compute', 'networks', 'subnets']
-      : ['compute', resource.kind === 'instance' ? 'instances' : resource.kind === 'disk' ? 'disks' : 'networks'];
+      : [
+          'compute',
+          resource.kind === 'instance'
+            ? 'instances'
+            : resource.kind === 'disk'
+              ? 'disks'
+              : resource.kind === 'firewall'
+                ? 'firewall-rules'
+                : 'networks',
+        ];
   const response = await api.exec(
     'gcloud',
     [

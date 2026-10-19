@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** owns the guide-required SLO ICMP firewall in candidate HA
+  Terraform configuration and verifies its exact cloud identity and peer scope.
+  Independent cleanup covers fifteen objects; public HA admission remains gated.
+
 - **`gcloud`** prepares HA ownership and read-only prerequisites: every zone and
   node contributes to quota checks; all fourteen three-node cloud/XC objects
   retain exact identity and absence coverage, including later-node orphan disks.
@@ -76,7 +80,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.10 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.11 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).

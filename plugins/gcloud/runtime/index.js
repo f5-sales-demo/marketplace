@@ -2284,12 +2284,37 @@ function translateGcpPublicTerraformSiteCompute(intent, versions) {
       const instance = translated.configuration.resource.google_compute_instance[key];
       instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
     }
+  const firewalls = {};
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const slo = site.nodes[0].interfaces[0];
+    const name = `${site.name}-ha-slo-icmp`,
+      tag = `${site.name}-ha-peer`;
+    if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for peer rule identity');
+    firewalls[name.replaceAll('-', '_')] = {
+      name,
+      project: intent.project,
+      network: `\${google_compute_network.${slo.network.replaceAll('-', '_')}.self_link}`,
+      direction: 'INGRESS',
+      source_ranges: [slo.cidr],
+      target_tags: [tag],
+      allow: [{ protocol: 'icmp' }],
+    };
+    for (const node of site.nodes) {
+      const instance = translated.configuration.resource.google_compute_instance[node.name.replaceAll('-', '_')];
+      instance.tags = [...new Set([...(instance.tags ?? []), tag])];
+      instance.depends_on = [`google_compute_firewall.${name.replaceAll('-', '_')}`];
+    }
+  }
   return {
     ...translated,
     schemaVersion: 2,
     configuration: {
       ...translated.configuration,
-      resource: { ...translated.configuration.resource, google_compute_disk: disks },
+      resource: {
+        ...translated.configuration.resource,
+        google_compute_disk: disks,
+        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
+      },
     },
   };
 }
@@ -2660,7 +2685,7 @@ async function assertNativeCleanupTopology(store, intent, resources) {
 }
 async function observeGcpTeardownResource(api, resource, signal) {
   validateGcpResourceIdentity(resource);
-  if (!['instance', 'disk', 'network', 'subnetwork'].includes(resource.kind))
+  if (!['instance', 'disk', 'network', 'subnetwork', 'firewall'].includes(resource.kind))
     throw new Error('Qualified disposable teardown resource kind required');
   const parts = resource.selfLink.split('/'),
     scope = parts[7],
@@ -2669,7 +2694,16 @@ async function observeGcpTeardownResource(api, resource, signal) {
   const base =
     resource.kind === 'subnetwork'
       ? ['compute', 'networks', 'subnets']
-      : ['compute', resource.kind === 'instance' ? 'instances' : resource.kind === 'disk' ? 'disks' : 'networks'];
+      : [
+          'compute',
+          resource.kind === 'instance'
+            ? 'instances'
+            : resource.kind === 'disk'
+              ? 'disks'
+              : resource.kind === 'firewall'
+                ? 'firewall-rules'
+                : 'networks',
+        ];
   const response = await api.exec(
     'gcloud',
     [
@@ -5115,6 +5149,8 @@ function publicTerraformSelections(intent) {
         ];
       if (address.startsWith('google_compute_disk.')) return [address, [...common, 'zone', 'disk_id']];
       if (address.startsWith('google_compute_network.')) return [address, [...common, 'numeric_id']];
+      if (address.startsWith('google_compute_firewall.'))
+        return [address, [...common, 'firewall_id', 'network', 'direction', 'source_ranges', 'target_tags', 'allow']];
       if (address.startsWith('google_compute_subnetwork.'))
         return [address, [...common, 'region', 'subnetwork_id', 'network', 'ip_cidr_range']];
       return [
@@ -5147,6 +5183,8 @@ function publicTerraformCloudScope(intent) {
       ]),
     ]),
   );
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
+    resources.push({ kind: 'firewall', selfLink: `${prefix}/global/firewalls/${site.name}-ha-slo-icmp` });
   return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
     ...resource,
     id: '0',
@@ -5179,8 +5217,8 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
     }
     if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
       throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
-      ['instance', 'disk', 'network', 'subnetwork'].indexOf(expected.kind)
+    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id', 'firewall_id'][
+      ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
     ];
     if (
       value.name !== expected.selfLink.split('/').at(-1) ||
@@ -5206,6 +5244,21 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
           scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
       )
         throw new Error('Subnet ownership topology differs');
+    }
+    if (expected.kind === 'firewall') {
+      const site = intent.sites.find((site) => expected.selfLink.endsWith(`/firewalls/${site.name}-ha-slo-icmp`));
+      const slo = site?.nodes[0].interfaces[0];
+      if (
+        !site ||
+        !slo ||
+        value.network !==
+          `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${slo.network}` ||
+        value.direction !== 'INGRESS' ||
+        fingerprint(value.source_ranges) !== fingerprint([slo.cidr]) ||
+        fingerprint(value.target_tags) !== fingerprint([`${site.name}-ha-peer`]) ||
+        fingerprint(value.allow) !== fingerprint([{ protocol: 'icmp', ports: [] }])
+      )
+        throw new Error('HA peer firewall ownership topology differs');
     }
     resources.push({ ...expected, id: live.id });
   }
@@ -5860,7 +5913,9 @@ async function projectDestroy(runtime, intent, receipt, owned, absent, signal) {
           ? 'disk_id'
           : address.startsWith('google_compute_network.')
             ? 'numeric_id'
-            : 'subnetwork_id';
+            : address.startsWith('google_compute_firewall.')
+              ? 'firewall_id'
+              : 'subnetwork_id';
       if (
         !resource ||
         String(value[field]) !== resource.id ||

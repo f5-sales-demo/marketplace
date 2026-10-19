@@ -146,7 +146,9 @@ async function projectDestroy(
           ? 'disk_id'
           : address.startsWith('google_compute_network.')
             ? 'numeric_id'
-            : 'subnetwork_id';
+            : address.startsWith('google_compute_firewall.')
+              ? 'firewall_id'
+              : 'subnetwork_id';
       if (
         !resource ||
         String(value[field]) !== resource.id ||
