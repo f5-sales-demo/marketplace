@@ -78,6 +78,7 @@ function source() {
 }
 it('collects each layer independently and never infers routing or application traffic', async () => {
   const result = await observeGcpSiteStatus(expected, 'terraform', source());
+  expect(result.instanceId).toBe(expected.instanceId);
   expect(result.cloudProvisioning).toBe('running');
   expect(result.registration).toBe('online');
   expect(result.physicalInterfaceIdentity).toBe('observed');
@@ -86,6 +87,24 @@ it('collects each layer independently and never infers routing or application tr
   expect(result.applicationTraffic).toBe('unknown');
   expect(result.sourceReceipts).toHaveLength(4);
   expect(JSON.stringify(result)).not.toContain('PRIVATE');
+});
+it('retains the exact owned uint64 identity when a same-name replacement is observed', async () => {
+  const owned = { ...expected, instanceId: '18446744073709551614' };
+  const s = source();
+  s.cloudValue.id = '18446744073709551615';
+  let platformReads = 0;
+  const result = await observeGcpSiteStatus(owned, 'terraform', {
+    ...s,
+    configuration: async () => {
+      platformReads++;
+      return {};
+    },
+  });
+  expect(result.instanceId).toBe(owned.instanceId);
+  expect(result.cloudProvisioning).toBe('unknown');
+  expect(result.registration).toBe('unknown');
+  expect(result.platformHealth).toBe('unknown');
+  expect(platformReads).toBe(0);
 });
 it('partial/duplicate/wrong-node evidence remains unknown before health collection', async () => {
   for (const mutate of [
@@ -124,6 +143,16 @@ it('registration/interface success does not hide health transport failure', asyn
   expect(result.physicalInterfaceIdentity).toBe('observed');
   expect(result.platformHealth).toBe('unknown');
   expect(JSON.stringify(result)).not.toContain('private');
+});
+it('a healthy site-global response for another HA node cannot establish this node health', async () => {
+  const result = await observeGcpSiteStatus(expected, 'terraform', {
+    ...source(),
+    health: async () => ({ hostname: 'node-b', state: 'PROVISIONED' }),
+  });
+  expect(result.registration).toBe('online');
+  expect(result.physicalInterfaceIdentity).toBe('observed');
+  expect(result.platformHealth).toBe('unknown');
+  expect(result.instanceId).toBe('123');
 });
 
 it('cancellation before observation performs no reads', async () => {

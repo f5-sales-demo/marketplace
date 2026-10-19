@@ -19,8 +19,9 @@ and eight independent absence checks.
 Legacy stored configurations retain their existing teardown behavior. Enabling
 this adapter uses the published and installed-qualified XC v15.13.0 provider,
 Terraform 1.16.6, Google 8.7.0 and the verified lock for Darwin ARM64 and Linux AMD64.
-Fresh public deployment, interrupted recovery and partial cleanup campaigns remain
-required for installed/live acceptance.
+Fresh public single-node deployment, interrupted recovery and partial cleanup
+campaigns passed; see
+[the source-bound receipt](../../../../../docs/receipts/gcp-public-terraform-deployment-20261019.md).
 
 The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset
 against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc`.
@@ -145,10 +146,21 @@ backend, configuration, provider lock, state digest, lineage and serial. It
 rejects changed snapshots, sensitive ancestors/leaves, duplicate resource
 identities and addresses outside the reviewed plan. GCP creation ownership also
 checks exact cloud identities, boot-disk retention and ordered NIC links before
-recording the durable ledger. This adapter is a deployment prerequisite; public
-Terraform deployment and interrupted creation recovery remain unavailable.
+recording the durable ledger. This adapter supports the qualified single-node public Terraform deployment
+and original-attempt recovery paths.
 
 Interrupted-apply inspection uses the same restricted projection and exact saved
 receipt. It returns the recorded applying/applied phase, including missing state
 resources, without marking success or submitting another apply. Owning adapters
 must persist independently verified outcome evidence before reconciliation.
+
+HA candidate ownership enumerates every VM, separately managed boot disk and
+node-bound token, deduplicates shared networks/subnets, and compares each node's
+exact zone, disk and ordered NIC identities. A three-node site with two shared
+VPCs has fourteen configured objects. Read-only preflight checks every zone and
+requires total CPU, disk and external-address quota; it does not reserve capacity.
+The pinned global-health endpoint returns one node hostname and declares no node
+selector. It cannot establish health for the other HA nodes. Public admission
+remains single-node pending
+[the HA contract qualification](https://github.com/f5-sales-demo/api-specs-enriched/issues/1951)
+and fresh installed/live evidence.

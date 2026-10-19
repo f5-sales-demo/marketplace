@@ -64,19 +64,23 @@ function unconditional(value: unknown, field: string, expected: boolean): boolea
     object(rules[0])[field] === expected
   );
 }
+/** Read-only collection supports candidate topology; executable admission remains contract-bound. */
+export function supportsGcpLaunchPreflight(intent: GcpCeIntent): boolean {
+  return (
+    intent.egress.mode === 'external-ip' &&
+    intent.sites.every((site) =>
+      site.nodes.every((node) => node.interfaces.length === 2 && node.interfaces[1].role === 'sli'),
+    )
+  );
+}
 /** Direct source collection: raw IAM, policy and image responses never enter public plans. */
 export async function collectGcpLaunchPreflight(intent: GcpCeIntent, port: GcpPreflightPort, signal?: AbortSignal) {
   validateIntent(intent);
-  if (
-    intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 1 ||
-    intent.sites[0].nodes[0].interfaces.length !== 2 ||
-    intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
-    intent.egress.mode !== 'external-ip'
-  )
-    throw new Error('Preflight requires the qualified single-node two-interface profile');
+  if (!supportsGcpLaunchPreflight(intent)) throw new Error('Preflight requires the two-interface external-IP profile');
   signal?.throwIfAborted();
-  const node = intent.sites[0].nodes[0],
+  const nodes = intent.sites.flatMap((site) => site.nodes),
+    zones = [...new Set(nodes.map((node) => node.zone))],
+    networks = new Set(nodes.flatMap((node) => node.interfaces.map((nic) => nic.network))),
     prefix = `/compute/v1/projects/${intent.project}`;
   const checks = {
     iam: 'unavailable' as Gate,
@@ -116,37 +120,41 @@ export async function collectGcpLaunchPreflight(intent: GcpCeIntent, port: GcpPr
     if (Array.isArray(permissions) && GCP_CREATE_PERMISSIONS.every((permission) => permissions.includes(permission)))
       checks.iam = 'verified';
   });
-  let machine: Record<string, unknown> | undefined;
-  await attempt(async () => {
-    machine = await read('machine-type', () =>
-      port.query(`${prefix}/zones/${node.zone}/machineTypes/${intent.machineType}`, undefined, signal),
-    );
-    // Admit the two-interface N2 profile exercised by the installed live campaigns.
-    // Other families require their own provider limits; no general limit is inferred.
-    if (
-      intent.machineType === 'n2-standard-8' &&
-      machine.name === intent.machineType &&
-      machine.guestCpus === 8 &&
-      machine.memoryMb === 32768
-    )
-      checks.machineNicLimit = 'verified';
-  });
-  await attempt(async () => {
-    const result = await read('zone', () => port.query(`${prefix}/zones/${node.zone}`, undefined, signal));
-    if (result.name === node.zone && result.status === 'UP') checks.zone = 'verified';
-  });
+  const machines = new Map<string, Record<string, unknown>>();
+  const availableZones = new Set<string>();
+  for (const zone of zones) {
+    await attempt(async () => {
+      const machine = await read(`machine-type:${zone}`, () =>
+        port.query(`${prefix}/zones/${zone}/machineTypes/${intent.machineType}`, undefined, signal),
+      );
+      // The two-interface N2 limit is independent of node count. Neither an
+      // observed machine nor a readable zone establishes HA service health.
+      if (
+        intent.machineType === 'n2-standard-8' &&
+        machine.name === intent.machineType &&
+        machine.guestCpus === 8 &&
+        machine.memoryMb === 32768
+      )
+        machines.set(zone, machine);
+    });
+    await attempt(async () => {
+      const result = await read(`zone:${zone}`, () => port.query(`${prefix}/zones/${zone}`, undefined, signal));
+      if (result.name === zone && result.status === 'UP') availableZones.add(zone);
+    });
+  }
+  if (machines.size === zones.length) checks.machineNicLimit = 'verified';
+  if (availableZones.size === zones.length) checks.zone = 'verified';
   await attempt(async () => {
     const region = await read('regional-quotas', () =>
       port.query(`${prefix}/regions/${intent.region}`, undefined, signal),
     );
     const project = await read('project-quotas', () => port.query(prefix, undefined, signal));
     if (
-      machine &&
-      typeof machine.guestCpus === 'number' &&
-      quota(region, 'N2_CPUS', machine.guestCpus) &&
-      quota(region, 'DISKS_TOTAL_GB', intent.diskGiB) &&
-      quota(region, 'IN_USE_ADDRESSES', 1) &&
-      quota(project, 'NETWORKS', 2)
+      checks.machineNicLimit === 'verified' &&
+      quota(region, 'N2_CPUS', nodes.length * 8) &&
+      quota(region, 'DISKS_TOTAL_GB', nodes.length * intent.diskGiB) &&
+      quota(region, 'IN_USE_ADDRESSES', nodes.length) &&
+      quota(project, 'NETWORKS', networks.size)
     )
       checks.quota = 'verified';
   });

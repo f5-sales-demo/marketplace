@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** prepares HA ownership and read-only prerequisites: every zone and
+  node contributes to quota checks; all fourteen three-node cloud/XC objects
+  retain exact identity and absence coverage, including later-node orphan disks.
+  HA interface comparison ignores JSON key order, and sanitized status includes
+  the exact owned instance ID. Public HA deployment and cleanup remain gated by
+  API contract qualification and installed/live evidence (#1559).
+
 - **`terraform`** and **`gcloud`** preserve exact 64-bit provider identity integers
   during private Terraform JSON parsing. This fixes subnet ownership comparison
   and recovery without replaying the original apply (#1559).
@@ -69,7 +76,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.9 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.10 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).
@@ -78,7 +85,7 @@ and this project adheres to
   absence evidence. Installed qualification covers synthetic Compute identities
   and live owned XC cleanup; fresh installed native live cloud teardown and eight
   independent absence checks now pass on the narrow disposable single-node profile (#1559).
-- **`platform`** v6.3.1 registers shared CE storage/runtime service with portable
+- **`platform`** v6.3.2 registers shared CE storage/runtime service with portable
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
 - **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved

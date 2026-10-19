@@ -28,6 +28,7 @@ export async function observeGcpSiteStatus(
     zone: expected.zone,
     siteName: expected.siteName,
     nodeName: expected.nodeName,
+    instanceId: expected.instanceId,
     engine,
     observedAt: new Date().toISOString(),
     cloudProvisioning: 'unknown',

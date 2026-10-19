@@ -45,7 +45,8 @@ Read [provider contract](references/provider-contract.md) before planning and
 3. Use `gcp_ce_plan` with a schema-v1 intent. Name each independent site and each
    node; one node and three HA nodes are distinct topologies. NIC zero is SLO;
    each NIC requires a distinct VPC and non-overlapping subnet. HA uses identical
-   NIC order and VRFs. Minimum sizing is 8 vCPUs, 32 GiB RAM and 80 GiB disk.
+   NIC order and VRFs. Readiness checks each requested zone and total node quota,
+   counting shared HA VPCs once; executable HA remains unqualified. Minimum sizing is 8 vCPUs, 32 GiB RAM and 80 GiB disk.
 4. Without an explicit operation, the plan is non-executable readiness. Use
    `operation=deploy` for the native single-node BYOL candidate: two interfaces,
    `n2-standard-8`, external-IP egress, no ingress and no destination routes.
@@ -66,8 +67,8 @@ Read [provider contract](references/provider-contract.md) before planning and
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
    `platformContext` use the shared Platform service and exact ledger topology to
-   observe registration, physical interface identity and global health. Candidate
-   labels do not prove ledger ownership. Routing, application traffic, HA health
+   observe registration, physical interface identity and global health. Sanitized node status includes the exact owned instance ID used for the cloud
+   and registration joins. Candidate labels do not prove ledger ownership. Routing, application traffic, HA health
    and independent absence remain separate unqualified gates.
 6. For teardown of an existing disposable single-node deployment, supply
    its explicit project, region, deployment name and persisted F5 context to

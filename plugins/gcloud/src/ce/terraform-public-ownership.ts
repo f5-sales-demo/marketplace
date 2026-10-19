@@ -4,18 +4,25 @@ import { fingerprint } from './discovery';
 import type { GcpResourceIdentity } from './ownership';
 import type { GcpTerraformTeardownRuntime } from './terraform-teardown';
 import type { GcpCeIntent } from './types';
+import { validateIntent } from './validation';
 
+export function publicTerraformPlatformScope(intent: GcpCeIntent) {
+  return intent.sites.flatMap((site) => [
+    { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
+    ...site.nodes.map((node) => ({
+      address: `xcsh_token.${node.name.replaceAll('-', '_')}`,
+      siteName: site.name,
+      tokenName: `${node.name}-token`,
+    })),
+  ]);
+}
 export function publicTerraformAddresses(intent: GcpCeIntent) {
-  const node = intent.sites[0].nodes[0];
   return [
-    `google_compute_instance.${node.name.replaceAll('-', '_')}`,
-    `google_compute_disk.${node.name.replaceAll('-', '_')}`,
-    ...node.interfaces.flatMap((nic) => [
-      `google_compute_network.${nic.network.replaceAll('-', '_')}`,
-      `google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}`,
-    ]),
-    `xcsh_securemesh_site_v2.${intent.sites[0].name.replaceAll('-', '_')}`,
-    `xcsh_token.${node.name.replaceAll('-', '_')}`,
+    ...publicTerraformCloudScope(intent).map(
+      (resource) =>
+        `google_compute_${resource.kind}.${resource.selfLink.substring(resource.selfLink.lastIndexOf('/') + 1).replaceAll('-', '_')}`,
+    ),
+    ...publicTerraformPlatformScope(intent).map((resource) => resource.address),
   ];
 }
 export function publicTerraformSelections(intent: GcpCeIntent) {
@@ -48,22 +55,34 @@ export function publicTerraformSelections(intent: GcpCeIntent) {
   );
 }
 export function publicTerraformCloudScope(intent: GcpCeIntent) {
-  const node = intent.sites[0].nodes[0];
+  validateIntent(intent);
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
-  return [
-    { kind: 'instance' as const, selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}` },
-    { kind: 'disk' as const, selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}` },
-    ...node.interfaces.flatMap((nic) => [
-      { kind: 'network' as const, selfLink: `${prefix}/global/networks/${nic.network}` },
-      { kind: 'subnetwork' as const, selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+  const resources = intent.sites.flatMap((site) =>
+    site.nodes.flatMap((node) => [
+      {
+        kind: 'instance' as const,
+        selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      {
+        kind: 'disk' as const,
+        selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      ...node.interfaces.flatMap((nic) => [
+        { kind: 'network' as const, selfLink: `${prefix}/global/networks/${nic.network}` },
+        { kind: 'subnetwork' as const, selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+      ]),
     ]),
-  ].map((resource) => ({
+  );
+  return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
     ...resource,
     id: '0',
     project: intent.project,
     deploymentName: intent.deploymentName,
     engine: 'terraform' as const,
-    ...(['instance', 'disk'].includes(resource.kind) ? { siteName: intent.sites[0].name, nodeName: node.name } : {}),
   }));
 }
 export type PublicTerraformOwnership = Awaited<ReturnType<typeof inspectPublicTerraformOwnership>>;
@@ -75,6 +94,7 @@ export async function inspectPublicTerraformOwnership(
   receipt: PlanReceipt,
   signal?: AbortSignal,
 ) {
+  if (intent.engine !== 'terraform') throw new Error('Terraform ownership requires the owning engine');
   if (!runtime.session.readApplyAttemptResourceFields) throw new Error('Restricted attempt inspection unavailable');
   const selections = publicTerraformSelections(intent);
   const projected = await runtime.session.readApplyAttemptResourceFields(
@@ -107,12 +127,15 @@ export async function inspectPublicTerraformOwnership(
       String(value[idField]) !== live.id
     )
       throw new Error('Replacement cloud identity requires reconciliation');
-    if (['instance', 'disk'].includes(expected.kind) && value.zone !== intent.sites[0].nodes[0].zone)
+    if (
+      ['instance', 'disk'].includes(expected.kind) &&
+      value.zone !== expected.selfLink.split('/zones/')[1]?.split('/')[0]
+    )
       throw new Error('Cloud zone identity differs');
     if (expected.kind === 'subnetwork') {
-      const nic = intent.sites[0].nodes[0].interfaces.find((n) =>
-        expected.selfLink.endsWith(`/subnetworks/${n.subnet}`),
-      );
+      const nic = intent.sites
+        .flatMap((site) => site.nodes.flatMap((node) => node.interfaces))
+        .find((n) => expected.selfLink.endsWith(`/subnetworks/${n.subnet}`));
       if (
         !nic ||
         value.region !== intent.region ||
@@ -124,39 +147,30 @@ export async function inspectPublicTerraformOwnership(
     }
     resources.push({ ...expected, id: live.id });
   }
-  const instance = projected.resources[publicTerraformAddresses(intent)[0]];
-  if (instance) {
-    if (
-      instance['boot_disk.length'] !== 1 ||
-      instance['boot_disk.0.source'] !== scope[1].selfLink ||
-      instance['boot_disk.0.auto_delete'] !== false ||
-      !projected.resources[publicTerraformAddresses(intent)[1]] ||
-      instance['network_interface.length'] !== 2 ||
-      [0, 1].some(
-        (n) =>
-          instance[`network_interface.${n}.network`] !== scope[2 + n * 2].selfLink ||
-          instance[`network_interface.${n}.subnetwork`] !== scope[3 + n * 2].selfLink,
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      const instance = projected.resources[`google_compute_instance.${key}`];
+      if (
+        instance &&
+        (instance['boot_disk.length'] !== 1 ||
+          instance['boot_disk.0.source'] !== `${prefix}/zones/${node.zone}/disks/${node.name}` ||
+          instance['boot_disk.0.auto_delete'] !== false ||
+          !projected.resources[`google_compute_disk.${key}`] ||
+          instance['network_interface.length'] !== node.interfaces.length ||
+          node.interfaces.some(
+            (nic) =>
+              instance[`network_interface.${nic.index}.network`] !== `${prefix}/global/networks/${nic.network}` ||
+              instance[`network_interface.${nic.index}.subnetwork`] !==
+                `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}`,
+          ))
       )
-    )
-      throw new Error('VM/disk/NIC owning topology differs');
-  }
-  const observed = await runtime.observePlatform(
-    intent.sites[0].name,
-    `${intent.sites[0].nodes[0].name}-token`,
-    signal,
-  );
-  if (
-    observed.siteName !== intent.sites[0].name ||
-    observed.tokenName !== `${intent.sites[0].nodes[0].name}-token` ||
-    typeof observed.siteAbsent !== 'boolean' ||
-    typeof observed.tokenAbsent !== 'boolean'
-  )
-    throw new Error('Scoped Platform observation differs');
+        throw new Error('VM/disk/NIC owning topology differs');
+    }
   const platform: Record<string, string> = {};
-  for (const [address, absent, hash] of [
-    [publicTerraformAddresses(intent)[6], observed.siteAbsent, observed.siteIdentitySha256],
-    [publicTerraformAddresses(intent)[7], observed.tokenAbsent, observed.tokenIdentitySha256],
-  ] as const) {
+  for (const observation of await observePublicTerraformPlatform(runtime, intent, signal)) {
+    const { address, absent, hash, siteName, tokenName } = observation;
     const value = projected.resources[address];
     if (!value) {
       if (!absent) throw new Error('Unidentified XC object requires reconciliation');
@@ -168,8 +182,8 @@ export async function inspectPublicTerraformOwnership(
       !/^sha256:[a-f0-9]{64}$/.test(hash) ||
       value.creation_identity_sha256 !== hash ||
       value.namespace !== 'system' ||
-      value.name !== (address.startsWith('xcsh_token.') ? observed.tokenName : observed.siteName) ||
-      (address.startsWith('xcsh_token.') && value.site_name !== observed.siteName)
+      value.name !== (tokenName ?? siteName) ||
+      (tokenName && value.site_name !== siteName)
     )
       throw new Error('Original XC creation identity differs');
     platform[address] = hash;
@@ -186,6 +200,50 @@ export async function inspectPublicTerraformOwnership(
     platform,
     complete: addresses.length === publicTerraformAddresses(intent).length,
   };
+}
+/** Read every node-bound token and reject inconsistent site observations across reads. */
+export async function observePublicTerraformPlatform(
+  runtime: GcpTerraformTeardownRuntime,
+  intent: GcpCeIntent,
+  signal?: AbortSignal,
+) {
+  const rows = new Map<
+    string,
+    { address: string; siteName: string; tokenName?: string; absent: boolean; hash?: string }
+  >();
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      signal?.throwIfAborted();
+      const tokenName = `${node.name}-token`;
+      const observed = await runtime.observePlatform(site.name, tokenName, signal);
+      signal?.throwIfAborted();
+      if (
+        observed.siteName !== site.name ||
+        observed.tokenName !== tokenName ||
+        typeof observed.siteAbsent !== 'boolean' ||
+        typeof observed.tokenAbsent !== 'boolean'
+      )
+        throw new Error('Scoped Platform observation differs');
+      const siteRow = {
+        address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`,
+        siteName: site.name,
+        absent: observed.siteAbsent,
+        hash: observed.siteIdentitySha256,
+      };
+      const prior = rows.get(siteRow.address);
+      if (prior && fingerprint(prior) !== fingerprint(siteRow))
+        throw new Error('XC site identity changed during node observations');
+      rows.set(siteRow.address, siteRow);
+      const address = `xcsh_token.${node.name.replaceAll('-', '_')}`;
+      rows.set(address, {
+        address,
+        siteName: site.name,
+        tokenName,
+        absent: observed.tokenAbsent,
+        hash: observed.tokenIdentitySha256,
+      });
+    }
+  return [...rows.values()];
 }
 export function assertPublicTerraformSnapshot(
   intent: GcpCeIntent,

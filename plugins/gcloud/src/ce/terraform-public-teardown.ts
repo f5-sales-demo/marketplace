@@ -12,15 +12,17 @@ import type { GcpPolicyReceipt } from './policy';
 import { assertPublicTerraformContext } from './terraform-context';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
+  observePublicTerraformPlatform,
   type PublicTerraformOwnership,
   publicTerraformAddresses,
   publicTerraformCloudScope,
+  publicTerraformPlatformScope,
   publicTerraformSelections,
 } from './terraform-public-ownership';
 import { assertGcpTerraformOwnedTransition, type GcpTerraformTeardownRuntime } from './terraform-teardown';
 import type { GcpCeIntent } from './types';
 
-/** Observes all eight possible identities, including objects absent from a partial owning subset. */
+/** Observes every configured identity, including objects absent from a partial owning subset. */
 export async function verifyPublicTerraformLiveOwnership(
   runtime: GcpTerraformTeardownRuntime,
   intent: GcpCeIntent,
@@ -45,22 +47,7 @@ export async function verifyPublicTerraformLiveOwnership(
       throw new Error('Original cloud identity replaced or unavailable');
     if (!live) absent.push(addresses[n]);
   }
-  const observation = await runtime.observePlatform(
-    intent.sites[0].name,
-    `${intent.sites[0].nodes[0].name}-token`,
-    signal,
-  );
-  if (
-    observation.siteName !== intent.sites[0].name ||
-    observation.tokenName !== `${intent.sites[0].nodes[0].name}-token` ||
-    typeof observation.siteAbsent !== 'boolean' ||
-    typeof observation.tokenAbsent !== 'boolean'
-  )
-    throw new Error('Scoped Platform observation differs');
-  for (const [address, isAbsent, hash] of [
-    [addresses[6], observation.siteAbsent, observation.siteIdentitySha256],
-    [addresses[7], observation.tokenAbsent, observation.tokenIdentitySha256],
-  ] as const) {
+  for (const { address, absent: isAbsent, hash } of await observePublicTerraformPlatform(runtime, intent, signal)) {
     if (
       isAbsent
         ? !!owned.platform[address] && !allowAbsent
@@ -141,11 +128,14 @@ async function projectDestroy(
     )
       throw new Error('Destroy projection contains absent, foreign or sensitive identity');
     if (address.startsWith('xcsh_')) {
+      const binding = publicTerraformPlatformScope(intent).find((row) => row.address === address);
+      const tokenName = binding && 'tokenName' in binding ? binding.tokenName : undefined;
       if (
+        !binding ||
         value.creation_identity_sha256 !== owned.platform[address] ||
         value.namespace !== 'system' ||
-        value.name !==
-          (address.startsWith('xcsh_token.') ? `${intent.sites[0].nodes[0].name}-token` : intent.sites[0].name)
+        value.name !== (tokenName ?? binding.siteName) ||
+        (tokenName && value.site_name !== binding.siteName)
       )
         throw new Error('Destroy XC original identity differs');
     } else {
@@ -294,7 +284,7 @@ export async function applyPublicTerraformTeardown(
         }
       }
       absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
-      if (absent.length !== 8)
+      if (absent.length !== publicTerraformAddresses(intent).length)
         return {
           state: 'reconciliation-required',
           phase: 'partial-cleanup',
@@ -315,7 +305,8 @@ export async function applyPublicTerraformTeardown(
       journal.phase = 'applied';
       await runtime.store.write(name, journal);
     }
-    if (absent.length !== 8) throw new Error('Resources reappeared after cleanup');
+    if (absent.length !== publicTerraformAddresses(intent).length)
+      throw new Error('Resources reappeared after cleanup');
     if (journal.phase !== 'absent') {
       const before = await stableState(runtime);
       const finalPlan = await runtime.session.planDestroy(runtime.environment, signal);
@@ -324,7 +315,7 @@ export async function applyPublicTerraformTeardown(
       if (fingerprint(before) !== fingerprint(finalState))
         throw new Error('Final empty destroy state changed during verification');
       const after = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
-      if (after.length !== 8) throw new Error('Independent absence changed');
+      if (after.length !== publicTerraformAddresses(intent).length) throw new Error('Independent absence changed');
       journal = { ...journal, phase: 'absent', finalPlan, finalState };
       await runtime.store.write(name, journal);
     }

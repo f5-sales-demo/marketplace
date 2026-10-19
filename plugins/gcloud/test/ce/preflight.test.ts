@@ -40,6 +40,89 @@ function fixture() {
   };
   return { i, port, reads };
 }
+function haFixture() {
+  const f = fixture();
+  const node = f.i.sites[0].nodes[0];
+  f.i.sites[0].nodes.push(
+    { ...structuredClone(node), name: 'node-b', zone: 'northamerica-northeast1-b' },
+    { ...structuredClone(node), name: 'node-c', zone: 'northamerica-northeast1-c' },
+  );
+  const query = f.port.query;
+  f.port.query = async (path) => {
+    if (/\/zones\/northamerica-northeast1-[bc]$/.test(path)) {
+      f.reads.push(path);
+      return { name: path.split('/').at(-1), status: 'UP' };
+    }
+    return query(path);
+  };
+  return f;
+}
+it('collects read-only HA prerequisites from every zone and accounts for all nodes and shared VPCs', async () => {
+  const f = haFixture();
+  const query = f.port.query;
+  f.port.query = async (path) => {
+    if (path.endsWith('/regions/northamerica-northeast1'))
+      return {
+        quotas: [
+          { metric: 'N2_CPUS', limit: 24, usage: 0 },
+          { metric: 'DISKS_TOTAL_GB', limit: 240, usage: 0 },
+          { metric: 'IN_USE_ADDRESSES', limit: 3, usage: 0 },
+        ],
+      };
+    if (path.endsWith('/projects/test-project')) return { quotas: [{ metric: 'NETWORKS', limit: 2, usage: 0 }] };
+    return query(path);
+  };
+  const result = await collectGcpLaunchPreflight(f.i, f.port);
+  expect(result.checks.quota).toBe('verified');
+  expect(result.checks.machineNicLimit).toBe('verified');
+  expect(result.checks.zone).toBe('verified');
+  for (const zone of ['a', 'b', 'c']) {
+    expect(f.reads).toContain(`/compute/v1/projects/test-project/zones/northamerica-northeast1-${zone}`);
+    expect(f.reads).toContain(
+      `/compute/v1/projects/test-project/zones/northamerica-northeast1-${zone}/machineTypes/n2-standard-8`,
+    );
+  }
+  expect(result.checks.zoneCapacity).toBe('not-reserved');
+  expect(result.intentFingerprint).toBeDefined();
+});
+it('cannot pass HA quota from headroom sufficient for only part of the deployment', async () => {
+  for (const scarce of ['N2_CPUS', 'DISKS_TOTAL_GB', 'IN_USE_ADDRESSES']) {
+    const f = haFixture();
+    const query = f.port.query;
+    f.port.query = async (path) =>
+      path.endsWith('/regions/northamerica-northeast1')
+        ? {
+            quotas: [
+              { metric: 'N2_CPUS', limit: scarce === 'N2_CPUS' ? 23 : 24, usage: 0 },
+              { metric: 'DISKS_TOTAL_GB', limit: scarce === 'DISKS_TOTAL_GB' ? 239 : 240, usage: 0 },
+              { metric: 'IN_USE_ADDRESSES', limit: scarce === 'IN_USE_ADDRESSES' ? 2 : 3, usage: 0 },
+            ],
+          }
+        : query(path);
+    expect((await collectGcpLaunchPreflight(f.i, f.port)).checks.quota).toBe('unavailable');
+  }
+});
+it('one unreadable HA machine or unavailable zone keeps its aggregate gate unavailable', async () => {
+  for (const failed of ['machine', 'zone']) {
+    const f = haFixture();
+    const query = f.port.query;
+    f.port.query = async (path) => {
+      if (
+        path.endsWith(
+          failed === 'machine'
+            ? '/zones/northamerica-northeast1-b/machineTypes/n2-standard-8'
+            : '/zones/northamerica-northeast1-b',
+        )
+      )
+        throw new Error('PRIVATE');
+      return query(path);
+    };
+    const result = await collectGcpLaunchPreflight(f.i, f.port);
+    expect(result.checks[failed === 'machine' ? 'machineNicLimit' : 'zone']).toBe('unavailable');
+    if (failed === 'machine') expect(result.checks.quota).toBe('unavailable');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE');
+  }
+});
 it('collects scoped prerequisites and leaves human legal acceptance and capacity explicit', async () => {
   const f = fixture();
   const result = await collectGcpLaunchPreflight(f.i, f.port);

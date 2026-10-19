@@ -2,7 +2,18 @@ import { expect, it } from 'bun:test';
 import { fingerprint } from '../../src/ce/discovery';
 import { applyPublicTerraformDeployment, planPublicTerraformDeployment } from '../../src/ce/terraform-public';
 import { inspectPublicTerraformOwnership, publicTerraformCloudScope } from '../../src/ce/terraform-public-ownership';
+import { planPublicTerraformTeardown } from '../../src/ce/terraform-public-teardown';
 import { fixture } from './public-terraform-fixtures';
+
+it('HA ownership preparation cannot admit public deployment or cleanup through the single-node contract', async () => {
+  const f = await fixture();
+  const node = f.i.sites[0].nodes[0];
+  f.i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
+  await expect(planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources)).rejects.toThrow('single-node');
+  await expect(planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy)).rejects.toThrow('single-node');
+  expect(f.applies()).toBe(0);
+  expect(f.followPlans()).toBe(0);
+});
 
 it('binds exact immutable review and creates once through concurrent and repeated resume', async () => {
   const f = await fixture();

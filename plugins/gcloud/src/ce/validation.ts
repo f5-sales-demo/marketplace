@@ -132,7 +132,9 @@ export function validateIntent(intent: GcpCeIntent) {
           throw new Error('NIC subnets must not overlap');
         ranges.push(range);
       }
-      const current = JSON.stringify(node.interfaces);
+      const current = JSON.stringify(
+        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
+      );
       if (shape !== undefined && shape !== current)
         throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
       shape = current;

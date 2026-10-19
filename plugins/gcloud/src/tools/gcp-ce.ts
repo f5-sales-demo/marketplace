@@ -22,7 +22,7 @@ import {
 import { observeGcpOwnedDeployment } from '../ce/owned-status';
 import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
-import { collectGcpLaunchPreflight } from '../ce/preflight';
+import { collectGcpLaunchPreflight, supportsGcpLaunchPreflight } from '../ce/preflight';
 import { createGcpPreflightPort } from '../ce/preflight-port';
 import { applyPublicTerraformDeployment, planPublicTerraformDeployment } from '../ce/terraform-public';
 import { openPublicTerraformRuntime } from '../ce/terraform-public-runtime';
@@ -482,12 +482,7 @@ export function createGcpCeTools(
           const boundary = await contract(undefined, signal);
           const policyReceipt = await policy();
           const intent = params.intent as GcpCeIntent;
-          const profileSupported =
-            intent.sites.length === 1 &&
-            intent.sites[0].nodes.length === 1 &&
-            intent.sites[0].nodes[0].interfaces.length === 2 &&
-            intent.sites[0].nodes[0].interfaces[1].role === 'sli' &&
-            intent.egress.mode === 'external-ip';
+          const profileSupported = supportsGcpLaunchPreflight(intent);
           const prerequisites = profileSupported
             ? await preflight(intent, createGcpPreflightPort(api, params.project), signal)
             : undefined;

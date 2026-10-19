@@ -6,7 +6,10 @@ and live acceptance on the narrow disposable profile, including two consecutive
 healthy observations, typed teardown without fallback and eight independent
 absence checks. Immutable plugin publication remains pending. Public Terraform
 deployment is a saved-plan candidate with a published, installed-qualified provider
-and packaged lock; public cloud campaigns remain pending Google reauthentication.
+and packaged lock. Fresh public installed/live deployment, interrupted recovery
+and partial disk cleanup passed on the single-node profile. See
+[the public Terraform receipt](../../../../../docs/receipts/gcp-public-terraform-deployment-20261019.md)
+for the actual executable source and frozen bundle hashes.
 Upgrades, repair, replacement, failover, full interruption recovery,
 restoration remain unavailable through public tools. Terraform teardown has a
 qualified owning-engine plan/apply path for the same narrow disposable profile.
@@ -101,3 +104,14 @@ Public native deployment acceptance is recorded in
 [the sanitized receipt](../../../../../docs/receipts/gcp-public-native-deployment-20261019.md).
 It binds the original frozen campaign bundles and source, separately from later
 Terraform runner changes. A second independent absence check also passed.
+
+HA preparation now collects read-only prerequisites for every requested zone
+and checks quota for every node while counting shared HA VPCs once. Candidate
+Terraform ownership inspects all fourteen objects in a three-node/two-interface
+site, including later-node orphan disks and each original node-bound token.
+Automated regressions cover exact per-zone VM/disk joins and fourteen-object
+absence. These source checks do not qualify installed HA deployment or cleanup.
+The immutable HA API contract and per-node health observations are tracked in
+[api-specs-enriched #1951](https://github.com/f5-sales-demo/api-specs-enriched/issues/1951).
+Public deployment and cleanup admission remain single-node until that contract
+and fresh installed/live campaigns pass.
