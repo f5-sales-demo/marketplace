@@ -2,6 +2,7 @@
 """Observe each expanded viewport page in an owned installed-native session."""
 
 # Standalone script follows repository CLI conventions.
+# pylint: disable=invalid-name
 import argparse
 import importlib.util
 import json
@@ -27,10 +28,9 @@ def main() -> None:
     root = args.root.resolve()
     ready = json.loads((root / "ready.json").read_text())
     cases = json.loads((root / "cases.json").read_text())
-    journal = root / "surface-inspection.jsonl"
     failures = []
     pages = 0
-    with journal.open("a") as findings:
+    with (root / "surface-inspection.jsonl").open("a") as findings:
         for preset in ["unicode", "ascii", "nerd"]:
             for theme in ["xcsh-dark", "xcsh-light"]:
                 for case in cases[:6]:
