@@ -1,3 +1,4 @@
+import { writableSiteMetadata } from './site-labels';
 import { type ExpectedBgpSession, parseBgpSessions } from './bgp-evidence';
 import { parseBgpRoutes } from './bgp-route-evidence';
 import { bindAwsCloudInit } from './bootstrap';
@@ -438,7 +439,8 @@ export class CeRuntime {
   ownedSiteConfiguration(binding: SiteBinding, site: Json): Json {
     this.#binding(binding);
     this.#owned(site, binding);
-    return this.contract.siteCreateRequest(site);
+    const request = this.contract.siteCreateRequest(site);
+    return { ...request, metadata: writableSiteMetadata(object(request.metadata)) };
   }
   async ensureSite(
     binding: SiteBinding,
@@ -616,7 +618,13 @@ export class CeRuntime {
     }
     if (existing && object(existing.system_metadata).uid === preparation.uid)
       throw new Error('Original site still exists; coupled replacement has not removed it');
-    await this.#ensureSpec(binding, object(request.spec), checkpoint, signal, object(request.metadata));
+    await this.#ensureSpec(
+      binding,
+      object(request.spec),
+      checkpoint,
+      signal,
+      writableSiteMetadata(object(request.metadata)),
+    );
   }
   /** Reserve a site before provider-assigned NIC identities exist. No node is claimed registered. */
   async reserveSite(
@@ -836,7 +844,7 @@ export class CeRuntime {
     if (changed) {
       if (typeof before.resource_version !== 'string' || !before.resource_version)
         throw new Error('Site resource version is required for an interface update');
-      const request = this.contract.siteCreateRequest(before);
+      const request = this.ownedSiteConfiguration(binding, before);
       const desiredNodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
       for (const node of desiredNodes)
         for (const iface of node.interface_list as Json[]) {

@@ -11,7 +11,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// src/aws/exec.ts
+// plugins/aws/src/aws/exec.ts
 function detectAwsError(stderr, exitCode) {
   const lower = stderr.toLowerCase();
   if (
@@ -131,7 +131,7 @@ var init_exec = __esm(() => {
   };
 });
 
-// src/tools/shared.ts
+// plugins/aws/src/tools/shared.ts
 function textResult(text, details) {
   return { content: [{ type: 'text', text }], details };
 }
@@ -183,7 +183,7 @@ var init_shared = __esm(() => {
   init_exec();
 });
 
-// src/aws/formatters.ts
+// plugins/aws/src/aws/formatters.ts
 function normalizeIdentity(raw) {
   return {
     Account: String(raw.Account ?? ''),
@@ -274,7 +274,7 @@ function formatInstanceTable(instances) {
 `);
 }
 
-// src/aws/types.ts
+// plugins/aws/src/aws/types.ts
 var INSTANCE_ID_PATTERN, REGION_PATTERN, S3_URI_PATTERN, RESOURCE_NAME_PATTERN, HELP_PATH_PATTERN;
 var init_types = __esm(() => {
   INSTANCE_ID_PATTERN = /^i-[0-9a-f]{8,17}$/;
@@ -284,7 +284,7 @@ var init_types = __esm(() => {
   HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/;
 });
 
-// src/prompts/aws-sts-whoami.md
+// plugins/aws/src/prompts/aws-sts-whoami.md
 var aws_sts_whoami_default = `# Show AWS Caller Identity
 
 Show the caller identity for the active AWS credentials via \`aws sts get-caller-identity\`.
@@ -323,7 +323,7 @@ For advanced field selection, add \`--query\` with a JMESPath expression, e.g.
 `;
 var init_aws_sts_whoami = () => {};
 
-// src/tools/aws-sts-whoami.ts
+// plugins/aws/src/tools/aws-sts-whoami.ts
 function createAwsStsWhoamiTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -368,7 +368,7 @@ var init_aws_sts_whoami2 = __esm(() => {
   init_shared();
 });
 
-// src/prompts/aws-s3-ls.md
+// plugins/aws/src/prompts/aws-s3-ls.md
 var aws_s3_ls_default = `# List Amazon S3 Resources
 
 List Amazon S3 buckets, or the contents of a bucket or prefix, via the AWS CLI.
@@ -415,7 +415,7 @@ expression, e.g. \`--query "Buckets[?starts_with(Name, 'log')].Name"\`.
 `;
 var init_aws_s3_ls = () => {};
 
-// src/tools/aws-s3-ls.ts
+// plugins/aws/src/tools/aws-s3-ls.ts
 function createAwsS3LsTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -457,12 +457,12 @@ var init_aws_s3_ls2 = __esm(() => {
   init_shared();
 });
 
-// src/prompts/aws-ec2-describe-instances.md
+// plugins/aws/src/prompts/aws-ec2-describe-instances.md
 var aws_ec2_describe_instances_default =
   '# Describe Amazon EC2 instances\n\nUse `aws ec2 describe-instances`.\n\n## Usage\n\n```bash\naws ec2 describe-instances [--region REGION] [--instance-ids ID ...] [--filters ...] --output json\n```\n\n## Parameters\n\n| Parameter | Description |\n| --- | --- |\n| `region` | Optional AWS region (e.g. `us-east-1`) |\n| `instanceIds` | Optional list of instance IDs (e.g. `i-0123456789abcdef0`) |\n| `filters` | Optional list of `Name=...,Values=...` filter expressions |\n\n## Output Fields (JSON, flattened)\n\nResults arrive as `Reservations[].Instances[]` and are flattened to:\n\n- `instanceId` \u2014 Instance ID\n- `name` \u2014 Value of the `Name` tag, if present\n- `state` \u2014 Lifecycle state (running, stopped, terminated, etc.)\n- `type` \u2014 Instance type (e.g. `t3.micro`)\n- `az` \u2014 Availability Zone\n- `privateIp` \u2014 Private IPv4 address\n- `publicIp` \u2014 Public IPv4 address, if assigned\n\n## Notes\n\nWithout a region, the CLI\'s default region is used. Combine `--filters` for\nserver-side narrowing, e.g. `Name=instance-state-name,Values=running`.\n\nFor advanced field selection, add `--query` with a JMESPath expression, e.g.\n`--query "Reservations[].Instances[].InstanceId"`.\n\n## Related Commands\n\n- `aws ec2 describe-instance-status` \u2014 Health and status checks\n- `aws ec2 start-instances --instance-ids ID` \u2014 Start a stopped instance\n';
 var init_aws_ec2_describe_instances = () => {};
 
-// src/tools/aws-ec2-describe-instances.ts
+// plugins/aws/src/tools/aws-ec2-describe-instances.ts
 function createAwsEc2DescribeInstancesTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -526,12 +526,12 @@ var init_aws_ec2_describe_instances2 = __esm(() => {
   EC2_FILTER_PATTERN = /^Name=[A-Za-z0-9:._/-]+,Values=[A-Za-z0-9:._/,*-]+$/;
 });
 
-// src/prompts/aws-exec.md
+// plugins/aws/src/prompts/aws-exec.md
 var aws_exec_default =
   '# Execute AWS CLI Commands\n\nExecute any `aws` CLI command directly.\n\nThis is the general-purpose tool for running AWS CLI commands that are not covered by the typed tools (aws_sts_whoami, aws_s3_ls, aws_ec2_describe_instances). Prefer the typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the service, operation, and flags as an array of arguments. Do NOT include `aws` itself \u2014 it is prepended automatically.\n\n**Example:** To run `aws ec2 describe-instances --region us-east-1`:\n\n```json\n{ "args": ["ec2", "describe-instances", "--region", "us-east-1"] }\n```\n\nThe AWS CLI grammar is `aws <service> <operation>` (for example `ec2 describe-instances`, `iam list-users`, `s3 ls`).\n\n## Safety\n\n- Arguments are passed as an array directly to the `aws` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `aws` invocation runs, including full JMESPath `--query` syntax.\n- **Read-only by default:** only read operations are allowed. Reads are recognized by operation prefix (`describe-`, `list-`, `get-`, `lookup-`, `search-`, `head-`, `check-`, `resolve-`, \u2026) plus a few exact reads (`scan`, `query`, `select`, `wait`, and `s3 ls`).\n- Everything else \u2014 including `run-instances`, `terminate-instances`, `create-*`, `update-*`, `delete-*`, and the mutating `s3` verbs (`cp`, `mv`, `rm`, `sync`, `mb`, `rb`) \u2014 is blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `aws:cli-operator` agent), not `aws_exec`.\n- Output is capped to prevent context overflow.\n\n## Output format with `--output`\n\nControl the response format with `--output json|text|table` (JSON is added automatically when you do not supply your own):\n\n- `--output json` \u2014 machine-readable JSON (the default)\n- `--output text` \u2014 tab-separated, good for piping\n- `--output table` \u2014 human-readable ASCII table\n\n## Filtering with `--filters`\n\nMany `describe-*` operations accept server-side `--filters` in `Name=...,Values=...` form, which narrows results before they are returned:\n\n```json\n{ "args": ["ec2", "describe-instances", "--filters", "Name=instance-state-name,Values=running"] }\n```\n\n## Querying with `--query` (JMESPath)\n\nAWS uses the JMESPath grammar for the client-side `--query` flag \u2014 pass the expression as a single argument value. This is NOT the GitHub CLI `--json`/`--jq` model; there is no `--jq`. Common patterns:\n\n- Field projection: `--query "Reservations[].Instances[].{id:InstanceId, type:InstanceType}"`\n- Filter: `--query "Reservations[].Instances[?State.Name==\'running\']"`\n- Substring match: `--query "Buckets[?contains(Name, \'prod\')]"`\n- Backtick literals (numbers/booleans/quoted enums): `` --query "Volumes[?Size==`100`]" ``\n- OR / AND / NOT: `--query "[?a==\'x\' || b==\'y\']"`, `--query "[?a && b]"`, `--query "[?!Encrypted]"`\n- Pipe to post-process a projection: `--query "Reservations[].Instances[].InstanceId | [0]"`\n\nAll of the above \u2014 including `||`, `|`, and backticks \u2014 are accepted verbatim, because arguments bypass the shell.\n\n## Tips\n\n- `--output json` is added automatically unless you pass your own `--output`/`-o` (for example `-o table`, `-o text`), which is respected.\n- Use `--region NAME` to target a specific region and `--profile NAME` to select credentials.\n- Use the `aws_help` tool first if you are unsure about a service\'s available operations or flags.\n';
 var init_aws_exec = () => {};
 
-// src/tools/aws-exec-guard.ts
+// plugins/aws/src/tools/aws-exec-guard.ts
 function getPositionals(args) {
   return args.filter((a, i) => {
     if (a.startsWith('-')) return false;
@@ -619,7 +619,7 @@ var init_aws_exec_guard = __esm(() => {
     'explicitly confirmed path (delegate to the aws:cli-operator agent), not aws_exec.';
 });
 
-// src/tools/aws-exec.ts
+// plugins/aws/src/tools/aws-exec.ts
 function createAwsExecTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -676,7 +676,7 @@ var init_aws_exec2 = __esm(() => {
   init_shared();
 });
 
-// src/prompts/aws-help.md
+// plugins/aws/src/prompts/aws-help.md
 var aws_help_default = `# View AWS CLI Help
 
 Fetch help documentation for any \`aws\` CLI service or operation.
@@ -725,7 +725,7 @@ Returns the raw \`aws <command> help\` output, which includes:
 `;
 var init_aws_help = () => {};
 
-// src/tools/aws-help.ts
+// plugins/aws/src/tools/aws-help.ts
 function createAwsHelpTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -780,7 +780,7 @@ var init_aws_help2 = __esm(() => {
   init_shared();
 });
 
-// src/ce/canonical.ts
+// plugins/aws/src/ce/canonical.ts
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 function canonicalize(value) {
@@ -914,7 +914,7 @@ function normalizeResearchDocument(body) {
 }
 var init_canonical = () => {};
 
-// src/ce/types.ts
+// plugins/aws/src/ce/types.ts
 var AWS_CE_SCHEMA_VERSION = 2,
   AWS_CE_SHARED_CONTRACT_URL =
     'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt',
@@ -930,7 +930,7 @@ var init_types2 = __esm(() => {
   AWS_CE_SSM_PARAMETER = `/aws/service/marketplace/${AWS_CE_MARKETPLACE_PRODUCT_ID}/latest`;
 });
 
-// src/ce/artifacts.ts
+// plugins/aws/src/ce/artifacts.ts
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -1047,7 +1047,7 @@ var init_artifacts = __esm(() => {
   memoryPlans = new Map();
 });
 
-// src/ce/scoped-exec.ts
+// plugins/aws/src/ce/scoped-exec.ts
 function scopedAwsApi(api, profile, signal) {
   if (profile !== undefined && !/^[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}$/.test(profile))
     throw new Error('Invalid AWS profile');
@@ -1067,7 +1067,7 @@ function scopedAwsApi(api, profile, signal) {
   };
 }
 
-// src/ce/inventory.ts
+// plugins/aws/src/ce/inventory.ts
 function record(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS inventory evidence');
   return value;
@@ -1248,7 +1248,7 @@ var init_inventory = __esm(() => {
   name = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 });
 
-// src/ce/capacity.ts
+// plugins/aws/src/ce/capacity.ts
 async function observeTaggedResourceCapacity(api, region, command, field, idField, limit, ownership) {
   if (!Number.isFinite(limit) || limit < 0 || !/^\d{12}$/.test(ownership.accountId ?? ''))
     throw new Error('Resource quota or authenticated account is unavailable or malformed');
@@ -1390,7 +1390,7 @@ var init_capacity = __esm(() => {
   init_inventory();
 });
 
-// src/ce/discovery.ts
+// plugins/aws/src/ce/discovery.ts
 async function json(api, args) {
   const result = await api.exec('aws', [...args, '--output', 'json']);
   if (result.exitCode !== 0) throw new Error(`AWS discovery command failed: aws ${args.join(' ')}: ${result.stderr}`);
@@ -2210,19 +2210,25 @@ var init_discovery = __esm(() => {
   DEFAULT_INSTANCE_TYPES = ['m5.2xlarge', 'm5.4xlarge', 'm6i.2xlarge', 'm6i.4xlarge', 'm7i.2xlarge', 'm7i.4xlarge'];
 });
 
-// ../platform/src/ce/deployment-store.ts
+// plugins/platform/src/ce/deployment-store.ts
 var init_deployment_store = () => {};
 
-// ../platform/src/ce/bgp-evidence.ts
+// plugins/platform/src/ce/site-labels.ts
+var discoveryLabels;
+var init_site_labels = __esm(() => {
+  discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+});
+
+// plugins/platform/src/ce/bgp-evidence.ts
 var init_bgp_evidence = () => {};
 
-// ../platform/src/ce/bgp-route-evidence.ts
+// plugins/platform/src/ce/bgp-route-evidence.ts
 var init_bgp_route_evidence = () => {};
 
-// ../platform/src/ce/bootstrap.ts
+// plugins/platform/src/ce/bootstrap.ts
 var init_bootstrap = () => {};
 
-// ../platform/src/ce/process-lock.ts
+// plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join as join2 } from 'node:path';
@@ -2351,13 +2357,13 @@ var init_process_lock = __esm(() => {
   bootPattern = /^[a-f0-9-]{36}$/;
 });
 
-// ../platform/src/ce/ingress-lifecycle.ts
+// plugins/platform/src/ce/ingress-lifecycle.ts
 var init_ingress_lifecycle = __esm(() => {
   init_process_lock();
   init_runtime();
 });
 
-// ../platform/src/ce/initial-versions.ts
+// plugins/platform/src/ce/initial-versions.ts
 function initialSoftwareSettings(value) {
   if (
     !value ||
@@ -2373,24 +2379,24 @@ function initialSoftwareSettings(value) {
   return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
 }
 
-// ../platform/src/ce/interface-evidence.ts
+// plugins/platform/src/ce/interface-evidence.ts
 var init_interface_evidence = () => {};
 
-// ../platform/src/ce/origin-teardown.ts
+// plugins/platform/src/ce/origin-teardown.ts
 var init_origin_teardown = __esm(() => {
   init_runtime();
 });
 
-// ../platform/src/ce/platform-drain.ts
+// plugins/platform/src/ce/platform-drain.ts
 var init_platform_drain = __esm(() => {
   init_runtime();
 });
-// ../platform/src/ce/teardown-inventory.ts
+// plugins/platform/src/ce/teardown-inventory.ts
 var init_teardown_inventory = __esm(() => {
   init_runtime();
 });
 
-// ../platform/src/ce/upgrade-evidence.ts
+// plugins/platform/src/ce/upgrade-evidence.ts
 function object(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
@@ -2429,9 +2435,10 @@ function parseSoftwareTargets(raw) {
 }
 var init_upgrade_evidence = () => {};
 
-// ../platform/src/ce/runtime.ts
+// plugins/platform/src/ce/runtime.ts
 var CE_API_ERROR_BRAND, CeApiError;
 var init_runtime = __esm(() => {
+  init_site_labels();
   init_bgp_evidence();
   init_bgp_route_evidence();
   init_bootstrap();
@@ -2475,7 +2482,7 @@ var init_runtime = __esm(() => {
   };
 });
 
-// ../platform/src/ce/contract-auth.ts
+// plugins/platform/src/ce/contract-auth.ts
 import { execFileSync } from 'node:child_process';
 
 function existingContractCredential(env = process.env) {
@@ -2513,7 +2520,7 @@ function authenticatedContractHeaders(url) {
 }
 var init_contract_auth = () => {};
 
-// ../platform/src/ce/verified-api-release.ts
+// plugins/platform/src/ce/verified-api-release.ts
 import { createHash as createHash2 } from 'node:crypto';
 
 function object2(value) {
@@ -2620,7 +2627,7 @@ var init_verified_api_release = __esm(() => {
   verifiedSchemas = new WeakMap();
 });
 
-// ../platform/src/ce/release-contract.ts
+// plugins/platform/src/ce/release-contract.ts
 var RELEASE_TAG, RELEASE_COMMIT, OPENAPI_SHA256, RELEASE_URL, TAG_URL, REQUIRED_ASSETS;
 var init_release_contract = __esm(() => {
   init_verified_api_release();
@@ -2644,7 +2651,7 @@ var init_release_contract = __esm(() => {
   ]);
 });
 
-// ../platform/src/ce/wire-replace.ts
+// plugins/platform/src/ce/wire-replace.ts
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
@@ -2721,7 +2728,7 @@ var object3 = (value) => {
   return value;
 };
 
-// ../platform/src/ce/wire-schema.ts
+// plugins/platform/src/ce/wire-schema.ts
 import { isIP } from 'node:net';
 
 function object4(value) {
@@ -2983,17 +2990,17 @@ var init_wire_schema = __esm(() => {
   ]);
 });
 
-// ../platform/src/ce/wire-routing.ts
+// plugins/platform/src/ce/wire-routing.ts
 var init_wire_routing = __esm(() => {
   init_wire_schema();
 });
 
-// ../platform/src/ce/wire-site.ts
+// plugins/platform/src/ce/wire-site.ts
 var init_wire_site = __esm(() => {
   init_wire_schema();
 });
 
-// ../platform/src/ce/verified-contract.ts
+// plugins/platform/src/ce/verified-contract.ts
 var publishedAssets;
 var init_verified_contract = __esm(() => {
   init_release_contract();
@@ -3008,7 +3015,7 @@ var init_verified_contract = __esm(() => {
   });
 });
 
-// ../platform/src/ce/service.ts
+// plugins/platform/src/ce/service.ts
 function requestCePlatformService(bus, signal) {
   if (!bus || typeof bus.emit !== 'function')
     return Promise.reject(new Error('Platform CE v2 service is required and not loaded'));
@@ -3043,7 +3050,7 @@ var init_service = __esm(() => {
   init_verified_contract();
 });
 
-// src/ce/platform.ts
+// plugins/aws/src/ce/platform.ts
 function awsPlatformService(pi, signal) {
   return requestCePlatformService(pi.events, signal);
 }
@@ -3051,7 +3058,7 @@ var init_platform = __esm(() => {
   init_service();
 });
 
-// src/tools/aws-compute-discover.ts
+// plugins/aws/src/tools/aws-compute-discover.ts
 function createAwsComputeDiscoverTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -3136,7 +3143,7 @@ var init_aws_compute_discover = __esm(() => {
   init_shared();
 });
 
-// ../terraform/src/provider-lock.ts
+// plugins/terraform/src/provider-lock.ts
 import { createHash as createHash3 } from 'node:crypto';
 import { readFile as readFile2 } from 'node:fs/promises';
 
@@ -3150,7 +3157,7 @@ var XCSH_PROVIDER_VERSION = '15.12.1',
   XCSH_PROVIDER_LOCK_SHA256 = '6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782';
 var init_provider_lock = () => {};
 
-// src/ce/create-recovery.ts
+// plugins/aws/src/ce/create-recovery.ts
 function prepareRecoverableAction(action) {
   if (action.command !== 'aws' || action.args?.[0] !== 'ec2' || !drivers[action.args[1]]) return;
   const start = action.args.indexOf('--tag-specifications');
@@ -3288,7 +3295,7 @@ var init_create_recovery = __esm(() => {
   };
 });
 
-// src/ce/execution-contract.ts
+// plugins/aws/src/ce/execution-contract.ts
 function assertAwsWholeSitePowerSupported(intent) {
   if (intent.operation === 'start' || intent.operation === 'stop')
     throw new Error(
@@ -3299,7 +3306,7 @@ var AWS_CE_TERRAFORM_VERSION = '1.16.5',
   AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0',
   AWS_CE_PROVIDER_LOCK_SHA256 = 'c4fbed57d353b4b7ee92bcdd16be57a9674dc3e70b41332ab0b866db7e7a9ede';
 
-// src/ce/ingress-settings.ts
+// plugins/aws/src/ce/ingress-settings.ts
 function nlbSettings(intent) {
   const ingress = intent.ingress?.mode === 'nlb' ? intent.ingress : undefined;
   const targetInterfaceIndex = ingress?.targetInterfaceIndex ?? 1;
@@ -3333,7 +3340,7 @@ function nlbSettings(intent) {
   return { targetInterfaceIndex, healthCheck };
 }
 
-// src/ce/interface-security.ts
+// plugins/aws/src/ce/interface-security.ts
 function interfaceSecurityGroups(intent, index) {
   const groups =
     intent.interfaces[index]?.securityGroupNames ??
@@ -3349,7 +3356,7 @@ function interfaceSecurityGroups(intent, index) {
   return [...groups].sort();
 }
 
-// src/ce/static-routing.ts
+// plugins/aws/src/ce/static-routing.ts
 import { isIP as isIP2 } from 'node:net';
 
 function staticAzRoutes(intent) {
@@ -3414,7 +3421,7 @@ function routeNode(intent, route) {
 }
 var init_static_routing = () => {};
 
-// src/ce/topology.ts
+// plugins/aws/src/ce/topology.ts
 function siteTopology(intent) {
   const sites = intent.topology.sites ?? [
     { name: intent.siteName, nodeIndexes: Array.from({ length: intent.topology.nodeCount }, (_, index) => index + 1) },
@@ -3466,7 +3473,7 @@ function siteBindings(plan) {
   }));
 }
 
-// src/ce/transport-routes.ts
+// plugins/aws/src/ce/transport-routes.ts
 import { isIP as isIP3 } from 'node:net';
 
 function network(value) {
@@ -3522,7 +3529,7 @@ function observedConnectCidrs(intent, observation) {
 }
 var init_transport_routes = () => {};
 
-// src/ce/planner.ts
+// plugins/aws/src/ce/planner.ts
 import { isIP as isIP4 } from 'node:net';
 
 function fail(message) {
@@ -5900,7 +5907,7 @@ var init_planner = __esm(() => {
     /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 });
 
-// src/tools/aws-ce-plan.ts
+// plugins/aws/src/tools/aws-ce-plan.ts
 function createAwsCePlanTool(pi) {
   const { Type } = pi.typebox;
   const stringArray = Type.Array(Type.String());
@@ -6146,7 +6153,7 @@ var init_aws_ce_plan = __esm(() => {
   init_types2();
 });
 
-// ../platform/src/ce/wire-ingress.ts
+// plugins/platform/src/ce/wire-ingress.ts
 import { isIP as isIP5 } from 'node:net';
 
 function projectInsideHttpListener(spec, schemas, validate) {
@@ -6272,7 +6279,7 @@ function buildInsideHttpListener(input, validate) {
 }
 var init_wire_ingress = () => {};
 
-// ../platform/src/ce/wire-origin.ts
+// plugins/platform/src/ce/wire-origin.ts
 import { isIP as isIP6 } from 'node:net';
 
 function projectSiteLocalHttpOrigin(spec, schemas, validate) {
@@ -6336,7 +6343,7 @@ function buildSiteLocalHttpOrigin(input, validate) {
 }
 var init_wire_origin = () => {};
 
-// ../platform/src/ce/ingress-contract.ts
+// plugins/platform/src/ce/ingress-contract.ts
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress contract');
   return value;
@@ -6392,7 +6399,7 @@ var init_ingress_contract = __esm(() => {
   init_wire_schema();
 });
 
-// ../platform/src/ce/wire-upgrade.ts
+// plugins/platform/src/ce/wire-upgrade.ts
 function buildSiteUpgradeRequest(input, validate) {
   if (
     !input ||
@@ -6413,7 +6420,7 @@ function buildSiteUpgradeRequest(input, validate) {
   };
 }
 
-// ../platform/src/ce/upgrade-transition.ts
+// plugins/platform/src/ce/upgrade-transition.ts
 function matchesVersionIdentity(expected, observation) {
   if (observation.status !== 'observed') return false;
   const { binding } = expected;
@@ -6540,7 +6547,7 @@ var init_upgrade_transition = __esm(() => {
   init_upgrade_evidence();
 });
 
-// ../platform/src/ce/replacement-versions.ts
+// plugins/platform/src/ce/replacement-versions.ts
 async function captureCeReplacementVersions(binding, siteUid, siteContractFingerprint, runtime, contract, signal) {
   binding = structuredClone(binding);
   const observation = await runtime.observeUpgrade(binding, contract, undefined, signal);
@@ -6570,7 +6577,7 @@ var init_replacement_versions = __esm(() => {
   init_upgrade_transition();
 });
 
-// ../platform/src/ce/upgrade-contract.ts
+// plugins/platform/src/ce/upgrade-contract.ts
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade contract');
   return value;
@@ -6636,7 +6643,7 @@ var init_upgrade_contract = __esm(() => {
   };
 });
 
-// src/ce/attachment-gate.ts
+// plugins/aws/src/ce/attachment-gate.ts
 async function assertAttachmentAvailable(action, plan, checkpoint, api) {
   const reference = action.resourceId ?? '';
   const id = checkpoint.resolvedValues[reference] ?? reference;
@@ -6697,7 +6704,7 @@ async function assertAttachmentAvailable(action, plan, checkpoint, api) {
   throw new Error('Attachment is in an unsupported or terminal state');
 }
 
-// src/ce/cloud-init.ts
+// plugins/aws/src/ce/cloud-init.ts
 function renderAwsCeCloudInit(input) {
   if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(input.nodeName)) throw new Error('Cloud-init node name is invalid');
   let parsed;
@@ -6740,7 +6747,7 @@ function analyzeAwsCloudInit(body, sensitiveValues = []) {
   };
 }
 
-// src/ce/delete-recovery.ts
+// plugins/aws/src/ce/delete-recovery.ts
 function hasDeleteRecovery(action) {
   return (
     ['resource-delete', 'route-table-disassociate', 'internet-gateway-detach'].includes(action.kind) &&
@@ -6872,7 +6879,7 @@ var init_delete_recovery = __esm(() => {
   init_discovery();
 });
 
-// src/ce/eip-association.ts
+// plugins/aws/src/ce/eip-association.ts
 async function associateAwsCeEip(api, plan, args, signal) {
   const allocation = args[args.indexOf('--allocation-id') + 1];
   const eni = args[args.indexOf('--network-interface-id') + 1];
@@ -6923,7 +6930,7 @@ async function associateAwsCeEip(api, plan, args, signal) {
   return { exitCode: 0, stdout: JSON.stringify({ AssociationId: association }), stderr: '' };
 }
 
-// src/ce/native-routing-checkpoint.ts
+// plugins/aws/src/ce/native-routing-checkpoint.ts
 function compileAwsNativeRoutingCheckpoint(plan, checkpoint, owner) {
   verifyAwsCePlan(plan);
   if (
@@ -6989,7 +6996,7 @@ var init_native_routing_checkpoint = __esm(() => {
   init_canonical();
 });
 
-// src/ce/network-health.ts
+// plugins/aws/src/ce/network-health.ts
 import { isIP as isIP7 } from 'node:net';
 
 function object7(value) {
@@ -7445,7 +7452,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
 }
 var init_network_health = () => {};
 
-// src/ce/routing-apply.ts
+// plugins/aws/src/ce/routing-apply.ts
 function validateAwsRoutingRebind(plan, rebind) {
   const selected = siteBindings(plan).find(({ site }) => site.name === rebind.siteName);
   const cp = rebind.checkpoint;
@@ -7548,7 +7555,7 @@ var init_routing_apply = __esm(() => {
   init_network_health();
 });
 
-// src/ce/native-site-replacement.ts
+// plugins/aws/src/ce/native-site-replacement.ts
 import { mkdtemp, rm as rm2, writeFile as writeFile2 } from 'node:fs/promises';
 import { join as join3 } from 'node:path';
 
@@ -7990,7 +7997,7 @@ var init_native_site_replacement = __esm(() => {
   init_routing_apply();
 });
 
-// src/ce/platform-ingress.ts
+// plugins/aws/src/ce/platform-ingress.ts
 async function optional(storage, name) {
   try {
     return await storage.read(name);
@@ -8108,7 +8115,7 @@ var init_platform_ingress = __esm(() => {
   init_exec();
 });
 
-// src/ce/security-group-defaults.ts
+// plugins/aws/src/ce/security-group-defaults.ts
 async function resetAwsSecurityGroupEgress(action, plan, checkpoint, api) {
   const id = checkpoint.resolvedValues[action.resourceId ?? ''];
   if (!/^sg-[0-9a-f]{8,17}$/.test(id ?? '')) throw new Error('Security group identity is unresolved');
@@ -8174,7 +8181,7 @@ async function resetAwsSecurityGroupEgress(action, plan, checkpoint, api) {
   if ((await observe()).length) throw new Error('Security group default egress removal has not converged');
 }
 
-// src/ce/site-replacement.ts
+// plugins/aws/src/ce/site-replacement.ts
 function compileAwsSiteReplacement(base, siteName, preparation, resources) {
   verifyAwsCePlan(base);
   const { interfaceIds, elasticIpAllocationIds, bootstrapTokenNames } = resources;
@@ -8592,7 +8599,7 @@ var init_site_replacement = __esm(() => {
   ];
 });
 
-// src/ce/traffic-probe.ts
+// plugins/aws/src/ce/traffic-probe.ts
 async function run(api, plan, args) {
   const result = await api.exec('aws', [...args, '--region', plan.region, '--output', 'json']);
   if (result.exitCode !== 0) throw detectAwsError(result.stderr, result.exitCode);
@@ -8832,7 +8839,7 @@ var init_traffic_probe = __esm(() => {
   COMMAND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 });
 
-// src/ce/apply.ts
+// plugins/aws/src/ce/apply.ts
 import { chmod, mkdir as mkdir2, mkdtemp as mkdtemp2, rm as rm3, writeFile as writeFile3 } from 'node:fs/promises';
 import { join as join4 } from 'node:path';
 
@@ -9785,10 +9792,10 @@ var init_apply = __esm(() => {
   init_types2();
 });
 
-// ../terraform/src/literal.ts
+// plugins/terraform/src/literal.ts
 var terraformLiteral = (value) => value.replaceAll('${', () => '$${').replaceAll('%{', () => '%%{');
 
-// src/ce/terraform-foundation.ts
+// plugins/aws/src/ce/terraform-foundation.ts
 import { createHash as createHash4 } from 'node:crypto';
 import { readFile as readFile3 } from 'node:fs/promises';
 
@@ -10079,7 +10086,7 @@ var init_terraform_foundation = __esm(() => {
   literal = terraformLiteral;
 });
 
-// src/ce/terraform-connect.ts
+// plugins/aws/src/ce/terraform-connect.ts
 function renderAwsTerraformConnect(plan, observation, bootstrapByNode) {
   const config = JSON.parse(renderAwsTerraformFoundation(plan, bootstrapByNode));
   const intent = plan.intent;
@@ -10213,7 +10220,7 @@ var init_terraform_connect = __esm(() => {
   init_transport_routes();
 });
 
-// src/ce/terraform-static.ts
+// plugins/aws/src/ce/terraform-static.ts
 function renderAwsTerraformStatic(plan, bootstrapByNode = {}) {
   const config = JSON.parse(renderAwsTerraformFoundation(plan, bootstrapByNode));
   const intent = plan.intent;
@@ -10315,7 +10322,7 @@ var init_terraform_static = __esm(() => {
   init_terraform_foundation();
 });
 
-// src/ce/terraform-routing-renderer.ts
+// plugins/aws/src/ce/terraform-routing-renderer.ts
 function renderAwsTerraformRouting(plan, observation, bootstrap) {
   return plan.intent.routing.profile === 'tgw-static'
     ? renderAwsTerraformStatic(plan, bootstrap)
@@ -10326,7 +10333,7 @@ var init_terraform_routing_renderer = __esm(() => {
   init_terraform_static();
 });
 
-// src/ce/terraform-connect-stage.ts
+// plugins/aws/src/ce/terraform-connect-stage.ts
 import { createHash as createHash5 } from 'node:crypto';
 
 async function applyAwsTerraformConnectStage(plan, observation, session, storage, revalidate, env, signal) {
@@ -10455,7 +10462,7 @@ var init_terraform_connect_stage = __esm(() => {
   init_terraform_routing_renderer();
 });
 
-// src/ce/terraform-identities.ts
+// plugins/aws/src/ce/terraform-identities.ts
 import { isIP as isIP8 } from 'node:net';
 
 async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
@@ -10566,7 +10573,7 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
 var object11 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_terraform_identities = () => {};
 
-// src/ce/terraform-replacement-stages.ts
+// plugins/aws/src/ce/terraform-replacement-stages.ts
 import { createHash as createHash6 } from 'node:crypto';
 
 function awsTerraformReplacementStages(base, replacement, configuration, expectedConfigurationSha256) {
@@ -10725,7 +10732,7 @@ var init_terraform_replacement_stages = __esm(() => {
   init_canonical();
 });
 
-// src/ce/terraform-routing.ts
+// plugins/aws/src/ce/terraform-routing.ts
 function bindTerraformConnectPeers(plan, outputs, interfaceBindings) {
   verifyAwsCePlan(plan);
   if (plan.engine !== 'terraform' || plan.routing.profile !== 'tgw-connect')
@@ -10851,7 +10858,7 @@ var init_terraform_routing = __esm(() => {
   init_terraform_identities();
 });
 
-// src/ce/terraform-site-replacement.ts
+// plugins/aws/src/ce/terraform-site-replacement.ts
 import { createHash as createHash7 } from 'node:crypto';
 
 async function createTerraformAwsSiteReplacementDriver(
@@ -11354,7 +11361,7 @@ var init_terraform_site_replacement = __esm(() => {
   init_terraform_routing();
 });
 
-// src/ce/terraform-initial-replacement.ts
+// plugins/aws/src/ce/terraform-initial-replacement.ts
 async function optional3(storage, name) {
   try {
     return await storage.read(name);
@@ -11489,7 +11496,7 @@ var init_terraform_initial_replacement = __esm(() => {
   init_terraform_site_replacement();
 });
 
-// src/ce/terraform-routing-references.ts
+// plugins/aws/src/ce/terraform-routing-references.ts
 function routingAttachmentIds(plan, observation) {
   if (plan.intent.routing.profile !== 'tgw-connect') return [];
   const selected = tables(plan);
@@ -11573,7 +11580,7 @@ var init_terraform_routing_references = __esm(() => {
   init_canonical();
 });
 
-// src/ce/terraform-preflight.ts
+// plugins/aws/src/ce/terraform-preflight.ts
 async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetcher = fetch, signal) {
   verifyAwsCePlan(plan);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy' || plan.intent.vpc.mode !== 'greenfield')
@@ -11693,7 +11700,7 @@ var init_terraform_preflight = __esm(() => {
   init_terraform_routing_references();
 });
 
-// src/ce/terraform-admission.ts
+// plugins/aws/src/ce/terraform-admission.ts
 import { createHash as createHash8 } from 'node:crypto';
 
 async function admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal, haSerialDelayMs = 180000) {
@@ -11930,7 +11937,7 @@ var init_terraform_admission = __esm(() => {
   init_types2();
 });
 
-// src/ce/terraform-workflow.ts
+// plugins/aws/src/ce/terraform-workflow.ts
 async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, revalidate, env, signal) {
   verifyAwsCePlan(plan);
   const deployment = await awsTerraformFoundationDeployment(plan);
@@ -11991,7 +11998,7 @@ var init_terraform_workflow = __esm(() => {
   init_terraform_foundation();
 });
 
-// src/ce/terraform-apply.ts
+// plugins/aws/src/ce/terraform-apply.ts
 async function executeAwsCeTerraformApply(
   input,
   ctx,
@@ -12324,7 +12331,7 @@ var init_terraform_apply = __esm(() => {
   init_traffic_probe();
 });
 
-// src/tools/aws-ce-apply.ts
+// plugins/aws/src/tools/aws-ce-apply.ts
 function createAwsCeApplyTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -12399,7 +12406,7 @@ var init_aws_ce_apply = __esm(() => {
   init_shared();
 });
 
-// src/tools/aws-ce-inventory.ts
+// plugins/aws/src/tools/aws-ce-inventory.ts
 function createAwsCeInventoryTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -12442,7 +12449,7 @@ var init_aws_ce_inventory = __esm(() => {
   init_shared();
 });
 
-// src/ce/terraform-absence.ts
+// plugins/aws/src/ce/terraform-absence.ts
 async function collectAwsTerraformAbsence(source, input, raw, signal) {
   const plan = structuredClone(source),
     inventory = structuredClone(input);
@@ -12798,7 +12805,7 @@ var init_terraform_absence = __esm(() => {
   };
 });
 
-// src/ce/terraform-destroy-ownership.ts
+// plugins/aws/src/ce/terraform-destroy-ownership.ts
 function object18(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS teardown identity');
   return value;
@@ -13247,7 +13254,7 @@ var init_terraform_destroy_ownership = __esm(() => {
   };
 });
 
-// src/ce/terraform-cloud-teardown.ts
+// plugins/aws/src/ce/terraform-cloud-teardown.ts
 import { createHash as createHash9 } from 'node:crypto';
 
 async function optional4(storage, name) {
@@ -13427,7 +13434,7 @@ var init_terraform_cloud_teardown = __esm(() => {
   init_terraform_destroy_ownership();
 });
 
-// src/ce/terraform-teardown.ts
+// plugins/aws/src/ce/terraform-teardown.ts
 function compileAwsTerraformTeardown(base, drain, retirement) {
   verifyAwsCePlan(base);
   const selected = siteBindings(base);
@@ -13692,7 +13699,7 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_cloud_teardown();
 });
 
-// src/ce/terraform-teardown-plan.ts
+// plugins/aws/src/ce/terraform-teardown-plan.ts
 import { readdir as readdir2 } from 'node:fs/promises';
 
 async function optional5(storage, name) {
@@ -13958,7 +13965,7 @@ var init_terraform_teardown_plan = __esm(() => {
   init_terraform_teardown();
 });
 
-// src/ce/native-teardown.ts
+// plugins/aws/src/ce/native-teardown.ts
 import { join as join5 } from 'node:path';
 
 function compileAwsNativeTeardown(base, cloud, drain, retirement) {
@@ -14250,7 +14257,7 @@ var init_native_teardown = __esm(() => {
   init_terraform_teardown_plan();
 });
 
-// src/tools/aws-ce-teardown.ts
+// plugins/aws/src/tools/aws-ce-teardown.ts
 async function optional7(storage, name) {
   try {
     return await storage.read(name);
@@ -14517,7 +14524,7 @@ var init_aws_ce_teardown = __esm(() => {
   };
 });
 
-// ../platform/src/ce/native-upgrade.ts
+// plugins/platform/src/ce/native-upgrade.ts
 import { createHash as createHash10, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
 function canonical(value) {
@@ -14737,7 +14744,7 @@ var init_native_upgrade = __esm(() => {
   init_upgrade_transition();
 });
 
-// src/ce/native-upgrade.ts
+// plugins/aws/src/ce/native-upgrade.ts
 function build(base, expectation, contract) {
   verifyAwsCePlan(base);
   initialSoftwareSettings(expectation.before);
@@ -14816,7 +14823,7 @@ var init_native_upgrade2 = __esm(() => {
   init_canonical();
 });
 
-// ../terraform/src/ce-upgrade.ts
+// plugins/terraform/src/ce-upgrade.ts
 import { createHash as createHash11, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
 function canonical2(value) {
@@ -15050,7 +15057,7 @@ var init_ce_upgrade = __esm(() => {
   init_upgrade_transition();
 });
 
-// src/ce/terraform-upgrade.ts
+// plugins/aws/src/ce/terraform-upgrade.ts
 async function build2(base, expectation, contract) {
   verifyAwsCePlan(base);
   initialSoftwareSettings(expectation.before);
@@ -15186,7 +15193,7 @@ var init_terraform_upgrade = __esm(() => {
   init_terraform_foundation();
 });
 
-// src/tools/aws-ce-upgrade.ts
+// plugins/aws/src/tools/aws-ce-upgrade.ts
 async function optional10(storage, name) {
   try {
     return await storage.read(name);
@@ -15385,7 +15392,7 @@ var init_aws_ce_upgrade = __esm(() => {
   };
 });
 
-// src/ce/failover-health.ts
+// plugins/aws/src/ce/failover-health.ts
 async function collectAwsFailoverBgpHealth(plan, checkpoint, nodeIndex, phase, api, signal) {
   verifyAwsCePlan(plan);
   const site = siteBindings(plan).find(({ site }) => site.nodeIndexes.includes(nodeIndex))?.site;
@@ -15433,7 +15440,7 @@ var init_failover_health = __esm(() => {
   init_network_health();
 });
 
-// src/ce/native-failover.ts
+// plugins/aws/src/ce/native-failover.ts
 async function observeAwsNativeFailoverInstance(base, failover, api, signal) {
   signal?.throwIfAborted();
   verifyAwsNativeFailover(base, failover);
@@ -15652,7 +15659,7 @@ var init_native_failover = __esm(() => {
   init_canonical();
 });
 
-// src/ce/terraform-failover.ts
+// plugins/aws/src/ce/terraform-failover.ts
 function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, expectedConfigurationSha256) {
   verifyAwsCePlan(base);
   const selected = siteBindings(base).find(({ site }) => site.nodeIndexes.includes(nodeIndex));
@@ -16022,7 +16029,7 @@ var init_terraform_failover = __esm(() => {
   init_canonical();
 });
 
-// src/tools/aws-ce-failover.ts
+// plugins/aws/src/tools/aws-ce-failover.ts
 async function optional13(storage, name) {
   try {
     return await storage.read(name);
@@ -16314,7 +16321,7 @@ var init_aws_ce_failover = __esm(() => {
   };
 });
 
-// src/ce/status.ts
+// plugins/aws/src/ce/status.ts
 async function collectAwsCeStatus(plan, checkpoint, api, runtime, signal) {
   const observedAt = new Date().toISOString();
   let aws;
@@ -16442,7 +16449,7 @@ var init_status = __esm(() => {
   init_network_health();
 });
 
-// src/ce/terraform-status.ts
+// plugins/aws/src/ce/terraform-status.ts
 async function readAwsTerraformWorkflowStatus(plan, storage) {
   if (plan.engine !== 'terraform') throw new Error('Terraform status requires the owning engine');
   await storage.verify();
@@ -16495,7 +16502,7 @@ async function readAwsTerraformWorkflowStatus(plan, storage) {
   };
 }
 
-// src/tools/aws-ce-status.ts
+// plugins/aws/src/tools/aws-ce-status.ts
 function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -16654,7 +16661,7 @@ var init_aws_ce_status = __esm(() => {
   init_shared();
 });
 
-// src/ce/diagnostic-invocation.ts
+// plugins/aws/src/ce/diagnostic-invocation.ts
 import { setTimeout as delay } from 'node:timers/promises';
 
 async function verifyDiagnosticManagedNode(api, instanceId, region) {
@@ -16793,7 +16800,7 @@ async function observeDiagnosticInvocation(
 var object22 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_diagnostic_invocation = () => {};
 
-// src/ce/flow-log-evidence.ts
+// plugins/aws/src/ce/flow-log-evidence.ts
 function interpretFlowLogEvents(response, scope, logFormat) {
   if (!Array.isArray(response.events) || response.events.length > 100 || Object.hasOwn(response, 'nextToken'))
     throw new Error('Missing or partial Flow Log events');
@@ -16868,7 +16875,7 @@ function interpretFlowLogEvents(response, scope, logFormat) {
 var defaultFormat =
   'version account-id interface-id srcaddr dstaddr srcport dstport protocol packets bytes start end action log-status';
 
-// src/ce/passive-evidence.ts
+// plugins/aws/src/ce/passive-evidence.ts
 async function collectAwsPassiveEvidence(scope, executor, signal, lookbackMinutes = 15) {
   if (
     !/^\d{12}$/.test(scope.accountId) ||
@@ -17163,7 +17170,7 @@ async function collectAwsPassiveEvidence(scope, executor, signal, lookbackMinute
 }
 var init_passive_evidence = () => {};
 
-// src/tools/aws-ce-diagnose.ts
+// plugins/aws/src/tools/aws-ce-diagnose.ts
 async function collect(api, args, category) {
   const result = await api.exec('aws', args);
   const raw = `${result.stdout}
@@ -17470,7 +17477,7 @@ var init_aws_ce_diagnose = __esm(() => {
   init_shared();
 });
 
-// src/ce/console-evidence.ts
+// plugins/aws/src/ce/console-evidence.ts
 function summarizeAwsConsoleOutput(result, instanceId, observedAt = new Date().toISOString()) {
   const base = { instanceId, source: 'aws:ec2:get-console-output', observedAt, scope: 'console-signals-only' };
   const unknown = { ...base, ok: false, cloudInitFinished: null, errorsDetected: null, warningsDetected: null };
@@ -17520,7 +17527,7 @@ var init_console_evidence = __esm(() => {
   init_canonical();
 });
 
-// src/tools/aws-cloud-init-analyze.ts
+// plugins/aws/src/tools/aws-cloud-init-analyze.ts
 function createAwsCloudInitAnalyzeTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -17594,7 +17601,7 @@ var init_aws_cloud_init_analyze = __esm(() => {
   init_shared();
 });
 
-// src/presentation.ts
+// plugins/aws/src/presentation.ts
 function presentTool(tool, p) {
   return p.withPresentation(tool, {
     command: 'aws',
@@ -17616,7 +17623,7 @@ function presentTool(tool, p) {
   });
 }
 
-// src/index.ts
+// plugins/aws/src/index.ts
 init_shared();
 function sanitizeHintField(value, maxLen = 200) {
   if (typeof value !== 'string') return '';

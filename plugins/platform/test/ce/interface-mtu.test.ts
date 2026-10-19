@@ -236,3 +236,34 @@ test('explicit replacement planning refuses uncorrelated hardware and missing ve
   ).rejects.toThrow();
   expect(f.posts()).toBe(0);
 });
+
+test('retained replacement metadata excludes old platform discovery labels and keeps custom ownership exact', async () => {
+  const f = fixture();
+  f.site.metadata.labels['custom-label'] = 'preserved';
+  f.site.metadata.labels['host-os-version'] = 'old-os';
+  f.site.metadata.labels['hw-serial-number'] = 'old-node';
+  f.site.metadata.labels['ves.io/provider'] = 'platform';
+  await expect(f.run()).rejects.toThrow('coupled VM/site replacement');
+  const preparation = f.receipts[0];
+  const metadata = (preparation.request as typeof f.site).metadata;
+  expect(metadata.labels['host-os-version']).toBeUndefined();
+  expect(metadata.labels['custom-label']).toBe('preserved');
+  // A retained older request still carries discovery labels; its frozen contents stay intact.
+  metadata.labels['host-os-version'] = 'old-os';
+  metadata.labels['hw-serial-number'] = 'old-node';
+  f.removeOldSite();
+  await f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {});
+  expect(f.posts()).toBe(1);
+  expect(metadata.labels['host-os-version']).toBe('old-os');
+  expect(f.site.metadata.labels['host-os-version']).toBeUndefined();
+  await f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {});
+  expect(f.posts()).toBe(1);
+  f.site.metadata.labels['custom-label'] = 'changed';
+  await expect(f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {})).rejects.toThrow(
+    'metadata differs',
+  );
+  expect(f.posts()).toBe(1);
+  f.site.metadata.labels['xcsh-ce-engine'] = 'foreign';
+  await expect(f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {})).rejects.toThrow();
+  expect(f.posts()).toBe(1);
+});

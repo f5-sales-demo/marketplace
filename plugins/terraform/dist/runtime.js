@@ -1,6 +1,16 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-// ../platform/src/ce/process-lock.ts
+// plugins/platform/src/ce/site-labels.ts
+var discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+function writableSiteLabels(labels) {
+  return Object.fromEntries(
+    Object.entries(labels).filter(
+      ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/') && !discoveryLabels.has(key),
+    ),
+  );
+}
+
+// plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -126,10 +136,10 @@ async function acquireProcessLock(path) {
   throw new Error('Operation lock could not be acquired');
 }
 
-// ../platform/src/ce/runtime.ts
+// plugins/platform/src/ce/runtime.ts
 var CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
 
-// ../platform/src/ce/verified-api-release.ts
+// plugins/platform/src/ce/verified-api-release.ts
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v12.0.9';
 var commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc';
@@ -138,7 +148,7 @@ var assetUrl = `https://github.com/${repository}/releases/download/${tag}/openap
 var CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
 var verifiedSchemas = new WeakMap();
 
-// ../platform/src/ce/release-contract.ts
+// plugins/platform/src/ce/release-contract.ts
 var RELEASE_TAG = CE_API_RELEASE.tag;
 var RELEASE_COMMIT = CE_API_RELEASE.commit;
 var OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
@@ -158,7 +168,7 @@ var REQUIRED_ASSETS = new Set([
   'upstream-contract-removals.json',
 ]);
 
-// ../platform/src/ce/wire-schema.ts
+// plugins/platform/src/ce/wire-schema.ts
 var keywords = new Set([
   'type',
   'enum',
@@ -179,17 +189,17 @@ var keywords = new Set([
   'nullable',
 ]);
 
-// ../platform/src/ce/verified-contract.ts
+// plugins/platform/src/ce/verified-contract.ts
 var publishedAssets = Object.freeze({
   'smsv2-contract.json': 'sha256:2dd4d33693c9e228bfb304d7558a2f50ca9cc0146407f8fb9b5f0ca7d7c56f3c',
   'smsv2-contract-manifest.json': 'sha256:3adcfb6462a887a0f65198ed392c742fbc2ab9ba9df1cac33f36e5fe54fd6662',
   'smsv2-evidence-receipt.json': 'sha256:e9bd60f46acd2a003010cbf20d0581af364cce0486f8a7eefc9eb85562ab0bff',
 });
 
-// ../platform/src/ce/service.ts
+// plugins/platform/src/ce/service.ts
 var CE_TERRAFORM_RESOURCE_CHANNEL = 'xcsh:ce-terraform:v1:resource-mutation';
 
-// extensions/integration.ts
+// plugins/terraform/extensions/integration.ts
 function terraformInstallArgv(platform = process.platform) {
   if (platform === 'darwin') return ['brew', 'install', 'terraform'];
   if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
@@ -222,8 +232,8 @@ function terraformIntegration(pi) {
   });
 }
 
-// src/f5-resources.ts
-// src/provider-lock.ts
+// plugins/terraform/src/f5-resources.ts
+// plugins/terraform/src/provider-lock.ts
 import { createHash, createHash as createHash2 } from 'node:crypto';
 import { readFile as readFile2 } from 'node:fs/promises';
 import { join as join2 } from 'node:path';
@@ -237,10 +247,10 @@ async function loadXcshProviderLock() {
   return value;
 }
 
-// src/literal.ts
+// plugins/terraform/src/literal.ts
 var terraformLiteral = (value) => value.replaceAll('${', () => '$${').replaceAll('%{', () => '%%{');
 
-// src/resource-renderer.ts
+// plugins/terraform/src/resource-renderer.ts
 function object(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Provider resource schema is malformed');
@@ -296,21 +306,19 @@ function renderProviderResource(request, resourceSchema, resourceType) {
     }
     return result;
   };
-  const discovered = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
   const siteDiscovery = ['xcsh_securemesh_site_v2', 'xcsh_voltstack_site', 'xcsh_aws_tgw_site'].includes(
     resourceType ?? '',
   );
   const labels =
     metadata.labels === undefined
       ? undefined
-      : Object.fromEntries(
-          Object.entries(object(metadata.labels)).filter(
-            ([key]) =>
-              !key.startsWith('ves.io/') &&
-              !key.startsWith('internal.ves.io/') &&
-              !(siteDiscovery && discovered.has(key)),
-          ),
-        );
+      : siteDiscovery
+        ? writableSiteLabels(object(metadata.labels))
+        : Object.fromEntries(
+            Object.entries(object(metadata.labels)).filter(
+              ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/'),
+            ),
+          );
   return convert(
     {
       name: metadata.name,
@@ -322,7 +330,7 @@ function renderProviderResource(request, resourceSchema, resourceType) {
   );
 }
 
-// src/f5-resources.ts
+// plugins/terraform/src/f5-resources.ts
 var object2 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed F5 Terraform resource evidence');
@@ -610,7 +618,7 @@ async function executeF5TerraformResource(platform, terraform, owner, path, init
   }
 }
 
-// src/runner.ts
+// plugins/terraform/src/runner.ts
 import { createHash as createHash3, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
@@ -622,10 +630,10 @@ import {
   rm as rm2,
   writeFile as writeFile2,
 } from 'node:fs/promises';
-// src/service.ts
+// plugins/terraform/src/service.ts
 import { isAbsolute, join as join3, join as join4, resolve } from 'node:path';
 
-// src/failure.ts
+// plugins/terraform/src/failure.ts
 var patterns = [
   ['capacity', /\bInsufficientInstanceCapacity\b/],
   ['quota', /\bVpcLimitExceeded\b/],
@@ -657,7 +665,7 @@ class TerraformCommandError extends Error {
   }
 }
 
-// src/runner.ts
+// plugins/terraform/src/runner.ts
 var planApplicationFlag = ['apply', 'able'].join('');
 var cliConfig = `provider_installation {
   direct {}
@@ -1497,7 +1505,7 @@ class TerraformRunner {
   }
 }
 
-// src/service.ts
+// plugins/terraform/src/service.ts
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 function createCeTerraformService(platform) {
   return {
@@ -1607,7 +1615,7 @@ function requestPlatform(bus) {
   });
 }
 
-// src/index.ts
+// plugins/terraform/src/index.ts
 function factory(pi) {
   terraformIntegration(pi);
   pi.setLabel('Terraform CE lifecycle execution');
