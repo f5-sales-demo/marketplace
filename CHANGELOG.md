@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** records a fresh private HA health qualification gap. Three original
+  nodes reached ONLINE with both NIC joins and no-change planning. Health API
+  failures, duplicate inventory identities and missing service coverage prevented
+  qualified HA health through the thirty-minute convergence window. Public HA
+  admission and owning API publication remain gated.
+
 - **`gcloud`** records private three-node HA interrupted-success recovery and
   partial orphan-disk cleanup. Recovery refuses a live executor without mutation
   and preserves the original binary before no-change planning. Each separate
