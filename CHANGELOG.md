@@ -17,8 +17,9 @@ and this project adheres to
   Deployment completion binds a stable no-op state snapshot; resumed completion
   requires that exact state and all original live identities without replay.
   The versioned configuration owns the boot disk explicitly. Deployment
-  remains gated until the creation-identity provider is published and qualified,
-  its exact lock is packaged, and fresh installed/live campaigns pass (#1559).
+  uses the published and installed-qualified XC v15.13.0 provider, Terraform
+  1.16.6 and Google 8.7.0 with a verified Darwin ARM64/Linux AMD64 lock. Fresh
+  public installed/live deployment and recovery qualification remains pending (#1559).
   **`terraform`** tracks the original executor process before submission and
   refuses recovery while that process remains live.
 
@@ -63,7 +64,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.5 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.6 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).

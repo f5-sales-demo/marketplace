@@ -241,7 +241,7 @@ export async function fixture() {
     inputs: {
       intent: i,
       configurationVersion: 2,
-      versions: { terraform: '1.16.6', google: '8.7.0', xcsh: '15.12.2' },
+      versions: { terraform: '1.16.6', google: '8.7.0', xcsh: '15.13.0' },
       providerLock: 'fixed-lock',
       expectedLockSha256: `sha256:${original.providerLockSha256}`,
     },

@@ -17,8 +17,10 @@ identities require reconciliation. Cleanup remains available without billing acc
 and finishes only after an empty destroy plan, a matching final state snapshot,
 and eight independent absence checks.
 Legacy stored configurations retain their existing teardown behavior. Enabling
-this adapter requires the published and qualified identity provider and its
-packaged exact lock; the current artifact gate remains closed.
+this adapter uses the published and installed-qualified XC v15.13.0 provider,
+Terraform 1.16.6, Google 8.7.0 and the verified lock for Darwin ARM64 and Linux AMD64.
+Fresh public deployment, interrupted recovery and partial cleanup campaigns remain
+required for installed/live acceptance.
 
 The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset
 against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc`.

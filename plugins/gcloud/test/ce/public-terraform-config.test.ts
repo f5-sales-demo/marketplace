@@ -8,7 +8,7 @@ it('manages the boot disk independently and preserves legacy translation', () =>
   i.routing.destinationCidrs = [];
   const translated = translateGcpPublicTerraformSiteCompute(i, {
     google: '8.7.0',
-    xcsh: '15.12.2',
+    xcsh: '15.13.0',
     terraform: '1.16.6',
   });
   const disk = translated.configuration.resource.google_compute_disk.node_a;
