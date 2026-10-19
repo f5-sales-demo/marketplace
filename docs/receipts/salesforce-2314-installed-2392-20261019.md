@@ -156,8 +156,7 @@ Raw captures, service results, argv records and lifecycle logs remain private.
 No Salesforce writes or authentication repair were performed. Native ANSI
 buffers and Herdr viewport observations do not establish desktop-font raster
 fidelity or broader model tool selection. Other Salesforce content and
-lifecycle gates remain independent in the canonical tracker; parent issues
-Issues #1591 and #1624 remain open.
+lifecycle gates remain independent in the canonical tracker. Parent issues #1591 and #1624 remain open.
 
 All owned fixture, live and five interactive capture panes have shut down and
 closed normally; the unrelated working pane remains. Private captures and
