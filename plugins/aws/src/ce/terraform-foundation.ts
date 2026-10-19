@@ -15,7 +15,7 @@ export { AWS_CE_TERRAFORM_PROVIDER_VERSION, AWS_CE_TERRAFORM_VERSION } from './e
 import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
 import { verifyAwsCePlan } from './artifacts';
-import { awsCeNlbIngress } from './planner';
+import { awsCeNlbIngress, awsCeNlbInterfacePrivateAddresses } from './planner';
 import { siteForNode, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -120,15 +120,14 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         cidr_block: subnet.cidr,
         tags: tags(node, item.index),
       });
+      const privateAddresses = awsCeNlbInterfacePrivateAddresses(intent, node, item.index);
       add('aws_network_interface', name, {
         subnet_id: ref(`aws_subnet.${name}.id`),
         security_groups: interfaceSecurityGroups(intent, item.index).map((name) =>
           ref(`aws_security_group.group_${intent.securityGroups.findIndex((group) => group.name === name)}.id`),
         ),
         source_dest_check: false,
-        ...(item.role === 'sli' && intent.ingress?.mode === 'nlb'
-          ? { private_ips: [intent.ingress.listener.privateAddresses?.[node - 1]] }
-          : {}),
+        ...(privateAddresses.length ? { private_ip_list_enabled: true, private_ip_list: privateAddresses } : {}),
         tags: tags(node, item.index),
       });
       add('aws_route_table_association', name, {
