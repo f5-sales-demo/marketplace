@@ -250,6 +250,7 @@ export async function applyPublicTerraformTeardown(
       planHash: string;
       phase: 'authorized' | 'submitting' | 'applied' | 'absent';
       finalPlan?: PlanReceipt;
+      finalState?: Awaited<ReturnType<typeof stableState>>;
     }>(runtime, name);
     if (
       journal &&
@@ -313,15 +314,21 @@ export async function applyPublicTerraformTeardown(
     }
     if (absent.length !== 8) throw new Error('Resources reappeared after cleanup');
     if (journal.phase !== 'absent') {
+      const before = await stableState(runtime);
       const finalPlan = await runtime.session.planDestroy(runtime.environment, signal);
       assertFinalDestroy(intent, plan.savedPlan, finalPlan);
+      const finalState = await stableState(runtime);
+      if (fingerprint(before) !== fingerprint(finalState))
+        throw new Error('Final empty destroy state changed during verification');
       const after = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
       if (after.length !== 8) throw new Error('Independent absence changed');
-      journal = { ...journal, phase: 'absent', finalPlan };
+      journal = { ...journal, phase: 'absent', finalPlan, finalState };
       await runtime.store.write(name, journal);
     }
     if (!journal.finalPlan) throw new Error('Final empty destroy receipt unavailable');
     assertFinalDestroy(intent, plan.savedPlan, journal.finalPlan);
+    if (!journal.finalState || fingerprint(journal.finalState) !== fingerprint(await stableState(runtime)))
+      throw new Error('Final empty destroy state binding changed');
     return {
       schemaVersion: 2,
       engine: 'terraform',

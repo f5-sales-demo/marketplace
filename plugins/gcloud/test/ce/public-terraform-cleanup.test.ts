@@ -130,3 +130,17 @@ it('cannot report resumed cleanup complete without the bound empty destroy recei
   await expect(applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash)).rejects.toThrow();
   expect(f.deletes()).toBe(1);
 });
+
+it('requires the final empty destroy state snapshot to remain unchanged on resume', async () => {
+  for (const change of ['missing', 'foreign-state']) {
+    const f = await cleanupFixture();
+    const plan = await planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy);
+    await applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash);
+    const name = `gcp-tf-public-cleanup-authorized-${plan.planHash.slice(7)}.json`;
+    const journal = f.files.get(name) as { finalState?: unknown };
+    if (change === 'missing') delete journal.finalState;
+    else f.runtime.session.readStateIdentity = async () => ({ sha256: 'f'.repeat(64), lineage: 'foreign', serial: 2 });
+    await expect(applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash)).rejects.toThrow();
+    expect(f.deletes()).toBe(1);
+  }
+});
