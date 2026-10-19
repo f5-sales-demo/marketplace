@@ -726,12 +726,9 @@ export function buildSalesforceHint(
 
   const byForecast = ctx.pipelineSummary.byForecast;
   const forecastParts: string[] = [];
-  for (const cat of ['Commit', 'Best Case', 'Pipeline']) {
-    const entry = byForecast[cat];
-    if (entry && entry.amount > 0) {
-      const label = cat === 'Best Case' ? 'BC' : cat === 'Pipeline' ? 'Pipe' : cat;
-      forecastParts.push(`${label} ${fmtAmount(entry.amount)}`);
-    }
+  for (const [cat, entry] of Object.entries(byForecast)) {
+    const label = cat === 'Best Case' ? 'BC' : cat === 'Pipeline' ? 'Pipe' : cat;
+    forecastParts.push(`${label} ${fmtAmount(entry.amount)}`);
   }
   const forecastBreakdown = forecastParts.length > 0 ? forecastParts.join(', ') : undefined;
 

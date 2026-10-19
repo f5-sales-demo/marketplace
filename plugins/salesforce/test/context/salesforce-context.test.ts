@@ -149,7 +149,11 @@ it('lifecycle hint never invents a dollar unit for aggregate amounts without cur
     pipelineSummary: {
       total: 1234567.89,
       dealCount: 2,
-      byForecast: { Commit: { amount: 1234567.89, count: 1 }, Pipeline: { amount: 0, count: 1 } },
+      byForecast: {
+        Commit: { amount: 1234567.89, count: 1 },
+        Pipeline: { amount: 0, count: 1 },
+        'Custom forecast': { amount: -12.34, count: 1 },
+      },
     },
   };
   const hint = buildSalesforceHint(ctx);
@@ -157,6 +161,8 @@ it('lifecycle hint never invents a dollar unit for aggregate amounts without cur
   expect(hint?.pipelineTotal).not.toContain('$');
   expect(hint?.forecastBreakdown).not.toContain('$');
   expect(hint?.pipelineTotal).toContain('1,234,567.89');
+  expect(hint?.forecastBreakdown).toContain('Pipe Currency unknown: 0');
+  expect(hint?.forecastBreakdown).toContain('Custom forecast Currency unknown: -12.34');
   const markdown = renderSalesforceContextMarkdown(ctx);
   expect(markdown).toContain('| Commit | Currency unknown: 1,234,567.89 | 1 |');
   expect(markdown).toContain('| Pipeline | Currency unknown: 0 | 1 |');
