@@ -41,7 +41,7 @@ admission waiter stalled despite the completed model turn; its diagnostic is
 retained and does not establish a product failure. No Salesforce writes,
 authentication repair or service probes on Ubuntu/NUC were performed.
 
-## Interactive shutdown prerequisite
+## Historical 23.9.0 interactive shutdown prerequisite
 
 The private `/salesforce-acceptance-exit` command called documented
 `ctx.shutdown()` in the published 23.9.0 interactive runtime. It did not exit or
@@ -54,3 +54,14 @@ the first stable immutable artifact containing it, install it on the corporate
 MacBook and repeat the actual TUI command before claiming installed shutdown
 acceptance. Historical 23.9.0 failure and successful Ctrl+D evidence remain
 separate. Keep the parent Salesforce issues open.
+
+## Published 23.9.1 shutdown qualification
+
+The first stable installed runtime repair passed both idle and active-pipeline
+shutdown in the actual interactive TUI on the corporate MacBook.
+The active run aborted, ended with zero active executions, emitted shutdown
+and exited with code zero in 13 ms; zero late updates were observed.
+The [23.9.1 acceptance receipt](salesforce-installed-2391-20261019.md)
+records immutable artifact, installed fixture and shutdown evidence separately.
+This closes the historical shutdown prerequisite for that exact cohort.
+Later presentation changes require fresh installed acceptance.
