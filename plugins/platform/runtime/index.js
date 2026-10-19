@@ -1202,6 +1202,21 @@ var GCP_CE_API_RELEASE = {
   tag: 'v12.1.3',
   contractDigest: 'sha256:ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc',
 };
+function qualifiedGcpHaObservationMappings(assets) {
+  if (!Array.isArray(assets)) return;
+  const matches = assets.filter((asset) => asset && asset.name === 'openapi.json');
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== 'sha256:3738c3267be63ec2c82716bdf197f7633b8845692ea7fe72e5a11bf2b8d10b77' ||
+    matches[0].browser_download_url !==
+      `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/openapi.json`
+  )
+    return;
+  return {
+    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false',
+    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
+  };
+}
 async function resolveGcpContract(fetcher = fetch, signal) {
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
   const read = async (url, maximum = 1024 * 1024) => {
@@ -1290,6 +1305,9 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    ...(observations && qualifiedGcpHaObservationMappings(assets)
+      ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
+      : {}),
     ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
     gcp.single_node_lifecycle.node_count === 1 &&
     gcp.single_node_lifecycle.interface_count === 2 &&
@@ -4992,7 +5010,67 @@ class GcpPlatformLifecycle {
 // plugins/platform/src/ce/gcp-observation.ts
 import { createHash as createHash8 } from 'node:crypto';
 
+// plugins/gcloud/src/ce/ownership.ts
+var COLLECTIONS = {
+  instance: 'instances',
+  disk: 'disks',
+  network: 'networks',
+  subnetwork: 'subnetworks',
+  address: 'addresses',
+  firewall: 'firewalls',
+  router: 'routers',
+  route: 'routes',
+};
+function validateGcpResourceIdentity(resource) {
+  if (
+    !resource ||
+    typeof resource !== 'object' ||
+    Array.isArray(resource) ||
+    Object.keys(resource).some(
+      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
+    )
+  )
+    throw new Error('Unexpected GCP ownership identity fields');
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
+    !/^\d+$/.test(resource.id) ||
+    !['native', 'terraform'].includes(resource.engine)
+  )
+    throw new Error('Invalid GCP resource identity');
+  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
+  const collection = COLLECTIONS[resource.kind];
+  if (!collection) throw new Error('Unsupported GCP resource kind');
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
+  const suffix = resource.selfLink.slice(prefix.length);
+  if (
+    !resource.selfLink.startsWith(prefix) ||
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
+  )
+    throw new Error('Resource must have an exact scoped selfLink');
+}
+async function readGcpResourceInventory(store, scope) {
+  const ledger = await store.read('gcp-resources.json');
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ownership ledger is unavailable');
+  const links = new Set();
+  for (const resource of ledger.resources) {
+    validateGcpResourceIdentity(resource);
+    if (!sameScope(resource, scope) || links.has(resource.selfLink))
+      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
+    links.add(resource.selfLink);
+  }
+  return structuredClone(ledger.resources);
+}
+function sameScope(a, b) {
+  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
+}
+
+// plugins/platform/src/ce/gcp-observation.ts
 async function createGcpPlatformObservations(store, contextName, apiUrl, credential, contract, fetcher = fetch) {
+  contract = structuredClone(contract);
   const base = new URL(apiUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
     throw new Error('Explicit HTTPS GCP platform context required');
@@ -5020,7 +5098,7 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
     return intent;
   };
   const original = await loadIntent();
-  const request = async (path, signal) => {
+  const request = async (path, signal, responseStatus) => {
     const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
     combined.throwIfAborted();
     const response = await fetcher(new URL(path, base), {
@@ -5029,6 +5107,7 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
       signal: combined,
       headers: { Accept: 'application/json', Authorization: `APIToken ${credential}` },
     });
+    responseStatus?.(response.status);
     if (!response.ok)
       throw new CeApiError(
         response.status === 404
@@ -5090,6 +5169,148 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
     return request(mappings[kind].replace('{site}', site), signal);
   };
   return {
+    contractFingerprint: contract.fingerprint,
+    haHealthContract: contract.haHealthContract ? structuredClone(contract.haHealthContract) : undefined,
+    ...(contract.haObservations
+      ? {
+          async haHealth(site, signal) {
+            if (!contract.haObservations) throw new Error('HA observation mappings unavailable');
+            const paths = structuredClone(contract.haObservations);
+            if (
+              paths.componentStatus !==
+                '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false' ||
+              paths.serviceInventory !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service'
+            )
+              throw new Error('HA observation mappings differ');
+            const current = await loadIntent();
+            const selected = current.sites.filter((s) => s.name === site);
+            if (
+              fingerprint(current) !== fingerprint(original) ||
+              !/^[a-z][a-z0-9-]{0,62}$/.test(site) ||
+              selected.length !== 1 ||
+              selected[0].nodes?.length !== 3 ||
+              store.owner.engine !== 'terraform'
+            )
+              throw new Error('HA observation site/intent differs');
+            const resources = await readGcpResourceInventory(store, {
+              project: current.project,
+              deploymentName: current.deploymentName,
+              engine: 'terraform',
+            });
+            const ownedNodes = selected[0].nodes.map((node) => {
+              const matches = resources.filter(
+                (r) => r.kind === 'instance' && r.nodeName === node.name && r.siteName === site,
+              );
+              const expectedLink = `https://www.googleapis.com/compute/v1/projects/${current.project}/zones/${node.zone}/instances/${node.name}`;
+              if (matches.length !== 1 || matches[0].selfLink !== expectedLink)
+                throw new Error('HA original node ownership unavailable');
+              return { nodeName: node.name, instanceId: matches[0].id };
+            });
+            if (
+              new Set(ownedNodes.map((n) => n.nodeName)).size !== 3 ||
+              new Set(ownedNodes.map((n) => n.instanceId)).size !== 3
+            )
+              throw new Error('HA duplicate original node ownership');
+            const ownership = await store.read('gcp-tf-public-ownership.json');
+            if (
+              ownership?.schemaVersion !== 2 ||
+              ownership.intentFingerprint !== fingerprint(current) ||
+              ownership.complete !== true
+            )
+              throw new Error('HA original ownership receipt unavailable');
+            const capturedResources = ownership.resources;
+            if (
+              !Array.isArray(capturedResources) ||
+              ownedNodes.some((node) => {
+                const captured = capturedResources.filter((raw) => {
+                  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+                  const r = raw;
+                  return r.kind === 'instance' && r.nodeName === node.nodeName && r.siteName === site;
+                });
+                return captured.length !== 1 || captured[0].id !== node.instanceId;
+              })
+            )
+              throw new Error('HA original VM identity differs from ownership receipt');
+            const siteIdentitySha256 = ownership?.platform?.[`xcsh_securemesh_site_v2.${site.replaceAll('-', '_')}`];
+            if (!siteIdentitySha256 || !/^sha256:[a-f0-9]{64}$/.test(siteIdentitySha256))
+              throw new Error('HA original site identity unavailable');
+            const checkSite = async () => {
+              const configuration = await read(site, 'configuration', signal);
+              const uid = configuration.system_metadata?.uid;
+              if (
+                typeof uid !== 'string' ||
+                `sha256:${createHash8('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
+              )
+                throw new Error('HA original site identity differs');
+            };
+            const startedAt = new Date().toISOString();
+            await checkSite();
+            const collect = async (path) => {
+              const start = performance.now();
+              let httpStatus;
+              try {
+                const value = await request(path.replace('{site}', site), signal, (status) => {
+                  httpStatus = status;
+                });
+                return {
+                  available: true,
+                  httpStatus,
+                  value,
+                  observedAt: new Date().toISOString(),
+                  receiptHash: fingerprint(value),
+                  durationMs: Math.round(performance.now() - start),
+                };
+              } catch (error) {
+                signal?.throwIfAborted();
+                const name = error instanceof Error ? error.name : '';
+                return {
+                  available: false,
+                  observedAt: new Date().toISOString(),
+                  durationMs: Math.round(performance.now() - start),
+                  errorClass:
+                    error instanceof CeApiError
+                      ? error.category === 'malformed'
+                        ? 'malformed'
+                        : 'http'
+                      : name === 'TimeoutError'
+                        ? 'timeout'
+                        : 'transport',
+                  ...(httpStatus !== undefined ? { httpStatus } : {}),
+                };
+              }
+            };
+            const componentStatus = await collect(paths.componentStatus);
+            const serviceInventory = await collect(paths.serviceInventory);
+            const globalHealth = await collect(mappings.health);
+            await checkSite();
+            if (
+              fingerprint(await loadIntent()) !== fingerprint(original) ||
+              fingerprint(
+                await readGcpResourceInventory(store, {
+                  project: current.project,
+                  deploymentName: current.deploymentName,
+                  engine: 'terraform',
+                }),
+              ) !== fingerprint(resources) ||
+              fingerprint(await store.read('gcp-tf-public-ownership.json')) !== fingerprint(ownership)
+            )
+              throw new Error('HA ownership changed during collection');
+            return {
+              schemaVersion: 1,
+              siteName: site,
+              siteIdentitySha256,
+              ownedNodes,
+              ownershipFingerprint: fingerprint(ownedNodes),
+              contractFingerprint: contract.fingerprint,
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              componentStatus,
+              serviceInventory,
+              globalHealth,
+            };
+          },
+        }
+      : {}),
     async terraformEnvironment() {
       const current = await loadIntent();
       if (store.owner.engine !== 'terraform' || fingerprint(current) !== fingerprint(original))

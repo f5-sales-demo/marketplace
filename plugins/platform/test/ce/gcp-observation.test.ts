@@ -52,7 +52,7 @@ async function fixture() {
 it('uses only scoped GET paths and rechecks live ownership before private observations', async () => {
   const f = await fixture();
   const calls: string[] = [];
-  const fetcher = (async (url, init) => {
+  const fetcher = (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const path = new URL(String(url)).pathname;
     calls.push(path);
     expect(init?.method).toBe('GET');
@@ -68,7 +68,7 @@ it('uses only scoped GET paths and rechecks live ownership before private observ
           }
         : { state: 'PROVISIONED' },
     );
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const observer = await createGcpPlatformObservations(
     f.store,
     'lab',
@@ -106,7 +106,7 @@ it('teardown observations bind exact site/node names and return only sanitized i
     'https://tenant.example.test',
     'fixture',
     f.contract,
-    (async (url, init) => {
+    (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
       expect(init?.method).toBe('GET');
       const path = new URL(String(url)).pathname;
       calls.push(path);
@@ -125,7 +125,7 @@ it('teardown observations bind exact site/node names and return only sanitized i
         system_metadata: { uid: token ? 'token-uid' : 'site-uid' },
         ...(token ? { spec: { site_name: 'site-a', content: 'private-bootstrap-fixture' } } : {}),
       });
-    }) as typeof fetch,
+    }) as unknown as typeof fetch,
   );
   if (!observer.teardown) throw new Error('Missing teardown observation');
   await expect(observer.teardown('site-a', 'other-token')).rejects.toThrow('binding');
@@ -160,7 +160,7 @@ it('foreign teardown objects and changed persisted intent cannot establish delet
           },
         },
         system_metadata: { uid: 'site-uid' },
-      })) as typeof fetch,
+      })) as unknown as typeof fetch,
   );
   if (!observer.teardown) throw new Error('Missing teardown observation');
   await expect(observer.teardown('site-a', 'node-a-token')).rejects.toThrow('ownership');
@@ -196,7 +196,7 @@ it('rejects missing mappings and foreign site labels before health reads', async
           labels: { 'xcsh-deployment': 'foreign', 'xcsh-engine': 'terraform' },
         },
       });
-    }) as typeof fetch,
+    }) as unknown as typeof fetch,
   );
   await expect(observer.health('site-a')).rejects.toThrow('ownership');
   expect(calls).toBe(1);
@@ -204,4 +204,130 @@ it('rejects missing mappings and foreign site labels before health reads', async
   c.abort();
   await expect(observer.health('site-a', c.signal)).rejects.toThrow();
   expect(calls).toBe(1);
+});
+
+it('HA collection binds original site and all three node identities before and after reads', async () => {
+  const f = await fixture();
+  const nodes = ['node-a', 'node-b', 'node-c'];
+  const intent = {
+    ...f.intent,
+    sites: [{ name: 'site-a', nodes: nodes.map((name) => ({ name, zone: 'northamerica-northeast1-a' })) }],
+  };
+  await f.store.write('gcp-terraform-input-identity.json', {
+    intent,
+    intentFingerprint: fingerprint(intent),
+    platformContext: 'lab',
+  });
+  const resources = nodes.map((nodeName, n) => ({
+    kind: 'instance',
+    nodeName,
+    siteName: 'site-a',
+    id: String(n + 1),
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+    selfLink: `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/northamerica-northeast1-a/instances/${nodeName}`,
+  }));
+  await f.store.write('gcp-resources.json', {
+    schemaVersion: 1,
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+    resources,
+  });
+  const hash = `sha256:${(await import('node:crypto')).createHash('sha256').update('original-site').digest('hex')}`;
+  await f.store.write('gcp-tf-public-ownership.json', {
+    schemaVersion: 2,
+    intentFingerprint: fingerprint(intent),
+    complete: true,
+    resources,
+    platform: { 'xcsh_securemesh_site_v2.site_a': hash },
+  });
+  const contract = {
+    ...f.contract,
+    haObservations: {
+      componentStatus:
+        '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false' as const,
+      serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service' as const,
+    },
+  };
+  const paths: string[] = [];
+  let replacement = false,
+    failInventory = false,
+    drift = false;
+  const observer = await createGcpPlatformObservations(
+    f.store,
+    'lab',
+    'https://tenant.example.test',
+    'SECRET',
+    contract,
+    (async (url: Parameters<typeof fetch>[0]) => {
+      const path = new URL(String(url)).pathname;
+      paths.push(path);
+      if (path.includes('securemesh_site_v2s'))
+        return Response.json({
+          metadata: {
+            name: 'site-a',
+            namespace: 'system',
+            labels: { 'xcsh-deployment': 'demo-ce', 'xcsh-engine': 'terraform' },
+          },
+          system_metadata: { uid: replacement ? 'replacement' : 'original-site' },
+        });
+      if (path.endsWith('list-service')) {
+        if (drift)
+          await f.store.write('gcp-resources.json', {
+            schemaVersion: 1,
+            project: intent.project,
+            deploymentName: intent.deploymentName,
+            engine: 'terraform',
+            resources: resources.map((r, n) => ({ ...r, id: n === 0 ? '99' : r.id })),
+          });
+        return Response.json(
+          { service: nodes.map((node) => ({ node, value: 'service', name: 'Display' })) },
+          { status: failInventory ? 503 : 200 },
+        );
+      }
+      return Response.json(
+        path.endsWith('status')
+          ? { status: nodes.map((node) => ({ node, name: 'service', status: 'Ready', message: '' })) }
+          : { hostname: 'node-a', state: 'PROVISIONED' },
+      );
+    }) as unknown as typeof fetch,
+  );
+  if (!observer.haHealth) throw new Error('HA collection unavailable');
+  const first = await observer.haHealth('site-a');
+  expect(first.ownedNodes).toEqual(nodes.map((nodeName, n) => ({ nodeName, instanceId: String(n + 1) })));
+  expect(first.siteIdentitySha256).toBe(hash);
+  expect(first.serviceInventory.httpStatus).toBe(200);
+  expect(paths.filter((p) => p.includes('securemesh_site_v2s'))).toHaveLength(2);
+  expect(JSON.stringify(first)).not.toContain('SECRET');
+  failInventory = true;
+  const failed = await observer.haHealth('site-a');
+  expect(failed.serviceInventory.available).toBe(false);
+  expect(failed.serviceInventory.httpStatus).toBe(503);
+  expect(failed.serviceInventory.value).toBeUndefined();
+  replacement = true;
+  await expect(observer.haHealth('site-a')).rejects.toThrow('identity');
+  replacement = false;
+  drift = true;
+  await expect(observer.haHealth('site-a')).rejects.toThrow('ownership');
+  drift = false;
+  const before = paths.length;
+  // The changed ledger cannot replace the original IDs captured at apply time.
+  await expect(observer.haHealth('site-a')).rejects.toThrow('VM identity');
+  expect(paths.length).toBe(before);
+  await f.store.write('gcp-resources.json', {
+    schemaVersion: 1,
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+    resources,
+  });
+  const ownership = (await f.store.read('gcp-tf-public-ownership.json')) as Record<string, unknown>;
+  await f.store.write('gcp-tf-public-ownership.json', {
+    ...ownership,
+    resources: [...resources, resources[0]],
+  });
+  await expect(observer.haHealth('site-a')).rejects.toThrow('VM identity');
+  expect(paths.length).toBe(before);
 });

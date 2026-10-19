@@ -1400,6 +1400,21 @@ var init_discovery = __esm(() => {
 // plugins/gcloud/src/ce/contract.ts
 import { createHash as createHash2 } from 'node:crypto';
 
+function qualifiedGcpHaObservationMappings(assets) {
+  if (!Array.isArray(assets)) return;
+  const matches = assets.filter((asset) => asset && asset.name === 'openapi.json');
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== 'sha256:3738c3267be63ec2c82716bdf197f7633b8845692ea7fe72e5a11bf2b8d10b77' ||
+    matches[0].browser_download_url !==
+      `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/openapi.json`
+  )
+    return;
+  return {
+    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false',
+    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
+  };
+}
 async function resolveGcpContract(fetcher = fetch, signal) {
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
   const read = async (url, maximum = 1024 * 1024) => {
@@ -1488,6 +1503,9 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    ...(observations && qualifiedGcpHaObservationMappings(assets)
+      ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
+      : {}),
     ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
     gcp.single_node_lifecycle.node_count === 1 &&
     gcp.single_node_lifecycle.interface_count === 2 &&
@@ -1567,9 +1585,110 @@ var init_gcp_lifecycle = __esm(() => {
   init_validation();
 });
 
+// plugins/gcloud/src/ce/ownership.ts
+function validateGcpResourceIdentity(resource) {
+  if (
+    !resource ||
+    typeof resource !== 'object' ||
+    Array.isArray(resource) ||
+    Object.keys(resource).some(
+      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
+    )
+  )
+    throw new Error('Unexpected GCP ownership identity fields');
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
+    !/^\d+$/.test(resource.id) ||
+    !['native', 'terraform'].includes(resource.engine)
+  )
+    throw new Error('Invalid GCP resource identity');
+  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
+  const collection = COLLECTIONS[resource.kind];
+  if (!collection) throw new Error('Unsupported GCP resource kind');
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
+  const suffix = resource.selfLink.slice(prefix.length);
+  if (
+    !resource.selfLink.startsWith(prefix) ||
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
+  )
+    throw new Error('Resource must have an exact scoped selfLink');
+}
+async function readGcpResourceInventory(store, scope) {
+  const ledger = await store.read('gcp-resources.json');
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ownership ledger is unavailable');
+  const links = new Set();
+  for (const resource of ledger.resources) {
+    validateGcpResourceIdentity(resource);
+    if (!sameScope(resource, scope) || links.has(resource.selfLink))
+      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
+    links.add(resource.selfLink);
+  }
+  return structuredClone(ledger.resources);
+}
+function sameScope(a, b) {
+  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
+}
+async function recordGcpResource(store, resource) {
+  validateGcpResourceIdentity(resource);
+  let ledger;
+  try {
+    ledger = await store.read('gcp-resources.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    ledger = {
+      schemaVersion: 1,
+      project: resource.project,
+      deploymentName: resource.deploymentName,
+      engine: resource.engine,
+      resources: [],
+    };
+  }
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, resource) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ledger scope differs');
+  if (ledger.resources.length) await readGcpResourceInventory(store, resource);
+  const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
+  if (prior && fingerprint(prior) !== fingerprint(resource))
+    throw new Error('GCP resource identity changed; explicit replacement required');
+  if (!prior) {
+    ledger.resources.push(structuredClone(resource));
+    await store.write('gcp-resources.json', ledger);
+  }
+}
+async function assertGcpResourceOwnership(store, expected, observed) {
+  validateGcpResourceIdentity(expected);
+  const resources = await readGcpResourceInventory(store, expected);
+  const owned = resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
+  if (
+    !owned ||
+    fingerprint(owned) !== fingerprint(expected) ||
+    observed.id !== expected.id ||
+    observed.selfLink !== expected.selfLink
+  )
+    throw new Error('GCP resource ownership mismatch');
+}
+var COLLECTIONS;
+var init_ownership = __esm(() => {
+  init_discovery();
+  COLLECTIONS = {
+    instance: 'instances',
+    disk: 'disks',
+    network: 'networks',
+    subnetwork: 'subnetworks',
+    address: 'addresses',
+    firewall: 'firewalls',
+    router: 'routers',
+    route: 'routes',
+  };
+});
+
 // plugins/platform/src/ce/gcp-observation.ts
 var init_gcp_observation = __esm(() => {
   init_discovery();
+  init_ownership();
   init_gcp_http();
   init_runtime();
 });
@@ -2326,106 +2445,6 @@ function translateGcpPublicTerraformSiteCompute(intent, versions) {
 var init_compute_plan = __esm(() => {
   init_discovery();
   init_validation();
-});
-
-// plugins/gcloud/src/ce/ownership.ts
-function validateGcpResourceIdentity(resource) {
-  if (
-    !resource ||
-    typeof resource !== 'object' ||
-    Array.isArray(resource) ||
-    Object.keys(resource).some(
-      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
-    )
-  )
-    throw new Error('Unexpected GCP ownership identity fields');
-  if (
-    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
-    !/^\d+$/.test(resource.id) ||
-    !['native', 'terraform'].includes(resource.engine)
-  )
-    throw new Error('Invalid GCP resource identity');
-  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
-    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
-  const collection = COLLECTIONS[resource.kind];
-  if (!collection) throw new Error('Unsupported GCP resource kind');
-  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
-  const suffix = resource.selfLink.slice(prefix.length);
-  if (
-    !resource.selfLink.startsWith(prefix) ||
-    !new RegExp(
-      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
-    ).test(suffix)
-  )
-    throw new Error('Resource must have an exact scoped selfLink');
-}
-async function readGcpResourceInventory(store, scope) {
-  const ledger = await store.read('gcp-resources.json');
-  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
-    throw new Error('GCP ownership ledger is unavailable');
-  const links = new Set();
-  for (const resource of ledger.resources) {
-    validateGcpResourceIdentity(resource);
-    if (!sameScope(resource, scope) || links.has(resource.selfLink))
-      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
-    links.add(resource.selfLink);
-  }
-  return structuredClone(ledger.resources);
-}
-function sameScope(a, b) {
-  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
-}
-async function recordGcpResource(store, resource) {
-  validateGcpResourceIdentity(resource);
-  let ledger;
-  try {
-    ledger = await store.read('gcp-resources.json');
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    ledger = {
-      schemaVersion: 1,
-      project: resource.project,
-      deploymentName: resource.deploymentName,
-      engine: resource.engine,
-      resources: [],
-    };
-  }
-  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, resource) || !Array.isArray(ledger.resources))
-    throw new Error('GCP ledger scope differs');
-  if (ledger.resources.length) await readGcpResourceInventory(store, resource);
-  const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
-  if (prior && fingerprint(prior) !== fingerprint(resource))
-    throw new Error('GCP resource identity changed; explicit replacement required');
-  if (!prior) {
-    ledger.resources.push(structuredClone(resource));
-    await store.write('gcp-resources.json', ledger);
-  }
-}
-async function assertGcpResourceOwnership(store, expected, observed) {
-  validateGcpResourceIdentity(expected);
-  const resources = await readGcpResourceInventory(store, expected);
-  const owned = resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
-  if (
-    !owned ||
-    fingerprint(owned) !== fingerprint(expected) ||
-    observed.id !== expected.id ||
-    observed.selfLink !== expected.selfLink
-  )
-    throw new Error('GCP resource ownership mismatch');
-}
-var COLLECTIONS;
-var init_ownership = __esm(() => {
-  init_discovery();
-  COLLECTIONS = {
-    instance: 'instances',
-    disk: 'disks',
-    network: 'networks',
-    subnetwork: 'subnetworks',
-    address: 'addresses',
-    firewall: 'firewalls',
-    router: 'routers',
-    route: 'routes',
-  };
 });
 
 // plugins/gcloud/src/ce/teardown-plan.ts
@@ -4813,6 +4832,184 @@ function parseGcpGlobalHealth(value, nodeName) {
     return { ...base, status: 'unknown', reason: 'unknown-health-state' };
   return { ...base, state: row.state, status: row.state === 'PROVISIONED' ? 'healthy' : 'degraded' };
 }
+function record(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+}
+function evidenceFingerprint(value) {
+  try {
+    return fingerprint(value);
+  } catch {
+    return;
+  }
+}
+function qualifiedGcpHaHealthContract(value) {
+  const row = record(value);
+  if (!row) return false;
+  const { evidenceSha256, ...semantics } = row;
+  return (
+    typeof evidenceSha256 === 'string' &&
+    HASH.test(evidenceSha256) &&
+    evidenceFingerprint(semantics) === fingerprint(GCP_HA_HEALTH_SEMANTICS)
+  );
+}
+function evaluateGcpHaHealth(value, expected, contractFingerprint, healthContract, now = Date.now()) {
+  const reasons = new Set();
+  const collection = record(value);
+  if (!qualifiedGcpHaHealthContract(healthContract)) reasons.add('health-contract-unqualified');
+  if (
+    expected.length !== 3 ||
+    new Set(expected.map((n) => n.nodeName)).size !== 3 ||
+    new Set(expected.map((n) => n.instanceId)).size !== 3 ||
+    expected.some((n) => !/^[a-z][a-z0-9-]{0,62}$/.test(n.nodeName) || !/^\d+$/.test(n.instanceId))
+  )
+    reasons.add('invalid-original-node-set');
+  if (
+    collection?.schemaVersion !== 1 ||
+    collection.contractFingerprint !== contractFingerprint ||
+    collection.ownershipFingerprint !== fingerprint(expected) ||
+    evidenceFingerprint(collection?.ownedNodes) !== fingerprint(expected) ||
+    typeof collection.siteIdentitySha256 !== 'string' ||
+    !HASH.test(collection.siteIdentitySha256)
+  )
+    reasons.add('collection-binding-mismatch');
+  const start = typeof collection?.startedAt === 'string' ? Date.parse(collection.startedAt) : NaN;
+  const finish = typeof collection?.finishedAt === 'string' ? Date.parse(collection.finishedAt) : NaN;
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(finish) ||
+    !Number.isFinite(now) ||
+    start > finish ||
+    finish > now ||
+    now - start > 300000
+  )
+    reasons.add('stale-or-malformed-observation');
+  const receipts = [];
+  const reads = (key) => {
+    const read = record(collection?.[key]);
+    const at = typeof read?.observedAt === 'string' ? Date.parse(read.observedAt) : NaN;
+    if (!Number.isFinite(at) || at < start || at > finish) reasons.add(`${key}-observation-time-invalid`);
+    if (read?.available !== true || typeof read.receiptHash !== 'string' || !HASH.test(read.receiptHash)) {
+      reasons.add(`${key}-unavailable`);
+      return;
+    }
+    if (evidenceFingerprint(read.value) !== read.receiptHash) {
+      reasons.add(`${key}-receipt-mismatch`);
+      return;
+    }
+    if (Number.isFinite(at) && at >= start && at <= finish)
+      receipts.push({ source: key, sha256: read.receiptHash, observedAt: new Date(at).toISOString() });
+    const body = record(read.value);
+    if (
+      !body ||
+      body.next_page_token ||
+      body.continue ||
+      (body.errors !== undefined && (!Array.isArray(body.errors) || body.errors.length))
+    ) {
+      reasons.add(`${key}-malformed-or-partial`);
+      return;
+    }
+    return body;
+  };
+  const component = reads('componentStatus'),
+    inventory = reads('serviceInventory'),
+    global = reads('globalHealth');
+  const parseRows = (body, field, identity, source) => {
+    const map = new Map();
+    const rows = body?.[field];
+    if (!Array.isArray(rows) || !rows.length) reasons.add(`${source}-missing-rows`);
+    for (const raw of Array.isArray(rows) ? rows : []) {
+      const row = record(raw);
+      if (!row || typeof row.node !== 'string' || !row.node || typeof row[identity] !== 'string' || !row[identity]) {
+        reasons.add(`${source}-malformed-row`);
+        continue;
+      }
+      if (!expected.some((n) => n.nodeName === row.node)) {
+        reasons.add(`${source}-foreign-node`);
+        continue;
+      }
+      const nodeRows = map.get(row.node) ?? new Map();
+      const name = row[identity];
+      if (nodeRows.has(name)) reasons.add(`${source}-duplicate-identity`);
+      nodeRows.set(name, row);
+      map.set(row.node, nodeRows);
+    }
+    return map;
+  };
+  const components = parseRows(component, 'status', 'name', 'component-status');
+  const services = parseRows(inventory, 'service', 'value', 'service-inventory');
+  if (global && (typeof global.hostname !== 'string' || !expected.some((n) => n.nodeName === global.hostname)))
+    reasons.add('global-health-foreign-hostname');
+  const nodes = expected.map((node) => {
+    const nodeReasons = new Set();
+    const required = services.get(node.nodeName) ?? new Map();
+    const statuses = components.get(node.nodeName) ?? new Map();
+    if (!required.size) nodeReasons.add('missing-service-inventory');
+    let covered = 0,
+      unhealthy = 0;
+    for (const name of required.keys()) {
+      const row = statuses.get(name);
+      if (!row) {
+        nodeReasons.add('missing-component-coverage');
+        continue;
+      }
+      covered++;
+      if (typeof row.status !== 'string' || !row.status || typeof row.message !== 'string')
+        nodeReasons.add('malformed-component-state');
+      else if (row.status !== 'Ready') unhealthy++;
+    }
+    if ([...statuses.keys()].some((name) => !required.has(name))) nodeReasons.add('unmapped-component');
+    let globalStatus = 'unknown';
+    if (global?.hostname === node.nodeName) {
+      globalStatus = parseGcpGlobalHealth(global, node.nodeName).status;
+      if (globalStatus === 'unknown') nodeReasons.add('malformed-global-health');
+    }
+    return {
+      nodeName: node.nodeName,
+      status: nodeReasons.size ? 'unknown' : unhealthy || globalStatus === 'degraded' ? 'degraded' : 'healthy',
+      requiredServices: required.size,
+      coveredServices: covered,
+      unhealthyServices: unhealthy,
+      globalHealth: globalStatus,
+      reasonCodes: [...nodeReasons],
+    };
+  });
+  if (reasons.size)
+    for (const node of nodes) {
+      node.status = 'unknown';
+      node.reasonCodes.push(...reasons);
+    }
+  const status =
+    nodes.some((n) => n.status === 'unknown') || reasons.size
+      ? 'unknown'
+      : nodes.some((n) => n.status === 'degraded')
+        ? 'degraded'
+        : 'healthy';
+  return {
+    schemaVersion: 1,
+    status,
+    nodes,
+    reasonCodes: [...new Set([...reasons, ...nodes.flatMap((n) => n.reasonCodes)])],
+    startedAt: Number.isFinite(start) ? new Date(start).toISOString() : undefined,
+    finishedAt: Number.isFinite(finish) ? new Date(finish).toISOString() : undefined,
+    sourceReceipts: receipts,
+  };
+}
+var GCP_HA_HEALTH_SEMANTICS, HASH;
+var init_health = __esm(() => {
+  init_discovery();
+  GCP_HA_HEALTH_SEMANTICS = {
+    schemaVersion: 1,
+    completeInventory: true,
+    requiredServices: 'all-inventoried',
+    inventoryIdentity: 'service[].(node,value)',
+    componentIdentity: 'status[].(node,name)',
+    healthyState: 'Ready',
+    duplicateIdentity: 'reject',
+    globalScope: 'exact-hostname-only',
+    maximumAgeMs: 300000,
+  };
+  HASH = /^sha256:[a-f0-9]{64}$/;
+});
 
 // plugins/gcloud/src/ce/interface-identity.ts
 function object2(value) {
@@ -5022,6 +5219,7 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
 }
 var init_status = __esm(() => {
   init_discovery();
+  init_health();
 });
 
 // plugins/gcloud/src/ce/owned-status.ts
@@ -5072,6 +5270,49 @@ async function observeGcpOwnedDeployment(store, intent, source, signal) {
       await observeGcpSiteStatus(expected, intent.engine, source(expected.nodeName, expected.zone), signal),
     );
   }
+  const haResults = [];
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const expected = identities
+      .filter((n) => n.siteName === site.name)
+      .map(({ nodeName, instanceId }) => ({ nodeName, instanceId }));
+    const port = source(site.nodes[0].name, site.nodes[0].zone);
+    let collection;
+    try {
+      collection = await port.haHealth?.(site.name, signal);
+    } catch {
+      signal?.throwIfAborted();
+    }
+    const health = evaluateGcpHaHealth(collection, expected, port.contractFingerprint ?? '', port.haHealthContract);
+    for (const node of health.nodes) {
+      const observed = observations.find((n) => n.nodeName === node.nodeName && n.siteName === site.name);
+      if (observed?.registration !== 'online' || observed.physicalInterfaceIdentity !== 'observed') {
+        node.status = 'unknown';
+        node.reasonCodes.push('node-not-online-with-both-nics');
+        health.status = 'unknown';
+        health.reasonCodes.push('node-not-online-with-both-nics');
+      }
+    }
+    haResults.push(health);
+  }
+  const reloaded = await store.read(
+    intent.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+  );
+  if (
+    fingerprint(reloaded) !== fingerprint(saved) ||
+    fingerprint(await readGcpResourceInventory(store, intent)) !== fingerprint(resources)
+  )
+    throw new Error('Status ownership changed during collection');
+  const ha = haResults.length
+    ? {
+        schemaVersion: 1,
+        status: haResults.some((r) => r.status === 'unknown')
+          ? 'unknown'
+          : haResults.some((r) => r.status === 'degraded')
+            ? 'degraded'
+            : 'healthy',
+        sites: haResults,
+      }
+    : undefined;
   return {
     schemaVersion: 1,
     project: intent.project,
@@ -5083,11 +5324,13 @@ async function observeGcpOwnedDeployment(store, intent, source, signal) {
     routing: 'unknown',
     applicationTraffic: 'unknown',
     haHealth: 'not-established',
+    ...(ha ? { ha } : {}),
     absence: 'not-established',
   };
 }
 var init_owned_status = __esm(() => {
   init_discovery();
+  init_health();
   init_ownership();
   init_status();
   init_validation();

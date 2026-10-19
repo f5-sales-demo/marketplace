@@ -16,7 +16,28 @@ export interface GcpCeContractBoundary {
     registrations: '/api/register/namespaces/system/registrations_by_site/{site}';
     health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health';
   };
+  haObservations?: {
+    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false';
+    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service';
+  };
+  haHealthContract?: Record<string, unknown>;
   singleNodeLifecycle?: Record<string, unknown>;
+}
+/** Bind read-only HA paths to the exact owning immutable schema asset. */
+export function qualifiedGcpHaObservationMappings(assets: unknown): GcpCeContractBoundary['haObservations'] {
+  if (!Array.isArray(assets)) return undefined;
+  const matches = assets.filter((asset) => asset && asset.name === 'openapi.json');
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== 'sha256:3738c3267be63ec2c82716bdf197f7633b8845692ea7fe72e5a11bf2b8d10b77' ||
+    matches[0].browser_download_url !==
+      `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/openapi.json`
+  )
+    return undefined;
+  return {
+    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false',
+    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
+  };
 }
 export async function resolveGcpContract(
   fetcher: typeof fetch = fetch,
@@ -111,6 +132,11 @@ export async function resolveGcpContract(
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    // These read-only wire shapes were checked against this exact immutable schema.
+    // This grants collection only; it cannot establish completeness or HA lifecycle admission.
+    ...(observations && qualifiedGcpHaObservationMappings(assets)
+      ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
+      : {}),
     ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
     gcp.single_node_lifecycle.node_count === 1 &&
     gcp.single_node_lifecycle.interface_count === 2 &&

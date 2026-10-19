@@ -79,6 +79,13 @@ without replay and independently verified all eighteen expected objects absent.
 A fresh [health qualification campaign](../../receipts/gcp-ha-health-qualification-gap-20261019.md)
 reached three ONLINE nodes and both NIC joins, but exact inventory duplicates and
 missing service coverage retained unknown HA health after thirty minutes.
+The [scoped observation preparation](../../receipts/gcp-ha-scoped-observations-20261019.md)
+adds a versioned HA result to status and diagnostics with per-node health,
+coverage counts, fixed reason codes, observation times and sanitized receipt hashes.
+The scoped collector checks original site and VM identities before and after reads;
+failed reads remain unknown. The unmatched services were `vector-agent`, `voucher`,
+`kube-proxy` and `coredns`; `voucher` appeared twice per node. No service is excluded
+without qualified owning evidence.
 Exhaustive HA health, owning immutable API qualification and fresh public
 installed acceptance remain required before enabling that profile.
 Inventory, status and diagnostics observe cloud provisioning; registration,

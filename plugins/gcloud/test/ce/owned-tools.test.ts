@@ -2,13 +2,16 @@ import { expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import { fingerprint } from '../../src/ce/discovery';
+import type { PluginInterface } from '../../src/gcloud/types';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
+
+const schema = { typebox: { Type } } as unknown as PluginInterface;
 
 it('public deploy rejects wrong scope, engine and missing review before cloud access', async () => {
   let calls = 0;
   const tools = createGcpCeTools(
-    { typebox: { Type } },
+    schema,
     () => ({
       exec: async () => {
         calls++;
@@ -32,7 +35,7 @@ it('public deploy rejects wrong scope, engine and missing review before cloud ac
       .find((tool) => tool.name === 'gcp_ce_apply')
       ?.execute('id', parameters, undefined, null, { cwd: '/tmp' });
     expect(result?.isError).toBe(true);
-    expect(result?.details.mutationAttempted).toBe(false);
+    expect((result?.details as Record<string, unknown> | undefined)?.mutationAttempted).toBe(false);
   }
   expect(calls).toBe(0);
 });
@@ -44,7 +47,7 @@ it('public Terraform tools preserve explicit engine and intent at the server-own
   let gates = 0;
   let executions = 0;
   const tools = createGcpCeTools(
-    { typebox: { Type } },
+    schema,
     () => ({
       exec: async () => {
         executions++;
@@ -81,7 +84,7 @@ it('public Terraform tools preserve explicit engine and intent at the server-own
       { cwd: '/tmp' },
     );
     expect(result.isError).toBe(true);
-    expect(result.details.mutationAttempted).toBe(false);
+    expect((result.details as Record<string, unknown>).mutationAttempted).toBe(false);
   }
   expect(gates).toBe(2);
   expect(executions).toBe(0);
@@ -98,7 +101,7 @@ it('typed status refuses wrong persisted context before cloud or platform observ
     },
   } as unknown as CePlatformService;
   const tools = createGcpCeTools(
-    { typebox: { Type } },
+    schema,
     () => ({
       exec: async () => {
         reads++;
@@ -118,13 +121,13 @@ it('typed status refuses wrong persisted context before cloud or platform observ
     { cwd: '/tmp' },
   );
   expect(result.isError).toBe(true);
-  expect(result.details.mutationAttempted).toBe(false);
+  expect((result.details as Record<string, unknown>).mutationAttempted).toBe(false);
   expect(reads).toBe(0);
 });
 
 it('typed status reports explicit unavailability when shared observation service is absent', async () => {
   const tools = createGcpCeTools(
-    { typebox: { Type } },
+    schema,
     () => ({
       exec: async () => {
         throw new Error('must not run');
@@ -143,7 +146,7 @@ it('typed status reports explicit unavailability when shared observation service
     { cwd: '/tmp' },
   );
   expect(result.isError).toBe(true);
-  expect(result.details.availability).toBe('unavailable');
+  expect((result.details as Record<string, unknown>).availability).toBe('unavailable');
 });
 
 it('typed status joins owned cloud and shared platform layers without exporting raw evidence', async () => {
@@ -239,7 +242,7 @@ it('typed status joins owned cloud and shared platform layers without exporting 
     }),
   } as unknown as CePlatformService;
   const tool = createGcpCeTools(
-    { typebox: { Type } },
+    schema,
     () => ({ exec: async () => ({ stdout: JSON.stringify(cloud), stderr: '', exitCode: 0 }) }),
     undefined,
     async () => platform,
@@ -259,8 +262,8 @@ it('typed status joins owned cloud and shared platform layers without exporting 
     { cwd: '/tmp' },
   );
   expect(result.isError).toBeUndefined();
-  expect(result.details.availability).toBe('read-only');
-  const evidence = result.details.evidence as {
+  expect((result.details as Record<string, unknown>).availability).toBe('read-only');
+  const evidence = (result.details as Record<string, unknown>).evidence as {
     nodes: Array<{ registration: string; physicalInterfaceIdentity: string; platformHealth: string }>;
     routing: string;
   };
@@ -271,4 +274,77 @@ it('typed status joins owned cloud and shared platform layers without exporting 
   });
   expect(evidence.routing).toBe('unknown');
   expect(JSON.stringify(result)).not.toContain('PRIVATE');
+});
+
+it('public status and diagnose expose versioned HA gaps without projecting service bodies', async () => {
+  const i = intent();
+  i.engine = 'terraform';
+  const original = i.sites[0].nodes[0];
+  i.sites[0].nodes = ['a', 'b', 'c'].map((suffix) => ({
+    ...original,
+    name: `node-${suffix}`,
+    zone: `northamerica-northeast1-${suffix}`,
+  }));
+  const journal = { intent: i, intentFingerprint: fingerprint(i), platformContext: i.platformContext };
+  const resources = i.sites[0].nodes.map((node, n) => ({
+    id: String(n + 1),
+    kind: 'instance',
+    project: i.project,
+    deploymentName: i.deploymentName,
+    engine: i.engine,
+    siteName: i.sites[0].name,
+    nodeName: node.name,
+    selfLink: `https://www.googleapis.com/compute/v1/projects/${i.project}/zones/${node.zone}/instances/${node.name}`,
+  }));
+  let collections = 0;
+  const platform = {
+    storage: async () => ({
+      read: async (name: string) =>
+        name === 'gcp-resources.json'
+          ? { schemaVersion: 1, project: i.project, deploymentName: i.deploymentName, engine: i.engine, resources }
+          : journal,
+    }),
+    gcpObservations: async () => ({
+      configuration: async () => ({}),
+      registrations: async () => ({}),
+      health: async () => ({}),
+      haHealth: async () => {
+        collections++;
+        throw new Error('PRIVATE-TOKEN');
+      },
+    }),
+  } as unknown as CePlatformService;
+  const tools = createGcpCeTools(
+    schema,
+    () => ({ exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }) }),
+    undefined,
+    async () => platform,
+  );
+  for (const name of ['gcp_ce_status', 'gcp_ce_diagnose']) {
+    const tool = tools.find((t) => t.name === name);
+    if (!tool) throw new Error('missing handler');
+    const result = await tool.execute(
+      'id',
+      {
+        project: i.project,
+        region: i.region,
+        engine: 'terraform',
+        deploymentName: i.deploymentName,
+        platformContext: i.platformContext,
+      },
+      undefined,
+      null,
+      { cwd: '/tmp' },
+    );
+    expect(result.isError).toBeUndefined();
+    expect((result.details as Record<string, unknown>).mutationAttempted).toBe(false);
+    const evidence = (result.details as Record<string, unknown>).evidence as {
+      ha: { schemaVersion: number; status: string; sites: Array<{ nodes: unknown[] }> };
+    };
+    expect(evidence.ha.schemaVersion).toBe(1);
+    expect(evidence.ha.status).toBe('unknown');
+    expect(evidence.ha.sites[0].nodes).toHaveLength(3);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE-TOKEN');
+  }
+  expect(collections).toBe(2);
 });

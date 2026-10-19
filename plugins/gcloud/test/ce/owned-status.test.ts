@@ -109,3 +109,75 @@ it('rejects caller topology or F5 context drift before external observation', as
   ).rejects.toThrow('persisted deployment');
   expect(reads).toBe(0);
 });
+
+it('public HA status reports a versioned unknown result when scoped service evidence is unavailable', async () => {
+  const s = store(),
+    i = intent();
+  i.engine = 'terraform';
+  i.sites[0].nodes = ['a', 'b', 'c'].map((suffix) => ({
+    ...i.sites[0].nodes[0],
+    name: `node-${suffix}`,
+    zone: `northamerica-northeast1-${suffix}`,
+  }));
+  await s.write('gcp-terraform-input-identity.json', {
+    intent: i,
+    intentFingerprint: fingerprint(i),
+    platformContext: i.platformContext,
+  });
+  for (const [n, node] of i.sites[0].nodes.entries())
+    await recordGcpResource(s, {
+      id: String(n + 1),
+      kind: 'instance',
+      project: i.project,
+      deploymentName: i.deploymentName,
+      engine: i.engine,
+      siteName: i.sites[0].name,
+      nodeName: node.name,
+      selfLink: `https://www.googleapis.com/compute/v1/projects/${i.project}/zones/${node.zone}/instances/${node.name}`,
+    });
+  const result = await observeGcpOwnedDeployment(s, i, () => ({
+    cloud: async () => {
+      throw new Error('PRIVATE');
+    },
+    configuration: async () => ({}),
+    registrations: async () => ({}),
+    health: async () => ({}),
+    haHealth: async () => {
+      throw new Error('PRIVATE');
+    },
+  }));
+  expect(result.ha?.schemaVersion).toBe(1);
+  expect(result.ha?.status).toBe('unknown');
+  expect(result.ha?.sites[0].nodes).toHaveLength(3);
+  expect(JSON.stringify(result)).not.toContain('PRIVATE');
+});
+it('rejects ledger mutation during reads without returning stale successful status', async () => {
+  const s = store(),
+    i = intent();
+  await s.write('gcp-deployment-intent.json', {
+    intent: i,
+    intentFingerprint: fingerprint(i),
+    platformContext: i.platformContext,
+  });
+  await recordGcpResource(s, {
+    id: '1',
+    kind: 'instance',
+    project: i.project,
+    deploymentName: i.deploymentName,
+    engine: i.engine,
+    siteName: i.sites[0].name,
+    nodeName: 'node-a',
+    selfLink: `https://www.googleapis.com/compute/v1/projects/${i.project}/zones/${i.sites[0].nodes[0].zone}/instances/node-a`,
+  });
+  await expect(
+    observeGcpOwnedDeployment(s, i, () => ({
+      cloud: async () => {
+        await s.write('gcp-resources.json', {});
+        return {};
+      },
+      configuration: async () => ({}),
+      registrations: async () => ({}),
+      health: async () => ({}),
+    })),
+  ).rejects.toThrow('ledger');
+});

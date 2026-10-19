@@ -1,9 +1,13 @@
 import { fingerprint } from './discovery';
+import type { GcpHaCollection } from './health';
 import { parseGcpGlobalHealth } from './health';
 import { correlateGcpPhysicalInterfaces, type GcpExpectedNodeIdentity } from './interface-identity';
 import type { GcpCeEngine } from './types';
 
 export interface GcpStatusSource {
+  haHealth?(siteName: string, signal?: AbortSignal): Promise<GcpHaCollection>;
+  haHealthContract?: Record<string, unknown>;
+  contractFingerprint?: string;
   cloud(nodeName: string, signal?: AbortSignal): Promise<unknown>;
   configuration(siteName: string, signal?: AbortSignal): Promise<unknown>;
   registrations(siteName: string, signal?: AbortSignal): Promise<unknown>;

@@ -1,4 +1,5 @@
 import { fingerprint } from './discovery';
+import { evaluateGcpHaHealth } from './health';
 import type { GcpOperationStore } from './native-operation';
 import { readGcpResourceInventory } from './ownership';
 import { type GcpStatusSource, observeGcpSiteStatus } from './status';
@@ -62,6 +63,49 @@ export async function observeGcpOwnedDeployment(
       await observeGcpSiteStatus(expected, intent.engine, source(expected.nodeName, expected.zone), signal),
     );
   }
+  const haResults = [];
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const expected = identities
+      .filter((n) => n.siteName === site.name)
+      .map(({ nodeName, instanceId }) => ({ nodeName, instanceId }));
+    const port = source(site.nodes[0].name, site.nodes[0].zone);
+    let collection: unknown;
+    try {
+      collection = await port.haHealth?.(site.name, signal);
+    } catch {
+      signal?.throwIfAborted();
+    }
+    const health = evaluateGcpHaHealth(collection, expected, port.contractFingerprint ?? '', port.haHealthContract);
+    for (const node of health.nodes) {
+      const observed = observations.find((n) => n.nodeName === node.nodeName && n.siteName === site.name);
+      if (observed?.registration !== 'online' || observed.physicalInterfaceIdentity !== 'observed') {
+        node.status = 'unknown';
+        node.reasonCodes.push('node-not-online-with-both-nics');
+        health.status = 'unknown';
+        health.reasonCodes.push('node-not-online-with-both-nics');
+      }
+    }
+    haResults.push(health);
+  }
+  const reloaded = await store.read(
+    intent.engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json',
+  );
+  if (
+    fingerprint(reloaded) !== fingerprint(saved) ||
+    fingerprint(await readGcpResourceInventory(store, intent)) !== fingerprint(resources)
+  )
+    throw new Error('Status ownership changed during collection');
+  const ha = haResults.length
+    ? {
+        schemaVersion: 1,
+        status: haResults.some((r) => r.status === 'unknown')
+          ? 'unknown'
+          : haResults.some((r) => r.status === 'degraded')
+            ? 'degraded'
+            : 'healthy',
+        sites: haResults,
+      }
+    : undefined;
   return {
     schemaVersion: 1,
     project: intent.project,
@@ -73,6 +117,7 @@ export async function observeGcpOwnedDeployment(
     routing: 'unknown',
     applicationTraffic: 'unknown',
     haHealth: 'not-established',
+    ...(ha ? { ha } : {}),
     absence: 'not-established',
   };
 }

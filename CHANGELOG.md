@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud` 1.7.17 and `platform` 6.3.3** collect scoped HA component status and independent
+  service inventory, checking original site and node identities before and after
+  reads. Status and diagnostics report a versioned HA result with per-node health,
+  required coverage counts, observation times and sanitized receipt hashes. Missing
+  or duplicate identities, stale evidence and failed reads retain unknown health.
+  Public HA deployment remains gated by owning health qualification.
+
 - **`gcloud`** records a fresh private HA health qualification gap. Three original
   nodes reached ONLINE with both NIC joins and no-change planning. Health API
   failures, duplicate inventory identities and missing service coverage prevented
