@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test';
-import { currentSalesforceRows, guardCampaignTool, observeHint } from './observe-salesforce-campaign';
+import {
+  campaignProvenance,
+  currentSalesforceRows,
+  guardCampaignTool,
+  observeHint,
+} from './observe-salesforce-campaign';
 
 test('read-only admission rejects exec, setup, delegation and unscoped reads', () => {
   for (const toolName of ['bash', 'sf_exec', 'task', 'subagent', 'write'])
@@ -56,4 +61,13 @@ test('inventory excludes retirement history and rejects duplicate current IDs', 
     { id: 'salesforce.lifecycle.status.live', status: 'BLOCKED' },
   ]);
   expect(() => currentSalesforceRows(`${row}\n${row}`)).toThrow('Duplicate');
+});
+
+test('campaign provenance binds published runtime and installed plugin manifest', () => {
+  expect(campaignProvenance('/published/xcsh', '23.9.3', { version: '2.3.15' })).toEqual({
+    binary: '/published/xcsh',
+    runtimeVersion: '23.9.3',
+    pluginVersion: '2.3.15',
+  });
+  expect(() => campaignProvenance('/published/xcsh', '23.9.3', {})).toThrow('plugin version');
 });

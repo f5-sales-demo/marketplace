@@ -20,7 +20,13 @@ driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 
 
-def capture_page(root: Path, pane: str, identifier: str, width: int) -> dict:
+def capture_page(
+    root: Path,
+    pane: str,
+    identifier: str,
+    width: int,
+    geometry: tuple[int, int] | None = None,
+) -> dict:
     """Retain a compressed frame and independently inspect its visible rows."""
     frame = json.loads((root / "frames" / (identifier + ".json")).read_text())
     frame_path = root / "frames" / (identifier + ".json")
@@ -52,12 +58,19 @@ def capture_page(root: Path, pane: str, identifier: str, width: int) -> dict:
     # Independent terminal viewport must contain every requested native row.
     expected = [driver.plain(line).rstrip() for line in frame["viewport"]["rows"]]
     actual = [line.rstrip() for line in actual]
-    passed = frame["terminalColumns"] >= width and all(
-        line in actual for line in expected
+    geometry_matches = (
+        geometry is None
+        or (frame.get("terminalColumns"), frame.get("terminalRows")) == geometry
+    )
+    passed = (
+        geometry_matches
+        and frame["terminalColumns"] >= width
+        and all(line in actual for line in expected)
     )
     return {
         "id": identifier,
         "passed": passed,
+        "geometryMatches": geometry_matches,
         "offset": frame["viewport"]["offset"],
         "totalLines": frame["viewport"]["totalLines"],
         "pageLines": len(expected),
@@ -74,6 +87,7 @@ def main() -> None:
     args = parser.parse_args()
     root = args.root.resolve()
     ready = json.loads((root / "ready.json").read_text())
+    geometry = (ready["terminalColumns"], ready["terminalRows"])
     cases = json.loads((root / "cases.json").read_text())
     previous = []
     if args.resume and (root / "surface-inspection.jsonl").exists():
@@ -116,7 +130,9 @@ def main() -> None:
                                 },
                             )
                             driver.wait(root, identifier)
-                            finding = capture_page(root, args.pane, identifier, width)
+                            finding = capture_page(
+                                root, args.pane, identifier, width, geometry
+                            )
                             findings.write(json.dumps(finding) + "\n")
                             findings.flush()
                             if not finding["passed"]:

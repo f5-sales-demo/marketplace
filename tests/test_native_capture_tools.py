@@ -26,6 +26,34 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_campaign_startup_and_independent_operator_faults(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(TimeoutError):
+                campaign.wait_ready(root, "2.3.15", timeout=0.01)
+            (root / "events.jsonl").write_text(
+                json.dumps({"event": "ready", "hasUI": True, "pluginVersion": "2.3.15"})
+                + "\n"
+            )
+            campaign.wait_ready(root, "2.3.15", timeout=0.02)
+            with self.assertRaisesRegex(RuntimeError, "provenance"):
+                campaign.wait_ready(root, "2.3.14", timeout=0.02)
+        prompts = campaign.fixture_prompts(Path("/synthetic/plugin"), "cli-operator")
+        assert len(prompts) == 4
+        assert "Name = 'partial'" in prompts[-1]
+        assert all("agents/cli-operator.md" in prompt for prompt in prompts)
+        assert all(
+            any(outcome in prompt for prompt in prompts)
+            for outcome in ["empty", "partial", "failed"]
+        )
+
     def test_scroll_capture_retains_compressed_evidence_and_rejects_missing_rows(self):
         surface_spec = importlib.util.spec_from_file_location(
             "surface_driver", MODULE.with_name("drive-salesforce-surface-capture.py")
@@ -58,6 +86,33 @@ class NativeCaptureChecks(unittest.TestCase):
                     gzip.decompress(path.with_suffix(".json.gz").read_bytes())
                     == payload
                 )
+
+    def test_scroll_geometry_change_cannot_pass_as_stable_acceptance(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_geometry", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "frames").mkdir()
+            frame = {
+                "terminalColumns": 160,
+                "terminalRows": 25,
+                "viewport": {"rows": ["row"], "offset": 0, "totalLines": 1},
+            }
+            (root / "frames/page.json").write_text(json.dumps(frame))
+            with (
+                patch.object(surface.time, "sleep"),
+                patch.object(surface.subprocess, "check_output", return_value=b"row\n"),
+            ):
+                result = surface.capture_page(
+                    root, "owned-pane", "page", 153, (160, 51)
+                )
+            assert not result["passed"]
+            assert result["geometryMatches"] is False
 
     def test_remaining_outcomes_are_independent_and_fixture_only(self):
         cases = starter.cases("fixture", "remaining")
