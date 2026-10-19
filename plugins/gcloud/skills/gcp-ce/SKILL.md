@@ -57,7 +57,8 @@ Read [provider contract](references/provider-contract.md) before planning and
    Fresh isolated installed native review/apply, healthy status and typed teardown
    passed on this narrow disposable profile. Publication remains pending. Explicit
    Terraform deployment has a candidate using XC v15.13.0 and a packaged verified
-   lock. Its public cloud campaigns remain pending Google reauthentication.
+   lock. Public cloud acceptance remains pending after a live campaign exposed
+   rounded 64-bit subnet identities; recovery preserves their exact values.
    Use the same exact review hash for recovery; consumed applies are inspected
    without replay. Verified partial ownership requires a separate delete-only
    cleanup review. HA, upgrade and failover remain unavailable. Do not bypass an

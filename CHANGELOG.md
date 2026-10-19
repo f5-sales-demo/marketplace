@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** and **`gcloud`** preserve exact 64-bit provider identity integers
+  during private Terraform JSON parsing. This fixes subnet ownership comparison
+  and recovery without replaying the original apply (#1559).
+
 - **`gcloud`** adds public Terraform saved-plan authorization, original-attempt
   recovery and separate delete-only partial cleanup for the single-node BYOL
   profile. Reviews bind the F5 context name and actual API endpoint; cleanup
@@ -64,7 +68,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.7 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.8 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).
@@ -79,7 +83,7 @@ and this project adheres to
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
   live saved-plan replay and fresh installed live typed Terraform teardown pass,
   with exact saved-plan apply, final empty destroy and independent absence (#1559).
-- **`terraform`** v2.4.1 loads the isolated CE runner alongside existing CLI integration,
+- **`terraform`** v2.4.2 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
 - **`salesforce`** v2.3.13: preserve exact lifecycle aggregate amounts without inventing currency; use safe typed org status and human-owned authentication guidance.
 

@@ -18,7 +18,7 @@ async function fixture(
   outputValues: Record<string, unknown> = {},
   configuration = '{"terraform":{"required_version":"= 1.14.0"}}',
   onApply?: () => void,
-  stateJson: Record<string, unknown> = {},
+  stateJson: Record<string, unknown> | string = {},
   onStateShow?: (cwd: string) => Promise<void>,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
@@ -45,7 +45,9 @@ async function fixture(
             ? JSON.stringify(outputValues)
             : request.args[0] === 'show'
               ? request.args[2] === 'terraform.tfstate'
-                ? JSON.stringify({ format_version: '1.0', terraform_version: '1.14.0', ...stateJson })
+                ? typeof stateJson === 'string'
+                  ? stateJson
+                  : JSON.stringify({ format_version: '1.0', terraform_version: '1.14.0', ...stateJson })
                 : JSON.stringify({
                     format_version: '1.2',
                     terraform_version: '1.14.0',
@@ -231,6 +233,21 @@ test('applied projection preserves receipt authorization on resume and refuses s
     /applied/,
   );
 }, 30_000);
+
+test('state identity projection preserves exact 64-bit integer IDs without resubmission', async () => {
+  const { runner, calls } = await fixture(
+    {},
+    {},
+    undefined,
+    undefined,
+    '{"format_version":"1.0","terraform_version":"1.14.0","values":{"root_module":{"resources":[{"address":"terraform_data.ce","type":"terraform_data","mode":"managed","values":{"id":7165865203659947474,"count":2},"sensitive_values":{}}]}}}',
+  );
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  const observed = await runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id', 'count'] }, {});
+  expect(observed.resources['terraform_data.ce']).toEqual({ id: '7165865203659947474', count: 2 });
+  expect(calls.filter((call) => call.args[0] === 'apply')).toHaveLength(1);
+});
 
 test('interrupted apply inspection binds the original attempt and observes state without resubmission', async () => {
   const resource = {

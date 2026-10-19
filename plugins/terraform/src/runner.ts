@@ -73,7 +73,18 @@ function object(value: unknown): Json {
 }
 function decode(value: string): Json {
   try {
-    return object(JSON.parse(value));
+    return object(
+      JSON.parse(value, (_key, parsed, context?: { source?: string }) => {
+        // Provider identities can be uint64 JSON numbers. Preserve their original
+        // decimal bytes before Number rounding can change an owning identity.
+        if (typeof parsed === 'number' && Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) {
+          if (!context?.source || !/^-?\d+$/.test(context.source))
+            throw new Error('Exact Terraform integer representation unavailable');
+          return context.source;
+        }
+        return parsed;
+      }),
+    );
   } catch {
     throw new Error('Terraform returned malformed JSON');
   }

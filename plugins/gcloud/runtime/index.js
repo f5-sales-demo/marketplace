@@ -6406,7 +6406,16 @@ function object4(value) {
 }
 function decode(value) {
   try {
-    return object4(JSON.parse(value));
+    return object4(
+      JSON.parse(value, (_key, parsed, context) => {
+        if (typeof parsed === 'number' && Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) {
+          if (!context?.source || !/^-?\d+$/.test(context.source))
+            throw new Error('Exact Terraform integer representation unavailable');
+          return context.source;
+        }
+        return parsed;
+      }),
+    );
   } catch {
     throw new Error('Terraform returned malformed JSON');
   }
