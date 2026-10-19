@@ -9,7 +9,7 @@ import {
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
 import { verifyAwsCePlan } from '../../src/ce/artifacts';
-import { canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
+import { awsCeObservationRegion, canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
 import {
@@ -198,42 +198,44 @@ it('preserves the complete reviewed instance-type set for live revalidation', ()
   expect(observedInstanceTypeNames(reviewed)).toEqual(['m5.2xlarge', 'm6i.2xlarge']);
 });
 
-it('revalidates a persisted observation across BGP convergence but still rejects peer configuration drift', () => {
-  const peerId = 'tgw-connect-peer-0123456789abcdef0';
-  const down = structuredClone(observation);
-  down.resources = [
-    {
-      id: peerId,
-      region: down.regions[0].name,
-      exists: true,
-      owned: true,
-      tags: { 'xcsh-managed-by': 'aws-ce' },
-      state: {
-        TransitGatewayConnectPeers: [
-          {
-            TransitGatewayConnectPeerId: peerId,
-            ConnectPeerConfiguration: {
-              BgpConfigurations: [{ BgpStatus: 'down', PeerAddress: '169.254.1.1' }],
+for (const format of ['scoped', 'legacy'] as const)
+  it(`${format}: revalidates a persisted observation across BGP convergence but still rejects peer configuration drift`, () => {
+    const peerId = 'tgw-connect-peer-0123456789abcdef0';
+    const down = structuredClone(observation);
+    down.resources = [
+      {
+        id: peerId,
+        region: down.regions[0].name,
+        exists: true,
+        owned: true,
+        tags: { 'xcsh-managed-by': 'aws-ce' },
+        state: {
+          TransitGatewayConnectPeers: [
+            {
+              TransitGatewayConnectPeerId: peerId,
+              ConnectPeerConfiguration: {
+                BgpConfigurations: [{ BgpStatus: 'down', PeerAddress: '169.254.1.1' }],
+              },
             },
-          },
-        ],
+          ],
+        },
       },
-    },
-  ];
-  const plan = compileAwsCePlan(intent, observation);
-  const expected = fingerprintObservation(down, [peerId]);
-  const up = structuredClone(down);
-  up.resources[0].state = structuredClone(down.resources[0].state);
-  const configuration = (
-    up.resources[0].state.TransitGatewayConnectPeers as Array<{
-      ConnectPeerConfiguration: { BgpConfigurations: Array<{ BgpStatus: string; PeerAddress: string }> };
-    }>
-  )[0].ConnectPeerConfiguration;
-  configuration.BgpConfigurations[0].BgpStatus = 'up';
-  expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).not.toThrow();
-  configuration.BgpConfigurations[0].PeerAddress = '169.254.1.2';
-  expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).toThrow('Stale');
-});
+    ];
+    const plan = compileAwsCePlan(intent, observation);
+    if (format === 'legacy') delete plan.observationScope;
+    const expected = fingerprintObservation(down, [peerId], awsCeObservationRegion(plan));
+    const up = structuredClone(down);
+    up.resources[0].state = structuredClone(down.resources[0].state);
+    const configuration = (
+      up.resources[0].state.TransitGatewayConnectPeers as Array<{
+        ConnectPeerConfiguration: { BgpConfigurations: Array<{ BgpStatus: string; PeerAddress: string }> };
+      }>
+    )[0].ConnectPeerConfiguration;
+    configuration.BgpConfigurations[0].BgpStatus = 'up';
+    expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).not.toThrow();
+    configuration.BgpConfigurations[0].PeerAddress = '169.254.1.2';
+    expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).toThrow('Stale');
+  });
 
 describe('resume authorization', () => {
   it('honors existing approval bound to the exact plan while retaining engine restrictions', () => {
@@ -483,4 +485,73 @@ it('adding the executing plan to the ownership allowlist does not invalidate a f
       ownershipPlanSha256s: [...observation.ownershipPlanSha256s, plan.planSha256],
     }),
   ).not.toThrow();
+});
+
+describe('execution-region revalidation', () => {
+  const fixture = (engine: 'native' | 'terraform') => {
+    const planned = structuredClone(observation);
+    planned.regions[0].vcpuCapacity = { limit: 512, used: 16, reusableOwned: 0 };
+    const unrelated = structuredClone(planned.regions[0]);
+    unrelated.name = 'us-east-2';
+    unrelated.rank = 2;
+    unrelated.vcpuCapacity = { limit: 512, used: 151, reusableOwned: 0 };
+    planned.regions.push(unrelated);
+    return { planned, plan: compileAwsCePlan({ ...intent, engine }, planned) };
+  };
+
+  for (const engine of ['native', 'terraform'] as const) {
+    it(`${engine}: unrelated regional allocation churn does not invalidate the execution region`, () => {
+      const { planned, plan } = fixture(engine);
+      const current = structuredClone(planned);
+      current.regions[1].vcpuCapacity = { limit: 512, used: 119, reusableOwned: 0 };
+      expect(() => assertAwsObservationFresh(plan, current)).not.toThrow();
+    });
+
+    it(`${engine}: selected-region allocation churn still rejects before mutation`, () => {
+      const { planned, plan } = fixture(engine);
+      const current = structuredClone(planned);
+      current.regions[0].vcpuCapacity = { limit: 512, used: 24, reusableOwned: 0 };
+      expect(() => assertAwsObservationFresh(plan, current)).toThrow('Stale');
+    });
+
+    it(`${engine}: discovery ordering and ranking are excluded from a fixed execution region`, () => {
+      const { planned, plan } = fixture(engine);
+      const current = structuredClone(planned);
+      current.regions.reverse();
+      current.regions.forEach((region, index) => {
+        region.rank = index + 1;
+      });
+      expect(() => assertAwsObservationFresh(plan, current)).not.toThrow();
+    });
+
+    it(`${engine}: historical immutable plans retain their original all-region fingerprint`, () => {
+      const { planned, plan } = fixture(engine);
+      delete plan.observationScope;
+      plan.observationFingerprint = fingerprintObservation(planned, []);
+      const { planId: _planId, planSha256: _planSha256, ...draft } = plan;
+      plan.planSha256 = canonicalSha256(draft);
+      plan.planId = `aws-ce-${plan.planSha256.slice(0, 24)}`;
+      verifyAwsCePlan(plan);
+      const changed = structuredClone(planned);
+      changed.regions[1].vcpuCapacity = { limit: 512, used: 119, reusableOwned: 0 };
+      expect(() => assertAwsObservationFresh(plan, changed)).toThrow('Stale');
+    });
+
+    it(`${engine}: missing and duplicated execution-region evidence fails closed`, () => {
+      const { planned, plan } = fixture(engine);
+      const missing = structuredClone(planned);
+      missing.regions = missing.regions.filter((region) => region.name !== plan.region);
+      expect(() => assertAwsObservationFresh(plan, missing)).toThrow('execution region');
+      const duplicate = structuredClone(planned);
+      duplicate.regions.push(structuredClone(duplicate.regions[0]));
+      expect(() => assertAwsObservationFresh(plan, duplicate)).toThrow('execution region');
+    });
+
+    it(`${engine}: observation scope cannot be switched to a different mutation region`, () => {
+      const { plan } = fixture(engine);
+      expect(plan.observationScope).toEqual({ kind: 'execution-region-v1', region: plan.region });
+      plan.observationScope = { kind: 'execution-region-v1', region: 'us-east-2' };
+      expect(() => verifyAwsCePlan(plan)).toThrow('execution-region scope');
+    });
+  }
 });

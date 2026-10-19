@@ -18,6 +18,32 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
   at least 8 vCPUs, 32 GiB memory, and a 100 GiB root disk. Override a smaller AMI root mapping;
   boot success alone does not establish enough disk space for upgrades.
 
+## Immutable observation revalidation
+
+New plans bind `observationScope: {kind: execution-region-v1, region}` into the immutable
+plan digest. Native execution rechecks the selected region's image, offerings, eligibility,
+quota limits and foreign capacity usage, plus global identity, agreement, capabilities,
+research receipts and exact relevant resource configuration. Discovery still enumerates all
+regions; unrelated regional allocations and discovery ranking do not change a fixed execution
+region. Missing or duplicate selected-region evidence rejects execution. Historical plans
+without this field retain their original all-region fingerprint, including checkpoint resume;
+create a fresh reviewed plan to use the scoped contract.
+
+Terraform retains its owning preflight: current selected-region eligibility/capacity, image,
+identity, source receipts, offerings and routing references remain required. Its admission
+rules are separate from native fingerprint comparison. A diagnostic fingerprint records
+provenance and does not replace either engine's admission checks.
+
+Revalidation failures retain the original planning observation and exact rejected observation
+in ownership-checked private CE deployment storage. The public `aws_ce_apply` error includes
+an opaque `revalidation.receiptReference`, canonical JSON digest, scope and fixed change
+categories. It exposes no raw observations or cloud identifiers. Change categories compare
+against the original planning observation; `baselineMatchesExpected: false` means they cannot
+be attributed to the latest checkpoint fingerprint. Capture time is a workstation receipt
+time, not a CE heartbeat. Unavailable capture remains a rejection with `capture: unavailable`;
+it cannot approve execution. Retire these private captures with fixture staging after
+independent cleanup verification.
+
 ## AWS networking
 
 - Keep ENI and VRF order symmetric across nodes: ENI 0 is SLO and ENI 1 is SLI when present.

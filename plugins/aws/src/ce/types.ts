@@ -359,6 +359,7 @@ export interface AwsCePlanDraft {
     'xcsh-plan-sha256': '__PLAN_SHA256__';
     'ves-io-site-name': string;
   };
+  observationScope?: { kind: 'execution-region-v1'; region: string };
   observationFingerprint: string;
   f5CapabilitiesSha256: string;
 }
