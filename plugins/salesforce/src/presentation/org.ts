@@ -57,7 +57,6 @@ export function orgView(
   const available = (v: unknown) => v !== null && v !== undefined && v !== '';
   const status = org.connectedStatus;
   return {
-    ...(available(status) && !/^connected$/i.test(String(status)) ? { summary: `Connection: ${String(status)}` } : {}),
     states:
       !available(org.username) || !available(org.instanceUrl)
         ? [{ kind: 'info', text: 'Identity unknown' }]
@@ -68,6 +67,7 @@ export function orgView(
       fields(
         Object.fromEntries(
           [
+            ['Connection', status],
             ['Alias', org.alias],
             ['Username', org.username],
             ['Instance', org.instanceUrl],

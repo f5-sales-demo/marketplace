@@ -33,9 +33,6 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     ...((!report.currency && !groups.length) || currencies.includes('unverified')
       ? [{ kind: 'info' as const, text: 'Currency unknown' }]
       : []),
-    ...(report.fyBookedTotal !== undefined
-      ? [{ kind: 'info' as const, text: 'Fiscal-year bookings shown in details because their currency is unknown' }]
-      : []),
     ...unavailable.map((text) => ({
       kind: 'disabled' as const,
       text: text.startsWith('Renewals section:')
@@ -59,7 +56,18 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       if (a.category === 'mixed_currencies') return [];
       if (a.severity === 'info' && !known[String(a.category)]) return [];
       return [
-        { kind: a.severity === 'info' ? 'info' : 'warning', text: known[String(a.category)] ?? String(a.message) },
+        {
+          kind: a.severity === 'info' ? 'info' : 'warning',
+          text: [
+            a.category === 'unverified_product_classification' ? known[String(a.category)] : undefined,
+            typeof a.message === 'string' && a.message.trim()
+              ? a.message
+              : (known[String(a.category)] ?? 'Anomaly needs review'),
+            typeof a.details === 'string' ? a.details : undefined,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        },
       ];
     }),
     ...(options.isPartial ? [{ kind: 'running' as const, text: 'Provisional results' }] : []),
@@ -82,6 +90,10 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       'Report scope',
     ),
   ];
+  if (report.fyBookedTotal !== undefined)
+    sections.push(
+      fields({ 'Reported amount': value(report.fyBookedTotal, true), Currency: 'Unknown' }, 'FY aggregate bookings'),
+    );
   for (const group of groups.length ? groups : [{ ...report, currency: report.currency ?? 'unverified' }]) {
     const currency = String(group.currency === 'unverified' || !group.currency ? 'Currency unknown' : group.currency);
     sections.push(hint(`Pipeline — ${currency}`));
@@ -174,14 +186,6 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
   if (options.expanded) {
     sections.push(
       literal({ ...scope, lineItemCount: report.lineItemCount, generated: report.generated }, 'Report details'),
-      ...(report.fyBookedTotal === undefined
-        ? []
-        : [
-            fields(
-              { 'Reported amount': value(report.fyBookedTotal, true), Currency: 'Unknown' },
-              'FY aggregate bookings',
-            ),
-          ]),
       ...(report.recentChanges === undefined ? [] : [literal(report.recentChanges, 'Recent changes')]),
       ...(report.anomalies === undefined ? [] : [literal(report.anomalies, 'Classification and anomaly evidence')]),
     );
