@@ -116,7 +116,11 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
   if (reordered.intent.ingress?.mode !== 'nlb') throw new Error('Expected NLB fixture');
   const reorderedSha = canonicalSha256(reordered);
   const reorderedConfig = JSON.parse(
-    renderAwsTerraformFoundation({ ...reordered, planSha256: reorderedSha, planId: `aws-ce-${reorderedSha.slice(0, 24)}` }),
+    renderAwsTerraformFoundation({
+      ...reordered,
+      planSha256: reorderedSha,
+      planId: `aws-ce-${reorderedSha.slice(0, 24)}`,
+    }),
   );
   for (const node of [1, 2, 3]) {
     expect(reorderedConfig.resource.aws_network_interface[`node_${node}_nic_1`].private_ip_list).toEqual([
@@ -129,6 +133,10 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
   reordered.intent.ingress.listener.privateAddresses = [];
   const unresolvedSha = canonicalSha256(reordered);
   expect(() =>
-    renderAwsTerraformFoundation({ ...reordered, planSha256: unresolvedSha, planId: `aws-ce-${unresolvedSha.slice(0, 24)}` }),
+    renderAwsTerraformFoundation({
+      ...reordered,
+      planSha256: unresolvedSha,
+      planId: `aws-ce-${unresolvedSha.slice(0, 24)}`,
+    }),
   ).toThrow('binding is missing');
 });

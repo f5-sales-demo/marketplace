@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
-import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { compileAwsCePlan } from '../../src/ce/planner';
+import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { siteBindings } from '../../src/ce/topology';
 import type { AwsCeF5Capabilities, AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
 import {
@@ -1055,7 +1055,8 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       (action) => action.kind === 'eni-create' && action.node === node && action.resourceId.endsWith(`-${node}-1`),
     );
     expect(action).toBeDefined();
-    const args = action!.args!;
+    if (!action?.args) throw new Error('Expected the planned SLI ENI action');
+    const args = action.args;
     const offset = args.indexOf('--private-ip-addresses');
     expect(offset).toBeGreaterThan(-1);
     const requested = args.slice(offset + 1, offset + 3).map((value) => value.split(',')[0].split('=')[1]);
