@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { AwsCeObservation, AwsCeResourceObservation } from './types';
+import type { AwsCeObservation, AwsCePlan, AwsCeResourceObservation } from './types';
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -84,32 +84,55 @@ export function matchesOwnedResourceFingerprint(expected: string, resources: Aws
   return matchesBgpRuntimeVariants(expected, resources, fingerprintOwnedResources);
 }
 
-export function fingerprintObservation(observation: AwsCeObservation, brownfieldIds: string[]): string {
+/** Absent scope retains the exact fingerprint semantics of historical immutable plans. */
+export function awsCeObservationRegion(plan: AwsCePlan): string | undefined {
+  if (plan.observationScope === undefined) return undefined;
+  if (
+    plan.observationScope.kind !== 'execution-region-v1' ||
+    !plan.observationScope.region ||
+    plan.observationScope.region !== plan.region ||
+    plan.region !== plan.intent.region
+  )
+    throw new Error('AWS CE observation execution-region scope is invalid');
+  return plan.observationScope.region;
+}
+
+export function fingerprintObservation(
+  observation: AwsCeObservation,
+  brownfieldIds: string[],
+  executionRegion?: string,
+): string {
   const allowlist = new Set(brownfieldIds);
+  const regions =
+    executionRegion === undefined
+      ? observation.regions
+      : observation.regions
+          .filter((region) => region.name === executionRegion)
+          .map(({ rank: _rank, ...region }) => region);
+  if (executionRegion !== undefined && regions.length !== 1)
+    throw new Error('AWS CE observation execution region is missing or ambiguous');
   return canonicalSha256({
     schemaVersion: observation.schemaVersion,
     identity: { ...observation.identity, awsProfile: observation.identity.awsProfile ?? 'default' },
     agreement: observation.agreement,
     // Allocation counts change during this plan. Discovery still recalculates eligibility
     // from remaining capacity and exact owned EIPs; quota limits remain immutable inputs.
-    regions: observation.regions.map(
-      ({ elasticIpCapacity, vcpuCapacity, vpcCapacity, internetGatewayCapacity, ...region }) => ({
-        ...region,
-        ...(elasticIpCapacity
-          ? {
-              elasticIpCapacity: {
-                limit: elasticIpCapacity.limit,
-                foreignAllocated: elasticIpCapacity.allocated - elasticIpCapacity.reusableOwned,
-              },
-            }
-          : {}),
-        ...Object.fromEntries(
-          Object.entries({ vcpuCapacity, vpcCapacity, internetGatewayCapacity })
-            .filter(([, value]) => value !== undefined)
-            .map(([key, value]) => [key, { limit: value!.limit, foreignUsed: value!.used - value!.reusableOwned }]),
+    regions: regions.map(({ elasticIpCapacity, vcpuCapacity, vpcCapacity, internetGatewayCapacity, ...region }) => ({
+      ...region,
+      ...(elasticIpCapacity
+        ? {
+            elasticIpCapacity: {
+              limit: elasticIpCapacity.limit,
+              foreignAllocated: elasticIpCapacity.allocated - elasticIpCapacity.reusableOwned,
+            },
+          }
+        : {}),
+      ...Object.fromEntries(
+        Object.entries({ vcpuCapacity, vpcCapacity, internetGatewayCapacity }).flatMap(([key, value]) =>
+          value === undefined ? [] : [[key, { limit: value.limit, foreignUsed: value.used - value.reusableOwned }]],
         ),
-      }),
-    ),
+      ),
+    })),
     resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
     // The current plan is added to this authorization allowlist at apply time.
     // Actual resource ownership remains covered by the selected resource snapshots.
@@ -123,13 +146,16 @@ export function matchesObservationFingerprint(
   expected: string,
   observation: AwsCeObservation,
   resourceIds: string[],
+  executionRegion?: string,
 ): boolean {
   const allowlist = new Set(resourceIds);
   const scoped = {
     ...observation,
     resources: observation.resources.filter((resource) => allowlist.has(resource.id)),
   };
-  return matchesBgpRuntimeVariants(expected, scoped, (candidate) => fingerprintObservation(candidate, resourceIds));
+  return matchesBgpRuntimeVariants(expected, scoped, (candidate) =>
+    fingerprintObservation(candidate, resourceIds, executionRegion),
+  );
 }
 
 export function normalizeResearchDocument(body: string): string {

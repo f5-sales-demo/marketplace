@@ -13,6 +13,7 @@ import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
 import { assertAttachmentAvailable } from './attachment-gate';
 import {
+  awsCeObservationRegion,
   fingerprintObservation,
   fingerprintOwnedResources,
   matchesObservationFingerprint,
@@ -29,6 +30,7 @@ import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
 import { collectAwsNetworkHealth } from './network-health';
+import { captureAwsRevalidationRejection } from './observation-rejection';
 import { ensureAwsPlatformIngress } from './platform-ingress';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
@@ -78,9 +80,25 @@ export function assertAwsObservationFresh(
       .map((item) => item.resourceId),
   ],
 ) {
-  const actual = fingerprintObservation(current, relevantResourceIds);
-  if (!matchesObservationFingerprint(expected, current, relevantResourceIds))
+  const region = awsCeObservationRegion(plan);
+  const actual = fingerprintObservation(current, relevantResourceIds, region);
+  if (!matchesObservationFingerprint(expected, current, relevantResourceIds, region))
     throw new Error(`Stale AWS CE plan: observations changed (expected ${expected}, current ${actual})`);
+}
+
+function resumeObservationInputs(
+  plan: AwsCePlan,
+  planned: AwsCeObservation,
+  expected: string,
+  relevantResourceIds: string[],
+  completedActionCount: number,
+) {
+  if (plan.intent.operation === 'teardown' && completedActionCount > 0) {
+    // Completed restoration/deletion actions deliberately change resource snapshots.
+    // Owned resource continuity is checked separately against the last checkpoint.
+    return { expected: fingerprintObservation(planned, [], awsCeObservationRegion(plan)), ids: [] };
+  }
+  return { expected, ids: relevantResourceIds };
 }
 
 export function assertAwsResumeObservationFresh(
@@ -91,14 +109,8 @@ export function assertAwsResumeObservationFresh(
   relevantResourceIds: string[],
   completedActionCount: number,
 ) {
-  if (plan.intent.operation === 'teardown' && completedActionCount > 0) {
-    // Completed restoration/deletion actions deliberately change resource snapshots.
-    // Recheck the immutable account, region, capability, agreement and research inputs;
-    // owned resource continuity is checked separately against the last checkpoint.
-    assertAwsObservationFresh(plan, current, fingerprintObservation(planned, []), []);
-    return;
-  }
-  assertAwsObservationFresh(plan, current, expected, relevantResourceIds);
+  const inputs = resumeObservationInputs(plan, planned, expected, relevantResourceIds, completedActionCount);
+  assertAwsObservationFresh(plan, current, inputs.expected, inputs.ids);
 }
 
 export function assertAwsApplyAllowed(
@@ -734,16 +746,28 @@ export async function executeAwsCeApply(
   const childReplacementActive =
     Boolean(existing?.childPlanSha256s?.length) &&
     plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
-  assertAwsResumeObservationFresh(
+  const revalidation = resumeObservationInputs(
     plan,
     observation,
-    current,
     childReplacementActive
       ? plan.observationFingerprint
       : (existing?.observationFingerprint ?? plan.observationFingerprint),
     childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
     existing?.completedActionIds.length ?? 0,
   );
+  try {
+    assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
+  } catch {
+    throw await captureAwsRevalidationRejection(
+      plan,
+      observation,
+      current,
+      revalidation.expected,
+      revalidation.ids,
+      'native-fingerprint',
+      storage,
+    );
+  }
   if (existing?.ownedStateFingerprint && !childReplacementActive) {
     if (
       !matchesOwnedResourceFingerprint(
@@ -1006,7 +1030,11 @@ export async function executeAwsCeApply(
           checkpoint.ownedStateFingerprint = fingerprintOwnedResources(
             resources.filter((resource) => ownedIds.includes(resource.id)),
           );
-          checkpoint.observationFingerprint = fingerprintObservation({ ...current, resources }, ids);
+          checkpoint.observationFingerprint = fingerprintObservation(
+            { ...current, resources },
+            ids,
+            awsCeObservationRegion(plan),
+          );
         }
       }
       if (gateMutation) {

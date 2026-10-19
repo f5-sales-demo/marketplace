@@ -481,7 +481,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         ingress: group.ingress.map((rule) => normalizeSecurityGroupRule(rule)),
         egress: group.egress.map((rule) => normalizeSecurityGroupRule(rule)),
       }))
-      .map((group, index) =>
+      .map((group) =>
         sites.some((site) => site.nodeIndexes.length === 3) && !group.ingress.some((rule) => rule.self)
           ? { ...group, ingress: [...group.ingress, { protocol: '-1', cidrs: [], self: true as const }] }
           : group,
@@ -1669,6 +1669,7 @@ function compileActions(
   const nlbIngress = awsCeNlbIngress(intent);
   const check = nlbIngress ? nlbSettings(intent).healthCheck : undefined;
   if (nlbIngress) {
+    if (!check) fail('NLB health-check settings are required');
     const subnetIds =
       intent.ingress?.mode === 'nlb'
         ? intent.ingress.loadBalancer.subnetIds
@@ -1727,18 +1728,18 @@ function compileActions(
         '--vpc-id',
         intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : (intent.vpc.vpcId ?? '__VPC_ID__'),
         '--health-check-protocol',
-        check!.protocol,
+        check.protocol,
         '--health-check-port',
-        String(check!.port),
+        String(check.port),
         '--health-check-interval-seconds',
-        String(check!.intervalSeconds),
+        String(check.intervalSeconds),
         '--health-check-timeout-seconds',
-        String(check!.timeoutSeconds),
+        String(check.timeoutSeconds),
         '--healthy-threshold-count',
-        String(check!.healthyThreshold),
+        String(check.healthyThreshold),
         '--unhealthy-threshold-count',
-        String(check!.unhealthyThreshold),
-        ...(check!.path ? ['--health-check-path', check!.path!] : []),
+        String(check.unhealthyThreshold),
+        ...(check.path ? ['--health-check-path', check.path] : []),
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
         `Key=xcsh-execution-engine,Value=${intent.engine}`,
@@ -2464,10 +2465,12 @@ export function compileAwsCePlan(
       'xcsh-plan-sha256': '__PLAN_SHA256__',
       'ves-io-site-name': intent.siteName,
     },
-    observationFingerprint: fingerprintObservation(observation, [
-      ...brownfieldIds,
-      ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
-    ]),
+    observationScope: { kind: 'execution-region-v1', region: intent.region },
+    observationFingerprint: fingerprintObservation(
+      observation,
+      [...brownfieldIds, ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id)],
+      intent.region,
+    ),
     f5CapabilitiesSha256: observation.f5CapabilitiesSha256,
   };
   const planSha256 = canonicalSha256(draft);

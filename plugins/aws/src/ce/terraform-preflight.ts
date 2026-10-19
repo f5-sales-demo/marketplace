@@ -3,6 +3,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256, resourceConfiguration } from './canonical';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
+import { captureAwsRevalidationRejection } from './observation-rejection';
 import { scopedAwsApi } from './scoped-exec';
 import { ownedRoutingAdditions, routingAttachmentIds } from './terraform-routing-references';
 import type { AwsCeObservation, AwsCePlan } from './types';
@@ -79,7 +80,31 @@ export async function revalidateAwsTerraformPlan(
         planSha256s: [plan.planSha256],
       })),
     );
-  assertAwsTerraformPreflight(plan, baseline, current);
+  try {
+    assertAwsTerraformPreflight(plan, baseline, current);
+  } catch {
+    let storage: Awaited<ReturnType<CePlatformService['storage']>> | undefined;
+    try {
+      storage = await platform.storage({
+        deploymentId: plan.deploymentName,
+        engine: 'terraform',
+        provider: 'aws',
+        account: plan.accountId,
+        region: plan.region,
+      });
+    } catch {
+      // Revalidation stays rejected even when owned receipt storage is unavailable.
+    }
+    throw await captureAwsRevalidationRejection(
+      plan,
+      baseline,
+      current,
+      plan.observationFingerprint,
+      terraformRoutingReferences(plan),
+      'terraform-preflight',
+      storage,
+    );
+  }
   return current;
 }
 

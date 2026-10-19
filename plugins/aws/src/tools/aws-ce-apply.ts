@@ -3,6 +3,7 @@ import type { PluginInterface } from '../aws/types';
 import type { AwsCeApplyInput } from '../ce/apply';
 import { executeAwsCeApply } from '../ce/apply';
 import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
+import { AwsCeRevalidationError } from '../ce/observation-rejection';
 import { awsPlatformService } from '../ce/platform';
 import { awsTerraformService, executeAwsCeTerraformApply } from '../ce/terraform-apply';
 import { makeExecApi } from './shared';
@@ -73,7 +74,10 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
             },
           ],
           isError: true,
-          details: { tool: 'aws_ce_apply' },
+          details: {
+            tool: 'aws_ce_apply',
+            ...(error instanceof AwsCeRevalidationError ? { revalidation: error.diagnostic } : {}),
+          },
         };
       }
     },
