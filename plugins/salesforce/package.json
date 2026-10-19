@@ -1,7 +1,7 @@
 {
   "name": "@f5-sales-demo/xcsh-salesforce",
-  "version": "2.3.12",
-  "description": "Salesforce pipeline intelligence for xcsh \u2014 native tools, context discovery, pipeline reports",
+  "version": "2.3.13",
+  "description": "Salesforce pipeline intelligence for xcsh — native tools, context discovery, pipeline reports",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "Salesforce",
-    "version": "2.3.12",
+    "version": "2.3.13",
     "description": "Salesforce pipeline intelligence",
     "extensions": [
       "src/index.ts"

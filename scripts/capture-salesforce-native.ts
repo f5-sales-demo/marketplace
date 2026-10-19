@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createCaptureExecution, viewport } from './salesforce-capture-controls';
 
 // Loaded by the actual installed xcsh binary. No imported runtime or renderer substitute.
 // A private, owner-controlled command file drives the native UI without model calls.
@@ -57,6 +58,8 @@ export default async function captureSalesforce(api: any) {
     captures: [],
     results: [],
     progress: [],
+    teardown: [],
+    lifecycle: [],
   };
   api.on('session_start', async (_event: unknown, rawContext: any) => {
     const ctx = wrappedContext(rawContext);
@@ -66,6 +69,7 @@ export default async function captureSalesforce(api: any) {
     let step: any;
     let activeComponent: any;
     let busy = false;
+    let execution: ReturnType<typeof createCaptureExecution> | undefined;
     let lastControl = '';
     let currentId = '';
     let doneUi: (() => void) | undefined;
@@ -86,6 +90,7 @@ export default async function captureSalesforce(api: any) {
         theme: step?.theme,
         preset: step?.preset,
         expanded: step?.expanded,
+        binary: process.execPath,
         runtimeVersion: sdk.VERSION,
         pluginVersion,
         terminalColumns: process.stdout.columns,
@@ -97,16 +102,43 @@ export default async function captureSalesforce(api: any) {
       return value;
     };
     const emit = async (name: string, event: any) => {
-      for (const handler of handlers.get(name) ?? []) await handler(event, rawContext);
+      for (const handler of handlers.get(name) ?? []) {
+        const value = await handler(event, rawContext);
+        manifest.lifecycle.push({
+          event: name,
+          returnedMessage: Boolean(value?.message),
+          displayed: value?.message?.display,
+        });
+      }
     };
     await ctx.ui.custom<void>((nativeTui: any, _theme: any, _keys: any, done: any) => {
       tui = nativeTui;
       doneUi = done;
       const processControl = async () => {
         const path = join(root, 'control.json');
-        if (busy || !existsSync(path)) return;
+        if (!existsSync(path)) return;
         const control = readFileSync(path, 'utf8');
         if (control === lastControl) return;
+        const incoming = JSON.parse(control);
+        if (busy) {
+          if (['cancel', 'context-replacement', 'shutdown'].includes(incoming.action) && execution?.active) {
+            lastControl = control;
+            const retired = execution;
+            retired.retire(incoming.action);
+            const ended = runtimeRepaints;
+            retired.update({ content: [{ type: 'text', text: 'Synthetic late update' }] });
+            await Bun.sleep(240);
+            manifest.teardown.push({
+              reason: incoming.action,
+              aborted: retired.signal.aborted,
+              lateUpdatesRejected: retired.lateUpdates,
+              repaintsAfterRetirement: runtimeRepaints - ended,
+            });
+            persist();
+            writeFileSync(join(root, 'ack.json'), JSON.stringify({ id: incoming.id, retired: true }));
+          }
+          return;
+        }
         lastControl = control;
         busy = true;
         try {
@@ -135,6 +167,11 @@ export default async function captureSalesforce(api: any) {
           const item = cases.find((c: any) => c.id === step.case);
           if (!item) throw new Error('Unknown capture case');
           const tool = tools.get(item.tool);
+          if (step.action === 'repeat') {
+            results.delete(item.id);
+            components.get(item.id)?.stopAnimation();
+            components.delete(item.id);
+          }
           currentId = step.id;
           let component = components.get(item.id);
           if (!component) {
@@ -168,23 +205,30 @@ export default async function captureSalesforce(api: any) {
               manifest.progress.push({ id: record.id, case: item.id, repaints: runtimeRepaints });
             }, 100);
             let result: any;
+            const ownedExecution = createCaptureExecution(component);
+            execution = ownedExecution;
             try {
               result = await tool.execute(
                 `native-capture-${item.id}`,
                 item.args,
-                AbortSignal.timeout(180000),
+                AbortSignal.any([ownedExecution.signal, AbortSignal.timeout(180000)]),
                 (update: any) => {
-                  component.updateResult(update, true);
-                  tui.requestRender();
+                  ownedExecution.update(update);
+                  if (ownedExecution.active) tui.requestRender();
                 },
                 ctx,
               );
+            } catch (error) {
+              if (!ownedExecution.signal.aborted) throw error;
+              result = { content: [{ type: 'text', text: 'Capture execution cancelled' }], isError: true };
             } finally {
               clearInterval(progressTimer);
               await emit('tool_execution_end', { toolName: tool.name, toolCallId: item.id, args: item.args });
             }
             results.set(item.id, result);
-            component.updateResult(result, false);
+            execution = undefined;
+            if (ownedExecution.active) component.updateResult(result, false);
+            ownedExecution.complete();
             const ended = runtimeRepaints;
             await Bun.sleep(200);
             manifest.results.push({
@@ -211,6 +255,7 @@ export default async function captureSalesforce(api: any) {
           record.commands = (view?.sections ?? [])
             .filter((s: any) => s.kind === 'code' && Array.isArray(s.argv) && s.argv[0] === 'sf')
             .map((s: any) => ({ argv: s.argv }));
+          record.viewport = viewport(record.lines, process.stdout.rows ?? 45, Number(step.scroll ?? 0));
           writeFileSync(join(frames, `${step.id}.json`), JSON.stringify(record));
           manifest.captures.push({
             id: step.id,
@@ -249,18 +294,19 @@ export default async function captureSalesforce(api: any) {
           activeComponent?.invalidate();
         },
         render(width: number) {
-          const rows = Math.max(5, (process.stdout.rows ?? 45) - 4);
           if (!activeComponent) return ['Native Salesforce capture ready; awaiting controlled fixture input.'];
           const rendered = activeComponent.render(Math.min(step.width, width));
-          const offset = Number(step.scroll ?? 0);
+          const page = viewport(rendered, process.stdout.rows ?? 45, Number(step.scroll ?? 0));
           return [
             `NATIVE_CAPTURE ${currentId}`,
-            ...rendered.slice(offset, offset + rows),
-            `Native ${sdk.VERSION}; allocated ${Math.min(step.width, width)} columns; page ${offset}; ${mode} data.`,
+            ...page.rows,
+            `Native ${sdk.VERSION}; allocated ${Math.min(step.width, width)} columns; page ${page.offset}; ${mode} data.`,
           ];
         },
         handleInput(data: string) {
           if (data === '\x1b') {
+            execution?.retire('shutdown');
+            for (const component of components.values()) component.stopAnimation();
             clearInterval(poll);
             done();
             ctx.shutdown();
