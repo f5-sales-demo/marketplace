@@ -857,43 +857,62 @@ function matchesBgpRuntimeVariants(expected, value, fingerprint) {
 function matchesOwnedResourceFingerprint(expected, resources) {
   return matchesBgpRuntimeVariants(expected, resources, fingerprintOwnedResources);
 }
-function fingerprintObservation(observation, brownfieldIds) {
+function awsCeObservationRegion(plan) {
+  if (plan.observationScope === undefined) return;
+  if (
+    plan.observationScope.kind !== 'execution-region-v1' ||
+    !plan.observationScope.region ||
+    plan.observationScope.region !== plan.region ||
+    plan.region !== plan.intent.region
+  )
+    throw new Error('AWS CE observation execution-region scope is invalid');
+  return plan.observationScope.region;
+}
+function fingerprintObservation(observation, brownfieldIds, executionRegion) {
   const allowlist = new Set(brownfieldIds);
+  const regions =
+    executionRegion === undefined
+      ? observation.regions
+      : observation.regions
+          .filter((region) => region.name === executionRegion)
+          .map(({ rank: _rank, ...region }) => region);
+  if (executionRegion !== undefined && regions.length !== 1)
+    throw new Error('AWS CE observation execution region is missing or ambiguous');
   return canonicalSha256({
     schemaVersion: observation.schemaVersion,
     identity: { ...observation.identity, awsProfile: observation.identity.awsProfile ?? 'default' },
     agreement: observation.agreement,
-    regions: observation.regions.map(
-      ({ elasticIpCapacity, vcpuCapacity, vpcCapacity, internetGatewayCapacity, ...region }) => ({
-        ...region,
-        ...(elasticIpCapacity
-          ? {
-              elasticIpCapacity: {
-                limit: elasticIpCapacity.limit,
-                foreignAllocated: elasticIpCapacity.allocated - elasticIpCapacity.reusableOwned,
-              },
-            }
-          : {}),
-        ...Object.fromEntries(
-          Object.entries({ vcpuCapacity, vpcCapacity, internetGatewayCapacity })
-            .filter(([, value]) => value !== undefined)
-            .map(([key, value]) => [key, { limit: value.limit, foreignUsed: value.used - value.reusableOwned }]),
+    regions: regions.map(({ elasticIpCapacity, vcpuCapacity, vpcCapacity, internetGatewayCapacity, ...region }) => ({
+      ...region,
+      ...(elasticIpCapacity
+        ? {
+            elasticIpCapacity: {
+              limit: elasticIpCapacity.limit,
+              foreignAllocated: elasticIpCapacity.allocated - elasticIpCapacity.reusableOwned,
+            },
+          }
+        : {}),
+      ...Object.fromEntries(
+        Object.entries({ vcpuCapacity, vpcCapacity, internetGatewayCapacity }).flatMap(([key, value]) =>
+          value === undefined ? [] : [[key, { limit: value.limit, foreignUsed: value.used - value.reusableOwned }]],
         ),
-      }),
-    ),
+      ),
+    })),
     resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
     research: observation.research,
     f5Capabilities: observation.f5Capabilities,
     f5CapabilitiesSha256: observation.f5CapabilitiesSha256,
   });
 }
-function matchesObservationFingerprint(expected, observation, resourceIds) {
+function matchesObservationFingerprint(expected, observation, resourceIds, executionRegion) {
   const allowlist = new Set(resourceIds);
   const scoped = {
     ...observation,
     resources: observation.resources.filter((resource) => allowlist.has(resource.id)),
   };
-  return matchesBgpRuntimeVariants(expected, scoped, (candidate) => fingerprintObservation(candidate, resourceIds));
+  return matchesBgpRuntimeVariants(expected, scoped, (candidate) =>
+    fingerprintObservation(candidate, resourceIds, executionRegion),
+  );
 }
 function normalizeResearchDocument(body) {
   return `${body
@@ -935,6 +954,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 function verifyAwsCePlan(plan) {
+  awsCeObservationRegion(plan);
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AWS_CE_SCHEMA_VERSION)
     throw new Error('Persisted AWS CE plan uses an unsupported schema version');
   if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
@@ -4031,7 +4051,7 @@ function normalizeIntent(input) {
         ingress: group.ingress.map((rule) => normalizeSecurityGroupRule(rule)),
         egress: group.egress.map((rule) => normalizeSecurityGroupRule(rule)),
       }))
-      .map((group, index) =>
+      .map((group) =>
         sites.some((site) => site.nodeIndexes.length === 3) && !group.ingress.some((rule) => rule.self)
           ? { ...group, ingress: [...group.ingress, { protocol: '-1', cidrs: [], self: true }] }
           : group,
@@ -5181,6 +5201,7 @@ function compileActions(intent, observation, restorationById) {
   const nlbIngress = awsCeNlbIngress(intent);
   const check = nlbIngress ? nlbSettings(intent).healthCheck : undefined;
   if (nlbIngress) {
+    if (!check) fail('NLB health-check settings are required');
     const subnetIds =
       intent.ingress?.mode === 'nlb'
         ? intent.ingress.loadBalancer.subnetIds
@@ -5967,10 +5988,12 @@ function compileAwsCePlan(input, observation, restorationState = []) {
       'xcsh-plan-sha256': '__PLAN_SHA256__',
       'ves-io-site-name': intent.siteName,
     },
-    observationFingerprint: fingerprintObservation(observation, [
-      ...brownfieldIds,
-      ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
-    ]),
+    observationScope: { kind: 'execution-region-v1', region: intent.region },
+    observationFingerprint: fingerprintObservation(
+      observation,
+      [...brownfieldIds, ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id)],
+      intent.region,
+    ),
     f5CapabilitiesSha256: observation.f5CapabilitiesSha256,
   };
   const planSha256 = canonicalSha256(draft);
@@ -8085,6 +8108,117 @@ var init_native_site_replacement = __esm(() => {
   init_routing_apply();
 });
 
+// plugins/aws/src/ce/observation-rejection.ts
+import { randomUUID as randomUUID2 } from 'node:crypto';
+
+async function captureAwsRevalidationRejection(
+  plan,
+  baseline,
+  current,
+  expectedFingerprint,
+  relevantResourceIds,
+  comparison,
+  storage,
+) {
+  const executionRegion = comparison === 'terraform-preflight' ? plan.region : awsCeObservationRegion(plan);
+  const fingerprint = (value) => {
+    try {
+      return fingerprintObservation(value, relevantResourceIds, executionRegion);
+    } catch {
+      return null;
+    }
+  };
+  const selectRegions = (value) =>
+    executionRegion === undefined
+      ? value.regions
+      : Array.isArray(value.regions)
+        ? value.regions.filter((region) => region.name === executionRegion)
+        : null;
+  const ids = new Set(relevantResourceIds);
+  const values = (value) => ({
+    identity: value.identity ?? null,
+    agreement: value.agreement ?? null,
+    regions: selectRegions(value) ?? null,
+    resources: Array.isArray(value.resources) ? value.resources.filter((resource) => ids.has(resource.id)) : null,
+    research: value.research ?? null,
+    capabilities: { value: value.f5Capabilities ?? null, sha256: value.f5CapabilitiesSha256 ?? null },
+  });
+  const before = values(baseline);
+  const after = values(current);
+  const changedCategories = Object.keys(before).filter(
+    (key) => canonicalSha256(before[key]) !== canonicalSha256(after[key]),
+  );
+  const diagnostic = {
+    code: 'aws-ce-revalidation-rejected',
+    comparison,
+    scope:
+      comparison === 'terraform-preflight'
+        ? 'terraform-selected-region'
+        : executionRegion === undefined
+          ? 'legacy-all-regions'
+          : 'execution-region-v1',
+    region: /^[a-z]{2}(?:-[a-z]+)+-\d+$/.test(plan.region) ? plan.region : null,
+    expectedFingerprint: /^[a-f0-9]{64}$/.test(expectedFingerprint) ? expectedFingerprint : null,
+    currentFingerprint: fingerprint(current),
+    comparisonBaseline: 'original-planning-observation',
+    baselineMatchesExpected: fingerprint(baseline) === expectedFingerprint,
+    changedCategories,
+    capture: 'unavailable',
+  };
+  const reference = `observation-rejection-${randomUUID2()}`;
+  const receipt = {
+    schemaVersion: 1,
+    kind: 'aws-ce-revalidation-rejection',
+    capturedAt: new Date().toISOString(),
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    owner: {
+      deploymentId: plan.deploymentName,
+      engine: plan.engine,
+      provider: 'aws',
+      account: plan.accountId,
+      region: plan.region,
+    },
+    diagnostic: { ...diagnostic, capture: 'saved', receiptReference: reference },
+    relevantResourceIds: [...relevantResourceIds],
+    baseline: structuredClone(baseline),
+    current: structuredClone(current),
+    baselineObservationSha256: canonicalSha256(baseline),
+    currentObservationSha256: canonicalSha256(current),
+  };
+  try {
+    if (
+      !storage ||
+      !['deploymentId', 'engine', 'provider', 'account', 'region'].every(
+        (key) => storage.owner[key] === receipt.owner[key],
+      )
+    )
+      throw new Error('Private receipt ownership unavailable');
+    await storage.verify();
+    await storage.write(`${reference}.json`, receipt);
+    diagnostic.capture = 'saved';
+    diagnostic.receiptReference = reference;
+    diagnostic.receiptSha256 = canonicalSha256(receipt);
+    diagnostic.receiptDigestFormat = 'canonical-json-sha256';
+  } catch {}
+  return new AwsCeRevalidationError(diagnostic);
+}
+var AwsCeRevalidationError;
+var init_observation_rejection = __esm(() => {
+  init_canonical();
+  AwsCeRevalidationError = class AwsCeRevalidationError extends Error {
+    diagnostic;
+    constructor(diagnostic) {
+      super(
+        `Stale AWS CE plan: revalidation rejected; private observation capture ${diagnostic.capture}` +
+          (diagnostic.receiptReference ? ` (${diagnostic.receiptReference})` : ''),
+      );
+      this.diagnostic = diagnostic;
+      this.name = 'AwsCeRevalidationError';
+    }
+  };
+});
+
 // plugins/aws/src/ce/platform-ingress.ts
 async function optional(storage, name) {
   try {
@@ -8947,16 +9081,16 @@ function assertAwsObservationFresh(
       .map((item) => item.resourceId),
   ],
 ) {
-  const actual = fingerprintObservation(current, relevantResourceIds);
-  if (!matchesObservationFingerprint(expected, current, relevantResourceIds))
+  const region = awsCeObservationRegion(plan);
+  const actual = fingerprintObservation(current, relevantResourceIds, region);
+  if (!matchesObservationFingerprint(expected, current, relevantResourceIds, region))
     throw new Error(`Stale AWS CE plan: observations changed (expected ${expected}, current ${actual})`);
 }
-function assertAwsResumeObservationFresh(plan, planned, current, expected, relevantResourceIds, completedActionCount) {
+function resumeObservationInputs(plan, planned, expected, relevantResourceIds, completedActionCount) {
   if (plan.intent.operation === 'teardown' && completedActionCount > 0) {
-    assertAwsObservationFresh(plan, current, fingerprintObservation(planned, []), []);
-    return;
+    return { expected: fingerprintObservation(planned, [], awsCeObservationRegion(plan)), ids: [] };
   }
-  assertAwsObservationFresh(plan, current, expected, relevantResourceIds);
+  return { expected, ids: relevantResourceIds };
 }
 function assertAwsApplyAllowed(plan, request) {
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION) throw new Error('AWS CE plan schema is unsupported');
@@ -9531,16 +9665,28 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
   const childReplacementActive =
     Boolean(existing?.childPlanSha256s?.length) &&
     plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
-  assertAwsResumeObservationFresh(
+  const revalidation = resumeObservationInputs(
     plan,
     observation,
-    current,
     childReplacementActive
       ? plan.observationFingerprint
       : (existing?.observationFingerprint ?? plan.observationFingerprint),
     childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
     existing?.completedActionIds.length ?? 0,
   );
+  try {
+    assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
+  } catch {
+    throw await captureAwsRevalidationRejection(
+      plan,
+      observation,
+      current,
+      revalidation.expected,
+      revalidation.ids,
+      'native-fingerprint',
+      storage,
+    );
+  }
   if (existing?.ownedStateFingerprint && !childReplacementActive) {
     if (
       !matchesOwnedResourceFingerprint(
@@ -9810,7 +9956,11 @@ ${plan.planSha256}`,
           checkpoint.ownedStateFingerprint = fingerprintOwnedResources(
             resources.filter((resource) => ownedIds.includes(resource.id)),
           );
-          checkpoint.observationFingerprint = fingerprintObservation({ ...current, resources }, ids);
+          checkpoint.observationFingerprint = fingerprintObservation(
+            { ...current, resources },
+            ids,
+            awsCeObservationRegion(plan),
+          );
         }
       }
       if (gateMutation) {
@@ -9890,6 +10040,7 @@ var init_apply = __esm(() => {
   init_native_routing_checkpoint();
   init_native_site_replacement();
   init_network_health();
+  init_observation_rejection();
   init_platform_ingress();
   init_routing_apply();
   init_site_replacement();
@@ -11750,7 +11901,29 @@ async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetc
         planSha256s: [plan.planSha256],
       })),
     );
-  assertAwsTerraformPreflight(plan, baseline, current);
+  try {
+    assertAwsTerraformPreflight(plan, baseline, current);
+  } catch {
+    let storage;
+    try {
+      storage = await platform.storage({
+        deploymentId: plan.deploymentName,
+        engine: 'terraform',
+        provider: 'aws',
+        account: plan.accountId,
+        region: plan.region,
+      });
+    } catch {}
+    throw await captureAwsRevalidationRejection(
+      plan,
+      baseline,
+      current,
+      plan.observationFingerprint,
+      terraformRoutingReferences(plan),
+      'terraform-preflight',
+      storage,
+    );
+  }
   return current;
 }
 function assertAwsTerraformPreflight(plan, baseline, current) {
@@ -11805,6 +11978,7 @@ var init_terraform_preflight = __esm(() => {
   init_artifacts();
   init_canonical();
   init_discovery();
+  init_observation_rejection();
   init_terraform_routing_references();
 });
 
@@ -12510,7 +12684,10 @@ function createAwsCeApplyTool(pi, makeApi = makeExecApi) {
             },
           ],
           isError: true,
-          details: { tool: 'aws_ce_apply' },
+          details: {
+            tool: 'aws_ce_apply',
+            ...(error instanceof AwsCeRevalidationError ? { revalidation: error.diagnostic } : {}),
+          },
         };
       }
     },
@@ -12519,6 +12696,7 @@ function createAwsCeApplyTool(pi, makeApi = makeExecApi) {
 var init_aws_ce_apply = __esm(() => {
   init_apply();
   init_artifacts();
+  init_observation_rejection();
   init_platform();
   init_terraform_apply();
   init_shared();
