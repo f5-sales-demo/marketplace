@@ -105,3 +105,38 @@ the matrix after 520 passing frames. Setup review initially failed its local
 passed. The Mac had system load above 125. No authentication repair was performed. The 2.3.12 captures
 above do not qualify 2.3.13. Human authentication, desktop-font raster fidelity
 and model tool selection remain separate where required. Keep #1591 open.
+
+## Native model and lifecycle follow-up
+
+Follow-up delivery: [#1630](https://github.com/f5-sales-demo/marketplace/issues/1630).
+The same published Mac runtime 23.9.0 and installed Salesforce 2.3.13 entry
+point passed a scoped model workflow: the model read the shipped
+`salesforce-index` skill and selected `sf_org_display`, which succeeded.
+The normal configured model completed with a credential-free safe status answer.
+The first restrictive launch left the native tool inactive; its fallback answer
+and raw logs remain private and do not qualify tool routing.
+
+A separate native RPC session selected `sf_pipeline_report`, then injected the
+real `salesforce_hint` before the next model turn. Its pipeline amount retained
+comma grouping without magnitude abbreviation and the literal `Currency unknown`
+qualification. The message remained hidden with `display: false`. A native
+`new_session` request succeeded and emitted `session_switch`; the following
+`sf_org_display` execution succeeded in that new conversation. This qualifies
+idle native session replacement, not replacement during an active tool execution.
+
+The signal-stop attempt exited 130 without a shutdown-hook observation. A fresh
+RPC run used a private extension command calling the documented `ctx.shutdown()`
+API; it observed `session_shutdown` and exited zero. Native session-start and
+shutdown events were captured, with no stderr diagnostics. RPC exposes a UI
+context, but these observations do not establish desktop TUI rendering, live
+preset switching or repaint retirement. The six-tool native fixture matrix
+remains the separate rendering and controlled-timer receipt.
+
+The source and published-acceptance worktrees on both hosts were retired after
+confirming merged PRs and inspecting ignored dependency/test caches. Local source
+and acceptance commits were preserved in private bundles. All task-owned capture
+and native-workflow panes and terminal helpers were retired. The root agent pane,
+original tracker checkout, unrelated worktrees and installed credential state
+were preserved. This documentation worktree is retired after its own PR merges.
+Remaining tracker blockers retain the exact interactive, outcome, optional-agent
+and human-authentication checks; neither #1624 nor #1591 is closed.
