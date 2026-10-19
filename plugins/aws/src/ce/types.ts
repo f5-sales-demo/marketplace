@@ -1,8 +1,12 @@
-export const AWS_CE_SCHEMA_VERSION = 1 as const;
+import type { InitialSiteVersions } from '../../../platform/src/ce/initial-versions';
+import type { AwsCeSiteTopology } from './topology';
+export const AWS_CE_SCHEMA_VERSION = 2 as const;
 export const AWS_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 export const AWS_CE_F5_GUIDE_URL =
   'https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-aws-clickops' as const;
+export const AWS_CE_TGW_GUIDE_URL =
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/smsv2/aws-tgw-connect.txt' as const;
 export const AWS_CE_MARKETPLACE_PRODUCT_ID = 'prod-wrwzhcymymama' as const;
 export const AWS_CE_SSM_PARAMETER = `/aws/service/marketplace/${AWS_CE_MARKETPLACE_PRODUCT_ID}/latest` as const;
 // The Marketplace image currently advertises a 79 GiB root volume. 80 GiB is
@@ -22,25 +26,74 @@ export type AwsCeOperation =
   | 'teardown';
 export type AwsCeEgressMode = 'elastic-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AwsCeRoutingProfile = 'direct-eni' | 'nlb-ingress' | 'tgw-static' | 'tgw-connect';
+export type AwsCeIngress =
+  | { mode: 'none' }
+  | {
+      mode: 'nlb';
+      port: number;
+      scheme: 'internal';
+      targetInterfaceIndex?: number;
+      healthCheck?: {
+        protocol: 'TCP' | 'HTTP' | 'HTTPS';
+        port: number | 'traffic-port';
+        path?: string;
+        intervalSeconds: number;
+        timeoutSeconds: number;
+        healthyThreshold: number;
+        unhealthyThreshold: number;
+      };
+      loadBalancer: {
+        vpcId: string;
+        subnetIds: string[];
+        privateAddresses: string[];
+      };
+      listener: {
+        name: string;
+        namespace: string;
+        domain: string;
+        /** One secondary SLI service address for each independent site, in site order. */
+        privateAddresses?: string[];
+        originPool: { name: string; namespace: string };
+      };
+      probe: {
+        sourceInstanceId: string;
+        path: string;
+        expectedStatus: number;
+        expectedBodySha256: string;
+      };
+    };
 
 export interface AwsCeF5Capabilities {
+  platformContext?: string;
+  contractFingerprint?: string;
+  tenantOrigin?: string;
   smsv2ContractVersion: 'v2';
   supportedProviders: Array<'aws' | 'azure'>;
-  bootstrapDrivers: Array<'console'>;
+  bootstrapDrivers: Array<'api' | 'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
 }
 
+export const AWS_CE_DEFAULT_INTERFACE_MTU = 1500 as const;
+
 export interface AwsCeInterfaceIntent {
+  securityGroupNames?: string[];
+  mtu?: number;
+  /** Verified guest device identity required to preconfigure a three-node HA site. */
+  guestDevice?: string;
   index: number;
   role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
   vrf: string;
   subnets: Array<{ availabilityZone: string; subnetId?: string; cidr?: string }>;
+  /** Static addresses are CIDRs, exactly one per node in subnet order; DHCP omits addresses. */
   addressing: { mode: 'dhcp' | 'static'; addresses?: string[] };
 }
 
 export interface AwsCeIntent {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
+  awsProfile?: string;
+  platformContext?: string;
   operation: AwsCeOperation;
   accountId: string;
   partition: 'aws' | 'aws-us-gov' | 'aws-cn';
@@ -48,7 +101,8 @@ export interface AwsCeIntent {
   deploymentName: string;
   siteName: string;
   namespace: string;
-  topology: { nodeCount: 1 | 3 };
+  initialVersions?: InitialSiteVersions;
+  topology: { nodeCount: 1 | 3; sites?: AwsCeSiteTopology[] };
   vpc: { mode: 'greenfield' | 'brownfield'; vpcId?: string; cidr?: string };
   interfaces: AwsCeInterfaceIntent[];
   egress: { mode: AwsCeEgressMode; resourceId?: string };
@@ -61,17 +115,31 @@ export interface AwsCeIntent {
     customerAsn?: number;
     transitGatewayAsn?: number;
     insideCidrs?: string[];
+    connectPeers?: Array<{
+      node: number;
+      insideCidr: string;
+      transportInterfaceIndex: number;
+      transitGatewayAddress?: string;
+    }>;
     associations: string[];
     propagations: string[];
+    staticAzRoutes?: Array<{
+      node: number;
+      availabilityZone: string;
+      forwardCidrs: string[];
+      returnCidrs: string[];
+    }>;
   };
+  /** Explicit ingress composes with routing. Omission preserves schema-v2 legacy profile behavior. */
+  ingress?: AwsCeIngress;
   image: { productId: typeof AWS_CE_MARKETPLACE_PRODUCT_ID; amiId: string };
   instance: { type: string; diskGiB: number; instanceProfileArn?: string };
   securityGroups: Array<{
     name: string;
-    ingress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[] }>;
-    egress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[] }>;
+    ingress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[]; self?: true }>;
+    egress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[]; self?: true }>;
   }>;
-  routes: Array<{ routeTableId: string; destinationCidr: string }>;
+  routes: Array<{ routeTableId: string; destinationCidr: string; node?: number; availabilityZone?: string }>;
   brownfield: {
     resourceIds: string[];
     routeTableIds: string[];
@@ -111,6 +179,7 @@ export interface AwsCeRegionObservation {
   instanceTypes: Array<{
     name: string;
     vCpus: number;
+    supportedArchitectures?: string[];
     memoryMiB: number;
     maxEnis: number;
     ipv4PerEni: number;
@@ -119,6 +188,22 @@ export interface AwsCeRegionObservation {
     reasons: string[];
   }>;
   vcpuQuota: number;
+  vcpuCapacity?: { limit: number; used: number; reusableOwned: number; remaining: number; source: 'aws-cli-live' };
+  vpcCapacity?: { limit: number; used: number; reusableOwned: number; remaining: number; source: 'aws-cli-live' };
+  internetGatewayCapacity?: {
+    limit: number;
+    used: number;
+    reusableOwned: number;
+    remaining: number;
+    source: 'aws-cli-live';
+  };
+  elasticIpCapacity?: {
+    limit: number;
+    allocated: number;
+    reusableOwned: number;
+    available: number;
+    requiredAdditional: number;
+  };
   networkQuotas: Array<{ serviceCode: string; quotaCode: string; quotaName: string; value: number }>;
   transitGatewaySupported: boolean;
   brownfieldProximity: number;
@@ -135,7 +220,7 @@ export interface AwsCeResourceObservation {
 
 export interface AwsCeObservation {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
-  identity: { accountId: string; partition: AwsCeIntent['partition']; arn: string };
+  identity: { accountId: string; partition: AwsCeIntent['partition']; arn: string; awsProfile?: string };
   agreement: { productId: typeof AWS_CE_MARKETPLACE_PRODUCT_ID; active: boolean; agreementIds: string[] };
   regions: AwsCeRegionObservation[];
   resources: AwsCeResourceObservation[];
@@ -150,19 +235,28 @@ export interface AwsCeObservation {
     sourceReceipts: AwsCeSourceReceipt[];
     sharedContract: {
       url: typeof AWS_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
     f5AwsGuide: { url: typeof AWS_CE_F5_GUIDE_URL; normalizedSha256: string; tgwConnectDocumented: boolean };
+    mcnTgwGuide?: { url: typeof AWS_CE_TGW_GUIDE_URL; normalizedSha256: string; documented: boolean };
   };
 }
 
 export type AwsCeActionKind =
   | 'vpc-create'
+  | 'internet-gateway-create'
+  | 'internet-gateway-attach'
+  | 'internet-gateway-detach'
+  | 'route-table-create'
+  | 'route-table-associate'
+  | 'route-table-disassociate'
   | 'subnet-create'
   | 'security-group-create'
   | 'security-group-rule-create'
+  | 'security-group-egress-reset'
+  | 'instance-termination-gate'
   | 'eni-create'
   | 'elastic-ip-allocate'
   | 'elastic-ip-associate'
@@ -180,6 +274,7 @@ export type AwsCeActionKind =
   | 'nlb-listener-create'
   | 'nlb-register-targets'
   | 'nlb-cross-zone-enable'
+  | 'tgw-attachment-gate'
   | 'tgw-vpc-attachment-create'
   | 'tgw-appliance-mode-enable'
   | 'tgw-route-table-create'
@@ -188,10 +283,13 @@ export type AwsCeActionKind =
   | 'tgw-route-create'
   | 'tgw-connect-attachment-create'
   | 'tgw-connect-peer-create'
+  | 'f5-routing-configure'
+  | 'registration-approve'
   | 'registration-gate'
   | 'health-gate'
   | 'bgp-gate'
   | 'nlb-gate'
+  | 'f5-ingress-configure'
   | 'tgw-route-gate'
   | 'traffic-gate'
   | 'brownfield-restore'
@@ -214,7 +312,21 @@ export interface AwsCeAction {
 }
 
 export interface AwsCePlanDraft {
+  execution?: {
+    engine: 'native' | 'terraform';
+    awsProfile: string;
+    terraform?: {
+      version: string;
+      awsProvider: string;
+      awsProviderLockSha256: string;
+      f5Provider: string;
+      f5ProviderLockSha256: string;
+      backendIdentity: string;
+      f5BackendIdentity: string;
+    };
+  };
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
   intent: AwsCeIntent;
   accountId: string;
   partition: AwsCeIntent['partition'];
@@ -242,6 +354,7 @@ export interface AwsCePlanDraft {
   }>;
   ownershipTags: {
     'xcsh-managed-by': 'aws-ce';
+    'xcsh-execution-engine': 'native' | 'terraform';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
     'ves-io-site-name': string;
@@ -256,10 +369,15 @@ export interface AwsCePlan extends AwsCePlanDraft {
 }
 
 export interface AwsCeCheckpoint {
+  pendingCreate?: { actionId: string; requestSha256: string };
+  pendingDelete?: { actionId: string; resourceId: string; requestSha256: string };
+  authorization?: { planSha256: string; mutations: true; destruction: boolean };
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
   planId: string;
   planSha256: string;
   completedActionIds: string[];
+  childPlanSha256s?: string[];
   observationFingerprint?: string;
   ownedStateFingerprint?: string;
   failedActionId?: string;

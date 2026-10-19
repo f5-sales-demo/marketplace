@@ -16,7 +16,7 @@ const end = JSON.stringify({
     content: [
       {
         type: 'text',
-        text: 'Shared contract: f5xc-ce-automation/v1 (abc)\nPinned AMI: ami-0123456789abcdef0\nDiscovery artifact: artifact://42',
+        text: 'Shared contract: f5xc-ce-automation-policy/v2 (abc)\nPinned AMI: ami-0123456789abcdef0\nDiscovery artifact: artifact://42',
       },
     ],
   },

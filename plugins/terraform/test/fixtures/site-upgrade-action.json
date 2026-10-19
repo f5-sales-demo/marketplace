@@ -1,0 +1,24 @@
+{
+  "provenance": {
+    "terraformVersion": "1.16.1",
+    "providerVersion": "8.0.0",
+    "observedAt": "2026-09-08T16:10:29.416Z",
+    "source": "terraform show -json of a live plan-only invocation; site name replaced with ce-one",
+    "planSha256": "fd95f257625c9db4774d963cafd4d55288e95ed520a4b371840af0ba93855c2b"
+  },
+  "action": {
+    "address": "action.xcsh_site_upgrade_sw.ce",
+    "type": "xcsh_site_upgrade_sw",
+    "name": "ce",
+    "config_values": {
+      "force": false,
+      "name": "ce-one",
+      "namespace": "system",
+      "version": "crt-20260201-0179"
+    },
+    "config_sensitive": {},
+    "config_unknown": {},
+    "provider_name": "registry.terraform.io/f5-sales-demo/xcsh",
+    "invoke_action_trigger": {}
+  }
+}
