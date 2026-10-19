@@ -1,15 +1,5 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-// plugins/platform/src/ce/site-labels.ts
-var discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
-function writableSiteLabels(labels) {
-  return Object.fromEntries(
-    Object.entries(labels).filter(
-      ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/') && !discoveryLabels.has(key),
-    ),
-  );
-}
-
 // plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -134,6 +124,16 @@ async function acquireProcessLock(path) {
     }
   }
   throw new Error('Operation lock could not be acquired');
+}
+
+// plugins/platform/src/ce/site-labels.ts
+var discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+function writableSiteLabels(labels) {
+  return Object.fromEntries(
+    Object.entries(labels).filter(
+      ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/') && !discoveryLabels.has(key),
+    ),
+  );
 }
 
 // plugins/platform/src/ce/runtime.ts

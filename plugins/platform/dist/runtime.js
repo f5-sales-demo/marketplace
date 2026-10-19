@@ -117,25 +117,6 @@ class CeDeploymentStore {
 }
 var init_deployment_store = () => {};
 
-// plugins/platform/src/ce/site-labels.ts
-function writableSiteLabels(labels) {
-  return Object.fromEntries(
-    Object.entries(labels).filter(
-      ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/') && !discoveryLabels.has(key),
-    ),
-  );
-}
-function writableSiteMetadata(metadata) {
-  const labels = metadata.labels;
-  if (labels === undefined) return { ...metadata };
-  if (!labels || typeof labels !== 'object' || Array.isArray(labels)) throw new Error('Malformed site labels');
-  return { ...metadata, labels: writableSiteLabels(labels) };
-}
-var discoveryLabels;
-var init_site_labels = __esm(() => {
-  discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
-});
-
 // plugins/platform/src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
 
@@ -1667,6 +1648,25 @@ var object8 = (value) => {
     throw new Error('Malformed registration observation');
   return value;
 };
+
+// plugins/platform/src/ce/site-labels.ts
+function writableSiteLabels(labels) {
+  return Object.fromEntries(
+    Object.entries(labels).filter(
+      ([key]) => !key.startsWith('ves.io/') && !key.startsWith('internal.ves.io/') && !discoveryLabels.has(key),
+    ),
+  );
+}
+function writableSiteMetadata(metadata) {
+  const labels = metadata.labels;
+  if (labels === undefined) return { ...metadata };
+  if (!labels || typeof labels !== 'object' || Array.isArray(labels)) throw new Error('Malformed site labels');
+  return { ...metadata, labels: writableSiteLabels(labels) };
+}
+var discoveryLabels;
+var init_site_labels = __esm(() => {
+  discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+});
 
 // plugins/platform/src/ce/teardown-inventory.ts
 async function collectCeTeardownInventory(port, input, namespaces, contracts, signal) {
@@ -3597,7 +3597,6 @@ class CeRuntime {
 }
 var CE_API_ERROR_BRAND, CeApiError, safeName;
 var init_runtime = __esm(() => {
-  init_site_labels();
   init_bgp_evidence();
   init_bgp_route_evidence();
   init_bootstrap();
@@ -3605,6 +3604,7 @@ var init_runtime = __esm(() => {
   init_interface_evidence();
   init_origin_teardown();
   init_platform_drain();
+  init_site_labels();
   init_teardown_inventory();
   init_upgrade_evidence();
   CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');

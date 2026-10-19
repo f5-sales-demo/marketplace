@@ -1,4 +1,3 @@
-import { writableSiteMetadata } from './site-labels';
 import { type ExpectedBgpSession, parseBgpSessions } from './bgp-evidence';
 import { parseBgpRoutes } from './bgp-route-evidence';
 import { bindAwsCloudInit } from './bootstrap';
@@ -12,6 +11,7 @@ import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import { parseRegistrationObservation, registrationInstanceBindings } from './registration-observation';
 import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
+import { writableSiteMetadata } from './site-labels';
 import { collectCeTeardownInventory } from './teardown-inventory';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
 import {

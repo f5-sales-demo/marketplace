@@ -2213,12 +2213,6 @@ var init_discovery = __esm(() => {
 // plugins/platform/src/ce/deployment-store.ts
 var init_deployment_store = () => {};
 
-// plugins/platform/src/ce/site-labels.ts
-var discoveryLabels;
-var init_site_labels = __esm(() => {
-  discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
-});
-
 // plugins/platform/src/ce/bgp-evidence.ts
 var init_bgp_evidence = () => {};
 
@@ -2391,6 +2385,12 @@ var init_origin_teardown = __esm(() => {
 var init_platform_drain = __esm(() => {
   init_runtime();
 });
+// plugins/platform/src/ce/site-labels.ts
+var discoveryLabels;
+var init_site_labels = __esm(() => {
+  discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
+});
+
 // plugins/platform/src/ce/teardown-inventory.ts
 var init_teardown_inventory = __esm(() => {
   init_runtime();
@@ -2438,7 +2438,6 @@ var init_upgrade_evidence = () => {};
 // plugins/platform/src/ce/runtime.ts
 var CE_API_ERROR_BRAND, CeApiError;
 var init_runtime = __esm(() => {
-  init_site_labels();
   init_bgp_evidence();
   init_bgp_route_evidence();
   init_bootstrap();
@@ -2446,6 +2445,7 @@ var init_runtime = __esm(() => {
   init_interface_evidence();
   init_origin_teardown();
   init_platform_drain();
+  init_site_labels();
   init_teardown_inventory();
   init_upgrade_evidence();
   CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
