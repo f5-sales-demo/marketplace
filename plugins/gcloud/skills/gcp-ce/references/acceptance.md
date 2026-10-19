@@ -1,8 +1,10 @@
 # GCP installed and live acceptance
 
 Current status: discovery/readiness, owned observations and narrow typed teardown.
-Native public single-node deployment plan/apply has an implementation candidate;
-its fresh installed/live acceptance remains pending. Terraform deployment,
+Native public single-node deployment plan/apply passed fresh isolated installed
+and live acceptance on the narrow disposable profile, including two consecutive
+healthy observations, typed teardown without fallback and eight independent
+absence checks. Immutable publication remains pending. Terraform deployment,
 upgrades, repair, replacement, failover, full interruption recovery,
 restoration remain unavailable through public tools. Terraform teardown has a
 qualified owning-engine plan/apply path for the same narrow disposable profile.
@@ -92,3 +94,8 @@ state locking and isolated state. Teardown requires ledger ownership and
 restoration inventory; independently check absence afterward. Brownfield
 restoration requires automated coverage. Publish immutable artifacts only after
 review/CI and applicable acceptance, then verify fresh installed published tools.
+
+Public native deployment acceptance is recorded in
+[the sanitized receipt](../../../../../docs/receipts/gcp-public-native-deployment-20261019.md).
+It binds the original frozen campaign bundles and source, separately from later
+Terraform runner changes. A second independent absence check also passed.

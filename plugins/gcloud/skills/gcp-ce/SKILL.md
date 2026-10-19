@@ -54,7 +54,8 @@ Read [provider contract](references/provider-contract.md) before planning and
    the overall `planHash`. Review it before supplying that exact `approvedPlanHash`
    and unchanged intent to `gcp_ce_apply` with `operation=deploy`. Resume with the
    same hash; cloud creation does not establish registration, health or traffic.
-   Public native deployment installed/live acceptance remains pending. Terraform
+   Fresh isolated installed native review/apply, healthy status and typed teardown
+   passed on this narrow disposable profile. Publication remains pending. Terraform
    deployment, HA, upgrade and failover remain unavailable. Do not bypass an
    unavailable gate with generic CLI, Terraform or Platform tools.
 5. Inventory and status without a context read cloud provisioning only. For an

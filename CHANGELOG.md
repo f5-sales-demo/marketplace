@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** exposes restricted inspection of the exact original interrupted
+  apply checkpoint and state. Inspection preserves pending state and does not
+  attest success or authorize resubmission; owning adapters must independently
+  verify the outcome before reconciliation (#1559).
+
 - **`terraform`** adds restricted applied-state identity projection bound to the
   original reviewed binary, isolated state lineage/serial and stable snapshot.
   **`gcloud`** captures exact Terraform creation ownership with independent cloud
@@ -19,8 +24,9 @@ and this project adheres to
 - **`gcloud`** adds an explicit native single-node deployment plan/apply candidate
   with server-collected prerequisites, persisted overall review, unchanged corporate
   funding/BYOL bindings and durable authorization for asynchronous resume. Completed
-  creation journal resources support partial native cleanup; fresh public installed
-  and live deployment acceptance remains pending (#1559).
+  creation journal resources support partial native cleanup. Fresh isolated installed
+  public native deployment, two healthy observations and typed teardown passed on
+  the narrow disposable profile, followed by eight independent absence checks (#1559).
 
 - **`gcloud`** binds native and Terraform billable execution to confirmed corporate
   funding and the unchanged existing billing association. The pinned BYOL product

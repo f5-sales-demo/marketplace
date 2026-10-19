@@ -1010,24 +1010,51 @@ class TerraformRunner {
     });
   }
   async readAppliedResourceFields(receipt, selections, env, signal) {
+    const { applyState: _applyState, ...projection } = await this.#readApplyStateFields(
+      receipt,
+      selections,
+      env,
+      signal,
+      ['applied'],
+    );
+    return projection;
+  }
+  async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+    return this.#readApplyStateFields(receipt, selections, env, signal, ['applying', 'applied']);
+  }
+  async readApplyCheckpoint(receipt) {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const state = await this.#verifyApplyReceipt(receipt, ['planned', 'applying', 'applied']);
+      return { schemaVersion: 1, planSha256: receipt.planSha256, state };
+    });
+  }
+  async #verifyApplyReceipt(receipt, states) {
+    const { directory, manifest } = this.#state();
+    const journal = decode((await privateRead(join2(directory, 'plan-receipt.json'))).toString());
+    const state = journal.state;
+    if (
+      !states.includes(state) ||
+      canonical(journal.receipt) !== canonical(receipt) ||
+      receipt.engine !== 'terraform' ||
+      receipt.deploymentId !== manifest.deploymentId ||
+      receipt.backendIdentity !== manifest.backendIdentity ||
+      receipt.configurationSha256 !== manifest.configurationSha256 ||
+      receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+      receipt.planSha256 !== digest(await privateRead(join2(directory, 'saved.tfplan')))
+    )
+      throw new Error(`Exact ${states.join('/')} Terraform receipt required for state identity inspection`);
+    return state;
+  }
+  async #readApplyStateFields(receipt, selections, env, signal, states) {
     validateResourceSelections(selections);
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join2(directory, 'plan-receipt.json'))).toString());
-      if (
-        journal.state !== 'applied' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
-        receipt.engine !== 'terraform' ||
-        receipt.deploymentId !== manifest.deploymentId ||
-        receipt.backendIdentity !== manifest.backendIdentity ||
-        receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest(await privateRead(join2(directory, 'saved.tfplan')))
-      )
-        throw new Error('Exact applied Terraform receipt required for state identity inspection');
+      const applyState = await this.#verifyApplyReceipt(receipt, states);
       const statePath = join2(directory, 'terraform.tfstate');
       const snapshot = await privateRead(statePath);
       const identity = decode(snapshot.toString());
@@ -1069,10 +1096,13 @@ class TerraformRunner {
       if (digest(snapshot) !== digest(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
       await this.#verifyInputs();
+      if ((await this.#verifyApplyReceipt(receipt, states)) !== applyState)
+        throw new Error('Terraform apply checkpoint changed during inspection');
       if (receipt.planSha256 !== digest(await privateRead(join2(directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during state identity inspection');
       return {
         schemaVersion: 1,
+        applyState,
         planSha256: receipt.planSha256,
         stateSha256: digest(snapshot),
         lineage: identity.lineage,
@@ -1165,6 +1195,14 @@ function createCeTerraformService(platform) {
         async readAppliedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readApplyCheckpoint(receipt) {
+          await checkOwner();
+          return runner.readApplyCheckpoint(receipt);
+        },
+        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
         },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();

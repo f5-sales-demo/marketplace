@@ -5,7 +5,9 @@ against SHA-256 `ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6b
 It declares GCP schema mappings and observational registration/interface joins,
 with single-node boot, registration and physical interface evidence for both
 engines. Public native single-node deployment has a reviewed plan/apply candidate,
-with fresh installed/live acceptance pending. Terraform deployment and broader
+with fresh isolated installed/live review, apply, healthy observations and typed
+teardown passing on the narrow disposable profile. Publication remains pending.
+Terraform deployment and broader
 lifecycle tools remain unavailable; narrow
 teardown qualification is recorded below. The readiness plan
 binds the current verified `f5xc-ce-automation-policy/v2` receipt when available;
@@ -123,3 +125,8 @@ identities and addresses outside the reviewed plan. GCP creation ownership also
 checks exact cloud identities, boot-disk retention and ordered NIC links before
 recording the durable ledger. This adapter is a deployment prerequisite; public
 Terraform deployment and interrupted creation recovery remain unavailable.
+
+Interrupted-apply inspection uses the same restricted projection and exact saved
+receipt. It returns the recorded applying/applied phase, including missing state
+resources, without marking success or submitting another apply. Owning adapters
+must persist independently verified outcome evidence before reconciliation.

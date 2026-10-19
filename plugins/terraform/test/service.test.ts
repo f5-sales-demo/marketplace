@@ -63,6 +63,10 @@ test('Terraform revalidates durable ownership before execution', async () => {
   await expect(
     session.readAppliedResourceFields?.({} as PlanReceipt, { 'terraform_data.ce': ['id'] }, {}),
   ).rejects.toThrow();
+  await expect(session.readApplyCheckpoint?.({} as PlanReceipt)).rejects.toThrow();
+  await expect(
+    session.readApplyAttemptResourceFields?.({} as PlanReceipt, { 'terraform_data.ce': ['id'] }, {}),
+  ).rejects.toThrow();
   await expect(session.readConfiguration('0'.repeat(64))).rejects.toThrow();
   await expect(
     session.readPlannedResourceFields({} as PlanReceipt, { 'terraform_data.ce': ['id'] }, {}),

@@ -3,6 +3,8 @@ import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
 import {
   type AppliedResourceProjection,
+  type ApplyAttemptResourceProjection,
+  type ApplyCheckpoint,
   type Deployment,
   type PlanReceipt,
   type TerraformActionIntent,
@@ -31,6 +33,14 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<AppliedResourceProjection>;
+  /** Restricted interrupted-attempt inspection; never permits resubmission or implies success. */
+  readApplyAttemptResourceFields?(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<ApplyAttemptResourceProjection>;
+  readApplyCheckpoint?(receipt: PlanReceipt): Promise<ApplyCheckpoint>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
     addresses: string[],
@@ -101,6 +111,14 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async readAppliedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readApplyCheckpoint(receipt) {
+          await checkOwner();
+          return runner.readApplyCheckpoint(receipt);
+        },
+        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
         },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();

@@ -64,7 +64,8 @@ an explicit Terraform choice must match the intent.
 Readiness without an explicit operation contains no executable actions. Immutable API v12.1.3 includes GCP
 schema and observational mappings with both-engine single-node boot evidence.
 Explicit `operation=deploy` provides a native single-node BYOL implementation candidate;
-fresh public installed/live acceptance remains pending. Terraform deployment,
+fresh isolated installed public review/apply, healthy status and typed teardown passed
+on the narrow disposable profile. Terraform deployment,
 upgrade and failover report unavailable before mutation.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
@@ -86,6 +87,8 @@ APIs, permissions, policy, zone, funding and documents, while allowing quota use
 the deployment itself. Cloud creation remains separate from registration, NIC
 identity, platform health and traffic. The candidate supports one node, two NICs,
 external-IP egress, no ingress and no destination routes.
+See [the public native acceptance receipt](../../receipts/gcp-public-native-deployment-20261019.md).
+Immutable marketplace publication and fresh published installation remain pending.
 
 `gcp_marketplace_agreement` reviews the pinned image's product terms. For the
 qualified BYOL image, supply the versioned intent, review the exact Google

@@ -231,6 +231,43 @@ test('applied projection preserves receipt authorization on resume and refuses s
   );
 }, 30_000);
 
+test('interrupted apply inspection binds the original attempt and observes state without resubmission', async () => {
+  const resource = {
+    address: 'terraform_data.ce',
+    type: 'terraform_data',
+    mode: 'managed',
+    values: { id: 'owned', input: 'PRIVATE_PENDING_BOOTSTRAP' },
+    sensitive_values: { input: true },
+  };
+  const { runner, root, calls } = await fixture({}, {}, undefined, undefined, {
+    values: { root_module: { resources: [resource] } },
+  });
+  const receipt = await runner.plan({});
+  expect((await runner.readApplyCheckpoint(receipt)).state).toBe('planned');
+  await expect(runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /apply/,
+  );
+  await runner.apply(receipt, {});
+  await writeFile(join(root, 'ce-test', 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), {
+    mode: 0o600,
+  });
+  expect((await runner.readApplyCheckpoint(receipt)).state).toBe('applying');
+  const observed = await runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {});
+  expect(observed.applyState).toBe('applying');
+  expect(JSON.stringify(observed)).not.toContain('PRIVATE_PENDING_BOOTSTRAP');
+  await expect(runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['input'] }, {})).rejects.toThrow(
+    /sensitive/,
+  );
+  expect(observed.resources['terraform_data.ce']).toEqual({ id: 'owned' });
+  await expect(runner.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /applied/,
+  );
+  await expect(runner.readApplyCheckpoint({ ...receipt, planSha256: '0'.repeat(64) })).rejects.toThrow(/receipt/);
+  expect(calls.filter((call) => call.args[0] === 'apply')).toHaveLength(1);
+  await runner.reconcileApplyFromEvidence(receipt, hash('independently-verified-outcome'));
+  expect((await runner.readApplyCheckpoint(receipt)).state).toBe('applied');
+}, 30_000);
+
 test('projects resource IDs privately from the exact saved plan and rejects sensitive IDs', async () => {
   const resource = {
     address: 'aws_instance.ce',
