@@ -160,8 +160,9 @@ lifecycle gates remain independent in the canonical tracker. Parent issues #1591
 
 All owned fixture, live and five interactive capture panes have shut down and
 closed normally; the unrelated working pane remains. Private captures and
-historical failed cohorts are retained. Qualification and packaging delivery
-worktrees remain until their respective PRs merge.
+historical failed cohorts are retained. The four completed qualification and
+packaging delivery worktrees and their confirmed-merged branches are retired. The dependency cache was moved outside
+the worktrees before removal; unrelated checkouts remain preserved.
 
 The six tools' capture/default/layout/fidelity/expansion/installed-example gates
 are supported by this receipt. Full empty/unavailable/partial/failed matrices
@@ -183,3 +184,20 @@ read-only examples. The canonical tracker preserves exact next actions.
 | runtime-23.9.2/interactive-final-integrity.json | `910010f0febcf86ed53af8269e5a86c52b927507c135c5e00b5e1f8d404dcc91` |
 | runtime-23.9.2/npm-artifact-verification.json | `1fda28e209930a7a4016ede45dcbad45e65324c594c795f85fd9ff6e9cffdfd2` |
 | runtime-23.9.2/npm-installed-module-acceptance.json | `aa342e1ecde0399614446222f4c749d443eb968e9ebc322764f26f952bacf074` |
+
+## Delivery closure
+
+The qualification receipt merged through green CI in marketplace PR #1647,
+commit `a1e02aa55b663ff5f7defea23ba2bffa03bc49fe`. The future npm packaging
+repair merged through its required green CI gates in xcsh PR #5035, commit
+`827b20c867420044f4fb3df5c6fe393b4e9c7595`. Its real packer regression
+passed after failing before the fix; the coding-agent suite passed 10299 tests
+with 563 skips and zero failures. Full workspace type/lint, staged PII and
+tracked-shell checks passed with the required toolchain.
+
+Retired only the completed acceptance branches for #1624/#1645 and runtime
+repair branches for #5031/#5034 after verifying their PRs were merged. Private
+captures, interrupted cohorts and the acceptance dependency cache remain
+retained. All owned capture panes are already closed. Parent issues #1591
+and #1624 remain open for independent Salesforce gates. The cleanup receipt
+branch is retired after its own green merge.
