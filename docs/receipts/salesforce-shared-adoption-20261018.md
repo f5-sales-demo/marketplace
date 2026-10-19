@@ -88,10 +88,95 @@ stubs. These Mac failures are retained, not presented as passing Mac suite evide
 The privacy enforcement check is clean. The final Account column label uses the
 existing domain label map; all 325 targeted tests still pass.
 
-## Remaining delivery gates
+## Historical pending gates (before publication)
 
 Final-source Ubuntu verification, green plugin CI/merge, immutable 2.3.12
 publication, matching plugin installations, and fresh Mac native fixture/read-only
 service acceptance remain pending. Ubuntu and NUC perform no Salesforce service
 probes. Raw native captures remain private; sanitized findings and provenance
 will be appended after those gates run.
+
+## Immutable plugin and installed provenance
+
+PR [#1619](https://github.com/f5-sales-demo/marketplace/pull/1619) merged with
+green plugin, manifest, security and lint checks. Delivered source and immutable
+`salesforce/v2.3.12` tag resolve to `6baa863dd26919ba8e2e906bc716d23de6e06f1a`.
+Downloaded source archive SHA-256:
+`624664ad5b71cdfd871f73995c3ae3874cc9c9c22b6533340eb9d1f1e8b41d77`.
+Release immutability was enabled and the existing release republished at the same
+tag. No source or tag bytes changed. Both releases report immutable publication.
+
+Both Mac and Ubuntu installations report runtime 23.8.0 and Salesforce 2.3.12.
+All 100 installed plugin files on each host match the tag's Git blobs. The Mac
+resolves the published Caskroom binary; Ubuntu resolves its atomically installed
+local-bin binary. Their digests are recorded above. Mac module acceptance reports
+ready and passes read-only `sf_org_display`; setup was never executed. Ubuntu
+module review performed no service probe or setup. Source/CI, publication,
+installation and service evidence remain separate gates.
+
+## Published MacBook native acceptance
+
+Private evidence identifier: `salesforce-2.3.12-shared-20261018`.
+Original frames, inspection journals, manifests, argv reconstruction and Herdr
+viewport evidence remain in its `fixture` and `live` directories. No raw service
+output, identity data or credentials are published here.
+
+The actual published runtime 23.8.0 and installed Salesforce 2.3.12 produced:
+
+| Run | Cases | Inspected frames | Failures | Pipeline execution repaints | Post-completion repaints |
+| --- | --- | --- | --- | --- | --- |
+| Fixture | 13 | 780 | 0 | 7 | 0 |
+| Read-only live | 6 | 360 | 0 | 321 | 0 |
+
+Both runs cover 40/76/120/153 columns plus the original 150-column startup
+viewport, collapsed/expanded, both themes and Unicode/ASCII/Nerd. Fresh native
+geometry confirms the task-owned terminal lease allocated 160 columns. Every
+inspected frame fits that allocation. All 1,140 frame SHA-256 values match their
+inspection journal. Frames were inspected individually; Herdr viewport evidence
+remains a separate tier.
+
+All six live tools succeed: `sf_exec`, `sf_query`, `sf_describe`, `sf_org_display`,
+`sf_help` and `sf_pipeline_report`. Fixtures additionally exercise empty,
+unavailable, partial, failed, monetary, zero, literal and exact-command cases.
+Bash and Zsh reconstruct rendered commands against declared argv with a private
+recorder, preserving filters and scope. Real shared-component regressions cover
+full fields, single safe evidence, completion cues and fallback warnings.
+Source progress tests cover cancellation, shutdown, context replacement and late
+updates. Installed runs establish progress and completion only.
+
+Both capture sessions acknowledged stop through completed manifests, terminal
+control leases exited and task-owned fixture/live panes were closed. The root
+pane and unrelated sessions remain. Long capture environments now use owner-only
+launch scripts. The driver requires fresh same-installation geometry evidence
+and rejects insufficient allocation. Five standalone Python capture tests pass,
+including command reconstruction and geometry/provenance rejection.
+
+## Remaining surface gates
+
+The shared-renderer adoption and automated published Mac acceptance are qualified.
+[#1591](https://github.com/f5-sales-demo/marketplace/issues/1591) remains open for
+other registered lifecycle, command, skill and agent surfaces. Their next action
+is a safe executed example with installed evidence for each canonical ID.
+Expanded native buffers establish full output; terminal viewport scrolling still
+requires its own observation. Installed cancellation/context-replacement checks
+remain separate from source teardown tests. Herdr/ANSI evidence does not establish
+desktop-font raster fidelity or model tool selection. Neither Ubuntu nor NUC
+performed Salesforce service probes or authentication repair.
+
+Task worktree cleanup remains separate until adoption and receipt worktrees are
+retired after merge. Historical receipts and private captures remain preserved.
+
+## Acceptance follow-up delivery and cleanup
+
+Acceptance/capture reliability PR [#1621](https://github.com/f5-sales-demo/marketplace/pull/1621)
+merged as `36513f6aca96faf208abf5d0db33c9cdfb476c5b` with green plugin suites,
+manifest, security, shell, prose, Markdown and Python gates. The source/plugin
+provenance for installed acceptance remains `6baa863dd26919ba8e2e906bc716d23de6e06f1a`,
+Salesforce 2.3.12 and runtime 23.8.0.
+
+Task-owned adoption, release and acceptance worktrees and branches have been
+retired on both hosts after ignored-file inspection. Private recovery bundles,
+capture evidence and original receipts remain preserved. Fixture/live panes and
+terminal leases are closed; root and unrelated workspaces are untouched.
+The final cleanup bookkeeping worktrees are removed after this follow-up merges.
+No fleet-managed files changed, so no downstream propagation is required.
