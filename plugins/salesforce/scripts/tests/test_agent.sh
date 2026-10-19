@@ -25,14 +25,20 @@ test_agent_response_format() {
   }
 }
 
-# T2.11 — agent references --json flag
+# T2.11 — structured CLI output stays explicit without exposing raw org credentials
 test_agent_json_flag() {
-  local count
-  count=$(grep -c '\-\-json' "$AGENT_FILE")
-  [ "$count" -ge 3 ] || {
-    echo "expected >=3 references to --json, found $count"
+  grep -q 'sf org list metadata-types .*--json' "$AGENT_FILE" || {
+    echo "metadata listing must request structured JSON output"
     return 1
   }
+  grep -q 'Org info.*sf_org_display' "$AGENT_FILE" || {
+    echo "org information must use the credential-filtered native tool"
+    return 1
+  }
+  if grep -E '^\|.*`sf org (display|list --json)' "$AGENT_FILE"; then
+    echo "org-status command examples must not expose raw CLI JSON"
+    return 1
+  fi
 }
 
 # T2.12 — agent has all 4 error recovery patterns
