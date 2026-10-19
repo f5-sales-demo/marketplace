@@ -4,8 +4,10 @@ Current status: discovery/readiness, owned observations and narrow typed teardow
 Native public single-node deployment plan/apply passed fresh isolated installed
 and live acceptance on the narrow disposable profile, including two consecutive
 healthy observations, typed teardown without fallback and eight independent
-absence checks. Immutable publication remains pending. Terraform deployment,
-upgrades, repair, replacement, failover, full interruption recovery,
+absence checks. Immutable plugin publication remains pending. Public Terraform
+deployment is a saved-plan candidate with a published, installed-qualified provider
+and packaged lock; public cloud campaigns remain pending Google reauthentication.
+Upgrades, repair, replacement, failover, full interruption recovery,
 restoration remain unavailable through public tools. Terraform teardown has a
 qualified owning-engine plan/apply path for the same narrow disposable profile.
 Full parity is unclaimed.

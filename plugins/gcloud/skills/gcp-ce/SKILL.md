@@ -55,8 +55,12 @@ Read [provider contract](references/provider-contract.md) before planning and
    and unchanged intent to `gcp_ce_apply` with `operation=deploy`. Resume with the
    same hash; cloud creation does not establish registration, health or traffic.
    Fresh isolated installed native review/apply, healthy status and typed teardown
-   passed on this narrow disposable profile. Publication remains pending. Terraform
-   deployment, HA, upgrade and failover remain unavailable. Do not bypass an
+   passed on this narrow disposable profile. Publication remains pending. Explicit
+   Terraform deployment has a candidate using XC v15.13.0 and a packaged verified
+   lock. Its public cloud campaigns remain pending Google reauthentication.
+   Use the same exact review hash for recovery; consumed applies are inspected
+   without replay. Verified partial ownership requires a separate delete-only
+   cleanup review. HA, upgrade and failover remain unavailable. Do not bypass an
    unavailable gate with generic CLI, Terraform or Platform tools.
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
