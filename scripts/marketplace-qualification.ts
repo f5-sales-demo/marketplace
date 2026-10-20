@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -8,6 +9,12 @@ export interface Scenario {
   guidance: string[];
   guidanceOptions?: { sel?: ''; timeout?: number }[];
   commands?: { name: string; args: string }[];
+  shellCalls?: {
+    path: string;
+    section: string;
+    sha256: string;
+    args: { command: string; env: Record<string, string>; timeout: number };
+  }[];
 }
 export const pluginOrder = [
   'aws',
@@ -50,7 +57,7 @@ export function qualificationCatalog(root: string) {
     const pkg = existsSync(packagePath) ? JSON.parse(readFileSync(packagePath, 'utf8')) : {};
     const entrypoints: string[] = manifest.extensions ?? pkg.xcsh?.extensions ?? [];
     for (const path of entrypoints) resolveShippedPath(base, path);
-    const surfaces = [...new Set([...tracker.matchAll(new RegExp('`(' + name + '\\.[^`]+)`', 'g'))].map((m) => m[1]))];
+    const surfaces = [...new Set([...tracker.matchAll(new RegExp(`\`(${name}\\.[^\`]+)\``, 'g'))].map((m) => m[1]))];
     return {
       name,
       source: item.source,
@@ -87,7 +94,7 @@ export function resolveShippedPath(root: string, path: string) {
   const candidate = resolve(base, path);
   const inside = (value: string) => {
     const rel = relative(base, value);
-    return rel && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
+    return rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
   };
   if (!inside(candidate)) throw new Error('Shipped path is outside selected plugin');
   const actual = realpathSync(candidate);
@@ -102,7 +109,7 @@ export function validateScenario(value: any): Scenario {
     !/^[\w.-]+$/.test(value.id) ||
     !Array.isArray(value.calls) ||
     !Array.isArray(value.guidance) ||
-    (!value.calls.length && !value.guidance.length)
+    (!value.calls.length && !value.guidance.length && !value.shellCalls?.length)
   )
     throw new Error('Scenario requires a safe ID and explicit calls or guidance');
   for (const call of value.calls) {
@@ -158,12 +165,122 @@ export function validateScenario(value: any): Scenario {
       ))
   )
     throw new Error('Scenario commands require exact names and arguments');
+  if (value.shellCalls !== undefined) {
+    const rules = value.shellCalls;
+    const object = (item: any) => item && typeof item === 'object' && !Array.isArray(item);
+    if (
+      !Array.isArray(rules) ||
+      !rules.length ||
+      rules.some(
+        (rule: any) =>
+          !object(rule) ||
+          Object.keys(rule).some((key) => !['path', 'section', 'sha256', 'args'].includes(key)) ||
+          typeof rule.path !== 'string' ||
+          !rule.path ||
+          isAbsolute(rule.path) ||
+          rule.path.includes('\\') ||
+          rule.path.includes('\x00') ||
+          rule.path.split('/').includes('..') ||
+          typeof rule.section !== 'string' ||
+          !rule.section.trim() ||
+          ['\r', '\n', '\x00'].some((character) => rule.section.includes(character)) ||
+          !/^[a-f0-9]{64}$/.test(rule.sha256) ||
+          !object(rule.args) ||
+          Object.keys(rule.args).some((key) => !['command', 'env', 'timeout'].includes(key)) ||
+          typeof rule.args.command !== 'string' ||
+          !rule.args.command ||
+          rule.args.command.includes('\x00') ||
+          !object(rule.args.env) ||
+          Object.entries(rule.args.env).some(
+            ([name, value]) =>
+              !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || typeof value !== 'string' || value.includes('\x00'),
+          ) ||
+          !Number.isFinite(rule.args.timeout) ||
+          rule.args.timeout <= 0 ||
+          rule.args.timeout > 120 ||
+          createHash('sha256').update(rule.args.command).digest('hex') !== rule.sha256,
+      ) ||
+      rules.some((rule: any, index: number) =>
+        rules
+          .slice(0, index)
+          .some(
+            (previous: any) =>
+              isDeepStrictEqual(previous.args, rule.args) ||
+              (previous.path === rule.path && previous.section === rule.section),
+          ),
+      )
+    )
+      throw new Error(
+        'Scenario shell calls require distinct exact shipped scripts, digests, environments and bounded timeouts',
+      );
+  }
   return value;
+}
+
+/** Strict Markdown subset: one named section containing exactly one Bash fence. */
+export function validateScenarioSources(scenario: Scenario, plugin: string) {
+  for (const rule of scenario.shellCalls ?? []) {
+    const source = readFileSync(resolveShippedPath(plugin, rule.path), 'utf8');
+    const lines = source.split('\n');
+    const blocks: string[] = [];
+    let fence: string | undefined;
+    let selected = false;
+    let level = 0;
+    let matches = 0;
+    let body: string[] | undefined;
+    for (const line of lines) {
+      const marker = /^(`{3,}|~{3,})(.*)$/.exec(line);
+      if (fence) {
+        if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) {
+          if (body) blocks.push(`${body.join('\n')}\n`);
+          body = undefined;
+          fence = undefined;
+        } else if (body) body.push(line);
+        continue;
+      }
+      if (marker) {
+        fence = marker[1];
+        // A Bash-looking fence inside another fence is literal prose, never executable source.
+        if (selected && line === '```bash') body = [];
+        continue;
+      }
+      const heading = /^(#{1,6}) (.+)$/.exec(line);
+      if (heading) {
+        if (selected && heading[1].length <= level) selected = false;
+        if (heading[2] === rule.section) {
+          matches++;
+          selected = true;
+          level = heading[1].length;
+        }
+      }
+    }
+    if (
+      fence ||
+      matches !== 1 ||
+      blocks.length !== 1 ||
+      blocks[0] !== rule.args.command ||
+      createHash('sha256').update(blocks[0]).digest('hex') !== rule.sha256
+    )
+      throw new Error('Shipped shell section is missing, ambiguous or changed');
+  }
 }
 
 /** No semantic read-only guessing: only the independently reviewed exact scenario is admitted. */
 export function guardScenarioTool(event: any, scenario: Scenario, plugin: string) {
   const input = event.input;
+  if (event.toolName === 'bash') {
+    try {
+      validateScenario(scenario);
+      validateScenarioSources(scenario, plugin);
+      if (scenario.shellCalls?.some((rule) => isDeepStrictEqual(rule.args, input))) return;
+    } catch {
+      /* A changed or escaped source must fail closed at dispatch. */
+    }
+    return {
+      block: true,
+      reason: 'Acceptance permits only exact reviewed shipped shell scripts and arguments.',
+    };
+  }
   const allowed =
     event.toolName === 'read'
       ? input &&
@@ -207,7 +324,7 @@ export function assertPrivateCaptureRoot(root: string) {
 
 export function validateCaptureIdentity(frame: any, control: any, provenance: any) {
   for (const key of ['id', 'case', 'width', 'expanded', 'theme', 'preset'])
-    if (frame[key] !== control[key]) throw new Error('Capture identity mismatch: ' + key);
+    if (frame[key] !== control[key]) throw new Error(`Capture identity mismatch: ${key}`);
   for (const key of [
     'binary',
     'runtimeVersion',
@@ -218,7 +335,7 @@ export function validateCaptureIdentity(frame: any, control: any, provenance: an
     'scenarioSha256',
     'evidenceTier',
   ])
-    if (!provenance[key] || frame[key] !== provenance[key]) throw new Error('Capture identity mismatch: ' + key);
+    if (!provenance[key] || frame[key] !== provenance[key]) throw new Error(`Capture identity mismatch: ${key}`);
 }
 
 if (import.meta.main) console.log(JSON.stringify(qualificationCatalog(resolve(import.meta.dir, '..')), null, 2));

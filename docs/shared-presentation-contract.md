@@ -131,6 +131,21 @@ The installed registry must agree with the selected path and manifest version;
 Review those rules against the plugin's execution semantics:
 an allowlist is a restriction, not authorization for a mutation.
 
+Content collectors may opt into `shellCalls`. Each rule supplies a shipped relative
+`path`, exact Markdown `section` heading, lowercase `sha256` of the complete Bash
+fence body (including its final newline), and exact `args` containing only
+`command`, string-valued `env` and `timeout` (greater than zero and at most 120
+seconds). The selected section must contain one unambiguous Bash fence matching
+both command and digest. Paths cannot escape the installation. Startup verifies
+the source; dispatch rechecks it and denies changed, missing or ambiguous content.
+Every argument and environment value must match the reviewed rule. Review targets
+and execution semantics independently before supplying a scenario. This lane does
+not infer command safety. Generic `calls` still cannot admit Bash, file writes or
+task/subagent delegation; nested guard propagation remains a separate prerequisite.
+Fixture mode denies Bash even when a matching shell rule exists. Service and
+guidance modes retain its actual full result and capture it with the published
+runtime's built-in `ToolExecutionComponent`.
+
 Service mode observes normal runtime dispatch, tool selection, actual full
 results, reviewed command dispatch, plugin messages and UI dispatch, lifecycle
 callback returns, model context types and assistant

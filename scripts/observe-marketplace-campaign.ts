@@ -10,6 +10,7 @@ import {
   resolveShippedPath,
   selectInstalledPlugin,
   validateScenario,
+  validateScenarioSources,
 } from './marketplace-qualification';
 
 // A read-only observer of the published runtime. It does not manually dispatch lifecycle handlers.
@@ -31,10 +32,17 @@ export default async function observeMarketplaceCampaign(api: any) {
   mkdirSync(root, { recursive: true, mode: 0o700 });
   assertPrivateCaptureRoot(root);
   const scenario = validateScenario(JSON.parse(readFileSync(scenarioPath, 'utf8')));
+  validateScenarioSources(scenario, plugin);
   const guidance = scenario.guidance.map((path) => resolveShippedPath(plugin, path));
-  const activeTools = [...new Set([...scenario.calls.map((call) => call.tool), ...(guidance.length ? ['read'] : [])])];
+  const activeTools = [
+    ...new Set([
+      ...scenario.calls.map((call) => call.tool),
+      ...(guidance.length ? ['read'] : []),
+      ...(scenario.shellCalls?.length ? ['bash'] : []),
+    ]),
+  ];
   const record = (value: any) =>
-    appendFileSync(join(root, 'events.jsonl'), JSON.stringify({ time: Date.now(), ...value }) + '\n', { mode: 0o600 });
+    appendFileSync(join(root, 'events.jsonl'), `${JSON.stringify({ time: Date.now(), ...value })}\n`, { mode: 0o600 });
   const manifest = JSON.parse(readFileSync(join(plugin, '.xcsh-plugin/plugin.json'), 'utf8'));
   if (manifest.name !== selectedName || !manifest.version) throw new Error('Installed manifest identity mismatch');
   const registryPath =
@@ -177,7 +185,11 @@ export default async function observeMarketplaceCampaign(api: any) {
   api.on('tool_execution_end', (event: any) => {
     record({ event: 'execution_result', toolName: event.toolName, result: event.result, isError: event.isError });
     const start = executions.get(event.toolCallId);
-    if (start && tools.has(event.toolName))
+    if (
+      start &&
+      (tools.has(event.toolName) ||
+        (event.toolName === 'bash' && !guardScenarioTool({ toolName: 'bash', input: start.args }, scenario, plugin)))
+    )
       captures.push({
         id: `tool-${captures.length}-${event.toolName}`,
         tool: event.toolName,
@@ -315,7 +327,7 @@ export default async function observeMarketplaceCampaign(api: any) {
             const offset = Math.min(Math.max(0, control.scroll ?? 0), Math.max(0, rendered.length - capacity));
             lines = rendered.slice(offset, offset + capacity);
             writeFileSync(
-              join(root, 'frames', control.id + '.json'),
+              join(root, 'frames', `${control.id}.json`),
               JSON.stringify({
                 ...control,
                 tool: item.tool,
