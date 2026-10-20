@@ -1,6 +1,10 @@
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { promisify } from 'node:util';
+
+const execute = promisify(execFile);
 
 interface Claim {
   schemaVersion: 1;
@@ -14,12 +18,55 @@ const tokenPattern = /^[a-f0-9-]{36}$/;
 const bootPattern = /^[a-f0-9-]{36}$/;
 
 async function bootId(): Promise<string> {
-  const value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  const value =
+    process.platform === 'linux'
+      ? (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim()
+      : process.platform === 'darwin'
+        ? (await execute('/usr/sbin/sysctl', ['-n', 'kern.bootsessionuuid'])).stdout.trim().toLowerCase()
+        : '';
+
   if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
   return value;
 }
 
 async function processStartTicks(pid: number): Promise<string | undefined> {
+  if (process.platform === 'darwin') {
+    let value: string;
+    try {
+      value = (
+        await execute('/bin/ps', ['-p', String(pid), '-o', 'lstart='], {
+          env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
+        })
+      ).stdout.trim();
+    } catch (error) {
+      // A failed process query proves absence only with an independent ESRCH observation.
+      if ((error as { code?: unknown }).code !== 1) throw error;
+      try {
+        process.kill(pid, 0);
+      } catch (probe) {
+        if ((probe as NodeJS.ErrnoException).code === 'ESRCH') return undefined;
+        throw probe;
+      }
+      throw new Error('Process identity is unavailable');
+    }
+    const match = /^[A-Z][a-z]{2} ([A-Z][a-z]{2}) +([0-9]{1,2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([0-9]{4})$/.exec(
+      value,
+    );
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (!match || !months.includes(match[1])) throw new Error('Malformed process identity');
+    const timestamp = Date.UTC(
+      Number(match[6]),
+      months.indexOf(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+    );
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error('Malformed process identity');
+    // Equal starts, including conservative same-second PID reuse, always retain the live claim.
+    return String(timestamp / 1000);
+  }
+  if (process.platform !== 'linux') throw new Error('Process identity platform is unsupported');
   try {
     const value = await readFile(`/proc/${pid}/stat`, 'utf8');
     const end = value.lastIndexOf(') ');
@@ -87,7 +134,7 @@ async function readClaim(path: string): Promise<Claim> {
 }
 
 /**
- * Acquire an atomic process-bound lock. A claim is reclaimed only when Linux boot/process-start
+ * Acquire an atomic process-bound lock. A claim is reclaimed only when boot/process-start
  * evidence proves that its owner no longer exists, so PID reuse cannot authorize removal.
  */
 export async function acquireProcessLock(path: string): Promise<() => Promise<void>> {

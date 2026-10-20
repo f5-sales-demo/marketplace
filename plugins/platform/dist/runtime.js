@@ -430,6 +430,7 @@ function bindAwsCloudInit(response, jwt) {
 var init_bootstrap = () => {};
 
 // src/ce/process-lock.ts
+import { execFile } from 'node:child_process';
 import { randomUUID as randomUUID2 } from 'node:crypto';
 import {
   lstat as lstat2,
@@ -440,13 +441,54 @@ import {
   writeFile as writeFile2,
 } from 'node:fs/promises';
 import { basename, dirname, join as join2 } from 'node:path';
+import { promisify } from 'node:util';
 
 async function bootId() {
-  const value = (await readFile2('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  const value =
+    process.platform === 'linux'
+      ? (await readFile2('/proc/sys/kernel/random/boot_id', 'utf8')).trim()
+      : process.platform === 'darwin'
+        ? (await execute('/usr/sbin/sysctl', ['-n', 'kern.bootsessionuuid'])).stdout.trim().toLowerCase()
+        : '';
   if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
   return value;
 }
 async function processStartTicks(pid) {
+  if (process.platform === 'darwin') {
+    let value;
+    try {
+      value = (
+        await execute('/bin/ps', ['-p', String(pid), '-o', 'lstart='], {
+          env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
+        })
+      ).stdout.trim();
+    } catch (error) {
+      if (error.code !== 1) throw error;
+      try {
+        process.kill(pid, 0);
+      } catch (probe) {
+        if (probe.code === 'ESRCH') return;
+        throw probe;
+      }
+      throw new Error('Process identity is unavailable');
+    }
+    const match = /^[A-Z][a-z]{2} ([A-Z][a-z]{2}) +([0-9]{1,2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([0-9]{4})$/.exec(
+      value,
+    );
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (!match || !months.includes(match[1])) throw new Error('Malformed process identity');
+    const timestamp = Date.UTC(
+      Number(match[6]),
+      months.indexOf(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+    );
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error('Malformed process identity');
+    return String(timestamp / 1000);
+  }
+  if (process.platform !== 'linux') throw new Error('Process identity platform is unsupported');
   try {
     const value = await readFile2(`/proc/${pid}/stat`, 'utf8');
     const end = value.lastIndexOf(') ');
@@ -559,8 +601,9 @@ async function acquireProcessLock(path) {
   }
   throw new Error('Operation lock could not be acquired');
 }
-var tokenPattern, bootPattern;
+var execute, tokenPattern, bootPattern;
 var init_process_lock = __esm(() => {
+  execute = promisify(execFile);
   tokenPattern = /^[a-f0-9-]{36}$/;
   bootPattern = /^[a-f0-9-]{36}$/;
 });

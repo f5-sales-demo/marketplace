@@ -70,22 +70,25 @@ for (const mode of ['missing', 'foreign-owner', 'drift', 'forged', 'unavailable'
     await expect(loadAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api, c.signal)).rejects.toThrow();
   });
 
-for (const mode of ['account','partition','duplicate','operational-down','mid-read-drift'] as const)
- test(`fresh brownfield observation rejects ${mode}`,async()=>{
-  const f=fixture();await prepareAwsTerraformBrownfieldBinding(f.plan,f.storage,f.api);
-  const exec=f.api.exec;let reads=0;
-  f.api.exec=async(command,args)=>{
-   expect(args.slice(-2)).toEqual(['--profile','ce-profile']);
-   const response=await exec(command,args);const value=JSON.parse(response.stdout);
-   if(args[0]==='sts'){
-    if(mode==='account')value.Account='000000000000';
-    if(mode==='partition')value.Arn='arn:aws-cn:iam::123456789012:role/example-role';
-   }else if(args[1]==='describe-vpcs'){
-    if(mode==='duplicate')value.Vpcs.push(structuredClone(value.Vpcs[0]));
-    if(mode==='operational-down')value.Vpcs[0].State='pending';
-    if(mode==='mid-read-drift' && ++reads===2)value.Vpcs[0].CidrBlock='10.9.0.0/16';
-   }
-   return {...response,stdout:JSON.stringify(value)};
-  };
-  await expect(loadAwsTerraformBrownfieldBinding(f.plan,f.storage,f.api)).rejects.toThrow();
- });
+for (const mode of ['account', 'partition', 'duplicate', 'operational-down', 'mid-read-drift'] as const)
+  test(`fresh brownfield observation rejects ${mode}`, async () => {
+    const f = fixture();
+    await prepareAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api);
+    const exec = f.api.exec;
+    let reads = 0;
+    f.api.exec = async (command, args) => {
+      expect(args.slice(-2)).toEqual(['--profile', 'ce-profile']);
+      const response = await exec(command, args);
+      const value = JSON.parse(response.stdout);
+      if (args[0] === 'sts') {
+        if (mode === 'account') value.Account = '000000000000';
+        if (mode === 'partition') value.Arn = 'arn:aws-cn:iam::123456789012:role/example-role';
+      } else if (args[1] === 'describe-vpcs') {
+        if (mode === 'duplicate') value.Vpcs.push(structuredClone(value.Vpcs[0]));
+        if (mode === 'operational-down') value.Vpcs[0].State = 'pending';
+        if (mode === 'mid-read-drift' && ++reads === 2) value.Vpcs[0].CidrBlock = '10.9.0.0/16';
+      }
+      return { ...response, stdout: JSON.stringify(value) };
+    };
+    await expect(loadAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api)).rejects.toThrow();
+  });
