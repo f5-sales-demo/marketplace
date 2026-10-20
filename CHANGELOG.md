@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`herdr`** v1.3.1 preserves installation evidence and reports degraded runtime status when the server returns malformed or non-object JSON (#1599).
+- **`herdr`** v1.3.2 preserves installation evidence and reports degraded runtime status when the server returns malformed or non-object JSON (#1599).
 
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 

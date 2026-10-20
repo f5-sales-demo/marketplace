@@ -12,8 +12,8 @@ import {
 } from '../extensions/integration';
 
 const sha = '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394';
-const binaryPath = '/home/test/.local/bin/herdr';
-const receiptPath = '/home/test/.local/state/xcsh/herdr/setup-receipt.json';
+const binaryPath = '/home/example/.local/bin/herdr';
+const receiptPath = '/home/example/.local/state/xcsh/herdr/setup-receipt.json';
 const receipt: HerdrReceipt = {
   schema_version: 1,
   plugin_version: PLUGIN_VERSION,
@@ -43,7 +43,7 @@ function dependencies(overrides: Partial<ProbeDependencies> = {}): ProbeDependen
   return {
     platform: 'linux',
     arch: 'x64',
-    homeDir: '/home/test',
+    homeDir: '/home/example',
     env: { PATH: '/usr/bin' },
     exists: (path) => path === binaryPath || path === receiptPath,
     readText: () => JSON.stringify(receipt),
@@ -153,7 +153,7 @@ describe('Herdr installation, context, and runtime probes', () => {
         runtime: { state: 'unpaired' },
       },
     });
-    expect(env.PATH?.split(':')[0]).toBe('/home/test/.local/bin');
+    expect(env.PATH?.split(':')[0]).toBe('/home/example/.local/bin');
   });
 
   it('distinguishes tampered, stale-receipt, and self-updated installations', () => {
@@ -289,8 +289,8 @@ describe('Herdr installation, context, and runtime probes', () => {
 
 describe('PATH reconciliation', () => {
   it('prepends one normalized install entry and preserves unrelated entries', () => {
-    expect(reconcilePath('/usr/bin:/home/test/.local/bin:/opt/bin', '/home/test/.local/bin', ':')).toEqual({
-      value: '/home/test/.local/bin:/usr/bin:/opt/bin',
+    expect(reconcilePath('/usr/bin:/home/example/.local/bin:/opt/bin', '/home/example/.local/bin', ':')).toEqual({
+      value: '/home/example/.local/bin:/usr/bin:/opt/bin',
       changed: true,
       visibleBefore: true,
     });
