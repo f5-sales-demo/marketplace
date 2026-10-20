@@ -77,6 +77,23 @@ def capture_page(
     }
 
 
+def terminal_geometry(
+    root: Path, ready: dict, geometry_frame: str | None
+) -> tuple[int, int]:
+    """Bind scrolling to readiness or explicit fresh same-installation evidence."""
+    columns = driver.terminal_allocation(
+        root, ready, geometry_frame, [ready["terminalColumns"]]
+    )
+    evidence = ready
+    if geometry_frame:
+        evidence = json.loads((root / "frames" / geometry_frame).read_text())
+    height = evidence.get("terminalRows")
+    if type(height) is not int or height < 1:
+        message = "Terminal height missing or invalid; supply a fresh --geometry-frame"
+        raise ValueError(message)
+    return columns, height
+
+
 def main() -> None:
     """Capture every page and compare each observation against the native frame."""
     parser = argparse.ArgumentParser()
@@ -84,10 +101,11 @@ def main() -> None:
     parser.add_argument("--pane", required=True)
     parser.add_argument("--all-cases", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--geometry-frame", help="Fresh native geometry frame filename")
     args = parser.parse_args()
     root = args.root.resolve()
     ready = json.loads((root / "ready.json").read_text())
-    geometry = (ready["terminalColumns"], ready["terminalRows"])
+    geometry = terminal_geometry(root, ready, args.geometry_frame)
     cases = json.loads((root / "cases.json").read_text())
     previous = []
     if args.resume and (root / "surface-inspection.jsonl").exists():

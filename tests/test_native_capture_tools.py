@@ -188,6 +188,47 @@ class NativeCaptureChecks(unittest.TestCase):
                     == payload
                 )
 
+    def test_scroll_geometry_requires_height_and_fresh_provenance(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_readiness", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "frames").mkdir()
+            ready = {
+                "runtimeVersion": "23.9.3",
+                "pluginVersion": "2.3.15",
+                "binary": "/synthetic/xcsh",
+                "terminalColumns": 157,
+            }
+            (root / "ready.json").write_text(json.dumps(ready))
+            (root / "manifest.json").write_text(json.dumps(ready))
+            with self.assertRaisesRegex(ValueError, "height"):
+                surface.terminal_geometry(root, ready, None)
+            assert surface.terminal_geometry(
+                root, {**ready, "terminalRows": 49}, None
+            ) == (157, 49)
+            path = root / "frames/geometry.json"
+            frame = {**ready, "terminalRows": 49}
+            path.write_text(json.dumps(frame))
+            assert surface.terminal_geometry(root, ready, "geometry.json") == (157, 49)
+            for field in ["runtimeVersion", "pluginVersion", "binary"]:
+                path.write_text(json.dumps({**frame, field: "wrong"}))
+                with self.assertRaises(ValueError):
+                    surface.terminal_geometry(root, ready, "geometry.json")
+            for height in [None, 0, -1, True, "49"]:
+                path.write_text(json.dumps({**frame, "terminalRows": height}))
+                with self.assertRaisesRegex(ValueError, "height"):
+                    surface.terminal_geometry(root, ready, "geometry.json")
+            path.write_text(json.dumps(frame))
+            os.utime(path, (1, 1))
+            with self.assertRaises(ValueError):
+                surface.terminal_geometry(root, ready, "geometry.json")
+
     def test_scroll_geometry_change_cannot_pass_as_stable_acceptance(self):
         surface_spec = importlib.util.spec_from_file_location(
             "surface_geometry", MODULE.with_name("drive-salesforce-surface-capture.py")

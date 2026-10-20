@@ -315,6 +315,7 @@ export default async function captureSalesforce(api: any) {
           pluginVersion,
           binary: process.execPath,
           terminalColumns: process.stdout.columns,
+          terminalRows: process.stdout.rows,
           tools: [...tools.keys()],
         }),
       );
