@@ -97,6 +97,31 @@ configured pre-commit hooks including textlint and secrets detection, and staged
 PII enforce/audit checks passed. An initial Biome formatting failure was corrected
 and retained privately.
 
+The isolated full Mac runner reached all plugins and failed in KVM, Xorg and
+Zoom. KVM initially used an incorrect Python dependency path; its independent
+rerun with the actual Python 3.15 dependency directory passed all seven shell
+checks and the Python cases. The original full-run failure remains preserved and
+the full suite is not claimed green. Xorg's Mac fixture assumes `gsettings`;
+Zoom's fixtures encounter Ubuntu platform guards and Mac temporary-path
+canonicalization differences. Those failures require focused follow-up and Ubuntu
+verification. The hermetic suite passed 354 tests and 2,394 assertions, with no
+plugin test requiring a real cloud CLI.
+
+At the declared minimum 23.5.1, the published `IntegrationRegistry` accepted the
+changed Terraform integration and its unchanged verification plan. Four injected
+subprocess cases passed: zero exit, nonzero exit, missing executable and permission
+failure. Every case retained exact `terraform version` argv; the registry maps the
+unexpected permission failure to its normal `error/invalid_response` result.
+This is minimum-registry compatibility evidence, not installed acceptance. The
+full extension-loader attempt failed because its isolated dependency tree lacked
+`@tobilu/qmd`; that failure remains private and full-loader compatibility remains
+pending.
+
+| Private minimum audit | SHA-256 |
+| --- | --- |
+| minimum-check source | `e41998692e8ae0ba5440336563dda208e6aa2030719c176af20ea10e0443be7c` |
+| minimum-registry result | `d8723029fa4890d6075fcab2f4650769535529f9d7b71ed7c617424ba5722041` |
+
 Tracker reconciliation preserves discovery 23.8.0, 22 plugins, 314 surfaces,
 2,670 tasks, Salesforce qualification and all historical receipts. Changing the
 Terraform payload invalidates its fingerprint and all four shared fingerprints;
