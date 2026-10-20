@@ -38,7 +38,9 @@ Focused Platform tests pass: 48 tests and 119 assertions. The separate minimum
 isolated PyYAML 6.0.3 environment for the existing KVM Python tests. Full plugin
 suites, frozen lock compatibility, hermeticity, manifest/catalog and changed-scope
 privacy checks passed. Ownership, tracker, qualification and shell checks are
-rerun after final tracker synchronization. Changed-file pre-commit hooks pass.
+pass after final tracker synchronization. Changed-file pre-commit hooks pass.
+The CI shell run exposed a missing Platform entry in the runner test fixture;
+a local failing reproduction preceded the focused fixture correction.
 
 Earlier broad Mac checks exposed unrelated generated ASM spelling/formatting and
 GitLab, KVM, Xorg and Zoom host/environment failures. Their logs are retained;
