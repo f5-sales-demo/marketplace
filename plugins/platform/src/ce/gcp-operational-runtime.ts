@@ -1,4 +1,5 @@
 import {
+  matchesGcpOperationalPod,
   type OperationalBinding,
   type OperationalProfile,
   qualifiedOperationalProfile,
@@ -33,7 +34,7 @@ export async function collectGcpOperationalRuntime(
       (container) =>
         container.namespace === mapping.namespace &&
         container.name === mapping.name &&
-        container.pod.startsWith(mapping.podPrefix),
+        matchesGcpOperationalPod(container.pod, mapping),
     );
     const running = matching.filter((container) => container.state === 'Running');
     const matches = running.length ? running : matching;

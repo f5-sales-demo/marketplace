@@ -33,7 +33,13 @@ export interface OperationalProfile {
     string,
     {
       components: string[];
-      containers: Array<{ service: string; name: string; podPrefix: string; namespace: string }>;
+      containers: Array<{
+        service: string;
+        name: string;
+        podPrefix: string;
+        namespace: string;
+        podShape?: 'daemon' | 'deployment' | 'stateful';
+      }>;
       diagnostics: string[];
     }
   >;
@@ -98,6 +104,19 @@ function safeFingerprint(value: unknown) {
   } catch {
     return undefined;
   }
+}
+export function matchesGcpOperationalPod(
+  pod: string,
+  mapping: { podPrefix: string; podShape?: 'daemon' | 'deployment' | 'stateful' },
+): boolean {
+  if (!pod.startsWith(mapping.podPrefix)) return false;
+  const suffix = pod.slice(mapping.podPrefix.length);
+  return (
+    mapping.podShape === undefined ||
+    (mapping.podShape === 'daemon' && /^[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'deployment' && /^[a-z0-9]{8,10}-[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'stateful' && /^[0-9]+$/.test(suffix))
+  );
 }
 /** Qualification must match an independently pinned profile digest; self-declared receipts grant nothing. */
 export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: string): value is OperationalProfile {
@@ -167,6 +186,7 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
           !names([c.service]) ||
           !names([c.name]) ||
           !names([c.namespace]) ||
+          (c.podShape !== undefined && !['daemon', 'deployment', 'stateful'].includes(String(c.podShape))) ||
           typeof c.podPrefix !== 'string' ||
           !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
       )
@@ -174,7 +194,8 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       return false;
     const services = containers.map((c) => c?.service);
     if (
-      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}`)).size !== containers.length ||
+      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}:${c?.podShape}`)).size !==
+        containers.length ||
       !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
     )
       return false;
@@ -453,7 +474,7 @@ export function evaluateGcpOperationalHealth(
               (r) =>
                 r?.namespace === mapping.namespace &&
                 r.name === mapping.name &&
-                String(r.pod).startsWith(mapping.podPrefix),
+                matchesGcpOperationalPod(String(r.pod), mapping),
             );
             check(
               `container:${mapping.service}`,

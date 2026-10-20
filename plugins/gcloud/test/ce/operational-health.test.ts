@@ -5,6 +5,7 @@ import {
   GCP_OPERATIONAL_AUXILIARIES,
   GCP_OPERATIONAL_CORE_SEED,
   GCP_OPERATIONAL_DEPENDENCIES,
+  matchesGcpOperationalPod,
   type OperationalBinding,
   type OperationalCollection,
   type OperationalProfile,
@@ -30,7 +31,7 @@ export function operationalFixture() {
           service,
           name: service,
           podPrefix: `${service}-`,
-          namespace: 'ves-system',
+          namespace: 'default',
         })),
         diagnostics: ['peer-connectivity', 'required-domains'],
       },
@@ -291,4 +292,12 @@ it('qualifies frozen role-dependent placement without dropping required services
   f.collection.bindingAfter = structuredClone(f.binding);
   expect(evaluate(f).status).toBe('unknown');
   expect(evaluate(f).reasonCodes).toContain('required-service-placement-uncovered');
+});
+it('distinguishes daemon and deployment pods sharing a service prefix', () => {
+  const daemon = { podPrefix: 'ver-', podShape: 'daemon' as const };
+  const deployment = { podPrefix: 'ver-', podShape: 'deployment' as const };
+  expect(matchesGcpOperationalPod('ver-abc12', daemon)).toBe(true);
+  expect(matchesGcpOperationalPod('ver-55b8559b8-sfb88', daemon)).toBe(false);
+  expect(matchesGcpOperationalPod('ver-55b8559b8-sfb88', deployment)).toBe(true);
+  expect(matchesGcpOperationalPod('ver-abc12', deployment)).toBe(false);
 });
