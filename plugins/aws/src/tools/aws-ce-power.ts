@@ -8,6 +8,7 @@ import { canonicalSha256 } from '../ce/canonical';
 import { awsPlatformService } from '../ce/platform';
 import { awsTerraformService } from '../ce/terraform-apply';
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
+import { discoverAwsTerraformInterfaces } from '../ce/terraform-identities';
 import { bindTerraformIngress } from '../ce/terraform-routing';
 import { bindTerraformStaticRouting } from '../ce/terraform-static';
 import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from '../ce/terraform-status';
@@ -91,12 +92,17 @@ export function createAwsCePowerTool(pi: PluginInterface, dependencies: Dependen
         let values: Record<string, string>;
         if (terraform) {
           const workflow = await readAwsTerraformWorkflowStatus(base, storage);
-          if (workflow.progress.state !== 'registered' || !workflow.routing || workflow.routing.state === 'partial')
+          if (
+            workflow.progress.state !== 'registered' ||
+            workflow.routing?.state === 'partial' ||
+            (base.intent.routing.profile === 'tgw-connect' && !workflow.routing)
+          )
             throw Error('Current Terraform registered routing execution bindings unavailable');
           const session = await terraform.open(owner, await awsTerraformFoundationDeployment(base), 'current');
           const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
           const outputs = await session.readOutputs(
             [
+              ...(!workflow.routing ? ['ce_vpc_id', 'ce_interfaces', 'ce_instances'] : []),
               ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
               ...(base.intent.routing.profile === 'tgw-static'
                 ? ['ce_vpc_id', 'ce_transport_attachment', 'ce_static_route_tables']
@@ -105,8 +111,11 @@ export function createAwsCePowerTool(pi: PluginInterface, dependencies: Dependen
             process.env,
             signal,
           );
+          const discovered = !workflow.routing
+            ? await discoverAwsTerraformInterfaces(base, outputs, api, signal)
+            : undefined;
           values = {
-            ...workflow.routing.resolvedValues,
+            ...(workflow.routing?.resolvedValues ?? discovered?.bindings),
             ...instances,
             ...bindTerraformIngress(base, outputs),
             ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),

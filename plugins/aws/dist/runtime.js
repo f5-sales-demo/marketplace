@@ -21905,12 +21905,17 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
         let values;
         if (terraform) {
           const workflow = await readAwsTerraformWorkflowStatus(base, storage);
-          if (workflow.progress.state !== 'registered' || !workflow.routing || workflow.routing.state === 'partial')
+          if (
+            workflow.progress.state !== 'registered' ||
+            workflow.routing?.state === 'partial' ||
+            (base.intent.routing.profile === 'tgw-connect' && !workflow.routing)
+          )
             throw Error('Current Terraform registered routing execution bindings unavailable');
           const session = await terraform.open(owner, await awsTerraformFoundationDeployment(base), 'current');
           const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
           const outputs = await session.readOutputs(
             [
+              ...(!workflow.routing ? ['ce_vpc_id', 'ce_interfaces', 'ce_instances'] : []),
               ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
               ...(base.intent.routing.profile === 'tgw-static'
                 ? ['ce_vpc_id', 'ce_transport_attachment', 'ce_static_route_tables']
@@ -21919,8 +21924,11 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
             process.env,
             signal,
           );
+          const discovered = !workflow.routing
+            ? await discoverAwsTerraformInterfaces(base, outputs, api, signal)
+            : undefined;
           values = {
-            ...workflow.routing.resolvedValues,
+            ...(workflow.routing?.resolvedValues ?? discovered?.bindings),
             ...instances,
             ...bindTerraformIngress(base, outputs),
             ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),
@@ -22020,6 +22028,7 @@ var init_aws_ce_power = __esm(() => {
   init_platform();
   init_terraform_apply();
   init_terraform_foundation();
+  init_terraform_identities();
   init_terraform_routing();
   init_terraform_static();
   init_terraform_status();

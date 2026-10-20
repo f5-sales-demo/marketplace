@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 async function fixture(
   engine: 'native' | 'terraform' = 'native',
-  routingState: 'running' | 'partial' | 'complete' = 'complete',
+  routingState: 'running' | 'partial' | 'complete' | 'missing' = 'complete',
   validOutput = true,
 ) {
   const nlb = await nlbPowerFixture(engine),
@@ -55,15 +55,16 @@ async function fixture(
       planSha256: nlb.base.planSha256,
       stage: 'registered',
     });
-    await store.write('terraform-routing-checkpoint.json', {
-      schemaVersion: 2,
-      engine,
-      planId: nlb.base.planId,
-      planSha256: nlb.base.planSha256,
-      state: routingState,
-      completedActionIds: [],
-      resolvedValues: hardware.resolved,
-    });
+    if (routingState !== 'missing')
+      await store.write('terraform-routing-checkpoint.json', {
+        schemaVersion: 2,
+        engine,
+        planId: nlb.base.planId,
+        planSha256: nlb.base.planSha256,
+        state: routingState,
+        completedActionIds: [],
+        resolvedValues: hardware.resolved,
+      });
   }
   const runtime = {
     ...hardware.runtime,
@@ -78,6 +79,18 @@ async function fixture(
   const api = {
     exec: async (command: string, args: string[]) => {
       const result = await (args[0] === 'elbv2' ? nlb.api : hardware.api).exec(command, args);
+      if (args[1] === 'describe-network-interfaces') {
+        const body = JSON.parse(result.stdout);
+        body.NetworkInterfaces = body.NetworkInterfaces.map((eni: Record<string, unknown>, index: number) => ({
+          ...eni,
+          VpcId: 'vpc-0123456789abcdef0',
+          SubnetId: `subnet-0123456789abcdef${index}`,
+          AvailabilityZone: 'us-east-1a',
+          SourceDestCheck: false,
+          PrivateIpAddress: `10.0.${index + 1}.10`,
+        }));
+        result.stdout = JSON.stringify(body);
+      }
       return { ...result, stdout: result.stdout.replaceAll(hardware.base.planSha256, nlb.base.planSha256) };
     },
   };
@@ -90,6 +103,22 @@ async function fixture(
       return {
         open: async () => ({
           readOutputs: async () => ({
+            ce_vpc_id: 'vpc-0123456789abcdef0',
+            ce_interfaces: Object.fromEntries(
+              hardware.enis.map((eni, index) => [
+                `1:${index}`,
+                {
+                  node: 1,
+                  index,
+                  role: index ? 'sli' : 'slo',
+                  site_name: nlb.base.topology.sites[0].name,
+                  id: eni.NetworkInterfaceId,
+                  mac: eni.MacAddress,
+                  subnet_id: `subnet-0123456789abcdef${index}`,
+                  private_ip: `10.0.${index + 1}.10`,
+                },
+              ]),
+            ),
             ce_ingress: {
               load_balancer_arn: nlb.values.__NLB_ARN__,
               target_group_arn: nlb.values.__NLB_TARGET_GROUP_ARN__,
@@ -197,4 +226,12 @@ test('public Terraform power rejects partial routing and current output drift be
     expect(result.isError).toBe(true);
     expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
   }
+});
+
+test('public Terraform NLB-only power resolves owned execution without a routing checkpoint', async () => {
+  const f = await fixture('terraform', 'missing');
+  const prepared = await f.run({ ...f.base, operation: 'prepare-stop' });
+  if (prepared.isError) throw Error(prepared.content[0].text);
+  expect(prepared.isError).toBe(false);
+  expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
 });
