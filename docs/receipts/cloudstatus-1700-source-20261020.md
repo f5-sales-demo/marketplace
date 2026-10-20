@@ -1,6 +1,6 @@
 # Cloudstatus presentation source qualification
 
-Campaign #1579, child #1592, implementation #1700. Candidate Cloudstatus 1.9.1;
+Campaign #1579, child #1592, implementation #1700. Candidate Cloudstatus 1.9.2;
 current development runtime 23.9.3, minimum 23.5.1, discovery runtime 23.8.0.
 
 ## Reproduced defects and changes
@@ -25,7 +25,7 @@ data in plugin source; a behavioral regression proves both boundaries.
 
 ## Evidence and limits
 
-- Actual shipped command regression suite: eight tests pass, including Bash and
+- Actual shipped command regression suite: nine tests pass, including Bash and
   Zsh, malformed/failing responses, partial output, and complete evidence once.
 - Current and isolated minimum plugin suites: 27 pass, zero skips or failures.
 - Discovery/tracker, ownership, scenario and observer suites: 28 pass, zero failures.
@@ -50,3 +50,8 @@ Ubuntu. Earlier failures and the separate successful retry remain private.
 Campaign #1579 and child #1592 remain open until every current gate is verified
 or legitimately not applicable. Publication and installed/service receipts must
 reference the final merged source and independently verified stable artifact.
+
+CI initially lacked Zsh. The regression now always runs Bash and reports the
+Zsh test as skipped only on hosts without that executable. Both development
+hosts retain actual Bash and Zsh execution evidence; CI does not claim Zsh
+acceptance. This repair produces candidate 1.9.2 before stable publication.

@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`cloudstatus`** v1.9.1 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
+- **`cloudstatus`** v1.9.2 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
 
 - **`gitlab`** v1.5.2 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).
 
