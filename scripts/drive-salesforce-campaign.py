@@ -74,21 +74,25 @@ def audit_model_commands(messages: list[dict]) -> list[dict]:
         )
         candidates = []
         for following in messages[index + 1 :]:
-            if following.get("role") == "toolResult":
+            if following.get("role") == "user":
                 break
             if following.get("role") != "assistant":
                 continue
             for block in following.get("content", []):
                 text = block.get("text", "")
                 for fenced in re.findall(r"```[^\n]*\n(.*?)```", text, re.DOTALL):
-                    try:
-                        argv = json.loads(fenced)
+                    decoder = json.JSONDecoder()
+                    remaining = fenced.strip()
+                    while remaining:
+                        try:
+                            argv, end = decoder.raw_decode(remaining)
+                        except json.JSONDecodeError:
+                            break
                         if isinstance(argv, list) and all(
                             isinstance(arg, str) for arg in argv
                         ):
                             candidates.append(argv)
-                    except json.JSONDecodeError:
-                        pass
+                        remaining = remaining[end:].lstrip()
                 for command in re.findall(r"`(sf [^`\n]+)`", text):
                     with suppress(ValueError):
                         candidates.append(shlex.split(command))

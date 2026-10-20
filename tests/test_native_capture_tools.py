@@ -78,8 +78,54 @@ class NativeCaptureChecks(unittest.TestCase):
             ]
         )[0]["passed"]
         assert not campaign.audit_model_commands(
-            [tool, {**tool, "toolName": "sf_org_display"}, reply(argv)]
+            [tool, {"role": "user", "content": "Another turn"}, reply(argv)]
         )[0]["passed"]
+
+    def test_model_argv_accepts_multiple_commands_in_one_turn(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        org = ["sf", "org", "display", "--json"]
+        query = [
+            "sf",
+            "data",
+            "query",
+            "--query",
+            "SELECT Id FROM Opportunity WHERE Id = null",
+            "--json",
+        ]
+        tools = [
+            {
+                "role": "toolResult",
+                "toolName": name,
+                "details": {"commandEvidence": {"commands": [argv]}},
+            }
+            for name, argv in [("sf_org_display", org), ("sf_query", query)]
+        ]
+        reply = {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "```json\n"
+                    + json.dumps(org)
+                    + "\n"
+                    + json.dumps(query)
+                    + "\n```",
+                }
+            ],
+        }
+        assert all(
+            row["passed"] for row in campaign.audit_model_commands([*tools, reply])
+        )
+        assert not any(
+            row["passed"]
+            for row in campaign.audit_model_commands([*tools, {"role": "user"}, reply])
+        )
 
     def test_campaign_startup_and_independent_operator_faults(self):
         campaign_spec = importlib.util.spec_from_file_location(
