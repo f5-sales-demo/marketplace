@@ -17,14 +17,27 @@ export function currentSalesforceRows(markdown: string) {
     });
 }
 
-export function guardCampaignTool(event: any, guidance: string[]) {
+export function campaignGuidance(plugin: string) {
+  return ['agents/cli-operator.md', 'skills/salesforce-index/SKILL.md', 'skills/salesforce-auth/SKILL.md'].map((path) =>
+    resolve(plugin, path),
+  );
+}
+
+export function campaignTools(mode = 'service') {
+  if (!['service', 'guidance'].includes(mode)) throw new Error('Invalid campaign mode');
+  return mode === 'guidance' ? ['read'] : ['read', 'sf_org_display', 'sf_query', 'sf_describe', 'sf_pipeline_report'];
+}
+
+export function guardCampaignTool(event: any, guidance: string[], guidanceOnly = false) {
   const input = event.input ?? {};
   const allowed =
     event.toolName === 'read'
       ? guidance.includes(resolve(input.path ?? ''))
-      : event.toolName === 'sf_query'
-        ? typeof input.query === 'string' && /^\s*SELECT\b/i.test(input.query)
-        : ['sf_org_display', 'sf_describe', 'sf_pipeline_report'].includes(event.toolName);
+      : guidanceOnly
+        ? false
+        : event.toolName === 'sf_query'
+          ? typeof input.query === 'string' && /^\s*SELECT\b/i.test(input.query)
+          : ['sf_org_display', 'sf_describe', 'sf_pipeline_report'].includes(event.toolName);
   if (!allowed)
     return {
       block: true,
@@ -61,7 +74,9 @@ export default async function observeSalesforceCampaign(api: any) {
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const record = (value: any) =>
     appendFileSync(join(root, 'events.jsonl'), JSON.stringify({ time: Date.now(), ...value }) + '\n', { mode: 0o600 });
-  const guidance = [join(plugin, 'agents/cli-operator.md'), join(plugin, 'skills/salesforce-index/SKILL.md')];
+  const guidance = campaignGuidance(plugin);
+  const activeTools = campaignTools(process.env.SALESFORCE_CAMPAIGN_MODE);
+  const guidanceOnly = activeTools.length === 1;
   const manifest = JSON.parse(readFileSync(join(plugin, '.xcsh-plugin/plugin.json'), 'utf8'));
   const provenance = campaignProvenance(process.execPath, api.pi.VERSION, manifest);
   const tools = new Map<string, any>();
@@ -96,17 +111,18 @@ export default async function observeSalesforceCampaign(api: any) {
   });
   api.on('session_start', async (_event: any, ctx: any) => {
     if (!ctx.hasUI) throw new Error('Interactive runtime required');
-    await api.setActiveTools(['read', 'sf_org_display', 'sf_query', 'sf_describe', 'sf_pipeline_report']);
+    await api.setActiveTools(activeTools);
     record({
       event: 'ready',
       hasUI: ctx.hasUI,
       ...provenance,
       tools: [...tools.keys()],
+      activeTools,
       sdkComponents: Object.keys(api.pi).filter((key) => /Component|Markdown|Text|Theme|visibleWidth/.test(key)),
     });
   });
   api.on('tool_call', (event: any) => {
-    const decision = guardCampaignTool(event, guidance);
+    const decision = guardCampaignTool(event, guidance, guidanceOnly);
     record({ event: 'tool_call', toolName: event.toolName, input: event.input, blocked: Boolean(decision) });
     return decision;
   });

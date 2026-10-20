@@ -88,7 +88,7 @@ def terminal_geometry(
     if geometry_frame:
         evidence = json.loads((root / "frames" / geometry_frame).read_text())
     height = evidence.get("terminalRows")
-    if type(height) is not int or height < 1:
+    if not isinstance(height, int) or isinstance(height, bool) or height < 1:
         message = "Terminal height missing or invalid; supply a fresh --geometry-frame"
         raise ValueError(message)
     return columns, height
