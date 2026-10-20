@@ -19,7 +19,7 @@ fail() {
 copy_runtime_state() {
   local destination="$1"
   mkdir -p "$destination/plugins"
-  for plugin in aws azure gcloud github gitlab salesforce; do
+  for plugin in aws azure gcloud platform github gitlab salesforce; do
     mkdir -p "$destination/plugins/$plugin/.xcsh-plugin"
     cp "$REPO_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$destination/plugins/$plugin/.xcsh-plugin/plugin.json"
     cp "$REPO_ROOT/plugins/$plugin/package.json" "$destination/plugins/$plugin/package.json"
