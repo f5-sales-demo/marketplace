@@ -1,13 +1,26 @@
 {
-  "name": "terraform",
-  "version": "2.3.0",
-  "description": "Terraform infrastructure-as-code integration for xcsh",
+  "name": "@f5-sales-demo/xcsh-terraform",
+  "version": "3.0.0-uat.31",
+  "description": "Isolated Terraform lifecycle execution with immutable saved plans and deployment ownership",
   "license": "Apache-2.0",
+  "main": "dist/runtime.js",
+  "scripts": {
+    "test": "bun test",
+    "build:runtime": "bun ../../scripts/build-ce-runtime.ts terraform"
+  },
   "xcsh": {
     "name": "Terraform",
-    "version": "2.3.0",
+    "version": "3.0.0-uat.31",
     "extensions": [
-      "extensions/integration.ts"
+      "dist/runtime.js"
     ]
+  },
+  "peerDependencies": {
+    "@f5-sales-demo/xcsh": ">=23.6.8"
+  },
+  "devDependencies": {
+    "@f5-sales-demo/xcsh": "23.6.8",
+    "@sinclair/typebox": "^0.34.52",
+    "bun-types": "^1.4.2"
   }
 }

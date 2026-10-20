@@ -36,6 +36,25 @@ function sanitizeHintField(value: unknown, maxLen = 200): string {
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
 }
 
+export function isAwsCePrompt(prompt: string): boolean {
+  const normalized = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const awsContext = /\baws\b|\bamazon\b|\bec2\b|\btgw\b|\btransit gateway\b/.test(normalized);
+  const ceContext =
+    /\bcustomer edge\b|\bf5 ce\b|\bxc ce\b|\bsecure mesh\b|\bce site\b|\bce node\b|\bce image\b/.test(normalized) ||
+    /\bf5\b.*\b(distributed cloud|xc|edge|appliance|marketplace|bgp)\b/.test(normalized) ||
+    /\bdistributed cloud\b.*\b(node|edge|appliance|aws|marketplace)\b/.test(normalized);
+  return awsContext && ceContext;
+}
+
+export const AWS_CE_RESEARCH_GATE = [
+  'AWS CUSTOMER EDGE ROUTE: Use the aws:aws-ce workflow for this request.',
+  'For inventory-only requests, use aws_ce_inventory with explicit account, profile and regions. Inventory does not require image selection, Marketplace acceptance, a deployment plan or mutations. Cloud site tags do not establish F5 registration or health.',
+  'Before recommendations or aws_ce_plan, use web_search to retrieve the dedicated f5xc-ce-automation-policy/v2 contract, the current official F5 Secure Mesh Site v2 AWS guide, and current AWS Marketplace, EC2, AMI policy, quota, NLB, and Transit Gateway documentation.',
+  'Then call aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover in that order. Live discovery must enumerate all regions and pin the exact regional SSM AMI and version.',
+  'Require the validated shared-contract identity/digest, provider-source receipts, current Marketplace agreement, platform capability evidence, and discovery artifact. Never use generic aws_exec for CE research, plan before discovery, automate initial legal acceptance, mutate during research, or fall back to a legacy AWS site type.',
+  'Treat TGW Connect as release-blocked unless both current F5 documentation and f5xc_ce_v2_capabilities advertise an explicit supported SMSv2 GRE/BGP schema.',
+].join('\n');
+
 export function retryAfterMsFromHeaders(text: string, now = Date.now()): number | undefined {
   const retryAfter = text.match(/(?:^|\r?\n)retry-after:\s*([^\r\n]+)/i)?.[1]?.trim();
   if (retryAfter && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000;
@@ -180,6 +199,10 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAwsComputeDiscoverTool } = await import('./tools/aws-compute-discover');
     const { createAwsCePlanTool } = await import('./tools/aws-ce-plan');
     const { createAwsCeApplyTool } = await import('./tools/aws-ce-apply');
+    const { createAwsCeInventoryTool } = await import('./tools/aws-ce-inventory');
+    const { createAwsCeTeardownTool } = await import('./tools/aws-ce-teardown');
+    const { createAwsCeUpgradeTool } = await import('./tools/aws-ce-upgrade');
+    const { createAwsCeFailoverTool } = await import('./tools/aws-ce-failover');
     const { createAwsCeStatusTool } = await import('./tools/aws-ce-status');
     const { createAwsCeDiagnoseTool } = await import('./tools/aws-ce-diagnose');
     const { createAwsCloudInitAnalyzeTool } = await import('./tools/aws-cloud-init-analyze');
@@ -192,6 +215,10 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(presentTool(withErrorType(createAwsComputeDiscoverTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCePlanTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeApplyTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeInventoryTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeTeardownTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeUpgradeTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCeFailoverTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeStatusTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeDiagnoseTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCloudInitAnalyzeTool(pi))));
@@ -199,7 +226,7 @@ const factory: ExtensionFactory = async (pi) => {
 
   // Context injection: provide AWS identity to agents
   if (awsAvailable && typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (_event: { prompt?: string }, _ctx: { cwd: string }) => {
+    pi.on('before_agent_start', async (event: { prompt?: string }, _ctx: { cwd: string }) => {
       try {
         const snapshot = await integration.get();
         if (snapshot.state !== 'ready' || !snapshot.value) return;
@@ -214,7 +241,9 @@ const factory: ExtensionFactory = async (pi) => {
         ]
           .filter(Boolean)
           .join('\n');
-        const content = lines;
+        const content = [isAwsCePrompt(String(event.prompt ?? '')) ? AWS_CE_RESEARCH_GATE : '', lines]
+          .filter(Boolean)
+          .join('\n');
         if (!content) return;
         return {
           message: { customType: 'aws_hint', content, display: false },

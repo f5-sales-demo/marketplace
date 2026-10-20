@@ -1,5 +1,7 @@
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonical';
+import { observeStandardVcpuCapacity, observeTaggedResourceCapacity } from './capacity';
+import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsCeEgressMode,
   AwsCeF5Capabilities,
@@ -14,9 +16,12 @@ import {
   AWS_CE_SCHEMA_VERSION,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
+  AWS_CE_TGW_GUIDE_URL,
 } from './types';
 
 export interface AwsComputeDiscoveryInput {
+  awsProfile?: string;
+  vpcMode?: 'greenfield' | 'brownfield';
   accountId: string;
   partition: 'aws' | 'aws-us-gov' | 'aws-cn';
   deploymentName: string;
@@ -44,7 +49,7 @@ const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const INSTANCE_TYPE = /^[a-z0-9][a-z0-9.-]{1,40}$/;
 const REGION = /^[a-z]{2}(?:-gov)?-[a-z]+-\d$/;
 const RESOURCE_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 // F5 documents m5.2xlarge as the minimum AWS CE size, but AWS exposes only
 // four ENIs on the 2xlarge variants. Include the corresponding 4xlarge sizes
 // so default discovery can satisfy the documented eight-interface CE shape.
@@ -61,9 +66,17 @@ async function json<T>(api: AwsExecApi, args: string[]): Promise<T> {
   const result = await api.exec('aws', [...args, '--output', 'json']);
   if (result.exitCode !== 0) throw new Error(`AWS discovery command failed: aws ${args.join(' ')}: ${result.stderr}`);
   try {
-    return JSON.parse(result.stdout) as T;
+    const data = JSON.parse(result.stdout);
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      Array.isArray(data) ||
+      ['NextToken', 'NextMarker', 'nextToken'].some((key) => Object.hasOwn(data, key))
+    )
+      throw new Error('Malformed or incomplete AWS discovery response');
+    return data as T;
   } catch {
-    throw new Error(`AWS discovery returned invalid JSON for: aws ${args.join(' ')}`);
+    throw new Error(`Incomplete or invalid AWS discovery JSON for: aws ${args.join(' ')}`);
   }
 }
 
@@ -85,7 +98,7 @@ function validateCapabilities(value: AwsCeF5Capabilities): void {
   if (
     value?.smsv2ContractVersion !== 'v2' ||
     !value.supportedProviders?.includes('aws') ||
-    !value.bootstrapDrivers?.includes('console') ||
+    !value.bootstrapDrivers?.some((driver) => driver === 'api' || driver === 'console') ||
     !Array.isArray(value.providerNetworkingProfiles?.aws) ||
     typeof value.awsSmsv2TgwConnect?.supported !== 'boolean' ||
     (value.awsSmsv2TgwConnect.supported && !value.awsSmsv2TgwConnect.schemaVersion) ||
@@ -101,6 +114,8 @@ function regionMatchesPartition(region: string, partition: AwsComputeDiscoveryIn
 }
 
 function validateInput(input: AwsComputeDiscoveryInput): string[] {
+  if (input.vpcMode !== undefined && !['greenfield', 'brownfield'].includes(input.vpcMode))
+    throw new Error('Invalid VPC discovery mode');
   if (!ACCOUNT.test(input.accountId)) throw new Error('accountId must be a 12-digit AWS account ID');
   if (!['aws', 'aws-us-gov', 'aws-cn'].includes(input.partition)) throw new Error('Unsupported AWS partition');
   if (!SAFE_NAME.test(input.deploymentName)) throw new Error('deploymentName contains unsupported characters');
@@ -171,9 +186,21 @@ export function isF5Smsv2TgwConnectDocumented(body: string): boolean {
   );
 }
 
+/** The separately maintained routing recipe is documentation evidence, not current platform acceptance. */
+export function isMcnAwsTgwConnectDocumented(body: string): boolean {
+  return (
+    /MCN deploys three independent/i.test(body) &&
+    /Secure Mesh Site v2/i.test(body) &&
+    /six GRE Connect peers/i.test(body) &&
+    /twelve BGP sessions/i.test(body) &&
+    /SLI payload/i.test(body)
+  );
+}
+
 async function research(fetcher: typeof fetch): Promise<AwsCeObservation['research']> {
-  const urls = [AWS_CE_SHARED_CONTRACT_URL, AWS_CE_F5_GUIDE_URL, ...AWS_SOURCES];
+  const urls = [AWS_CE_SHARED_CONTRACT_URL, AWS_CE_F5_GUIDE_URL, AWS_CE_TGW_GUIDE_URL, ...AWS_SOURCES];
   let f5Body = '';
+  let tgwBody = '';
   const sourceReceipts = await Promise.all(
     urls.map(async (url) => {
       const controller = new AbortController();
@@ -192,12 +219,13 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
         if (normalized.trim().length < 100) throw new Error('response was empty');
         if (
           url === AWS_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         if (url === AWS_CE_F5_GUIDE_URL) f5Body = normalized;
+        if (url === AWS_CE_TGW_GUIDE_URL) tgwBody = normalized;
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -211,18 +239,24 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
   sourceReceipts.sort((left, right) => left.url.localeCompare(right.url));
   const shared = sourceReceipts.find((item) => item.url === AWS_CE_SHARED_CONTRACT_URL);
   const f5 = sourceReceipts.find((item) => item.url === AWS_CE_F5_GUIDE_URL);
-  if (!shared || !f5) throw new Error('Official AWS CE research did not return every required source receipt');
+  const tgw = sourceReceipts.find((item) => item.url === AWS_CE_TGW_GUIDE_URL);
+  if (!shared || !f5 || !tgw) throw new Error('Official AWS CE research did not return every required source receipt');
   const tgwConnectDocumented = isF5Smsv2TgwConnectDocumented(f5Body);
   return {
     method: 'aws-cli-live',
     officialSourceRetrieval: 'live',
     commands: [],
-    officialSources: [AWS_CE_F5_GUIDE_URL, ...AWS_SOURCES],
+    officialSources: [AWS_CE_F5_GUIDE_URL, AWS_CE_TGW_GUIDE_URL, ...AWS_SOURCES],
+    mcnTgwGuide: {
+      url: AWS_CE_TGW_GUIDE_URL,
+      normalizedSha256: tgw.normalizedSha256,
+      documented: isMcnAwsTgwConnectDocumented(tgwBody),
+    },
     sourceReceipts,
     sharedContract: {
       url: AWS_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: shared.normalizedSha256,
     },
     f5AwsGuide: {
@@ -254,6 +288,8 @@ async function observeRegion(
   nodeCount: 1 | 3,
   egressMode?: AwsCeEgressMode,
   routingProfile?: AwsCeRoutingProfile,
+  ownership?: { deploymentName: string; resourceIds: string[]; planSha256s: string[]; accountId?: string },
+  vpcMode: 'greenfield' | 'brownfield' = 'greenfield',
 ): Promise<AwsCeRegionObservation> {
   const enabled = optInStatus === 'opt-in-not-required' || optInStatus === 'opted-in';
   if (!enabled)
@@ -404,13 +440,20 @@ async function observeRegion(
       const vCpus = Number((item.VCpuInfo as Record<string, unknown> | undefined)?.DefaultVCpus ?? 0);
       const memory = memoryMiB(item);
       const zones = [...new Set(zonesByType.get(name) ?? [])].sort();
+      const supportedArchitectures = (item.ProcessorInfo as { SupportedArchitectures?: unknown } | undefined)
+        ?.SupportedArchitectures;
       const itemReasons: string[] = [];
+      if (!Array.isArray(supportedArchitectures) || !ami || !supportedArchitectures.includes(ami.architecture))
+        itemReasons.push('ami-architecture');
       if (vCpus < 8 || memory < 32 * 1024) itemReasons.push('ce-minimum-size');
       if (limits.maxEnis < requiredEnis) itemReasons.push('eni-limit');
       if (zones.length < nodeCount) itemReasons.push('az-offering');
       return {
         name,
         vCpus,
+        supportedArchitectures: Array.isArray(supportedArchitectures)
+          ? supportedArchitectures.filter((value): value is string => typeof value === 'string')
+          : [],
         memoryMiB: memory,
         maxEnis: limits.maxEnis,
         ipv4PerEni: limits.ipv4PerEni,
@@ -424,7 +467,29 @@ async function observeRegion(
   const quotaRecord = quota as Record<string, unknown>;
   const vcpuQuota = Number((quotaRecord.Quota as Record<string, unknown> | undefined)?.Value ?? 0);
   const selected = observedTypes.find((item) => item.supported);
-  if (!vcpuQuota || vcpuQuota < (selected?.vCpus ?? 8) * nodeCount) reasons.push('vcpu-quota');
+  let vcpuCapacity: AwsCeRegionObservation['vcpuCapacity'];
+  try {
+    vcpuCapacity = await observeStandardVcpuCapacity(
+      api,
+      region,
+      vcpuQuota,
+      ownership ?? { deploymentName: '', planSha256s: [] },
+      nodeCount,
+    );
+    if (vcpuCapacity.remaining < (selected?.vCpus ?? 8) * nodeCount) reasons.push('vcpu-quota');
+    for (const type of observedTypes) {
+      if (type.vCpus * nodeCount > vcpuCapacity.remaining) {
+        type.supported = false;
+        type.reasons.push('remaining-vcpu-quota');
+      }
+    }
+  } catch {
+    reasons.push('vcpu-usage-unavailable');
+    for (const type of observedTypes) {
+      type.supported = false;
+      type.reasons.push('vcpu-usage-unavailable');
+    }
+  }
   const networkQuotas = networkQuotaResults
     .flatMap((result) =>
       result.quotas.map((item) => ({
@@ -443,7 +508,82 @@ async function observeRegion(
     );
   if (networkQuotaResults.some((result) => !result.ok)) reasons.push('network-quota-observation-failed');
   const quotaValue = (pattern: RegExp) => networkQuotas.find((item) => pattern.test(item.quotaName))?.value;
-  if (egressMode === 'elastic-ip' && (quotaValue(/elastic ips/i) ?? 0) < nodeCount) reasons.push('elastic-ip-quota');
+  let vpcCapacity: AwsCeRegionObservation['vpcCapacity'];
+  let internetGatewayCapacity: AwsCeRegionObservation['internetGatewayCapacity'];
+  try {
+    const owner = ownership ?? { deploymentName: '', planSha256s: [], accountId: undefined };
+    vpcCapacity = await observeTaggedResourceCapacity(
+      api,
+      region,
+      'describe-vpcs',
+      'Vpcs',
+      'VpcId',
+      quotaValue(/^vpcs per region$/i) ?? NaN,
+      owner,
+    );
+    if (vpcMode === 'greenfield' && vpcCapacity.remaining < 1) reasons.push('vpc-quota');
+    if (egressMode === 'elastic-ip' && vpcMode === 'greenfield') {
+      internetGatewayCapacity = await observeTaggedResourceCapacity(
+        api,
+        region,
+        'describe-internet-gateways',
+        'InternetGateways',
+        'InternetGatewayId',
+        quotaValue(/internet gateways per region/i) ?? NaN,
+        owner,
+      );
+      if (internetGatewayCapacity.remaining < 1) reasons.push('internet-gateway-quota');
+    }
+  } catch {
+    if (vpcMode === 'greenfield') reasons.push('vpc-or-gateway-capacity-unavailable');
+  }
+  let elasticIpCapacity: AwsCeRegionObservation['elasticIpCapacity'];
+  if (egressMode === 'elastic-ip') {
+    try {
+      const response = await json<{ Addresses?: Array<Record<string, unknown>>; NextToken?: unknown }>(api, [
+        'ec2',
+        'describe-addresses',
+        '--region',
+        region,
+      ]);
+      if (response.NextToken || !Array.isArray(response.Addresses)) throw new Error('Incomplete EIP usage evidence');
+      const ids = new Set<string>();
+      let reusableOwned = 0;
+      for (const address of response.Addresses) {
+        if (
+          typeof address.AllocationId !== 'string' ||
+          !/^eipalloc-[0-9a-f]{8,17}$/.test(address.AllocationId) ||
+          ids.has(address.AllocationId)
+        )
+          throw new Error('Ambiguous EIP identity');
+        ids.add(address.AllocationId);
+        const tags = Array.isArray(address.Tags) ? (address.Tags as Array<{ Key?: string; Value?: string }>) : [];
+        const tag = (key: string) =>
+          tags.filter((item) => item.Key === key).length === 1
+            ? tags.find((item) => item.Key === key)?.Value
+            : undefined;
+        if (
+          ownership?.resourceIds.includes(address.AllocationId) &&
+          tag('xcsh-managed-by') === 'aws-ce' &&
+          tag('xcsh-deployment-id') === ownership.deploymentName &&
+          ownership.planSha256s.includes(tag('xcsh-plan-sha256') ?? '') &&
+          ['native', 'terraform'].includes(tag('xcsh-execution-engine') ?? '')
+        )
+          reusableOwned++;
+      }
+      const limit = quotaValue(/elastic ips/i) ?? 0;
+      elasticIpCapacity = {
+        limit,
+        allocated: ids.size,
+        reusableOwned,
+        available: Math.max(0, limit - ids.size),
+        requiredAdditional: Math.max(0, nodeCount - reusableOwned),
+      };
+      if (elasticIpCapacity.available < elasticIpCapacity.requiredAdditional) reasons.push('elastic-ip-quota');
+    } catch {
+      reasons.push('elastic-ip-usage-observation-failed');
+    }
+  }
   if (routingProfile === 'nlb-ingress' && (quotaValue(/network load balancers.*region/i) ?? 0) < 1)
     reasons.push('nlb-quota');
   return {
@@ -456,7 +596,11 @@ async function observeRegion(
     ami,
     instanceTypes: observedTypes,
     vcpuQuota,
+    vcpuCapacity,
+    vpcCapacity,
+    internetGatewayCapacity,
     networkQuotas,
+    elasticIpCapacity,
     transitGatewaySupported: tgw.exitCode === 0,
     brownfieldProximity: 0,
   };
@@ -474,11 +618,13 @@ async function observeResource(
   else if (id.startsWith('eni-')) args = ['ec2', 'describe-network-interfaces', '--network-interface-ids', id];
   else if (id.startsWith('sg-')) args = ['ec2', 'describe-security-groups', '--group-ids', id];
   else if (id.startsWith('eipalloc-')) args = ['ec2', 'describe-addresses', '--allocation-ids', id];
-  else if (id.startsWith('eipassoc-')) args = ['ec2', 'describe-addresses', '--association-ids', id];
+  else if (id.startsWith('eipassoc-'))
+    args = ['ec2', 'describe-addresses', '--filters', `Name=association-id,Values=${id}`];
   else if (id.startsWith('nat-')) args = ['ec2', 'describe-nat-gateways', '--nat-gateway-ids', id];
   else if (id.startsWith('vpce-')) args = ['ec2', 'describe-vpc-endpoints', '--vpc-endpoint-ids', id];
   else if (id.startsWith('rtb-')) args = ['ec2', 'describe-route-tables', '--route-table-ids', id];
   else if (id.startsWith('subnet-')) args = ['ec2', 'describe-subnets', '--subnet-ids', id];
+  else if (id.startsWith('igw-')) args = ['ec2', 'describe-internet-gateways', '--internet-gateway-ids', id];
   else if (id.startsWith('vpc-')) args = ['ec2', 'describe-vpcs', '--vpc-ids', id];
   else if (id.startsWith('tgw-rtb-'))
     args = ['ec2', 'get-transit-gateway-route-table-associations', '--transit-gateway-route-table-id', id];
@@ -501,7 +647,22 @@ async function observeResource(
     throw new Error(`AWS resource observation failed for ${id}: ${result.stderr}`);
   }
   const raw = JSON.parse(result.stdout) as Record<string, unknown>;
+  const complete = (response: Record<string, unknown>) => {
+    if (response.NextToken || response.NextMarker || response.nextToken)
+      throw new Error('Incomplete AWS resource observation');
+  };
+  complete(raw);
   if (id.startsWith('tgw-rtb-')) {
+    const table = await json<Record<string, unknown>>(api, [
+      'ec2',
+      'describe-transit-gateway-route-tables',
+      '--transit-gateway-route-table-ids',
+      id,
+      '--region',
+      region,
+    ]);
+    complete(table);
+    raw.TransitGatewayRouteTables = table.TransitGatewayRouteTables;
     const propagation = await api.exec('aws', [
       'ec2',
       'get-transit-gateway-route-table-propagations',
@@ -514,8 +675,11 @@ async function observeResource(
     ]);
     if (propagation.exitCode !== 0)
       throw new Error(`AWS TGW propagation observation failed for ${id}: ${propagation.stderr}`);
-    raw.Propagations =
-      (JSON.parse(propagation.stdout) as Record<string, unknown>).TransitGatewayRouteTablePropagations ?? [];
+    const propagated = JSON.parse(propagation.stdout) as Record<string, unknown>;
+    complete(propagated);
+    if (!Array.isArray(propagated.TransitGatewayRouteTablePropagations))
+      throw new Error('Incomplete AWS TGW propagation observation');
+    raw.Propagations = propagated.TransitGatewayRouteTablePropagations;
   }
   if (/^arn:[^:]+:elasticloadbalancing:/.test(id)) {
     const tagResult = await api.exec('aws', [
@@ -529,17 +693,83 @@ async function observeResource(
       'json',
     ]);
     if (tagResult.exitCode !== 0) throw new Error(`AWS ELB tag observation failed for ${id}: ${tagResult.stderr}`);
-    raw.TagDescriptions = (JSON.parse(tagResult.stdout) as Record<string, unknown>).TagDescriptions ?? [];
+    let descriptions = (JSON.parse(tagResult.stdout) as Record<string, unknown>).TagDescriptions ?? [];
+    if (/^arn:[^:]+:elasticloadbalancing:.*:listener\//.test(id)) {
+      const direct = Array.isArray(descriptions) ? (descriptions as Array<Record<string, unknown>>) : [];
+      const directTags = direct.find((item) => item.ResourceArn === id)?.Tags;
+      if (!Array.isArray(directTags) || directTags.length === 0) {
+        const listeners = Array.isArray(raw.Listeners) ? (raw.Listeners as Array<Record<string, unknown>>) : [];
+        const parent = listeners.length === 1 ? listeners[0].LoadBalancerArn : undefined;
+        if (typeof parent !== 'string' || !/^arn:[^:]+:elasticloadbalancing:.*:loadbalancer\//.test(parent))
+          throw new Error('AWS listener parent ownership evidence is unavailable');
+        const parentResult = await api.exec('aws', [
+          'elbv2',
+          'describe-tags',
+          '--resource-arns',
+          parent,
+          '--region',
+          region,
+          '--output',
+          'json',
+        ]);
+        if (parentResult.exitCode !== 0)
+          throw new Error(`AWS listener parent tag observation failed for ${id}: ${parentResult.stderr}`);
+        const parents = (JSON.parse(parentResult.stdout) as Record<string, unknown>).TagDescriptions;
+        const rows = Array.isArray(parents) ? (parents as Array<Record<string, unknown>>) : [];
+        const inherited = rows.filter((item) => item.ResourceArn === parent);
+        if (inherited.length !== 1 || !Array.isArray(inherited[0].Tags))
+          throw new Error('AWS listener parent ownership evidence is ambiguous');
+        descriptions = [{ ResourceArn: id, Tags: inherited[0].Tags, OwnershipParentArn: parent }];
+      }
+    }
+    raw.TagDescriptions = descriptions;
   }
-  const serialized = JSON.stringify(raw);
+  // Bind tags to the requested resource, never to a nested ENI or another response member.
+  const matches: Record<string, unknown>[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+    } else if (value && typeof value === 'object') {
+      const object = value as Record<string, unknown>;
+      if (Object.values(object).some((item) => item === id)) matches.push(object);
+      for (const item of Object.values(object)) visit(item);
+    }
+  };
+  visit(raw);
+  const tagSets = matches.filter((object) => Array.isArray(object.Tags) || Array.isArray(object.TagSet));
+  if (tagSets.length > 1) throw new Error('AWS ownership evidence is ambiguous');
+  if (tagSets[0]?.Tags !== undefined && tagSets[0]?.TagSet !== undefined)
+    throw new Error('AWS ownership tag representation is ambiguous');
   const tags: Record<string, string> = {};
-  for (const match of serialized.matchAll(/"Key":"([^"]+)","Value":"([^"]*)"/g)) tags[match[1]] = match[2];
+  for (const item of (tagSets[0]?.TagSet ?? tagSets[0]?.Tags ?? []) as unknown[]) {
+    if (!item || typeof item !== 'object') throw new Error('AWS ownership tags are malformed');
+    const { Key, Value } = item as Record<string, unknown>;
+    if (typeof Key !== 'string' || typeof Value !== 'string' || Object.hasOwn(tags, Key))
+      throw new Error('AWS ownership tags are malformed or duplicated');
+    tags[Key] = Value;
+  }
+  const terminalDeleted = (() => {
+    const rows = id.startsWith('tgw-connect-peer-')
+      ? raw.TransitGatewayConnectPeers
+      : id.startsWith('tgw-attach-')
+        ? raw.TransitGatewayAttachments
+        : undefined;
+    return (
+      Array.isArray(rows) &&
+      rows.length === 1 &&
+      rows[0] !== null &&
+      typeof rows[0] === 'object' &&
+      String((rows[0] as Record<string, unknown>).State ?? '').toLowerCase() === 'deleted'
+    );
+  })();
   return {
     id,
     region,
-    exists: true,
+    exists: matches.length > 0 && !terminalDeleted,
     owned:
+      !terminalDeleted &&
       tags['xcsh-managed-by'] === 'aws-ce' &&
+      ['native', 'terraform'].includes(tags['xcsh-execution-engine']) &&
       tags['xcsh-deployment-id'] === deploymentName &&
       ownedPlanSha256s.includes(tags['xcsh-plan-sha256'] ?? ''),
     tags,
@@ -568,6 +798,8 @@ export async function discoverAwsCompute(
   api: AwsExecApi,
   fetcher: typeof fetch = fetch,
 ): Promise<AwsCeObservation> {
+  input = { ...input, awsProfile: input.awsProfile ?? 'default' };
+  api = scopedAwsApi(api, input.awsProfile);
   const instanceTypes = validateInput(input);
   const researchReceipt = await research(fetcher);
   const identity = await json<Record<string, unknown>>(api, ['sts', 'get-caller-identity']);
@@ -611,6 +843,13 @@ export async function discoverAwsCompute(
       input.nodeCount,
       input.egressMode,
       input.routingProfile,
+      {
+        deploymentName: input.deploymentName,
+        accountId: input.accountId,
+        resourceIds: input.observedOwnedResourceIds ?? [],
+        planSha256s: input.ownedPlanSha256s ?? [],
+      },
+      input.vpcMode ?? 'greenfield',
     ),
   );
   regions.sort(
@@ -647,7 +886,12 @@ export async function discoverAwsCompute(
   ];
   return {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
-    identity: { accountId: input.accountId, partition: input.partition, arn },
+    identity: {
+      accountId: input.accountId,
+      partition: input.partition,
+      arn,
+      ...(input.awsProfile ? { awsProfile: input.awsProfile } : {}),
+    },
     agreement: {
       productId: AWS_CE_MARKETPLACE_PRODUCT_ID,
       active: activeAgreements.length > 0,
