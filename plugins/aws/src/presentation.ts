@@ -140,9 +140,8 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
           expandedEvidence: 'provided' as const,
           sections: [
             ...prefix,
-            ...ce,
+            ...(options.expanded ? p.data(details, 'Domain evidence') : ce),
             ...texts(result).map((t) => literal(t, 'AWS Customer Edge summary')),
-            ...(options.expanded ? p.data(details, 'Domain evidence') : []),
           ],
         };
       return { sections: [...prefix, ...texts(result).map((t) => literal(t, 'CLI evidence'))] };

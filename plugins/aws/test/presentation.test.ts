@@ -227,3 +227,73 @@ test('expanded CE calls withhold plural bootstrap references', () => {
   expect(JSON.stringify(view)).not.toContain('SYNTHETIC_SECRET_SENTINEL');
   expect(JSON.stringify(view)).toContain('synthetic');
 });
+
+const ceEvidenceCases = [
+  [
+    'aws_compute_discover',
+    {
+      observation: { identity: { Account: 'synthetic-account' }, agreement: { active: false }, regions: [] },
+      artifactId: 'synthetic-artifact',
+    },
+    'Compute discovery',
+  ],
+  [
+    'aws_ce_plan',
+    {
+      plan: {
+        planId: 'synthetic-plan',
+        planSha256: 'synthetic-digest',
+        region: 'synthetic-region',
+        topology: { nodeCount: 0 },
+        image: { id: '' },
+        actions: [],
+      },
+    },
+    'Immutable plan',
+  ],
+  [
+    'aws_ce_apply',
+    { planId: 'synthetic-plan', checkpoint: { state: 'synthetic-state', completedActionIds: [], retryable: false } },
+    'Checkpoint',
+  ],
+  [
+    'aws_ce_status',
+    {
+      status: {
+        checkpoint: { state: 'synthetic-state' },
+        aws: { instances: { count: 0 }, enis: { count: 0 } },
+        f5: { enabled: false },
+      },
+    },
+    'Customer Edge status',
+  ],
+  ['aws_ce_diagnose', { mode: 'synthetic-mode', results: [{ ok: false, errorsDetected: true }] }, 'Diagnostics'],
+  [
+    'aws_cloud_init_analyze',
+    {
+      analysis: { phase: 'synthetic-phase', enabled: false, count: 0, empty: '' },
+      bootEvidence: { state: 'synthetic-boot' },
+    },
+    'cloud-init analysis',
+  ],
+] as const;
+for (const [name, details, summaryTitle] of ceEvidenceCases) {
+  test(`${name} replaces collapsed summary with complete expanded evidence once`, () => {
+    const tool = presentTool({ name }, presentation);
+    const payload = result(
+      { ...details, unselected: { count: 0, enabled: false, empty: '' } },
+      'Literal corrective guidance',
+    );
+    const collapsed = tool.presentation.result(payload, options, {});
+    expect(collapsed.sections.some((s) => s.title === summaryTitle)).toBe(true);
+    const expanded = tool.presentation.result(payload, { ...options, expanded: true }, {});
+    expect(expanded.sections.some((s) => s.title === summaryTitle)).toBe(false);
+    expect(expanded.sections).toEqual([
+      collapsed.sections.find((s) => s.title === 'Scope'),
+      ...presentation.data(payload.details, 'Domain evidence'),
+      { kind: 'code', title: 'AWS Customer Edge summary', text: 'Literal corrective guidance' },
+    ]);
+    expect(expanded.expandedEvidence).toBe('provided');
+    expect(expanded.completeness).not.toBe('provided');
+  });
+}
