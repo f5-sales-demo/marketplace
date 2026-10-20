@@ -25,6 +25,30 @@ import { initTheme, setTheme } from './node_modules/@f5-sales-demo/xcsh/src/mode
 const pi = { typebox: { Type }, presentation };
 const ctx = { cwd: '/synthetic-suite' };
 const output = (data: unknown) => ({ stdout: JSON.stringify(data), stderr: '', exitCode: 0, code: 0, killed: false });
+// Table wrapping continues a value vertically within the same column.
+// Check complete ordered text, never combine words from adjacent columns.
+function renderedContains(lines: string[], marker: string): boolean {
+  const plain = lines.map((line) => Bun.stripANSI(line));
+  const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
+  if (normalize(plain.join(' ')).includes(normalize(marker))) return true;
+  const columns: string[][] = [];
+  for (const line of plain) {
+    const cells = line.split('│');
+    if (cells.length < 3) continue;
+    for (let i = 1; i < cells.length - 1; i++) {
+      columns[i] ??= [];
+      columns[i].push(cells[i].trim());
+    }
+  }
+  return columns.some((column) => normalize(column.join(' ')).includes(normalize(marker)));
+}
+test('rendered markers retain complete ordered words within wrapped table columns', () => {
+  const lines = ['│ 1 │ Synthetic │ OPEN │', '│   │ issue     │      │'];
+  expect(renderedContains(lines, 'Synthetic issue')).toBe(true);
+  expect(renderedContains(lines, 'Synthetic missing issue')).toBe(false);
+  expect(renderedContains(lines, 'issue Synthetic')).toBe(false);
+  expect(renderedContains(['│ Synthetic │ issue │'], 'Synthetic issue')).toBe(false);
+});
 async function verify(tool: any, args: unknown, marker: string) {
   const result = await tool.execute('synthetic-suite', args, undefined, undefined, ctx);
   expect(result.isError).not.toBe(true);
@@ -37,7 +61,7 @@ async function verify(tool: any, args: unknown, marker: string) {
       c.setExpanded(true);
       const lines = c.render(width);
       expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
-      expect(lines.join('\n')).toContain(marker);
+      expect(renderedContains(lines, marker)).toBe(true);
       c.setExpanded(false);
       expect(c.render(width).every((line) => visibleWidth(line) <= width)).toBe(true);
     }
