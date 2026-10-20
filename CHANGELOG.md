@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.6.1 shows subscription identity, twelve-row resource previews, pagination and Customer Edge summaries through shared rendering; declares exact CLI argv and preserves output flags, tag filters, help cancellation and safe expanded evidence. CE status preserves unknown F5 health and unavailable Azure read coverage (#1677).
+
 - **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
 
 - **`salesforce`** v2.3.14 — show connection status, schema catalog counts and filtering guidance, fiscal-year bookings with explicit unknown currency, and actionable anomaly explanations in the default shared-renderer output.

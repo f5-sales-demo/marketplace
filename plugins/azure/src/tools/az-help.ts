@@ -1,3 +1,4 @@
+import { helpArgs } from '../az/arguments';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { HELP_PATH_PATTERN } from '../az/types';
@@ -28,14 +29,17 @@ export function createAzHelpTool(pi: PluginInterface, makeApi: (cwd: string) => 
     async execute(
       _toolCallId: string,
       params: { command_path?: string },
-      _signal: unknown,
+      signal: AbortSignal | null | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
       const base = { tool: 'az_help' as const };
       const commandPath = params.command_path?.trim() ?? '';
 
-      if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
+      if (
+        commandPath.length > 0 &&
+        (!HELP_PATH_PATTERN.test(commandPath) || commandPath.split(' ').some((part) => part.startsWith('-')))
+      ) {
         return errorResult(
           `Error: invalid command path "${commandPath}". Only lowercase letters, hyphens, and spaces are allowed.`,
           base,
@@ -43,11 +47,10 @@ export function createAzHelpTool(pi: PluginInterface, makeApi: (cwd: string) => 
       }
 
       const api = makeApi(ctx.cwd);
-      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
-      const args = [...parts, '--help'];
+      const args = helpArgs(params.command_path);
 
       try {
-        const result = await api.exec('az', args);
+        const result = await api.exec('az', args, { signal: signal ?? undefined });
         if (result.exitCode !== 0) {
           const msg = result.stderr || result.stdout || `az ${commandPath} --help failed (exit ${result.exitCode})`;
           return errorResult(`Error: ${msg}`, { ...base, errorType: 'exec_error' });

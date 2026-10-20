@@ -24,16 +24,26 @@ export function summarizeF5Evidence(raw: unknown) {
       registration: String(node.registration ?? 'UNKNOWN'),
       health: String(node.health ?? 'UNKNOWN'),
     })),
-    bgpEstablished: Boolean(item.bgpEstablished),
-    learnedRouteCount: Number(item.learnedRouteCount ?? 0),
+    bgpEstablished: typeof item.bgpEstablished === 'boolean' ? item.bgpEstablished : 'UNKNOWN',
+    learnedRouteCount:
+      typeof item.learnedRouteCount === 'number' &&
+      Number.isFinite(item.learnedRouteCount) &&
+      item.learnedRouteCount >= 0
+        ? item.learnedRouteCount
+        : 'UNKNOWN',
   };
 }
 
-function azureSummary(resources: unknown, vms: unknown, peers: unknown) {
+export function azureSummary(resources: unknown, vms: unknown, peers: unknown) {
   const resourceItems = Array.isArray(resources) ? (resources as Array<Record<string, unknown>>) : [];
   const vmItems = Array.isArray(vms) ? (vms as Array<Record<string, unknown>>) : [];
   const peerItems = Array.isArray(peers) ? (peers as Array<Record<string, unknown>>) : [];
   return {
+    coverage: {
+      resources: Array.isArray(resources) ? 'available' : 'unavailable',
+      vms: Array.isArray(vms) ? 'available' : 'unavailable',
+      routeServerPeers: Array.isArray(peers) ? 'available' : 'unavailable',
+    },
     resources: resourceItems.map((item) => ({
       id: item.id,
       name: item.name,
@@ -123,6 +133,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
         const azure = azureSummary(resources, vms, peers);
         const evidence = {
           planId: plan.planId,
+          routingMode: plan.routing.mode,
           checkpoint: checkpoint ?? { state: 'not-started', completedActionIds: [] },
           azure,
           f5: summarizeF5Evidence(params.f5Evidence),
@@ -131,7 +142,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
           content: [
             {
               type: 'text' as const,
-              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}.`,
+              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}. Coverage: resources ${azure.coverage.resources}, VMs ${azure.coverage.vms}, Route Server peers ${azure.coverage.routeServerPeers}.`,
             },
           ],
           details: { tool: 'azure_ce_status', evidence },

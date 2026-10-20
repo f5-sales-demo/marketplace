@@ -1,3 +1,4 @@
+import { resourceArgs } from '../az/arguments';
 import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatResourceTable } from '../az/formatters';
@@ -63,9 +64,7 @@ export function createAzResourceListTool(pi: PluginInterface, makeApi: (cwd: str
       }
 
       const api = makeApi(ctx.cwd);
-      const args = ['resource', 'list', '--resource-group', params.resource_group];
-      if (params.subscription) args.push('--subscription', params.subscription);
-      if (params.resource_type) args.push('--resource-type', params.resource_type);
+      const args = resourceArgs(params);
 
       try {
         const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
