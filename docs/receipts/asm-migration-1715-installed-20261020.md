@@ -41,6 +41,15 @@ checks with zero failures. No deployment tool was active. This establishes the
 safe installed offline workflow, separately from synthetic rendering and service
 acceptance.
 
+Normal `xcsh plugin status ... --json` reports the native `asm_migration`
+integration ready on both hosts, after its Bun availability probe. This is
+readiness only. Both hosts explicitly reject `plugin setup ... --json` with
+“plugin setup is human-only and does not accept --json”; human setup acceptance
+remains separate. A fresh installed offline session completed and accepted live
+light/ASCII and dark/Nerd changes. Private ANSI viewport observations contain
+changed colors and symbols. These observations do not establish all viewport,
+progress cleanup or context-replacement gates.
+
 Raw captures, original checks, guarded calls, model transcripts and fixture outputs
 remain private. Runtime 23.9.4 is tagged but its build/publication is pending;
 23.9.3 remains the latest verified installed runtime for these receipts. Remaining
