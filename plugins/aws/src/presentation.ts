@@ -58,7 +58,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
       const argv = toolArgv(tool.name, args);
       // Do not expose cloud-init source or bootstrap material in call presentation.
       const safeArgs = Object.fromEntries(
-        Object.entries(args).filter(([key]) => !['source', 'bootstrapRef'].includes(key)),
+        Object.entries(args).filter(([key]) => !['source', 'bootstrapRef', 'bootstrapRefs'].includes(key)),
       );
       return { sections: options.expanded ? p.data(safeArgs) : [...(argv ? [p.command(argv)] : []), scope(safeArgs)] };
     },

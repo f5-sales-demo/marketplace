@@ -218,3 +218,12 @@ for (const shell of ['bash', 'zsh']) {
     expect(bytes.toString().split('\0').slice(0, -1)).toEqual(argv.slice(1));
   });
 }
+
+test('expanded CE calls withhold plural bootstrap references', () => {
+  const view = presentTool({ name: 'aws_ce_apply' }, presentation).presentation.call(
+    { planId: 'synthetic', bootstrapRefs: { node: 'SYNTHETIC_SECRET_SENTINEL' } },
+    { ...options, expanded: true },
+  );
+  expect(JSON.stringify(view)).not.toContain('SYNTHETIC_SECRET_SENTINEL');
+  expect(JSON.stringify(view)).toContain('synthetic');
+});
