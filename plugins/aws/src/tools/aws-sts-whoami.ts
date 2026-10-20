@@ -1,3 +1,4 @@
+import { identityArgs, normalizeProfile } from '../aws/arguments';
 import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson } from '../aws/exec';
 import { formatIdentityDetail, normalizeIdentity } from '../aws/formatters';
@@ -36,7 +37,7 @@ export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: strin
     ) {
       const base = { tool: 'aws_sts_whoami' as const };
 
-      const profile = params.profile !== undefined && /^ *$/.test(params.profile) ? undefined : params.profile;
+      const profile = normalizeProfile(params.profile);
       if (profile !== undefined && !RESOURCE_NAME_PATTERN.test(profile)) {
         return errorResult(
           `Error: invalid profile "${params.profile}". Only alphanumeric characters, dots, underscores, colons, slashes, and hyphens are allowed.`,
@@ -45,8 +46,7 @@ export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: strin
       }
 
       const api = makeApi(ctx.cwd);
-      const args = ['sts', 'get-caller-identity'];
-      if (profile) args.push('--profile', profile);
+      const args = identityArgs(profile);
 
       try {
         const raw = await execAwsJson<Record<string, unknown>>(api, args, signal);

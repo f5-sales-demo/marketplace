@@ -1,3 +1,4 @@
+import { groupArgs } from '../az/arguments';
 import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatResourceGroupTable } from '../az/formatters';
@@ -65,16 +66,13 @@ export function createAzGroupListTool(pi: PluginInterface, makeApi: (cwd: string
           if (!params.name) {
             return errorResult('Error: --name is required for show action.', base);
           }
-          const args = ['group', 'show', '--name', params.name];
-          if (params.subscription) args.push('--subscription', params.subscription);
+          const args = groupArgs(params);
           const raw = await execAzJson<Record<string, unknown>>(api, args, signal);
           const group = normalizeResourceGroup(raw);
           return textResult(formatResourceGroupTable([group]), { ...base, resourceGroups: [group] });
         }
 
-        const args = ['group', 'list'];
-        if (params.subscription) args.push('--subscription', params.subscription);
-        if (params.tag) args.push('--tag', params.tag);
+        const args = groupArgs(params);
         const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
         const groups = raw.map(normalizeResourceGroup);
         return textResult(formatResourceGroupTable(groups), { ...base, resourceGroups: groups });

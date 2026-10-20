@@ -23,7 +23,7 @@ or copies of Salesforce's private renderer. Runtime code must use declared colum
 metadata instead of Salesforce-specific names such as Deal or Month. Currency,
 query interpretation and business conclusions remain adapter responsibilities.
 
-## Qualified starting point and remaining work
+## Historical baseline and current delivery
 
 The source baseline is Salesforce 2.3.11 at marketplace commit
 `917143c428206f5876debf727e666d999fb81b80`. Its six tools declare presentation
@@ -40,12 +40,17 @@ of Salesforce presentation, and wholesale private-renderer copies, including
 copies whose comments or whitespace changed. These checks supplement review;
 they cannot prove that an independently rewritten renderer shares no behavior.
 
-The candidate 2.3.12 adapter removes all six overrides and private timer hooks.
-It declares runtime-owned commands, twelve-row previews, full field sections,
-complete safe expanded evidence and decoded domain completion explanations.
-The runtime refinements are delivered through [#5014](https://github.com/f5-sales-demo/xcsh/pull/5014)
-and its source-audit follow-up [#5016](https://github.com/f5-sales-demo/xcsh/pull/5016).
-Stable publication and installed acceptance are separate gates.
+Salesforce 2.3.15 is now delivered on current `main`. Its six tools use data-only
+adapters and runtime-owned commands, previews, evidence and progress. The
+[canonical tracker](marketplace-presentation-todo.md#plugin-salesforce) retains
+its completed qualification and immutable receipts, including real browser setup
+acceptance. The 2.3.11 baseline below is historical provenance.
+
+The discovery/registration lane remains pinned to published runtime 23.8.0. The
+catalog runner uses the actual installed binary and records its version separately
+(current Mac baseline: 23.9.3). Changing installed qualification does not change
+the discovery fingerprint. A deliberate discovery upgrade requires reconciliation
+of every invalidated claim; it cannot carry forward unsupported VERIFIED rows.
 
 Removed lifecycle registration rows are preserved in the canonical tracker's
 Retired surfaces appendix with their full prior status, evidence, receipt and
@@ -55,8 +60,10 @@ registrations count toward active surface coverage; unexplained removals fail.
 The original private installation receipt verifies 101 files against the exact
 2.3.11 tag. It has no visual findings. A fresh comparison verifies all 101 files
 on both Mac and Ubuntu. Neither proof substitutes for historical or fresh native
-terminal captures. `shared.contract` is qualified by the fresh automated native baseline in
-[the native receipt](receipts/salesforce-native-baseline-20261018.md). Fresh module readiness is reported separately from native binary/TUI
+terminal captures. The historical automated native baseline is retained in
+[the native receipt](receipts/salesforce-native-baseline-20261018.md).
+Current `shared.*` rows remain pending requalification after fingerprint invalidation.
+Fresh module readiness is reported separately from native binary/TUI
 acceptance. In this campaign, live Salesforce checks use the corporate MDM
 MacBook. Ubuntu and the NUC cannot access that service by policy; their
 installation/source checks do not establish service access. Their campaign checks are limited to source, artifacts and unavailable-state
@@ -80,8 +87,8 @@ cleanup. Runtime adoption must independently qualify these requirements:
 - Switch live theme/preset without stale output. Advance registered-tool progress
   and retire timers on completion, cancellation and session shutdown.
 
-This document defines the ownership contract and migration gates. It preserves the qualified native renderer baseline while the shared-runtime
-prerequisite and Salesforce adoption remain pending.
+This document defines the ownership contract and migration gates. It preserves the historical native baseline and completed Salesforce qualification.
+The remaining plugins require their own current implementation and installed/service evidence.
 
 ## Verification
 
@@ -99,3 +106,103 @@ acceptance mode performs readiness and read-only org display. Its receipt labels
 setup execution status. Non-ready dependencies produce a sanitized blocked
 receipt and do not execute a read-only tool or setup. This is deliberately separate from native binary/TUI
 proof and model-driven scenarios.
+
+## Catalog-driven qualification
+
+`bun scripts/marketplace-qualification.ts` prints all 23 canonical plugins in the
+campaign order, installed entrypoint conventions, current surface IDs, lifecycle
+requirements and supported service hosts. It reads the existing tracker and adds
+no new discovery fingerprint. Native tools, commands, messages, advisories and
+content guidance remain separate exposed surfaces.
+
+Load `scripts/observe-marketplace-campaign.ts` as an explicit extension of the
+published binary, with automatic extensions disabled. Set private paths through
+`MARKETPLACE_CAMPAIGN_ROOT`, `MARKETPLACE_CAMPAIGN_PLUGIN`,
+`MARKETPLACE_CAMPAIGN_NAME` and `MARKETPLACE_CAMPAIGN_SCENARIO`. The scenario
+contains a safe ID, `calls` with exact `{tool, args}` rules, and shipped relative
+`guidance` paths. Optional `commands` bind exact `{name, args}` invocations.
+Optional `guidanceOptions` lists exact reviewed read option objects, for example
+`[{}, {"sel":"", "timeout":20}]`, to admit the published tool's full-file selector
+and timeout explicitly. Without it, only the path argument is admitted. Partial
+selectors, arbitrary keys and unreviewed option combinations remain denied;
+every read still binds a selected shipped path and passes symlink containment.
+The installed registry must agree with the selected path and manifest version;
+`MARKETPLACE_CAMPAIGN_REGISTRY` overrides the default user registry for isolated tests.
+Review those rules against the plugin's execution semantics:
+an allowlist is a restriction, not authorization for a mutation.
+
+Content collectors may opt into `shellCalls`. Each rule supplies a shipped relative
+`path`, exact Markdown `section` heading, lowercase `sha256` of the complete Bash
+fence body (including its final newline), and exact `args` containing
+`command`, string-valued `env` and `timeout` (greater than zero and at most 120
+seconds). An optional `description` must be independently reviewed, nonempty,
+NUL-free and at most 256 characters; it must match exactly at dispatch. Unknown
+arguments remain denied. The selected section must contain one unambiguous Bash fence matching
+both command and digest. Paths cannot escape the installation. Startup verifies
+the source; dispatch rechecks it and denies changed, missing or ambiguous content.
+Every argument and environment value must match the reviewed rule. Review targets
+and execution semantics independently before supplying a scenario. This lane does
+not infer command safety. Generic `calls` still cannot admit Bash, file writes or
+task/subagent delegation; nested guard propagation remains a separate prerequisite.
+Fixture mode denies Bash even when a matching shell rule exists. Service and
+guidance modes retain its actual full result and capture it with the published
+runtime's built-in `ToolExecutionComponent`. The observer admits each reviewed
+collector once per fresh scenario session, even if execution fails. Blocked calls,
+unadmitted execution events and late repeated results cannot become Bash captures.
+Retry qualification requires a fresh observer and private capture root.
+
+Service mode observes normal runtime dispatch, tool selection, actual full
+results, reviewed command dispatch, plugin messages and UI dispatch, lifecycle
+callback returns, model context types and assistant
+conclusions in separate private journal events. Only the selected tools and exact
+arguments are admitted. Guidance mode uses an explicit guidance-only scenario.
+The runner rejects unsupported service hosts, ambiguous rules and escaped paths.
+It does not invoke setup, commands, advisory matchers or lifecycle handlers to
+manufacture successful execution evidence. Use the normal shipped invocation and
+retain its observed dispatch; missing event coverage remains unfinished.
+
+Fixture mode requires `MARKETPLACE_CAMPAIGN_MODE=fixture` and an explicit
+`MARKETPLACE_CAMPAIGN_FIXTURES` file. Synthetic `{id, tool, args, result}` cases
+exercise the installed binary's real `ToolExecutionComponent`; plugin service
+lifecycle handlers are suppressed and integration snapshots are synthetic.
+The observer blocks registered-tool execution, plugin commands and `api.exec` in
+fixture mode. Review entrypoint initialization before loading: arbitrary direct
+process or network calls inside a plugin are outside these API guards.
+Fixture captures never qualify service execution, model selection or lifecycle.
+Fixtures may represent mutation outcomes without executing mutation tools.
+Domain cases and literal expectations belong to each plugin's qualification suite.
+
+After normal workflow completion (or fixture admission), invoke
+`/marketplace-campaign-capture`, then run
+`bun scripts/drive-marketplace-capture.ts <private-root> <checks.json>`.
+Every case requires explicit inspection expectations (`contains`,
+`collapsedContains`, `expandedContains`, `absent`, `expectedError`). The driver
+checks each of the 48 combinations individually, retains findings, and exits
+nonzero on any failure. `/marketplace-campaign-exit` retires the observer session.
+Frame identity includes every appearance control and installed provenance. The
+driver rejects public or symlink capture roots and preserves existing inspections.
+Private raw results must be reviewed and sanitized before publishing receipts.
+
+Native buffer checks do not establish viewport inspection, exact shell copying,
+progress advancement/cleanup, service fidelity or executed shipped guidance.
+Those gates require their respective retained evidence. Existing Salesforce
+capture, viewport and progress controls remain available and unchanged.
+
+## Development and minimum compatibility lanes
+
+The current verified stable development lane is 23.9.3 (GitHub stable release and
+npm `latest`, checked 2026-10-20). Changed runtime plugins migrate their exact
+development pin and frozen lock to that release independently of the manifest
+minimum and peer range. Existing qualified dependency pins remain during the
+per-plugin migration; Salesforce and the 23.8.0 discovery graph retain their
+historical qualification. This dependency lane does not verify any tracker row.
+
+Run `bash scripts/run-plugin-minimum-runtime.sh aws` (or another runtime plugin)
+after focused latest-runtime tests. The runner copies only that plugin into an
+owned temporary directory, resolves and checks its exact declared minimum,
+excludes cloud CLIs from the test PATH, and runs its Bun suite. It preserves the
+source manifest, lock and installed graph, retains a private log, and removes its
+owned copy. This is a source compatibility gate; installed rendering and safe
+service/workflow qualification remain separate. Inspect test/import initialization
+before running: PATH exclusions are not a sandbox for arbitrary network or direct
+process operations.

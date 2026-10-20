@@ -4,6 +4,7 @@ import { execGlabJson, GlabAuthError } from '../glab/exec';
 import { formatIssueDetail } from '../glab/formatters';
 import type { GlabIssue } from '../glab/types';
 import glabIssueViewDescription from '../prompts/glab-issue-view.md' with { type: 'text' };
+import { issueViewArgs } from './command-args';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
@@ -40,13 +41,11 @@ export function createGlabIssueViewTool(pi: PluginHost, makeApi: (cwd: string) =
         });
       }
 
-      const issueId = String(params.issue);
-      const args = ['issue', 'view', issueId, '--output', 'json', '--repo', project];
-      if (params.comments !== false) args.push('--comments');
+      const args = issueViewArgs(params, project);
 
       try {
         const issue = await execGlabJson<GlabIssue>(api, args, signal);
-        return textResult(formatIssueDetail(issue), { tool: 'glab_issue_view', issue, project });
+        return textResult(formatIssueDetail(issue), { tool: 'glab_issue_view', issue, project, commandArgs: args });
       } catch (err) {
         if (err instanceof GlabAuthError)
           return errorResult((err as Error).message, { errorType: detectErrorType(err) });

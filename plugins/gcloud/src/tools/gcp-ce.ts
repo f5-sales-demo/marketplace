@@ -4,6 +4,7 @@ import { planGcpCe } from '../ce/planner';
 import { readGcpCePolicy } from '../ce/policy';
 import type { GcpCeEngine, GcpCeIntent } from '../ce/types';
 import { validateIntent, validateScope } from '../ce/validation';
+import { inventoryArgs } from '../gcloud/arguments';
 import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import { makeExecApi } from './shared';
@@ -125,14 +126,7 @@ export function createGcpCeTools(
             throw new Error('Exact deployment name required');
           const raw = await execGcloudJson<Array<Record<string, unknown>>>(
             api,
-            [
-              'compute',
-              'instances',
-              'list',
-              `--project=${params.project}`,
-              `--filter=labels.xcsh-deployment=${params.deploymentName}`,
-              '--format=json(id,name,zone,status,labels)',
-            ],
+            inventoryArgs(params.project, params.deploymentName),
             signal,
           );
           if (!Array.isArray(raw)) throw new Error('Malformed inventory');

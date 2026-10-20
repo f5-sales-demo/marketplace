@@ -64,9 +64,10 @@ export function createGcloudExecTool(pi: PluginInterface, makeApi: (cwd: string)
           // Classify the failure (auth / session-expired / permission / not-found) from
           // stderr so the agent gets the same errorType the typed tools surface, instead
           // of a blanket exec_error.
-          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
+          const failure = detectGcloudError(result.stderr || result.stdout, result.exitCode);
+          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${failure.message}`, {
             ...base,
-            errorType: detectErrorType(detectGcloudError(result.stderr, result.exitCode)),
+            errorType: detectErrorType(failure),
           });
         }
         let output = result.stdout;

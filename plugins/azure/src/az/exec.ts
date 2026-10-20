@@ -1,3 +1,4 @@
+import { jsonArgs } from './arguments';
 import type { AzRawResult } from './types';
 
 export class AzExecError extends Error {
@@ -60,7 +61,7 @@ export interface AzExecApi {
 }
 
 export async function execAzJson<T>(api: AzExecApi, args: string[], signal?: AbortSignal): Promise<T> {
-  const fullArgs = [...args, '--output', 'json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('az', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectAzError(result.stderr, result.exitCode);

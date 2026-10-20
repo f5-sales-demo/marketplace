@@ -11,6 +11,115 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// plugins/aws/src/aws/arguments.ts
+function identityArgs(profile) {
+  const selected = normalizeProfile(profile);
+  return ['sts', 'get-caller-identity', ...(selected ? ['--profile', selected] : [])];
+}
+function instanceArgs(params) {
+  return [
+    'ec2',
+    'describe-instances',
+    ...(params.region ? ['--region', params.region] : []),
+    ...(params.instanceIds?.length ? ['--instance-ids', ...params.instanceIds] : []),
+    ...(params.filters?.length ? ['--filters', ...params.filters] : []),
+  ];
+}
+var normalizeProfile = (profile) => (profile !== undefined && /^ *$/.test(profile) ? undefined : profile),
+  jsonArgs = (args) => [...args, '--output', 'json'],
+  s3Args = (target) => (target ? ['s3', 'ls', target] : ['s3api', 'list-buckets']),
+  helpArgs = (path) => [...(path?.trim().split(' ').filter(Boolean) ?? []), 'help'];
+
+// plugins/aws/src/tools/aws-exec-guard.ts
+function getPositionals(args) {
+  return args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    if (i > 0) {
+      const prev = args[i - 1];
+      if (VALUE_FLAGS.has(prev) && !prev.includes('=')) return false;
+    }
+    return true;
+  });
+}
+function findMutation(args) {
+  const positionals = getPositionals(args);
+  if (positionals.length === 0) {
+    return { blocked: true, reason: 'no aws command provided' };
+  }
+  const service = positionals[0];
+  const op = positionals[1];
+  if (READ_TOP.has(service)) return { blocked: false };
+  if (service === 's3') {
+    if (op && S3_READ_OPS.has(op)) return { blocked: false };
+    if (op && S3_WRITE_OPS.has(op)) {
+      return { blocked: true, reason: `"s3 ${op}" writes to S3. ${WRITE_DELEGATION}` };
+    }
+    return {
+      blocked: true,
+      reason: op
+        ? `"s3 ${op}" is not a recognized read-only S3 command. ${WRITE_DELEGATION}`
+        : `"s3" requires a subcommand; only "s3 ls" is allowed as read-only. ${WRITE_DELEGATION}`,
+    };
+  }
+  if (!op) {
+    return {
+      blocked: true,
+      reason: `"${service}" has no operation; provide a read-only operation. ${WRITE_DELEGATION}`,
+    };
+  }
+  const isRead = READ_EXACT.has(op) || READ_PREFIXES.some((p) => op.startsWith(p));
+  if (isRead) return { blocked: false };
+  return {
+    blocked: true,
+    reason: `"${service} ${op}" is not a recognized read-only aws operation. ${WRITE_DELEGATION}`,
+  };
+}
+function buildAwsArgs(args) {
+  const hasOutput = args.some(
+    (a) => a === '--output' || a === '-o' || a.startsWith('--output=') || a.startsWith('-o='),
+  );
+  return hasOutput ? [...args] : [...args, '--output', 'json'];
+}
+var READ_TOP, S3_READ_OPS, S3_WRITE_OPS, READ_PREFIXES, READ_EXACT, VALUE_FLAGS, WRITE_DELEGATION;
+var init_aws_exec_guard = __esm(() => {
+  READ_TOP = new Set(['help']);
+  S3_READ_OPS = new Set(['ls']);
+  S3_WRITE_OPS = new Set(['cp', 'mv', 'rm', 'sync', 'mb', 'rb']);
+  READ_PREFIXES = [
+    'describe-',
+    'list-',
+    'get-',
+    'lookup-',
+    'search-',
+    'batch-get-',
+    'head-',
+    'estimate-',
+    'simulate-',
+    'preview-',
+    'filter-',
+    'check-',
+    'resolve-',
+  ];
+  READ_EXACT = new Set(['ls', 'wait', 'help', 'scan', 'select', 'query']);
+  VALUE_FLAGS = new Set([
+    '--region',
+    '--profile',
+    '--output',
+    '--query',
+    '--endpoint-url',
+    '--color',
+    '--ca-bundle',
+    '--cli-read-timeout',
+    '--cli-connect-timeout',
+    '--page-size',
+    '--max-items',
+    '--starting-token',
+  ]);
+  WRITE_DELEGATION =
+    'aws_exec is read-only by default. Run write/destructive operations through an ' +
+    'explicitly confirmed path (delegate to the aws:cli-operator agent), not aws_exec.';
+});
+
 // plugins/aws/src/aws/exec.ts
 function detectAwsError(stderr, exitCode) {
   const lower = stderr.toLowerCase();
@@ -75,7 +184,7 @@ function parseAwsJsonOutput(raw) {
   }
 }
 async function execAwsJson(api, args, signal) {
-  const fullArgs = [...args, '--output', 'json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('aws', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectAwsError(result.stderr, result.exitCode);
@@ -227,13 +336,21 @@ function parseS3LsOutput(raw) {
 `)) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
-    if (trimmed.startsWith('PRE ')) {
-      out.push({ key: trimmed.slice(4).trim(), size: 0, lastModified: '' });
+    const prefix = line.match(/^\s*PRE (.+)$/);
+    if (prefix) {
+      out.push({ key: prefix[1], size: null, lastModified: '' });
       continue;
     }
-    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+(.+)$/);
+    const match = line.match(/^\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+) (.+)$/);
     if (match) {
-      out.push({ key: match[3], size: Number(match[2]), lastModified: match[1] });
+      out.push({
+        key: match[3],
+        size: Number.isSafeInteger(Number(match[2])) ? Number(match[2]) : match[2],
+        lastModified: match[1],
+      });
+    } else {
+      throw new AwsExecError(`Malformed S3 listing; complete results cannot be verified.
+${raw}`);
     }
   }
   return out;
@@ -258,7 +375,7 @@ function formatS3ObjectTable(objects) {
   if (objects.length === 0) return 'No objects found.';
   const header = '| Key | Size | Last Modified |';
   const sep = '|-----|------|---------------|';
-  const rows = objects.map((o) => `| ${o.key} | ${o.size} | ${o.lastModified || '-'} |`);
+  const rows = objects.map((o) => `| ${o.key} | ${o.size ?? 'Not applicable (prefix)'} | ${o.lastModified || '-'} |`);
   return [header, sep, ...rows].join(`
 `);
 }
@@ -273,6 +390,9 @@ function formatInstanceTable(instances) {
   return [header, sep, ...rows].join(`
 `);
 }
+var init_formatters = __esm(() => {
+  init_exec();
+});
 
 // plugins/aws/src/aws/types.ts
 var INSTANCE_ID_PATTERN, REGION_PATTERN, S3_URI_PATTERN, RESOURCE_NAME_PATTERN, HELP_PATH_PATTERN;
@@ -341,7 +461,7 @@ function createAwsStsWhoamiTool(pi, makeApi = makeExecApi) {
     parameters,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const base = { tool: 'aws_sts_whoami' };
-      const profile = params.profile !== undefined && /^ *$/.test(params.profile) ? undefined : params.profile;
+      const profile = normalizeProfile(params.profile);
       if (profile !== undefined && !RESOURCE_NAME_PATTERN.test(profile)) {
         return errorResult(
           `Error: invalid profile "${params.profile}". Only alphanumeric characters, dots, underscores, colons, slashes, and hyphens are allowed.`,
@@ -349,8 +469,7 @@ function createAwsStsWhoamiTool(pi, makeApi = makeExecApi) {
         );
       }
       const api = makeApi(ctx.cwd);
-      const args = ['sts', 'get-caller-identity'];
-      if (profile) args.push('--profile', profile);
+      const args = identityArgs(profile);
       try {
         const raw = await execAwsJson(api, args, signal);
         const identity = normalizeIdentity(raw);
@@ -363,6 +482,7 @@ function createAwsStsWhoamiTool(pi, makeApi = makeExecApi) {
 }
 var init_aws_sts_whoami2 = __esm(() => {
   init_exec();
+  init_formatters();
   init_types();
   init_aws_sts_whoami();
   init_shared();
@@ -437,11 +557,11 @@ function createAwsS3LsTool(pi, makeApi = makeExecApi) {
       const api = makeApi(ctx.cwd);
       try {
         if (params.target) {
-          const result = await execAwsRaw(api, ['s3', 'ls', params.target], signal);
+          const result = await execAwsRaw(api, s3Args(params.target), signal);
           const objects = parseS3LsOutput(result.stdout);
           return textResult(formatS3ObjectTable(objects), { ...base, objects });
         }
-        const raw = await execAwsJson(api, ['s3api', 'list-buckets'], signal);
+        const raw = await execAwsJson(api, s3Args(), signal);
         const buckets = (raw.Buckets ?? []).map(normalizeBucket);
         return textResult(formatBucketTable(buckets), { ...base, buckets });
       } catch (err) {
@@ -452,6 +572,7 @@ function createAwsS3LsTool(pi, makeApi = makeExecApi) {
 }
 var init_aws_s3_ls2 = __esm(() => {
   init_exec();
+  init_formatters();
   init_types();
   init_aws_s3_ls();
   init_shared();
@@ -503,10 +624,7 @@ function createAwsEc2DescribeInstancesTool(pi, makeApi = makeExecApi) {
         }
       }
       const api = makeApi(ctx.cwd);
-      const args = ['ec2', 'describe-instances'];
-      if (params.region) args.push('--region', params.region);
-      if (params.instanceIds && params.instanceIds.length > 0) args.push('--instance-ids', ...params.instanceIds);
-      if (params.filters && params.filters.length > 0) args.push('--filters', ...params.filters);
+      const args = instanceArgs(params);
       try {
         const raw = await execAwsJson(api, args, signal);
         const instances = normalizeReservations(raw);
@@ -520,6 +638,7 @@ function createAwsEc2DescribeInstancesTool(pi, makeApi = makeExecApi) {
 var EC2_FILTER_PATTERN;
 var init_aws_ec2_describe_instances2 = __esm(() => {
   init_exec();
+  init_formatters();
   init_types();
   init_aws_ec2_describe_instances();
   init_shared();
@@ -530,94 +649,6 @@ var init_aws_ec2_describe_instances2 = __esm(() => {
 var aws_exec_default =
   '# Execute AWS CLI Commands\n\nExecute any `aws` CLI command directly.\n\nThis is the general-purpose tool for running AWS CLI commands that are not covered by the typed tools (aws_sts_whoami, aws_s3_ls, aws_ec2_describe_instances). Prefer the typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the service, operation, and flags as an array of arguments. Do NOT include `aws` itself \u2014 it is prepended automatically.\n\n**Example:** To run `aws ec2 describe-instances --region us-east-1`:\n\n```json\n{ "args": ["ec2", "describe-instances", "--region", "us-east-1"] }\n```\n\nThe AWS CLI grammar is `aws <service> <operation>` (for example `ec2 describe-instances`, `iam list-users`, `s3 ls`).\n\n## Safety\n\n- Arguments are passed as an array directly to the `aws` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `aws` invocation runs, including full JMESPath `--query` syntax.\n- **Read-only by default:** only read operations are allowed. Reads are recognized by operation prefix (`describe-`, `list-`, `get-`, `lookup-`, `search-`, `head-`, `check-`, `resolve-`, \u2026) plus a few exact reads (`scan`, `query`, `select`, `wait`, and `s3 ls`).\n- Everything else \u2014 including `run-instances`, `terminate-instances`, `create-*`, `update-*`, `delete-*`, and the mutating `s3` verbs (`cp`, `mv`, `rm`, `sync`, `mb`, `rb`) \u2014 is blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `aws:cli-operator` agent), not `aws_exec`.\n- Output is capped to prevent context overflow.\n\n## Output format with `--output`\n\nControl the response format with `--output json|text|table` (JSON is added automatically when you do not supply your own):\n\n- `--output json` \u2014 machine-readable JSON (the default)\n- `--output text` \u2014 tab-separated, good for piping\n- `--output table` \u2014 human-readable ASCII table\n\n## Filtering with `--filters`\n\nMany `describe-*` operations accept server-side `--filters` in `Name=...,Values=...` form, which narrows results before they are returned:\n\n```json\n{ "args": ["ec2", "describe-instances", "--filters", "Name=instance-state-name,Values=running"] }\n```\n\n## Querying with `--query` (JMESPath)\n\nAWS uses the JMESPath grammar for the client-side `--query` flag \u2014 pass the expression as a single argument value. This is NOT the GitHub CLI `--json`/`--jq` model; there is no `--jq`. Common patterns:\n\n- Field projection: `--query "Reservations[].Instances[].{id:InstanceId, type:InstanceType}"`\n- Filter: `--query "Reservations[].Instances[?State.Name==\'running\']"`\n- Substring match: `--query "Buckets[?contains(Name, \'prod\')]"`\n- Backtick literals (numbers/booleans/quoted enums): `` --query "Volumes[?Size==`100`]" ``\n- OR / AND / NOT: `--query "[?a==\'x\' || b==\'y\']"`, `--query "[?a && b]"`, `--query "[?!Encrypted]"`\n- Pipe to post-process a projection: `--query "Reservations[].Instances[].InstanceId | [0]"`\n\nAll of the above \u2014 including `||`, `|`, and backticks \u2014 are accepted verbatim, because arguments bypass the shell.\n\n## Tips\n\n- `--output json` is added automatically unless you pass your own `--output`/`-o` (for example `-o table`, `-o text`), which is respected.\n- Use `--region NAME` to target a specific region and `--profile NAME` to select credentials.\n- Use the `aws_help` tool first if you are unsure about a service\'s available operations or flags.\n';
 var init_aws_exec = () => {};
-
-// plugins/aws/src/tools/aws-exec-guard.ts
-function getPositionals(args) {
-  return args.filter((a, i) => {
-    if (a.startsWith('-')) return false;
-    if (i > 0) {
-      const prev = args[i - 1];
-      if (VALUE_FLAGS.has(prev) && !prev.includes('=')) return false;
-    }
-    return true;
-  });
-}
-function findMutation(args) {
-  const positionals = getPositionals(args);
-  if (positionals.length === 0) {
-    return { blocked: true, reason: 'no aws command provided' };
-  }
-  const service = positionals[0];
-  const op = positionals[1];
-  if (READ_TOP.has(service)) return { blocked: false };
-  if (service === 's3') {
-    if (op && S3_READ_OPS.has(op)) return { blocked: false };
-    if (op && S3_WRITE_OPS.has(op)) {
-      return { blocked: true, reason: `"s3 ${op}" writes to S3. ${WRITE_DELEGATION}` };
-    }
-    return {
-      blocked: true,
-      reason: op
-        ? `"s3 ${op}" is not a recognized read-only S3 command. ${WRITE_DELEGATION}`
-        : `"s3" requires a subcommand; only "s3 ls" is allowed as read-only. ${WRITE_DELEGATION}`,
-    };
-  }
-  if (!op) {
-    return {
-      blocked: true,
-      reason: `"${service}" has no operation; provide a read-only operation. ${WRITE_DELEGATION}`,
-    };
-  }
-  const isRead = READ_EXACT.has(op) || READ_PREFIXES.some((p) => op.startsWith(p));
-  if (isRead) return { blocked: false };
-  return {
-    blocked: true,
-    reason: `"${service} ${op}" is not a recognized read-only aws operation. ${WRITE_DELEGATION}`,
-  };
-}
-function buildAwsArgs(args) {
-  const hasOutput = args.some((a) => a === '--output' || a === '-o');
-  return hasOutput ? [...args] : [...args, '--output', 'json'];
-}
-var READ_TOP, S3_READ_OPS, S3_WRITE_OPS, READ_PREFIXES, READ_EXACT, VALUE_FLAGS, WRITE_DELEGATION;
-var init_aws_exec_guard = __esm(() => {
-  READ_TOP = new Set(['help']);
-  S3_READ_OPS = new Set(['ls']);
-  S3_WRITE_OPS = new Set(['cp', 'mv', 'rm', 'sync', 'mb', 'rb']);
-  READ_PREFIXES = [
-    'describe-',
-    'list-',
-    'get-',
-    'lookup-',
-    'search-',
-    'batch-get-',
-    'head-',
-    'estimate-',
-    'simulate-',
-    'preview-',
-    'filter-',
-    'check-',
-    'resolve-',
-  ];
-  READ_EXACT = new Set(['ls', 'wait', 'help', 'scan', 'select', 'query']);
-  VALUE_FLAGS = new Set([
-    '--region',
-    '--profile',
-    '--output',
-    '--query',
-    '--endpoint-url',
-    '--color',
-    '--ca-bundle',
-    '--cli-read-timeout',
-    '--cli-connect-timeout',
-    '--page-size',
-    '--max-items',
-    '--starting-token',
-  ]);
-  WRITE_DELEGATION =
-    'aws_exec is read-only by default. Run write/destructive operations through an ' +
-    'explicitly confirmed path (delegate to the aws:cli-operator agent), not aws_exec.';
-});
 
 // plugins/aws/src/tools/aws-exec.ts
 function createAwsExecTool(pi, makeApi = makeExecApi) {
@@ -757,24 +788,27 @@ function createAwsHelpTool(pi, makeApi = makeExecApi) {
         );
       }
       const api = makeApi(ctx.cwd);
-      const args = [...parts, 'help'];
+      const args = helpArgs(params.command_path);
       try {
         const result = await api.exec('aws', args, { signal });
+        if (result.exitCode !== 0) throw detectAwsError(result.stderr || result.stdout, result.exitCode);
         const output = result.stdout || result.stderr;
         if (!output.trim()) {
           return errorResult(`No help output for "aws ${commandPath}".`, { ...base, errorType: 'exec_error' });
         }
         return textResult(output, base);
       } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+        if (err instanceof Error && ['AbortError', 'ToolAbortError'].includes(err.name)) throw err;
+        return errorResult(`Error: ${renderError(err)}`, {
           ...base,
-          errorType: 'exec_error',
+          errorType: detectErrorType(err),
         });
       }
     },
   };
 }
 var init_aws_help2 = __esm(() => {
+  init_exec();
   init_types();
   init_aws_help();
   init_shared();
@@ -1088,7 +1122,7 @@ function scopedAwsApi(api, profile, signal) {
 }
 
 // plugins/aws/src/ce/inventory.ts
-function record(value) {
+function record3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS inventory evidence');
   return value;
 }
@@ -1101,7 +1135,7 @@ function tags(value) {
   if (!Array.isArray(value)) throw new Error('Malformed AWS inventory tags');
   const result = new Map();
   for (const item of value) {
-    const row = record(item);
+    const row = record3(item);
     if (typeof row.Key !== 'string' || typeof row.Value !== 'string' || result.has(row.Key))
       throw new Error('Malformed AWS inventory tags');
     result.set(row.Key, row.Value);
@@ -1129,12 +1163,12 @@ async function readAwsEc2Pages(api, command, field, region, args = []) {
     if (response.exitCode !== 0) throw detectAwsError(response.stderr, response.exitCode);
     let raw;
     try {
-      raw = record(JSON.parse(response.stdout));
+      raw = record3(JSON.parse(response.stdout));
     } catch {
       throw new Error('Malformed AWS inventory page');
     }
     if (!Array.isArray(raw[field])) throw new Error('Missing AWS inventory page collection');
-    result.push(...raw[field].map(record));
+    result.push(...raw[field].map(record3));
     if (result.length > 1e5) throw new Error('AWS inventory exceeded collection bound');
     if (
       raw.NextToken !== undefined &&
@@ -1161,7 +1195,7 @@ async function collectAwsCeInventory(input, executor, signal) {
   const api = scopedAwsApi(executor, input.awsProfile, signal);
   const identityResult = await api.exec('aws', ['sts', 'get-caller-identity', '--output', 'json']);
   if (identityResult.exitCode !== 0) throw detectAwsError(identityResult.stderr, identityResult.exitCode);
-  const identity = record(JSON.parse(identityResult.stdout));
+  const identity = record3(JSON.parse(identityResult.stdout));
   if (identity.Account !== input.accountId) throw new Error('AWS inventory account differs from authenticated account');
   const collectedAt = new Date().toISOString();
   const nodes = [];
@@ -1169,7 +1203,7 @@ async function collectAwsCeInventory(input, executor, signal) {
     const reservations = await readAwsEc2Pages(api, 'describe-instances', 'Reservations', region);
     const instances = reservations.flatMap((reservation) => {
       if (!Array.isArray(reservation.Instances)) throw new Error('Malformed AWS reservation');
-      return reservation.Instances.map(record);
+      return reservation.Instances.map(record3);
     });
     const enis = await readAwsEc2Pages(api, 'describe-network-interfaces', 'NetworkInterfaces', region);
     const eniById = new Map();
@@ -1198,11 +1232,11 @@ async function collectAwsCeInventory(input, executor, signal) {
       const indexes = new Set();
       const macs = new Set();
       const interfaces = instance.NetworkInterfaces.map((value) => {
-        const attached = record(value);
+        const attached = record3(value);
         const eniId = string(attached.NetworkInterfaceId, resourceId);
         const eni = eniById.get(eniId);
         if (!eni) return { id: eniId, correlation: 'unavailable' };
-        const attachment = record(eni.Attachment);
+        const attachment = record3(eni.Attachment);
         const index = attachment.DeviceIndex;
         const mac = string(eni.MacAddress, /^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/).toLowerCase();
         if (
@@ -1225,7 +1259,7 @@ async function collectAwsCeInventory(input, executor, signal) {
           vpcId: string(eni.VpcId, resourceId),
         };
       });
-      const rawState = record(instance.State).Name;
+      const rawState = record3(instance.State).Name;
       nodes.push({
         instanceId: id,
         accountId: input.accountId,
@@ -10239,7 +10273,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
       return configured;
     };
     add('aws_security_group', `group_${index}`, {
-      name: literal(`${intent.deploymentName}-${group.name}`),
+      name: literal2(`${intent.deploymentName}-${group.name}`),
       description: 'Customer Edge deployment security group',
       vpc_id: ref('aws_vpc.ce.id'),
       ingress: rules('ingress'),
@@ -10333,7 +10367,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
     const inside = intent.interfaces.find((item) => item.role === 'sli');
     if (!inside) throw new Error('NLB ingress requires an explicit SLI interface');
     add('aws_lb', 'ce', {
-      name: literal(`${intent.deploymentName}-nlb`),
+      name: literal2(`${intent.deploymentName}-nlb`),
       internal: ingress.scheme === 'internal',
       load_balancer_type: 'network',
       ...(intent.ingress?.mode === 'nlb'
@@ -10351,7 +10385,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
       tags: tags(),
     });
     add('aws_lb_target_group', 'ce', {
-      name: literal(`${intent.deploymentName}-ce`),
+      name: literal2(`${intent.deploymentName}-ce`),
       port: ingress.port,
       protocol: 'TCP',
       target_type: 'ip',
@@ -10397,7 +10431,7 @@ function renderAwsTerraformFoundation(plan, bootstrapByNode = {}) {
       aws: {
         region: intent.region,
         allowed_account_ids: [intent.accountId],
-        ...(intent.awsProfile ? { profile: literal(intent.awsProfile) } : {}),
+        ...(intent.awsProfile ? { profile: literal2(intent.awsProfile) } : {}),
       },
     },
     resource,
@@ -10442,13 +10476,13 @@ async function awsTerraformFoundationDeployment(plan, bootstrapByNode = {}) {
   };
 }
 var ref = (address) => `\${${address}}`,
-  literal;
+  literal2;
 var init_terraform_foundation = __esm(() => {
   init_interface_addressing();
   init_static_routing();
   init_artifacts();
   init_planner();
-  literal = terraformLiteral;
+  literal2 = terraformLiteral;
 });
 
 // plugins/aws/src/ce/terraform-connect.ts
@@ -11863,7 +11897,7 @@ function routingAttachmentIds(plan, observation) {
     .filter((resource) => selected.has(resource.id))
     .flatMap((resource) =>
       ['Associations', 'Propagations'].flatMap((key) =>
-        rows(resource.state[key]).map((row) => row.TransitGatewayAttachmentId),
+        rows2(resource.state[key]).map((row) => row.TransitGatewayAttachmentId),
       ),
     );
   if (ids.some((id) => typeof id !== 'string' || !/^tgw-attach-[0-9a-f]{8,17}$/.test(id)))
@@ -11879,8 +11913,8 @@ function ownedRoutingAdditions(plan, before, after, evidence) {
       ['Associations', plan.intent.routing.associations],
       ['Propagations', plan.intent.routing.propagations],
     ]) {
-      const original = rows(baseline.state[key]);
-      const current = rows(state[key]);
+      const original = rows2(baseline.state[key]);
+      const current = rows2(state[key]);
       const ids = current.map((row) => row.TransitGatewayAttachmentId);
       if (new Set(ids).size !== ids.length) throw new Error('Duplicate routing reference edge');
       state[key] = current.filter((row) => {
@@ -11892,7 +11926,7 @@ function ownedRoutingAdditions(plan, before, after, evidence) {
         const matches = evidence.filter((item) => item.id === row.TransitGatewayAttachmentId);
         if (matches.length !== 1) return true;
         const attachment = matches[0];
-        const records = rows(attachment.state.TransitGatewayAttachments);
+        const records = rows2(attachment.state.TransitGatewayAttachments);
         if (records.length !== 1) return true;
         const actual = records[0];
         const tags = attachment.tags;
@@ -11930,7 +11964,7 @@ var object16 = (value) => {
       throw new Error('Malformed routing reference evidence');
     return value;
   },
-  rows = (value) => {
+  rows2 = (value) => {
     if (!Array.isArray(value)) throw new Error('Incomplete routing reference evidence');
     return value.map(object16);
   },
@@ -12942,7 +12976,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
       const response = await request('ec2', operation, { ...args, ...(token ? { NextToken: token } : {}) });
       if (response.NextMarker !== undefined || response.nextToken !== undefined || response.Marker !== undefined)
         throw new Error('Unsupported absence pagination');
-      output.push(...rows2(response[collection]));
+      output.push(...rows3(response[collection]));
       if (output.length > 1e4) throw new Error('Absence collection exceeded bound');
       if (response.NextToken === undefined || response.NextToken === null) token = undefined;
       else {
@@ -12995,11 +13029,11 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
         TagFilters: [{ Key: 'xcsh-deployment-id', Values: [inventory.deploymentId] }],
         ...(taggingToken ? { PaginationToken: taggingToken } : {}),
       });
-      const mappings = rows2(response.ResourceTagMappingList);
+      const mappings = rows3(response.ResourceTagMappingList);
       for (const mapping of mappings) {
         if (typeof mapping.ResourceARN !== 'string' || !mapping.ResourceARN.includes(':elasticloadbalancing:'))
           continue;
-        const mappingTags = rows2(mapping.Tags);
+        const mappingTags = rows3(mapping.Tags);
         const tag = (key) => mappingTags.filter((row) => row.Key === key);
         if (
           tag('xcsh-deployment-id').length !== 1 ||
@@ -13041,7 +13075,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
       const selected = resources.filter((row) => row.type === type).map((row) => row.id);
       if (!selected.length) continue;
       let found = await pages(operation, collection, { Filters: [{ Name: filter, Values: selected }] });
-      if (type === 'aws_instance') found = found.flatMap((row) => rows2(row.Instances));
+      if (type === 'aws_instance') found = found.flatMap((row) => rows3(row.Instances));
       const seen = new Set();
       for (const row of found) {
         const id = row[idKey];
@@ -13065,7 +13099,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
       for (const id of selected) {
         try {
           const response = await request('elbv2', operation, { [argument]: [id] });
-          const found = rows2(response[collection]);
+          const found = rows3(response[collection]);
           if (found.length !== 1) throw new Error('Substituted NLB absence resource identity');
           const key =
             type === 'aws_lb' ? 'LoadBalancerArn' : type === 'aws_lb_target_group' ? 'TargetGroupArn' : 'ListenerArn';
@@ -13124,7 +13158,7 @@ var object17 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed absence evidence');
     return value;
   },
-  rows2 = (value) => {
+  rows3 = (value) => {
     if (!Array.isArray(value)) throw new Error('Missing absence collection');
     return value.map(object17);
   },
@@ -13223,7 +13257,7 @@ function object18(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS teardown identity');
   return value;
 }
-function rows3(value) {
+function rows4(value) {
   if (!Array.isArray(value)) throw new Error('Incomplete AWS teardown inventory');
   return value.map(object18);
 }
@@ -13290,7 +13324,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     return { ...change, value };
   });
   const owned = (value, key = 'Tags') => {
-    const tags = rows3(value[key]);
+    const tags = rows4(value[key]);
     const expected = {
       'xcsh-managed-by': 'aws-ce',
       'xcsh-execution-engine': 'terraform',
@@ -13315,8 +13349,8 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     const response = await run('ec2', operation, [flag, ...ids]);
     const observed =
       type === 'aws_instance'
-        ? rows3(response.Reservations).flatMap((reservation) => rows3(reservation.Instances))
-        : rows3(response[collection]);
+        ? rows4(response.Reservations).flatMap((reservation) => rows4(reservation.Instances))
+        : rows4(response[collection]);
     if (
       observed.length !== ids.length ||
       new Set(observed.map((item) => item[idKey])).size !== ids.length ||
@@ -13337,7 +13371,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     if (new Set(ids).size !== ids.length || ids.some((id) => !pattern.test(id)))
       throw new Error('Malformed or duplicate Terraform NLB resource IDs');
     const response = await run('elbv2', operation, [flag, ...ids]);
-    const observed = rows3(response[collection]);
+    const observed = rows4(response[collection]);
     const idKey =
       type === 'aws_lb' ? 'LoadBalancerArn' : type === 'aws_lb_target_group' ? 'TargetGroupArn' : 'ListenerArn';
     if (
@@ -13346,7 +13380,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       observed.some((item) => !ids.includes(String(item[idKey])))
     )
       throw new Error('AWS substituted or omitted Terraform NLB identities');
-    const descriptions = rows3((await run('elbv2', 'describe-tags', ['--resource-arns', ...ids])).TagDescriptions);
+    const descriptions = rows4((await run('elbv2', 'describe-tags', ['--resource-arns', ...ids])).TagDescriptions);
     if (descriptions.length !== ids.length) throw new Error('Terraform NLB ownership tags are incomplete');
     for (const item of observed) {
       const id = String(item[idKey]);
@@ -13365,10 +13399,10 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
   const volumeIds = new Set();
   for (const { type, value } of live.values())
     if (type === 'aws_instance') {
-      const nics = rows3(value.NetworkInterfaces);
+      const nics = rows4(value.NetworkInterfaces);
       if (!nics.length) throw new Error('Instance teardown NIC inventory is unavailable');
       for (const nic of nics) parent(nic.NetworkInterfaceId, ['aws_network_interface']);
-      const disks = rows3(value.BlockDeviceMappings);
+      const disks = rows4(value.BlockDeviceMappings);
       if (!disks.length) throw new Error('Instance teardown disk inventory is unavailable');
       for (const disk of disks) {
         const id = object18(disk.Ebs).VolumeId;
@@ -13378,7 +13412,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       }
     }
   if (volumeIds.size) {
-    const volumes = rows3((await run('ec2', 'describe-volumes', ['--volume-ids', ...volumeIds])).Volumes);
+    const volumes = rows4((await run('ec2', 'describe-volumes', ['--volume-ids', ...volumeIds])).Volumes);
     if (
       volumes.length !== volumeIds.size ||
       new Set(volumes.map((volume) => volume.VolumeId)).size !== volumeIds.size ||
@@ -13392,7 +13426,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     if (typeof id !== 'string' || !/^tgw-rtb-[a-f0-9]{8,21}$/.test(id)) throw new Error('Invalid referenced TGW table');
     const cached = tables.get(id);
     if (cached) return cached;
-    const gateways = rows3(
+    const gateways = rows4(
       (await run('ec2', 'describe-transit-gateways', ['--transit-gateway-ids', intent.routing.transitGatewayId ?? '']))
         .TransitGateways,
     );
@@ -13402,7 +13436,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       gateways[0].OwnerId !== intent.accountId
     )
       throw new Error('Referenced transit gateway ownership differs');
-    const tableRows = rows3(
+    const tableRows = rows4(
       (await run('ec2', 'describe-transit-gateway-route-tables', ['--transit-gateway-route-table-ids', id]))
         .TransitGatewayRouteTables,
     );
@@ -13413,11 +13447,11 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     )
       throw new Error('Referenced transit gateway table identity differs');
     const result = {
-      associations: rows3(
+      associations: rows4(
         (await run('ec2', 'get-transit-gateway-route-table-associations', ['--transit-gateway-route-table-id', id]))
           .Associations,
       ),
-      propagations: rows3(
+      propagations: rows4(
         (await run('ec2', 'get-transit-gateway-route-table-propagations', ['--transit-gateway-route-table-id', id]))
           .TransitGatewayRouteTablePropagations,
       ),
@@ -13435,7 +13469,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
         value.destination_prefix_list_id
       )
         throw new Error('Teardown route destination requires explicit translation');
-      const matches = rows3(table.Routes).filter(
+      const matches = rows4(table.Routes).filter(
         (route) => route.DestinationCidrBlock === value.destination_cidr_block,
       );
       if (matches.length !== 1 || (value.gateway_id && value.transit_gateway_id))
@@ -13452,7 +13486,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     } else if (type === 'aws_route_table_association') {
       const table = parent(value.route_table_id, ['aws_route_table']);
       parent(value.subnet_id, ['aws_subnet']);
-      const matches = rows3(table.Associations).filter((edge) => edge.RouteTableAssociationId === value.id);
+      const matches = rows4(table.Associations).filter((edge) => edge.RouteTableAssociationId === value.id);
       if (
         value.gateway_id ||
         matches.length !== 1 ||
@@ -13481,7 +13515,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
         value.port !== (intent.ingress?.mode === 'nlb' ? intent.ingress.port : 443)
       )
         throw new Error('Teardown NLB target attachment differs');
-      const health = rows3(
+      const health = rows4(
         (
           await run('elbv2', 'describe-target-health', [
             '--target-group-arn',
@@ -13510,7 +13544,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       )
         throw new Error('Teardown TGW table is outside approved references');
       const table = await tgwTable(value.transit_gateway_route_table_id);
-      const matches = rows3(table[association ? 'associations' : 'propagations']).filter(
+      const matches = rows4(table[association ? 'associations' : 'propagations']).filter(
         (edge) => edge.TransitGatewayAttachmentId === value.transit_gateway_attachment_id,
       );
       if (matches.length !== 1) throw new Error('Teardown TGW relationship is absent or ambiguous');
@@ -13536,7 +13570,7 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
       listeners[0].Port !== (ingress?.port ?? 443)
     )
       throw new Error('Terraform NLB topology differs from the ingress intent');
-    const actions = rows3(listeners[0].DefaultActions);
+    const actions = rows4(listeners[0].DefaultActions);
     if (
       actions.length !== 1 ||
       actions[0].Type !== 'forward' ||
@@ -17543,12 +17577,12 @@ function object24(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');
   return v;
 }
-function rows4(v) {
+function rows5(v) {
   if (!Array.isArray(v)) throw Error('Incomplete Connect service evidence');
   return v.map(object24);
 }
 function exactly(v) {
-  const all = rows4(v);
+  const all = rows5(v);
   if (all.length !== 1) throw Error('Connect service cardinality differs');
   return all[0];
 }
@@ -17680,7 +17714,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
     return result;
   };
   const owned = (resource, node, interfaceIndex) => {
-    const tags = rows4(resource.Tags ?? resource.TagSet);
+    const tags = rows5(resource.Tags ?? resource.TagSet);
     const labels = {
       'xcsh-managed-by': 'aws-ce',
       'xcsh-deployment-id': base.deploymentName,
@@ -17747,7 +17781,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
       throw Error('Connect attachment owner or transport differs');
     attachmentBindings.push({ id, transportAttachmentId: transport, protocol: 'gre' });
   }
-  const peerResponse = rows4(
+  const peerResponse = rows5(
     (
       await read([
         'ec2',
@@ -17799,7 +17833,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
       throw Error('Connect GRE configuration differs');
     const inside = network3(String(cidrs[0]));
     if (inside.bits !== 29) throw Error('Connect inside network differs');
-    const bgp = rows4(config.BgpConfigurations);
+    const bgp = rows5(config.BgpConfigurations);
     if (bgp.length !== 2) throw Error('Connect BGP session discovery incomplete');
     const endpoints = new Set();
     let local;
@@ -17859,7 +17893,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
         'enabled',
       ],
     ]) {
-      const found = rows4((await read(['ec2', operation, '--transit-gateway-route-table-id', tableId]))[key]);
+      const found = rows5((await read(['ec2', operation, '--transit-gateway-route-table-id', tableId]))[key]);
       for (const id of attachmentIds) {
         const matched = found.filter((r) => r.TransitGatewayAttachmentId === id);
         if (required && (matched.length !== 1 || matched[0].State !== state))
@@ -17881,7 +17915,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
           `Name=route-search.${filter},Values=${prefix}`,
         ]);
         if (result.AdditionalRoutesAvailable !== false) throw Error('Partial Connect route search');
-        const routes = rows4(result.Routes),
+        const routes = rows5(result.Routes),
           seen = new Set();
         for (const route of routes) {
           const destination = route.DestinationCidrBlock;
@@ -17895,7 +17929,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
           )
             throw Error('Connect route identity or inventory differs');
           seen.add(destination);
-          const targets = rows4(route.TransitGatewayAttachments);
+          const targets = rows5(route.TransitGatewayAttachments);
           if (
             !targets.length ||
             new Set(targets.map((t) => t.TransitGatewayAttachmentId)).size !== targets.length ||
@@ -17976,7 +18010,7 @@ function object25(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed BGP service binding');
   return v;
 }
-function rows5(v) {
+function rows6(v) {
   if (!Array.isArray(v)) throw Error('Incomplete BGP service binding');
   return v.map(object25);
 }
@@ -18059,7 +18093,7 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
         throw Error('BGP connector generated identity differs');
       const ref = object25(connector.spec.ce_site_reference),
         gre = object25(object25(connector.spec.gre).gre_parameters),
-        endpoints = rows5(gre.tunnel_eps);
+        endpoints = rows6(gre.tunnel_eps);
       const node = `${base.deploymentName}-${peer.node}`,
         devices = hardware.interfaces.filter(
           (i) =>
@@ -18082,7 +18116,7 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
       for (const address of peer.awsEndpoints)
         sessions.push({ node, interfaceName: `ves-io-external-connector-${connectorName}`, peerAddress: address });
     }
-    const peers = rows5(original.peers);
+    const peers = rows6(original.peers);
     if (
       peers.length !== sessions.length ||
       sessions.some(
@@ -18198,7 +18232,7 @@ function object26(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed direct route evidence');
   return value;
 }
-function rows6(value) {
+function rows7(value) {
   if (!Array.isArray(value)) throw Error('Incomplete direct route evidence');
   return value.map(object26);
 }
@@ -18267,7 +18301,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
   };
   if ((await read(['sts', 'get-caller-identity'])).Account !== base.accountId)
     throw Error('Direct route account differs');
-  const enis = rows6(
+  const enis = rows7(
     (await read(['ec2', 'describe-network-interfaces', '--network-interface-ids', slo])).NetworkInterfaces,
   );
   if (
@@ -18280,7 +18314,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
   )
     throw Error('Direct route SLO identity differs');
   const ids = [...new Set(routes.map((r) => r.routeTableId))];
-  const tables = rows6((await read(['ec2', 'describe-route-tables', '--route-table-ids', ...ids])).RouteTables);
+  const tables = rows7((await read(['ec2', 'describe-route-tables', '--route-table-ids', ...ids])).RouteTables);
   if (
     tables.length !== ids.length ||
     new Set(tables.map((t) => t.RouteTableId)).size !== ids.length ||
@@ -18293,7 +18327,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
   for (const table of tables) {
     if (table.OwnerId !== base.accountId || !/^vpc-[a-f0-9]{8,17}$/.test(String(table.VpcId)))
       throw Error('Direct route table ownership differs');
-    const associations = rows6(table.Associations);
+    const associations = rows7(table.Associations);
     if (
       !associations.length ||
       associations.some(
@@ -18306,7 +18340,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
       new Set(associations.map((a) => a.SubnetId)).size !== associations.length
     )
       throw Error('Direct service route overlaps SLO or ambiguous association');
-    const all = rows6(table.Routes);
+    const all = rows7(table.Routes);
     const destinations = all.map(
       (r) => r.DestinationCidrBlock ?? r.DestinationIpv6CidrBlock ?? r.DestinationPrefixListId,
     );
@@ -18682,12 +18716,12 @@ function object28(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed static TGW evidence');
   return value;
 }
-function rows7(value) {
+function rows8(value) {
   if (!Array.isArray(value)) throw Error('Incomplete static TGW evidence');
   return value.map(object28);
 }
 function exactly3(value) {
-  const items = rows7(value);
+  const items = rows8(value);
   if (items.length !== 1) throw Error('Static TGW evidence cardinality differs');
   return items[0];
 }
@@ -18737,7 +18771,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
     return data;
   };
   const ownership = (resource, node) => {
-    const tags = rows7(resource.Tags);
+    const tags = rows8(resource.Tags);
     const expected = {
       'xcsh-managed-by': 'aws-ce',
       'xcsh-deployment-id': base.deploymentName,
@@ -18785,13 +18819,13 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
     routeTable.State !== 'available'
   )
     throw Error('Static TGW route table differs');
-  const associations = rows7(
+  const associations = rows8(
     (await read(['ec2', 'get-transit-gateway-route-table-associations', '--transit-gateway-route-table-id', table]))
       .Associations,
   ).filter((a) => a.TransitGatewayAttachmentId === attachment);
   if (associations.length !== 1 || associations[0].State !== 'associated')
     throw Error('Static TGW retained association differs');
-  const propagations = rows7(
+  const propagations = rows8(
     (await read(['ec2', 'get-transit-gateway-route-table-propagations', '--transit-gateway-route-table-id', table]))
       .TransitGatewayRouteTablePropagations,
   ).filter((a) => a.TransitGatewayAttachmentId === attachment);
@@ -18821,7 +18855,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       throw Error('Static TGW SLI transport identity differs');
     const local = exactly3((await read(['ec2', 'describe-route-tables', '--route-table-ids', rt])).RouteTables);
     ownership(local, appliance.node);
-    const localAssociations = rows7(local.Associations);
+    const localAssociations = rows8(local.Associations);
     if (
       local.RouteTableId !== rt ||
       local.OwnerId !== base.accountId ||
@@ -18832,7 +18866,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       object28(localAssociations[0].AssociationState).State !== 'associated'
     )
       throw Error('Static TGW appliance table association differs');
-    const localRoutes = rows7(local.Routes);
+    const localRoutes = rows8(local.Routes);
     const ids = localRoutes.map(
       (r) => r.DestinationCidrBlock ?? r.DestinationIpv6CidrBlock ?? r.DestinationPrefixListId,
     );
@@ -18891,7 +18925,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       ]);
       if (result.AdditionalRoutesAvailable !== false) throw Error('Partial static TGW route search');
       const seen = new Set();
-      for (const route of rows7(result.Routes)) {
+      for (const route of rows8(result.Routes)) {
         const prefix = route.DestinationCidrBlock;
         if (typeof prefix !== 'string' || seen.has(prefix) || Object.hasOwn(route, 'PrefixListId'))
           throw Error('Malformed or duplicate static TGW route search');
@@ -23388,25 +23422,262 @@ var init_aws_cloud_init_analyze = __esm(() => {
   init_shared();
 });
 
+// plugins/aws/src/presentation/ce.ts
+var record = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var fields = (values, title) => ({
+  kind: 'fields',
+  title,
+  values,
+  previewFields: 'all',
+});
+var count = (value) => (Array.isArray(value) ? value.length : 'Unknown');
+function ceSummary(name, details) {
+  const checkpoint = record(details.checkpoint);
+  if (name === 'aws_ce_apply' && Object.keys(checkpoint).length)
+    return [
+      fields(
+        {
+          'Plan ID': details.planId,
+          'Plan SHA-256': details.planSha256,
+          State: checkpoint.state,
+          'Completed actions': count(checkpoint.completedActionIds),
+        },
+        'Checkpoint',
+      ),
+    ];
+  const plan = record(details.plan);
+  if (name === 'aws_ce_plan' && Object.keys(plan).length)
+    return [
+      fields(
+        {
+          'Plan ID': plan.planId,
+          'Plan SHA-256': plan.planSha256,
+          Region: plan.region,
+          Nodes: record(plan.topology).nodeCount,
+          'AMI ID': record(plan.image).id,
+          'Ordered actions': count(plan.actions),
+        },
+        'Immutable plan',
+      ),
+    ];
+  const observation = record(details.observation);
+  if (name === 'aws_compute_discover' && Object.keys(observation).length)
+    return [
+      fields(
+        {
+          ...record(observation.identity),
+          'Agreement active': record(observation.agreement).active,
+          'Observed regions': count(observation.regions),
+          'Artifact ID': details.artifactId,
+        },
+        'Compute discovery',
+      ),
+    ];
+  const status = record(details.status);
+  if (name === 'aws_ce_status' && Object.keys(status).length)
+    return [
+      fields(
+        {
+          State: record(status.checkpoint).state,
+          'Instance records': record(record(status.aws).instances).count,
+          'ENI records': record(record(status.aws).enis).count,
+          ...record(status.f5),
+        },
+        'Customer Edge status',
+      ),
+    ];
+  if (name === 'aws_ce_diagnose' && Array.isArray(details.results))
+    return [
+      fields(
+        {
+          Mode: details.mode,
+          'Evidence digests': details.results.length,
+          'Require review': details.results.filter((value) => {
+            const r = record(value);
+            return r.ok === false || r.errorsDetected === true;
+          }).length,
+          'Raw output': 'Withheld by the domain tool',
+        },
+        'Diagnostics',
+      ),
+    ];
+  const analysis = record(details.analysis);
+  const boot = record(details.bootEvidence);
+  if (name === 'aws_cloud_init_analyze' && (Object.keys(analysis).length || Object.keys(boot).length))
+    return [
+      ...(Object.keys(analysis).length ? [fields(analysis, 'cloud-init analysis')] : []),
+      ...(Object.keys(boot).length ? [fields(boot, 'Boot evidence')] : []),
+    ];
+  return;
+}
+
+// plugins/aws/src/presentation/command.ts
+init_aws_exec_guard();
+function toolArgv(name, args) {
+  const strings = (value) => Array.isArray(value) && value.every((v) => typeof v === 'string');
+  if (name === 'aws_sts_whoami')
+    return ['aws', ...jsonArgs(identityArgs(typeof args.profile === 'string' ? args.profile : undefined))];
+  if (name === 'aws_ec2_describe_instances')
+    return [
+      'aws',
+      ...jsonArgs(
+        instanceArgs({
+          region: typeof args.region === 'string' ? args.region : undefined,
+          instanceIds: strings(args.instanceIds) ? args.instanceIds : undefined,
+          filters: strings(args.filters) ? args.filters : undefined,
+        }),
+      ),
+    ];
+  if (name === 'aws_s3_ls') {
+    const target = typeof args.target === 'string' ? args.target : undefined;
+    return ['aws', ...(target ? s3Args(target) : jsonArgs(s3Args()))];
+  }
+  if (name === 'aws_help')
+    return ['aws', ...helpArgs(typeof args.command_path === 'string' ? args.command_path : undefined)];
+  if (name === 'aws_exec' && strings(args.args) && args.args.length) return ['aws', ...buildAwsArgs(args.args)];
+  return;
+}
+
 // plugins/aws/src/presentation.ts
+var record2 = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var texts = (result) => result.content.filter((b) => b.type === 'text').map((b) => b.text ?? '');
+var literal = (text, title) => ({ kind: 'code', title, text });
+var fields2 = (values, title) => ({
+  kind: 'fields',
+  title,
+  values,
+  previewFields: 'all',
+});
+var rows = (value) =>
+  Array.isArray(value) && value.every((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
+var columns = {
+  instances: [
+    { key: 'instanceId', label: 'Instance ID' },
+    { key: 'name', label: 'Name' },
+    { key: 'state', label: 'State' },
+    { key: 'type', label: 'Instance type' },
+    { key: 'az', label: 'Availability zone' },
+    { key: 'privateIp', label: 'Private IP' },
+    { key: 'publicIp', label: 'Public IP' },
+  ],
+  buckets: [
+    { key: 'name', label: 'Bucket' },
+    { key: 'creationDate', label: 'Creation date' },
+  ],
+  objects: [
+    { key: 'key', label: 'Object key' },
+    { key: 'size', label: 'Size (bytes)', align: 'right' },
+    { key: 'lastModified', label: 'Last modified' },
+  ],
+};
 function presentTool(tool, p) {
+  const scope = (args) =>
+    fields2(
+      {
+        Profile: typeof args.profile === 'string' && !/^ *$/.test(args.profile) ? args.profile : 'Existing CLI context',
+        Region: args.region ?? 'Existing CLI context',
+        ...(args.target !== undefined ? { Target: args.target } : {}),
+        ...(args.instanceIds !== undefined ? { 'Instance IDs': args.instanceIds } : {}),
+        ...(args.filters !== undefined ? { Filters: args.filters } : {}),
+        Coverage: 'Account and region coverage are limited to the selected CLI context.',
+      },
+      'Scope',
+    );
   return p.withPresentation(tool, {
-    command: 'aws',
-    scopeKeys: ['profile', 'region', 'instanceIds', 'filters'],
-    collections: ['instances', 'buckets', 'objects'],
-    labels: Object.fromEntries([
-      ['account', 'Account'],
-      ['arn', 'ARN'],
-      ['userId', 'User ID'],
-      ['instanceId', 'Instance ID'],
-      ['name', 'Name'],
-      ['state', 'State'],
-      ['instanceType', 'Instance type'],
-      ['region', 'Region'],
-      ['publicIpAddress', 'Public IP'],
-      ['privateIpAddress', 'Private IP'],
-    ]),
-    scopeNote: 'Account and region coverage are limited to the selected CLI context.',
+    call: (input, options) => {
+      const args = record2(input);
+      const argv = toolArgv(tool.name, args);
+      const safeArgs = Object.fromEntries(
+        Object.entries(args).filter(([key]) => !['source', 'bootstrapRef', 'bootstrapRefs'].includes(key)),
+      );
+      return { sections: options.expanded ? p.data(safeArgs) : [...(argv ? [p.command(argv)] : []), scope(safeArgs)] };
+    },
+    result: (result, options, input) => {
+      const args = record2(input);
+      const details = record2(result.details);
+      const argv = toolArgv(tool.name, args);
+      const prefix = [...(argv ? [p.command(argv)] : []), scope(args)];
+      if (result.isError)
+        return {
+          summary: 'AWS operation failed',
+          sections: [...prefix, ...texts(result).map((t) => literal(t, 'Complete corrective guidance'))],
+        };
+      if (tool.name === 'aws_sts_whoami' && Object.keys(record2(details.identity)).length) {
+        const { identity, ...metadata } = details;
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...prefix,
+            fields2(record2(identity), 'Caller identity'),
+            ...(options.expanded ? p.data(metadata, 'Metadata') : []),
+          ],
+        };
+      }
+      const collection =
+        tool.name === 'aws_ec2_describe_instances'
+          ? 'instances'
+          : tool.name === 'aws_s3_ls'
+            ? args.target
+              ? 'objects'
+              : 'buckets'
+            : undefined;
+      if (collection && rows(details[collection])) {
+        const data = details[collection];
+        const declared = columns[collection];
+        const known = new Set(declared.map((c) => c.key));
+        const extra = [...new Set(data.flatMap((row) => Object.keys(row)))].filter((key) => !known.has(key));
+        const section = {
+          ...p.table(data, [...declared, ...extra.map((key) => ({ key, label: key }))], collection),
+          previewRows: 12,
+        };
+        const { [collection]: _data, ...metadata } = details;
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...prefix,
+            fields2({ 'Returned rows': data.length }, 'Results'),
+            section,
+            ...(options.expanded ? p.data(metadata, 'Metadata') : []),
+          ],
+        };
+      }
+      if (
+        tool.name === 'aws_help' &&
+        /^(?:USAGE|DESCRIPTION|OPTIONS|AWS)/m.test(
+          texts(result).join(`
+`),
+        )
+      ) {
+        return {
+          expandedEvidence: 'provided',
+          sections: [...prefix, ...texts(result).map((t) => literal(t, 'Complete AWS CLI help'))],
+        };
+      }
+      if (tool.name === 'aws_exec' && typeof details.fullOutput === 'string') {
+        try {
+          const decoded = JSON.parse(details.fullOutput);
+          return {
+            expandedEvidence: 'provided',
+            sections: [...prefix, ...p.data(decoded, 'CLI result')],
+            warnings: details.modelPreviewTruncated
+              ? ['Model preview was truncated; this view includes the complete CLI result.']
+              : [],
+          };
+        } catch {}
+        return { sections: [...prefix, literal(details.fullOutput, 'Complete CLI output')] };
+      }
+      const ce = ceSummary(tool.name, details);
+      if (ce)
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...prefix,
+            ...(options.expanded ? p.data(details, 'Domain evidence') : ce),
+            ...texts(result).map((t) => literal(t, 'AWS Customer Edge summary')),
+          ],
+        };
+      return { sections: [...prefix, ...texts(result).map((t) => literal(t, 'CLI evidence'))] };
+    },
   });
 }
 

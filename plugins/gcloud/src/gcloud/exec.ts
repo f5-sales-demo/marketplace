@@ -1,3 +1,4 @@
+import { jsonArgs } from './arguments';
 import type { GcloudRawResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -120,7 +121,7 @@ export interface GcloudExecApi {
 }
 
 export async function execGcloudJson<T>(api: GcloudExecApi, args: string[], signal?: AbortSignal): Promise<T> {
-  const fullArgs = [...args, '--format=json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('gcloud', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectGcloudError(result.stderr, result.exitCode);

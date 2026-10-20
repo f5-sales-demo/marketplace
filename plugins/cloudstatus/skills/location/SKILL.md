@@ -52,3 +52,11 @@ collector`, its observation time, and the consulted F5 Statuspage, PeeringDB,
 and Wikidata sources (including unavailable sources when applicable). Then
 separate observed facts, facility correlations, inferences, and unresolved
 limitations. A facility candidate never proves a Regional Edge building.
+
+For text inventories, show twelve rows with site/metro, region, location evidence
+and confidence headings. State returned, mapped and unresolved counts separately.
+Retain complete safe collector evidence once in expanded output. Show freshness,
+consulted source failures, exact geographic scope and completion by default;
+preserve unknown values and literal corrective guidance. Include exact executed
+collector argv and safely represented environment scope in expanded evidence.
+Use shared presentation for text layout, themes, symbols and progress lifecycle.

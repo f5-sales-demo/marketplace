@@ -8,7 +8,11 @@ const pi = { typebox: { Type } };
 const ctx = { cwd: '/synthetic-no-config' };
 const response = (stdout: string, code = 0, stderr = '') => ({ stdout, code, stderr, killed: false });
 test('unavailable project and auth produce errors, not empty successful results', async () => {
-  const missing = createGlabIssueListTool(pi, (cwd) => ({ cwd, exec: async () => response('', 1) }));
+  const missing = createGlabIssueListTool(
+    pi,
+    (cwd) => ({ cwd, exec: async () => response('', 1) }),
+    async () => null,
+  );
   expect((await missing.execute('fixture', {}, undefined, undefined, ctx)).isError).toBe(true);
   const auth = createGlabIssueListTool(pi, (cwd) => ({ cwd, exec: async () => response('', 1, 'not logged in') }));
   expect((await auth.execute('fixture', { project: 'synthetic/repo' }, undefined, undefined, ctx)).isError).toBe(true);

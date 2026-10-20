@@ -3,7 +3,7 @@ import { Type } from '@sinclair/typebox';
 import type { PluginInterface } from '../../src/az/types';
 import type { AzureCePlan } from '../../src/ce/types';
 import { createAzureCeDiagnoseTool } from '../../src/tools/azure-ce-diagnose';
-import { azureSummary, createAzureCeStatusTool } from '../../src/tools/azure-ce-status';
+import { azureSummary, createAzureCeStatusTool, summarizeF5Evidence } from '../../src/tools/azure-ce-status';
 
 it('rejects caller health assertions before reading plans or making cloud calls', async () => {
   const pi = { typebox: { Type } } as unknown as PluginInterface;
@@ -55,4 +55,27 @@ it('reports lifecycle-owned resources using the frozen deployment plan hash', ()
   });
   const foreign = { ...resource, tags: { ...resource.tags, 'xcsh-plan-sha256': 'c'.repeat(64) } };
   expect(azureSummary(plan, [foreign], [foreign], [])).toMatchObject({ resources: [], vms: [] });
+});
+
+it('missing F5 evidence stays unknown while observed false and zero remain literal', () => {
+  expect(summarizeF5Evidence(undefined)).toMatchObject({
+    siteState: 'UNKNOWN',
+    bgpEstablished: 'UNKNOWN',
+    learnedRouteCount: 'UNKNOWN',
+  });
+  expect(summarizeF5Evidence({ bgpEstablished: false, learnedRouteCount: 0 })).toMatchObject({
+    bgpEstablished: false,
+    learnedRouteCount: 0,
+  });
+  expect(summarizeF5Evidence({ bgpEstablished: 'false', learnedRouteCount: 'invalid' })).toMatchObject({
+    bgpEstablished: 'UNKNOWN',
+    learnedRouteCount: 'UNKNOWN',
+  });
+});
+it('failed Azure reads retain unavailable coverage rather than imply an empty inventory', () => {
+  const value = azureSummary({ actions: [] } as unknown as AzureCePlan, { error: true, digest: 'synthetic' }, [], {
+    error: 'invalid JSON',
+  });
+  expect(value.coverage).toEqual({ resources: 'unavailable', vms: 'available', routeServerPeers: 'unavailable' });
+  expect(value.resources).toEqual([]);
 });

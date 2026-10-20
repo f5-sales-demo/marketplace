@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-gitlab",
-  "version": "1.5.0",
+  "version": "1.5.2",
   "description": "GitLab CLI integration for xcsh — native tools, welcome screen status, issue management",
   "main": "src/index.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "GitLab",
-    "version": "1.5.0",
+    "version": "1.5.2",
     "description": "GitLab CLI integration",
     "extensions": [
       "src/index.ts"
@@ -21,7 +21,7 @@
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.2",
-    "@f5-sales-demo/xcsh": "23.5.1"
+    "@f5-sales-demo/xcsh": "23.9.3"
   },
   "license": "Apache-2.0"
 }

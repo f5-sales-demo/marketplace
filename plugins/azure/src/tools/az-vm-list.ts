@@ -23,6 +23,22 @@ export function vmListProjection(includePowerState: boolean, includeNetworkIdent
   return `[].{${fields.join(',')}}`;
 }
 
+export function buildVmArgs(params: {
+  resource_group?: string;
+  subscription?: string;
+  include_power_state?: boolean;
+  include_network_identifiers?: boolean;
+}) {
+  const args = ['vm', 'list'];
+  if (params.resource_group) args.push('--resource-group', params.resource_group);
+  if (params.subscription) args.push('--subscription', params.subscription);
+  const power = params.include_power_state ?? true;
+  const network = params.include_network_identifiers === true;
+  if (power || network) args.push('--show-details');
+  args.push('--query', vmListProjection(power, network));
+  return args;
+}
+
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
  * through without spawning the real CLI.
@@ -76,15 +92,11 @@ export function createAzVmListTool(pi: PluginInterface, makeApi: (cwd: string) =
       }
 
       const api = makeApi(ctx.cwd);
-      const args = ['vm', 'list'];
-      if (params.resource_group) args.push('--resource-group', params.resource_group);
-      if (params.subscription) args.push('--subscription', params.subscription);
       const policy = {
         includePowerState: params.include_power_state ?? true,
         includeNetworkIdentifiers: params.include_network_identifiers === true,
       };
-      if (policy.includePowerState || policy.includeNetworkIdentifiers) args.push('--show-details');
-      args.push('--query', vmListProjection(policy.includePowerState, policy.includeNetworkIdentifiers));
+      const args = buildVmArgs(params);
 
       try {
         const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);

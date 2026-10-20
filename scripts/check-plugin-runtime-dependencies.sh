@@ -13,6 +13,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 EXPECTED_XCSH="23.5.1"
+LATEST_DEVELOPMENT_XCSH="23.9.3"
 EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
@@ -20,7 +21,7 @@ EXPECTED_TYPEBOX_RANGE="^0.34.52"
 EXPECTED_BUN_TYPES_RANGE="^1.4.2"
 EXPECTED_TYPEBOX="0.34.52"
 EXPECTED_BUN_TYPES="1.4.2"
-RUNTIME_PLUGINS=(aws azure gcloud github gitlab salesforce)
+RUNTIME_PLUGINS=(aws azure gcloud platform github gitlab salesforce)
 STATIC_FAILURES=0
 INSTALLED_FAILURES=0
 
@@ -115,7 +116,22 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     fail_static "$plugin minimumRuntimeVersion is missing or invalid"
     continue
   fi
-  expected_pi_utils="$expected_xcsh"
+  minimum_xcsh="$expected_xcsh"
+  development_xcsh=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"]' "$package_json") || {
+    fail_static "$plugin development runtime is missing"
+    continue
+  }
+  # Migrate plugins individually; preserve the qualified Salesforce/discovery graph.
+  # The exact minimum stays in peerDependencies and gets its own execution lane.
+  if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
+    fail_static "$plugin development runtime must be its retained minimum or latest stable $LATEST_DEVELOPMENT_XCSH"
+  fi
+  if ! jq -en --arg minimum "$minimum_xcsh" --arg development "$development_xcsh" \
+    '($development | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) and
+     (($development | split(".") | map(tonumber)) >= ($minimum | split(".") | map(tonumber)))' >/dev/null; then
+    fail_static "$plugin development runtime is invalid or below its minimum"
+  fi
+  expected_pi_utils="$development_xcsh"
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
@@ -128,10 +144,10 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     "$EXPECTED_BUN_TYPES_RANGE" "$plugin Bun types development range"
   if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
-      ">=$expected_pi_utils" "$plugin pi-utils peer range"
+      ">=$minimum_xcsh" "$plugin pi-utils peer range"
   fi
 
-  require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$expected_xcsh" "$plugin pinned development runtime"
+  expected_xcsh="$development_xcsh"
 
   require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"
   require_lock_version "$lock" '@f5-sales-demo/pi-utils' "$expected_pi_utils"

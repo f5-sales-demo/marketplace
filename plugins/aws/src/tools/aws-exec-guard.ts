@@ -130,6 +130,8 @@ export function findMutation(args: string[]): { blocked: boolean; reason?: strin
 // Default to JSON for machine-readable output, but respect a caller-supplied
 // --output / -o so `-o table` and `-o text` are honored instead of overridden.
 export function buildAwsArgs(args: string[]): string[] {
-  const hasOutput = args.some((a) => a === '--output' || a === '-o');
+  const hasOutput = args.some(
+    (a) => a === '--output' || a === '-o' || a.startsWith('--output=') || a.startsWith('-o='),
+  );
   return hasOutput ? [...args] : [...args, '--output', 'json'];
 }

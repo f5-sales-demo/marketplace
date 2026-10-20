@@ -11,6 +11,27 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// plugins/azure/src/az/arguments.ts
+function accountArgs(params) {
+  const args = ['account', params.action === 'list' ? 'list' : 'show'];
+  if (params.action !== 'list' && params.subscription) args.push('--subscription', params.subscription);
+  return args;
+}
+function groupArgs(params) {
+  const args = params.action === 'show' && params.name ? ['group', 'show', '--name', params.name] : ['group', 'list'];
+  if (params.action !== 'show' && params.tag) args.push('--tag', params.tag);
+  if (params.subscription) args.push('--subscription', params.subscription);
+  return args;
+}
+function resourceArgs(params) {
+  const args = ['resource', 'list', '--resource-group', params.resource_group];
+  if (params.subscription) args.push('--subscription', params.subscription);
+  if (params.resource_type) args.push('--resource-type', params.resource_type);
+  return args;
+}
+var jsonArgs = (args) => [...args, '--output', 'json'],
+  helpArgs = (path) => [...(path?.trim().split(' ').filter(Boolean) ?? []), '--help'];
+
 // plugins/azure/src/az/exec.ts
 function detectAzError(stderr, _exitCode) {
   const lower = stderr.toLowerCase();
@@ -36,7 +57,7 @@ function parseAzJsonOutput(raw) {
   }
 }
 async function execAzJson(api, args, signal) {
-  const fullArgs = [...args, '--output', 'json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('az', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectAzError(result.stderr, result.exitCode);
@@ -172,50 +193,22 @@ var init_types = __esm(() => {
   TAG_PATTERN = /^[a-zA-Z0-9._-]+(=[a-zA-Z0-9._@: -]*)?$/;
 });
 
-// plugins/azure/src/prompts/az-account-show.md
-var az_account_show_default = `# Show or list Azure subscriptions
+// plugins/azure/src/prompts/az-activity-log-list.md
+var az_activity_log_list_default = `# Azure Activity Log Evidence
 
-Use \`az account\`.
+Retrieve bounded, read-only Azure Activity Log evidence for exactly one resource group or exact resource.
 
-## Actions
+The default window is the retention-safe relative offset \`89d\`, the default status is \`succeeded\`, and the
+default operation family is \`write\`. Results contain only allowlisted normalized fields, UTC coverage,
+truncation state, and conservative caller evidence. Claims, request/response bodies, tokens, arbitrary
+properties, network identifiers, raw events, and continuation data are never returned.
 
-**show** \u2014 Get details of the current (or specified) subscription.
-
-\`\`\`bash
-az account show [--subscription NAME_OR_ID]
-\`\`\`
-
-**list** \u2014 List subscriptions for the logged-in account. By default only 'Enabled' subscriptions are shown.
-
-\`\`\`bash
-az account list [--all] [--refresh]
-\`\`\`
-
-## Flags
-
-| Flag | Applies To | Description |
-| --- | --- | --- |
-| \`--subscription\`, \`-s\`, \`-n\` | show | Name or ID of subscription |
-| \`--all\` | list | Include subscriptions that are not 'Enabled' |
-| \`--refresh\` | list | Retrieve up-to-date subscriptions from server |
-
-## Output Fields (JSON)
-
-- \`id\` \u2014 Subscription UUID
-- \`name\` \u2014 Display name
-- \`state\` \u2014 Enabled, Disabled, Warned, etc.
-- \`isDefault\` \u2014 Whether this is the active subscription
-- \`tenantId\` \u2014 Azure AD tenant UUID
-- \`user.name\` \u2014 Authenticated user/principal
-- \`user.type\` \u2014 "user", "servicePrincipal", etc.
-
-## Related Commands
-
-- \`az account set -s NAME_OR_ID\` \u2014 Switch active subscription
-- \`az account get-access-token\` \u2014 Get token for API access
-- \`az account list-locations\` \u2014 List regions for current subscription
+Caller evidence identifies who was associated with an observed operation; it is historical provenance,
+not ownership. A generic create-or-update write is ambiguous. Empty output means only that no matching event
+was observed in the returned coverage. Use this tool, never generic \`az_exec\` or a synthesized absolute start
+date, for Customer Edge Activity Log attribution.
 `;
-var init_az_account_show = () => {};
+var init_az_activity_log_list = () => {};
 
 // plugins/azure/src/tools/shared.ts
 function textResult(text, details) {
@@ -322,557 +315,13 @@ var init_shared = __esm(() => {
   init_exec();
 });
 
-// plugins/azure/src/tools/az-account-show.ts
-function createAzAccountShowTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    action: Type.Union([Type.Literal('show'), Type.Literal('list')], {
-      description: 'show = current subscription, list = all subscriptions',
-    }),
-    subscription: Type.Optional(Type.String({ description: 'Filter by subscription name or ID' })),
-  });
-  return {
-    name: 'az_account_show',
-    label: 'Azure Account',
-    description: az_account_show_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'az_account_show', action: params.action };
-      if (params.subscription) {
-        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
-        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
-        if (!isUuid && !isName) {
-          return errorResult(
-            `Error: invalid subscription "${params.subscription}". Only alphanumeric characters, spaces, dots, underscores, and hyphens are allowed.`,
-            base,
-          );
-        }
-      }
-      const api = makeApi(ctx.cwd);
-      try {
-        if (params.action === 'list') {
-          const raw = await execAzJson(api, ['account', 'list'], signal);
-          let subs = raw.map(normalizeSubscription);
-          if (params.subscription) {
-            const filter = params.subscription.toLowerCase();
-            subs = subs.filter((s) => s.name.toLowerCase().includes(filter) || s.id.toLowerCase().includes(filter));
-          }
-          return textResult(formatSubscriptionTable(subs), { ...base, subscriptions: subs });
-        }
-        const args = ['account', 'show'];
-        if (params.subscription) args.push('--subscription', params.subscription);
-        const raw = await execAzJson(api, args, signal);
-        const sub = normalizeSubscription(raw);
-        return textResult(formatSubscriptionDetail(sub), { ...base, subscriptions: [sub] });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var init_az_account_show2 = __esm(() => {
-  init_exec();
-  init_types();
-  init_az_account_show();
-  init_shared();
-});
-
-// plugins/azure/src/prompts/az-group-list.md
-var az_group_list_default = `# List or show Azure resource groups
-
-Use \`az group\`.
-
-## Actions
-
-**list** \u2014 List all resource groups in the current subscription.
-
-\`\`\`bash
-az group list [--subscription NAME_OR_ID] [--tag KEY[=VALUE]]
-\`\`\`
-
-**show** \u2014 Get details of a specific resource group.
-
-\`\`\`bash
-az group show --name NAME [--subscription NAME_OR_ID]
-\`\`\`
-
-## Flags
-
-| Flag | Applies To | Description |
-| --- | --- | --- |
-| \`--subscription\` | list, show | Name or ID of subscription |
-| \`--tag\` | list | Filter by tag in \`key[=value]\` format |
-| \`--name\`, \`-n\` | show | Resource group name (required for show) |
-
-## Output Fields (JSON)
-
-- \`id\` \u2014 Full resource ID
-- \`name\` \u2014 Resource group name
-- \`location\` \u2014 Azure region (e.g. eastus, westus2)
-- \`properties.provisioningState\` \u2014 Succeeded, Failed, etc.
-- \`tags\` \u2014 Key-value tag pairs
-
-## Naming Rules
-
-Resource group names: 1-90 chars, alphanumeric, periods, underscores, hyphens, parentheses. Cannot end with a period.
-
-## Related Commands
-
-- \`az group create --name NAME --location LOCATION\` \u2014 Create resource group
-- \`az group delete --name NAME\` \u2014 Delete resource group
-- \`az group exists --name NAME\` \u2014 Check if exists (returns true/false)
-- \`az group export --name NAME\` \u2014 Export as ARM template
-`;
-var init_az_group_list = () => {};
-
-// plugins/azure/src/tools/az-group-list.ts
-function createAzGroupListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    action: Type.Union([Type.Literal('list'), Type.Literal('show')], {
-      description: 'list = all resource groups, show = single resource group details',
-    }),
-    name: Type.Optional(Type.String({ description: 'Resource group name (required for show)' })),
-    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
-    tag: Type.Optional(Type.String({ description: 'Filter by tag in key[=value] format' })),
-  });
-  return {
-    name: 'az_group_list',
-    label: 'Azure Resource Groups',
-    description: az_group_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'az_group_list', action: params.action };
-      if (params.name && !RESOURCE_GROUP_PATTERN.test(params.name)) {
-        return errorResult(
-          `Error: invalid resource group name "${params.name}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
-          base,
-        );
-      }
-      if (params.subscription) {
-        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
-        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
-        if (!isUuid && !isName) {
-          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
-        }
-      }
-      if (params.tag && !TAG_PATTERN.test(params.tag)) {
-        return errorResult(
-          `Error: invalid tag "${params.tag}". Use format key[=value] with safe characters only.`,
-          base,
-        );
-      }
-      const api = makeApi(ctx.cwd);
-      try {
-        if (params.action === 'show') {
-          if (!params.name) {
-            return errorResult('Error: --name is required for show action.', base);
-          }
-          const args = ['group', 'show', '--name', params.name];
-          if (params.subscription) args.push('--subscription', params.subscription);
-          const raw = await execAzJson(api, args, signal);
-          const group = normalizeResourceGroup(raw);
-          return textResult(formatResourceGroupTable([group]), { ...base, resourceGroups: [group] });
-        }
-        const args = ['group', 'list'];
-        if (params.subscription) args.push('--subscription', params.subscription);
-        if (params.tag) args.push('--tag', params.tag);
-        const raw = await execAzJson(api, args, signal);
-        const groups = raw.map(normalizeResourceGroup);
-        return textResult(formatResourceGroupTable(groups), { ...base, resourceGroups: groups });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var init_az_group_list2 = __esm(() => {
-  init_exec();
-  init_types();
-  init_az_group_list();
-  init_shared();
-});
-
-// plugins/azure/src/prompts/az-resource-list.md
-var az_resource_list_default =
-  '# List Azure resources\n\nUse `az resource list`.\n\n## Usage\n\n```bash\naz resource list [--resource-group NAME] [--resource-type TYPE] [--location LOCATION] [--name NAME] [--tag KEY[=VALUE]] [--subscription NAME_OR_ID]\n```\n\n## Flags\n\n| Flag | Description |\n| --- | --- |\n| `--resource-group`, `-g` | Filter by resource group name |\n| `--resource-type` | Filter by type (e.g. `Microsoft.Compute/virtualMachines`). Accepts `namespace/type` format. |\n| `--location`, `-l` | Filter by region |\n| `--name`, `-n` | Filter by resource name |\n| `--tag` | Filter by tag in `key[=value]` format |\n| `--subscription` | Name or ID of subscription |\n\n## Output Fields (JSON)\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 Resource name\n- `type` \u2014 Resource type (e.g. `Microsoft.Compute/virtualMachines`)\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n- `tags` \u2014 Key-value tag pairs\n\n## Common Resource Types\n\n- `Microsoft.Compute/virtualMachines` \u2014 VMs\n- `Microsoft.Storage/storageAccounts` \u2014 Storage\n- `Microsoft.Network/virtualNetworks` \u2014 VNets\n- `Microsoft.Network/publicIPAddresses` \u2014 Public IPs\n- `Microsoft.Network/networkSecurityGroups` \u2014 NSGs\n- `Microsoft.Web/sites` \u2014 App Service / Functions\n- `Microsoft.ContainerService/managedClusters` \u2014 AKS\n- `Microsoft.Sql/servers` \u2014 SQL servers\n- `Microsoft.KeyVault/vaults` \u2014 Key Vaults\n\n## Notes\n\nWithout `--resource-group`, lists all resources in the subscription (can be large). Always specify a resource group when possible.\n\n## Related Commands\n\n- `az resource show --ids RESOURCE_ID` \u2014 Show single resource\n- `az resource delete --ids RESOURCE_ID` \u2014 Delete resource\n- `az resource tag --ids RESOURCE_ID --tags KEY=VALUE` \u2014 Tag resource\n';
-var init_az_resource_list = () => {};
-
-// plugins/azure/src/tools/az-resource-list.ts
-function createAzResourceListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    resource_group: Type.String({ description: 'Resource group name (required to avoid listing entire subscription)' }),
-    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
-    resource_type: Type.Optional(
-      Type.String({ description: 'Filter by type (e.g. Microsoft.Compute/virtualMachines)' }),
-    ),
-  });
-  return {
-    name: 'az_resource_list',
-    label: 'Azure Resources',
-    description: az_resource_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'az_resource_list' };
-      if (!params.resource_group || !RESOURCE_GROUP_PATTERN.test(params.resource_group)) {
-        return errorResult(
-          `Error: invalid resource group "${params.resource_group}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
-          base,
-        );
-      }
-      if (params.subscription) {
-        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
-        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
-        if (!isUuid && !isName) {
-          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
-        }
-      }
-      if (params.resource_type && !RESOURCE_TYPE_PATTERN.test(params.resource_type)) {
-        return errorResult(
-          `Error: invalid resource type "${params.resource_type}". Use format like Microsoft.Compute/virtualMachines.`,
-          base,
-        );
-      }
-      const api = makeApi(ctx.cwd);
-      const args = ['resource', 'list', '--resource-group', params.resource_group];
-      if (params.subscription) args.push('--subscription', params.subscription);
-      if (params.resource_type) args.push('--resource-type', params.resource_type);
-      try {
-        const raw = await execAzJson(api, args, signal);
-        const resources = raw.map(normalizeResource);
-        return textResult(formatResourceTable(resources), { ...base, resources });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var init_az_resource_list2 = __esm(() => {
-  init_exec();
-  init_types();
-  init_az_resource_list();
-  init_shared();
-});
-
-// plugins/azure/src/prompts/az-vm-list.md
-var az_vm_list_default =
-  '# List Azure virtual machines\n\nUse `az vm list`.\n\n## Usage\n\n```json\n{\n  "resource_group": "optional-name",\n  "subscription": "optional-name-or-id",\n  "include_power_state": true,\n  "include_network_identifiers": false\n}\n```\n\n## Flags\n\n| Parameter | Description |\n| --- | --- |\n| `resource_group` | Filter by resource group |\n| `subscription` | Name or ID of subscription |\n| `include_power_state` | Include runtime state. Defaults to `true` and may require additional Azure API calls. |\n| `include_network_identifiers` | Include public IP addresses and FQDNs. Defaults to `false`; enable only for an explicit endpoint request. |\n\n## Output Fields (JSON)\n\nThe result always includes:\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 VM name\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `vmSize` \u2014 VM size (for example, Standard_D2s_v5)\n- `osType` \u2014 Linux or Windows\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n\nWith `include_power_state` enabled (the default):\n\n- `powerState` \u2014 VM running, VM deallocated, VM stopped, etc.\n\nOnly with `include_network_identifiers: true`:\n\n- `publicIps` \u2014 Public IP addresses as an array\n- `fqdns` \u2014 Fully qualified domain names as an array\n\n## Common VM Operations\n\n- `az vm show --name NAME --resource-group RG` \u2014 Show single VM\n- `az vm start --name NAME --resource-group RG` \u2014 Start VM\n- `az vm stop --name NAME --resource-group RG` \u2014 Stop VM\n- `az vm deallocate --name NAME --resource-group RG` \u2014 Deallocate (stop billing)\n- `az vm restart --name NAME --resource-group RG` \u2014 Restart VM\n- `az vm list-ip-addresses --name NAME --resource-group RG` \u2014 Get IPs\n- `az vm list-sizes --location LOCATION` \u2014 List available sizes\n- `az vm open-port --name NAME --resource-group RG --port PORT` \u2014 Open port\n\n## Notes\n\nWithout `resource_group`, the tool lists all VMs in the subscription. Runtime state and endpoint\nlookups may require additional Azure API calls. Network identifiers are excluded from both text and\nstructured results unless `include_network_identifiers` is explicitly true.\n';
-var init_az_vm_list = () => {};
-
-// plugins/azure/src/tools/az-vm-list.ts
-function vmListProjection(includePowerState, includeNetworkIdentifiers) {
-  const fields = [...BASE_VM_FIELDS];
-  if (includePowerState) fields.push('powerState:powerState');
-  if (includeNetworkIdentifiers) fields.push('publicIps:to_array(publicIps)', 'fqdns:to_array(fqdns)');
-  return `[].{${fields.join(',')}}`;
-}
-function createAzVmListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    resource_group: Type.Optional(Type.String({ description: 'Filter by resource group' })),
-    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
-    include_power_state: Type.Optional(Type.Boolean({ description: 'Include VM runtime power state (default: true)' })),
-    include_network_identifiers: Type.Optional(
-      Type.Boolean({
-        description: 'Include public IP addresses and FQDNs only when explicitly requested (default: false)',
-      }),
-    ),
-  });
-  return {
-    name: 'az_vm_list',
-    label: 'Azure Virtual Machines',
-    description: az_vm_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'az_vm_list' };
-      if (params.resource_group && !RESOURCE_GROUP_PATTERN.test(params.resource_group)) {
-        return errorResult(
-          `Error: invalid resource group "${params.resource_group}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
-          base,
-        );
-      }
-      if (params.subscription) {
-        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
-        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
-        if (!isUuid && !isName) {
-          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
-        }
-      }
-      const api = makeApi(ctx.cwd);
-      const args = ['vm', 'list'];
-      if (params.resource_group) args.push('--resource-group', params.resource_group);
-      if (params.subscription) args.push('--subscription', params.subscription);
-      const policy = {
-        includePowerState: params.include_power_state ?? true,
-        includeNetworkIdentifiers: params.include_network_identifiers === true,
-      };
-      if (policy.includePowerState || policy.includeNetworkIdentifiers) args.push('--show-details');
-      args.push('--query', vmListProjection(policy.includePowerState, policy.includeNetworkIdentifiers));
-      try {
-        const raw = await execAzJson(api, args, signal);
-        const vms = raw.map((vm) => normalizeVm(vm, policy));
-        return textResult(formatVmTable(vms, policy), { ...base, vms });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var BASE_VM_FIELDS;
-var init_az_vm_list2 = __esm(() => {
-  init_exec();
-  init_types();
-  init_az_vm_list();
-  init_shared();
-  BASE_VM_FIELDS = [
-    'id:id',
-    'name:name',
-    'location:location',
-    'resourceGroup:resourceGroup',
-    'vmSize:hardwareProfile.vmSize',
-    'provisioningState:provisioningState',
-    'osType:storageProfile.osDisk.osType',
-  ];
-});
-
-// plugins/azure/src/az/resource-graph.ts
-var RESOURCE_GRAPH_REQUIRED_FLAGS;
-var init_resource_graph = __esm(() => {
-  RESOURCE_GRAPH_REQUIRED_FLAGS = [
-    '--graph-query',
-    '--subscriptions',
-    '--first',
-    '--skip',
-    '--skip-token',
-    '--allow-partial-scopes',
-  ];
-});
-
-// plugins/azure/src/prompts/az-resource-graph-query.md
-var az_resource_graph_query_default =
-  '# Query Azure Resource Graph\n\nRun a read-only Resource Graph query with typed paging and subscription scope.\n\n- Put KQL in `query`; it is passed only to `--graph-query`.\n- Put an optional JMESPath result transform in `output_projection`; it is passed only to global `--query`.\n- Use `subscriptions` for individual Azure subscription UUIDs.\n- Use `first` with either `skip` or `skip_token`; never combine `skip` and `skip_token`.\n- Set `allow_partial_scopes` only when partial accessible-scope results are acceptable.\n\nThe tool disables dynamic extension installation. A setup-required result must be handled through\n`xcsh plugin setup azure`, which reviews the exact installation and authentication plan before execution.\n';
-var init_az_resource_graph_query = () => {};
-
-// plugins/azure/src/tools/az-resource-graph-query.ts
-function invalid(message) {
-  return errorResult(`Error: ${message}`, { tool: 'az_resource_graph_query', outcome: 'invalid_input' });
-}
-function retryAfter(stderr) {
-  const match = stderr.match(/retry[- ]after(?:\s*[:=]\s*|\s+)(\d+)/i);
-  return match ? Number(match[1]) : undefined;
-}
-function inaccessibleScopeCount(stderr) {
-  const identifiers = stderr.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
-  return identifiers?.length ? new Set(identifiers.map((identifier) => identifier.toLowerCase())).size : undefined;
-}
-function isTruncated(value) {
-  return value === true || value === 'true';
-}
-function validateResourceGraphParams(params) {
-  if (!params.query?.trim()) return 'query is required.';
-  for (const [name, value] of [
-    ['query', params.query],
-    ['skip_token', params.skip_token],
-    ['output_projection', params.output_projection],
-  ]) {
-    if (value !== undefined && CONTROL_CHAR_PATTERN.test(value)) return `${name} contains a control character.`;
-  }
-  if (params.first !== undefined && (!Number.isInteger(params.first) || params.first < 1 || params.first > 1000)) {
-    return 'first must be an integer from 1 through 1000.';
-  }
-  if (params.skip !== undefined && (!Number.isInteger(params.skip) || params.skip < 0)) {
-    return 'skip must be a non-negative integer.';
-  }
-  if (params.skip !== undefined && params.skip_token !== undefined)
-    return 'skip and skip_token cannot be used together.';
-  if (params.subscriptions?.some((subscription) => !SUBSCRIPTION_ID_PATTERN.test(subscription))) {
-    return 'every subscription must be a UUID subscription ID.';
-  }
-  if (params.subscriptions?.length === 0) return 'subscriptions must contain at least one subscription ID.';
-}
-function buildResourceGraphArgs(params) {
-  const args = ['graph', 'query', '--graph-query', params.query];
-  if (params.subscriptions?.length) args.push('--subscriptions', ...params.subscriptions);
-  if (params.first !== undefined) args.push('--first', String(params.first));
-  if (params.skip !== undefined) args.push('--skip', String(params.skip));
-  if (params.skip_token !== undefined) args.push('--skip-token', params.skip_token);
-  if (params.output_projection !== undefined) args.push('--query', params.output_projection);
-  if (params.allow_partial_scopes === true) args.push('--allow-partial-scopes');
-  args.push('--output', 'json');
-  return args;
-}
-function createAzResourceGraphQueryTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    query: Type.String({ description: 'Resource Graph KQL; passed only to --graph-query' }),
-    subscriptions: Type.Optional(Type.Array(Type.String({ description: 'Azure subscription UUID' }))),
-    first: Type.Optional(Type.Number({ description: 'Maximum records, 1 through 1000' })),
-    skip: Type.Optional(Type.Number({ description: 'Non-negative record offset; incompatible with skip_token' })),
-    skip_token: Type.Optional(Type.String({ description: 'Continuation token; incompatible with skip' })),
-    output_projection: Type.Optional(
-      Type.String({ description: 'JMESPath output projection; passed only to --query' }),
-    ),
-    allow_partial_scopes: Type.Optional(Type.Boolean({ description: 'Allow results from accessible scopes' })),
-  });
-  return {
-    name: 'az_resource_graph_query',
-    label: 'Azure Resource Graph Query',
-    description: az_resource_graph_query_default,
-    parameters,
-    async execute(_id, params, signal, _update, ctx) {
-      const validation = validateResourceGraphParams(params);
-      if (validation) return invalid(validation);
-      const api = makeApi(ctx.cwd);
-      const options = { signal, env: RESOURCE_GRAPH_ENV };
-      const extension = await api.exec(
-        'az',
-        ['extension', 'show', '--name', 'resource-graph', '--output', 'json'],
-        options,
-      );
-      if (extension.exitCode !== 0) {
-        return errorResult('Azure Resource Graph is not installed. Run: xcsh plugin setup azure', {
-          tool: 'az_resource_graph_query',
-          outcome: 'setup_required',
-        });
-      }
-      let extensionInfo;
-      try {
-        const parsed = parseAzJsonOutput(extension.stdout);
-        extensionInfo = { name: String(parsed.name ?? ''), version: String(parsed.version ?? '') };
-        if (extensionInfo.name !== 'resource-graph' || !extensionInfo.version)
-          throw new Error('invalid extension identity');
-      } catch {
-        return errorResult(
-          'The installed Resource Graph extension could not be identified. Run: xcsh plugin setup azure',
-          {
-            tool: 'az_resource_graph_query',
-            outcome: 'unsupported_extension',
-          },
-        );
-      }
-      const help = await api.exec('az', ['graph', 'query', '--help'], options);
-      const missingFlags = RESOURCE_GRAPH_REQUIRED_FLAGS.filter(
-        (flag) =>
-          !`${help.stdout}
-${help.stderr}`.includes(flag),
-      );
-      if (help.exitCode !== 0 || missingFlags.length > 0) {
-        return errorResult(
-          'The installed Resource Graph extension lacks required query capabilities. Run: xcsh plugin setup azure',
-          {
-            tool: 'az_resource_graph_query',
-            outcome: 'unsupported_extension',
-            extension: extensionInfo,
-            missingFlags,
-          },
-        );
-      }
-      const result = await api.exec('az', buildResourceGraphArgs(params), options);
-      if (result.exitCode !== 0) {
-        const error = detectAzError(result.stderr || result.stdout, result.exitCode);
-        const throttled = /throttl|too many requests|\b429\b/i.test(`${result.stderr}
-${result.stdout}`);
-        const errorType = detectErrorType(error);
-        return errorResult(
-          throttled
-            ? 'Azure Resource Graph throttled the request. Retry after the advised delay.'
-            : 'Azure Resource Graph query failed.',
-          {
-            tool: 'az_resource_graph_query',
-            outcome: throttled
-              ? 'throttled'
-              : errorType === 'auth_required' || errorType === 'session_expired'
-                ? 'authentication_failure'
-                : 'execution_failure',
-            errorType,
-            ...(throttled && retryAfter(result.stderr) !== undefined
-              ? { retryAfterSeconds: retryAfter(result.stderr) }
-              : {}),
-          },
-        );
-      }
-      try {
-        const payload = parseAzJsonOutput(result.stdout);
-        const envelope = Array.isArray(payload) ? { data: payload } : payload;
-        const data = Array.isArray(envelope.data) ? envelope.data : [];
-        const partial = /partial scope|inaccessible scope|not authorized for all/i.test(result.stderr);
-        const rawSkipToken = envelope.skip_token ?? envelope.skipToken;
-        const skipToken = typeof rawSkipToken === 'string' ? rawSkipToken : undefined;
-        const totalRecordsValue = envelope.total_records ?? envelope.totalRecords;
-        const count = typeof envelope.count === 'number' ? envelope.count : data.length;
-        const totalRecords = typeof totalRecordsValue === 'number' ? totalRecordsValue : count;
-        const truncatedMarker = envelope.result_truncated ?? envelope.resultTruncated;
-        return textResult(JSON.stringify(data), {
-          tool: 'az_resource_graph_query',
-          outcome: partial ? 'partial_scope' : 'success',
-          data,
-          count,
-          totalRecords,
-          truncated: isTruncated(truncatedMarker) || skipToken !== undefined || totalRecords > count,
-          ...(skipToken ? { skipToken } : {}),
-          ...(partial && inaccessibleScopeCount(result.stderr) !== undefined
-            ? { inaccessibleScopeCount: inaccessibleScopeCount(result.stderr) }
-            : {}),
-          extension: extensionInfo,
-        });
-      } catch {
-        return errorResult('Azure Resource Graph returned invalid JSON.', {
-          tool: 'az_resource_graph_query',
-          outcome: 'execution_failure',
-        });
-      }
-    },
-  };
-}
-var RESOURCE_GRAPH_ENV, CONTROL_CHAR_PATTERN;
-var init_az_resource_graph_query2 = __esm(() => {
-  init_exec();
-  init_resource_graph();
-  init_types();
-  init_az_resource_graph_query();
-  init_shared();
-  init_resource_graph();
-  RESOURCE_GRAPH_ENV = { AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no' };
-  CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
-});
-
-// plugins/azure/src/prompts/az-activity-log-list.md
-var az_activity_log_list_default = `# Azure Activity Log Evidence
-
-Retrieve bounded, read-only Azure Activity Log evidence for exactly one resource group or exact resource.
-
-The default window is the retention-safe relative offset \`89d\`, the default status is \`succeeded\`, and the
-default operation family is \`write\`. Results contain only allowlisted normalized fields, UTC coverage,
-truncation state, and conservative caller evidence. Claims, request/response bodies, tokens, arbitrary
-properties, network identifiers, raw events, and continuation data are never returned.
-
-Caller evidence identifies who was associated with an observed operation; it is historical provenance,
-not ownership. A generic create-or-update write is ambiguous. Empty output means only that no matching event
-was observed in the returned coverage. Use this tool, never generic \`az_exec\` or a synthesized absolute start
-date, for Customer Edge Activity Log attribution.
-`;
-var init_az_activity_log_list = () => {};
-
 // plugins/azure/src/tools/az-activity-log-list.ts
-function invalid2(message) {
+function invalid(message) {
   return errorResult(`Error: ${message}`, { tool: 'az_activity_log_list', outcome: 'invalid_input' });
 }
 function safeString(value, maxLength = 2048) {
   if (typeof value !== 'string') return '';
-  return value.replace(CONTROL_CHAR_PATTERN2, '').slice(0, maxLength);
+  return value.replace(CONTROL_CHAR_PATTERN, '').slice(0, maxLength);
 }
 function safeIdentity(value) {
   const identity = safeString(value, 320);
@@ -1019,7 +468,7 @@ function validateActivityLogParams(params) {
     if (
       !resourceMatch ||
       !SUBSCRIPTION_ID_PATTERN.test(resourceMatch[1]) ||
-      CONTROL_CHAR_PATTERN2.test(params.resource_id)
+      CONTROL_CHAR_PATTERN.test(params.resource_id)
     ) {
       return 'resource ID must be an absolute Azure resource ID.';
     }
@@ -1032,7 +481,7 @@ function validateActivityLogParams(params) {
   }
   if (
     params.caller !== undefined &&
-    (!params.caller.trim() || params.caller.length > 320 || CONTROL_CHAR_PATTERN2.test(params.caller))
+    (!params.caller.trim() || params.caller.length > 320 || CONTROL_CHAR_PATTERN.test(params.caller))
   ) {
     return 'caller must be non-empty and contain no control characters.';
   }
@@ -1096,9 +545,9 @@ function createAzActivityLogListTool(pi, makeApi = makeExecApi, now = () => new 
     parameters,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const validation = validateActivityLogParams(params);
-      if (validation) return invalid2(validation);
+      if (validation) return invalid(validation);
       const end = now();
-      if (!Number.isFinite(end.getTime())) return invalid2('the UTC clock returned an invalid instant.');
+      if (!Number.isFinite(end.getTime())) return invalid('the UTC clock returned an invalid instant.');
       const api = makeApi(ctx.cwd);
       let result;
       try {
@@ -1153,7 +602,7 @@ var DEFAULT_LOOKBACK_DAYS = 89,
   STATUSES,
   OPERATION_FAMILIES,
   RESOURCE_ID_PATTERN,
-  CONTROL_CHAR_PATTERN2,
+  CONTROL_CHAR_PATTERN,
   GUID_PATTERN,
   NETWORK_LITERAL_PATTERN,
   ACTIVITY_LOG_PROJECTION =
@@ -1167,9 +616,746 @@ var init_az_activity_log_list2 = __esm(() => {
   OPERATION_FAMILIES = new Set(['write', 'delete', 'action', 'all']);
   RESOURCE_ID_PATTERN =
     /^\/subscriptions\/([^/]+)\/resourceGroups\/[^/]+(?:\/providers\/[^/]+\/[^/]+\/[^/]+(?:\/[^/]+\/[^/]+)*)?$/i;
-  CONTROL_CHAR_PATTERN2 = /[\u0000-\u001F\u007F]/;
+  CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F]/;
   GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   NETWORK_LITERAL_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-f]*:[0-9a-f:]+$/i;
+});
+
+// plugins/azure/src/prompts/az-exec.md
+var az_exec_default =
+  '# Execute Azure CLI Commands\n\nExecute any `az` CLI subcommand directly.\n\nThis is the general-purpose tool for running az commands that are not covered by the typed tools (az_account, az_group, az_resource, az_vm). Use typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the subcommand and flags as an array of arguments. Do NOT include `az` itself \u2014 it is prepended automatically.\n\n**Example:** To run `az webapp list --resource-group myRG`:\n\n```json\n{ "args": ["webapp", "list", "--resource-group", "myRG"] }\n```\n\n## Safety\n\n- Arguments are passed as an array directly to the `az` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `az` invocation runs, including full JMESPath `--query` syntax.\n- **Read-only by default:** mutating verbs (`create`, `delete`, `update`, `set`, `purge`, `start`, `stop`, `restart`, `scale`, `restore`, \u2026) are blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `cli-operator` agent), not `az_exec`.\n- Output is capped to prevent context overflow.\n\n## Querying with `--query` (JMESPath)\n\nThe full JMESPath grammar is supported \u2014 pass the expression as a single argument value. Common patterns:\n\n- Field projection: `--query "[].{name:name, location:location}"`\n- Filter: `--query "[?location==\'eastus\']"`\n- Substring match: `--query "[?contains(name, \'prod\')]"`\n- Backtick literals (numbers/booleans/quoted enums): `` --query "[?powerState==`VM running`]" ``\n- OR / AND / NOT: `--query "[?a==\'x\' || b==\'y\']"`, `--query "[?a && b]"`, `--query "[?!disabled]"`\n- Pipe to post-process a projection: `--query "[].name | [0]"`\n\nAll of the above \u2014 including `||`, `|`, and backticks \u2014 are accepted verbatim.\n\nFor `az graph query`, use the typed `az_resource_graph_query` tool. Resource Graph KQL belongs in\nits `query` field and maps to `--graph-query`; global `--query` remains only a JMESPath output\nprojection. An unambiguous `az graph query --query <KQL>` mix-up is rejected before execution.\n\n## Common Subcommands Not Covered by Typed Tools\n\n- `az webapp list` / `az webapp show` \u2014 App Service\n- `az aks list` / `az aks show` \u2014 Kubernetes Service\n- `az storage account list` \u2014 Storage accounts\n- `az network vnet list` \u2014 Virtual Networks\n- `az network nsg list` \u2014 Network Security Groups\n- `az sql server list` \u2014 SQL servers\n- `az keyvault list` \u2014 Key Vaults\n- `az container list` \u2014 Container Instances\n- `az acr list` \u2014 Container Registries\n- `az functionapp list` \u2014 Function Apps\n\n## Tips\n\n- `--output json` is added automatically unless you pass your own `--output`/`-o` (e.g. `-o table`, `-o tsv`), which is respected\n- Use `--subscription NAME_OR_ID` to target a specific subscription\n- Use `--resource-group NAME` to scope to a resource group\n- Use `az_help` tool first if unsure about available flags\n';
+var init_az_exec = () => {};
+
+// plugins/azure/src/tools/az-exec.ts
+function hasControlChars(arg) {
+  return CONTROL_CHAR_PATTERN2.test(arg);
+}
+function hasResourceGraphQueryFlagMisuse(args) {
+  const graphIndex = args.findIndex((arg, index) => arg === 'graph' && args[index + 1] === 'query');
+  if (
+    graphIndex < 0 ||
+    args.some(
+      (arg) => arg === '-q' || arg.startsWith('-q=') || arg === '--graph-query' || arg.startsWith('--graph-query='),
+    )
+  ) {
+    return false;
+  }
+  const queryIndex = args.indexOf('--query');
+  const inlineQuery = args.find((arg) => arg.startsWith('--query='))?.slice('--query='.length);
+  const candidate = queryIndex >= 0 ? args[queryIndex + 1] : inlineQuery;
+  if (!candidate) return false;
+  return /\b(?:Resources|ResourceContainers)\b[\s\S]*\|[\s\S]*\b(?:where|project|extend|summarize|take|limit|join)\b|=~/i.test(
+    candidate,
+  );
+}
+function getPositionals(args) {
+  return args.filter((arg) => !arg.startsWith('-'));
+}
+function findMutatingVerb(args) {
+  return getPositionals(args).find((tok) => MUTATING_VERBS.has(tok)) ?? null;
+}
+function buildAzArgs(args) {
+  const hasOutput = args.some(
+    (a) => a === '--output' || a === '-o' || a.startsWith('--output=') || a.startsWith('-o='),
+  );
+  return hasOutput ? [...args] : [...args, '--output', 'json'];
+}
+function createAzExecTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "az" itself)' }), {
+      description: 'Command arguments as array, e.g. ["webapp", "list", "--resource-group", "myRG"]',
+    }),
+  });
+  return {
+    name: 'az_exec',
+    label: 'Azure CLI Execute',
+    description: az_exec_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'az_exec' };
+      if (!params.args || params.args.length === 0) {
+        return errorResult('Error: args array must not be empty. Provide az subcommand and flags.', base);
+      }
+      for (const arg of params.args) {
+        if (hasControlChars(arg)) {
+          return errorResult(`Error: argument contains a control character and cannot be passed to az: "${arg}"`, base);
+        }
+      }
+      if (hasResourceGraphQueryFlagMisuse(params.args)) {
+        return errorResult(
+          'Error: Resource Graph KQL must use -q/--graph-query. Global --query is reserved for JMESPath output projection; use az_resource_graph_query for typed execution.',
+          base,
+        );
+      }
+      const mutatingVerb = findMutatingVerb(params.args);
+      if (mutatingVerb !== null) {
+        return errorResult(
+          `Error: "${mutatingVerb}" is a mutating operation. az_exec is read-only by default. ` +
+            'Run write/destructive operations through an explicitly confirmed path (delegate to the ' +
+            'azure:cli-operator agent) rather than az_exec.',
+          base,
+        );
+      }
+      const api = makeApi(ctx.cwd);
+      const args = buildAzArgs(params.args);
+      try {
+        const result = await api.exec('az', args, { signal });
+        if (result.exitCode !== 0) {
+          return errorResult(`az command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
+            ...base,
+            errorType: 'exec_error',
+          });
+        }
+        let output = result.stdout;
+        const fullOutput = output;
+        if (output.length > MAX_OUTPUT_LENGTH) {
+          output = `${output.slice(0, MAX_OUTPUT_LENGTH)}
+
+[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
+        }
+        return textResult(output, { ...base, fullOutput, modelPreviewTruncated: output !== fullOutput });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var MAX_OUTPUT_LENGTH = 50000,
+  CONTROL_CHAR_PATTERN2,
+  MUTATING_VERBS;
+var init_az_exec2 = __esm(() => {
+  init_az_exec();
+  init_shared();
+  CONTROL_CHAR_PATTERN2 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+  MUTATING_VERBS = new Set([
+    'create',
+    'new',
+    'delete',
+    'remove',
+    'purge',
+    'update',
+    'set',
+    'add',
+    'start',
+    'stop',
+    'restart',
+    'deallocate',
+    'redeploy',
+    'reset',
+    'regenerate',
+    'renew',
+    'rotate',
+    'move',
+    'invoke',
+    'execute',
+    'enable',
+    'disable',
+    'attach',
+    'detach',
+    'approve',
+    'reject',
+    'cancel',
+    'revoke',
+    'grant',
+    'assign',
+    'unassign',
+    'lock',
+    'unlock',
+    'register',
+    'unregister',
+    'scale',
+    'migrate',
+    'failover',
+    'restore',
+    'deploy',
+    'install',
+    'uninstall',
+    'upgrade',
+    'publish',
+    'import',
+    'upload',
+    'activate',
+    'deactivate',
+    'associate',
+    'disassociate',
+    'generate',
+  ]);
+});
+
+// plugins/azure/src/az/resource-graph.ts
+var RESOURCE_GRAPH_REQUIRED_FLAGS;
+var init_resource_graph = __esm(() => {
+  RESOURCE_GRAPH_REQUIRED_FLAGS = [
+    '--graph-query',
+    '--subscriptions',
+    '--first',
+    '--skip',
+    '--skip-token',
+    '--allow-partial-scopes',
+  ];
+});
+
+// plugins/azure/src/prompts/az-resource-graph-query.md
+var az_resource_graph_query_default =
+  '# Query Azure Resource Graph\n\nRun a read-only Resource Graph query with typed paging and subscription scope.\n\n- Put KQL in `query`; it is passed only to `--graph-query`.\n- Put an optional JMESPath result transform in `output_projection`; it is passed only to global `--query`.\n- Use `subscriptions` for individual Azure subscription UUIDs.\n- Use `first` with either `skip` or `skip_token`; never combine `skip` and `skip_token`.\n- Set `allow_partial_scopes` only when partial accessible-scope results are acceptable.\n\nThe tool disables dynamic extension installation. A setup-required result must be handled through\n`xcsh plugin setup azure`, which reviews the exact installation and authentication plan before execution.\n';
+var init_az_resource_graph_query = () => {};
+
+// plugins/azure/src/tools/az-resource-graph-query.ts
+function invalid2(message) {
+  return errorResult(`Error: ${message}`, { tool: 'az_resource_graph_query', outcome: 'invalid_input' });
+}
+function retryAfter(stderr) {
+  const match = stderr.match(/retry[- ]after(?:\s*[:=]\s*|\s+)(\d+)/i);
+  return match ? Number(match[1]) : undefined;
+}
+function inaccessibleScopeCount(stderr) {
+  const identifiers = stderr.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+  return identifiers?.length ? new Set(identifiers.map((identifier) => identifier.toLowerCase())).size : undefined;
+}
+function isTruncated(value) {
+  return value === true || value === 'true';
+}
+function validateResourceGraphParams(params) {
+  if (!params.query?.trim()) return 'query is required.';
+  for (const [name, value] of [
+    ['query', params.query],
+    ['skip_token', params.skip_token],
+    ['output_projection', params.output_projection],
+  ]) {
+    if (value !== undefined && CONTROL_CHAR_PATTERN3.test(value)) return `${name} contains a control character.`;
+  }
+  if (params.first !== undefined && (!Number.isInteger(params.first) || params.first < 1 || params.first > 1000)) {
+    return 'first must be an integer from 1 through 1000.';
+  }
+  if (params.skip !== undefined && (!Number.isInteger(params.skip) || params.skip < 0)) {
+    return 'skip must be a non-negative integer.';
+  }
+  if (params.skip !== undefined && params.skip_token !== undefined)
+    return 'skip and skip_token cannot be used together.';
+  if (params.subscriptions?.some((subscription) => !SUBSCRIPTION_ID_PATTERN.test(subscription))) {
+    return 'every subscription must be a UUID subscription ID.';
+  }
+  if (params.subscriptions?.length === 0) return 'subscriptions must contain at least one subscription ID.';
+}
+function buildResourceGraphArgs(params) {
+  const args = ['graph', 'query', '--graph-query', params.query];
+  if (params.subscriptions?.length) args.push('--subscriptions', ...params.subscriptions);
+  if (params.first !== undefined) args.push('--first', String(params.first));
+  if (params.skip !== undefined) args.push('--skip', String(params.skip));
+  if (params.skip_token !== undefined) args.push('--skip-token', params.skip_token);
+  if (params.output_projection !== undefined) args.push('--query', params.output_projection);
+  if (params.allow_partial_scopes === true) args.push('--allow-partial-scopes');
+  args.push('--output', 'json');
+  return args;
+}
+function createAzResourceGraphQueryTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    query: Type.String({ description: 'Resource Graph KQL; passed only to --graph-query' }),
+    subscriptions: Type.Optional(Type.Array(Type.String({ description: 'Azure subscription UUID' }))),
+    first: Type.Optional(Type.Number({ description: 'Maximum records, 1 through 1000' })),
+    skip: Type.Optional(Type.Number({ description: 'Non-negative record offset; incompatible with skip_token' })),
+    skip_token: Type.Optional(Type.String({ description: 'Continuation token; incompatible with skip' })),
+    output_projection: Type.Optional(
+      Type.String({ description: 'JMESPath output projection; passed only to --query' }),
+    ),
+    allow_partial_scopes: Type.Optional(Type.Boolean({ description: 'Allow results from accessible scopes' })),
+  });
+  return {
+    name: 'az_resource_graph_query',
+    label: 'Azure Resource Graph Query',
+    description: az_resource_graph_query_default,
+    parameters,
+    async execute(_id, params, signal, _update, ctx) {
+      const validation = validateResourceGraphParams(params);
+      if (validation) return invalid2(validation);
+      const api = makeApi(ctx.cwd);
+      const options = { signal, env: RESOURCE_GRAPH_ENV };
+      const extension = await api.exec(
+        'az',
+        ['extension', 'show', '--name', 'resource-graph', '--output', 'json'],
+        options,
+      );
+      if (extension.exitCode !== 0) {
+        return errorResult('Azure Resource Graph is not installed. Run: xcsh plugin setup azure', {
+          tool: 'az_resource_graph_query',
+          outcome: 'setup_required',
+        });
+      }
+      let extensionInfo;
+      try {
+        const parsed = parseAzJsonOutput(extension.stdout);
+        extensionInfo = { name: String(parsed.name ?? ''), version: String(parsed.version ?? '') };
+        if (extensionInfo.name !== 'resource-graph' || !extensionInfo.version)
+          throw new Error('invalid extension identity');
+      } catch {
+        return errorResult(
+          'The installed Resource Graph extension could not be identified. Run: xcsh plugin setup azure',
+          {
+            tool: 'az_resource_graph_query',
+            outcome: 'unsupported_extension',
+          },
+        );
+      }
+      const help = await api.exec('az', ['graph', 'query', '--help'], options);
+      const missingFlags = RESOURCE_GRAPH_REQUIRED_FLAGS.filter(
+        (flag) =>
+          !`${help.stdout}
+${help.stderr}`.includes(flag),
+      );
+      if (help.exitCode !== 0 || missingFlags.length > 0) {
+        return errorResult(
+          'The installed Resource Graph extension lacks required query capabilities. Run: xcsh plugin setup azure',
+          {
+            tool: 'az_resource_graph_query',
+            outcome: 'unsupported_extension',
+            extension: extensionInfo,
+            missingFlags,
+          },
+        );
+      }
+      const result = await api.exec('az', buildResourceGraphArgs(params), options);
+      if (result.exitCode !== 0) {
+        const error = detectAzError(result.stderr || result.stdout, result.exitCode);
+        const throttled = /throttl|too many requests|\b429\b/i.test(`${result.stderr}
+${result.stdout}`);
+        const errorType = detectErrorType(error);
+        return errorResult(
+          throttled
+            ? 'Azure Resource Graph throttled the request. Retry after the advised delay.'
+            : 'Azure Resource Graph query failed.',
+          {
+            tool: 'az_resource_graph_query',
+            outcome: throttled
+              ? 'throttled'
+              : errorType === 'auth_required' || errorType === 'session_expired'
+                ? 'authentication_failure'
+                : 'execution_failure',
+            errorType,
+            ...(throttled && retryAfter(result.stderr) !== undefined
+              ? { retryAfterSeconds: retryAfter(result.stderr) }
+              : {}),
+          },
+        );
+      }
+      try {
+        const payload = parseAzJsonOutput(result.stdout);
+        const envelope = Array.isArray(payload) ? { data: payload } : payload;
+        const data = Array.isArray(envelope.data) ? envelope.data : [];
+        const partial = /partial scope|inaccessible scope|not authorized for all/i.test(result.stderr);
+        const rawSkipToken = envelope.skip_token ?? envelope.skipToken;
+        const skipToken = typeof rawSkipToken === 'string' ? rawSkipToken : undefined;
+        const totalRecordsValue = envelope.total_records ?? envelope.totalRecords;
+        const count = typeof envelope.count === 'number' ? envelope.count : data.length;
+        const totalRecords = typeof totalRecordsValue === 'number' ? totalRecordsValue : count;
+        const truncatedMarker = envelope.result_truncated ?? envelope.resultTruncated;
+        return textResult(JSON.stringify(data), {
+          tool: 'az_resource_graph_query',
+          outcome: partial ? 'partial_scope' : 'success',
+          data,
+          count,
+          totalRecords,
+          truncated: isTruncated(truncatedMarker) || skipToken !== undefined || totalRecords > count,
+          ...(skipToken ? { skipToken } : {}),
+          ...(partial && inaccessibleScopeCount(result.stderr) !== undefined
+            ? { inaccessibleScopeCount: inaccessibleScopeCount(result.stderr) }
+            : {}),
+          extension: extensionInfo,
+        });
+      } catch {
+        return errorResult('Azure Resource Graph returned invalid JSON.', {
+          tool: 'az_resource_graph_query',
+          outcome: 'execution_failure',
+        });
+      }
+    },
+  };
+}
+var RESOURCE_GRAPH_ENV, CONTROL_CHAR_PATTERN3;
+var init_az_resource_graph_query2 = __esm(() => {
+  init_exec();
+  init_resource_graph();
+  init_types();
+  init_az_resource_graph_query();
+  init_shared();
+  init_resource_graph();
+  RESOURCE_GRAPH_ENV = { AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no' };
+  CONTROL_CHAR_PATTERN3 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+});
+
+// plugins/azure/src/prompts/az-vm-list.md
+var az_vm_list_default =
+  '# List Azure virtual machines\n\nUse `az vm list`.\n\n## Usage\n\n```json\n{\n  "resource_group": "optional-name",\n  "subscription": "optional-name-or-id",\n  "include_power_state": true,\n  "include_network_identifiers": false\n}\n```\n\n## Flags\n\n| Parameter | Description |\n| --- | --- |\n| `resource_group` | Filter by resource group |\n| `subscription` | Name or ID of subscription |\n| `include_power_state` | Include runtime state. Defaults to `true` and may require additional Azure API calls. |\n| `include_network_identifiers` | Include public IP addresses and FQDNs. Defaults to `false`; enable only for an explicit endpoint request. |\n\n## Output Fields (JSON)\n\nThe result always includes:\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 VM name\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `vmSize` \u2014 VM size (for example, Standard_D2s_v5)\n- `osType` \u2014 Linux or Windows\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n\nWith `include_power_state` enabled (the default):\n\n- `powerState` \u2014 VM running, VM deallocated, VM stopped, etc.\n\nOnly with `include_network_identifiers: true`:\n\n- `publicIps` \u2014 Public IP addresses as an array\n- `fqdns` \u2014 Fully qualified domain names as an array\n\n## Common VM Operations\n\n- `az vm show --name NAME --resource-group RG` \u2014 Show single VM\n- `az vm start --name NAME --resource-group RG` \u2014 Start VM\n- `az vm stop --name NAME --resource-group RG` \u2014 Stop VM\n- `az vm deallocate --name NAME --resource-group RG` \u2014 Deallocate (stop billing)\n- `az vm restart --name NAME --resource-group RG` \u2014 Restart VM\n- `az vm list-ip-addresses --name NAME --resource-group RG` \u2014 Get IPs\n- `az vm list-sizes --location LOCATION` \u2014 List available sizes\n- `az vm open-port --name NAME --resource-group RG --port PORT` \u2014 Open port\n\n## Notes\n\nWithout `resource_group`, the tool lists all VMs in the subscription. Runtime state and endpoint\nlookups may require additional Azure API calls. Network identifiers are excluded from both text and\nstructured results unless `include_network_identifiers` is explicitly true.\n';
+var init_az_vm_list = () => {};
+
+// plugins/azure/src/tools/az-vm-list.ts
+function vmListProjection(includePowerState, includeNetworkIdentifiers) {
+  const fields = [...BASE_VM_FIELDS];
+  if (includePowerState) fields.push('powerState:powerState');
+  if (includeNetworkIdentifiers) fields.push('publicIps:to_array(publicIps)', 'fqdns:to_array(fqdns)');
+  return `[].{${fields.join(',')}}`;
+}
+function buildVmArgs(params) {
+  const args = ['vm', 'list'];
+  if (params.resource_group) args.push('--resource-group', params.resource_group);
+  if (params.subscription) args.push('--subscription', params.subscription);
+  const power = params.include_power_state ?? true;
+  const network = params.include_network_identifiers === true;
+  if (power || network) args.push('--show-details');
+  args.push('--query', vmListProjection(power, network));
+  return args;
+}
+function createAzVmListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    resource_group: Type.Optional(Type.String({ description: 'Filter by resource group' })),
+    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
+    include_power_state: Type.Optional(Type.Boolean({ description: 'Include VM runtime power state (default: true)' })),
+    include_network_identifiers: Type.Optional(
+      Type.Boolean({
+        description: 'Include public IP addresses and FQDNs only when explicitly requested (default: false)',
+      }),
+    ),
+  });
+  return {
+    name: 'az_vm_list',
+    label: 'Azure Virtual Machines',
+    description: az_vm_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'az_vm_list' };
+      if (params.resource_group && !RESOURCE_GROUP_PATTERN.test(params.resource_group)) {
+        return errorResult(
+          `Error: invalid resource group "${params.resource_group}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
+          base,
+        );
+      }
+      if (params.subscription) {
+        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
+        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
+        if (!isUuid && !isName) {
+          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
+        }
+      }
+      const api = makeApi(ctx.cwd);
+      const policy = {
+        includePowerState: params.include_power_state ?? true,
+        includeNetworkIdentifiers: params.include_network_identifiers === true,
+      };
+      const args = buildVmArgs(params);
+      try {
+        const raw = await execAzJson(api, args, signal);
+        const vms = raw.map((vm) => normalizeVm(vm, policy));
+        return textResult(formatVmTable(vms, policy), { ...base, vms });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var BASE_VM_FIELDS;
+var init_az_vm_list2 = __esm(() => {
+  init_exec();
+  init_types();
+  init_az_vm_list();
+  init_shared();
+  BASE_VM_FIELDS = [
+    'id:id',
+    'name:name',
+    'location:location',
+    'resourceGroup:resourceGroup',
+    'vmSize:hardwareProfile.vmSize',
+    'provisioningState:provisioningState',
+    'osType:storageProfile.osDisk.osType',
+  ];
+});
+
+// plugins/azure/src/prompts/az-account-show.md
+var az_account_show_default = `# Show or list Azure subscriptions
+
+Use \`az account\`.
+
+## Actions
+
+**show** \u2014 Get details of the current (or specified) subscription.
+
+\`\`\`bash
+az account show [--subscription NAME_OR_ID]
+\`\`\`
+
+**list** \u2014 List subscriptions for the logged-in account. By default only 'Enabled' subscriptions are shown.
+
+\`\`\`bash
+az account list [--all] [--refresh]
+\`\`\`
+
+## Flags
+
+| Flag | Applies To | Description |
+| --- | --- | --- |
+| \`--subscription\`, \`-s\`, \`-n\` | show | Name or ID of subscription |
+| \`--all\` | list | Include subscriptions that are not 'Enabled' |
+| \`--refresh\` | list | Retrieve up-to-date subscriptions from server |
+
+## Output Fields (JSON)
+
+- \`id\` \u2014 Subscription UUID
+- \`name\` \u2014 Display name
+- \`state\` \u2014 Enabled, Disabled, Warned, etc.
+- \`isDefault\` \u2014 Whether this is the active subscription
+- \`tenantId\` \u2014 Azure AD tenant UUID
+- \`user.name\` \u2014 Authenticated user/principal
+- \`user.type\` \u2014 "user", "servicePrincipal", etc.
+
+## Related Commands
+
+- \`az account set -s NAME_OR_ID\` \u2014 Switch active subscription
+- \`az account get-access-token\` \u2014 Get token for API access
+- \`az account list-locations\` \u2014 List regions for current subscription
+`;
+var init_az_account_show = () => {};
+
+// plugins/azure/src/tools/az-account-show.ts
+function createAzAccountShowTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    action: Type.Union([Type.Literal('show'), Type.Literal('list')], {
+      description: 'show = current subscription, list = all subscriptions',
+    }),
+    subscription: Type.Optional(Type.String({ description: 'Filter by subscription name or ID' })),
+  });
+  return {
+    name: 'az_account_show',
+    label: 'Azure Account',
+    description: az_account_show_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'az_account_show', action: params.action };
+      if (params.subscription) {
+        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
+        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
+        if (!isUuid && !isName) {
+          return errorResult(
+            `Error: invalid subscription "${params.subscription}". Only alphanumeric characters, spaces, dots, underscores, and hyphens are allowed.`,
+            base,
+          );
+        }
+      }
+      const api = makeApi(ctx.cwd);
+      try {
+        if (params.action === 'list') {
+          const raw = await execAzJson(api, accountArgs(params), signal);
+          let subs = raw.map(normalizeSubscription);
+          if (params.subscription) {
+            const filter = params.subscription.toLowerCase();
+            subs = subs.filter((s) => s.name.toLowerCase().includes(filter) || s.id.toLowerCase().includes(filter));
+          }
+          return textResult(formatSubscriptionTable(subs), { ...base, subscriptions: subs });
+        }
+        const args = accountArgs(params);
+        const raw = await execAzJson(api, args, signal);
+        const sub = normalizeSubscription(raw);
+        return textResult(formatSubscriptionDetail(sub), { ...base, subscriptions: [sub] });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var init_az_account_show2 = __esm(() => {
+  init_exec();
+  init_types();
+  init_az_account_show();
+  init_shared();
+});
+
+// plugins/azure/src/prompts/az-group-list.md
+var az_group_list_default = `# List or show Azure resource groups
+
+Use \`az group\`.
+
+## Actions
+
+**list** \u2014 List all resource groups in the current subscription.
+
+\`\`\`bash
+az group list [--subscription NAME_OR_ID] [--tag KEY[=VALUE]]
+\`\`\`
+
+**show** \u2014 Get details of a specific resource group.
+
+\`\`\`bash
+az group show --name NAME [--subscription NAME_OR_ID]
+\`\`\`
+
+## Flags
+
+| Flag | Applies To | Description |
+| --- | --- | --- |
+| \`--subscription\` | list, show | Name or ID of subscription |
+| \`--tag\` | list | Filter by tag in \`key[=value]\` format |
+| \`--name\`, \`-n\` | show | Resource group name (required for show) |
+
+## Output Fields (JSON)
+
+- \`id\` \u2014 Full resource ID
+- \`name\` \u2014 Resource group name
+- \`location\` \u2014 Azure region (e.g. eastus, westus2)
+- \`properties.provisioningState\` \u2014 Succeeded, Failed, etc.
+- \`tags\` \u2014 Key-value tag pairs
+
+## Naming Rules
+
+Resource group names: 1-90 chars, alphanumeric, periods, underscores, hyphens, parentheses. Cannot end with a period.
+
+## Related Commands
+
+- \`az group create --name NAME --location LOCATION\` \u2014 Create resource group
+- \`az group delete --name NAME\` \u2014 Delete resource group
+- \`az group exists --name NAME\` \u2014 Check if exists (returns true/false)
+- \`az group export --name NAME\` \u2014 Export as ARM template
+`;
+var init_az_group_list = () => {};
+
+// plugins/azure/src/tools/az-group-list.ts
+function createAzGroupListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    action: Type.Union([Type.Literal('list'), Type.Literal('show')], {
+      description: 'list = all resource groups, show = single resource group details',
+    }),
+    name: Type.Optional(Type.String({ description: 'Resource group name (required for show)' })),
+    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
+    tag: Type.Optional(Type.String({ description: 'Filter by tag in key[=value] format' })),
+  });
+  return {
+    name: 'az_group_list',
+    label: 'Azure Resource Groups',
+    description: az_group_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'az_group_list', action: params.action };
+      if (params.name && !RESOURCE_GROUP_PATTERN.test(params.name)) {
+        return errorResult(
+          `Error: invalid resource group name "${params.name}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
+          base,
+        );
+      }
+      if (params.subscription) {
+        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
+        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
+        if (!isUuid && !isName) {
+          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
+        }
+      }
+      if (params.tag && !TAG_PATTERN.test(params.tag)) {
+        return errorResult(
+          `Error: invalid tag "${params.tag}". Use format key[=value] with safe characters only.`,
+          base,
+        );
+      }
+      const api = makeApi(ctx.cwd);
+      try {
+        if (params.action === 'show') {
+          if (!params.name) {
+            return errorResult('Error: --name is required for show action.', base);
+          }
+          const args = groupArgs(params);
+          const raw = await execAzJson(api, args, signal);
+          const group = normalizeResourceGroup(raw);
+          return textResult(formatResourceGroupTable([group]), { ...base, resourceGroups: [group] });
+        }
+        const args = groupArgs(params);
+        const raw = await execAzJson(api, args, signal);
+        const groups = raw.map(normalizeResourceGroup);
+        return textResult(formatResourceGroupTable(groups), { ...base, resourceGroups: groups });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var init_az_group_list2 = __esm(() => {
+  init_exec();
+  init_types();
+  init_az_group_list();
+  init_shared();
+});
+
+// plugins/azure/src/prompts/az-resource-list.md
+var az_resource_list_default =
+  '# List Azure resources\n\nUse `az resource list`.\n\n## Usage\n\n```bash\naz resource list [--resource-group NAME] [--resource-type TYPE] [--location LOCATION] [--name NAME] [--tag KEY[=VALUE]] [--subscription NAME_OR_ID]\n```\n\n## Flags\n\n| Flag | Description |\n| --- | --- |\n| `--resource-group`, `-g` | Filter by resource group name |\n| `--resource-type` | Filter by type (e.g. `Microsoft.Compute/virtualMachines`). Accepts `namespace/type` format. |\n| `--location`, `-l` | Filter by region |\n| `--name`, `-n` | Filter by resource name |\n| `--tag` | Filter by tag in `key[=value]` format |\n| `--subscription` | Name or ID of subscription |\n\n## Output Fields (JSON)\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 Resource name\n- `type` \u2014 Resource type (e.g. `Microsoft.Compute/virtualMachines`)\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n- `tags` \u2014 Key-value tag pairs\n\n## Common Resource Types\n\n- `Microsoft.Compute/virtualMachines` \u2014 VMs\n- `Microsoft.Storage/storageAccounts` \u2014 Storage\n- `Microsoft.Network/virtualNetworks` \u2014 VNets\n- `Microsoft.Network/publicIPAddresses` \u2014 Public IPs\n- `Microsoft.Network/networkSecurityGroups` \u2014 NSGs\n- `Microsoft.Web/sites` \u2014 App Service / Functions\n- `Microsoft.ContainerService/managedClusters` \u2014 AKS\n- `Microsoft.Sql/servers` \u2014 SQL servers\n- `Microsoft.KeyVault/vaults` \u2014 Key Vaults\n\n## Notes\n\nWithout `--resource-group`, lists all resources in the subscription (can be large). Always specify a resource group when possible.\n\n## Related Commands\n\n- `az resource show --ids RESOURCE_ID` \u2014 Show single resource\n- `az resource delete --ids RESOURCE_ID` \u2014 Delete resource\n- `az resource tag --ids RESOURCE_ID --tags KEY=VALUE` \u2014 Tag resource\n';
+var init_az_resource_list = () => {};
+
+// plugins/azure/src/tools/az-resource-list.ts
+function createAzResourceListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    resource_group: Type.String({ description: 'Resource group name (required to avoid listing entire subscription)' }),
+    subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
+    resource_type: Type.Optional(
+      Type.String({ description: 'Filter by type (e.g. Microsoft.Compute/virtualMachines)' }),
+    ),
+  });
+  return {
+    name: 'az_resource_list',
+    label: 'Azure Resources',
+    description: az_resource_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'az_resource_list' };
+      if (!params.resource_group || !RESOURCE_GROUP_PATTERN.test(params.resource_group)) {
+        return errorResult(
+          `Error: invalid resource group "${params.resource_group}". Only alphanumeric characters, periods, underscores, hyphens, and parentheses are allowed.`,
+          base,
+        );
+      }
+      if (params.subscription) {
+        const isUuid = SUBSCRIPTION_ID_PATTERN.test(params.subscription);
+        const isName = SUBSCRIPTION_NAME_PATTERN.test(params.subscription);
+        if (!isUuid && !isName) {
+          return errorResult(`Error: invalid subscription "${params.subscription}".`, base);
+        }
+      }
+      if (params.resource_type && !RESOURCE_TYPE_PATTERN.test(params.resource_type)) {
+        return errorResult(
+          `Error: invalid resource type "${params.resource_type}". Use format like Microsoft.Compute/virtualMachines.`,
+          base,
+        );
+      }
+      const api = makeApi(ctx.cwd);
+      const args = resourceArgs(params);
+      try {
+        const raw = await execAzJson(api, args, signal);
+        const resources = raw.map(normalizeResource);
+        return textResult(formatResourceTable(resources), { ...base, resources });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var init_az_resource_list2 = __esm(() => {
+  init_exec();
+  init_types();
+  init_az_resource_list();
+  init_shared();
 });
 
 // plugins/azure/src/ce/canonical.ts
@@ -2148,169 +2334,6 @@ var init_azure_ce_inventory2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/prompts/az-exec.md
-var az_exec_default =
-  '# Execute Azure CLI Commands\n\nExecute any `az` CLI subcommand directly.\n\nThis is the general-purpose tool for running az commands that are not covered by the typed tools (az_account, az_group, az_resource, az_vm). Use typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the subcommand and flags as an array of arguments. Do NOT include `az` itself \u2014 it is prepended automatically.\n\n**Example:** To run `az webapp list --resource-group myRG`:\n\n```json\n{ "args": ["webapp", "list", "--resource-group", "myRG"] }\n```\n\n## Safety\n\n- Arguments are passed as an array directly to the `az` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `az` invocation runs, including full JMESPath `--query` syntax.\n- **Read-only by default:** mutating verbs (`create`, `delete`, `update`, `set`, `purge`, `start`, `stop`, `restart`, `scale`, `restore`, \u2026) are blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `cli-operator` agent), not `az_exec`.\n- Output is capped to prevent context overflow.\n\n## Querying with `--query` (JMESPath)\n\nThe full JMESPath grammar is supported \u2014 pass the expression as a single argument value. Common patterns:\n\n- Field projection: `--query "[].{name:name, location:location}"`\n- Filter: `--query "[?location==\'eastus\']"`\n- Substring match: `--query "[?contains(name, \'prod\')]"`\n- Backtick literals (numbers/booleans/quoted enums): `` --query "[?powerState==`VM running`]" ``\n- OR / AND / NOT: `--query "[?a==\'x\' || b==\'y\']"`, `--query "[?a && b]"`, `--query "[?!disabled]"`\n- Pipe to post-process a projection: `--query "[].name | [0]"`\n\nAll of the above \u2014 including `||`, `|`, and backticks \u2014 are accepted verbatim.\n\nFor `az graph query`, use the typed `az_resource_graph_query` tool. Resource Graph KQL belongs in\nits `query` field and maps to `--graph-query`; global `--query` remains only a JMESPath output\nprojection. An unambiguous `az graph query --query <KQL>` mix-up is rejected before execution.\n\n## Common Subcommands Not Covered by Typed Tools\n\n- `az webapp list` / `az webapp show` \u2014 App Service\n- `az aks list` / `az aks show` \u2014 Kubernetes Service\n- `az storage account list` \u2014 Storage accounts\n- `az network vnet list` \u2014 Virtual Networks\n- `az network nsg list` \u2014 Network Security Groups\n- `az sql server list` \u2014 SQL servers\n- `az keyvault list` \u2014 Key Vaults\n- `az container list` \u2014 Container Instances\n- `az acr list` \u2014 Container Registries\n- `az functionapp list` \u2014 Function Apps\n\n## Tips\n\n- `--output json` is added automatically unless you pass your own `--output`/`-o` (e.g. `-o table`, `-o tsv`), which is respected\n- Use `--subscription NAME_OR_ID` to target a specific subscription\n- Use `--resource-group NAME` to scope to a resource group\n- Use `az_help` tool first if unsure about available flags\n';
-var init_az_exec = () => {};
-
-// plugins/azure/src/tools/az-exec.ts
-function hasControlChars(arg) {
-  return CONTROL_CHAR_PATTERN3.test(arg);
-}
-function hasResourceGraphQueryFlagMisuse(args) {
-  const graphIndex = args.findIndex((arg, index) => arg === 'graph' && args[index + 1] === 'query');
-  if (
-    graphIndex < 0 ||
-    args.some(
-      (arg) => arg === '-q' || arg.startsWith('-q=') || arg === '--graph-query' || arg.startsWith('--graph-query='),
-    )
-  ) {
-    return false;
-  }
-  const queryIndex = args.indexOf('--query');
-  const inlineQuery = args.find((arg) => arg.startsWith('--query='))?.slice('--query='.length);
-  const candidate = queryIndex >= 0 ? args[queryIndex + 1] : inlineQuery;
-  if (!candidate) return false;
-  return /\b(?:Resources|ResourceContainers)\b[\s\S]*\|[\s\S]*\b(?:where|project|extend|summarize|take|limit|join)\b|=~/i.test(
-    candidate,
-  );
-}
-function getPositionals(args) {
-  return args.filter((arg) => !arg.startsWith('-'));
-}
-function findMutatingVerb(args) {
-  return getPositionals(args).find((tok) => MUTATING_VERBS.has(tok)) ?? null;
-}
-function buildAzArgs(args) {
-  const hasOutput = args.some((a) => a === '--output' || a === '-o');
-  return hasOutput ? [...args] : [...args, '--output', 'json'];
-}
-function createAzExecTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "az" itself)' }), {
-      description: 'Command arguments as array, e.g. ["webapp", "list", "--resource-group", "myRG"]',
-    }),
-  });
-  return {
-    name: 'az_exec',
-    label: 'Azure CLI Execute',
-    description: az_exec_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'az_exec' };
-      if (!params.args || params.args.length === 0) {
-        return errorResult('Error: args array must not be empty. Provide az subcommand and flags.', base);
-      }
-      for (const arg of params.args) {
-        if (hasControlChars(arg)) {
-          return errorResult(`Error: argument contains a control character and cannot be passed to az: "${arg}"`, base);
-        }
-      }
-      if (hasResourceGraphQueryFlagMisuse(params.args)) {
-        return errorResult(
-          'Error: Resource Graph KQL must use -q/--graph-query. Global --query is reserved for JMESPath output projection; use az_resource_graph_query for typed execution.',
-          base,
-        );
-      }
-      const mutatingVerb = findMutatingVerb(params.args);
-      if (mutatingVerb !== null) {
-        return errorResult(
-          `Error: "${mutatingVerb}" is a mutating operation. az_exec is read-only by default. ` +
-            'Run write/destructive operations through an explicitly confirmed path (delegate to the ' +
-            'azure:cli-operator agent) rather than az_exec.',
-          base,
-        );
-      }
-      const api = makeApi(ctx.cwd);
-      const args = buildAzArgs(params.args);
-      try {
-        const result = await api.exec('az', args, { signal });
-        if (result.exitCode !== 0) {
-          return errorResult(`az command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
-            ...base,
-            errorType: 'exec_error',
-          });
-        }
-        let output = result.stdout;
-        const fullOutput = output;
-        if (output.length > MAX_OUTPUT_LENGTH) {
-          output = `${output.slice(0, MAX_OUTPUT_LENGTH)}
-
-[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
-        }
-        return textResult(output, { ...base, fullOutput, modelPreviewTruncated: output !== fullOutput });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var MAX_OUTPUT_LENGTH = 50000,
-  CONTROL_CHAR_PATTERN3,
-  MUTATING_VERBS;
-var init_az_exec2 = __esm(() => {
-  init_az_exec();
-  init_shared();
-  CONTROL_CHAR_PATTERN3 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
-  MUTATING_VERBS = new Set([
-    'create',
-    'new',
-    'delete',
-    'remove',
-    'purge',
-    'update',
-    'set',
-    'add',
-    'start',
-    'stop',
-    'restart',
-    'deallocate',
-    'redeploy',
-    'reset',
-    'regenerate',
-    'renew',
-    'rotate',
-    'move',
-    'invoke',
-    'execute',
-    'enable',
-    'disable',
-    'attach',
-    'detach',
-    'approve',
-    'reject',
-    'cancel',
-    'revoke',
-    'grant',
-    'assign',
-    'unassign',
-    'lock',
-    'unlock',
-    'register',
-    'unregister',
-    'scale',
-    'migrate',
-    'failover',
-    'restore',
-    'deploy',
-    'install',
-    'uninstall',
-    'upgrade',
-    'publish',
-    'import',
-    'upload',
-    'activate',
-    'deactivate',
-    'associate',
-    'disassociate',
-    'generate',
-  ]);
-});
-
 // plugins/azure/src/prompts/az-help.md
 var az_help_default = `# View Azure CLI Help
 
@@ -2374,20 +2397,22 @@ function createAzHelpTool(pi, makeApi = makeExecApi) {
     label: 'Azure CLI Help',
     description: az_help_default,
     parameters,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const base = { tool: 'az_help' };
       const commandPath = params.command_path?.trim() ?? '';
-      if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
+      if (
+        commandPath.length > 0 &&
+        (!HELP_PATH_PATTERN.test(commandPath) || commandPath.split(' ').some((part) => part.startsWith('-')))
+      ) {
         return errorResult(
           `Error: invalid command path "${commandPath}". Only lowercase letters, hyphens, and spaces are allowed.`,
           base,
         );
       }
       const api = makeApi(ctx.cwd);
-      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
-      const args = [...parts, '--help'];
+      const args = helpArgs(params.command_path);
       try {
-        const result = await api.exec('az', args);
+        const result = await api.exec('az', args, { signal: signal ?? undefined });
         if (result.exitCode !== 0) {
           const msg = result.stderr || result.stdout || `az ${commandPath} --help failed (exit ${result.exitCode})`;
           return errorResult(`Error: ${msg}`, { ...base, errorType: 'exec_error' });
@@ -12019,9 +12044,9 @@ function azureSummary(plan, resources, vms, peers) {
   };
   return {
     coverage: {
-      resources: Array.isArray(resources) ? 'observed' : 'unknown',
-      vms: Array.isArray(vms) ? 'observed' : 'unknown',
-      peers: Array.isArray(peers) ? 'observed' : 'unknown',
+      resources: Array.isArray(resources) ? 'available' : 'unavailable',
+      vms: Array.isArray(vms) ? 'available' : 'unavailable',
+      routeServerPeers: Array.isArray(peers) ? 'available' : 'unavailable',
     },
     resources: resourceItems.filter(owned).map((item) => ({
       id: item.id,
@@ -12128,6 +12153,7 @@ function createAzureCeStatusTool(pi, makeApi = makeExecApi) {
         }
         const evidence = {
           planId: plan.planId,
+          routingMode: plan.routing.mode,
           checkpoint: observedCheckpoint ?? {
             state: 'not-started',
             completedActionIds: [],
@@ -12140,7 +12166,7 @@ function createAzureCeStatusTool(pi, makeApi = makeExecApi) {
           content: [
             {
               type: 'text',
-              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}.`,
+              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}. Coverage: resources ${azure.coverage.resources}, VMs ${azure.coverage.vms}, Route Server peers ${azure.coverage.routeServerPeers}.`,
             },
           ],
           details: { tool: 'azure_ce_status', evidence },
@@ -14820,24 +14846,353 @@ var init_azure_cloud_init_analyze = __esm(() => {
   init_canonical();
   init_shared();
 });
+// plugins/azure/src/presentation/ce.ts
+var record = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var fields = (values, title) => ({
+  kind: 'fields',
+  title,
+  values,
+  previewFields: 'all',
+});
+var count = (value) => (Array.isArray(value) ? value.length : 'Unknown');
+var has = (value) => Object.keys(value).length > 0;
+function ceSummary(name, details) {
+  const inventory = record(details.inventory);
+  if (
+    name === 'azure_ce_inventory' &&
+    typeof inventory.subscriptionId === 'string' &&
+    Array.isArray(inventory.deployments)
+  )
+    return [
+      fields(
+        {
+          'Subscription ID': inventory.subscriptionId,
+          'Observed at': inventory.observedAt,
+          'Caller source': inventory.callerSource,
+          'Platform evidence': inventory.platformEvidence,
+          ...record(inventory.counts),
+          ...record(inventory.coverage),
+          'Artifact ID': details.artifactId,
+          'SHA-256': details.digestSha256,
+        },
+        'Customer Edge inventory',
+      ),
+      {
+        kind: 'table',
+        title: 'Deployments',
+        rows: Array.isArray(inventory.deployments) ? inventory.deployments : [],
+        columns: [
+          { key: 'resourceGroup', label: 'Resource group' },
+          { key: 'classification', label: 'Classification' },
+          { key: 'confidence', label: 'Confidence' },
+          { key: 'dimensions', label: 'Observed states' },
+        ],
+        previewRows: 12,
+      },
+    ];
+  const observation = record(details.observation);
+  if (name === 'azure_compute_discover' && has(record(observation.subscription)) && Array.isArray(observation.regions))
+    return [
+      fields(
+        {
+          ...record(observation.subscription),
+          'Image URN': record(observation.image).urn,
+          'Terms accepted': record(observation.image).termsAccepted,
+          'Observed regions': count(observation.regions),
+          'Observed resources': count(observation.resources),
+          'Artifact ID': details.artifactId,
+        },
+        'Compute discovery',
+      ),
+    ];
+  const plan = record(details.plan);
+  if (name === 'azure_ce_plan' && typeof plan.planId === 'string' && Array.isArray(plan.actions))
+    return [
+      fields(
+        {
+          'Plan ID': plan.planId,
+          'SHA-256': plan.planSha256,
+          Region: plan.region,
+          'Site name': plan.siteName,
+          Namespace: plan.namespace,
+          Nodes: record(plan.topology).nodeCount,
+          'NICs per node': count(plan.nics),
+          'Image URN': record(plan.image).urn,
+          'Routing mode': record(plan.routing).mode,
+          'Ordered actions': count(plan.actions),
+          Warnings: plan.warnings,
+          'Billable resources': plan.billableResources,
+          'Artifact ID': details.artifactId,
+        },
+        'Immutable plan',
+      ),
+    ];
+  const checkpoint = record(details.checkpoint);
+  if (name === 'azure_ce_apply' && has(checkpoint))
+    return [
+      fields(
+        {
+          'Plan ID': details.planId,
+          State: checkpoint.state,
+          'Completed actions': count(checkpoint.completedActionIds),
+          'Failed action': checkpoint.failedActionId,
+        },
+        'Checkpoint',
+      ),
+    ];
+  const evidence = record(details.evidence),
+    azure = record(evidence.azure),
+    f5 = record(evidence.f5);
+  if (name === 'azure_ce_status' && has(record(evidence.checkpoint)) && has(record(evidence.azure)))
+    return [
+      fields(
+        {
+          'Plan ID': evidence.planId,
+          State: record(evidence.checkpoint).state,
+          'Completed actions': count(record(evidence.checkpoint).completedActionIds),
+          'Resource records': count(azure.resources),
+          'VM records': count(azure.vms),
+          Coverage: azure.coverage,
+          'Routing mode': evidence.routingMode,
+          'Route Server peers': count(azure.routeServerPeers),
+          'Site state': f5.siteState,
+          Nodes: f5.nodes,
+          'BGP established': f5.bgpEstablished,
+          'Learned routes': f5.learnedRouteCount,
+        },
+        'Customer Edge status',
+      ),
+    ];
+  if (name === 'azure_ce_diagnose' && Array.isArray(details.diagnostics))
+    return [
+      fields(
+        {
+          Mode: details.mode,
+          Checks: details.diagnostics.length,
+          Findings: details.diagnostics.filter((value) => {
+            const item = record(value);
+            return item.ok === false || item.errorsDetected === true;
+          }).length,
+          ...record(details.f5),
+          'Raw output': 'Withheld by the domain tool',
+        },
+        'Diagnostics',
+      ),
+    ];
+  const analysis = record(details.analysis),
+    boot = record(details.bootEvidence);
+  if (name === 'azure_cloud_init_analyze' && (has(analysis) || has(boot)))
+    return [
+      ...(has(analysis) ? [fields(analysis, 'cloud-init analysis')] : []),
+      ...(has(boot) ? [fields(boot, 'Boot evidence')] : []),
+    ];
+  return;
+}
 
 // plugins/azure/src/presentation.ts
+init_az_activity_log_list2();
+init_az_exec2();
+init_az_resource_graph_query2();
+init_az_vm_list2();
+var record2 = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
+var fields2 = (values, title) => ({
+  kind: 'fields',
+  title,
+  values,
+  previewFields: 'all',
+});
+var rowArray = (v) => Array.isArray(v) && v.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x));
+function argv(name, args) {
+  switch (name) {
+    case 'az_account_show':
+      return ['az', ...jsonArgs(accountArgs(args))];
+    case 'az_group_list':
+      return ['az', ...jsonArgs(groupArgs(args))];
+    case 'az_resource_list':
+      return typeof args.resource_group === 'string' ? ['az', ...jsonArgs(resourceArgs(args))] : undefined;
+    case 'az_vm_list':
+      return ['az', ...jsonArgs(buildVmArgs(args))];
+    case 'az_resource_graph_query':
+      return typeof args.query === 'string' ? ['az', ...buildResourceGraphArgs(args)] : undefined;
+    case 'az_activity_log_list':
+      return typeof args.subscription === 'string' ? ['az', ...buildActivityLogArgs(args)] : undefined;
+    case 'az_exec':
+      return Array.isArray(args.args) && args.args.every((x) => typeof x === 'string')
+        ? ['az', ...buildAzArgs(args.args)]
+        : undefined;
+    case 'az_help':
+      return ['az', ...helpArgs(typeof args.command_path === 'string' ? args.command_path : undefined)];
+  }
+}
+var labels = Object.fromEntries([
+  ['id', 'Resource ID'],
+  ['name', 'Name'],
+  ['location', 'Location'],
+  ['type', 'Resource type'],
+  ['resourceGroup', 'Resource group'],
+  ['state', 'State'],
+  ['tenantId', 'Tenant ID'],
+  ['isDefault', 'Default subscription'],
+  ['vmSize', 'VM size'],
+  ['powerState', 'Power state'],
+  ['provisioningState', 'Provisioning state'],
+  ['osType', 'OS type'],
+]);
 function presentTool(tool, p) {
+  const prefix = (args) => {
+    const command = argv(tool.name, args);
+    const scope = Object.fromEntries(
+      Object.entries(args).filter(([key]) =>
+        [
+          'action',
+          'name',
+          'tag',
+          'subscriptionId',
+          'resourceGroup',
+          'vmName',
+          'subscription',
+          'subscriptions',
+          'resource_group',
+          'resource_type',
+          'first',
+          'skip',
+          'max_events',
+          'lookback_days',
+          'include_power_state',
+          'include_network_identifiers',
+        ].includes(key),
+      ),
+    );
+    return [
+      ...(command ? [p.command(command)] : []),
+      fields2(
+        { ...scope, Coverage: 'Subscription and resource-group scope are limited to the returned data.' },
+        'Scope',
+      ),
+    ];
+  };
   return p.withPresentation(tool, {
-    command: 'az',
-    scopeKeys: ['subscription', 'resource_group', 'resource_type', 'query', 'timespan', 'max_results'],
-    collections: ['subscriptions', 'resourceGroups', 'resources', 'vms', 'data', 'records', 'events'],
-    labels: Object.fromEntries([
-      ['id', 'Resource ID'],
-      ['name', 'Name'],
-      ['location', 'Location'],
-      ['type', 'Resource type'],
-      ['resourceGroup', 'Resource group'],
-      ['state', 'State'],
-      ['subscriptionId', 'Subscription ID'],
-      ['tenantId', 'Tenant ID'],
-    ]),
-    scopeNote: 'Subscription and resource-group scope are limited to the returned data.',
+    call: (input, options) => {
+      const args = record2(input);
+      const safe = Object.fromEntries(
+        Object.entries(args).filter(([key]) => !['source', 'bootstrapRef', 'bootstrapRefs'].includes(key)),
+      );
+      return { sections: options.expanded ? p.data(safe) : prefix(safe) };
+    },
+    result: (result, options, input) => {
+      const args = record2(input),
+        details = record2(result.details),
+        base = prefix(args);
+      const texts = result.content
+        .filter((b) => b.type === 'text')
+        .map((b) => ({
+          kind: 'code',
+          title: result.isError ? 'Complete corrective guidance' : 'CLI evidence',
+          text: b.text ?? '',
+        }));
+      if (result.isError) return { summary: 'Azure operation failed', sections: [...base, ...texts] };
+      const collection = {
+        az_account_show: 'subscriptions',
+        az_group_list: 'resourceGroups',
+        az_resource_list: 'resources',
+        az_vm_list: 'vms',
+        az_resource_graph_query: 'data',
+        az_activity_log_list: 'events',
+      }[tool.name];
+      if (collection && rowArray(details[collection])) {
+        const rows = details[collection];
+        const { [collection]: _rows, ...metadata } = details;
+        const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+        const section =
+          tool.name === 'az_account_show' && args.action !== 'list' && rows.length === 1
+            ? fields2(rows[0], 'Subscription identity')
+            : {
+                ...p.table(
+                  rows,
+                  keys.map((key) => ({ key, label: labels[key] ?? key })),
+                  collection,
+                ),
+                previewRows: 12,
+              };
+        return {
+          expandedEvidence: 'provided',
+          warnings: [
+            ...(details.outcome === 'partial_scope'
+              ? ['Some subscription scopes were inaccessible; results do not cover all requested scopes.']
+              : []),
+            ...(details.truncated === true
+              ? ['More records are available; continue with the returned page token or offset.']
+              : []),
+          ],
+          sections: [
+            ...base,
+            fields2({ 'Returned rows': rows.length }, 'Results'),
+            section,
+            fields2(
+              Object.fromEntries(
+                Object.entries(metadata).filter(([key]) =>
+                  [
+                    'outcome',
+                    'count',
+                    'totalRecords',
+                    'truncated',
+                    'skipToken',
+                    'inaccessibleScopeCount',
+                    'coverage',
+                    'scopeEvidence',
+                  ].includes(key),
+                ),
+              ),
+              'Coverage and pagination',
+            ),
+            ...(options.expanded
+              ? p.data(
+                  Object.fromEntries(
+                    Object.entries(metadata).filter(
+                      ([key]) =>
+                        ![
+                          'outcome',
+                          'count',
+                          'totalRecords',
+                          'truncated',
+                          'skipToken',
+                          'inaccessibleScopeCount',
+                          'coverage',
+                          'scopeEvidence',
+                        ].includes(key),
+                    ),
+                  ),
+                  'Metadata',
+                )
+              : []),
+          ],
+        };
+      }
+      const ce = ceSummary(tool.name, details);
+      if (ce)
+        return {
+          expandedEvidence: 'provided',
+          sections: [...base, ...(options.expanded ? p.data(details, 'Complete safe CE evidence') : ce)],
+        };
+      if (tool.name === 'az_exec' && typeof details.fullOutput === 'string') {
+        try {
+          return {
+            expandedEvidence: 'provided',
+            sections: [...base, ...p.data(JSON.parse(details.fullOutput), 'CLI result')],
+            warnings: details.modelPreviewTruncated
+              ? ['Model preview was truncated; complete CLI output is shown.']
+              : [],
+          };
+        } catch {
+          return {
+            sections: [...base, { kind: 'code', title: 'Complete CLI output', text: details.fullOutput }],
+          };
+        }
+      }
+      if (tool.name === 'az_help' && texts.some((b) => /^(?:Group|Command|Arguments|Examples|usage:)/m.test(b.text)))
+        return { expandedEvidence: 'provided', sections: [...base, ...texts] };
+      return { sections: [...base, ...texts] };
+    },
   });
 }
 

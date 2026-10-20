@@ -76,3 +76,30 @@ describe('az_help input validation', () => {
     }
   });
 });
+
+it('rejects option tokens embedded in a help command path without executing', async () => {
+  let executions = 0;
+  const tool = createAzHelpTool({ typebox: mockTypebox }, () => ({
+    exec: async () => {
+      executions++;
+      return { stdout: 'Group', stderr: '', exitCode: 0 };
+    },
+  }));
+  const result = await tool.execute('synthetic', { command_path: 'vm --debug' }, undefined, undefined, {
+    cwd: '/synthetic',
+  });
+  expect(result.isError).toBe(true);
+  expect(executions).toBe(0);
+});
+it('forwards cancellation to help execution', async () => {
+  const controller = new AbortController();
+  let observed: AbortSignal | undefined;
+  const tool = createAzHelpTool({ typebox: mockTypebox }, () => ({
+    exec: async (_command, _args, options) => {
+      observed = options?.signal;
+      return { stdout: 'Group', stderr: '', exitCode: 0 };
+    },
+  }));
+  await tool.execute('synthetic', {}, controller.signal, undefined, { cwd: '/synthetic' });
+  expect(observed).toBe(controller.signal);
+});

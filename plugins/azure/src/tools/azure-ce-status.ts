@@ -25,6 +25,26 @@ async function commandJson(api: AzExecApi, args: string[]): Promise<unknown> {
   }
 }
 
+export function summarizeF5Evidence(raw: unknown) {
+  const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const nodes = Array.isArray(item.nodes) ? (item.nodes as Array<Record<string, unknown>>) : [];
+  return {
+    siteState: typeof item.siteState === 'string' ? item.siteState : 'UNKNOWN',
+    nodes: nodes.map((node) => ({
+      name: String(node.name ?? ''),
+      registration: String(node.registration ?? 'UNKNOWN'),
+      health: String(node.health ?? 'UNKNOWN'),
+    })),
+    bgpEstablished: typeof item.bgpEstablished === 'boolean' ? item.bgpEstablished : 'UNKNOWN',
+    learnedRouteCount:
+      typeof item.learnedRouteCount === 'number' &&
+      Number.isFinite(item.learnedRouteCount) &&
+      item.learnedRouteCount >= 0
+        ? item.learnedRouteCount
+        : 'UNKNOWN',
+  };
+}
+
 export function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown, peers: unknown) {
   const resourceItems = Array.isArray(resources) ? (resources as Array<Record<string, unknown>>) : [];
   const vmItems = Array.isArray(vms) ? (vms as Array<Record<string, unknown>>) : [];
@@ -53,9 +73,9 @@ export function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown
   };
   return {
     coverage: {
-      resources: Array.isArray(resources) ? 'observed' : 'unknown',
-      vms: Array.isArray(vms) ? 'observed' : 'unknown',
-      peers: Array.isArray(peers) ? 'observed' : 'unknown',
+      resources: Array.isArray(resources) ? 'available' : 'unavailable',
+      vms: Array.isArray(vms) ? 'available' : 'unavailable',
+      routeServerPeers: Array.isArray(peers) ? 'available' : 'unavailable',
     },
     resources: resourceItems.filter(owned).map((item) => ({
       id: item.id,
@@ -169,6 +189,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
         }
         const evidence = {
           planId: plan.planId,
+          routingMode: plan.routing.mode,
           checkpoint: (observedCheckpoint as { state: string }) ?? {
             state: 'not-started',
             completedActionIds: [],
@@ -181,7 +202,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
           content: [
             {
               type: 'text' as const,
-              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}.`,
+              text: `Azure CE ${plan.deploymentName}: ${azure.vms.length}/${plan.topology.nodeCount} VM records, ${azure.routeServerPeers.length} Route Server peers, checkpoint ${evidence.checkpoint.state}. Coverage: resources ${azure.coverage.resources}, VMs ${azure.coverage.vms}, Route Server peers ${azure.coverage.routeServerPeers}.`,
             },
           ],
           details: { tool: 'azure_ce_status', evidence },
