@@ -144,7 +144,7 @@ def main() -> None:
             for theme in ["xcsh-dark", "xcsh-light"]:
                 for case in cases if args.all_cases else cases[:6]:
                     for width in [40, 76, 120, 153]:
-                        offset = 0
+                        offset: int | None = 0
                         while True:
                             identifier = (
                                 f"scroll-{case['id']}-{theme}-{preset}-{width}-{offset}"
