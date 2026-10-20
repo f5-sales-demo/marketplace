@@ -19,6 +19,7 @@ async function fixture(
   engine: 'native' | 'terraform' = 'native',
   routingState: 'running' | 'partial' | 'complete' | 'missing' = 'complete',
   validOutput = true,
+  interfaceDrift = false,
 ) {
   const nlb = await nlbPowerFixture(engine),
     hardware = powerIdentityFixture(engine);
@@ -113,7 +114,7 @@ async function fixture(
                   role: index ? 'sli' : 'slo',
                   site_name: nlb.base.topology.sites[0].name,
                   id: eni.NetworkInterfaceId,
-                  mac: eni.MacAddress,
+                  mac: interfaceDrift && index === 1 ? '02:00:00:00:ff:01' : eni.MacAddress,
                   subnet_id: `subnet-0123456789abcdef${index}`,
                   private_ip: `10.0.${index + 1}.10`,
                 },
@@ -233,5 +234,25 @@ test('public Terraform NLB-only power resolves owned execution without a routing
   const prepared = await f.run({ ...f.base, operation: 'prepare-stop' });
   if (prepared.isError) throw Error(prepared.content[0].text);
   expect(prepared.isError).toBe(false);
+  expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+});
+
+for (const state of ['running', 'complete'] as const)
+  test(`public Terraform power rejects current interface output drift with ${state} checkpoint`, async () => {
+    const f = await fixture('terraform', state, true, true);
+    const result = await f.run({ ...f.base, operation: 'prepare-stop' });
+    expect(result.isError).toBe(true);
+    expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+  });
+
+test('public Terraform power rejects retained interface binding drift despite matching current cloud outputs', async () => {
+  const f = await fixture('terraform');
+  const name = 'terraform-routing-checkpoint.json';
+  const checkpoint = (await f.store.read(name)) as { resolvedValues: Record<string, string> };
+  checkpoint.resolvedValues.__ENI_1_1_MAC__ = '02:00:00:00:ff:01';
+  await f.store.write(name, checkpoint);
+  const result = await f.run({ ...f.base, operation: 'prepare-stop' });
+  expect(result.isError).toBe(true);
+  expect(result.content[0].text).toContain('retained routing bindings');
   expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
 });

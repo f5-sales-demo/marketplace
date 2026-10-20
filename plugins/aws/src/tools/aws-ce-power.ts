@@ -102,20 +102,30 @@ export function createAwsCePowerTool(pi: PluginInterface, dependencies: Dependen
           const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
           const outputs = await session.readOutputs(
             [
-              ...(!workflow.routing ? ['ce_vpc_id', 'ce_interfaces', 'ce_instances'] : []),
+              'ce_vpc_id',
+              'ce_interfaces',
+              'ce_instances',
               ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
               ...(base.intent.routing.profile === 'tgw-static'
-                ? ['ce_vpc_id', 'ce_transport_attachment', 'ce_static_route_tables']
+                ? ['ce_transport_attachment', 'ce_static_route_tables']
                 : []),
             ],
             process.env,
             signal,
           );
-          const discovered = !workflow.routing
-            ? await discoverAwsTerraformInterfaces(base, outputs, api, signal)
-            : undefined;
+          const discovered = await discoverAwsTerraformInterfaces(base, outputs, api, signal);
+          for (const [key, value] of Object.entries(discovered.bindings)) {
+            const retained = workflow.routing?.resolvedValues[key];
+            if (retained !== undefined && retained !== value)
+              throw Error('Current Terraform interfaces differ from retained routing bindings');
+          }
+          const currentInstances = outputs.ce_instances as Record<string, { id: string }>;
+          for (let node = 1; node <= base.topology.nodeCount; node++)
+            if (currentInstances[String(node)]?.id !== instances[`__INSTANCE_${node}__`])
+              throw Error('Current Terraform instance identity changed during power binding collection');
           values = {
-            ...(workflow.routing?.resolvedValues ?? discovered?.bindings),
+            ...workflow.routing?.resolvedValues,
+            ...discovered.bindings,
             ...instances,
             ...bindTerraformIngress(base, outputs),
             ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),
