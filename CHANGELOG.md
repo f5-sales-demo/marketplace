@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
+
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
 - **`asm-migration`** v2.3.2 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.
