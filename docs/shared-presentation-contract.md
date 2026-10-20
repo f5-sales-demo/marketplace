@@ -48,7 +48,7 @@ acceptance. The 2.3.11 baseline below is historical provenance.
 
 The discovery/registration lane remains pinned to published runtime 23.8.0. The
 catalog runner uses the actual installed binary and records its version separately
-(current Mac baseline: 23.9.3). Changing installed qualification does not change
+(current Mac and Ubuntu qualification lane: 23.9.5). Changing installed qualification does not change
 the discovery fingerprint. A deliberate discovery upgrade requires reconciliation
 of every invalidated claim; it cannot carry forward unsupported VERIFIED rows.
 
@@ -62,7 +62,10 @@ The original private installation receipt verifies 101 files against the exact
 on both Mac and Ubuntu. Neither proof substitutes for historical or fresh native
 terminal captures. The historical automated native baseline is retained in
 [the native receipt](receipts/salesforce-native-baseline-20261018.md).
-Current `shared.*` rows remain pending requalification after fingerprint invalidation.
+The [current foundation receipt](receipts/marketplace-1731-foundation-20261020.md)
+requalifies shared inventory, contract, ownership and matrix gates against the
+22-plugin catalog. Historical receipts remain unchanged. This establishes the
+shared contract; each plugin still requires its own executed acceptance.
 Fresh module readiness is reported separately from native binary/TUI
 acceptance. In this campaign, live Salesforce checks use the corporate MDM
 MacBook. Ubuntu and the NUC cannot access that service by policy; their
@@ -89,6 +92,10 @@ cleanup. Runtime adoption must independently qualify these requirements:
 
 This document defines the ownership contract and migration gates. It preserves the historical native baseline and completed Salesforce qualification.
 The remaining plugins require their own current implementation and installed/service evidence.
+Devcontainer is retired under [#1707](https://github.com/f5-sales-demo/marketplace/issues/1707);
+its 87 tracker IDs and historical releases remain preserved. Account-dependent
+service gates are deferred by user instruction and retain exact prerequisites
+as BLOCKED. Deferral does not establish NOT APPLICABLE.
 
 ## Verification
 
@@ -109,7 +116,7 @@ proof and model-driven scenarios.
 
 ## Catalog-driven qualification
 
-`bun scripts/marketplace-qualification.ts` prints all 23 canonical plugins in the
+`bun scripts/marketplace-qualification.ts` prints all 22 canonical plugins in the
 campaign order, installed entrypoint conventions, current surface IDs, lifecycle
 requirements and supported service hosts. It reads the existing tracker and adds
 no new discovery fingerprint. Native tools, commands, messages, advisories and
@@ -175,10 +182,19 @@ Domain cases and literal expectations belong to each plugin's qualification suit
 After normal workflow completion (or fixture admission), invoke
 `/marketplace-campaign-capture`, then run
 `bun scripts/drive-marketplace-capture.ts <private-root> <checks.json>`.
+The driver atomically writes `{ "action": "finish" }` to `control.json` when
+inspection ends. Confirm the journal records `capture_closed` before issuing
+`/marketplace-campaign-exit`, then confirm session shutdown and process exit.
+Capture closure is idempotent; shutdown retires active capture timers. Awaited
+appearance updates arriving after closure or shutdown are discarded, and new
+captures after shutdown are rejected. The observer rejects invalid scroll
+offsets and oversized frame identifiers. These capture-control checks do not
+prove a plugin's own progress lifecycle.
+
 Every case requires explicit inspection expectations (`contains`,
 `collapsedContains`, `expandedContains`, `absent`, `expectedError`). The driver
 checks each of the 48 combinations individually, retains findings, and exits
-nonzero on any failure. `/marketplace-campaign-exit` retires the observer session.
+nonzero on any failure.
 Frame identity includes every appearance control and installed provenance. The
 driver rejects public or symlink capture roots and preserves existing inspections.
 Private raw results must be reviewed and sanitized before publishing receipts.
@@ -190,7 +206,7 @@ capture, viewport and progress controls remain available and unchanged.
 
 ## Development and minimum compatibility lanes
 
-The current verified stable development lane is 23.9.3 (GitHub stable release and
+The current verified stable development lane is 23.9.5 (GitHub stable release and
 npm `latest`, checked 2026-10-20). Changed runtime plugins migrate their exact
 development pin and frozen lock to that release independently of the manifest
 minimum and peer range. Existing qualified dependency pins remain during the
