@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- CE UAT52 qualifies durable brownfield placement during AWS Terraform teardown preparation and verifies fresh cloud references before public session opening (#1651). Full UAT remains blocked.
+
 - CE UAT51 restores and relinquishes original direct routes before AWS Terraform cloud destruction, and verifies completed retirement resume against configuration, state and fresh cloud evidence (#1651). Full UAT remains blocked.
 
 - **`gcloud`** v1.6.2 — use explicit example project identifiers in presentation regression fixtures.

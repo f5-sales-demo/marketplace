@@ -57,7 +57,7 @@ function placementPlan(plan: AwsCePlan) {
 /** Qualifies existing placement only; the caller must still reobserve before execution and admit routing separately. */
 export function qualifyAwsTerraformBrownfieldPlacement(
   plan: AwsCePlan,
-  observation: AwsCeObservation,
+  observation: Pick<AwsCeObservation, 'identity' | 'resources'>,
 ): AwsTerraformBrownfieldPlacement {
   const [vpcId, sloSubnetId, sliSubnetId] = placementPlan(plan);
   const intent = plan.intent;

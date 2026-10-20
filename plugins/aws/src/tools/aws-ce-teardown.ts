@@ -11,6 +11,10 @@ import { type AwsNativeTeardownPlan, prepareAwsNativeTeardown, runAwsNativeTeard
 import { awsPlatformService } from '../ce/platform';
 import { scopedAwsApi } from '../ce/scoped-exec';
 import { awsTerraformService } from '../ce/terraform-apply';
+import {
+  loadAwsTerraformBrownfieldBinding,
+  prepareAwsTerraformBrownfieldBinding,
+} from '../ce/terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
 import { type AwsTerraformTeardownPlan, runAwsTerraformTeardown } from '../ce/terraform-teardown';
 import { prepareAwsTerraformTeardown } from '../ce/terraform-teardown-plan';
@@ -101,6 +105,8 @@ export function createAwsCeTeardownTool(
         const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {
+          if (plan.engine === 'terraform' && plan.intent.vpc.mode === 'brownfield')
+            await prepareAwsTerraformBrownfieldBinding(plan, storage, makeApi(ctx.cwd), signal);
           const cloud =
             plan.engine === 'native'
               ? !params.cloudPlanId || !params.cloudPlanSha256
@@ -200,7 +206,13 @@ export function createAwsCeTeardownTool(
                 contract,
                 await (await dependencies.terraform(pi, signal)).open(
                   owner,
-                  await awsTerraformFoundationDeployment(plan),
+                  await awsTerraformFoundationDeployment(
+                    plan,
+                    {},
+                    plan.intent.vpc.mode === 'brownfield'
+                      ? await loadAwsTerraformBrownfieldBinding(plan, storage, makeApi(ctx.cwd), signal)
+                      : undefined,
+                  ),
                   'current',
                 ),
                 storage,
