@@ -62,3 +62,12 @@ Return a compact Markdown investigation containing:
 
 State unavailable binaries, ICMP filtering, privilege limits, throttling, and
 failed sources explicitly. Retain usable partial evidence.
+
+For long collections, show twelve readable rows with the returned count and
+explicit remaining-row guidance. Retain all safe collected evidence once in
+expanded output, including failed sources and literal corrective guidance.
+Keep query scope, observation time, source freshness, consequential findings and
+limitations visible by default. Preserve zero, false, empty strings and unknown
+values. Include the exact executed collector argv with the effective target,
+filters and environment values safely represented; do not fabricate a command.
+Use shared message layout, themes, symbols and lifecycle handling.

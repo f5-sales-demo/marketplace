@@ -131,11 +131,11 @@ PY
 }
 
 test_no_runtime_topology_or_address_dataset() {
-  if find "$PLUGIN_ROOT" -type f \( \
+  if find "$PLUGIN_ROOT" -type d -name node_modules -prune -o -type f \( \
     -iname '*matrix*.json' -o -iname '*topology*.json' -o \
     -iname '*address*.json' -o -iname '*gazetteer*' -o \
     -iname '*coordinate*.json' -o -iname '*location-cache*' -o \
-    -iname '*inventory-snapshot*' \) | grep -q .; then
+    -iname '*inventory-snapshot*' \) -print | grep -q .; then
     echo "runtime topology, location, or address dataset exists"
     return 1
   fi
@@ -143,7 +143,7 @@ test_no_runtime_topology_or_address_dataset() {
   local matches
   matches=$(grep -rIEn 'total_metros|total_edge_pops|total_registered_facilities|30[ -]metro|39[ -](edge|pop)|50[ -](registered|facilit)|VERIFIED|STRONG|CANDIDATE|METRO_ONLY|net[_ ]?id[^[:alnum:]]*10569|XCSH_LOCATION_MATRIX' \
     "$PLUGIN_ROOT" \
-    --exclude-dir=tests \
+    --exclude-dir=tests --exclude-dir=node_modules \
     --exclude='README.md' || true)
   [ -z "$matches" ] || {
     echo "$matches"

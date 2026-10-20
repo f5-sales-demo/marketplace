@@ -1,11 +1,11 @@
 {
   "name": "cloudstatus",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Live cloud status and Internet network intelligence for xcsh",
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Cloudstatus",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "extensions": [
       "extensions/regional-edge-advisories.ts"
     ]
@@ -14,6 +14,6 @@
     "@f5-sales-demo/xcsh": ">=23.5.1"
   },
   "devDependencies": {
-    "@f5-sales-demo/xcsh": "23.5.1"
+    "@f5-sales-demo/xcsh": "23.9.3"
   }
 }
