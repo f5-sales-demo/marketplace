@@ -12,6 +12,7 @@ function fixture(omit?: string, duplicate?: string) {
       id: (index + 1).toString(16).padStart(64, '0'),
       name: mapping.name,
       pod: `${mapping.podPrefix}abc`,
+      namespace: mapping.namespace,
     }));
   if (duplicate) rows.push({ ...rows.find((row) => row.name === duplicate)!, id: 'f'.repeat(64) });
   let requests = 0;
@@ -28,8 +29,10 @@ function fixture(omit?: string, duplicate?: string) {
       commands.push(command);
       const output =
         command[0] === 'crictl-ps-a'
-          ? 'CONTAINER IMAGE CREATED STATE NAME ATTEMPT POD ID POD\n' +
-            rows.map((r) => `${r.id} image 2 hours ago Running ${r.name} 0 ${'a'.repeat(64)} ${r.pod}`).join('\n')
+          ? 'CONTAINER IMAGE CREATED STATE NAME ATTEMPT POD ID POD NAMESPACE\n' +
+            rows
+              .map((r) => `${r.id} image 2 hours ago Running ${r.name} 0 ${'a'.repeat(64)} ${r.pod} ${r.namespace}`)
+              .join('\n')
           : (() => {
               const r = rows.find((r) => r.id === command[1]);
               if (!r) throw new Error('Unlisted inspection');
@@ -38,7 +41,7 @@ function fixture(omit?: string, duplicate?: string) {
                   id: r.id,
                   metadata: { name: r.name, attempt: 0 },
                   state: 'CONTAINER_RUNNING',
-                  labels: { 'io.kubernetes.pod.name': r.pod },
+                  labels: { 'io.kubernetes.pod.name': r.pod, 'io.kubernetes.pod.namespace': r.namespace },
                   env: 'PRIVATE',
                 },
               });

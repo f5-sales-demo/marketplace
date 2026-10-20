@@ -33,7 +33,7 @@ export interface OperationalProfile {
     string,
     {
       components: string[];
-      containers: Array<{ service: string; name: string; podPrefix: string }>;
+      containers: Array<{ service: string; name: string; podPrefix: string; namespace: string }>;
       diagnostics: string[];
     }
   >;
@@ -166,6 +166,7 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
           !c ||
           !names([c.service]) ||
           !names([c.name]) ||
+          !names([c.namespace]) ||
           typeof c.podPrefix !== 'string' ||
           !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
       )
@@ -173,7 +174,7 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       return false;
     const services = containers.map((c) => c?.service);
     if (
-      new Set(containers.map((c) => `${c?.name}:${c?.podPrefix}`)).size !== containers.length ||
+      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}`)).size !== containers.length ||
       !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
     )
       return false;
@@ -440,6 +441,7 @@ export function evaluateGcpOperationalHealth(
               !HASH.test(r.containerIdentitySha256) ||
               typeof r.name !== 'string' ||
               typeof r.pod !== 'string' ||
+              typeof r.namespace !== 'string' ||
               !['running', 'not-running'].includes(String(r.liveness)),
           ) ||
           new Set(rows.map((r) => r?.containerIdentitySha256)).size !== rows.length
@@ -447,7 +449,12 @@ export function evaluateGcpOperationalHealth(
           check('runtime', 'unknown', 'malformed-runtime');
         else
           for (const mapping of role?.containers ?? []) {
-            const matches = rows.filter((r) => r?.name === mapping.name && String(r.pod).startsWith(mapping.podPrefix));
+            const matches = rows.filter(
+              (r) =>
+                r?.namespace === mapping.namespace &&
+                r.name === mapping.name &&
+                String(r.pod).startsWith(mapping.podPrefix),
+            );
             check(
               `container:${mapping.service}`,
               matches.length !== 1 ? 'unknown' : matches[0]?.liveness === 'running' ? 'healthy' : 'degraded',

@@ -30,7 +30,10 @@ export async function collectGcpOperationalRuntime(
   const mappings = profile.roles[node.role].containers;
   const selected = mappings.map((mapping) => {
     const matching = containers.filter(
-      (container) => container.name === mapping.name && container.pod.startsWith(mapping.podPrefix),
+      (container) =>
+        container.namespace === mapping.namespace &&
+        container.name === mapping.name &&
+        container.pod.startsWith(mapping.podPrefix),
     );
     const running = matching.filter((container) => container.state === 'Running');
     const matches = running.length ? running : matching;

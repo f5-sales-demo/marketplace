@@ -90,6 +90,7 @@ export function projectGcpRuntimeInspection(value: unknown, listed: GcpRuntimeCo
     containerIdentitySha256: fingerprint({ id: row.id }),
     name: listed.name,
     pod: listed.pod,
+    ...(listed.namespace !== undefined ? { namespace: listed.namespace } : {}),
     attempt: listed.attempt,
     liveness: state === 'running' ? ('running' as const) : ('not-running' as const),
   };
