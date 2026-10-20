@@ -35,8 +35,12 @@ Its shell regression suite passed. Catalog validation and 34 shared ownership,
 tracker, qualification and capture-contract tests passed. Frozen installation
 and the committed deterministic runtime bundle passed unchanged.
 
-Marketplace-wide tests and hermeticity are checked separately on the delivery
-host. An initial Mac hermeticity attempt failed on absent dependencies in the
+The full canonical marketplace suite passed on verified Ubuntu, followed by
+hermeticity (all plugin suites; Salesforce 354 tests and 2,394 assertions) and
+minimum-runtime compatibility. Mac hermeticity also passed after frozen dependency
+installation. The Mac full suite failed in existing KVM, Xorg and Zoom host tests
+(missing PyYAML, Linux bus/setup assumptions and temporary-path normalization);
+Ubuntu passed those required suites. Those failures remain private. An initial Mac hermeticity attempt failed on absent dependencies in the
 fresh worktree, including missing presentation modules; that diagnostic is not
 evidence that a real cloud CLI was invoked. Its log is retained privately.
 
