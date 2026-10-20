@@ -109,6 +109,91 @@ async function harness(
 }
 
 const shellCommand = 'printf "%s\\n" "$QUERY"\n';
+function prepareGuidance(plugin: string, path: string) {
+  writeFileSync(join(plugin, 'guide.md'), '# Safe identity guidance\n\nRead-only synthetic example.\n');
+  const scenario = JSON.parse(readFileSync(path, 'utf8'));
+  scenario.guidance = ['guide.md'];
+  scenario.guidanceOptions = [{ sel: '', timeout: 20 }];
+  writeFileSync(path, JSON.stringify(scenario));
+}
+
+test('admitted guidance reads have a separate rendering lane and preserve workflow case IDs', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md'), sel: '', timeout: 20 };
+      const call = { toolName: 'read', toolCallId: 'guidance', input };
+      expect(handlers.get('tool_call')[0](call)).toBeUndefined();
+      handlers.get('tool_execution_start')[0]({ ...call, args: input });
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'read',
+        toolCallId: 'guidance',
+        result: { content: [{ type: 'text', text: '# Safe identity guidance' }] },
+        isError: false,
+      });
+      handlers.get('tool_execution_start')[0]({ toolName: 'aws_sts_whoami', toolCallId: 'identity', args: {} });
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'aws_sts_whoami',
+        toolCallId: 'identity',
+        result: { content: [{ type: 'text', text: 'synthetic identity' }] },
+        isError: false,
+      });
+      const ctx = { ui: { custom: async () => {} } };
+      await commands.get('marketplace-campaign-guidance-capture').handler('', ctx);
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'))).toEqual([
+        {
+          id: 'guidance-0-read',
+          tool: 'read',
+          guidancePath: 'guide.md',
+          guidanceSha256: createHash('sha256')
+            .update('# Safe identity guidance\n\nRead-only synthetic example.\n')
+            .digest('hex'),
+        },
+      ]);
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'ready.json'), 'utf8')).evidenceTier).toBe(
+        'installed-shipped-guidance-rendering',
+      );
+      await commands.get('marketplace-campaign-capture').handler('', ctx);
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([
+        { id: 'tool-0-aws_sts_whoami', tool: 'aws_sts_whoami' },
+      ]);
+      await expect(commands.get('marketplace-campaign-guidance-capture').handler('', ctx)).rejects.toThrow(
+        'Preserve prior',
+      );
+    },
+    prepareGuidance,
+  );
+});
+
+test('unadmitted, mismatched and repeated late guidance dispatch cannot become evidence', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md'), sel: '', timeout: 20 };
+      const start = handlers.get('tool_execution_start')[0];
+      const end = handlers.get('tool_execution_end')[0];
+      const result = { content: [{ type: 'text', text: 'synthetic' }] };
+      start({ toolName: 'read', toolCallId: 'unadmitted', args: input });
+      end({ toolName: 'read', toolCallId: 'unadmitted', result, isError: false });
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'mismatch', input })).toBeUndefined();
+      start({ toolName: 'read', toolCallId: 'mismatch', args: { ...input, timeout: 21 } });
+      end({ toolName: 'read', toolCallId: 'mismatch', result, isError: false });
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'cancelled', input })).toBeUndefined();
+      handlers.get('agent_end')[0]({}, { hasUI: true });
+      start({ toolName: 'read', toolCallId: 'cancelled', args: input });
+      end({ toolName: 'read', toolCallId: 'cancelled', result, isError: false });
+      await expect(commands.get('marketplace-campaign-guidance-capture').handler('', {})).rejects.toThrow('No actual');
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'approved', input })).toBeUndefined();
+      start({ toolName: 'read', toolCallId: 'approved', args: input });
+      end({ toolName: 'read', toolCallId: 'approved', result, isError: true });
+      start({ toolName: 'read', toolCallId: 'approved', args: input });
+      end({ toolName: 'read', toolCallId: 'approved', result, isError: false });
+      await commands.get('marketplace-campaign-guidance-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'))).toHaveLength(1);
+    },
+    prepareGuidance,
+  );
+});
 const shellArgs = {
   command: shellCommand,
   env: { QUERY: 'synthetic' },
