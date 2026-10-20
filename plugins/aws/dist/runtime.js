@@ -10721,16 +10721,6 @@ async function applyAwsTerraformConnectStage(plan, observation, session, storage
     );
   const foundation = addresses(renderAwsTerraformFoundation(plan, admission.bootstrapByNode));
   const expected = addresses(configuration);
-  const connectFoundationAdds = new Set();
-  for (const interfaceIndex of new Set(
-    (plan.intent.routing.connectPeers ?? []).map((peer) => peer.transportInterfaceIndex),
-  )) {
-    const role = plan.intent.interfaces.find((item) => item.index === interfaceIndex)?.role;
-    if (!role || role === 'slo') continue;
-    connectFoundationAdds.add(`aws_route_table.${role}`);
-    for (let node = 1; node <= plan.intent.topology.nodeCount; node++)
-      connectFoundationAdds.add(`aws_route_table_association.node_${node}_nic_${interfaceIndex}`);
-  }
   const isDesiredSubset = (current) => {
     const source = JSON.parse(current).resource;
     const target = JSON.parse(configuration).resource;
@@ -10744,7 +10734,9 @@ async function applyAwsTerraformConnectStage(plan, observation, session, storage
   let previousPending;
   try {
     previousPending = await storage.read('terraform-connect-stage.json');
-  } catch {}
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   const pendingConfigurationSha256 =
     previousPending?.stage === 'pending' &&
     previousPending.planSha256 === plan.planSha256 &&
@@ -10760,9 +10752,7 @@ async function applyAwsTerraformConnectStage(plan, observation, session, storage
           expected.get(change.address) !== change.type ||
           change.actions.length !== 1 ||
           !['create', 'read', 'no-op'].includes(change.actions[0]) ||
-          (change.actions[0] === 'create' &&
-            foundation.has(change.address) &&
-            !connectFoundationAdds.has(change.address)),
+          (change.actions[0] === 'create' && foundation.has(change.address)),
       )
     )
       throw new Error(

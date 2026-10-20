@@ -44,16 +44,6 @@ export async function applyAwsTerraformConnectStage(
     );
   const foundation = addresses(renderAwsTerraformFoundation(plan, admission.bootstrapByNode));
   const expected = addresses(configuration);
-  const connectFoundationAdds = new Set<string>();
-  for (const interfaceIndex of new Set(
-    (plan.intent.routing.connectPeers ?? []).map((peer) => peer.transportInterfaceIndex),
-  )) {
-    const role = plan.intent.interfaces.find((item) => item.index === interfaceIndex)?.role;
-    if (!role || role === 'slo') continue;
-    connectFoundationAdds.add(`aws_route_table.${role}`);
-    for (let node = 1; node <= plan.intent.topology.nodeCount; node++)
-      connectFoundationAdds.add(`aws_route_table_association.node_${node}_nic_${interfaceIndex}`);
-  }
   const isDesiredSubset = (current: string) => {
     const source = JSON.parse(current).resource as Record<string, Record<string, unknown>>;
     const target = JSON.parse(configuration).resource as Record<string, Record<string, unknown>>;
@@ -67,8 +57,8 @@ export async function applyAwsTerraformConnectStage(
   let previousPending: { configurationSha256?: unknown; planSha256?: unknown; stage?: unknown } | undefined;
   try {
     previousPending = (await storage.read('terraform-connect-stage.json')) as typeof previousPending;
-  } catch {
-    // The first Connect attempt has no stage checkpoint.
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   const pendingConfigurationSha256 =
     previousPending?.stage === 'pending' &&
@@ -85,9 +75,7 @@ export async function applyAwsTerraformConnectStage(
           expected.get(change.address) !== change.type ||
           change.actions.length !== 1 ||
           !['create', 'read', 'no-op'].includes(change.actions[0]) ||
-          (change.actions[0] === 'create' &&
-            foundation.has(change.address) &&
-            !connectFoundationAdds.has(change.address)),
+          (change.actions[0] === 'create' && foundation.has(change.address)),
       )
     )
       throw new Error(

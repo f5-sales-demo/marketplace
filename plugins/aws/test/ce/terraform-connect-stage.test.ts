@@ -169,7 +169,7 @@ test('Connect stage refuses existing-resource replacement', async () => {
   expect(f.applies()).toBe(0);
 });
 
-test('Connect stage admits only the missing owned SLI route foundation during migration', async () => {
+test('Connect stage rejects recreation of the current SLI foundation without a migration exception', async () => {
   const f = fixture();
   const plan = f.session.plan;
   f.session.plan = async (...args) => ({
@@ -183,8 +183,8 @@ test('Connect stage admits only the missing owned SLI route foundation during mi
       },
     ],
   });
-  await f.run();
-  expect(f.applies()).toBe(1);
+  await expect(f.run()).rejects.toThrow('existing resource');
+  expect(f.applies()).toBe(0);
 });
 
 test('Connect stage rejects missing foundation state and unexpected create addresses', async () => {
@@ -207,3 +207,16 @@ test('Connect stage rejects missing foundation state and unexpected create addre
     expect(f.applies()).toBe(0);
   }
 });
+
+for (const code of ['EACCES', 'EIO'] as const)
+  test(`Connect stage preserves checkpoint ${code} failure before configuration or apply`, async () => {
+    const f = fixture();
+    const read = f.storage.read;
+    f.storage.read = async (name) => {
+      if (name === 'terraform-connect-stage.json') throw Object.assign(new Error('checkpoint unavailable'), { code });
+      return read(name);
+    };
+    await expect(f.run()).rejects.toThrow('checkpoint unavailable');
+    expect(f.configuration()).toBe(f.original);
+    expect(f.applies()).toBe(0);
+  });
