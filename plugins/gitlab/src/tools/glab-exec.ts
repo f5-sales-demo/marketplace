@@ -56,7 +56,13 @@ export function createGlabExecTool(pi: PluginHost, makeApi: (cwd: string) => Gla
       if (out.length > GLAB_EXEC_MAX_OUTPUT) {
         out = `${out.slice(0, GLAB_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
       }
-      return textResult(out, { tool: 'glab_exec', fullOutput, modelPreviewTruncated: out !== fullOutput });
+      return textResult(out, {
+        tool: 'glab_exec',
+        fullOutput,
+        stderr: result.stderr,
+        commandArgs: args,
+        modelPreviewTruncated: out !== fullOutput,
+      });
     },
   };
 }

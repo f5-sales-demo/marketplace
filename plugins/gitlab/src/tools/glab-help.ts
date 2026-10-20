@@ -1,6 +1,7 @@
 import type { GlabExecApi } from '../glab/exec';
 import { execGlab, GlabAuthError } from '../glab/exec';
 import glabHelpDescription from '../prompts/glab-help.md' with { type: 'text' };
+import { helpArgs } from './command-args';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
@@ -51,9 +52,13 @@ export function createGlabHelpTool(pi: PluginHost, makeApi: (cwd: string) => Gla
 
       const api = makeApi(ctx.cwd);
       try {
-        const result = await execGlab(api, [...parts, '--help'], signal);
+        const args = helpArgs(commandPath)!;
+        const result = await execGlab(api, args, signal);
         const output = result.stdout || result.stderr;
-        return textResult(output || `No help output for "glab ${commandPath}".`, { tool: 'glab_help' });
+        return textResult(output || `No help output for "glab ${commandPath}".`, {
+          tool: 'glab_help',
+          commandArgs: args,
+        });
       } catch (err) {
         if (err instanceof GlabAuthError)
           return errorResult((err as Error).message, { tool: 'glab_help', errorType: detectErrorType(err) });
