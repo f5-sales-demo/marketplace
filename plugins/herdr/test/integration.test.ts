@@ -254,6 +254,37 @@ describe('Herdr installation, context, and runtime probes', () => {
       value: { runtime: { state: 'missing_capability', missingCapabilities: ['xcsh_semantic_tracking'] } },
     });
   });
+
+  it('preserves installation evidence when status returns malformed or non-object JSON', () => {
+    for (const stdout of ['null', '[]', 'false', '0', '"synthetic status"', '{']) {
+      const result = probeHerdr(
+        dependencies({
+          env: {
+            PATH: '/usr/bin',
+            HERDR_ENV: '1',
+            HERDR_SESSION: 'synthetic-session',
+            HERDR_PANE_ID: 'w1:p2',
+            HERDR_SOCKET_PATH: '/tmp/synthetic-herdr.sock',
+            HERDR_CONTEXT_CAPABILITY: 'synthetic-private-capability',
+          },
+          spawn: (argv) =>
+            argv.includes('status')
+              ? { exitCode: 0, stdout, stderr: '' }
+              : { exitCode: 0, stdout: 'herdr 0.19.2\n', stderr: '' },
+        }),
+      );
+      expect(result).toMatchObject({
+        state: 'degraded',
+        reason: 'invalid_response',
+        value: {
+          installation: { state: 'ready' },
+          context: { state: 'managed' },
+          runtime: { state: 'invalid_status' },
+        },
+      });
+      expect(JSON.stringify(result)).not.toContain('synthetic-private-capability');
+    }
+  });
 });
 
 describe('PATH reconciliation', () => {
