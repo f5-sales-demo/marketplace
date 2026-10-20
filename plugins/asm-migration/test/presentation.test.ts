@@ -36,21 +36,21 @@ test('native requests retain actual paths and effective flags without an invente
   };
   const v = presentTool({ name: 'asm_migration_convert' }, presentation).presentation.call(input, options);
   expect(v.sections).toContainEqual(expect.objectContaining({ kind: 'fields', previewFields: 'all', values: input }));
-  expect(v.sections.some((s) => s.kind === 'code')).toBe(false);
+  expect((v.sections ?? []).some((s) => s.kind === 'code')).toBe(false);
 });
 test('partial conversion shows completion, zero counts and literal review guidance by default', () => {
   const v = view('asm_migration_convert', conversion, false, 'PARTIAL REVIEW OUTPUT: remediate every warning.');
   expect(v.summary).toContain('Partial');
-  expect(v.sections.find((s) => s.title === 'Conversion outcome')).toMatchObject({
+  expect((v.sections ?? []).find((s) => s.title === 'Conversion outcome')).toMatchObject({
     previewFields: 'all',
     values: { Complete: false, 'Output directory': '', 'Warning count': 1 },
   });
-  expect(v.sections.find((s) => s.title === 'Resource counts')).toMatchObject({
+  expect((v.sections ?? []).find((s) => s.title === 'Resource counts')).toMatchObject({
     previewRows: 12,
     rows: [{ kind: 'app_firewall', count: 0 }],
   });
   expect(JSON.stringify(v)).toContain('PARTIAL REVIEW OUTPUT: remediate every warning.');
-  expect(v.sections.find((s) => s.title === 'Warnings')).toMatchObject({ previewRows: 12 });
+  expect((v.sections ?? []).find((s) => s.title === 'Warnings')).toMatchObject({ previewRows: 12 });
 });
 test('expanded safe evidence preserves complete data and guidance once', () => {
   const v = view('asm_migration_convert', conversion, true);
@@ -65,7 +65,7 @@ test('validation summarizes policy identity and contract failures including issu
     inputType: 'asm-policy',
     policy: { sourceName: '', enforcementMode: 'transparent', unsupportedEnabledFeatures: [] },
   });
-  expect(p.sections.find((s) => s.title === 'Policy identity')).toMatchObject({
+  expect((p.sections ?? []).find((s) => s.title === 'Policy identity')).toMatchObject({
     previewFields: 'all',
     values: { Policy: '', 'Enforcement mode': 'transparent', 'Unsupported feature count': 0 },
   });
@@ -81,7 +81,7 @@ test('validation summarizes policy identity and contract failures including issu
     },
   });
   expect(c.summary).toContain('invalid');
-  expect(c.sections.find((s) => s.title === 'Contract issues')).toMatchObject({
+  expect((c.sections ?? []).find((s) => s.title === 'Contract issues')).toMatchObject({
     previewRows: 12,
     rows: [{ resource_index: 0, path: '', message: 'FIX_CONTRACT' }],
   });
@@ -95,11 +95,14 @@ test('deployment shows actual action, outcome and rollback without losing empty 
     rollback: { status: 'not_required', outcomes: [] },
   };
   const v = view('asm_migration_deploy', d);
-  expect(v.sections.find((s) => s.title === 'Deployment outcome')).toMatchObject({
+  expect((v.sections ?? []).find((s) => s.title === 'Deployment outcome')).toMatchObject({
     previewFields: 'all',
     values: { Action: 'verify', 'Plan digest': '', 'Rollback status': 'not_required', 'Returned outcomes': 1 },
   });
-  expect(v.sections.find((s) => s.title === 'Resource outcomes')).toMatchObject({ previewRows: 12, rows: d.outcomes });
+  expect((v.sections ?? []).find((s) => s.title === 'Resource outcomes')).toMatchObject({
+    previewRows: 12,
+    rows: d.outcomes,
+  });
 });
 test('empty, malformed and opaque results retain runtime fallback and full corrective text', () => {
   for (const d of [
@@ -158,7 +161,7 @@ test('long lists retain all expanded evidence and only declare twelve-row previe
     outputFiles: Array.from({ length: 19 }, (_, i) => `review-file-${i}.json`),
   };
   const collapsed = view('asm_migration_convert', long);
-  expect(collapsed.sections.find((s) => s.title === 'Warnings')).toMatchObject({
+  expect((collapsed.sections ?? []).find((s) => s.title === 'Warnings')).toMatchObject({
     previewRows: 12,
     rows: long.warnings,
   });
@@ -173,7 +176,7 @@ test('long lists retain all expanded evidence and only declare twelve-row previe
     outputFiles: [],
   });
   expect(empty.summary).toContain('complete');
-  expect(empty.sections.find((s) => s.title === 'Conversion outcome')).toMatchObject({
+  expect((empty.sections ?? []).find((s) => s.title === 'Conversion outcome')).toMatchObject({
     values: { 'Warning count': 0, 'Output file count': 0 },
   });
 });

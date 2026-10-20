@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -222,3 +222,70 @@ test('preserves host prompts, all tools, and tool choices across mixed and ordin
   }
   expect(handlers.size).toBe(0);
 });
+
+type ProbeDefinition = { probe(): Promise<{ state: string; reason?: string }> };
+
+async function registeredProbe(): Promise<ProbeDefinition> {
+  let integration: ProbeDefinition | undefined;
+  await factory({
+    integrations: {
+      register(definition: unknown) {
+        integration = definition as ProbeDefinition;
+      },
+    },
+    presentation,
+    typebox: { Type },
+    setLabel() {},
+    registerTool() {},
+  });
+  if (!integration) throw new Error('Missing ASM integration');
+  return integration;
+}
+
+test('missing Bun remains an actionable setup dependency rather than an invalid probe response', async () => {
+  const integration = await registeredProbe();
+  const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+    throw Object.assign(new Error('synthetic missing executable'), { code: 'ENOENT' });
+  });
+  try {
+    expect(await integration.probe()).toEqual({ state: 'setup_required', reason: 'dependency_missing' });
+    expect(spawn).toHaveBeenCalledWith(['bun', '--version']);
+  } finally {
+    spawn.mockRestore();
+  }
+});
+
+for (const exitCode of [0, 1]) {
+  test(`Bun dependency probe preserves exit status ${exitCode}`, async () => {
+    const integration = await registeredProbe();
+    const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({ exitCode } as ReturnType<typeof Bun.spawnSync>);
+    try {
+      expect(await integration.probe()).toEqual(
+        exitCode === 0 ? { state: 'ready' } : { state: 'setup_required', reason: 'dependency_missing' },
+      );
+      expect(spawn).toHaveBeenCalledWith(['bun', '--version']);
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+}
+
+for (const failure of [Object.assign(new Error('synthetic permission failure'), { code: 'EACCES' }), null]) {
+  test(`unexpected probe failure is preserved: ${String(failure)}`, async () => {
+    const integration = await registeredProbe();
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+      throw failure;
+    });
+    try {
+      let caught: unknown = Symbol('not thrown');
+      try {
+        await integration.probe();
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBe(failure);
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+}

@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v2.3.2 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.
+
 - **`asm-migration`** v2.3.1 shows native request scope, policy and contract identity, conversion completeness, twelve-row warning and resource previews, deployment and rollback outcomes, and complete corrective guidance once through shared presentation (#1600).
 
 - Remove the deprecated `devcontainer` plugin from the marketplace and retire its presentation tasks with historical receipts preserved (#1707).
