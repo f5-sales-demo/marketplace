@@ -5,6 +5,8 @@
   if (!media) throw new Error('Virtual media API unavailable');
   const enumerate = media.enumerateDevices.bind(media);
   const capture = media.getUserMedia.bind(media);
+  const profile = window.__piZoomCameraProfile || { width: 1280, height: 720, fps: 30 };
+  let cameraReady = !window.__piZoomCameraProfile?.output;
   const state = { version: 1, streams: [], requests: 0, peers: [] };
   const Peer = window.RTCPeerConnection;
   if (Peer) {
@@ -28,6 +30,7 @@
   };
   media.enumerateDevices = inventory;
   media.getUserMedia = async (requested) => {
+    if (requested?.video && !cameraReady) throw new Error('Dedicated camera capture is not ready');
     const devices = await inventory();
     const selected = {};
     const expected = {};
@@ -44,9 +47,9 @@
       selected[key] = { deviceId: { exact: device.deviceId } };
       if (key === 'video')
         Object.assign(selected[key], {
-          width: { exact: 1280 },
-          height: { exact: 720 },
-          frameRate: { exact: 30 },
+          width: { exact: profile.width },
+          height: { exact: profile.height },
+          frameRate: { exact: profile.fps },
         });
     }
     if (!selected.audio && !selected.video) throw new Error('Explicit virtual media request required');
@@ -58,8 +61,8 @@
           throw new Error('Captured device differs from required virtual device');
         if (key === 'video') {
           const settings = tracks[0].getSettings();
-          if (settings.width !== 1280 || settings.height !== 720 || settings.frameRate !== 30)
-            throw new Error('Virtual camera profile differs from 720p30');
+          if (!cameraReady || settings.width !== profile.width || settings.height !== profile.height || settings.frameRate !== profile.fps)
+            throw new Error('Virtual camera profile differs from the producer profile');
         }
       }
     } catch (error) {
@@ -87,6 +90,10 @@
   }
   window.__piZoomMediaGuard = {
     version: state.version,
+    setCameraReady: (ready) => {
+      cameraReady = ready === true;
+      if (!cameraReady) state.streams.flatMap((s) => s.getVideoTracks()).forEach((t) => t.stop());
+    },
     inventory: async () => (await inventory()).map((d) => ({ kind: d.kind, label: d.label })),
     stats: async () => {
       const rows = [];

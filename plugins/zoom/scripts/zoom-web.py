@@ -18,7 +18,39 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 
+CAMERA_PROFILE = Path("/etc/pi-desktop/camera-profile.json")
+
+
+def camera_profile():
+    """One public producer/consumer profile; legacy hosts retain their own contract."""
+    if not CAMERA_PROFILE.exists():
+        return {"width": 1280, "height": 720, "fps": 30}
+    profile = json.loads(CAMERA_PROFILE.read_text())
+    if (profile.get("schema") != 1 or profile.get("device") != "/dev/video42"
+        or profile.get("label") != "xcsh Camera" or profile.get("output") != "PI-CAMERA"
+        or profile.get("width") != 1280 or profile.get("height") != 720
+        or profile.get("fps") not in (15, 10, 5) or profile.get("pixel_format") != "yuv420p"):
+        raise ValueError("Invalid dedicated camera profile")
+    return profile
+
+
+def camera_live(profile):
+    if not CAMERA_PROFILE.exists():
+        return True
+    try:
+        runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+        proof = json.loads((runtime / "pi-camera-ready.json").read_text())
+        terminal = json.loads((runtime / "pi-camera-terminal.json").read_text())
+        return (proof["profile"] == profile and proof["frames_observed"] >= 3
+                and 0 <= time.monotonic() - proof["monotonic"] < 3
+                and 0 <= time.monotonic() - terminal["monotonic"] < 3
+                and Path("/proc", str(proof["producer_pid"])).exists())
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def status():
+    profile = camera_profile()
     commands = ("google-chrome-stable", "pactl", "v4l2-ctl", "ffmpeg")
     missing = [c for c in commands if not shutil.which(c)]
     camera = Path("/sys/class/video4linux/video42")
@@ -54,20 +86,20 @@ def status():
                 probe.returncode == 0
                 and "Driver name      : v4l2 loopback" in probe.stdout
                 and bool(re.search(r"Width/Height\s*:\s*1280/720", probe.stdout))
-                and bool(re.search(r"Frames per second:\s*30[.]", probe.stdout))
+                and bool(re.search(rf"Frames per second:\s*{profile['fps']}[.]", probe.stdout))
             )
         except (OSError, subprocess.TimeoutExpired):
             camera_format = False
     audio = "xcsh_zoom_microphone" in sources and "xcsh_zoom_output" in sinks
     return {
         "backend": "zoom-web",
-        "ready": not missing and virtual_camera and camera_format and audio,
+        "ready": not missing and virtual_camera and camera_format and audio and camera_live(profile),
         "missing_software": missing,
         "virtual_camera": virtual_camera,
         "virtual_camera_device": "/dev/video42",
         "camera_format_verified": camera_format,
         "virtual_audio": audio,
-        "camera_profile": {"width": 1280, "height": 720, "fps": 30},
+        "camera_profile": profile,
         "receiver_acceptance": "pending controlled meeting",
         "recording": False,
     }
@@ -344,6 +376,8 @@ def maintain_browser_guard(page, selected):
     hd_attempted = False
     while not page.is_closed():
         try:
+            profile = camera_profile()
+            page.evaluate("ready => window.__piZoomMediaGuard?.setCameraReady(ready)", camera_live(profile))
             acknowledge_meeting_notices(page)
             name = page.locator("#input-for-name")
             if name.count() == 1 and name.is_visible() and not name.input_value():
@@ -398,6 +432,8 @@ def initialize_browser(url, persistent=False):
                 ["camera", "microphone"], origin=f"https://{origin.hostname}"
             )
             guard = Path(__file__).with_name("virtual-media-guard.js").read_text()
+            profile = camera_profile()
+            guard = "window.__piZoomCameraProfile = " + json.dumps(profile) + ";\n" + guard
             page = context.pages[0]
             context.add_init_script(guard)
             page.goto(url, wait_until="commit", timeout=30000)

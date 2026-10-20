@@ -1,12 +1,12 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-async function test(devices, mismatch = false) {
+async function test(devices, mismatch = false, profile = undefined) {
   let called = 0,
     stopped = 0,
     last;
   const context = {
-    window: {},
+    window: { __piZoomCameraProfile: profile },
     HTMLMediaElement: { prototype: {} },
     navigator: {
       mediaDevices: {
@@ -25,7 +25,7 @@ async function test(devices, mismatch = false) {
                 deviceId: mismatch ? 'wrong' : v.deviceId.exact,
                 width: 1280,
                 height: 720,
-                frameRate: 30,
+                frameRate: profile?.fps || 30,
               }),
               stop: () => stopped++,
             }));
@@ -42,7 +42,7 @@ async function test(devices, mismatch = false) {
     fs.readFileSync(require('node:path').join(__dirname, '..', 'virtual-media-guard.js'), 'utf8'),
     context,
   );
-  return { media: context.navigator.mediaDevices, values: () => ({ called, stopped, last }) };
+  return { guard: context.window.__piZoomMediaGuard, media: context.navigator.mediaDevices, values: () => ({ called, stopped, last }) };
 }
 (async () => {
   const devices = [
@@ -61,6 +61,14 @@ async function test(devices, mismatch = false) {
   t = await test(devices, true);
   await assert.rejects(() => t.media.getUserMedia({ video: true }));
   assert.equal(t.values().stopped, 1);
+  t = await test(devices, false, {width:1280,height:720,fps:15,output:'PI-CAMERA'});
+  await assert.rejects(() => t.media.getUserMedia({video:true}));
+  t.guard.setCameraReady(true);
+  await t.media.getUserMedia({video:true,audio:true});
+  assert.equal(t.values().last.video.frameRate.exact,15);
+  t.guard.setCameraReady(false);
+  assert.equal(t.values().stopped,1);
+  await assert.rejects(() => t.media.getUserMedia({video:true}));
   console.log(
     'Virtual media guard: forced virtual IDs, physical exclusion, missing device rejection and mismatch stop passed',
   );
