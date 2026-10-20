@@ -1,20 +1,29 @@
 ---
 description: >-
-  Check Firecrawl API service status and connectivity on localhost:3002
+  Check configured Firecrawl API identity, optional version, and connectivity
 ---
 
 # Firecrawl status
 
-Optionally delegate to the `firecrawl:firecrawl-operator` agent to check Firecrawl service readiness.
+Run the shipped read-only collector directly. Optional delegation to
+`firecrawl:firecrawl-operator` uses the same collector.
 
-## Optional delegation
+```bash
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl_status.py"
+```
 
-Spawn the `firecrawl:firecrawl-operator` agent with the following instructions:
+Use a Bash tool timeout of 15 seconds. The collector uses `FIRECRAWL_API_URL`,
+defaulting to `http://127.0.0.1:3002/`, with bounded requests and no redirects.
+It verifies the Firecrawl identity response before checking optional `/v1/health`.
+A successful root response alone does not prove queue, browser, database, or scrape readiness.
 
-1. Check if Firecrawl API is reachable: `curl -sf http://localhost:3002/ | head -c 200`
-2. If reachable, check version: `curl -sf http://localhost:3002/v1/health 2>/dev/null | jq -r '.version // "unknown"'`
-3. Report:
-   - Firecrawl service status (reachable/unreachable)
-   - Service version (if available)
-   - API endpoint: `http://localhost:3002`
-4. If not reachable, suggest checking that `ENABLE_FIRECRAWL=true` in devcontainer configuration
+Report state, endpoint, scope, version, collection time, warnings, and corrective guidance.
+Preserve zero, false, empty strings, and unknown values. Keep the complete sanitized
+collector result in the Bash result for expansion; do not pipe it through `head`,
+slice strings, or repeat the full evidence in the conclusion. If a response is too
+large or malformed, report incomplete evidence explicitly. A failed health check
+remains visible even when the version is unknown. Show list previews of twelve rows
+when summarizing additional evidence, and retain the complete result once.
+
+If unavailable, check the configured endpoint and existing service. In a devcontainer,
+check `ENABLE_FIRECRAWL=true`. Do not start or reconfigure infrastructure as part of status.

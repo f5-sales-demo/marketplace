@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`firecrawl`** v1.4.2 verifies the configured API identity, distinguishes optional health failures, retains complete sanitized status evidence, and reports exhausted operator polling as incomplete (#1590).
+
 - **`cloudstatus`** v1.9.2 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
 
 - **`gitlab`** v1.5.2 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).

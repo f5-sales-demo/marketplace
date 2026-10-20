@@ -68,6 +68,9 @@ jobs:
       - name: Check Bun lockfile compatibility
         run: ./scripts/check-ci-bun-lockfile-compatibility.sh
 
+      - name: Install isolated Bash/Zsh qualification shell
+        run: ./scripts/install-ci-zsh.sh
+
       - name: Prepare isolated Python fixture dependencies
         run: |
           set -euo pipefail
