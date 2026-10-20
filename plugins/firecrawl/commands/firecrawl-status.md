@@ -9,7 +9,7 @@ Run the shipped read-only collector directly. Optional delegation to
 `firecrawl:firecrawl-operator` uses the same collector.
 
 ```bash
-python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py"
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl_status.py"
 ```
 
 Use a Bash tool timeout of 15 seconds. The collector uses `FIRECRAWL_API_URL`,

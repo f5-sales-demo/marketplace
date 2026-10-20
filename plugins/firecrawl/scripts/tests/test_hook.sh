@@ -49,7 +49,7 @@ test_hook_command_syntax() {
 test_hook_references_firecrawl_endpoint() {
   local cmd
   cmd=$(_get_hook_command)
-  echo "$cmd" | grep -q 'firecrawl-status.py' || {
+  echo "$cmd" | grep -q 'firecrawl_status.py' || {
     echo "hook command should use the shipped status collector"
     return 1
   }

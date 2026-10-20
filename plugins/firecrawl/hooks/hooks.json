@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py\" --check > /dev/null 2>&1 || printf 'WARNING: Firecrawl API identity could not be verified. Check FIRECRAWL_API_URL and the existing service; in a devcontainer check ENABLE_FIRECRAWL=true.\\n'",
+            "command": "python3 \"${XCSH_PLUGIN_ROOT}/scripts/firecrawl_status.py\" --check > /dev/null 2>&1 || printf 'WARNING: Firecrawl API identity could not be verified. Check FIRECRAWL_API_URL and the existing service; in a devcontainer check ENABLE_FIRECRAWL=true.\\n'",
             "timeout": 15
           }
         ]

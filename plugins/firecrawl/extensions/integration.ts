@@ -17,7 +17,7 @@ export default function firecrawlIntegration(pi: ExtensionApi) {
       steps: [],
       verification: [
         {
-          argv: ['python3', fileURLToPath(new URL('../scripts/firecrawl-status.py', import.meta.url)), '--check'],
+          argv: ['python3', fileURLToPath(new URL('../scripts/firecrawl_status.py', import.meta.url)), '--check'],
           timeoutMs: 15_000,
         },
       ],

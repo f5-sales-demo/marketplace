@@ -9,7 +9,7 @@ import signal
 import sys
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -40,10 +40,14 @@ def endpoint() -> str:
     if (
         parsed.scheme not in ("http", "https")
         or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
+        or any(
+            (
+                parsed.username is not None,
+                parsed.password is not None,
+                parsed.query,
+                parsed.fragment,
+            )
+        )
     ):
         message = "Invalid endpoint"
         raise ValueError(message)
@@ -87,28 +91,43 @@ def request(url: str, deadline: float) -> dict[str, Any]:
         try:
             body = redact(json.loads(raw))
         except (ValueError, UnicodeError, RecursionError):
-            return {
+            result = {
                 "state": "invalid_response",
                 "httpStatus": status,
                 "reason": "malformed_json",
                 "evidenceComplete": False,
             }
         else:
-            return {
+            result = {
                 "state": "ok" if HTTP_OK <= status < HTTP_REDIRECT else "failed",
                 "httpStatus": status,
                 "body": body,
                 "evidenceComplete": True,
             }
     except (URLError, TimeoutError, OSError, ValueError):
-        return {
+        result = {
             "state": "unavailable",
             "reason": "network_or_timeout",
             "evidenceComplete": False,
         }
+    return result
 
 
-def collect() -> dict[str, Any]:
+class StatusResult(TypedDict):
+    """Separate summary fields from typed warnings and complete request evidence."""
+
+    state: str
+    endpoint: NotRequired[str]
+    scope: NotRequired[str]
+    version: NotRequired[Any]
+    healthState: NotRequired[str]
+    collectedAt: NotRequired[str]
+    warnings: NotRequired[list[str]]
+    evidence: NotRequired[dict[str, dict[str, Any]]]
+    guidance: NotRequired[str]
+
+
+def collect() -> StatusResult:
     """Report API identity separately from optional health and backend acceptance."""
     try:
         base = endpoint()
@@ -126,7 +145,7 @@ def collect() -> dict[str, Any]:
         and body.get("message") == "Firecrawl API"
         and body.get("documentation_url") == "https://docs.firecrawl.dev"
     )
-    result = {
+    result: StatusResult = {
         "state": "ready"
         if ready
         else ("unavailable" if root["state"] == "unavailable" else "invalid_response"),

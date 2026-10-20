@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-SCRIPT = Path(__file__).resolve().parents[1] / "firecrawl-status.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "firecrawl_status.py"
 PLUGIN = SCRIPT.parents[1]
 HTTP_FOUND = 302
 
@@ -28,7 +28,11 @@ class StatusTests(unittest.TestCase):
         """Execute a real collector against a local deterministic HTTP endpoint."""
 
         class Handler(BaseHTTPRequestHandler):
-            def do_GET(self) -> None:
+            """Serve fixture responses using the stdlib handler protocol."""
+
+            # The stdlib dispatches requests through this exact method name.
+            def do_GET(self) -> None:  # pylint: disable=invalid-name
+                """Return the configured identity or health fixture."""
                 status, value = health if self.path.endswith("v1/health") else root
                 self.send_response(status)
                 if status == HTTP_FOUND:
@@ -227,11 +231,14 @@ class StatusTests(unittest.TestCase):
         self,
     ) -> None:
         """Shipped shell invocation preserves exact paths and startup guidance."""
-        status = re.search(
+        match = re.search(
             r"```bash\n(.*?)\n```",
             (PLUGIN / "commands/firecrawl-status.md").read_text(),
             re.DOTALL,
-        ).group(1)
+        )
+        if match is None:
+            self.fail("Shipped status command must include a Bash fence")
+        status = match.group(1)
         hook = json.loads((PLUGIN / "hooks/hooks.json").read_text())["hooks"][
             "SessionStart"
         ][0]["hooks"][0]["command"]

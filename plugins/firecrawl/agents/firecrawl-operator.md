@@ -62,7 +62,7 @@ You do **NOT** have `write`, `edit`, or `task`. You are execution-only.
 Run this before any operation to verify the API is available.
 
 ```bash
-python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py" --check
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl_status.py" --check
 ```
 
 Expected: collector `state` is `ready`, with the verified identity response under `evidence.identity.body`. Optional health failures remain visible in `warnings`.
@@ -86,7 +86,7 @@ Extract content from a single URL. Synchronous — returns content directly.
 ### Scrape: Health check
 
 ```bash
-python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py" --check
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl_status.py" --check
 ```
 
 ### Scrape: Execute scrape

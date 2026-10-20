@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`firecrawl`** v1.4.1 verifies the configured API identity, distinguishes optional health failures, retains complete sanitized status evidence, and reports exhausted operator polling as incomplete (#1590).
+- **`firecrawl`** v1.4.2 verifies the configured API identity, distinguishes optional health failures, retains complete sanitized status evidence, and reports exhausted operator polling as incomplete (#1590).
 
 - **`cloudstatus`** v1.9.2 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
 

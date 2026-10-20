@@ -44,3 +44,17 @@ xcsh #5039, Firecrawl 1.4.1 publication and independent artifact verification, t
 fresh Mac and Ubuntu captures through normal runtime dispatch. xcsh PR #5040
 merged; stale Terraform corpus inputs still prevent green publication builds.
 Campaign #1579 and acceptance issue #1590 remain open.
+
+PR #1706 CI repair retains both required shells. The first Zsh provisioning
+attempt failed because the managed runner prohibits privilege escalation and
+package installation. The replacement extracts Ubuntu noble Zsh 5.9-6ubuntu2
+into the job temporary directory after verifying its published SHA256. It checks
+the executable version before exposing it through the job PATH. The extracted
+binary passed all eleven collector and Bash/Zsh fixture regressions on Ubuntu.
+
+The shared collector is now named firecrawl_status.py; every shipped caller
+uses that name. Its summary, warning list and evidence fields have explicit
+types, and malformed command guidance fails before shell execution. Current
+Mypy, repository-configured Pylint and Ruff checks pass. Historical source
+evidence above remains preserved; fresh CI and installed qualification are
+still required.
