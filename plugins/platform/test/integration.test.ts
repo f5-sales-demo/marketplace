@@ -145,7 +145,7 @@ test('shared CE service registration remains available without tools and uses cu
   await expect(service.runtime('native')).rejects.toThrow('Select an F5 context');
   globalThis.fetch = (async () => {
     throw new Error('simulated transport failure');
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   sessionHandler?.(
     {},
     { settings: { get: () => ({ XCSH_API_URL: 'https://example.test', XCSH_API_TOKEN: 'fixture' }) } },
