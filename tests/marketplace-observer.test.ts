@@ -136,6 +136,7 @@ test('reviewed built-in Bash is activated, guarded and journals actual full resu
       expect(
         await handlers.get('tool_call')[0]({
           toolName: 'bash',
+          toolCallId: 'shell',
           input: shellArgs,
         }),
       ).toBeUndefined();
@@ -168,6 +169,41 @@ test('reviewed built-in Bash is activated, guarded and journals actual full resu
       expect(events.find((e) => e.event === 'execution_result').result).toEqual(result);
       await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
       expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([{ id: 'tool-0-bash', tool: 'bash' }]);
+    },
+    prepareShell,
+  );
+});
+
+test('shell admission is consumed once even on failure; blocked and late results never become captures', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const call = handlers.get('tool_call')[0];
+      const start = handlers.get('tool_execution_start')[0];
+      const end = handlers.get('tool_execution_end')[0];
+      const denied = { toolName: 'bash', toolCallId: 'unreviewed', input: { ...shellArgs, timeout: 21 } };
+      expect(call(denied)).toMatchObject({ block: true });
+      const approved = { toolName: 'bash', toolCallId: 'first', input: shellArgs };
+      expect(call(approved)).toBeUndefined();
+      expect(call({ ...approved, toolCallId: 'duplicate' })).toMatchObject({ block: true });
+      const result = { content: [{ type: 'text', text: 'failed collector' }] };
+      start({ toolName: 'bash', toolCallId: 'first', args: shellArgs });
+      end({ toolName: 'bash', toolCallId: 'first', result, isError: true });
+      expect(call({ ...approved, toolCallId: 'retry' })).toMatchObject({ block: true });
+      for (const toolCallId of ['unreviewed', 'duplicate', 'retry', 'never-admitted', 'first']) {
+        start({ toolName: 'bash', toolCallId, args: shellArgs });
+        end({ toolName: 'bash', toolCallId, result, isError: true });
+      }
+      await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([{ id: 'tool-0-bash', tool: 'bash' }]);
+    },
+    prepareShell,
+  );
+  // A fresh observer, with its own private root, may admit the reviewed collector again.
+  await harness(
+    'service',
+    async ({ handlers }) => {
+      expect(handlers.get('tool_call')[0]({ toolName: 'bash', toolCallId: 'fresh', input: shellArgs })).toBeUndefined();
     },
     prepareShell,
   );

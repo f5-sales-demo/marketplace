@@ -133,9 +133,11 @@ an allowlist is a restriction, not authorization for a mutation.
 
 Content collectors may opt into `shellCalls`. Each rule supplies a shipped relative
 `path`, exact Markdown `section` heading, lowercase `sha256` of the complete Bash
-fence body (including its final newline), and exact `args` containing only
+fence body (including its final newline), and exact `args` containing
 `command`, string-valued `env` and `timeout` (greater than zero and at most 120
-seconds). The selected section must contain one unambiguous Bash fence matching
+seconds). An optional `description` must be independently reviewed, nonempty,
+NUL-free and at most 256 characters; it must match exactly at dispatch. Unknown
+arguments remain denied. The selected section must contain one unambiguous Bash fence matching
 both command and digest. Paths cannot escape the installation. Startup verifies
 the source; dispatch rechecks it and denies changed, missing or ambiguous content.
 Every argument and environment value must match the reviewed rule. Review targets
@@ -144,7 +146,10 @@ not infer command safety. Generic `calls` still cannot admit Bash, file writes o
 task/subagent delegation; nested guard propagation remains a separate prerequisite.
 Fixture mode denies Bash even when a matching shell rule exists. Service and
 guidance modes retain its actual full result and capture it with the published
-runtime's built-in `ToolExecutionComponent`.
+runtime's built-in `ToolExecutionComponent`. The observer admits each reviewed
+collector once per fresh scenario session, even if execution fails. Blocked calls,
+unadmitted execution events and late repeated results cannot become Bash captures.
+Retry qualification requires a fresh observer and private capture root.
 
 Service mode observes normal runtime dispatch, tool selection, actual full
 results, reviewed command dispatch, plugin messages and UI dispatch, lifecycle

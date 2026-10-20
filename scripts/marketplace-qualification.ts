@@ -13,7 +13,7 @@ export interface Scenario {
     path: string;
     section: string;
     sha256: string;
-    args: { command: string; env: Record<string, string>; timeout: number };
+    args: { command: string; env: Record<string, string>; timeout: number; description?: string };
   }[];
 }
 export const pluginOrder = [
@@ -186,7 +186,12 @@ export function validateScenario(value: any): Scenario {
           ['\r', '\n', '\x00'].some((character) => rule.section.includes(character)) ||
           !/^[a-f0-9]{64}$/.test(rule.sha256) ||
           !object(rule.args) ||
-          Object.keys(rule.args).some((key) => !['command', 'env', 'timeout'].includes(key)) ||
+          Object.keys(rule.args).some((key) => !['command', 'env', 'timeout', 'description'].includes(key)) ||
+          ('description' in rule.args &&
+            (typeof rule.args.description !== 'string' ||
+              !rule.args.description.trim() ||
+              rule.args.description.length > 256 ||
+              rule.args.description.includes('\x00'))) ||
           typeof rule.args.command !== 'string' ||
           !rule.args.command ||
           rule.args.command.includes('\x00') ||

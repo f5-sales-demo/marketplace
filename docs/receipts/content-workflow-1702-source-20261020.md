@@ -29,3 +29,16 @@ receipts must be recorded independently. Source guidance does not establish
 executed workflow acceptance. Parent task delegation remains blocked pending
 separately proven nested guard propagation; this implementation does not open
 that lane or authorize mutations. Campaign #1579 remains open.
+
+Installed Ubuntu workflow subsequently read both approved guidance files but its
+collector was blocked: the model supplied a description absent from the reviewed
+rule. No collector executed in that failed capture. Its journal remains private.
+Two follow-up regressions failed against the previous source: reviewed description
+admission and repeated collector admission. The repair permits only an explicitly
+reviewed exact description and consumes each shell rule once, including failure.
+Blocked, unadmitted and late repeated Bash results cannot become captures.
+Fresh observer sessions retain independent admission state. Current focused
+scenario, observer, ownership, tracker and inventory checks: 34 pass, zero failures.
+The initial inventory attempt failed because its pinned discovery dependency was
+absent; installation from its unchanged frozen lock restored the check. The Mac
+workflow remains queued at position six and has not been resubmitted.

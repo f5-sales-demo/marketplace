@@ -324,6 +324,32 @@ test('reviewed shell lane binds exact shipped fence, digest, environment and arg
     };
     expect(validateScenario(reviewed)).toEqual(reviewed);
     expect(guardScenarioTool({ toolName: 'bash', input: reviewed.shellCalls[0].args }, reviewed, root)).toBeUndefined();
+    const described = {
+      ...reviewed,
+      shellCalls: [
+        { ...reviewed.shellCalls[0], args: { ...reviewed.shellCalls[0].args, description: 'Inspect once' } },
+      ],
+    };
+    expect(validateScenario(described)).toEqual(described);
+    expect(
+      guardScenarioTool({ toolName: 'bash', input: described.shellCalls[0].args }, described, root),
+    ).toBeUndefined();
+    for (const description of ['', '   ', 1, null, 'x\x00', 'x'.repeat(257)])
+      expect(() =>
+        validateScenario({
+          ...described,
+          shellCalls: [{ ...described.shellCalls[0], args: { ...described.shellCalls[0].args, description } }],
+        }),
+      ).toThrow();
+    for (const input of [
+      reviewed.shellCalls[0].args,
+      { ...described.shellCalls[0].args, description: 'Other' },
+      { ...described.shellCalls[0].args, extra: true },
+    ])
+      expect(guardScenarioTool({ toolName: 'bash', input }, described, root)).toMatchObject({ block: true });
+    expect(guardScenarioTool({ toolName: 'bash', input: described.shellCalls[0].args }, reviewed, root)).toMatchObject({
+      block: true,
+    });
     for (const input of [
       { ...reviewed.shellCalls[0].args, command: `${command}false\n` },
       { ...reviewed.shellCalls[0].args, env: { QUERY: 'other' } },

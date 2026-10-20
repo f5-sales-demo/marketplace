@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rena
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import {
   assertPrivateCaptureRoot,
   guardScenarioTool,
@@ -181,12 +182,22 @@ export default async function observeMarketplaceCampaign(api: any) {
   }
 
   const executions = new Map<string, any>();
-  api.on('tool_execution_start', (event: any) => executions.set(event.toolCallId, event));
+  const consumedShellRules = new Set<number>();
+  const admittedShellCalls = new Map<string, any>();
+  api.on('tool_execution_start', (event: any) => {
+    if (event.toolName === 'bash') {
+      const args = admittedShellCalls.get(event.toolCallId);
+      admittedShellCalls.delete(event.toolCallId);
+      if (!args || !isDeepStrictEqual(args, event.args)) return;
+    }
+    executions.set(event.toolCallId, event);
+  });
   api.on('tool_execution_end', (event: any) => {
     record({ event: 'execution_result', toolName: event.toolName, result: event.result, isError: event.isError });
     const start = executions.get(event.toolCallId);
     if (
       start &&
+      start.toolName === event.toolName &&
       (tools.has(event.toolName) ||
         (event.toolName === 'bash' && !guardScenarioTool({ toolName: 'bash', input: start.args }, scenario, plugin)))
     )
@@ -225,7 +236,25 @@ export default async function observeMarketplaceCampaign(api: any) {
         decision = { block: true, reason: 'Guidance path escaped selected installation' };
       }
     }
-    record({ event: 'tool_call', toolName: event.toolName, input: event.input, blocked: Boolean(decision) });
+    if (!decision && event.toolName === 'bash') {
+      const rule = scenario.shellCalls!.findIndex((item) => isDeepStrictEqual(item.args, event.input));
+      if (typeof event.toolCallId !== 'string' || !event.toolCallId || consumedShellRules.has(rule))
+        decision = {
+          block: true,
+          reason: 'Each reviewed collector may be admitted only once per fresh scenario session.',
+        };
+      else {
+        consumedShellRules.add(rule);
+        admittedShellCalls.set(event.toolCallId, JSON.parse(JSON.stringify(event.input)));
+      }
+    }
+    record({
+      event: 'tool_call',
+      toolName: event.toolName,
+      toolCallId: event.toolCallId,
+      input: event.input,
+      blocked: Boolean(decision),
+    });
     return decision;
   });
   api.on('tool_result', (event: any) =>
