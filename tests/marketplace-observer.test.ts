@@ -196,6 +196,119 @@ test('admitted guidance reads have a separate rendering lane and preserve workfl
   );
 });
 
+test('published runtime start before admission captures exact guidance once', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md'), sel: '', timeout: 20 };
+      const call = { toolName: 'read', toolCallId: 'runtime-order', input };
+      handlers.get('tool_execution_start')[0]({ ...call, args: input });
+      expect(handlers.get('tool_call')[0](call)).toBeUndefined();
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'read',
+        toolCallId: call.toolCallId,
+        result: { content: [{ type: 'text', text: '# Safe identity guidance' }] },
+        isError: false,
+      });
+      await commands.get('marketplace-campaign-guidance-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'))).toHaveLength(1);
+    },
+    prepareGuidance,
+  );
+});
+
+test('published read start materializes omitted optional fields as null', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md') };
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'nullable-read', input })).toBeUndefined();
+      handlers.get('tool_execution_start')[0]({
+        toolName: 'read',
+        toolCallId: 'nullable-read',
+        args: { ...input, sel: null, timeout: null },
+      });
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'read',
+        toolCallId: 'nullable-read',
+        result: { content: [{ type: 'text', text: '# Safe identity guidance' }] },
+        isError: false,
+      });
+      await commands.get('marketplace-campaign-guidance-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'))).toHaveLength(1);
+    },
+    (plugin, path) => {
+      prepareGuidance(plugin, path);
+      const scenario = JSON.parse(readFileSync(path, 'utf8'));
+      delete scenario.guidanceOptions;
+      writeFileSync(path, JSON.stringify(scenario));
+    },
+  );
+});
+
+test('optional read normalization never accepts selectors, timeouts or extra fields', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md') };
+      for (const [index, extra] of [
+        { sel: '1:2', timeout: null },
+        { sel: null, timeout: 20 },
+        { sel: null, timeout: null, offset: 1 },
+      ].entries()) {
+        const toolCallId = `invalid-optional-${index}`;
+        expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId, input })).toBeUndefined();
+        handlers.get('tool_execution_start')[0]({ toolName: 'read', toolCallId, args: { ...input, ...extra } });
+        handlers.get('tool_execution_end')[0]({
+          toolName: 'read',
+          toolCallId,
+          result: { content: [{ type: 'text', text: 'synthetic' }] },
+          isError: false,
+        });
+      }
+      await expect(commands.get('marketplace-campaign-guidance-capture').handler('', {})).rejects.toThrow('No actual');
+    },
+    (plugin, path) => {
+      prepareGuidance(plugin, path);
+      const scenario = JSON.parse(readFileSync(path, 'utf8'));
+      delete scenario.guidanceOptions;
+      writeFileSync(path, JSON.stringify(scenario));
+    },
+  );
+});
+
+test('start-first guidance still rejects mismatch, cancellation, duplicates and unadmitted results', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(root, '..', 'plugin', 'guide.md'), sel: '', timeout: 20 };
+      const start = handlers.get('tool_execution_start')[0];
+      const call = handlers.get('tool_call')[0];
+      const end = handlers.get('tool_execution_end')[0];
+      const result = { content: [{ type: 'text', text: 'synthetic' }] };
+      start({ toolName: 'read', toolCallId: 'unadmitted-first', args: input });
+      end({ toolName: 'read', toolCallId: 'unadmitted-first', result, isError: false });
+      start({ toolName: 'read', toolCallId: 'mismatch-first', args: { ...input, timeout: 21 } });
+      expect(call({ toolName: 'read', toolCallId: 'mismatch-first', input })).toBeUndefined();
+      end({ toolName: 'read', toolCallId: 'mismatch-first', result, isError: false });
+      start({ toolName: 'read', toolCallId: 'cancelled-first', args: input });
+      expect(call({ toolName: 'read', toolCallId: 'cancelled-first', input })).toBeUndefined();
+      handlers.get('agent_end')[0]({}, { hasUI: true });
+      end({ toolName: 'read', toolCallId: 'cancelled-first', result, isError: false });
+      await expect(commands.get('marketplace-campaign-guidance-capture').handler('', {})).rejects.toThrow('No actual');
+      start({ toolName: 'read', toolCallId: 'one-use-first', args: input });
+      expect(call({ toolName: 'read', toolCallId: 'one-use-first', input })).toBeUndefined();
+      end({ toolName: 'read', toolCallId: 'one-use-first', result, isError: false });
+      start({ toolName: 'read', toolCallId: 'one-use-first', args: input });
+      expect(call({ toolName: 'read', toolCallId: 'one-use-first', input })).toMatchObject({ block: true });
+      end({ toolName: 'read', toolCallId: 'one-use-first', result, isError: false });
+      await commands.get('marketplace-campaign-guidance-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'))).toHaveLength(1);
+    },
+    prepareGuidance,
+  );
+});
+
 test('unadmitted, mismatched and repeated late guidance dispatch cannot become evidence', async () => {
   await harness(
     'service',
@@ -285,6 +398,28 @@ test('reviewed built-in Bash is activated, guarded and journals actual full resu
       expect(events.find((e) => e.event === 'execution_result').result).toEqual(result);
       await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
       expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([{ id: 'tool-0-bash', tool: 'bash' }]);
+    },
+    prepareShell,
+  );
+});
+
+test('published runtime start before admission captures a reviewed shell once', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const start = handlers.get('tool_execution_start')[0];
+      const end = handlers.get('tool_execution_end')[0];
+      const call = { toolName: 'bash', toolCallId: 'runtime-shell', input: shellArgs };
+      start({ ...call, args: shellArgs });
+      expect(handlers.get('tool_call')[0](call)).toBeUndefined();
+      const result = { content: [{ type: 'text', text: 'synthetic' }] };
+      end({ ...call, result, isError: false });
+      start({ ...call, args: shellArgs });
+      end({ ...call, result, isError: false });
+      start({ ...call, toolCallId: 'unadmitted-shell', args: shellArgs });
+      end({ ...call, toolCallId: 'unadmitted-shell', result, isError: false });
+      await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toHaveLength(1);
     },
     prepareShell,
   );
