@@ -182,9 +182,23 @@ export default async function observeMarketplaceCampaign(api: any) {
   }
 
   const executions = new Map<string, any>();
+  const guidanceCaptures: any[] = [];
+  const admittedGuidanceCalls = new Map<string, any>();
+  const seenGuidanceCalls = new Set<string>();
   const consumedShellRules = new Set<number>();
   const admittedShellCalls = new Map<string, any>();
   api.on('tool_execution_start', (event: any) => {
+    if (event.toolName === 'read') {
+      const admitted = admittedGuidanceCalls.get(event.toolCallId);
+      admittedGuidanceCalls.delete(event.toolCallId);
+      if (!admitted || !isDeepStrictEqual(admitted.args, event.args)) return;
+      executions.set(event.toolCallId, {
+        ...event,
+        guidancePath: admitted.path,
+        guidanceSha256: admitted.sha256,
+      });
+      return;
+    }
     if (event.toolName === 'bash') {
       const args = admittedShellCalls.get(event.toolCallId);
       admittedShellCalls.delete(event.toolCallId);
@@ -195,6 +209,15 @@ export default async function observeMarketplaceCampaign(api: any) {
   api.on('tool_execution_end', (event: any) => {
     record({ event: 'execution_result', toolName: event.toolName, result: event.result, isError: event.isError });
     const start = executions.get(event.toolCallId);
+    if (start?.toolName === 'read' && event.toolName === 'read')
+      guidanceCaptures.push({
+        id: `guidance-${guidanceCaptures.length}-read`,
+        tool: 'read',
+        args: start.args,
+        result: { ...event.result, isError: event.isError },
+        guidancePath: start.guidancePath,
+        guidanceSha256: start.guidanceSha256,
+      });
     if (
       start &&
       start.toolName === event.toolName &&
@@ -234,6 +257,18 @@ export default async function observeMarketplaceCampaign(api: any) {
         if (!guidance.includes(path)) decision = { block: true, reason: 'Guidance path changed after admission' };
       } catch {
         decision = { block: true, reason: 'Guidance path escaped selected installation' };
+      }
+      if (!decision) {
+        if (typeof event.toolCallId !== 'string' || !event.toolCallId || seenGuidanceCalls.has(event.toolCallId))
+          decision = { block: true, reason: 'Guidance requires a fresh dispatch identity.' };
+        else {
+          seenGuidanceCalls.add(event.toolCallId);
+          admittedGuidanceCalls.set(event.toolCallId, {
+            args: JSON.parse(JSON.stringify(event.input)),
+            path: relative(plugin, event.input.path),
+            sha256: createHash('sha256').update(readFileSync(event.input.path)).digest('hex'),
+          });
+        }
       }
     }
     if (!decision && event.toolName === 'bash') {
@@ -278,124 +313,171 @@ export default async function observeMarketplaceCampaign(api: any) {
         captures.push({ id: `message-${captures.length}`, message: event.message });
     }
   });
+  let sessionClosed = false;
+  const closeCaptures = new Set<() => void>();
   for (const name of ['agent_start', 'agent_end', 'session_shutdown'])
-    api.on(name, (_event: any, ctx: any) => record({ event: name, hasUI: ctx.hasUI }));
+    api.on(name, (_event: any, ctx: any) => {
+      if (name === 'session_shutdown') {
+        sessionClosed = true;
+        for (const close of closeCaptures) close();
+      }
+      if (name !== 'agent_start') {
+        admittedGuidanceCalls.clear();
+        admittedShellCalls.clear();
+        executions.clear();
+      }
+      record({ event: name, hasUI: ctx.hasUI });
+    });
+  const captureItems = async (items: any[], captureRoot: string, evidenceTier: string, ctx: any) => {
+    if (sessionClosed) throw new Error('Qualification session is closed');
+    if (!items.length) throw new Error('No actual workflow or fixture results to capture');
+    if (existsSync(join(captureRoot, 'cases.json'))) throw new Error('Preserve prior captures; use a fresh root');
+    mkdirSync(captureRoot, { recursive: true, mode: 0o700 });
+    assertPrivateCaptureRoot(captureRoot);
+    record({ event: 'capture_started', count: items.length, evidenceTier });
+    writeFileSync(
+      join(captureRoot, 'cases.json'),
+      JSON.stringify(
+        items.map(({ id, tool, guidancePath, guidanceSha256 }) => ({
+          id,
+          tool: tool ?? 'assistant',
+          ...(guidancePath ? { guidancePath, guidanceSha256 } : {}),
+        })),
+      ),
+      { mode: 0o600 },
+    );
+    writeFileSync(
+      join(captureRoot, 'ready.json'),
+      JSON.stringify({
+        terminalColumns: process.stdout.columns,
+        terminalRows: process.stdout.rows,
+        ...provenance,
+        evidenceTier,
+      }),
+      { mode: 0o600 },
+    );
+    mkdirSync(join(captureRoot, 'frames'), { mode: 0o700, recursive: true });
+    await ctx.ui.custom<void>((tui: any, _theme: any, _keys: any, done: any) => {
+      if (sessionClosed) throw new Error('Qualification session is closed');
+      let lastControl = '';
+      let lines: string[] = [];
+      let busy = false;
+      const components = new Map<string, any>();
+      let closed = false;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (timer) clearInterval(timer);
+        closeCaptures.delete(close);
+        record({ event: 'capture_closed', evidenceTier });
+        done();
+      };
+      closeCaptures.add(close);
+      const processControl = async () => {
+        if (closed || sessionClosed || busy || !existsSync(join(captureRoot, 'control.json'))) return;
+        const source = readFileSync(join(captureRoot, 'control.json'), 'utf8');
+        if (source === lastControl) return;
+        busy = true;
+        lastControl = source;
+        try {
+          const control = JSON.parse(source);
+          if (control.action === 'finish') {
+            close();
+            return;
+          }
+          const item = items.find((value) => value.id === control.case);
+          if (
+            !control ||
+            !item ||
+            typeof control.id !== 'string' ||
+            control.id.length > 200 ||
+            (control.scroll !== undefined && (!Number.isSafeInteger(control.scroll) || control.scroll < 0)) ||
+            !/^[\w.-]+$/.test(control.id) ||
+            typeof control.expanded !== 'boolean' ||
+            ![40, 76, 120, 153].includes(control.width) ||
+            !['xcsh-dark', 'xcsh-light'].includes(control.theme) ||
+            !['unicode', 'ascii', 'nerd'].includes(control.preset)
+          )
+            throw new Error('Invalid private capture control');
+          await api.pi.setSymbolPreset(control.preset);
+          if (closed || sessionClosed) return;
+          const appearance = await ctx.ui.setTheme(control.theme);
+          if (closed || sessionClosed) return;
+          if (!appearance.success) throw new Error('Appearance switch failed');
+          let component = components.get(item.id);
+          if (!component) {
+            component = item.message
+              ? new api.pi.AssistantMessageComponent(item.message, true)
+              : new api.pi.ToolExecutionComponent(item.tool, item.args, {}, tools.get(item.tool), tui, process.cwd());
+            if (item.result) {
+              component.setArgsComplete();
+              component.updateResult(item.result, false);
+            }
+            components.set(item.id, component);
+          }
+          component.setExpanded?.(control.expanded === true);
+          component.stopAnimation?.();
+          component.invalidate();
+          const rendered = component.render(control.width);
+          if (
+            /SYNTHETIC_SECRET_SENTINEL|00D[A-Za-z0-9]{12,15}![A-Za-z0-9._-]{35,}/.test(
+              Bun.stripANSI(rendered.join('\n')),
+            )
+          )
+            throw new Error('Unsafe credential material in evidence');
+          const capacity = Math.max(1, (process.stdout.rows ?? 45) - 2);
+          const offset = Math.min(Math.max(0, control.scroll ?? 0), Math.max(0, rendered.length - capacity));
+          lines = rendered.slice(offset, offset + capacity);
+          writeFileSync(
+            join(captureRoot, 'frames', `${control.id}.json`),
+            JSON.stringify({
+              ...control,
+              tool: item.tool,
+              resultIsError: Boolean(item.result?.isError),
+              lines: control.scroll === undefined ? rendered : lines,
+              viewport: { rows: lines, offset, totalLines: rendered.length, capacity },
+              terminalColumns: process.stdout.columns,
+              terminalRows: process.stdout.rows,
+              ...provenance,
+              evidenceTier,
+            }),
+            { mode: 0o600 },
+          );
+          tui.requestRender();
+          writeFileSync(join(captureRoot, 'ack.tmp'), JSON.stringify({ id: control.id }), { mode: 0o600 });
+          renameSync(join(captureRoot, 'ack.tmp'), join(captureRoot, 'ack.json'));
+        } finally {
+          busy = false;
+        }
+      };
+      timer = setInterval(() => {
+        void processControl().catch((error) => {
+          if (closed || sessionClosed) return;
+          record({ event: 'capture_error', message: String(error) });
+          writeFileSync(join(captureRoot, 'error.json'), JSON.stringify({ message: String(error) }), { mode: 0o600 });
+          close();
+        });
+      }, 40);
+      return {
+        render: () => lines,
+        invalidate() {},
+        handleInput(input: string) {
+          if (input === '\u001b') {
+            close();
+          }
+        },
+      };
+    });
+  };
   api.registerCommand('marketplace-campaign-capture', {
     description: 'Capture actual workflow responses',
-    handler: async (_args: string, ctx: any) => {
-      if (!captures.length) throw new Error('No actual workflow or fixture results to capture');
-      record({ event: 'capture_started', count: captures.length });
-      writeFileSync(
-        join(root, 'cases.json'),
-        JSON.stringify(captures.map(({ id, tool }) => ({ id, tool: tool ?? 'assistant' }))),
-        { mode: 0o600 },
-      );
-      writeFileSync(
-        join(root, 'ready.json'),
-        JSON.stringify({
-          terminalColumns: process.stdout.columns,
-          terminalRows: process.stdout.rows,
-          ...provenance,
-        }),
-        { mode: 0o600 },
-      );
-      mkdirSync(join(root, 'frames'), { mode: 0o700, recursive: true });
-      await ctx.ui.custom<void>((tui: any, _theme: any, _keys: any, done: any) => {
-        let lastControl = '';
-        let lines: string[] = [];
-        let busy = false;
-        const components = new Map<string, any>();
-        const processControl = async () => {
-          if (busy || !existsSync(join(root, 'control.json'))) return;
-          const source = readFileSync(join(root, 'control.json'), 'utf8');
-          if (source === lastControl) return;
-          busy = true;
-          lastControl = source;
-          try {
-            const control = JSON.parse(source);
-            if (control.action === 'finish') {
-              clearInterval(timer);
-              done();
-              return;
-            }
-            const item = captures.find((value) => value.id === control.case);
-            if (
-              !item ||
-              typeof control.id !== 'string' ||
-              !/^[\w.-]+$/.test(control.id) ||
-              typeof control.expanded !== 'boolean' ||
-              ![40, 76, 120, 153].includes(control.width) ||
-              !['xcsh-dark', 'xcsh-light'].includes(control.theme) ||
-              !['unicode', 'ascii', 'nerd'].includes(control.preset)
-            )
-              throw new Error('Invalid private capture control');
-            await api.pi.setSymbolPreset(control.preset);
-            if (!(await ctx.ui.setTheme(control.theme)).success) throw new Error('Appearance switch failed');
-            let component = components.get(item.id);
-            if (!component) {
-              component = item.message
-                ? new api.pi.AssistantMessageComponent(item.message, true)
-                : new api.pi.ToolExecutionComponent(item.tool, item.args, {}, tools.get(item.tool), tui, process.cwd());
-              if (item.result) {
-                component.setArgsComplete();
-                component.updateResult(item.result, false);
-              }
-              components.set(item.id, component);
-            }
-            component.setExpanded?.(control.expanded === true);
-            component.stopAnimation?.();
-            component.invalidate();
-            const rendered = component.render(control.width);
-            if (
-              /SYNTHETIC_SECRET_SENTINEL|00D[A-Za-z0-9]{12,15}![A-Za-z0-9._-]{35,}/.test(
-                Bun.stripANSI(rendered.join('\n')),
-              )
-            )
-              throw new Error('Unsafe credential material in evidence');
-            const capacity = Math.max(1, (process.stdout.rows ?? 45) - 2);
-            const offset = Math.min(Math.max(0, control.scroll ?? 0), Math.max(0, rendered.length - capacity));
-            lines = rendered.slice(offset, offset + capacity);
-            writeFileSync(
-              join(root, 'frames', `${control.id}.json`),
-              JSON.stringify({
-                ...control,
-                tool: item.tool,
-                resultIsError: Boolean(item.result?.isError),
-                lines: control.scroll === undefined ? rendered : lines,
-                viewport: { rows: lines, offset, totalLines: rendered.length, capacity },
-                terminalColumns: process.stdout.columns,
-                terminalRows: process.stdout.rows,
-                ...provenance,
-              }),
-              { mode: 0o600 },
-            );
-            tui.requestRender();
-            writeFileSync(join(root, 'ack.tmp'), JSON.stringify({ id: control.id }), { mode: 0o600 });
-            renameSync(join(root, 'ack.tmp'), join(root, 'ack.json'));
-          } finally {
-            busy = false;
-          }
-        };
-        const timer = setInterval(() => {
-          void processControl().catch((error) => {
-            record({ event: 'capture_error', message: String(error) });
-            writeFileSync(join(root, 'error.json'), JSON.stringify({ message: String(error) }), { mode: 0o600 });
-            clearInterval(timer);
-            done();
-          });
-        }, 40);
-        return {
-          render: () => lines,
-          invalidate() {},
-          handleInput(input: string) {
-            if (input === '\u001b') {
-              clearInterval(timer);
-              done();
-            }
-          },
-        };
-      });
-    },
+    handler: async (_args: string, ctx: any) => captureItems(captures, root, provenance.evidenceTier, ctx),
+  });
+  api.registerCommand('marketplace-campaign-guidance-capture', {
+    description: 'Capture admitted shipped guidance separately from executed results',
+    handler: async (_args: string, ctx: any) =>
+      captureItems(guidanceCaptures, join(root, 'guidance'), 'installed-shipped-guidance-rendering', ctx),
   });
   api.registerCommand('marketplace-campaign-exit', {
     description: 'End private acceptance',

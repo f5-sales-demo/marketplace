@@ -74,9 +74,15 @@ const factory = async (pi: ExtensionApi) => {
       verification: [{ argv: ['bun', '--version'], timeoutMs: 30_000 }],
     },
     async probe() {
-      return Bun.spawnSync(['bun', '--version']).exitCode === 0
-        ? { state: 'ready' }
-        : { state: 'setup_required', reason: 'dependency_missing' };
+      try {
+        return Bun.spawnSync(['bun', '--version']).exitCode === 0
+          ? { state: 'ready' }
+          : { state: 'setup_required', reason: 'dependency_missing' };
+      } catch (error) {
+        if ((error as { code?: string } | null)?.code === 'ENOENT')
+          return { state: 'setup_required', reason: 'dependency_missing' };
+        throw error;
+      }
     },
   });
   // xcsh supplies TypeBox at runtime; this avoids a runtime dependency import.
