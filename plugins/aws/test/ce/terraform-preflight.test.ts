@@ -118,3 +118,53 @@ test('preflight rejects drift and missing evidence for referenced TGW resources'
   };
   expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
 });
+
+test('preflight retains independently observed direct route tables and rejects drift or missing references', () => {
+  const f = fixture();
+  const plan = {
+    ...f.plan,
+    intent: {
+      ...f.plan.intent,
+      routing: { profile: 'direct-eni' },
+      routes: [{ routeTableId: 'rtb-12345678', destinationCidr: '192.0.2.0/24', node: 1 }],
+      brownfield: { routeTableIds: ['rtb-12345678'] },
+    },
+  } as AwsCePlan;
+  const baseline = {
+    ...f.baseline,
+    resources: [
+      {
+        id: 'rtb-12345678',
+        region: 'ca-west-1',
+        exists: true,
+        owned: false,
+        tags: {},
+        state: {
+          RouteTables: [
+            {
+              RouteTableId: 'rtb-12345678',
+              OwnerId: plan.accountId,
+              VpcId: 'vpc-12345678',
+              Associations: [],
+              Routes: [
+                {
+                  DestinationCidrBlock: '192.0.2.0/24',
+                  GatewayId: 'igw-12345678',
+                  Origin: 'CreateRoute',
+                  State: 'active',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  } as unknown as AwsCeObservation;
+  expect(() => assertAwsTerraformPreflight(plan, baseline, structuredClone(baseline))).not.toThrow();
+  expect(() => assertAwsTerraformPreflight(plan, baseline, { ...baseline, resources: [] })).toThrow('reference');
+  const changed = structuredClone(baseline);
+  changed.resources[0].state = {};
+  expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
+  const duplicate = { ...baseline, resources: [baseline.resources[0], baseline.resources[0]] };
+  expect(() => assertAwsTerraformPreflight(plan, baseline, duplicate)).toThrow('reference');
+});

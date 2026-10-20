@@ -12059,13 +12059,30 @@ function assertAwsTerraformPreflight(plan, baseline, current) {
       after.length !== references.length ||
       after.some((item) => !item.exists || item.region !== plan.region) ||
       canonicalSha256(resourceConfiguration(before)) !==
-        canonicalSha256(resourceConfiguration(ownedRoutingAdditions(plan, before, after, current.resources)))
+        canonicalSha256(
+          resourceConfiguration(
+            plan.intent.routing.profile === 'tgw-connect'
+              ? ownedRoutingAdditions(plan, before, after, current.resources)
+              : after,
+          ),
+        )
     )
       throw new Error('Terraform routing reference configuration changed');
   }
 }
 function terraformRoutingReferences(plan) {
   const routing = plan.intent.routing;
+  if (routing?.profile === 'direct-eni') {
+    const routes = plan.intent.routes;
+    const selected = plan.intent.brownfield?.routeTableIds;
+    if (
+      !Array.isArray(routes) ||
+      !Array.isArray(selected) ||
+      routes.some((route) => !/^rtb-[a-f0-9]{8,17}$/.test(route.routeTableId) || !selected.includes(route.routeTableId))
+    )
+      throw new Error('Terraform direct route reference identity is unresolved');
+    return [...new Set(routes.map((route) => route.routeTableId))].sort();
+  }
   return ['tgw-connect', 'tgw-static'].includes(routing?.profile)
     ? [
         ...new Set(
