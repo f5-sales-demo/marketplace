@@ -2,6 +2,7 @@
 # ruff: noqa: INP001, PT027
 # unittest is the repository standalone runner; keep it dependency-free.
 import gzip
+import hashlib
 import importlib.util
 import json
 import os
@@ -26,6 +27,99 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_capture_retirement_requires_shutdown_and_matching_server(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "manifest.json").write_text(json.dumps({"completed": False}))
+            with (
+                patch.object(starter.subprocess, "check_output") as command,
+                self.assertRaises(ValueError),
+            ):
+                starter.retire_owned_capture(root)
+            command.assert_not_called()
+            (root / "manifest.json").write_text(
+                json.dumps({"completed": True, "lifecycle": []})
+            )
+            with self.assertRaises(ValueError):
+                starter.retire_owned_capture(root)
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {"completed": True, "lifecycle": [{"event": "session_shutdown"}]}
+                )
+            )
+            (root / "owned-pane.json").write_text(
+                json.dumps(
+                    {
+                        "pane": "owned",
+                        "originalPane": "user",
+                        "workspace": "workspace",
+                        "serverBinding": "wrong",
+                    }
+                )
+            )
+            with (
+                patch.object(
+                    starter.subprocess,
+                    "check_output",
+                    return_value=json.dumps({"socket": "socket", "protocol": 27}),
+                ),
+                self.assertRaises(ValueError),
+            ):
+                starter.retire_owned_capture(root)
+
+    def test_capture_retirement_accepts_only_confirmed_owned_pane_absence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {"completed": True, "lifecycle": [{"event": "session_shutdown"}]}
+                )
+            )
+            (root / "owned-pane.json").write_text(
+                json.dumps(
+                    {
+                        "pane": "owned",
+                        "originalPane": "user",
+                        "workspace": "workspace",
+                        "serverBinding": hashlib.sha256(b"socket27").hexdigest(),
+                    }
+                )
+            )
+            server = json.dumps({"socket": "socket", "protocol": 27})
+            inventory = json.dumps({"result": {"panes": [{"pane_id": "user"}]}})
+            with (
+                patch.object(
+                    starter.subprocess, "check_output", side_effect=[server, inventory]
+                ) as command,
+                patch.object(starter.subprocess, "run") as close,
+            ):
+                assert starter.retire_owned_capture(root) == {
+                    "pane": "owned",
+                    "alreadyRetired": True,
+                }
+                assert command.call_args_list[-1].args[0] == [
+                    "herdr",
+                    "pane",
+                    "list",
+                    "--workspace",
+                    "workspace",
+                ]
+                close.assert_not_called()
+            inventory = json.dumps(
+                {"result": {"panes": [{"pane_id": "owned"}, {"pane_id": "user"}]}}
+            )
+            with (
+                patch.object(
+                    starter.subprocess, "check_output", side_effect=[server, inventory]
+                ),
+                patch.object(starter.subprocess, "run") as close,
+            ):
+                assert starter.retire_owned_capture(root) == {
+                    "pane": "owned",
+                    "alreadyRetired": False,
+                }
+                assert close.call_args.args[0] == ["herdr", "pane", "close", "owned"]
+
     def test_model_argv_requires_the_complete_executed_arguments(self):
         campaign_spec = importlib.util.spec_from_file_location(
             "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
