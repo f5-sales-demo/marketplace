@@ -132,7 +132,9 @@ export function isMutating(args: string[]): boolean {
 // Default to JSON for machine-readable output, but respect a caller-supplied
 // --output / -o so `-o table` and `-o tsv` work instead of being overridden.
 export function buildAzArgs(args: string[]): string[] {
-  const hasOutput = args.some((a) => a === '--output' || a === '-o');
+  const hasOutput = args.some(
+    (a) => a === '--output' || a === '-o' || a.startsWith('--output=') || a.startsWith('-o='),
+  );
   return hasOutput ? [...args] : [...args, '--output', 'json'];
 }
 

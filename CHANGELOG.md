@@ -10,6 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.6.1 shows subscription identity, twelve-row resource previews, pagination and Customer Edge summaries through shared rendering; declares exact CLI argv and preserves output flags, tag filters, help cancellation and safe expanded evidence. CE status preserves unknown F5 health and unavailable Azure read coverage (#1677).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
