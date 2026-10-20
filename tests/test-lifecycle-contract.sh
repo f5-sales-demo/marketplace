@@ -15,7 +15,7 @@ if (catalog.plugins.some((plugin) => Object.hasOwn(plugin, 'prerequisites'))) {
   throw new Error('marketplace catalog contains legacy executable prerequisites');
 }
 const expected = new Set([
-  'asm-migration', 'aws', 'azure', 'cloudstatus', 'devcontainer', 'firecrawl', 'gcloud', 'github',
+  'asm-migration', 'aws', 'azure', 'cloudstatus', 'firecrawl', 'gcloud', 'github',
   'gitlab', 'kvm', 'platform', 'salesforce', 'terraform', 'herdr',
 ]);
 const manifests = new Map();

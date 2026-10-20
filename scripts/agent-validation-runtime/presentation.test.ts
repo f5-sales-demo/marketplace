@@ -25,11 +25,11 @@ describe('full marketplace presentation through installed-plugin discovery', () 
     process.env.PATH = originalPath;
     if (home) await rm(home, { recursive: true, force: true });
   });
-  test('all 23 catalog plugins load through the published runtime and preserve presentation data', async () => {
+  test('all 22 catalog plugins load through the published runtime and preserve presentation data', async () => {
     home = await mkdtemp(join(tmpdir(), 'xcsh-plugin-view-'));
     await mkdir(join(home, '.xcsh', 'plugins'), { recursive: true });
     const catalog = await Bun.file(join(root, '.xcsh-plugin', 'marketplace.json')).json();
-    expect(catalog.plugins).toHaveLength(23);
+    expect(catalog.plugins).toHaveLength(22);
     const plugins = Object.fromEntries(
       catalog.plugins.map((plugin: { name: string; source: string; version: string }) => [
         `${plugin.name}@fixture`,

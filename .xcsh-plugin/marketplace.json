@@ -141,30 +141,6 @@
       }
     },
     {
-      "name": "devcontainer",
-      "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-      "version": "1.4.0",
-      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
-      "license": "Apache-2.0",
-      "author": {
-        "name": "f5-sales-demo"
-      },
-      "minimumRuntimeVersion": "23.5.1",
-      "source": "./plugins/devcontainer",
-      "category": "productivity",
-      "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
-      "tags": ["devcontainer", "tools", "catalog", "f5xc"],
-      "repository": "https://github.com/f5-sales-demo/marketplace",
-      "lifecycle": {
-        "mode": "integrated",
-        "integrations": ["devcontainer"],
-        "requirements": ["A supported development container runtime"],
-        "setupRequired": false,
-        "collectedData": [],
-        "pluginDependencies": []
-      }
-    },
-    {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
       "version": "7.0.0-uat.48",

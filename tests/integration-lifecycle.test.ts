@@ -143,7 +143,6 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
   const entrypoint =
     {
       cloudstatus: 'extensions/regional-edge-advisories.ts',
-      devcontainer: 'extensions/integration.ts',
       firecrawl: 'extensions/integration.ts',
       ghostty: 'extensions/integration.ts',
       herdr: 'extensions/integration.ts',
@@ -1173,7 +1172,6 @@ describe('provider integration lifecycle', () => {
       ['aws', ['aws']],
       ['azure', ['azure']],
       ['cloudstatus', ['cloudstatus']],
-      ['devcontainer', ['devcontainer']],
       ['firecrawl', ['firecrawl']],
       ['gcloud', ['gcloud']],
       ['github', ['github', 'github_email']],
