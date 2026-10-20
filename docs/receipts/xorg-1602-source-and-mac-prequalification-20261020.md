@@ -29,7 +29,10 @@ supported Ubuntu Xorg service. Raw outputs and failed attempts remain private.
 
 Tracker reconciliation preserves discovery 23.8.0, 22 plugins, 314 surfaces and
 2,670 tasks, historical receipts and Salesforce qualification. Xorg and shared
-fingerprints require current evidence. Minimum-runtime, full-suite, publication,
+fingerprints require current evidence. Published minimum-runtime 23.5.1 registry
+and presentation API checks passed without subprocesses; its command section
+uses executable text rather than the newer argv metadata. Full-loader and
+installed minimum-runtime acceptance remain pending. Full-suite, publication,
 immutable artifact, installed matrix and safe service workflow gates remain
 pending. The next action is a green linked PR through Ubuntu, independent
 publication verification, then supported-host installed lifecycle and restricted
