@@ -964,3 +964,14 @@ test('exact no-change journal permits actual state inspection without submitting
   });
   expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
 });
+
+for (const importing of [{ id: 'rtb-12345678_192.0.2.0/24' }, { identity: { id: 'rtb-12345678' } }])
+  test('rejects state import hidden behind a no-op resource action', async () => {
+    const { runner } = await fixture({
+      resource_changes: [
+        { address: 'aws_route.service', type: 'aws_route', change: { actions: ['no-op'], importing } },
+      ],
+      output_changes: {},
+    });
+    await expect(runner.plan({})).rejects.toThrow('state import');
+  });

@@ -689,7 +689,10 @@ export class TerraformRunner {
       const changes: PlanReceipt['changes'] = [];
       for (const value of (plan.resource_changes ?? []) as unknown[]) {
         const resource = object(value);
-        const actions = changeActions(object(resource.change).actions);
+        const change = object(resource.change);
+        if (change.importing !== undefined && change.importing !== null)
+          throw new Error('Terraform state import requires a separately qualified ownership contract');
+        const actions = changeActions(change.actions);
         if (
           typeof resource.address !== 'string' ||
           typeof resource.type !== 'string' ||
