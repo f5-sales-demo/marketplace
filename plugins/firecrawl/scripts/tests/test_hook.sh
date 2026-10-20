@@ -45,12 +45,12 @@ test_hook_command_syntax() {
   }
 }
 
-# T2.13 — hook command references localhost:3002
+# T2.13 — hook executes the same configured identity collector as setup/status
 test_hook_references_firecrawl_endpoint() {
   local cmd
   cmd=$(_get_hook_command)
-  echo "$cmd" | grep -q 'localhost:3002' || {
-    echo "hook command should reference localhost:3002"
+  echo "$cmd" | grep -q 'firecrawl_status.py' || {
+    echo "hook command should use the shipped status collector"
     return 1
   }
 }

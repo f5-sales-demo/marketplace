@@ -4,13 +4,15 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/benchmarks" "$WORK/bin" "$WORK/logs"
-for plugin in aws platform; do
+for plugin in aws platform firecrawl; do
   mkdir -p "$WORK/repo/plugins/$plugin/.xcsh-plugin" "$WORK/repo/plugins/$plugin/node_modules"
   cp "$ROOT/plugins/$plugin/package.json" "$WORK/repo/plugins/$plugin/package.json"
   cp "$ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$WORK/repo/plugins/$plugin/.xcsh-plugin/plugin.json"
   printf 'original lock\n' >"$WORK/repo/plugins/$plugin/bun.lock"
   printf 'preserve original graph\n' >"$WORK/repo/plugins/$plugin/node_modules/sentinel"
 done
+mkdir -p "$WORK/repo/scripts/agent-validation-runtime"
+cp "$ROOT/scripts/agent-validation-runtime/package.json" "$ROOT/scripts/agent-validation-runtime/firecrawl-workflows.test.ts" "$WORK/repo/scripts/agent-validation-runtime/"
 cat >"$WORK/bin/bun" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -21,11 +23,11 @@ install)
   [ ! -e bun.lock ]
   [ "${2:-}" = --ignore-scripts ]
   mkdir -p node_modules/@f5-sales-demo/xcsh
-  jq '{version: .devDependencies["@f5-sales-demo/xcsh"]}' package.json >node_modules/@f5-sales-demo/xcsh/package.json
+  jq '{version: (.devDependencies["@f5-sales-demo/xcsh"] // .dependencies["@f5-sales-demo/xcsh"])}' package.json >node_modules/@f5-sales-demo/xcsh/package.json
   ;;
 test)
   for cli in aws az gcloud gh glab sf; do ! command -v "$cli" >/dev/null; done
-  [ "$(jq -er '.devDependencies["@f5-sales-demo/xcsh"]' package.json)" = "$EXPECTED_MINIMUM" ]
+  [ "$(jq -er '(.devDependencies["@f5-sales-demo/xcsh"] // .dependencies["@f5-sales-demo/xcsh"])' package.json)" = "$EXPECTED_MINIMUM" ]
   touch "$TEST_MARKER"
   exit "${MOCK_TEST_EXIT:-0}"
   ;;
@@ -45,7 +47,7 @@ shutil.copytree(sys.argv[-2], sys.argv[-1], dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns('node_modules', '.git'))
 MOCK
 chmod +x "$WORK/bin/rsync"
-for plugin in aws platform; do
+for plugin in aws platform firecrawl; do
   export ORIGINAL_PLUGIN="$WORK/repo/plugins/$plugin"
   export EXPECTED_MINIMUM
   EXPECTED_MINIMUM=$(jq -er '.minimumRuntimeVersion' "$ORIGINAL_PLUGIN/.xcsh-plugin/plugin.json")

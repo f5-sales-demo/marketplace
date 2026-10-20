@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 interface ExtensionApi {
   integrations: { register<T>(definition: unknown): unknown };
 }
@@ -13,13 +15,37 @@ export default function firecrawlIntegration(pi: ExtensionApi) {
       requiredEnvironment: [],
       profileFields: [],
       steps: [],
-      verification: [{ argv: ['curl', '--fail', '--silent', 'http://127.0.0.1:3002/'], timeoutMs: 30_000 }],
+      verification: [
+        {
+          argv: ['python3', fileURLToPath(new URL('../scripts/firecrawl_status.py', import.meta.url)), '--check'],
+          timeoutMs: 15_000,
+        },
+      ],
     },
     async probe() {
-      const url = process.env.FIRECRAWL_API_URL ?? 'http://127.0.0.1:3002/';
+      let url: URL;
       try {
-        const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-        return response.ok ? { state: 'ready' } : { state: 'setup_required', reason: 'invalid_response' };
+        url = new URL(process.env.FIRECRAWL_API_URL ?? 'http://127.0.0.1:3002/');
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash)
+          throw new Error('Invalid endpoint');
+        url.pathname = `${url.pathname.replace(/\/+$/, '')}/`;
+      } catch {
+        return { state: 'setup_required', reason: 'invalid_configuration' };
+      }
+      try {
+        const response = await fetch(url.toString(), {
+          signal: AbortSignal.timeout(5_000),
+          redirect: 'error',
+        });
+        if (!response.ok) return { state: 'setup_required', reason: 'invalid_response' };
+        try {
+          const body = await response.json();
+          return body?.message === 'Firecrawl API' && body?.documentation_url === 'https://docs.firecrawl.dev'
+            ? { state: 'ready' }
+            : { state: 'setup_required', reason: 'invalid_response' };
+        } catch {
+          return { state: 'setup_required', reason: 'invalid_response' };
+        }
       } catch {
         return { state: 'setup_required', reason: 'network' };
       }
