@@ -78,5 +78,440 @@
     "reason": "Private Salesforce progress hook removed; the shared runtime owns animation and cleanup.",
     "removalSha": "45b9062d916c42e4b9368fa8066ee720f4bd2210",
     "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1618"
+  },
+  "devcontainer.agent.container-introspector.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-introspector.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.container-maintainer.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-advisor.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.agent.tool-auditor.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.command.devcontainer-status.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.hook.SessionStart.0.0.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.integration.devcontainer.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.lifecycle.status.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.self-awareness.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.capture": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.defaults": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.layout": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.outcomes": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.fidelity": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.expansion": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.live": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.skill.tool-catalog.acceptance": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.adapter": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.checks": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.merge": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.artifact": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.hosts": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.service": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
+  },
+  "devcontainer.delivery.cleanup": {
+    "reason": "Deprecated Devcontainer plugin removed at the users request; preserve historical qualification and receipts.",
+    "removalSha": "fd70eb54f3685036da3fc8fec9d8dd1834a3478d",
+    "delivery": "https://github.com/f5-sales-demo/marketplace/issues/1707"
   }
 }
