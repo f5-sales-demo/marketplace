@@ -313,8 +313,14 @@ export default async function observeMarketplaceCampaign(api: any) {
         captures.push({ id: `message-${captures.length}`, message: event.message });
     }
   });
+  let sessionClosed = false;
+  const closeCaptures = new Set<() => void>();
   for (const name of ['agent_start', 'agent_end', 'session_shutdown'])
     api.on(name, (_event: any, ctx: any) => {
+      if (name === 'session_shutdown') {
+        sessionClosed = true;
+        for (const close of closeCaptures) close();
+      }
       if (name !== 'agent_start') {
         admittedGuidanceCalls.clear();
         admittedShellCalls.clear();
@@ -323,6 +329,7 @@ export default async function observeMarketplaceCampaign(api: any) {
       record({ event: name, hasUI: ctx.hasUI });
     });
   const captureItems = async (items: any[], captureRoot: string, evidenceTier: string, ctx: any) => {
+    if (sessionClosed) throw new Error('Qualification session is closed');
     if (!items.length) throw new Error('No actual workflow or fixture results to capture');
     if (existsSync(join(captureRoot, 'cases.json'))) throw new Error('Preserve prior captures; use a fresh root');
     mkdirSync(captureRoot, { recursive: true, mode: 0o700 });
@@ -351,12 +358,24 @@ export default async function observeMarketplaceCampaign(api: any) {
     );
     mkdirSync(join(captureRoot, 'frames'), { mode: 0o700, recursive: true });
     await ctx.ui.custom<void>((tui: any, _theme: any, _keys: any, done: any) => {
+      if (sessionClosed) throw new Error('Qualification session is closed');
       let lastControl = '';
       let lines: string[] = [];
       let busy = false;
       const components = new Map<string, any>();
+      let closed = false;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (timer) clearInterval(timer);
+        closeCaptures.delete(close);
+        record({ event: 'capture_closed', evidenceTier });
+        done();
+      };
+      closeCaptures.add(close);
       const processControl = async () => {
-        if (busy || !existsSync(join(captureRoot, 'control.json'))) return;
+        if (closed || sessionClosed || busy || !existsSync(join(captureRoot, 'control.json'))) return;
         const source = readFileSync(join(captureRoot, 'control.json'), 'utf8');
         if (source === lastControl) return;
         busy = true;
@@ -364,14 +383,16 @@ export default async function observeMarketplaceCampaign(api: any) {
         try {
           const control = JSON.parse(source);
           if (control.action === 'finish') {
-            clearInterval(timer);
-            done();
+            close();
             return;
           }
           const item = items.find((value) => value.id === control.case);
           if (
+            !control ||
             !item ||
             typeof control.id !== 'string' ||
+            control.id.length > 200 ||
+            (control.scroll !== undefined && (!Number.isSafeInteger(control.scroll) || control.scroll < 0)) ||
             !/^[\w.-]+$/.test(control.id) ||
             typeof control.expanded !== 'boolean' ||
             ![40, 76, 120, 153].includes(control.width) ||
@@ -380,7 +401,10 @@ export default async function observeMarketplaceCampaign(api: any) {
           )
             throw new Error('Invalid private capture control');
           await api.pi.setSymbolPreset(control.preset);
-          if (!(await ctx.ui.setTheme(control.theme)).success) throw new Error('Appearance switch failed');
+          if (closed || sessionClosed) return;
+          const appearance = await ctx.ui.setTheme(control.theme);
+          if (closed || sessionClosed) return;
+          if (!appearance.success) throw new Error('Appearance switch failed');
           let component = components.get(item.id);
           if (!component) {
             component = item.message
@@ -427,12 +451,12 @@ export default async function observeMarketplaceCampaign(api: any) {
           busy = false;
         }
       };
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         void processControl().catch((error) => {
+          if (closed || sessionClosed) return;
           record({ event: 'capture_error', message: String(error) });
           writeFileSync(join(captureRoot, 'error.json'), JSON.stringify({ message: String(error) }), { mode: 0o600 });
-          clearInterval(timer);
-          done();
+          close();
         });
       }, 40);
       return {
@@ -440,8 +464,7 @@ export default async function observeMarketplaceCampaign(api: any) {
         invalidate() {},
         handleInput(input: string) {
           if (input === '\u001b') {
-            clearInterval(timer);
-            done();
+            close();
           }
         },
       };
