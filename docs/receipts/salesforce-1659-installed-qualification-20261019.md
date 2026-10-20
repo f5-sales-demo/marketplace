@@ -2,7 +2,7 @@
 
 Round [#1659](https://github.com/f5-sales-demo/marketplace/issues/1659),
 delivery [#1660](https://github.com/f5-sales-demo/marketplace/pull/1660).
-Parents #1591 and #1624 remain open for the separate human gates below.
+Parents #1591 and #1624 remain open for real authentication acceptance.
 Private raw captures, transcripts and unsuccessful attempts are retained.
 
 ## Source, publication and installation
@@ -144,10 +144,20 @@ receipts and retirement rows remain unchanged.
   run `xcsh plugin setup salesforce` on the corporate MDM MacBook, inspect the
   review, confirm the intended browser login and observe bounded ready
   verification. Preserve current ready credentials; do not force logout.
-- Desktop font: a human must inspect visible Salesforce text, tables, currency
-  values and progress symbols in the normal terminal font. Agreement to inspect
-  is not acceptance. Herdr/ANSI evidence cannot establish font raster fidelity.
+- Desktop font: the operator reported the displayed native pipeline fixture
+  readable in the normal terminal font: text, tables, currency values and
+  symbols. This observation uses runtime 23.9.3 and Salesforce 2.3.15 and is
+  scoped to that displayed fixture. Progress motion retains its automated
+  evidence; no additional human observation of motion is claimed.
 
-Cleanup is recorded only after the qualification PR is merged and its owned
-resources have actually been retired. Parent issues remain open until their
-remaining acceptance gates have evidence.
+## Delivery and cleanup
+
+PR #1660 merged with all required checks green at
+`8acb552b5ddc1ae1560624fb9bdc61ed3de26f68` on 2026-10-20 UTC.
+The owned qualification worktree and confirmed merged local branch were
+retired. All ignored files were classified as dependencies or test caches and
+preserved outside the worktree, along with a recoverable Git bundle.
+The font fixture completed, emitted shutdown and its owned pane retired;
+the user pane and private evidence remain. Unrelated worktrees and the main
+checkout were preserved. Only real authentication remains BLOCKED in the
+Salesforce rows. Parent issues remain open until that acceptance has evidence.
