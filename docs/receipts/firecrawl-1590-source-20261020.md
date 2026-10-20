@@ -58,3 +58,8 @@ types, and malformed command guidance fails before shell execution. Current
 Mypy, repository-configured Pylint and Ruff checks pass. Historical source
 evidence above remains preserved; fresh CI and installed qualification are
 still required.
+
+Repository commit automation patch-bumped the repaired candidate to Firecrawl
+1.4.2 at source commit 3b9d165399ca6879a38ebf6037f3de9afa0198ac. The post-bump
+tracker fingerprint is reconciled separately; the earlier 1.4.1 source receipt
+is historical. Delivery requires the verified 1.4.2 artifact.
