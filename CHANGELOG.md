@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- CE UAT51 restores and relinquishes original direct routes before AWS Terraform cloud destruction, and verifies completed retirement resume against configuration, state and fresh cloud evidence (#1651). Full UAT remains blocked.
+
 - **`gcloud`** v1.6.2 — use explicit example project identifiers in presentation regression fixtures.
 - **`asm-migration`** v2.3.1 shows native request scope, policy and contract identity, conversion completeness, twelve-row warning and resource previews, deployment and rollback outcomes, and complete corrective guidance once through shared presentation (#1600).
 

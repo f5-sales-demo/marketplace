@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import type { TerraformSession } from '../../../terraform/src/service';
+import { runAwsTerraformCloudTeardown } from '../../src/ce/terraform-cloud-teardown';
 import { renderAwsTerraformDirectImport } from '../../src/ce/terraform-direct-import';
 import { collectAwsTerraformDirectRouteOwnership } from '../../src/ce/terraform-direct-ownership';
 import { retireAwsTerraformDirectRoutes } from '../../src/ce/terraform-direct-retirement';
@@ -72,7 +73,10 @@ async function fixture() {
       configuration = next;
       return hash(next);
     },
-    plan: async () => receipt([cloud.GatewayId ? 'no-op' : 'update']),
+    plan: async () => ({
+      ...receipt([cloud.GatewayId ? 'no-op' : 'update']),
+      ...(relinquished ? { changes: [] } : {}),
+    }),
     readPlannedResourceIds: async () => ({ 'aws_route.direct_0': 'r-rtb-123456782746858862' }),
     readPlannedResourceFields: async () => ({
       'aws_route.direct_0': {
@@ -213,4 +217,66 @@ for (const mode of [
           : 1,
     );
     expect(f.records.get('terraform-direct-retirement.json')).not.toHaveProperty('phase', 'preserved');
+  });
+
+test('completed direct retirement resumes only after fresh state, configuration and cloud verification', async () => {
+  const f = await fixture();
+  await f.run();
+  await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
+  expect(f.actions()).toBe(2);
+});
+for (const mode of ['marker', 'source', 'configuration', 'state', 'cloud', 'plan'] as const)
+  test(`completed direct retirement rejects resumed ${mode} drift without apply`, async () => {
+    const f = await fixture();
+    await f.run();
+    if (mode === 'marker') {
+      const marker = f.records.get('terraform-direct-retirement.json') as Record<string, unknown>;
+      f.records.set('terraform-direct-retirement.json', { ...marker, ownershipSha256: '0'.repeat(64) });
+    }
+    if (mode === 'source') f.records.set('terraform-direct-retirement-source.json', null);
+    if (mode === 'configuration') f.session.readConfigurationSha256 = async () => '0'.repeat(64);
+    if (mode === 'state')
+      f.session.readResourceIdentities = async () => [
+        { address: 'aws_route.direct_0', type: 'aws_route', id: 'r-rtb-123456782746858862' },
+      ];
+    if (mode === 'cloud') f.table.Routes[0].GatewayId = 'igw-ffffffff';
+    if (mode === 'plan') {
+      const current = f.session.plan;
+      f.session.plan = async (...args) => ({ ...(await current(...args)), noChanges: false });
+    }
+    await expect(f.run()).rejects.toThrow();
+    expect(f.actions()).toBe(2);
+  });
+
+test('cloud teardown restores and relinquishes original routes before its first destroy plan', async () => {
+  const f = await fixture();
+  let destroyPlans = 0;
+  f.session.planDestroy = async () => {
+    destroyPlans++;
+    expect(f.actions()).toBe(2);
+    expect(f.records.get('terraform-direct-retirement.json')).toHaveProperty('phase', 'preserved');
+    throw Error('destroy boundary reached');
+  };
+  await expect(runAwsTerraformCloudTeardown(f.base, f.session, f.storage, f.api, {})).rejects.toThrow(
+    'destroy boundary reached',
+  );
+  expect(destroyPlans).toBe(1);
+});
+for (const mode of ['missing', 'foreign', 'interrupted'] as const)
+  test(`cloud teardown rejects ${mode} direct ownership before any destroy plan`, async () => {
+    const f = await fixture();
+    let destroyPlans = 0;
+    f.session.planDestroy = async () => {
+      destroyPlans++;
+      throw Error('unsafe destroy');
+    };
+    if (mode === 'missing') f.records.delete('terraform-direct-ownership.json');
+    if (mode === 'foreign')
+      f.records.set('terraform-direct-ownership.json', { ...f.ownership, accountId: '000000000000' });
+    if (mode === 'interrupted') {
+      f.interrupt();
+      await expect(f.run()).rejects.toThrow('response lost');
+    }
+    await expect(runAwsTerraformCloudTeardown(f.base, f.session, f.storage, f.api, {})).rejects.toThrow();
+    expect(destroyPlans).toBe(0);
   });

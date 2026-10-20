@@ -5,6 +5,9 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { verifyAwsTerraformDestroyOwnership } from './terraform-destroy-ownership';
+import type { AwsTerraformDirectOwnership } from './terraform-direct-ownership';
+import { retireAwsTerraformDirectRoutes } from './terraform-direct-retirement';
+import { renderAwsTerraformDirectTransition } from './terraform-direct-transition';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import type { AwsCePlan } from './types';
 
@@ -78,8 +81,16 @@ export async function runAwsTerraformCloudTeardown(
   await storage.verify();
   let source = await optional<Source>(storage, sourceFile);
   let checkpoint = await optional<Checkpoint>(storage, checkpointFile);
+  const direct =
+    plan.intent.routing.profile === 'direct-eni' &&
+    (plan.intent.vpc.mode === 'brownfield' || plan.intent.routes.length > 0);
   if (source === undefined) {
     if (checkpoint !== undefined) throw new Error('Terraform teardown source snapshot is missing');
+    if (direct) {
+      const original = await optional<AwsTerraformDirectOwnership>(storage, 'terraform-direct-ownership.json');
+      if (!original) throw new Error('Direct cloud teardown requires original route ownership');
+      await retireAwsTerraformDirectRoutes(plan, original, session, storage, api, env, signal);
+    }
     const receipt = await session.planDestroy(env, signal);
     const configuration = await session.readConfiguration(receipt.configurationSha256);
     const retired = retiredConfiguration(plan, configuration);
@@ -106,6 +117,44 @@ export async function runAwsTerraformCloudTeardown(
     retiredConfiguration(plan, source.configuration) !== source.retiredConfiguration
   )
     throw new Error('Terraform teardown source snapshot is forged or differs');
+  if (direct) {
+    const retirement = await optional<Record<string, unknown>>(storage, 'terraform-direct-retirement.json');
+    const original = await optional<AwsTerraformDirectOwnership>(storage, 'terraform-direct-ownership.json');
+    const directSource = await optional<Record<string, unknown>>(storage, 'terraform-direct-retirement-source.json');
+    if (
+      !retirement ||
+      !original ||
+      !directSource ||
+      retirement.phase !== 'preserved' ||
+      retirement.sourcePlanSha256 !== plan.planSha256 ||
+      retirement.ownershipSha256 !== original.snapshotSha256 ||
+      retirement.sourceSha256 !== canonicalSha256(directSource) ||
+      directSource.sourcePlanSha256 !== plan.planSha256 ||
+      directSource.ownershipSha256 !== original.snapshotSha256 ||
+      directSource.relinquishedConfiguration !== source.configuration ||
+      retirement.configurationSha256 !== source.configurationSha256
+    )
+      throw new Error('Direct cloud teardown preservation evidence differs from destruction source');
+    if (
+      typeof directSource.restoredConfiguration !== 'string' ||
+      renderAwsTerraformDirectTransition(
+        plan,
+        original,
+        directSource.restoredConfiguration,
+        'original',
+        'relinquished',
+        directSource.stateIds as Record<string, string>,
+      ).configuration !== source.configuration
+    )
+      throw new Error('Direct cloud teardown preserved configuration translation differs');
+    if (
+      !session.readResourceIdentities ||
+      (await session.readResourceIdentities(env, signal)).some((row) =>
+        original.routes.some((route) => route.address === row.address),
+      )
+    )
+      throw new Error('Direct cloud teardown original routes remain in managed state');
+  }
   if (checkpoint === undefined) {
     checkpoint = {
       schemaVersion: 1,

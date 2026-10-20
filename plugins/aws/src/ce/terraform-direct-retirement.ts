@@ -10,6 +10,19 @@ import type { AwsCePlan } from './types';
 
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 const marker = 'terraform-direct-retirement.json';
+const sourceFile = 'terraform-direct-retirement-source.json';
+interface RetirementSource {
+  schemaVersion: 1;
+  engine: 'terraform';
+  sourcePlanSha256: string;
+  ownershipSha256: string;
+  restoredConfiguration: string;
+  restoredConfigurationSha256: string;
+  relinquishedConfiguration: string;
+  relinquishedConfigurationSha256: string;
+  stateIds: Record<string, string>;
+}
+
 type Store = Pick<CeDeploymentStore, 'read' | 'write' | 'verify' | 'owner'>;
 const targetFields = [
   'gateway_id',
@@ -49,8 +62,67 @@ export async function retireAwsTerraformDirectRoutes(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  if (prior !== undefined)
-    throw Error('Existing direct retirement attempt requires evidence reconciliation before replay');
+  if (prior !== undefined) {
+    const checkpoint = prior as Record<string, unknown>;
+    if (!checkpoint || checkpoint.phase !== 'preserved')
+      throw Error('Existing direct retirement attempt requires evidence reconciliation before replay');
+    const source = (await storage.read(sourceFile)) as RetirementSource;
+    if (
+      !source ||
+      source.schemaVersion !== 1 ||
+      source.engine !== 'terraform' ||
+      source.sourcePlanSha256 !== plan.planSha256 ||
+      source.ownershipSha256 !== ownership.snapshotSha256 ||
+      typeof source.restoredConfiguration !== 'string' ||
+      typeof source.relinquishedConfiguration !== 'string' ||
+      hash(source.restoredConfiguration) !== source.restoredConfigurationSha256 ||
+      hash(source.relinquishedConfiguration) !== source.relinquishedConfigurationSha256 ||
+      checkpoint.schemaVersion !== 1 ||
+      checkpoint.engine !== 'terraform' ||
+      checkpoint.sourcePlanSha256 !== plan.planSha256 ||
+      checkpoint.ownershipSha256 !== ownership.snapshotSha256 ||
+      checkpoint.configurationSha256 !== source.relinquishedConfigurationSha256 ||
+      checkpoint.sourceSha256 !== canonicalSha256(source)
+    )
+      throw Error('Completed direct retirement source or checkpoint differs');
+    const removal = renderAwsTerraformDirectTransition(
+      plan,
+      ownership,
+      source.restoredConfiguration,
+      'original',
+      'relinquished',
+      source.stateIds,
+    );
+    if (removal.configuration !== source.relinquishedConfiguration)
+      throw Error('Completed direct retirement translation differs');
+    signal?.throwIfAborted();
+    const configurationSha256 = await session.readConfigurationSha256();
+    if (
+      configurationSha256 !== source.relinquishedConfigurationSha256 ||
+      (await session.readConfiguration(configurationSha256)) !== source.relinquishedConfiguration
+    )
+      throw Error('Completed direct retirement configuration differs');
+    const routeNames = ownership.routes.map((route) => route.address);
+    if ((await session.readResourceIdentities(env, signal)).some((row) => routeNames.includes(row.address)))
+      throw Error('Completed direct retirement route state reappeared');
+    const preserved = await observeAwsTerraformDirectPhase(plan, ownership, 'original', api, signal);
+    const final = await session.plan(env, signal);
+    if (
+      final.engine !== 'terraform' ||
+      final.deploymentId !== plan.deploymentName ||
+      final.configurationSha256 !== configurationSha256 ||
+      !final.noChanges ||
+      final.operation ||
+      final.imports?.length ||
+      final.relinquishments?.length ||
+      final.actionInvocations?.length ||
+      final.changes.some((change) => change.actions.join(',') !== 'no-op' || routeNames.includes(change.address))
+    )
+      throw Error('Completed direct retirement did not converge to ordinary no-change state');
+    await storage.verify();
+    await storage.write('terraform-direct-retirement-resume-observation.json', { preserved, final });
+    return { status: 'direct-routes-preserved' as const, preserved, configurationSha256 };
+  }
   signal?.throwIfAborted();
   let configurationSha256 = await session.readConfigurationSha256();
   const current = await session.readConfiguration(configurationSha256);
@@ -134,6 +206,18 @@ export async function retireAwsTerraformDirectRoutes(
     'relinquished',
     ids as Record<string, string>,
   );
+  const source: RetirementSource = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    sourcePlanSha256: plan.planSha256,
+    ownershipSha256: ownership.snapshotSha256,
+    restoredConfiguration: restored.configuration,
+    restoredConfigurationSha256: hash(restored.configuration),
+    relinquishedConfiguration: removal.configuration,
+    relinquishedConfigurationSha256: hash(removal.configuration),
+    stateIds: ids as Record<string, string>,
+  };
+  await storage.write(sourceFile, source);
   await storage.write('terraform-direct-restoration-plan.json', receipt);
   await storage.verify();
   await observeAwsTerraformDirectPhase(plan, ownership, phase, api, signal);
@@ -185,6 +269,7 @@ export async function retireAwsTerraformDirectRoutes(
     ownershipSha256: ownership.snapshotSha256,
     configurationSha256,
     preserved,
+    sourceSha256: canonicalSha256(source),
     phase: 'preserved',
   });
   return { status: 'direct-routes-preserved' as const, preserved, configurationSha256 };
