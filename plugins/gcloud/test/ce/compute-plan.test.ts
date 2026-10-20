@@ -4,6 +4,7 @@ import { intent } from './fixtures';
 
 it('native candidate preserves ordered NICs, scoped argv and private bootstrap input', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   const plan = translateGcpNativeCompute(i);
   expect(plan.executable).toBe(false);
   const vm = plan.actions.find((a) => a.kind === 'instance');
@@ -21,6 +22,7 @@ it('native candidate preserves ordered NICs, scoped argv and private bootstrap i
 });
 it('Terraform candidate pins provider, sensitive node input and identical NIC order', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   i.engine = 'terraform';
   const plan = translateGcpTerraformCompute(i, '7.0.0');
   expect(plan.executable).toBe(false);
@@ -38,9 +40,58 @@ it('Terraform candidate pins provider, sensitive node input and identical NIC or
 });
 it('compute translators reject wrong engine and unimplemented egress profiles', () => {
   const i = intent();
+  i.routing.destinationCidrs = [];
   expect(() => translateGcpTerraformCompute(i, '7.0.0')).toThrow('ownership');
   i.engine = 'terraform';
   expect(() => translateGcpNativeCompute(i)).toThrow('ownership');
   i.egress.mode = 'cloud-nat';
   expect(() => translateGcpTerraformCompute(i, '7.0.0')).toThrow('external-IP');
+});
+
+it('compute translation rejects requested routes and load-balancer ingress instead of silently omitting them', () => {
+  const i = intent();
+  expect(() => translateGcpNativeCompute(i)).toThrow('destination routes');
+  i.engine = 'terraform';
+  expect(() => translateGcpTerraformCompute(i, '8.7.0')).toThrow('destination routes');
+  i.routing.destinationCidrs = [];
+  i.ingress.profile = 'internal-passthrough-lb';
+  expect(() => translateGcpTerraformCompute(i, '8.7.0')).toThrow('ingress');
+});
+
+it('site compute qualification binds each node token to its site with sensitive metadata and no token inputs or outputs', async () => {
+  const { translateGcpTerraformSiteCompute } = await import('../../src/ce/compute-plan');
+  const i = intent();
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  const result = translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' });
+  expect(result.configuration.terraform.required_providers.xcsh.version).toBe('= 15.10.5');
+  expect(result.configuration.resource.xcsh_token.node_a).toMatchObject({
+    type: 1,
+    site_name: `\${xcsh_securemesh_site_v2.ce_site.name}`,
+  });
+  expect(result.configuration.resource.google_compute_instance.node_a).toMatchObject({
+    metadata: { 'user-data': expect.stringContaining('sensitive(') },
+  });
+  expect(Object.hasOwn(result.configuration, 'variable')).toBe(false);
+  expect(Object.hasOwn(result.configuration, 'output')).toBe(false);
+  expect(result.executable).toBe(false);
+});
+it('preserves explicit initial versions without treating caller values as qualified upgrade evidence', async () => {
+  const { translateGcpTerraformSiteCompute } = await import('../../src/ce/compute-plan');
+  const i = intent();
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  i.initialVersions = { software: 'crt-20260801-0205', os: '9.2026.20' };
+  const result = translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' });
+  expect(result.configuration.resource.xcsh_securemesh_site_v2.ce_site).toMatchObject({
+    software_settings: {
+      sw: { volterra_software_version: 'crt-20260801-0205' },
+      os: { operating_system_version: '9.2026.20' },
+    },
+  });
+  expect(result.executable).toBe(false);
+  i.initialVersions.software = 'latest';
+  expect(() => translateGcpTerraformSiteCompute(i, { google: '8.7.0', xcsh: '15.10.5', terraform: '1.16.6' })).toThrow(
+    'version pair',
+  );
 });

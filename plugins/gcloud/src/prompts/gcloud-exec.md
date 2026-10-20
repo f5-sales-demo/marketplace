@@ -14,6 +14,14 @@ Pass the group, verb, and flags as an array of arguments. Do NOT include `gcloud
 { "args": ["compute", "instances", "list", "--filter=status=RUNNING"] }
 ```
 
+When the command starts with `alpha` or `beta`, the plugin checks local SDK
+component state and automatically installs that missing command group with
+`gcloud components install <group> --quiet`. Installation is coordinated across
+callers and verified before the requested command runs. Child CLI prompts are
+disabled. If the installation's component manager is unavailable or installation
+cannot be verified, the command fails with package-manager recovery guidance.
+Cloud write and credential guards still apply before group preparation.
+
 ## Safety
 
 - Arguments are passed as an array directly to the `gcloud` binary — **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `gcloud` invocation runs, including full `--filter` and `--format` expressions. Only NUL/control bytes are rejected.

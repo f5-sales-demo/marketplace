@@ -10,6 +10,125 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.3 and `gcloud` 1.7.19** bound executor identity persistence
+  and gate release to fifteen seconds. Startup failures verify child exit before
+  releasing owned locks; unresolved stops continue to block recovery. Private
+  gate transitions retain executable and process identity without exporting
+  arguments or credentials (#1559).
+
+- **`gcloud` 1.7.17 and `platform` 6.3.3** collect scoped HA component status and independent
+  service inventory, checking original site and node identities before and after
+  reads. Status and diagnostics report a versioned HA result with per-node health,
+  required coverage counts, observation times and sanitized receipt hashes. Missing
+  or duplicate identities, stale evidence and failed reads retain unknown health.
+  Public HA deployment remains gated by owning health qualification.
+
+- **`gcloud`** records a fresh private HA health qualification gap. Three original
+  nodes reached ONLINE with both NIC joins and no-change planning. Health API
+  failures, duplicate inventory identities and missing service coverage prevented
+  qualified HA health through the thirty-minute convergence window. Public HA
+  admission and owning API publication remain gated.
+
+- **`gcloud`** records private three-node HA interrupted-success recovery and
+  partial orphan-disk cleanup. Recovery refuses a live executor without mutation
+  and preserves the original binary before no-change planning. Each separate
+  delete-only cleanup completed an empty destroy plan, stable state and eighteen
+  independent absences without replay. Public HA admission and exhaustive health
+  remain gated; receipts bind the actual executable sources and frozen bundles.
+
+- **`gcloud`** binds HA firewall ownership to completed Google insert receipts,
+  equal provider-retained and live creation timestamps, and exact live target IDs.
+  Creation must fall within one completed insert operation's recorded interval;
+  operation start time need not equal resource creation time. Google 8.7.0 has no
+  numeric firewall ID in Terraform state; missing or ambiguous evidence requires reconciliation.
+
+- **`gcloud`** owns four guide-required SLO/SLI interface firewall rules in
+  candidate HA Terraform configuration and verifies their exact cloud identities
+  and scope. Independent cleanup covers eighteen objects; public HA admission remains gated.
+
+- **`gcloud`** prepares HA ownership and read-only prerequisites: every zone and
+  node contributes to quota checks; all fourteen three-node cloud/XC objects
+  retain exact identity and absence coverage, including later-node orphan disks.
+  HA interface comparison ignores JSON key order, and sanitized status includes
+  the exact owned instance ID. Public HA deployment and cleanup remain gated by
+  API contract qualification and installed/live evidence (#1559).
+
+- **`terraform`** and **`gcloud`** preserve exact 64-bit provider identity integers
+  during private Terraform JSON parsing. This fixes subnet ownership comparison
+  and recovery without replaying the original apply (#1559).
+
+- **`gcloud`** adds public Terraform saved-plan authorization, original-attempt
+  recovery and separate delete-only partial cleanup for the single-node BYOL
+  profile. Reviews bind the F5 context name and actual API endpoint; cleanup
+  completion also requires the unchanged final empty-plan state snapshot.
+  Deployment completion binds a stable no-op state snapshot; resumed completion
+  requires that exact state and all original live identities without replay.
+  The versioned configuration owns the boot disk explicitly. Deployment
+  uses the published and installed-qualified XC v15.13.0 provider, Terraform
+  1.16.6 and Google 8.7.0 with a verified Darwin ARM64/Linux AMD64 lock. Fresh
+  public installed/live deployment, interrupted recovery and partial disk cleanup
+  passed, including typed teardown and independent eight-object absence (#1559).
+  **`terraform`** tracks the original executor process before submission and
+  refuses recovery while that process remains live.
+
+- **`terraform`** exposes restricted inspection of the exact original interrupted
+  apply checkpoint and state. Inspection preserves pending state and does not
+  attest success or authorize resubmission; owning adapters must independently
+  verify the outcome before reconciliation (#1559).
+
+- **`terraform`** adds restricted applied-state identity projection bound to the
+  original reviewed binary, isolated state lineage/serial and stable snapshot.
+  **`gcloud`** captures exact Terraform creation ownership with independent cloud
+  identities and ordered disk/NIC checks. Public Terraform deployment remains
+  unavailable while review/apply and interrupted recovery are integrated (#1559).
+
+- **`gcloud`** adds an explicit native single-node deployment plan/apply candidate
+  with server-collected prerequisites, persisted overall review, unchanged corporate
+  funding/BYOL bindings and durable authorization for asynchronous resume. Completed
+  creation journal resources support partial native cleanup. Fresh isolated installed
+  public native deployment, two healthy observations and typed teardown passed on
+  the narrow disposable profile, followed by eight independent absence checks (#1559).
+
+- **`gcloud`** binds native and Terraform billable execution to confirmed corporate
+  funding and the unchanged existing billing association. The pinned BYOL product
+  supports exact document authorization for access/use separately from procurement
+  consent and license acquisition; it creates no resources or orders (#1559).
+
+- **`gcloud`** adds candidate Terraform teardown through the owning plan/apply
+  lifecycle, with stored session inputs, original Platform identity, exact saved
+  destroy projection, interrupted outcome reconciliation and final absence checks.
+  Installed XC identity capture and fresh live cloud teardown passed on the narrow
+  disposable single-node profile, with final empty destroy and eight absence checks (#1559).
+- **`terraform`** attests exact completed saved plans before post-apply ownership
+  capture. **`platform`** provides scoped site/token identity observations and a
+  private Terraform execution context without exporting bootstrap material (#1559).
+- **`gcloud`** automatically prepares missing `alpha` and `beta` command groups
+  before commands and help, with noninteractive installation, coordinated
+  preparation, verification and explicit component-manager failures (#1559).
+- **`gcloud`** documents Google's prerequisite Cloud terms and returns the
+  acceptance link, account guidance and verification steps when API enablement
+  reports `UREQ_TOS_NOT_ACCEPTED` (#1559).
+- **`gcloud`** adds programmatic Marketplace consent review and grant through
+  scoped Google APIs, with exact image/license/document binding, server dry runs
+  and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
+  qualified terms mechanism and no usage fee is treated as acceptance (#1559).
+- **`gcloud`** v1.7.19 adds GCP registration/interface correlation, restricted bootstrap
+  checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
+  and power/resize candidates, immutable SLO replacement classification, and exact
+  async resource identity. Live lifecycle gates remain explicit (#1559).
+- **`gcloud`** adds reviewed native single-node teardown through typed plan/apply
+  tools, with exact ownership checks, durable interruption authorization and final
+  absence evidence. Installed qualification covers synthetic Compute identities
+  and live owned XC cleanup; fresh installed native live cloud teardown and eight
+  independent absence checks now pass on the narrow disposable single-node profile (#1559).
+- **`platform`** v6.3.2 registers shared CE storage/runtime service with portable
+  process locks and GCP ownership scope while keeping unqualified mutation unavailable.
+- **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
+  disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
+  live saved-plan replay and fresh installed live typed Terraform teardown pass,
+  with exact saved-plan apply, final empty destroy and independent absence (#1559).
+- **`terraform`** v2.4.3 loads the isolated CE runner alongside existing CLI integration,
+  preserving provider locks, saved-plan identity and deployment ownership.
 - **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
 
 - **`salesforce`** v2.3.14 — show connection status, schema catalog counts and filtering guidance, fiscal-year bookings with explicit unknown currency, and actionable anomaly explanations in the default shared-renderer output.

@@ -39,6 +39,7 @@ export interface GcpCeIntent {
   machineType: string;
   diskGiB: number;
   image: GcpCeImage;
+  initialVersions?: { software: string; os: string };
   ipForwarding: true;
   egress: { mode: 'external-ip' | 'cloud-nat' | 'firewall' | 'proxy'; resource?: string };
   ingress: { profile: 'none' | 'internal-passthrough-lb' };
@@ -72,6 +73,9 @@ export interface GcpCeDiscovery {
   checks: Record<'iam' | 'organizationPolicy' | 'zoneCapacity' | 'machineNicLimit' | 'licenseAcceptance', 'unknown'>;
 }
 export interface GcpCePlan {
+  byolAuthorization?: Awaited<ReturnType<typeof import('./byol-terms').authorizeGcpByolTerms>>;
+  fundingReceipt?: import('./corporate-funding').GcpCorporateFundingReceipt;
+  preflight?: import('./preflight').GcpLaunchPreflight;
   policyReceipt?: { identity: string; url: string; observedAt: string; normalizedSha256: string };
   apiRelease: { repository: string; tag: string; contractDigest: string };
   schemaVersion: 1;
