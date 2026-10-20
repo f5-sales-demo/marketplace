@@ -173,20 +173,27 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       return false;
     const services = containers.map((c) => c?.service);
     if (
-      new Set(services).size !== services.length ||
+      new Set(containers.map((c) => `${c?.name}:${c?.podPrefix}`)).size !== containers.length ||
       !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
     )
       return false;
     if (!['peer-connectivity', 'required-domains'].every((check) => (role.diagnostics as string[]).includes(check)))
       return false;
-    for (const service of GCP_OPERATIONAL_CORE_SEED)
-      if (!(role.components as string[]).includes(service) || !services.includes(service)) return false;
+    for (const service of role.components as string[]) if (!services.includes(service)) return false;
     if (role.components.some((component) => !(p.inventoryServices as string[]).includes(component))) return false;
-    for (const service of p.inventoryServices as string[])
-      if (!(role.components as string[]).includes(service) && !services.includes(service)) return false;
     for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
       if (!p.exclusions.some((e) => e.service === auxiliary) && !services.includes(auxiliary)) return false;
   }
+  const declaredRoles = Object.values(p.roles as OperationalProfile['roles']);
+  for (const service of p.inventoryServices as string[])
+    if (
+      !declaredRoles.some(
+        (role) => role.components.includes(service) || role.containers.some((c) => c.service === service),
+      )
+    )
+      return false;
+  for (const service of GCP_OPERATIONAL_CORE_SEED)
+    if (!declaredRoles.some((role) => role.components.includes(service))) return false;
   return true;
 }
 function validBinding(value: OperationalBinding): boolean {
@@ -236,6 +243,20 @@ export function evaluateGcpOperationalHealth(
   const c = object(value);
   if (!profile) reasons.add('operational-contract-unqualified');
   if (!validBinding(expected)) reasons.add('invalid-original-binding');
+  if (
+    profile &&
+    Array.isArray(expected.nodes) &&
+    profile.inventoryServices.some(
+      (service) =>
+        !expected.nodes.some((node) => {
+          const role = profile.roles[node?.role];
+          return (
+            role?.components.includes(service) || role?.containers.some((container) => container.service === service)
+          );
+        }),
+    )
+  )
+    reasons.add('required-service-placement-uncovered');
   if (
     c?.schemaVersion !== 2 ||
     c.contractFingerprint !== pinnedFingerprint ||
@@ -400,7 +421,7 @@ export function evaluateGcpOperationalHealth(
         check(
           'inventory',
           invalid ||
-            (profile?.inventoryServices ?? []).some((name) => !identities.has(name)) ||
+            (role?.components ?? []).some((name) => !identities.has(name)) ||
             [...identities.keys()].some((name) => !permitted.has(name))
             ? 'unknown'
             : 'healthy',

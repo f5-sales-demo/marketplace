@@ -250,3 +250,43 @@ it('requires requalification for component coverage drift and gives non-online r
     'registration-not-online-or-invalid',
   );
 });
+
+it('qualifies frozen role-dependent placement without dropping required services from the actual node set', () => {
+  const f = operationalFixture();
+  const primary = structuredClone(f.profile.roles.control);
+  f.profile.roles.primary = primary;
+  f.profile.roles.control.components = f.profile.roles.control.components.filter((name) => name !== 'etcd');
+  f.profile.roles.control.containers = f.profile.roles.control.containers.filter((c) => c.service !== 'etcd');
+  f.binding.nodes[0].role = 'primary';
+  f.collection.bindingBefore = structuredClone(f.binding);
+  f.collection.bindingAfter = structuredClone(f.binding);
+  f.collection.contractFingerprint = fingerprint(f.profile);
+  const update = (index: number, key: 'siteStatus' | 'components' | 'inventory' | 'runtime', projection: unknown) => {
+    f.collection.nodes[index][key].projection = projection;
+    f.collection.nodes[index][key].projectionFingerprint = fingerprint(projection);
+  };
+  update(0, 'siteStatus', { ...(f.collection.nodes[0].siteStatus.projection as object), role: 'primary' });
+  for (const index of [1, 2]) {
+    update(
+      index,
+      'components',
+      f.profile.roles.control.components.map((name) => ({ name, state: 'Ready' })),
+    );
+    update(
+      index,
+      'inventory',
+      f.profile.roles.control.components.map((service) => ({ service })),
+    );
+    update(
+      index,
+      'runtime',
+      (f.collection.nodes[index].runtime.projection as Array<{ name: string }>).filter((r) => r.name !== 'etcd'),
+    );
+  }
+  expect(evaluate(f).status).toBe('healthy');
+  f.binding.nodes[0].role = 'control';
+  f.collection.bindingBefore = structuredClone(f.binding);
+  f.collection.bindingAfter = structuredClone(f.binding);
+  expect(evaluate(f).status).toBe('unknown');
+  expect(evaluate(f).reasonCodes).toContain('required-service-placement-uncovered');
+});

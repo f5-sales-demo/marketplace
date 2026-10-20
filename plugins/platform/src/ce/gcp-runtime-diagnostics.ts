@@ -1,6 +1,6 @@
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 
-export const GCP_RUNTIME_PARSER_VERSION = 'crictl-table-and-inspect/v1';
+export const GCP_RUNTIME_PARSER_VERSION = 'crictl-table-and-inspect/v2';
 export interface GcpRuntimeContainer {
   id: string;
   name: string;
@@ -8,10 +8,11 @@ export interface GcpRuntimeContainer {
   podId: string;
   attempt: number;
   state: 'Running' | 'Exited' | 'Created' | 'Unknown';
+  namespace?: string;
 }
 const ID = /^[a-f0-9]{12,64}$/;
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
-const HEADER = /^CONTAINER\s+IMAGE\s+CREATED\s+STATE\s+NAME\s+ATTEMPT\s+POD ID\s+POD$/;
+const HEADER = /^CONTAINER\s+IMAGE\s+CREATED\s+STATE\s+NAME\s+ATTEMPT\s+POD ID\s+POD(?:\s+NAMESPACE)?$/;
 /** Parse the documented table strictly. Wrapped, truncated or ambiguous output requires requalification. */
 export function parseGcpRuntimeListing(value: unknown): GcpRuntimeContainer[] {
   if (
@@ -24,18 +25,24 @@ export function parseGcpRuntimeListing(value: unknown): GcpRuntimeContainer[] {
   )
     throw new Error('Malformed runtime listing');
   const lines = value.trim().split(/\r?\n/);
-  if (!HEADER.test(lines.shift() ?? '') || !lines.length || lines.length > 4096)
-    throw new Error('Malformed runtime listing');
+  const header = lines.shift() ?? '';
+  const withNamespace = /\sNAMESPACE$/.test(header);
+  if (!HEADER.test(header) || !lines.length || lines.length > 4096) throw new Error('Malformed runtime listing');
   const rows = lines.map((line): GcpRuntimeContainer => {
     const match = line
       .trim()
-      .match(/^(\S+)\s+(\S+)\s+(.+?)\s+(Running|Exited|Created|Unknown)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)$/);
+      .match(
+        withNamespace
+          ? /^(\S+)\s+(\S+)\s+(.+?)\s+(Running|Exited|Created|Unknown)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)$/
+          : /^(\S+)\s+(\S+)\s+(.+?)\s+(Running|Exited|Created|Unknown)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)$/,
+      );
     if (
       !match ||
       !ID.test(match[1]) ||
       !ID.test(match[7]) ||
       !NAME.test(match[5]) ||
       !NAME.test(match[8]) ||
+      (withNamespace && !NAME.test(match[9])) ||
       !Number.isSafeInteger(Number(match[6]))
     )
       throw new Error('Malformed runtime row');
@@ -46,6 +53,7 @@ export function parseGcpRuntimeListing(value: unknown): GcpRuntimeContainer[] {
       podId: match[7],
       attempt: Number(match[6]),
       state: match[4] as GcpRuntimeContainer['state'],
+      ...(withNamespace ? { namespace: match[9] } : {}),
     };
   });
   if (
@@ -72,6 +80,7 @@ export function projectGcpRuntimeInspection(value: unknown, listed: GcpRuntimeCo
     metadata?.name !== listed.name ||
     metadata.attempt !== listed.attempt ||
     labels?.['io.kubernetes.pod.name'] !== listed.pod ||
+    (listed.namespace !== undefined && labels?.['io.kubernetes.pod.namespace'] !== listed.namespace) ||
     !['CONTAINER_RUNNING', 'CONTAINER_EXITED', 'CONTAINER_CREATED', 'CONTAINER_UNKNOWN'].includes(String(row.state))
   )
     throw new Error('Runtime inspection identity differs');
