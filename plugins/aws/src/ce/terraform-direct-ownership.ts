@@ -234,3 +234,5 @@ export async function collectAwsTerraformDirectRouteOwnership(
   };
   return { ...snapshot, snapshotSha256: canonicalSha256(snapshot) };
 }
+
+export type AwsTerraformDirectOwnership = Awaited<ReturnType<typeof collectAwsTerraformDirectRouteOwnership>>;

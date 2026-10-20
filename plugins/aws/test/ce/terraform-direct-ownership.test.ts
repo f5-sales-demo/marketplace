@@ -1,68 +1,9 @@
 import { expect, test } from 'bun:test';
-import { canonicalSha256 } from '../../src/ce/canonical';
 import { collectAwsTerraformDirectRouteOwnership } from '../../src/ce/terraform-direct-ownership';
-import { powerIdentityFixture } from './whole-site-power-fixtures';
+import { directOwnershipFixture } from './terraform-direct-fixture';
 
-function fixture() {
-  const f = powerIdentityFixture('terraform');
-  const table = {
-    RouteTableId: 'rtb-12345678',
-    OwnerId: f.base.accountId,
-    VpcId: 'vpc-12345678',
-    Associations: [{ SubnetId: 'subnet-33333333', Main: false, AssociationState: { State: 'associated' } }],
-    Routes: [
-      { DestinationCidrBlock: '192.0.2.0/24', GatewayId: 'igw-12345678', State: 'active', Origin: 'CreateRoute' },
-      { DestinationCidrBlock: '10.0.0.0/16', GatewayId: 'local', State: 'active', Origin: 'CreateRouteTable' },
-    ],
-  };
-  const { planId: _id, planSha256: _sha, ...body } = f.base;
-  body.intent = {
-    ...body.intent,
-    routing: { ...body.intent.routing, profile: 'direct-eni' },
-    routes: [{ routeTableId: 'rtb-12345678', destinationCidr: '192.0.2.0/24', node: 1 }],
-    brownfield: { ...body.intent.brownfield, routeTableIds: ['rtb-12345678'] },
-  };
-  body.routing = body.intent.routing;
-  body.rollback = { resources: [{ id: 'rtb-12345678', before: { RouteTables: [structuredClone(table)] } }] };
-  const sha = canonicalSha256(body);
-  const base = { ...body, planId: `aws-ce-${sha.slice(0, 24)}`, planSha256: sha };
-  const enis = f.enis.map((eni, index) => ({
-    ...eni,
-    VpcId: 'vpc-12345678',
-    SubnetId: index ? 'subnet-22222222' : 'subnet-11111111',
-    SourceDestCheck: false,
-    TagSet: eni.TagSet.map((tag) => (tag.Key === 'xcsh-plan-sha256' ? { ...tag, Value: sha } : tag)),
-  }));
-  const calls: string[][] = [];
-  let tableReads = 0;
-  let driftAfter = false;
-  const api = {
-    exec: async (_cmd: string, args: string[]) => {
-      calls.push(args);
-      if (args[1] === 'describe-route-tables' && ++tableReads === 2 && driftAfter) table.VpcId = 'vpc-ffffffff';
-      const response =
-        args[0] === 'sts'
-          ? { Account: base.accountId }
-          : args[1] === 'describe-network-interfaces'
-            ? { NetworkInterfaces: enis }
-            : { RouteTables: [table] };
-      return { exitCode: 0, stdout: JSON.stringify(response), stderr: '' };
-    },
-  };
-  return {
-    base,
-    enis,
-    table,
-    calls,
-    api,
-    values: f.resolved,
-    drift: () => {
-      driftAfter = true;
-    },
-  };
-}
 test('original direct route inventory binds current ENIs and immutable rollback without mutating cloud', async () => {
-  const f = fixture();
+  const f = directOwnershipFixture();
   const result = await collectAwsTerraformDirectRouteOwnership(f.base, f.values, f.api);
   expect(result.routes).toEqual([
     {
@@ -93,7 +34,7 @@ for (const mode of [
   'rereadDrift',
 ] as const)
   test(`original direct route ${mode} rejects`, async () => {
-    const f = fixture();
+    const f = directOwnershipFixture();
     if (mode === 'foreignVpc') f.enis[1].VpcId = 'vpc-ffffffff';
     if (mode === 'sloSubnet') f.table.Associations[0].SubnetId = f.enis[0].SubnetId;
     if (mode === 'sliSubnet') f.table.Associations[0].SubnetId = f.enis[1].SubnetId;
@@ -120,7 +61,7 @@ for (const mode of [
   'duplicateRollback',
 ] as const)
   test(`original route evidence ${mode} rejects`, async () => {
-    const f = fixture();
+    const f = directOwnershipFixture();
     const original = f.api.exec;
     if (mode === 'unresolvedInstance') f.values.__INSTANCE_1__ = 'unresolved';
     if (mode === 'missingMac') delete f.values.__ENI_1_1_MAC__;
