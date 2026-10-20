@@ -25,6 +25,7 @@ it('uses fixed uncached service reads and isolates transport failures without pr
     'private',
     {
       binding: async () => f.binding,
+      persistedBinding: async () => f.binding,
       capture: async (entry) => {
         captures.push(entry);
       },
@@ -87,7 +88,12 @@ it('rejects foreign source identities before issuing requests', () => {
       fingerprint(f.profile),
       'https://console.example.test',
       'private',
-      { binding: async () => f.binding, capture: async () => {}, captureProjection: async () => {} },
+      {
+        binding: async () => f.binding,
+        persistedBinding: async () => f.binding,
+        capture: async () => {},
+        captureProjection: async () => {},
+      },
     ),
   ).toThrow('Original operational source identities required');
 });

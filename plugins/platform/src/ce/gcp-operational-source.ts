@@ -21,6 +21,8 @@ export interface GcpOperationalSourceIdentity {
 export interface GcpOperationalSourcePort {
   /** Verify persisted context, original ownership, live numeric VMs, tokens, registrations and both NIC joins. */
   binding(signal?: AbortSignal): Promise<OperationalBinding>;
+  /** Re-read persisted context and original ownership around each fixed request; full live joins bracket collection. */
+  persistedBinding(signal?: AbortSignal): Promise<OperationalBinding>;
   capture(entry: OperationalCommandCapture): Promise<void>;
   captureProjection: GcpOperationalObservationPort['capture'];
 }
@@ -47,10 +49,17 @@ export function createGcpOperationalSource(
     )
   )
     throw new Error('Original operational source identities required');
-  const commands = createGcpOperationalCommandPort(expected, apiUrl, credential, port.binding, port.capture, fetcher);
+  const commands = createGcpOperationalCommandPort(
+    expected,
+    apiUrl,
+    credential,
+    port.persistedBinding,
+    port.capture,
+    fetcher,
+  );
   const base = new URL(apiUrl);
   const verify = async (signal: AbortSignal) => {
-    if (fingerprint(await port.binding(signal)) !== fingerprint(expected))
+    if (fingerprint(await port.persistedBinding(signal)) !== fingerprint(expected))
       throw new Error('Operational source ownership changed');
   };
   const request = async (
