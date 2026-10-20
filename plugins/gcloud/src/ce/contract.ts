@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
 import { fingerprint } from './discovery';
+import type { OperationalProfile, OperationalReleaseQualification } from './operational-health';
+import { GCP_OPERATIONAL_RELEASE_PIN, resolveGcpOperationalRelease } from './operational-release';
+
+export interface GcpOperationalContract {
+  profile: OperationalProfile;
+  contractFingerprint: string;
+  qualification: OperationalReleaseQualification;
+  qualificationFingerprint: string;
+}
 
 export const GCP_CE_API_RELEASE = {
   repository: 'f5-sales-demo/api-specs-enriched',
@@ -21,6 +30,8 @@ export interface GcpCeContractBoundary {
     serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service';
   };
   haHealthContract?: Record<string, unknown>;
+  operationalHealthContract?: GcpOperationalContract;
+  operationalHealthExpected?: { contractFingerprint: string; qualificationFingerprint: string };
   singleNodeLifecycle?: Record<string, unknown>;
 }
 /** Bind read-only HA paths to the exact owning immutable schema asset. */
@@ -124,6 +135,14 @@ export async function resolveGcpContract(
           health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' as const,
         }
       : undefined;
+  let operationalHealthContract: GcpOperationalContract | undefined;
+  if (observations) {
+    try {
+      operationalHealthContract = await resolveGcpOperationalRelease(fetcher, combined);
+    } catch {
+      signal?.throwIfAborted();
+    }
+  }
   return {
     release: GCP_CE_API_RELEASE,
     fingerprint: fingerprint(contract),
@@ -132,6 +151,15 @@ export async function resolveGcpContract(
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN
+      ? {
+          operationalHealthExpected: {
+            contractFingerprint: GCP_OPERATIONAL_RELEASE_PIN.contractFingerprint,
+            qualificationFingerprint: GCP_OPERATIONAL_RELEASE_PIN.qualificationFingerprint,
+          },
+        }
+      : {}),
     // These read-only wire shapes were checked against this exact immutable schema.
     // This grants collection only; it cannot establish completeness or HA lifecycle admission.
     ...(observations && qualifiedGcpHaObservationMappings(assets)

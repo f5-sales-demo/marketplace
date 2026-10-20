@@ -1,10 +1,18 @@
 import { createHash } from 'node:crypto';
-import type { GcpCeContractBoundary } from '../../../gcloud/src/ce/contract';
+import type { GcpCeContractBoundary, GcpOperationalContract } from '../../../gcloud/src/ce/contract';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import type { GcpHaCollection, GcpHaRead } from '../../../gcloud/src/ce/health';
+import {
+  type OperationalBinding,
+  type OperationalCollection,
+  qualifiedOperationalProfile,
+  qualifiedOperationalRelease,
+} from '../../../gcloud/src/ce/operational-health';
 import { readGcpResourceInventory } from '../../../gcloud/src/ce/ownership';
+import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import type { CeDeploymentStore } from './deployment-store';
 import { createGcpLifecycleHttpPort } from './gcp-http';
+import { collectGcpOwnedOperationalHealth, type GcpOperationalCloudReader } from './gcp-owned-operational';
 import { CeApiError } from './runtime';
 
 export interface GcpPlatformObservations {
@@ -16,6 +24,13 @@ export interface GcpPlatformObservations {
   haHealth?(site: string, signal?: AbortSignal): Promise<GcpHaCollection>;
   haHealthContract?: Record<string, unknown>;
   contractFingerprint?: string;
+  operationalHealthContract?: GcpOperationalContract;
+  operationalHealthExpected?: GcpCeContractBoundary['operationalHealthExpected'];
+  operationalHealth?(
+    site: string,
+    cloud: GcpOperationalCloudReader,
+    signal?: AbortSignal,
+  ): Promise<{ binding: OperationalBinding; collection: OperationalCollection }>;
   teardown?(
     site: string,
     tokenName: string,
@@ -40,6 +55,7 @@ export async function createGcpPlatformObservations(
   credential: string,
   contract: GcpCeContractBoundary,
   fetcher: typeof fetch = fetch,
+  currentContext?: () => Promise<{ url: string; credential: string }>,
 ): Promise<GcpPlatformObservations> {
   contract = structuredClone(contract);
   const base = new URL(apiUrl);
@@ -155,6 +171,42 @@ export async function createGcpPlatformObservations(
   return {
     contractFingerprint: contract.fingerprint,
     haHealthContract: contract.haHealthContract ? structuredClone(contract.haHealthContract) : undefined,
+    ...(contract.operationalHealthExpected
+      ? { operationalHealthExpected: structuredClone(contract.operationalHealthExpected) }
+      : {}),
+    ...(contract.operationalHealthContract &&
+    currentContext &&
+    qualifiedOperationalProfile(
+      contract.operationalHealthContract.profile,
+      contract.operationalHealthContract.contractFingerprint,
+    ) &&
+    qualifiedOperationalRelease(
+      contract.operationalHealthContract.qualification,
+      contract.operationalHealthContract.qualificationFingerprint,
+      contract.operationalHealthContract.contractFingerprint,
+    )
+      ? {
+          operationalHealthContract: structuredClone(contract.operationalHealthContract),
+          async operationalHealth(site: string, cloud: GcpOperationalCloudReader, signal?: AbortSignal) {
+            const current = await loadIntent();
+            if (fingerprint(current) !== fingerprint(original) || !contract.operationalHealthContract)
+              throw new Error('Persisted operational intent differs');
+            return collectGcpOwnedOperationalHealth(
+              store,
+              current as GcpCeIntent,
+              site,
+              contract.operationalHealthContract.profile,
+              contract.operationalHealthContract.contractFingerprint,
+              apiUrl,
+              credential,
+              cloud,
+              currentContext,
+              fetcher,
+              signal,
+            );
+          },
+        }
+      : {}),
     ...(contract.haObservations
       ? {
           async haHealth(site: string, signal?: AbortSignal): Promise<GcpHaCollection> {

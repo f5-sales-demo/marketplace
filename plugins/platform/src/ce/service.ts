@@ -127,7 +127,15 @@ export function createCePlatformService(
           join(env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
-      return createGcpPlatformObservations(store, contextName, credentials.url, credentials.credential, artifact);
+      return createGcpPlatformObservations(
+        store,
+        contextName,
+        credentials.url,
+        credentials.credential,
+        artifact,
+        undefined,
+        () => context(env, contextName),
+      );
     },
     storage(owner) {
       return CeDeploymentStore.open(

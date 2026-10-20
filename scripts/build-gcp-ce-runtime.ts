@@ -1,7 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { gcpOperationalSourceIdentity } from './gcp-operational-source-identity';
 
 const root = join(import.meta.dir, '..');
+await writeFile(
+  join(root, 'plugins/gcloud/src/ce/operational-source-hashes.json'),
+  `${JSON.stringify(await gcpOperationalSourceIdentity(root), null, 2)}\n`,
+);
 for (const plugin of ['gcloud', 'platform', 'terraform']) {
   const output = join(root, 'plugins', plugin, 'runtime');
   await mkdir(output, { recursive: true });

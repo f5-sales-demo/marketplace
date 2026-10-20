@@ -8,7 +8,7 @@ import {
 import { operationalFixture } from '../../../gcloud/test/ce/operational-health.test';
 import { verifyGcpOperationalBinding } from '../../src/ce/gcp-operational-binding';
 
-function fixture() {
+export function operationalBindingFixture() {
   const f = operationalFixture();
   const hash = (uid: string) => `sha256:${createHash('sha256').update(uid).digest('hex')}`;
   const cloudIdentities: GcpExpectedNodeIdentity[] = f.binding.nodes.map((node) => ({
@@ -110,30 +110,30 @@ function fixture() {
   return { ...f, port, cloudIdentities, identities, registrations, clouds, tokens, persisted };
 }
 it('binds original numeric nodes, tokens and both physical joins without erasing offline evidence', async () => {
-  const f = fixture();
+  const f = operationalBindingFixture();
   f.registrations[0].object.status.current_state = 'OFFLINE';
   expect(await verifyGcpOperationalBinding(f.port, f.binding, f.cloudIdentities, f.identities)).toEqual(f.binding);
   expect(f.registrations[0].object.status.current_state).toBe('OFFLINE');
 });
 it('rejects replacements, token drift, foreign registrations and source address drift', async () => {
   for (const mutate of [
-    (f: ReturnType<typeof fixture>) => {
+    (f: ReturnType<typeof operationalBindingFixture>) => {
       f.clouds[0].id = '999';
     },
-    (f: ReturnType<typeof fixture>) => {
+    (f: ReturnType<typeof operationalBindingFixture>) => {
       f.tokens[0].system_metadata.uid = 'replacement';
     },
-    (f: ReturnType<typeof fixture>) => {
+    (f: ReturnType<typeof operationalBindingFixture>) => {
       f.registrations[0].get_spec.infra.hostname = 'foreign';
     },
-    (f: ReturnType<typeof fixture>) => {
+    (f: ReturnType<typeof operationalBindingFixture>) => {
       f.identities[0].addresses[1] = '10.9.0.1';
     },
-    (f: ReturnType<typeof fixture>) => {
+    (f: ReturnType<typeof operationalBindingFixture>) => {
       f.persisted.ownershipFingerprint = fingerprint({ foreign: true });
     },
   ]) {
-    const f = fixture();
+    const f = operationalBindingFixture();
     mutate(f);
     await expect(verifyGcpOperationalBinding(f.port, f.binding, f.cloudIdentities, f.identities)).rejects.toThrow();
   }

@@ -112,3 +112,44 @@ it('pins full node counts and reports runtime role drift without accepting a new
   expect(result.status).toBe('unknown');
   expect(result.reasonCodes).toContain('required-service-placement-count-mismatch');
 });
+it('allows independently qualified singleton placement while retaining exact required node counts', () => {
+  const f = fixture();
+  const piku = {
+    service: 'piku',
+    name: 'piku',
+    namespace: 'default',
+    podPrefix: 'piku-',
+    podShape: 'deployment' as const,
+  };
+  f.profile.inventoryServices.push('piku');
+  f.profile.placementCounts!.piku = 1;
+  for (const [name, role] of Object.entries(f.profile.roles)) {
+    f.profile.roles[`${name}-piku`] = {
+      ...structuredClone(role),
+      components: [...role.components, 'piku'],
+      containers: [...role.containers, piku],
+    };
+  }
+  f.observations[0].components.push({ name: 'piku', state: 'Ready' });
+  f.observations[0].containers.push({
+    id: 'f'.repeat(64),
+    name: 'piku',
+    namespace: 'default',
+    pod: 'piku-abcdef1234-abc12',
+    state: 'Running',
+  });
+  const originals = f.binding.nodes.map((node) => node.nodeName);
+  expect(resolveGcpOperationalPlacement(f.profile, fingerprint(f.profile), originals, f.observations)).toEqual({
+    'node-a': 'primary-piku',
+    'node-b': 'primary',
+    'node-c': 'primary-ganges',
+  });
+  f.observations[1].components.push({ name: 'piku', state: 'Ready' });
+  f.observations[1].containers.push(structuredClone(f.observations[0].containers.at(-1)!));
+  expect(() => resolveGcpOperationalPlacement(f.profile, fingerprint(f.profile), originals, f.observations)).toThrow();
+  for (const node of f.observations) {
+    node.components = node.components.filter((row) => row.name !== 'piku');
+    node.containers = node.containers.filter((row) => row.name !== 'piku');
+  }
+  expect(() => resolveGcpOperationalPlacement(f.profile, fingerprint(f.profile), originals, f.observations)).toThrow();
+});

@@ -1,13 +1,22 @@
+import type { GcpOperationalContract } from './contract';
 import { fingerprint } from './discovery';
 import type { GcpHaCollection } from './health';
 import { parseGcpGlobalHealth } from './health';
 import { correlateGcpPhysicalInterfaces, type GcpExpectedNodeIdentity } from './interface-identity';
+import type { OperationalBinding, OperationalCollection } from './operational-health';
 import type { GcpCeEngine } from './types';
 
 export interface GcpStatusSource {
   haHealth?(siteName: string, signal?: AbortSignal): Promise<GcpHaCollection>;
   haHealthContract?: Record<string, unknown>;
   contractFingerprint?: string;
+  operationalHealthContract?: GcpOperationalContract;
+  operationalHealthExpected?: { contractFingerprint: string; qualificationFingerprint: string };
+  operationalHealth?(
+    siteName: string,
+    cloud: (nodeName: string, signal?: AbortSignal) => Promise<unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ binding: OperationalBinding; collection: OperationalCollection }>;
   cloud(nodeName: string, signal?: AbortSignal): Promise<unknown>;
   configuration(siteName: string, signal?: AbortSignal): Promise<unknown>;
   registrations(siteName: string, signal?: AbortSignal): Promise<unknown>;

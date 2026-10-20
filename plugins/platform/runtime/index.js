@@ -644,7 +644,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash11, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash14, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -657,7 +657,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash4(value) {
-  return createHash11('sha256').update(canonical5(value)).digest('hex');
+  return createHash14('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -816,7 +816,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash12, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash15, randomUUID as randomUUID4 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute3, join as join5, resolve, sep } from 'node:path';
@@ -838,7 +838,7 @@ async function storeBootstrapToken(input) {
     throw new Error('Bootstrap token is empty or malformed');
   if (!Number.isInteger(input.expiresInSeconds) || input.expiresInSeconds < 1 || input.expiresInSeconds > 900)
     throw new Error('Bootstrap expiry must be between 1 and 900 seconds');
-  const id = randomUUID3();
+  const id = randomUUID4();
   const sessionDir = join5(root, input.sessionId);
   const itemDir = join5(sessionDir, id);
   for (const target of [sessionDir, itemDir]) assertWithin(root, target);
@@ -848,7 +848,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash12('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash15('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -1012,7 +1012,7 @@ init_driver();
 
 // plugins/gcloud/src/ce/contract.ts
 // plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash2, createHash as createHash3 } from 'node:crypto';
+import { createHash as createHash2, createHash as createHash4 } from 'node:crypto';
 // plugins/platform/src/ce/service.ts
 import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -1196,6 +1196,327 @@ function fingerprint(value) {
     .digest('hex')}`;
 }
 
+// plugins/gcloud/src/ce/operational-release.ts
+import { createHash as createHash3 } from 'node:crypto';
+
+// plugins/gcloud/src/ce/operational-health.ts
+var GCP_OPERATIONAL_CORE_SEED = [
+  'argo',
+  'asaf',
+  'aspen',
+  'bdbewaf',
+  'clank',
+  'envoy',
+  'etcd',
+  'frr',
+  'gubernator',
+  'ike',
+  'keepalived',
+  'komodo',
+  'obelix',
+  'openvpn',
+  'opera',
+  'pmtud',
+  'ver',
+];
+var GCP_OPERATIONAL_DEPENDENCIES = ['coredns', 'kube-proxy', 'kube-multus-ds'];
+var GCP_OPERATIONAL_AUXILIARIES = ['vector-agent', 'voucher', 'kube-state-metrics'];
+var HASH = /^sha256:[a-f0-9]{64}$/;
+var NAME2 = /^[a-z][a-z0-9-]{0,62}$/;
+var object2 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
+var names = (value) =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every((name) => typeof name === 'string' && NAME2.test(name)) &&
+  new Set(value).size === value.length;
+function safeFingerprint(value) {
+  try {
+    return fingerprint(value);
+  } catch {
+    return;
+  }
+}
+function matchesGcpOperationalPod(pod, mapping) {
+  if (!pod.startsWith(mapping.podPrefix)) return false;
+  const suffix = pod.slice(mapping.podPrefix.length);
+  return (
+    mapping.podShape === undefined ||
+    (mapping.podShape === 'daemon' && /^[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'deployment' && /^[a-z0-9]{8,10}-[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'stateful' && /^[0-9]+$/.test(suffix))
+  );
+}
+function qualifiedOperationalProfile(value, pinnedFingerprint) {
+  const p = object2(value);
+  if (
+    !p ||
+    !HASH.test(pinnedFingerprint) ||
+    safeFingerprint(p) !== pinnedFingerprint ||
+    p.schemaVersion !== 2 ||
+    p.scope !== 'original-three-node-operational-health' ||
+    p.maximumAgeMs !== 300000 ||
+    p.minimumRoundIntervalMs !== 45000
+  )
+    return false;
+  for (const field of ['sourceHashes', 'parserVersions', 'roles', 'qualification'])
+    if (!object2(p[field]) || !Object.keys(p[field]).length) return false;
+  if (
+    !Object.values(p.sourceHashes).every((hash) => typeof hash === 'string' && HASH.test(hash)) ||
+    !Object.values(p.parserVersions).every(
+      (version) => typeof version === 'string' && /^[a-z0-9/-]+\/v[1-9][0-9]*$/.test(version),
+    )
+  )
+    return false;
+  const qualification = p.qualification;
+  if (
+    Object.keys(qualification).sort().join(',') !== 'discoveryCleanupSha256,evidenceSha256' ||
+    !Object.values(qualification).every((hash) => typeof hash === 'string' && HASH.test(hash))
+  )
+    return false;
+  if (
+    !names(p.inventoryServices) ||
+    !GCP_OPERATIONAL_CORE_SEED.every((name) => p.inventoryServices.includes(name)) ||
+    !Array.isArray(p.verRunningStates) ||
+    !p.verRunningStates.length ||
+    !p.verRunningStates.every((state) => typeof state === 'string' && /^[A-Za-z][A-Za-z0-9_/-]{0,62}$/.test(state)) ||
+    new Set(p.verRunningStates).size !== p.verRunningStates.length
+  )
+    return false;
+  if (
+    !Array.isArray(p.exclusions) ||
+    p.exclusions.some((raw) => {
+      const e = object2(raw);
+      return (
+        !e ||
+        !GCP_OPERATIONAL_AUXILIARIES.includes(e.service) ||
+        e.reason !== 'auxiliary-outside-operational-scope' ||
+        typeof e.evidenceSha256 !== 'string' ||
+        !HASH.test(e.evidenceSha256)
+      );
+    }) ||
+    new Set(p.exclusions.map((e) => e.service)).size !== p.exclusions.length
+  )
+    return false;
+  for (const [name, raw] of Object.entries(p.roles)) {
+    const role = object2(raw);
+    if (
+      !NAME2.test(name) ||
+      !role ||
+      !names(role.components) ||
+      !names(role.diagnostics) ||
+      !Array.isArray(role.containers) ||
+      !role.containers.length
+    )
+      return false;
+    if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
+    const containers = role.containers.map(object2);
+    if (
+      containers.some(
+        (c) =>
+          !c ||
+          !names([c.service]) ||
+          !names([c.name]) ||
+          !names([c.namespace]) ||
+          !['daemon', 'deployment', 'stateful'].includes(String(c.podShape)) ||
+          typeof c.podPrefix !== 'string' ||
+          !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
+      )
+    )
+      return false;
+    const services = containers.map((c) => c?.service);
+    if (
+      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}:${c?.podShape}`)).size !==
+        containers.length ||
+      !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
+    )
+      return false;
+    if (!['peer-connectivity', 'required-domains'].every((check) => role.diagnostics.includes(check))) return false;
+    for (const service of role.components) if (!services.includes(service)) return false;
+    if (role.components.some((component) => !p.inventoryServices.includes(component))) return false;
+  }
+  const declaredRoles = Object.values(p.roles);
+  for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
+    if (
+      !p.exclusions.some((e) => e.service === auxiliary) &&
+      !declaredRoles.some((role) => role.containers.some((c) => c.service === auxiliary))
+    )
+      return false;
+  for (const service of p.inventoryServices)
+    if (
+      !declaredRoles.some(
+        (role) => role.components.includes(service) || role.containers.some((c) => c.service === service),
+      )
+    )
+      return false;
+  for (const service of GCP_OPERATIONAL_CORE_SEED)
+    if (!declaredRoles.some((role) => role.components.includes(service))) return false;
+  if (p.placementCounts !== undefined) {
+    const counts = object2(p.placementCounts);
+    const required = new Set([
+      ...p.inventoryServices,
+      ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
+    ]);
+    if (
+      !counts ||
+      Object.keys(counts).length !== required.size ||
+      [...required].some(
+        (service) => !Number.isInteger(counts[service]) || Number(counts[service]) < 1 || Number(counts[service]) > 3,
+      ) ||
+      declaredRoles.some(
+        (role) => !role.runtimeRole || !GCP_OPERATIONAL_CORE_SEED.every((service) => role.components.includes(service)),
+      ) ||
+      [...GCP_OPERATIONAL_CORE_SEED, ...GCP_OPERATIONAL_DEPENDENCIES].some((service) => counts[service] !== 3)
+    )
+      return false;
+  }
+  return true;
+}
+function hasGcpOperationalPlacementCoverage(profile, roles) {
+  return (
+    roles.length === 3 &&
+    roles.every((name) => !!profile.roles[name]) &&
+    Object.entries(profile.placementCounts ?? {}).every(
+      ([service, count]) =>
+        roles.filter(
+          (name) =>
+            profile.roles[name].components.includes(service) ||
+            profile.roles[name].containers.some((c) => c.service === service),
+        ).length === count,
+    )
+  );
+}
+function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFingerprint) {
+  const receipt = object2(value);
+  return (
+    !!receipt &&
+    HASH.test(pinnedReceiptFingerprint) &&
+    safeFingerprint(receipt) === pinnedReceiptFingerprint &&
+    receipt.schemaVersion === 2 &&
+    receipt.contractFingerprint === contractFingerprint &&
+    HASH.test(contractFingerprint) &&
+    ['bindingFingerprint', 'evidenceSha256', 'campaignCleanupSha256'].every(
+      (key) => typeof receipt[key] === 'string' && HASH.test(receipt[key]),
+    ) &&
+    Array.isArray(receipt.healthyRoundFingerprints) &&
+    receipt.healthyRoundFingerprints.length === 2 &&
+    receipt.healthyRoundFingerprints.every((hash) => typeof hash === 'string' && HASH.test(hash)) &&
+    receipt.healthyRoundFingerprints[0] !== receipt.healthyRoundFingerprints[1] &&
+    receipt.objectsAbsent === 18 &&
+    receipt.emptyDestroy === true &&
+    receipt.stableState === true &&
+    receipt.repeatedResumeNoSubmission === true
+  );
+}
+// plugins/gcloud/src/ce/operational-source-hashes.json
+var operational_source_hashes_default = {
+  'gcp-operational-source': 'sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9',
+  'gcp-operational-command': 'sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846',
+  'gcp-runtime-diagnostics': 'sha256:ee99d0713c713cb2348020a3b3e152feff52caf15af612c5f65a5899a8ce9580',
+  'gcp-operational-diagnosis': 'sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1',
+  'gcp-operational-site-status': 'sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d',
+  'gcp-operational-observation': 'sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec',
+  'gcp-operational-runtime': 'sha256:86093df90f14194d94570773008203e0b5af2e8d041ccb21cce19459f2b2a4b8',
+  'gcp-operational-binding': 'sha256:5241e6662bcad89e4ef3048b60005dbcfb333c692877b73348e3f3dcdf086a16',
+  'gcp-operational-placement': 'sha256:6bdda37171ee119261cbe88a6959ebdd84bb21c5fd2aceb110de895016347e5f',
+  evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
+};
+
+// plugins/gcloud/src/ce/operational-release.ts
+var GCP_OPERATIONAL_RELEASE_PIN;
+var repository = 'f5-sales-demo/api-specs-enriched';
+async function resolveGcpOperationalRelease(
+  fetcher = fetch,
+  signal,
+  pin = GCP_OPERATIONAL_RELEASE_PIN,
+  compiledSourceHashes = operational_source_hashes_default,
+) {
+  if (!pin) return;
+  if (
+    !/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(pin.tag) ||
+    !/^[a-f0-9]{40}$/.test(pin.sourceCommit) ||
+    ![
+      pin.profileAssetDigest,
+      pin.contractFingerprint,
+      pin.qualificationAssetDigest,
+      pin.qualificationFingerprint,
+    ].every((value) => /^sha256:[a-f0-9]{64}$/.test(value))
+  )
+    throw new Error('Operational release pin malformed');
+  const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+  const read = async (url, maximum = 4 * 1024 * 1024) => {
+    bounded.throwIfAborted();
+    const response = await fetcher(url, { signal: bounded, headers: { Accept: 'application/vnd.github+json' } });
+    if (!response.ok || !response.body) throw new Error('Operational immutable asset unavailable');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        bounded.throwIfAborted();
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maximum) throw new Error('Operational immutable asset exceeds bound');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    bounded.throwIfAborted();
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes) => {
+    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Operational release JSON malformed');
+    return value;
+  };
+  const base = `https://api.github.com/repos/${repository}`;
+  const release = decode(await read(`${base}/releases/tags/${pin.tag}`));
+  if (
+    release.tag_name !== pin.tag ||
+    release.immutable !== true ||
+    release.draft !== false ||
+    release.prerelease !== false
+  )
+    throw new Error('Operational release is not final and immutable');
+  const reference = decode(await read(`${base}/git/ref/tags/${pin.tag}`));
+  let target = reference.object;
+  if (target?.type === 'tag' && typeof target.sha === 'string' && /^[a-f0-9]{40}$/.test(target.sha)) {
+    const tag = decode(await read(`${base}/git/tags/${target.sha}`));
+    target = tag.object;
+  }
+  if (target?.type !== 'commit' || target.sha !== pin.sourceCommit)
+    throw new Error('Operational release immutable source differs');
+  const asset = async (name, digest) => {
+    if (!Array.isArray(release.assets)) throw new Error('Operational release assets malformed');
+    const assets = release.assets.filter((value) => value && typeof value === 'object' && value.name === name);
+    const url = `https://github.com/${repository}/releases/download/${pin.tag}/${name}`;
+    if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
+      throw new Error('Operational release asset identity differs');
+    const bytes = await read(url);
+    if (`sha256:${createHash3('sha256').update(bytes).digest('hex')}` !== digest)
+      throw new Error('Operational release asset bytes differ');
+    return decode(bytes);
+  };
+  const profile = await asset('gcp-operational-health-v2.json', pin.profileAssetDigest);
+  const qualification = await asset('gcp-operational-qualification-v2.json', pin.qualificationAssetDigest);
+  if (
+    !qualifiedOperationalProfile(profile, pin.contractFingerprint) ||
+    !qualifiedOperationalRelease(qualification, pin.qualificationFingerprint, pin.contractFingerprint)
+  )
+    throw new Error('Operational profile or qualification differs');
+  if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
+    throw new Error('Operational parser source drift requires explicit requalification');
+  return {
+    profile,
+    contractFingerprint: pin.contractFingerprint,
+    qualification,
+    qualificationFingerprint: pin.qualificationFingerprint,
+  };
+}
+
 // plugins/gcloud/src/ce/contract.ts
 var GCP_CE_API_RELEASE = {
   repository: 'f5-sales-demo/api-specs-enriched',
@@ -1267,7 +1588,7 @@ async function resolveGcpContract(fetcher = fetch, signal) {
   )
     throw new Error('Contract asset identity mismatch');
   const bytes = await read(expectedUrl, 4 * 1024 * 1024);
-  if (`sha256:${createHash3('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+  if (`sha256:${createHash4('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
   const contract = decode(bytes);
   if (
@@ -1297,6 +1618,14 @@ async function resolveGcpContract(fetcher = fetch, signal) {
           health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health',
         }
       : undefined;
+  let operationalHealthContract;
+  if (observations) {
+    try {
+      operationalHealthContract = await resolveGcpOperationalRelease(fetcher, combined);
+    } catch {
+      signal?.throwIfAborted();
+    }
+  }
   return {
     release: GCP_CE_API_RELEASE,
     fingerprint: fingerprint(contract),
@@ -1305,6 +1634,15 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       ? 'gcp_provider_requires_consumer_qualification'
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
+    ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN
+      ? {
+          operationalHealthExpected: {
+            contractFingerprint: GCP_OPERATIONAL_RELEASE_PIN.contractFingerprint,
+            qualificationFingerprint: GCP_OPERATIONAL_RELEASE_PIN.qualificationFingerprint,
+          },
+        }
+      : {}),
     ...(observations && qualifiedGcpHaObservationMappings(assets)
       ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
       : {}),
@@ -1318,12 +1656,12 @@ async function resolveGcpContract(fetcher = fetch, signal) {
 }
 
 // plugins/platform/src/ce/deployment-store.ts
-import { createHash as createHash4, randomUUID } from 'node:crypto';
+import { createHash as createHash5, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute as isAbsolute2, join } from 'node:path';
 
 function key(owner) {
-  return createHash4('sha256')
+  return createHash5('sha256')
     .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
     .digest('hex');
 }
@@ -1425,7 +1763,7 @@ class CeDeploymentStore {
 // plugins/platform/src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
 
-var object2 = (value) => {
+var object3 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP session evidence');
   return value;
 };
@@ -1449,7 +1787,7 @@ function parseBgpSessions(response, expected) {
     )
   )
     throw new Error('Invalid expected BGP session identity');
-  const value = object2(response);
+  const value = object3(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -1459,7 +1797,7 @@ function parseBgpSessions(response, expected) {
   )
     throw new Error('Partial BGP session evidence');
   const expectedNodes = [...new Set(expected.map((item) => item.node))];
-  const nodes = array(value.ver).map(object2);
+  const nodes = array(value.ver).map(object3);
   if (
     nodes.length !== expectedNodes.length ||
     expectedNodes.some((node) => nodes.filter((candidate) => matchesNode(node, candidate.name)).length !== 1)
@@ -1467,8 +1805,8 @@ function parseBgpSessions(response, expected) {
     throw new Error('BGP session node identity differs');
   const actual = nodes.flatMap((node) =>
     array(node.peer).map((item) => {
-      const peer = object2(item);
-      const address = object2(object2(peer.peer_address).ipv4).addr;
+      const peer = object3(item);
+      const address = object3(object3(peer.peer_address).ipv4).addr;
       if (
         typeof node.name !== 'string' ||
         typeof peer.interface_name !== 'string' ||
@@ -1528,7 +1866,7 @@ function parseBgpSessions(response, expected) {
 // plugins/platform/src/ce/bgp-route-evidence.ts
 import { isIP as isIP2 } from 'node:net';
 
-var object3 = (value) => {
+var object4 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP route evidence');
   return value;
 };
@@ -1553,7 +1891,7 @@ function parseBgpRoutes(response, expectedNodes) {
     expectedNodes.some((node) => !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(node))
   )
     throw new Error('Invalid expected BGP route node identity');
-  const value = object3(response);
+  const value = object4(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -1562,7 +1900,7 @@ function parseBgpRoutes(response, expectedNodes) {
     (value.errors !== undefined && array2(value.errors).length)
   )
     throw new Error('Partial BGP route evidence');
-  const rows = array2(value.ver).map(object3);
+  const rows = array2(value.ver).map(object4);
   if (
     rows.length !== expectedNodes.length ||
     expectedNodes.some((node) => rows.filter((candidate) => matchesNode2(node, candidate.name)).length !== 1)
@@ -1572,16 +1910,16 @@ function parseBgpRoutes(response, expectedNodes) {
     const row = rows.find((candidate) => matchesNode2(node, candidate.name));
     if (!row) throw new Error('BGP route node identity differs');
     const routingInstances = array2(row.ri_table).map((entry) => {
-      const instance = object3(entry);
+      const instance = object4(entry);
       if (typeof instance.routing_instance !== 'string' || !instance.routing_instance)
         throw new Error('Malformed BGP routing instance evidence');
       const tables = array2(instance.rt_table).map((entry) => {
-        const table = object3(entry);
+        const table = object4(entry);
         if (typeof table.name !== 'string' || !table.name) throw new Error('Malformed BGP route table evidence');
         const routes = (kind) => {
           const seen = new Set();
           return array2(table[kind]).map((entry) => {
-            const route = object3(entry);
+            const route = object4(entry);
             if (!cidr(route.subnet) || seen.has(route.subnet)) throw new Error('Malformed BGP route prefix evidence');
             seen.add(route.subnet);
             return route.subnet;
@@ -1601,12 +1939,12 @@ function parseBgpRoutes(response, expectedNodes) {
 }
 
 // plugins/platform/src/ce/bootstrap.ts
-function object4(value) {
+function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed bootstrap response');
   return value;
 }
 function bindAwsCloudInit(response, jwt) {
-  const material = object4(response).cloud_init_config;
+  const material = object5(response).cloud_init_config;
   if (typeof material !== 'string' || material.length > 1024 * 1024 || !material.startsWith('#cloud-config'))
     throw new Error('Unsupported cloud-init material');
   if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(jwt)) throw new Error('Malformed site-bound JWT');
@@ -1614,12 +1952,12 @@ function bindAwsCloudInit(response, jwt) {
   if (/\{\{|\}\}/.test(bound)) throw new Error('Unresolved cloud-init placeholder');
   let parsed;
   try {
-    parsed = object4(Bun.YAML.parse(bound));
+    parsed = object5(Bun.YAML.parse(bound));
   } catch {
     throw new Error('Malformed cloud-init material');
   }
   if (!Array.isArray(parsed.write_files)) throw new Error('Cloud-init has no issued user data');
-  const files = parsed.write_files.map(object4);
+  const files = parsed.write_files.map(object5);
   if (files.some((file) => file.path === '/etc/vpm/config.yaml'))
     throw new Error('Cloud-init overwrites certified image configuration');
   const userData = files.filter((file) => file.path === '/etc/vpm/user_data');
@@ -1633,7 +1971,7 @@ function bindAwsCloudInit(response, jwt) {
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 // plugins/platform/src/ce/process-lock.ts
-import { createHash as createHash5, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   lstat as lstat2,
   mkdir as mkdir2,
@@ -1794,7 +2132,7 @@ async function acquireProcessLock(path, ownerPid = process.pid) {
 }
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
-function object5(value) {
+function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress evidence');
   return value;
 }
@@ -1807,10 +2145,10 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash = (value) => createHash5('sha256').update(canonical(value)).digest('hex');
+var hash = (value) => createHash6('sha256').update(canonical(value)).digest('hex');
 var same = (a, b) => canonical(a) === canonical(b);
 var uid = (value) => {
-  const result = object5(value.system_metadata).uid;
+  const result = object6(value.system_metadata).uid;
   if (typeof result !== 'string' || !result) throw new Error('Ingress resource UID is unavailable');
   return result;
 };
@@ -2023,7 +2361,7 @@ class CeIngressLifecycle {
   }
   async #checkpoint(id) {
     try {
-      return object5(await this.storage.read(`ingress-checkpoint-${id}.json`));
+      return object6(await this.storage.read(`ingress-checkpoint-${id}.json`));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -2031,15 +2369,15 @@ class CeIngressLifecycle {
   }
   async #originCheckpoint(id) {
     try {
-      return object5(await this.storage.read(`ingress-origin-checkpoint-${id}.json`));
+      return object6(await this.storage.read(`ingress-origin-checkpoint-${id}.json`));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
     }
   }
   #owned(actual, plan, expectedUid) {
-    const metadata = object5(actual.metadata);
-    const labels = object5(metadata.labels);
+    const metadata = object6(actual.metadata);
+    const labels = object6(metadata.labels);
     if (
       metadata.name !== plan.request.metadata.name ||
       metadata.namespace !== plan.request.metadata.namespace ||
@@ -2051,8 +2389,8 @@ class CeIngressLifecycle {
       throw new Error('Live listener ownership, UID or configuration differs from saved ingress plan');
   }
   #ownedOrigin(actual, plan, expectedUid) {
-    const metadata = object5(actual.metadata);
-    const labels = object5(metadata.labels);
+    const metadata = object6(actual.metadata);
+    const labels = object6(metadata.labels);
     const expected = plan.material.originRequest;
     if (
       metadata.name !== expected.metadata.name ||
@@ -2307,7 +2645,7 @@ function initialSoftwareSettings(value) {
 // plugins/platform/src/ce/interface-evidence.ts
 import { isIP as isIP4 } from 'node:net';
 
-var object6 = (value) => {
+var object7 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed interface evidence');
   return value;
 };
@@ -2330,7 +2668,7 @@ var matchesNode3 = (expected, actual) =>
 function observedIpv4(link) {
   if (link.active_state !== 'STATE_ACTIVE') return null;
   try {
-    const ipv4 = object6(object6(link.ip).ipv4);
+    const ipv4 = object7(object7(link.ip).ipv4);
     if (
       typeof ipv4.prefix !== 'string' ||
       isIP4(ipv4.prefix) !== 4 ||
@@ -2346,9 +2684,9 @@ function observedIpv4(link) {
 }
 function correlateCeInterfaces(configuration, objects, physical, expected, provider = 'aws') {
   if (provider === 'gcp') throw new Error('GCP physical interface mapping is unavailable');
-  const metadata = object6(configuration.metadata);
-  const uid = identity(object6(configuration.system_metadata).uid);
-  const statusMetadata = object6(physical.metadata);
+  const metadata = object7(configuration.metadata);
+  const uid = identity(object7(configuration.system_metadata).uid);
+  const statusMetadata = object7(physical.metadata);
   if (statusMetadata.name !== metadata.name || metadata.namespace !== 'system' || statusMetadata.namespace !== 'system')
     throw new Error('Foreign physical site evidence');
   if (
@@ -2359,15 +2697,15 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     (objects.errors !== undefined && array3(objects.errors).length)
   )
     throw new Error('Partial interface discovery');
-  const realized = array3(objects.items).map(object6);
-  const configured = array3(object6(object6(object6(configuration.spec)[provider]).not_managed).node_list).flatMap(
+  const realized = array3(objects.items).map(object7);
+  const configured = array3(object7(object7(object7(configuration.spec)[provider]).not_managed).node_list).flatMap(
     (item) => {
-      const node = object6(item);
+      const node = object7(item);
       const hostname = identity(node.hostname);
       return array3(node.interface_list).map((item) => {
-        const iface = object6(item);
-        const ethernet = object6(iface.ethernet_interface);
-        const network = object6(iface.network_option);
+        const iface = object7(item);
+        const ethernet = object7(iface.ethernet_interface);
+        const network = object7(iface.network_option);
         const slo = Object.hasOwn(network, 'site_local_network');
         const sli = Object.hasOwn(network, 'site_local_inside_network');
         if (
@@ -2386,7 +2724,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
       });
     },
   );
-  const statuses = array3(physical.status).map(object6);
+  const statuses = array3(physical.status).map(object7);
   const seen = new Set();
   if (!expected.length) throw new Error('Expected interface bindings required');
   return expected.map((binding) => {
@@ -2400,7 +2738,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     const { outside: _outside, ...configuredInterface } = candidates[0];
     const iface = { ...configuredInterface, role: binding.role };
     const matches = realized.filter((item) => {
-      const owner = object6(item.owner_view ?? {});
+      const owner = object7(item.owner_view ?? {});
       if (
         owner.kind !== 'securemesh_site_v2' ||
         owner.name !== metadata.name ||
@@ -2408,7 +2746,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
         owner.uid !== uid
       )
         return false;
-      const ethernet = object6(object6(item.get_spec).ethernet_interface);
+      const ethernet = object7(object7(item.get_spec).ethernet_interface);
       if (ethernet.node !== iface.node || ethernet.device !== iface.device) return false;
       const slo = Object.hasOwn(ethernet, 'site_local_network');
       const sli = Object.hasOwn(ethernet, 'site_local_inside_network');
@@ -2419,7 +2757,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     if (matches.length !== 1) throw new Error('Ambiguous realized interface identity');
     const publications = statuses.filter((item) => {
       if (item.ver_status === undefined || item.ver_status === null) return false;
-      const publisher = object6(item.metadata);
+      const publisher = object7(item.metadata);
       return (
         publisher.creator_class === 'ver' &&
         publisher.publish === 'STATUS_PUBLISH' &&
@@ -2427,20 +2765,20 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
         (matchesNode3(iface.node, publisher.creator_id) ||
           (publisher.creator_id === metadata.name &&
             publisher.status_id === `${iface.node}_SiteStatusMgr` &&
-            object6(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
-            typeof object6(physical.system_metadata ?? {}).uid === 'string' &&
-            object6(physical.system_metadata).uid !== '' &&
+            object7(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
+            typeof object7(physical.system_metadata ?? {}).uid === 'string' &&
+            object7(physical.system_metadata).uid !== '' &&
             array3(item.object_refs).filter((ref) => {
-              const value = object6(ref);
+              const value = object7(ref);
               return (
-                value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object6(physical.system_metadata).uid
+                value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object7(physical.system_metadata).uid
               );
             }).length === 1))
       );
     });
     if (publications.length !== 1) throw new Error('Physical interface publication is missing, stale or duplicated');
-    const links = array3(object6(publications[0].ver_status).intf_status)
-      .map(object6)
+    const links = array3(object7(publications[0].ver_status).intf_status)
+      .map(object7)
       .filter((item) => item.name === iface.device);
     if (
       links.length !== 1 ||
@@ -2456,9 +2794,9 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
 }
 
 // plugins/platform/src/ce/origin-teardown.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 
-function object7(value) {
+function object8(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed origin evidence');
   return value;
 }
@@ -2471,7 +2809,7 @@ function canonical2(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var digest = (value) => createHash6('sha256').update(canonical2(value)).digest('hex');
+var digest = (value) => createHash7('sha256').update(canonical2(value)).digest('hex');
 function path(locator, kind) {
   if (
     !locator ||
@@ -2507,15 +2845,15 @@ class CeOriginTeardown {
   async #read(source, signal) {
     signal?.throwIfAborted();
     try {
-      return object7(await this.port.request(source, {}, signal));
+      return object8(await this.port.request(source, {}, signal));
     } catch (error) {
       if (error instanceof CeApiError && error.category === 'not-found') return;
       throw error;
     }
   }
   #identity(value, owner, origin) {
-    const metadata = object7(value.metadata),
-      labels = object7(metadata.labels);
+    const metadata = object8(value.metadata),
+      labels = object8(metadata.labels);
     const expected = {
       'xcsh-ce-deployment': owner.deploymentId,
       'xcsh-ce-engine': owner.engine,
@@ -2526,13 +2864,13 @@ class CeOriginTeardown {
     if (
       metadata.name !== origin.name ||
       metadata.namespace !== origin.namespace ||
-      object7(value.system_metadata).uid !== origin.uid ||
+      object8(value.system_metadata).uid !== origin.uid ||
       Object.entries(expected).some(([key, item]) => labels[key] !== item)
     )
       throw new Error('Live origin UID or ownership differs');
     if (typeof value.resource_version !== 'string' || !value.resource_version)
       throw new Error('Origin resource version is unavailable');
-    return { resourceVersion: value.resource_version, specSha256: digest(object7(value.spec)) };
+    return { resourceVersion: value.resource_version, specSha256: digest(object8(value.spec)) };
   }
   async observe(owner, origin, signal) {
     owner = structuredClone(owner);
@@ -2602,7 +2940,7 @@ class CeOriginTeardown {
 }
 
 // plugins/platform/src/ce/platform-drain.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 
 function canonical3(value) {
   if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
@@ -2614,7 +2952,7 @@ function canonical3(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash2 = (value) => createHash7('sha256').update(canonical3(value)).digest('hex');
+var hash2 = (value) => createHash8('sha256').update(canonical3(value)).digest('hex');
 var name2 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text = (value) => typeof value === 'string' && !!value.trim();
 var list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
@@ -2770,7 +3108,7 @@ async function drainCePlatform(input, store, port, signal) {
 }
 
 // plugins/platform/src/ce/registration-devices.ts
-var object8 = (value) => {
+var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed registration inventory');
   return value;
 };
@@ -2799,28 +3137,28 @@ function correlateRegistrationDevices(response, siteName, instances, expected, p
     nodes.some((node) => !expected.some((i) => i.node === node))
   )
     throw new Error('Incomplete expected node inventory');
-  const items = array4(response.items).map(object8);
+  const items = array4(response.items).map(object9);
   const inventory = new Map();
   for (const node of nodes) {
     const matches = items.filter((item) => {
-      const spec = object8(item.get_spec);
-      return object8(spec.passport).cluster_name === siteName && object8(spec.infra).hostname === node;
+      const spec = object9(item.get_spec);
+      return object9(spec.passport).cluster_name === siteName && object9(spec.infra).hostname === node;
     });
     if (matches.length !== 1) throw new Error('Ambiguous registration inventory');
     const registration = matches[0];
-    const spec = object8(registration.get_spec);
-    const infra = object8(spec.infra);
-    const state = object8(object8(registration.object).status).current_state;
+    const spec = object9(registration.get_spec);
+    const infra = object9(spec.infra);
+    const state = object9(object9(registration.object).status).current_state;
     if (
       !(provider === 'aws'
         ? /^i-[0-9a-f]{8,17}$/.test(instances[node])
         : /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instances[node])) ||
       infra.instance_id !== instances[node] ||
-      object8(spec.passport).cluster_size !== nodes.length ||
+      object9(spec.passport).cluster_size !== nodes.length ||
       !['ADMITTED', 'ONLINE'].includes(String(state))
     )
       throw new Error('Registration instance binding is unavailable');
-    inventory.set(node, array4(object8(infra.hw_info).network).map(object8));
+    inventory.set(node, array4(object9(infra.hw_info).network).map(object9));
   }
   const seenMacs = new Set();
   const seenRoles = new Set();
@@ -2844,23 +3182,23 @@ function correlateRegistrationDevices(response, siteName, instances, expected, p
   });
 }
 function verifyRegisteredInterfaceConfiguration(spec, devices, provider = 'aws') {
-  const nodes = array4(object8(object8(spec[provider]).not_managed).node_list).map(object8);
+  const nodes = array4(object9(object9(spec[provider]).not_managed).node_list).map(object9);
   const expectedNodes = new Set(devices.map((item) => item.node));
   if (!devices.length || nodes.length !== expectedNodes.size) throw new Error('Configured node count differs');
   for (const nodeName of expectedNodes) {
     const matches = nodes.filter((node) => node.hostname === nodeName);
     if (matches.length !== 1) throw new Error('Configured node identity differs');
-    const interfaces = array4(matches[0].interface_list).map(object8);
+    const interfaces = array4(matches[0].interface_list).map(object9);
     const expected = devices.filter((item) => item.node === nodeName);
     if (interfaces.length !== expected.length) throw new Error('Configured interface count differs');
     for (const device of expected) {
-      const matches = interfaces.filter((item) => mac2(object8(item.ethernet_interface).mac) === device.mac);
+      const matches = interfaces.filter((item) => mac2(object9(item.ethernet_interface).mac) === device.mac);
       if (matches.length !== 1) throw new Error('Configured interface MAC differs');
       const item = matches[0];
-      const network = object8(item.network_option);
+      const network = object9(item.network_option);
       const choice = device.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
       if (
-        object8(item.ethernet_interface).device !== device.device ||
+        object9(item.ethernet_interface).device !== device.device ||
         Object.keys(network).length !== 1 ||
         !Object.hasOwn(network, choice) ||
         !Object.hasOwn(item, 'dhcp_client') ||
@@ -2873,7 +3211,7 @@ function verifyRegisteredInterfaceConfiguration(spec, devices, provider = 'aws')
 }
 
 // plugins/platform/src/ce/teardown-inventory.ts
-var object9 = (value) => {
+var object10 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed teardown inventory');
   return value;
 };
@@ -2939,10 +3277,10 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
   const read = async (path) => {
     signal?.throwIfAborted();
     sources.push(path);
-    return object9(await port.request(path, {}, signal));
+    return object10(await port.request(path, {}, signal));
   };
   const owned = (actual) => {
-    const row = object9(actual);
+    const row = object10(actual);
     if (Object.entries(labels).some(([key, value]) => row[key] !== value))
       throw new Error('Inventory ownership differs');
     return row;
@@ -2951,18 +3289,18 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
     const value = await read(
       `/api/config/namespaces/system/${physical ? 'sites' : 'securemesh_site_v2s'}/${binding.siteName}`,
     );
-    const metadata = object9(value.metadata),
-      uid = object9(value.system_metadata).uid;
+    const metadata = object10(value.metadata),
+      uid = object10(value.system_metadata).uid;
     owned(metadata.labels);
     if (metadata.name !== binding.siteName || metadata.namespace !== 'system' || !text2(uid))
       throw new Error('Site inventory identity differs');
     if (physical) {
-      const observed = object9(value.spec).main_nodes;
+      const observed = object10(value.spec).main_nodes;
       if (
         !Array.isArray(observed) ||
         observed.length !== binding.nodes.length ||
-        new Set(observed.map((row) => object9(row).name)).size !== observed.length ||
-        observed.some((row) => !binding.nodes.includes(String(object9(row).name)))
+        new Set(observed.map((row) => object10(row).name)).size !== observed.length ||
+        observed.some((row) => !binding.nodes.includes(String(object10(row).name)))
       )
         throw new Error('Physical node inventory differs');
     }
@@ -3001,14 +3339,14 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
       )
         throw new Error('Incomplete teardown collection');
       for (const item of response.items) {
-        const row = object9(item),
+        const row = object10(item),
           rowLabels = owned(row.labels),
           key = `${namespace}/${kind}/${row.name}`;
         if (!name3(row.name) || row.namespace !== namespace || !text2(row.uid) || seen.has(key) || uids.has(row.uid))
           throw new Error('Invalid or duplicate teardown resource');
-        const metadata = row.metadata === undefined || row.metadata === null ? {} : object9(row.metadata),
+        const metadata = row.metadata === undefined || row.metadata === null ? {} : object10(row.metadata),
           system =
-            row.system_metadata === undefined || row.system_metadata === null ? {} : object9(row.system_metadata);
+            row.system_metadata === undefined || row.system_metadata === null ? {} : object10(row.system_metadata);
         if (
           ['name', 'namespace'].some(
             (key) => metadata[key] !== undefined && metadata[key] !== '' && metadata[key] !== row[key],
@@ -3016,7 +3354,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
           (system.uid !== undefined && system.uid !== '' && system.uid !== row.uid)
         )
           throw new Error('Conflicting flat and nested inventory identities');
-        if (metadata.labels !== undefined && Object.keys(object9(metadata.labels)).length) owned(metadata.labels);
+        if (metadata.labels !== undefined && Object.keys(object10(metadata.labels)).length) owned(metadata.labels);
         const selected = { kind, name: row.name, namespace, uid: row.uid };
         if (kind === 'tokens') {
           const node = rowLabels['xcsh-ce-node'];
@@ -3072,7 +3410,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
 }
 
 // plugins/platform/src/ce/upgrade-evidence.ts
-function object10(value) {
+function object11(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
 }
@@ -3084,7 +3422,7 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
   const observations = [];
   const seen = new Set();
   for (const value of rows) {
-    const row = object10(value);
+    const row = object11(value);
     if (!row.metadata || typeof row.metadata !== 'object' || Array.isArray(row.metadata)) continue;
     const metadata = row.metadata;
     if (metadata.status_id !== statusId) continue;
@@ -3095,10 +3433,10 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
     const uid = text3(metadata.uid);
     if (seen.has(uid)) throw new Error('Duplicate upgrade publisher');
     seen.add(uid);
-    const block = object10(row[key]);
-    const deployment = object10(block.deployment_state);
+    const block = object11(row[key]);
+    const deployment = object11(block.deployment_state);
     let current = block;
-    for (const part of installed) current = object10(current)[part];
+    for (const part of installed) current = object11(current)[part];
     const phase = text3(deployment.phase);
     const result = text3(deployment.result);
     if (
@@ -3120,17 +3458,17 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
   return observations[0];
 }
 function parseSiteUpgradeState(raw, binding) {
-  const site = object10(raw);
-  const metadata = object10(site.metadata);
-  const spec = object10(site.spec);
+  const site = object11(raw);
+  const metadata = object11(site.metadata);
+  const spec = object11(site.spec);
   const nodes = spec.main_nodes;
   if (
     metadata.name !== binding.siteName ||
     metadata.namespace !== 'system' ||
     !Array.isArray(nodes) ||
     nodes.length !== binding.nodes.length ||
-    new Set(nodes.map((node) => object10(node).name)).size !== nodes.length ||
-    nodes.some((node) => typeof object10(node).name !== 'string' || !binding.nodes.includes(object10(node).name)) ||
+    new Set(nodes.map((node) => object11(node).name)).size !== nodes.length ||
+    nodes.some((node) => typeof object11(node).name !== 'string' || !binding.nodes.includes(object11(node).name)) ||
     !Array.isArray(site.status)
   )
     throw new Error('Upgrade physical site or node membership differs');
@@ -3148,7 +3486,7 @@ function parseSiteUpgradeState(raw, binding) {
   ]);
   initialSoftwareSettings({ software: software.installed, os: os.installed });
   return {
-    physicalSiteUid: text3(object10(site.system_metadata).uid),
+    physicalSiteUid: text3(object11(site.system_metadata).uid),
     siteState: state,
     online: state === 'ONLINE',
     software,
@@ -3156,11 +3494,11 @@ function parseSiteUpgradeState(raw, binding) {
   };
 }
 function parseUpgradePrechecks(raw) {
-  const list = object10(raw).checklist;
+  const list = object11(raw).checklist;
   if (!Array.isArray(list) || !list.length) throw new Error('Missing upgrade prechecks');
   const seen = new Set();
   const checks = list.map((value) => {
-    const row = object10(value),
+    const row = object11(value),
       name = text3(row.item),
       status = text3(row.status);
     if (
@@ -3174,7 +3512,7 @@ function parseUpgradePrechecks(raw) {
   return { checks, passing: checks.every((check) => ['CHECKLIST_PASSED', 'CHECKLIST_WARNING'].includes(check.status)) };
 }
 function parseSoftwareTargets(raw) {
-  const values = object10(raw).sw_versions;
+  const values = object11(raw).sw_versions;
   if (
     !Array.isArray(values) ||
     values.some((value) => typeof value !== 'string' || !/^crt-\d{8}-\d{4}$/.test(value)) ||
@@ -3184,7 +3522,7 @@ function parseSoftwareTargets(raw) {
   return values;
 }
 function parseUpgradeProgress(raw, siteName) {
-  const value = object10(object10(object10(raw).upgrade_status).sw_upgrade_progress);
+  const value = object11(object11(object11(raw).upgrade_status).sw_upgrade_progress);
   if (value.site !== siteName) throw new Error('Upgrade progress site differs');
   if (!['UNKNOWN', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED'].includes(text3(value.status)))
     throw new Error('Unknown upgrade progress status');
@@ -3201,7 +3539,7 @@ class CeApiError extends Error {
     this.status = status;
   }
 }
-function object11(value) {
+function object12(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CeApiError('malformed');
   return value;
 }
@@ -3302,7 +3640,7 @@ class CeRuntime {
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text) return {};
       try {
-        return object11(JSON.parse(text));
+        return object12(JSON.parse(text));
       } catch {
         throw new CeApiError('malformed');
       }
@@ -3342,7 +3680,7 @@ class CeRuntime {
     };
   }
   #owned(site, binding) {
-    const metadata = object11(site.metadata);
+    const metadata = object12(site.metadata);
     if (
       metadata.name !== binding.siteName ||
       metadata.namespace !== 'system' ||
@@ -3380,7 +3718,7 @@ class CeRuntime {
     };
     try {
       const logical = await this.observeOwnedSite(binding, signal);
-      const siteUid = object11(logical.system_metadata).uid;
+      const siteUid = object12(logical.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
       const physical = await this.#request(source, {}, signal);
       this.#owned(physical, binding);
@@ -3398,7 +3736,7 @@ class CeRuntime {
       const finalPhysical = await this.#request(source, {}, signal);
       this.#owned(finalPhysical, binding);
       if (
-        object11(finalLogical.system_metadata).uid !== siteUid ||
+        object12(finalLogical.system_metadata).uid !== siteUid ||
         JSON.stringify(parseSiteUpgradeState(finalPhysical, binding)) !== JSON.stringify(state)
       )
         throw new CeApiError('conflict');
@@ -3435,7 +3773,7 @@ class CeRuntime {
       throw new Error('Exact logical site identity is required for upgrade');
     const request = contract.build({ siteName: binding.siteName, ...structuredClone(target) });
     const site = await this.observeOwnedSite(binding, signal);
-    if (object11(site.system_metadata).uid !== expectedSiteUid)
+    if (object12(site.system_metadata).uid !== expectedSiteUid)
       throw new Error('Upgrade site identity changed before mutation');
     await onMutationBoundary();
     await this.#request(request.path, { method: request.method, body: JSON.stringify(request.body) }, signal);
@@ -3534,8 +3872,8 @@ class CeRuntime {
     const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
     if (devices.status !== 'observed') throw new Error('Replacement guest interface inventory is unavailable');
     const before = await this.observeOwnedSite(binding, signal);
-    verifyRegisteredInterfaceConfiguration(object11(before.spec), devices.interfaces);
-    const uid = object11(before.system_metadata).uid;
+    verifyRegisteredInterfaceConfiguration(object12(before.spec), devices.interfaces);
+    const uid = object12(before.system_metadata).uid;
     if (typeof uid !== 'string' || !uid || typeof before.resource_version !== 'string' || !before.resource_version)
       throw new Error('Replacement site identity and resource version are required');
     const request = this.ownedSiteConfiguration(binding, before);
@@ -3545,11 +3883,11 @@ class CeRuntime {
         throw new Error('Replacement interface MTU is invalid');
       return { ...device, mtu: desired.mtu };
     });
-    const nodes = object11(object11(object11(request.spec).aws).not_managed).node_list;
+    const nodes = object12(object12(object12(request.spec).aws).not_managed).node_list;
     for (const node of nodes)
       for (const iface of node.interface_list) {
         const expected = interfaces.find(
-          (item) => item.node === node.hostname && item.mac === object11(iface.ethernet_interface).mac,
+          (item) => item.node === node.hostname && item.mac === object12(iface.ethernet_interface).mac,
         );
         if (!expected) throw new Error('Replacement interface identity differs');
         iface.mtu = expected.mtu;
@@ -3572,7 +3910,7 @@ class CeRuntime {
   }
   async ensureAwsPreparedSite(binding, preparation, checkpoint, signal) {
     this.#binding(binding, true);
-    const request = object11(preparation.request);
+    const request = object12(preparation.request);
     if (
       binding.owner.provider !== 'aws' ||
       !subset(preparation.owner, binding.owner) ||
@@ -3589,7 +3927,7 @@ class CeRuntime {
     this.contract.validateSiteCreate(request);
     if (
       binding.initialVersions &&
-      !subset(object11(request.spec).software_settings, initialSoftwareSettings(binding.initialVersions))
+      !subset(object12(request.spec).software_settings, initialSoftwareSettings(binding.initialVersions))
     )
       throw new Error('Prepared site initial versions differ from the owning binding');
     const interfaces = preparation.interfaces;
@@ -3599,12 +3937,12 @@ class CeRuntime {
       new Set(interfaces.map((item) => item.node)).size !== binding.nodes.length
     )
       throw new Error('Prepared site nodes differ from deployment');
-    verifyRegisteredInterfaceConfiguration(object11(request.spec), interfaces);
-    const nodes = object11(object11(object11(request.spec).aws).not_managed).node_list;
+    verifyRegisteredInterfaceConfiguration(object12(request.spec), interfaces);
+    const nodes = object12(object12(object12(request.spec).aws).not_managed).node_list;
     for (const node of nodes)
       for (const iface of node.interface_list) {
         const expected = interfaces.find(
-          (item) => item.node === node.hostname && item.mac === object11(iface.ethernet_interface).mac,
+          (item) => item.node === node.hostname && item.mac === object12(iface.ethernet_interface).mac,
         );
         if (
           !expected ||
@@ -3621,9 +3959,9 @@ class CeRuntime {
     } catch (error) {
       if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
     }
-    if (existing && object11(existing.system_metadata).uid === preparation.uid)
+    if (existing && object12(existing.system_metadata).uid === preparation.uid)
       throw new Error('Original site still exists; coupled replacement has not removed it');
-    await this.#ensureSpec(binding, object11(request.spec), checkpoint, signal, object11(request.metadata));
+    await this.#ensureSpec(binding, object12(request.spec), checkpoint, signal, object12(request.metadata));
   }
   async reserveSite(binding, checkpoint, signal, advertisedRoutes = []) {
     this.#binding(binding, true);
@@ -3696,7 +4034,7 @@ class CeRuntime {
     if (metadata && !subset(existing.metadata, metadata))
       throw new Error('Existing site metadata differs; replan required');
     if (!subset(existing.spec, spec)) throw new Error('Existing site configuration differs; replan required');
-    const uid = object11(existing.system_metadata).uid;
+    const uid = object12(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
     await checkpoint({
       siteName: binding.siteName,
@@ -3758,8 +4096,8 @@ class CeRuntime {
         signal,
       );
       this.#owned(configuration, binding);
-      verifyRegisteredInterfaceConfiguration(object11(configuration.spec), evidence.interfaces, binding.owner.provider);
-      const uid = object11(configuration.system_metadata).uid;
+      verifyRegisteredInterfaceConfiguration(object12(configuration.spec), evidence.interfaces, binding.owner.provider);
+      const uid = object12(configuration.system_metadata).uid;
       if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
       return {
         ...evidence,
@@ -3781,12 +4119,12 @@ class CeRuntime {
     if (devices.status !== 'observed') throw new Error('Guest interface inventory has not converged');
     const before = await this.observeSite(binding, signal);
     this.#owned(before, binding);
-    verifyRegisteredInterfaceConfiguration(object11(before.spec), devices.interfaces);
-    const uid = object11(before.system_metadata).uid;
+    verifyRegisteredInterfaceConfiguration(object12(before.spec), devices.interfaces);
+    const uid = object12(before.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
-    const nodes = object11(object11(object11(before.spec).aws).not_managed).node_list;
+    const nodes = object12(object12(object12(before.spec).aws).not_managed).node_list;
     const matches = (node, iface) => {
-      const ethernet = object11(iface.ethernet_interface);
+      const ethernet = object12(iface.ethernet_interface);
       return expected.find((item) => item.node === node.hostname && item.mac.toLowerCase() === ethernet.mac);
     };
     const changed = nodes.some((node) => node.interface_list.some((iface) => iface.mtu !== matches(node, iface)?.mtu));
@@ -3794,7 +4132,7 @@ class CeRuntime {
       if (typeof before.resource_version !== 'string' || !before.resource_version)
         throw new Error('Site resource version is required for an interface update');
       const request = this.contract.siteCreateRequest(before);
-      const desiredNodes = object11(object11(object11(request.spec).aws).not_managed).node_list;
+      const desiredNodes = object12(object12(object12(request.spec).aws).not_managed).node_list;
       for (const node of desiredNodes)
         for (const iface of node.interface_list) {
           const desired = matches(node, iface);
@@ -3954,7 +4292,7 @@ class CeRuntime {
         if (!existing && rebind) throw new Error('Recorded replacement routing object is missing');
         if (!existing) {
           const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object11(site.system_metadata).uid;
+          const siteUid = object12(site.system_metadata).uid;
           if (typeof siteUid !== 'string' || !siteUid.trim())
             throw new Error('Routing creation requires a logical site UID');
           this.contract.validateRouting(kind, resource.spec);
@@ -3981,7 +4319,7 @@ class CeRuntime {
         }
         this.#owned(existing, { ...binding, siteName: resource.name });
         if (kind === 'bgp_routing_policy' && !subset(existing.spec, resource.spec)) {
-          const rules = object11(existing.spec).rules;
+          const rules = object12(existing.spec).rules;
           const legacy =
             Array.isArray(rules) &&
             rules.length === 1 &&
@@ -3990,9 +4328,9 @@ class CeRuntime {
                 match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
                 action: { deny: {} },
               });
-          const uid = object11(existing.system_metadata).uid;
+          const uid = object12(existing.system_metadata).uid;
           const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object11(site.system_metadata).uid;
+          const siteUid = object12(site.system_metadata).uid;
           if (!legacy || typeof uid !== 'string' || !uid || typeof siteUid !== 'string' || !siteUid)
             throw new Error('Existing routing object differs from site-bound intent; replan required');
           await checkpoint({
@@ -4012,46 +4350,46 @@ class CeRuntime {
           }
           existing = await observe();
           this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object11(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
+          if (object12(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
             throw new Error('Export-policy migration readback differs');
         }
         if (
           kind === 'bgp' &&
-          Array.isArray(object11(existing.spec).peers) &&
-          object11(existing.spec).peers.some(
+          Array.isArray(object12(existing.spec).peers) &&
+          object12(existing.spec).peers.some(
             (peer) => peer && typeof peer === 'object' && Object.hasOwn(peer, 'routing_policies'),
           )
         ) {
-          const legacy = structuredClone(object11(existing.spec));
+          const legacy = structuredClone(object12(existing.spec));
           const peers = legacy.peers;
           const expectedPolicyName = `${binding.siteName.slice(0, 43)}-tgw-export-policy`;
           const exactLegacyPolicies =
             Array.isArray(peers) &&
             peers.length > 0 &&
             peers.every((peer) => {
-              const policy = object11(object11(peer).routing_policies).route_policy;
+              const policy = object12(object12(peer).routing_policies).route_policy;
               if (!Array.isArray(policy) || policy.length !== 1) return false;
-              const row = object11(policy[0]);
+              const row = object12(policy[0]);
               const refs = row.object_refs;
               if (
                 Object.keys(row).sort().join(',') !== 'all_nodes,object_refs,outbound' ||
-                Object.keys(object11(row.all_nodes)).length !== 0 ||
-                Object.keys(object11(row.outbound)).length !== 0 ||
+                Object.keys(object12(row.all_nodes)).length !== 0 ||
+                Object.keys(object12(row.outbound)).length !== 0 ||
                 !Array.isArray(refs) ||
                 refs.length !== 1
               )
                 return false;
-              const ref = object11(refs[0]);
+              const ref = object12(refs[0]);
               return (
                 ref.name === expectedPolicyName &&
                 ref.namespace === 'system' &&
                 Object.keys(ref).every((key) => ['kind', 'name', 'namespace', 'tenant', 'uid'].includes(key))
               );
             });
-          if (Array.isArray(peers)) for (const peer of peers) delete object11(peer).routing_policies;
-          const uid = object11(existing.system_metadata).uid;
+          if (Array.isArray(peers)) for (const peer of peers) delete object12(peer).routing_policies;
+          const uid = object12(existing.system_metadata).uid;
           const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object11(site.system_metadata).uid;
+          const siteUid = object12(site.system_metadata).uid;
           if (
             !exactLegacyPolicies ||
             !subset(legacy, resource.spec) ||
@@ -4078,23 +4416,23 @@ class CeRuntime {
           }
           existing = await observe();
           this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object11(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
+          if (object12(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
             throw new Error('BGP export migration readback differs');
         }
         if (
-          object11(object11(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+          object12(object12(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
           !subset(existing.spec, resource.spec)
         )
           throw new Error('Existing routing object differs from site-bound intent; replan required');
-        const uid = object11(existing.system_metadata).uid;
+        const uid = object12(existing.system_metadata).uid;
         if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
         if (rebind) {
           const recorded = rebind.resources.find((r) => r.kind === kind && r.name === resource.name);
           if (uid !== recorded?.uid) throw new Error('Replacement routing object UID changed');
           const site = await this.observeSite(binding, signal);
           this.#owned(site, binding);
-          if (object11(site.system_metadata).uid !== rebind.siteUid) throw new Error('Replacement site UID changed');
-          if (object11(object11(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid) {
+          if (object12(site.system_metadata).uid !== rebind.siteUid) throw new Error('Replacement site UID changed');
+          if (object12(object12(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid) {
             const body = rebind.contract.build(kind, existing, resource.spec, rebind.siteUid);
             await checkpoint({
               kind,
@@ -4108,12 +4446,12 @@ class CeRuntime {
             });
             const freshSite = await this.observeSite(binding, signal);
             this.#owned(freshSite, binding);
-            if (object11(freshSite.system_metadata).uid !== rebind.siteUid)
+            if (object12(freshSite.system_metadata).uid !== rebind.siteUid)
               throw new Error('Replacement site UID changed');
             const fresh = await observe();
             this.#owned(fresh, { ...binding, siteName: resource.name });
             if (
-              object11(fresh.system_metadata).uid !== uid ||
+              object12(fresh.system_metadata).uid !== uid ||
               fresh.resource_version !== existing.resource_version ||
               !subset(fresh.metadata, existing.metadata) ||
               !subset(existing.metadata, fresh.metadata) ||
@@ -4129,8 +4467,8 @@ class CeRuntime {
             existing = await observe();
             this.#owned(existing, { ...binding, siteName: resource.name });
             if (
-              object11(existing.system_metadata).uid !== uid ||
-              object11(object11(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid ||
+              object12(existing.system_metadata).uid !== uid ||
+              object12(object12(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid ||
               !subset(existing.spec, resource.spec)
             )
               throw new Error('Routing replacement readback differs');
@@ -4156,7 +4494,7 @@ class CeRuntime {
     )
       throw new Error('Azure routing interface and site ownership differ');
     let site = await this.observeOwnedSite(binding, signal);
-    let siteUid = object11(site.system_metadata).uid;
+    let siteUid = object12(site.system_metadata).uid;
     if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
     const routing = this.contract.buildAzureRouting(
       binding.siteName,
@@ -4176,7 +4514,7 @@ class CeRuntime {
     }
     if (!existing) {
       site = await this.observeOwnedSite(binding, signal);
-      siteUid = object11(site.system_metadata).uid;
+      siteUid = object12(site.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
       this.contract.validateRouting('bgp', resource.spec);
       try {
@@ -4202,12 +4540,12 @@ class CeRuntime {
     }
     this.#owned(existing, { ...binding, siteName: resource.name });
     if (
-      object11(object11(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-      object11(object11(existing.metadata).labels)['xcsh-ce-site-uid'] !== siteUid ||
+      object12(object12(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object12(object12(existing.metadata).labels)['xcsh-ce-site-uid'] !== siteUid ||
       !subset(existing.spec, resource.spec)
     )
       throw new Error('Existing Azure routing object differs from site-bound intent; replan required');
-    const uid = object11(existing.system_metadata).uid;
+    const uid = object12(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid.trim()) throw new CeApiError('malformed');
     await checkpoint({
       kind: 'bgp',
@@ -4243,8 +4581,8 @@ class CeRuntime {
     }
     this.#owned(existing, { ...binding, siteName: resource.name });
     if (
-      object11(existing.system_metadata).uid !== resource.uid ||
-      object11(object11(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName
+      object12(existing.system_metadata).uid !== resource.uid ||
+      object12(object12(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName
     )
       throw new Error('Routing checkpoint UID or site ownership differs');
     await this.observeOwnedSite(binding, signal);
@@ -4284,7 +4622,7 @@ class CeRuntime {
     };
     const check = (site) => {
       this.#owned(site, binding);
-      if (object11(site.system_metadata).uid !== expectedUid)
+      if (object12(site.system_metadata).uid !== expectedUid)
         throw new Error('Site UID changed before or during deletion');
     };
     let current = await read();
@@ -4338,15 +4676,15 @@ class CeRuntime {
       const logical = await read(sources.logical);
       if (logical) {
         this.#owned(logical, binding);
-        if (object11(logical.system_metadata).uid !== expected.siteUid)
+        if (object12(logical.system_metadata).uid !== expected.siteUid)
           throw new Error('Logical site identity changed');
       }
       const physical = await read(sources.physical);
       if (
         physical &&
-        (object11(physical.metadata).name !== binding.siteName ||
-          object11(physical.metadata).namespace !== 'system' ||
-          object11(physical.system_metadata).uid !== expected.physicalSiteUid)
+        (object12(physical.metadata).name !== binding.siteName ||
+          object12(physical.metadata).namespace !== 'system' ||
+          object12(physical.system_metadata).uid !== expected.physicalSiteUid)
       )
         throw new Error('Physical site identity changed');
       const registrations = await read(sources.registrations);
@@ -4366,15 +4704,15 @@ class CeRuntime {
         const inactive = ['RETIRED', 'FAILED', 'DONE', 'FAILED_INACTIVE'];
         const active = ['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'];
         for (const raw of registrations.items) {
-          const item = object11(raw),
-            spec = object11(item.get_spec),
-            state = object11(object11(item.object).status).current_state;
+          const item = object12(raw),
+            spec = object12(item.get_spec),
+            state = object12(object12(item.object).status).current_state;
           if (
             typeof item.name !== 'string' ||
             !/^r-[a-z0-9-]+$/.test(item.name) ||
             seen.has(item.name) ||
-            object11(spec.passport).cluster_name !== binding.siteName ||
-            !binding.nodes.includes(String(object11(spec.infra).hostname)) ||
+            object12(spec.passport).cluster_name !== binding.siteName ||
+            !binding.nodes.includes(String(object12(spec.infra).hostname)) ||
             typeof state !== 'string' ||
             ![...inactive, ...active].includes(state)
           )
@@ -4436,18 +4774,18 @@ class CeRuntime {
       }
       token = await this.#request(path, {}, signal);
     }
-    const metadata = object11(token.metadata);
+    const metadata = object12(token.metadata);
     if (
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
       !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
     )
       throw new Error('Registration token ownership does not match node');
-    const spec = object11(token.spec);
+    const spec = object12(token.spec);
     if (spec.site_name !== binding.siteName || ![1, 'JWT'].includes(spec.type) || typeof spec.content !== 'string')
       throw new Error('Registration JWT is not bound to the site');
     try {
-      const claims = object11(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
+      const claims = object12(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
       if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp * 1000 <= Date.now() + 60000)
         throw new Error();
     } catch {
@@ -4475,11 +4813,11 @@ class CeRuntime {
       if (error instanceof CeApiError && error.category === 'not-found') return;
       throw error;
     }
-    const metadata = object11(token.metadata);
+    const metadata = object12(token.metadata);
     if (
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
-      object11(token.spec).site_name !== binding.siteName ||
+      object12(token.spec).site_name !== binding.siteName ||
       !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
     )
       throw new Error('Registration token ownership mismatch');
@@ -4512,7 +4850,7 @@ class CeRuntime {
     const profile = this.contract.provider(binding.owner.provider);
     if (
       !profile.runtime ||
-      object11(object11(profile.runtime).health).path !==
+      object12(object12(profile.runtime).health).path !==
         '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health'
     )
       return { ...base, status: 'unknown', reason: 'provider-health-contract-unavailable' };
@@ -4537,7 +4875,7 @@ class CeRuntime {
         state: health.state,
         scope: 'site-global-only',
         nodeHealth: 'unknown',
-        siteUid: object11(site.system_metadata).uid,
+        siteUid: object12(site.system_metadata).uid,
       };
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -4576,12 +4914,12 @@ class CeRuntime {
       )
         return { ...base, status: 'unknown', reason: 'registration-list-incomplete' };
       const nodes = admittedNodes.map((node) => {
-        const matches = response.items.map(object11).filter((item) => {
-          const spec = object11(item.get_spec);
-          const state = object11(object11(item.object).status).current_state;
+        const matches = response.items.map(object12).filter((item) => {
+          const spec = object12(item.get_spec);
+          const state = object12(object12(item.object).status).current_state;
           return (
-            object11(spec.passport).cluster_name === binding.siteName &&
-            object11(spec.infra).hostname === node &&
+            object12(spec.passport).cluster_name === binding.siteName &&
+            object12(spec.infra).hostname === node &&
             !['RETIRED', 'FAILED', 'DONE', 'FAILED_INACTIVE'].includes(String(state))
           );
         });
@@ -4592,9 +4930,9 @@ class CeRuntime {
             reason: matches.length ? 'ambiguous-registration' : 'registration-not-found',
           };
         const item = matches[0];
-        const spec = object11(item.get_spec);
-        const infra = object11(spec.infra);
-        const state = object11(object11(item.object).status).current_state;
+        const spec = object12(item.get_spec);
+        const infra = object12(spec.infra);
+        const state = object12(object12(item.object).status).current_state;
         if (
           !expectedInstances[node] ||
           infra.instance_id !== expectedInstances[node] ||
@@ -4602,7 +4940,7 @@ class CeRuntime {
           !/^r-[a-z0-9-]+$/.test(item.name) ||
           typeof state !== 'string' ||
           !['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(state) ||
-          (state !== 'NEW' && object11(spec.passport).cluster_size !== binding.nodes.length)
+          (state !== 'NEW' && object12(spec.passport).cluster_size !== binding.nodes.length)
         )
           return { node, status: 'unknown', reason: 'registration-resource-binding-incomplete' };
         return {
@@ -4636,7 +4974,7 @@ class CeRuntime {
     const observation = await this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
     if (!Array.isArray(observation.nodes)) return observation;
     for (const value of observation.nodes) {
-      const node = object11(value);
+      const node = object12(value);
       if (node.state !== 'NEW' || typeof node.registration !== 'string' || typeof node.node !== 'string') continue;
       this.#owned(await this.observeSite(binding, signal), binding);
       const path = `/api/register/namespaces/system/registrations/${node.registration}`;
@@ -4650,7 +4988,7 @@ class CeRuntime {
         }
         return;
       };
-      const passport = object11(nested('object.spec.gc_spec.passport', 'spec.gc_spec.passport', 'spec.passport'));
+      const passport = object12(nested('object.spec.gc_spec.passport', 'spec.gc_spec.passport', 'spec.passport'));
       const state = nested(
         'object.status.current_state',
         'object.status.state',
@@ -5008,7 +5346,7 @@ class GcpPlatformLifecycle {
 }
 
 // plugins/platform/src/ce/gcp-observation.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash11 } from 'node:crypto';
 
 // plugins/gcloud/src/ce/ownership.ts
 var COLLECTIONS = {
@@ -5068,8 +5406,1466 @@ function sameScope(a, b) {
   return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
 }
 
+// plugins/platform/src/ce/gcp-owned-operational.ts
+import { createHash as createHash10, randomUUID as randomUUID3 } from 'node:crypto';
+
+// plugins/gcloud/src/ce/interface-identity.ts
+function object13(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed GCP interface identity evidence');
+  return value;
+}
+function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
+  const cloud = object13(cloudValue),
+    registration = object13(registrationValue),
+    configuration = object13(configurationValue);
+  if (
+    !/^\d+$/.test(expected.instanceId) ||
+    cloud.id !== expected.instanceId ||
+    cloud.name !== expected.nodeName ||
+    cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
+  )
+    throw new Error('Owned GCP VM identity mismatch');
+  const metadata = object13(configuration.metadata);
+  if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
+    throw new Error('Exact GCP site configuration identity required');
+  const spec = object13(registration.get_spec),
+    infra = object13(spec.infra),
+    passport = object13(spec.passport);
+  const status = object13(object13(registration.object).status);
+  if (
+    infra.provider !== 'GOOGLE' ||
+    String(infra.instance_id) !== expected.instanceId ||
+    infra.hostname !== expected.nodeName ||
+    infra.availability_zone !== expected.zone ||
+    passport.cluster_name !== expected.siteName ||
+    status.current_state !== 'ONLINE'
+  )
+    throw new Error('Registration is not ONLINE for the exact owned GCP node');
+  const nodes = object13(object13(object13(configuration.spec).gcp).not_managed).node_list;
+  if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
+  const matches = nodes.map(object13).filter((node) => node.hostname === expected.nodeName);
+  if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
+  const configured = matches[0].interface_list;
+  const hardware = object13(infra.hw_info).network;
+  const cloudNics = cloud.networkInterfaces;
+  if (
+    !Array.isArray(configured) ||
+    !Array.isArray(hardware) ||
+    !Array.isArray(cloudNics) ||
+    configured.length !== expected.nics.length ||
+    cloudNics.length !== expected.nics.length
+  )
+    throw new Error('GCP interface topology evidence is incomplete');
+  const used = new Set();
+  const macs = new Set();
+  return configured
+    .map((value) => {
+      const nic = object13(value),
+        ethernet = object13(nic.ethernet_interface),
+        option = object13(nic.network_option);
+      if (
+        typeof ethernet.device !== 'string' ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
+        typeof ethernet.mac !== 'string' ||
+        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/.test(ethernet.mac)
+      )
+        throw new Error('Configured device and MAC are required');
+      const mac = ethernet.mac;
+      if (macs.has(mac)) throw new Error('Duplicate configured MAC');
+      macs.add(mac);
+      const hw = hardware
+        .map(object13)
+        .filter(
+          (item) =>
+            item.name === ethernet.device &&
+            typeof item.mac_address === 'string' &&
+            item.mac_address.toLowerCase() === mac,
+        );
+      if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
+      const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
+      const indices = cloudNics
+        .map(object13)
+        .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
+      if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
+      const index = indices[0],
+        cloudNic = object13(cloudNics[index]);
+      const wanted = expected.nics.find((item) => item.index === index);
+      if (
+        !wanted ||
+        cloudNic.name !== `nic${index}` ||
+        cloudNic.network !== wanted.network ||
+        cloudNic.subnetwork !== wanted.subnet
+      )
+        throw new Error('Cloud NIC network/subnet/order differs');
+      const roleField = wanted.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
+      if (
+        Object.keys(option).length !== 1 ||
+        !Object.hasOwn(option, roleField) ||
+        nic.is_primary !== (index === 0) ||
+        (wanted.role === 'slo') !== (index === 0)
+      )
+        throw new Error('Configured role/primary interface differs');
+      used.add(index);
+      return {
+        cloudNicIndex: index,
+        role: wanted.role,
+        vrf: wanted.vrf,
+        device: ethernet.device,
+        mac,
+        source: 'owned-cloud-vm-and-site-registration',
+      };
+    })
+    .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
+}
+
+// plugins/gcloud/src/ce/terraform-public-ownership.ts
+function publicTerraformPlatformScope(intent) {
+  return intent.sites.flatMap((site) => [
+    { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
+    ...site.nodes.map((node) => ({
+      address: `xcsh_token.${node.name.replaceAll('-', '_')}`,
+      siteName: site.name,
+      tokenName: `${node.name}-token`,
+    })),
+  ]);
+}
+function publicTerraformAddresses(intent) {
+  return [
+    ...publicTerraformCloudScope(intent).map(
+      (resource) =>
+        `google_compute_${resource.kind}.${resource.selfLink.substring(resource.selfLink.lastIndexOf('/') + 1).replaceAll('-', '_')}`,
+    ),
+    ...publicTerraformPlatformScope(intent).map((resource) => resource.address),
+  ];
+}
+function publicTerraformCloudScope(intent) {
+  validateIntent(intent);
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const resources = intent.sites.flatMap((site) =>
+    site.nodes.flatMap((node) => [
+      {
+        kind: 'instance',
+        selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      {
+        kind: 'disk',
+        selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      ...node.interfaces.flatMap((nic) => [
+        { kind: 'network', selfLink: `${prefix}/global/networks/${nic.network}` },
+        { kind: 'subnetwork', selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+      ]),
+    ]),
+  );
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['ingress', 'egress'])
+        resources.push({
+          kind: 'firewall',
+          selfLink: `${prefix}/global/firewalls/${site.name}-ha-${nic.role}-${direction}`,
+        });
+  return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
+    ...resource,
+    id: '0',
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+  }));
+}
+
+// plugins/platform/src/ce/gcp-operational-binding.ts
+import { createHash as createHash9 } from 'node:crypto';
+
+var object14 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational binding malformed');
+  return value;
+};
+async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sourceIdentities, signal) {
+  expected = structuredClone(expected);
+  cloudIdentities = structuredClone(cloudIdentities);
+  sourceIdentities = structuredClone(sourceIdentities);
+  const persisted = await port.persisted(signal);
+  if (
+    persisted.contextFingerprint !== expected.contextFingerprint ||
+    persisted.ownershipFingerprint !== expected.ownershipFingerprint ||
+    expected.nodes.length !== 3 ||
+    cloudIdentities.length !== 3 ||
+    sourceIdentities.length !== 3
+  )
+    throw new Error('Original persisted operational ownership differs');
+  const configuration = object14(await port.configuration(signal));
+  const metadata = object14(configuration.metadata);
+  const uid = object14(configuration.system_metadata).uid;
+  if (
+    metadata.name !== expected.siteName ||
+    metadata.namespace !== 'system' ||
+    typeof uid !== 'string' ||
+    `sha256:${createHash9('sha256').update(uid).digest('hex')}` !== expected.configurationIdentitySha256
+  )
+    throw new Error('Original operational configuration identity differs');
+  const runtime = object14(await port.runtimeSite(signal));
+  const runtimeUid = object14(runtime.system_metadata).uid;
+  if (
+    object14(runtime.metadata).name !== expected.siteName ||
+    typeof runtimeUid !== 'string' ||
+    fingerprint({ uid: runtimeUid }) !== expected.runtimeIdentitySha256
+  )
+    throw new Error('Original operational runtime identity differs');
+  const response = object14(await port.registrations(signal));
+  if (
+    !Array.isArray(response.items) ||
+    response.next_page_token ||
+    response.continue ||
+    (response.errors !== undefined && (!Array.isArray(response.errors) || response.errors.length))
+  )
+    throw new Error('Operational binding registrations incomplete');
+  const rows = response.items.map(object14);
+  if (
+    rows.length !== 3 ||
+    rows.some(
+      (row) => !expected.nodes.some((node) => object14(object14(row.get_spec).infra).hostname === node.nodeName),
+    )
+  )
+    throw new Error('Operational binding registration set foreign');
+  for (const node of expected.nodes) {
+    signal?.throwIfAborted();
+    const cloudMatches = cloudIdentities.filter(
+      (identity) =>
+        identity.nodeName === node.nodeName &&
+        identity.instanceId === node.instanceId &&
+        identity.siteName === expected.siteName,
+    );
+    const sourceMatches = sourceIdentities.filter(
+      (identity) => identity.nodeName === node.nodeName && identity.instanceId === node.instanceId,
+    );
+    const registrations = rows.filter((row) => object14(object14(row.get_spec).infra).hostname === node.nodeName);
+    if (cloudMatches.length !== 1 || sourceMatches.length !== 1 || registrations.length !== 1)
+      throw new Error('Operational binding node ambiguous');
+    const registration = registrations[0];
+    if (
+      typeof registration.uid !== 'string' ||
+      fingerprint({ uid: registration.uid }) !== node.registrationIdentitySha256
+    )
+      throw new Error('Original operational registration identity differs');
+    const token = object14(await port.token(node.nodeName, signal));
+    const tokenUid = object14(token.system_metadata).uid;
+    const tokenMetadata = object14(token.metadata);
+    if (
+      typeof tokenUid !== 'string' ||
+      `sha256:${createHash9('sha256').update(tokenUid).digest('hex')}` !== node.tokenIdentitySha256 ||
+      tokenMetadata.name !== `${node.nodeName}-token` ||
+      tokenMetadata.namespace !== 'system' ||
+      object14(token.spec).site_name !== expected.siteName ||
+      object14(tokenMetadata.labels)['xcsh-node'] !== node.nodeName
+    )
+      throw new Error('Original operational node token differs');
+    const cloud = object14(await port.cloud(node.nodeName, signal));
+    const identityRegistration = structuredClone(registration);
+    object14(object14(identityRegistration.object).status).current_state = 'ONLINE';
+    const joins = correlateGcpPhysicalInterfaces(cloudMatches[0], cloud, identityRegistration, configuration);
+    const source = sourceMatches[0];
+    if (source.zone !== cloudMatches[0].zone || !Array.isArray(cloud.networkInterfaces))
+      throw new Error('Operational binding cloud topology differs');
+    const interfaces = cloud.networkInterfaces.map(object14);
+    const actualNics = joins.map((join, index) => {
+      const address = interfaces[index].networkIP;
+      if (
+        join.device !== source.devices[index] ||
+        address !== source.addresses[index] ||
+        (index === 0 && address !== source.sloAddress)
+      )
+        throw new Error('Operational source physical address join differs');
+      return fingerprint({ join, address, network: interfaces[index].network, subnet: interfaces[index].subnetwork });
+    });
+    if (fingerprint(actualNics) !== fingerprint(node.nics)) throw new Error('Original operational NIC joins differ');
+  }
+  if (fingerprint(await port.persisted(signal)) !== fingerprint(persisted))
+    throw new Error('Operational ownership changed during binding');
+  signal?.throwIfAborted();
+  return expected;
+}
+
+// plugins/platform/src/ce/gcp-runtime-diagnostics.ts
+var ID = /^[a-f0-9]{12,64}$/;
+var NAME3 = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
+var HEADER = /^CONTAINER\s+IMAGE\s+CREATED\s+STATE\s+NAME\s+ATTEMPT\s+POD ID\s+POD(?:\s+NAMESPACE)?$/;
+function parseGcpRuntimeListing(value) {
+  if (
+    typeof value !== 'string' ||
+    Buffer.byteLength(value) > 4 * 1024 * 1024 ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+    })
+  )
+    throw new Error('Malformed runtime listing');
+  const lines = value.trim().split(/\r?\n/);
+  const header = lines.shift() ?? '';
+  const withNamespace = /\sNAMESPACE$/.test(header);
+  if (!HEADER.test(header) || !lines.length || lines.length > 4096) throw new Error('Malformed runtime listing');
+  const rows = lines.map((line) => {
+    const match = line
+      .trim()
+      .match(
+        withNamespace
+          ? /^(\S+)\s+(\S+)\s+(.+?)\s+(Running|Exited|Created|Unknown)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)$/
+          : /^(\S+)\s+(\S+)\s+(.+?)\s+(Running|Exited|Created|Unknown)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)$/,
+      );
+    if (
+      !match ||
+      !ID.test(match[1]) ||
+      !ID.test(match[7]) ||
+      !NAME3.test(match[5]) ||
+      !NAME3.test(match[8]) ||
+      (withNamespace && !NAME3.test(match[9])) ||
+      !Number.isSafeInteger(Number(match[6]))
+    )
+      throw new Error('Malformed runtime row');
+    return {
+      id: match[1],
+      name: match[5],
+      pod: match[8],
+      podId: match[7],
+      attempt: Number(match[6]),
+      state: match[4],
+      ...(withNamespace ? { namespace: match[9] } : {}),
+    };
+  });
+  if (
+    new Set(rows.map((row) => row.id)).size !== rows.length ||
+    rows.some((row, i) =>
+      rows.some((other, j) => i !== j && (other.id.startsWith(row.id) || row.id.startsWith(other.id))),
+    )
+  )
+    throw new Error('Ambiguous runtime identity');
+  return rows;
+}
+function projectGcpRuntimeInspection(value, listed) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed runtime inspection');
+  const status = value.status;
+  if (!status || typeof status !== 'object' || Array.isArray(status)) throw new Error('Malformed runtime inspection');
+  const row = status;
+  const metadata = row.metadata;
+  const labels = row.labels;
+  if (
+    typeof row.id !== 'string' ||
+    !ID.test(row.id) ||
+    !row.id.startsWith(listed.id) ||
+    metadata?.name !== listed.name ||
+    metadata.attempt !== listed.attempt ||
+    labels?.['io.kubernetes.pod.name'] !== listed.pod ||
+    (listed.namespace !== undefined && labels?.['io.kubernetes.pod.namespace'] !== listed.namespace) ||
+    !['CONTAINER_RUNNING', 'CONTAINER_EXITED', 'CONTAINER_CREATED', 'CONTAINER_UNKNOWN'].includes(String(row.state))
+  )
+    throw new Error('Runtime inspection identity differs');
+  const state = String(row.state).replace('CONTAINER_', '').toLowerCase();
+  if (state !== listed.state.toLowerCase()) throw new Error('Runtime changed during inspection');
+  return {
+    containerIdentitySha256: fingerprint({ id: row.id }),
+    name: listed.name,
+    pod: listed.pod,
+    ...(listed.namespace !== undefined ? { namespace: listed.namespace } : {}),
+    attempt: listed.attempt,
+    liveness: state === 'running' ? 'running' : 'not-running',
+  };
+}
+function gcpRuntimeCommand(node, ownershipFingerprint, selection, now = Date.now()) {
+  if (
+    !/^[a-z][a-z0-9-]{0,62}$/.test(node.nodeName) ||
+    !/^\d+$/.test(node.instanceId) ||
+    !/^sha256:[a-f0-9]{64}$/.test(ownershipFingerprint)
+  )
+    throw new Error('Invalid original runtime node');
+  if (selection.kind === 'list' && Object.keys(selection).length === 1) return ['crictl-ps-a'];
+  if (selection.kind !== 'inspect' || Object.keys(selection).sort().join(',') !== 'containerId,kind,listing')
+    throw new Error('Invalid runtime command selection');
+  const { listing, containerId } = selection;
+  const at = Date.parse(listing.observedAt);
+  if (
+    !ID.test(containerId) ||
+    listing.nodeName !== node.nodeName ||
+    listing.instanceId !== node.instanceId ||
+    listing.ownershipFingerprint !== ownershipFingerprint ||
+    !Number.isFinite(now) ||
+    !Number.isFinite(at) ||
+    at > now ||
+    now - at > 300000 ||
+    !Array.isArray(listing.containers) ||
+    listing.containers.filter((row) => row.id === containerId).length !== 1 ||
+    listing.containers.some(
+      (row) => row.id !== containerId && (row.id.startsWith(containerId) || containerId.startsWith(row.id)),
+    )
+  )
+    throw new Error('Inspection requires this original node current runtime listing');
+  return ['crictl-inspect', containerId];
+}
+
+// plugins/platform/src/ce/gcp-operational-command.ts
+function createGcpOperationalCommandPort(expected, apiUrl, credential, binding, capture, fetcher = fetch) {
+  expected = structuredClone(expected);
+  const base = new URL(apiUrl);
+  if (
+    base.protocol !== 'https:' ||
+    base.username ||
+    base.password ||
+    base.search ||
+    base.hash ||
+    !['', '/'].includes(base.pathname) ||
+    !credential ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(expected.siteName)
+  )
+    throw new Error('Explicit original Site CLI context required');
+  const expectedFingerprint = fingerprint(expected);
+  return {
+    async execute(node, selection, signal) {
+      node = structuredClone(node);
+      selection = structuredClone(selection);
+      if (expected.nodes.filter((original) => fingerprint(original) === fingerprint(node)).length !== 1)
+        throw new Error('Original Site CLI node required');
+      const command =
+        (selection.kind === 'health' || selection.kind === 'diagnosis') && Object.keys(selection).length === 1
+          ? [selection.kind]
+          : gcpRuntimeCommand(node, expected.ownershipFingerprint, selection);
+      const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+      const attempt = {
+        nodeName: node.nodeName,
+        command,
+        startedAt: new Date().toISOString(),
+        finishedAt: '',
+        body: '',
+        truncated: false,
+      };
+      let output;
+      const chunks = [];
+      let size = 0;
+      const checkedBinding = async () => {
+        if (fingerprint(await binding(bounded)) !== expectedFingerprint) {
+          attempt.errorCode = 'ownership-changed';
+          throw new Error('Original Site CLI ownership changed');
+        }
+      };
+      let abort;
+      try {
+        const operation = async () => {
+          await checkedBinding();
+          bounded.throwIfAborted();
+          const response = await fetcher(
+            new URL(
+              `/api/operate/namespaces/system/sites/${expected.siteName}/vpm/debug/${node.nodeName}/exec-user`,
+              base,
+            ),
+            {
+              method: 'POST',
+              redirect: 'error',
+              signal: bounded,
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                Authorization: `APIToken ${credential}`,
+              },
+              body: JSON.stringify({ command }),
+            },
+          );
+          attempt.httpStatus = response.status;
+          if (!response.body) {
+            attempt.errorCode = 'malformed';
+            throw new Error('Site CLI body unavailable');
+          }
+          const reader = response.body.getReader();
+          try {
+            for (;;) {
+              bounded.throwIfAborted();
+              const { done, value } = await reader.read();
+              bounded.throwIfAborted();
+              if (done) break;
+              chunks.push(value.subarray(0, 4 * 1024 * 1024 - size));
+              size += value.byteLength;
+              if (size > 4 * 1024 * 1024) {
+                attempt.truncated = true;
+                attempt.errorCode = 'malformed';
+                throw new Error('Site CLI capture exceeds bound');
+              }
+            }
+          } finally {
+            await reader.cancel();
+            reader.releaseLock();
+          }
+          if (!response.ok) {
+            attempt.errorCode = 'http';
+            throw new Error('Site CLI unavailable');
+          }
+          attempt.errorCode = 'malformed';
+          const body = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+          const value = JSON.parse(body);
+          if (
+            !value ||
+            typeof value !== 'object' ||
+            Array.isArray(value) ||
+            typeof value.output !== 'string' ||
+            !Number.isSafeInteger(value.return_code)
+          )
+            throw new Error('Site CLI response malformed');
+          if (value.return_code !== 0) {
+            attempt.errorCode = 'command-failed';
+            throw new Error('Site CLI command failed');
+          }
+          delete attempt.errorCode;
+          await checkedBinding();
+          bounded.throwIfAborted();
+          return value.output;
+        };
+        const interrupted = new Promise((_resolve, reject) => {
+          abort = () => reject(new Error('Site CLI transport interrupted'));
+          bounded.addEventListener('abort', abort, { once: true });
+          if (bounded.aborted) abort();
+        });
+        output = await Promise.race([operation(), interrupted]);
+      } catch {
+        attempt.errorCode ??= 'transport';
+      } finally {
+        if (abort) bounded.removeEventListener('abort', abort);
+        attempt.body = Buffer.concat(chunks).toString('utf8');
+        attempt.finishedAt = new Date().toISOString();
+        await capture(structuredClone(attempt));
+      }
+      if (attempt.errorCode || output === undefined) throw new Error('Required Site CLI evidence unavailable');
+      return output;
+    },
+  };
+}
+
+// plugins/platform/src/ce/gcp-operational-placement.ts
+function resolveGcpOperationalPlacement(profile, pinnedFingerprint, originals, observations) {
+  if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.placementCounts)
+    throw new Error('Frozen placement contract required');
+  if (
+    originals.length !== 3 ||
+    new Set(originals).size !== 3 ||
+    observations.length !== 3 ||
+    new Set(observations.map((node) => node.nodeName)).size !== 3 ||
+    observations.some((node) => !originals.includes(node.nodeName))
+  )
+    throw new Error('Exact original placement nodes required');
+  const selected = {};
+  for (const node of observations) {
+    if (
+      !Array.isArray(node.components) ||
+      !Array.isArray(node.containers) ||
+      node.components.some((row) => !row || typeof row.name !== 'string' || typeof row.state !== 'string') ||
+      new Set(node.components.map((row) => row.name)).size !== node.components.length ||
+      node.containers.some(
+        (row) =>
+          !row ||
+          !/^[a-f0-9]{12,64}$/.test(row.id) ||
+          typeof row.pod !== 'string' ||
+          typeof row.name !== 'string' ||
+          typeof row.namespace !== 'string' ||
+          !['Running', 'Exited', 'Created', 'Unknown'].includes(row.state),
+      ) ||
+      new Set(node.containers.map((row) => row.id)).size !== node.containers.length
+    )
+      throw new Error('Malformed placement evidence');
+    const matches = Object.entries(profile.roles).filter(([, role]) => {
+      if (
+        role.runtimeRole !== node.runtimeRole ||
+        role.components.length !== node.components.length ||
+        !role.components.every((name) => node.components.some((row) => row.name === name))
+      )
+        return false;
+      const selectedIds = [];
+      for (const mapping of role.containers) {
+        const candidates = node.containers.filter(
+          (row) =>
+            row.name === mapping.name &&
+            row.namespace === mapping.namespace &&
+            matchesGcpOperationalPod(row.pod, mapping),
+        );
+        const running = candidates.filter((row) => row.state === 'Running');
+        const selected = running.length ? running : candidates;
+        if (selected.length !== 1) return false;
+        selectedIds.push(selected[0].id);
+      }
+      return new Set(selectedIds).size === selectedIds.length;
+    });
+    const exact = matches.filter(([, role]) =>
+      Object.values(profile.roles)
+        .flatMap((r) => r.containers)
+        .every(
+          (mapping) =>
+            !node.containers.some(
+              (row) =>
+                row.name === mapping.name &&
+                row.namespace === mapping.namespace &&
+                row.state === 'Running' &&
+                matchesGcpOperationalPod(row.pod, mapping),
+            ) ||
+            role.containers.some(
+              (c) =>
+                c.service === mapping.service &&
+                c.name === mapping.name &&
+                c.namespace === mapping.namespace &&
+                c.podPrefix === mapping.podPrefix &&
+                c.podShape === mapping.podShape,
+            ),
+        ),
+    );
+    if (exact.length !== 1) throw new Error('Placement missing, changed or ambiguous; requalification required');
+    selected[node.nodeName] = exact[0][0];
+  }
+  if (
+    !hasGcpOperationalPlacementCoverage(
+      profile,
+      originals.map((node) => selected[node]),
+    )
+  )
+    throw new Error('Required cluster placement counts differ');
+  return selected;
+}
+
+// plugins/platform/src/ce/gcp-operational-diagnosis.ts
+var GCP_REQUIRED_OPERATIONAL_DOMAINS = [
+  'api.bcti.brightcloud.com',
+  'downloads.volterra.io',
+  'identityauthority.ves.volterra.io',
+  'myip.volterra.io',
+  'register.ves.volterra.io',
+];
+var object15 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
+function projectGcpOperationalDiagnosis(value, node, originals) {
+  if (
+    originals.length !== 3 ||
+    originals.some(
+      (n) =>
+        !/^[a-z][a-z0-9-]{0,62}$/.test(n.nodeName) ||
+        !/^\d+$/.test(n.instanceId) ||
+        !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(n.sloAddress),
+    ) ||
+    ['nodeName', 'instanceId', 'sloAddress'].some((key) => new Set(originals.map((n) => n[key])).size !== 3) ||
+    originals.filter(
+      (n) => n.nodeName === node.nodeName && n.instanceId === node.instanceId && n.sloAddress === node.sloAddress,
+    ).length !== 1
+  )
+    throw new Error('Original diagnostic joins required');
+  const response = object15(value);
+  const responses = object15(response?.responses);
+  if (
+    !responses ||
+    Object.keys(responses).sort().join(',') !==
+      originals
+        .map((n) => n.nodeName)
+        .sort()
+        .join(',')
+  )
+    throw new Error('Diagnostic node set differs');
+  const row = object15(responses[node.nodeName]);
+  if (!row || row.node_name !== node.nodeName) throw new Error('Diagnostic selected node differs');
+  const peers = originals.filter((n) => n.nodeName !== node.nodeName);
+  const connectivity = Array.isArray(row.nodes_connectivity) ? row.nodes_connectivity.map(object15) : [];
+  if (
+    connectivity.length !== 2 ||
+    connectivity.some((r) => !r || !peers.some((n) => n.sloAddress === r.dest_ip)) ||
+    new Set(connectivity.map((r) => r?.dest_ip)).size !== 2
+  )
+    throw new Error('Diagnostic peer join differs');
+  const packetStates = connectivity.map((r) => {
+    if (
+      !Number.isSafeInteger(r?.sent) ||
+      !Number.isSafeInteger(r?.received) ||
+      Number(r?.sent) <= 0 ||
+      Number(r?.received) < 0 ||
+      Number(r?.received) > Number(r?.sent)
+    )
+      throw new Error('Diagnostic packet counts malformed');
+    return r?.sent === r?.received ? 'pass' : 'fail';
+  });
+  const domains = object15(row.domain_curl_result);
+  const urls = GCP_REQUIRED_OPERATIONAL_DOMAINS.map((domain) => `https://${domain}`);
+  if (!domains || Object.keys(domains).sort().join(',') !== urls.sort().join(','))
+    throw new Error('Diagnostic required domains differ');
+  const dns = Array.isArray(row.dns_query_result) ? row.dns_query_result : [];
+  const dnsStates = new Map();
+  for (const query of dns) {
+    if (typeof query !== 'string') throw new Error('Diagnostic DNS query malformed');
+    const questions = [...query.matchAll(/^;([a-z0-9.-]+)\.\s+IN\s+A\s*$/gm)];
+    const statuses = [...query.matchAll(/^;; ->>HEADER<<- opcode: QUERY, status: ([A-Z]+), id: \d+\s*$/gm)];
+    if (
+      questions.length !== 1 ||
+      statuses.length !== 1 ||
+      !GCP_REQUIRED_OPERATIONAL_DOMAINS.includes(questions[0][1]) ||
+      dnsStates.has(questions[0][1])
+    )
+      throw new Error('Diagnostic DNS join malformed');
+    const state = statuses[0][1];
+    if (!['NOERROR', 'NXDOMAIN', 'SERVFAIL', 'REFUSED'].includes(state))
+      throw new Error('Diagnostic DNS state unqualified');
+    const answerCount = query.match(/QUERY: 1, ANSWER: (\d+),/);
+    if (!answerCount) throw new Error('Diagnostic DNS answer count unavailable');
+    dnsStates.set(questions[0][1], state === 'NOERROR' && Number(answerCount[1]) > 0 ? 'pass' : 'fail');
+  }
+  if (dnsStates.size !== GCP_REQUIRED_OPERATIONAL_DOMAINS.length) throw new Error('Diagnostic DNS coverage missing');
+  const curl = Object.values(domains);
+  if (curl.some((state) => state !== 'OK')) throw new Error('Diagnostic domain state requires qualification');
+  if (row.registration_status !== 'OK') throw new Error('Diagnostic registration state requires qualification');
+  if (
+    typeof row.ntp_sync_status !== 'string' ||
+    !/^System clock synchronized: (yes|no)$/m.test(row.ntp_sync_status) ||
+    !/^\s*NTP service: (active|inactive)$/m.test(row.ntp_sync_status)
+  )
+    throw new Error('Diagnostic time synchronization malformed');
+  return {
+    peers: peers.map(({ nodeName, instanceId }) => ({ nodeName, instanceId })),
+    checks: {
+      'peer-connectivity': packetStates.every((s) => s === 'pass') ? 'pass' : 'fail',
+      'required-domains': [...dnsStates.values()].every((s) => s === 'pass') ? 'pass' : 'fail',
+      'time-synchronization':
+        /^System clock synchronized: yes$/m.test(row.ntp_sync_status) &&
+        /^\s*NTP service: active$/m.test(row.ntp_sync_status)
+          ? 'pass'
+          : 'fail',
+    },
+  };
+}
+
+// plugins/platform/src/ce/gcp-operational-observation.ts
+var CHECKS = ['registration', 'interfaces', 'siteStatus', 'components', 'inventory', 'runtime', 'diagnostics'];
+async function collectGcpOperationalHealth(port, expected, profile, pinnedFingerprint, signal) {
+  if (!qualifiedOperationalProfile(profile, pinnedFingerprint)) throw new Error('Frozen operational profile required');
+  expected = structuredClone(expected);
+  profile = structuredClone(profile);
+  const startedAt = new Date().toISOString();
+  const bindingBefore = await port.binding(signal);
+  if (fingerprint(bindingBefore) !== fingerprint(expected)) throw new Error('Original operational ownership differs');
+  const nodes = [];
+  for (const node of expected.nodes) {
+    const reads = {};
+    for (const check of CHECKS) {
+      signal?.throwIfAborted();
+      const timeout = AbortSignal.timeout(60000);
+      const bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
+      let read;
+      let onAbort;
+      try {
+        const interrupted = new Promise((_resolve, reject) => {
+          onAbort = () => reject(bounded.reason);
+          bounded.addEventListener('abort', onAbort, { once: true });
+          if (bounded.aborted) onAbort();
+        });
+        const projection = await Promise.race([port.observe(structuredClone(node), check, bounded), interrupted]);
+        bounded.throwIfAborted();
+        read = {
+          available: true,
+          observedAt: new Date().toISOString(),
+          projection,
+          projectionFingerprint: fingerprint(projection),
+        };
+      } catch {
+        read = { available: false, observedAt: new Date().toISOString() };
+      } finally {
+        if (onAbort) bounded.removeEventListener('abort', onAbort);
+      }
+      await port.capture({ nodeName: node.nodeName, check, read: structuredClone(read) });
+      reads[check] = read;
+      signal?.throwIfAborted();
+    }
+    nodes.push({ nodeName: node.nodeName, ...reads });
+  }
+  let bindingAfter;
+  try {
+    bindingAfter = await port.binding(signal);
+  } catch {
+    signal?.throwIfAborted();
+  }
+  return {
+    schemaVersion: 2,
+    bindingBefore,
+    bindingAfter,
+    contractFingerprint: pinnedFingerprint,
+    qualificationFingerprint: fingerprint(profile.qualification),
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    nodes,
+  };
+}
+
+// plugins/platform/src/ce/gcp-operational-runtime.ts
+async function collectRuntimeEvidence(commands, node, ownershipFingerprint, profile, pinnedFingerprint, signal) {
+  profile = structuredClone(profile);
+  node = structuredClone(node);
+  if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.roles[node.role])
+    throw new Error('Frozen runtime placement required');
+  const containers = parseGcpRuntimeListing(await commands.execute(node, { kind: 'list' }, signal));
+  const listing = {
+    nodeName: node.nodeName,
+    instanceId: node.instanceId,
+    ownershipFingerprint,
+    observedAt: new Date().toISOString(),
+    containers,
+  };
+  const mappings = profile.roles[node.role].containers;
+  const selected = mappings
+    .map((mapping) => {
+      const matching = containers.filter(
+        (container) =>
+          container.namespace === mapping.namespace &&
+          container.name === mapping.name &&
+          matchesGcpOperationalPod(container.pod, mapping),
+      );
+      const running = matching.filter((container) => container.state === 'Running');
+      const matches = running.length ? running : matching;
+      return matches.length === 1 ? matches[0] : undefined;
+    })
+    .filter((container) => !!container);
+  if (new Set(selected.map((container) => container.id)).size !== selected.length)
+    throw new Error('Required runtime mappings overlap');
+  const projections = [];
+  for (const container of selected) {
+    signal?.throwIfAborted();
+    try {
+      const output = await commands.execute(node, { kind: 'inspect', containerId: container.id, listing }, signal);
+      projections.push(projectGcpRuntimeInspection(JSON.parse(output), container));
+    } catch {
+      signal?.throwIfAborted();
+    }
+  }
+  const placementDrift = Object.values(profile.roles)
+    .flatMap((role) => role.containers)
+    .some(
+      (mapping) =>
+        containers.some(
+          (container) =>
+            container.state === 'Running' &&
+            container.name === mapping.name &&
+            container.namespace === mapping.namespace &&
+            matchesGcpOperationalPod(container.pod, mapping),
+        ) &&
+        !mappings.some(
+          (declared) =>
+            declared.service === mapping.service &&
+            declared.name === mapping.name &&
+            declared.namespace === mapping.namespace &&
+            declared.podPrefix === mapping.podPrefix &&
+            declared.podShape === mapping.podShape,
+        ),
+    );
+  return {
+    schemaVersion: 2,
+    containers: projections,
+    placementState: placementDrift ? 'drift' : 'unchanged',
+  };
+}
+async function collectGcpOperationalRuntime(...args) {
+  return (await collectRuntimeEvidence(...args)).containers;
+}
+var collectGcpOperationalRuntimeEvidence = collectRuntimeEvidence;
+
+// plugins/platform/src/ce/gcp-operational-site-status.ts
+var object16 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
+function projectGcpOperationalSiteStatus(value, expected) {
+  const site = object16(value);
+  const metadata = object16(site?.metadata);
+  const system = object16(site?.system_metadata);
+  if (
+    metadata?.name !== expected.siteName ||
+    typeof system?.uid !== 'string' ||
+    fingerprint({ uid: system.uid }) !== expected.runtimeIdentitySha256 ||
+    !Array.isArray(site?.status)
+  )
+    throw new Error('Original runtime site identity differs');
+  const rows = site.status.map(object16);
+  const nodeRows = rows.filter((r) => object16(r?.node_info)?.hostname === expected.nodeName);
+  const verRows = rows.filter((r) => object16(r?.metadata)?.status_id === `${expected.nodeName}_SiteStatusMgr`);
+  if (nodeRows.length !== 1 || verRows.length !== 1) throw new Error('Runtime node status identity ambiguous');
+  const node = nodeRows[0];
+  const nodeInfo = object16(node.node_info);
+  if (
+    !Array.isArray(nodeInfo?.role) ||
+    nodeInfo.role.length !== 1 ||
+    nodeInfo.role[0] !== (expected.runtimeRole ?? 'k8s-master-primary')
+  )
+    throw new Error('Runtime node role requires requalification');
+  const row = verRows[0];
+  const statusMetadata = object16(row.metadata);
+  const ver = object16(row.ver_status);
+  if (
+    statusMetadata?.vtrp_stale !== false ||
+    statusMetadata?.creator_class !== 'ver' ||
+    statusMetadata.creator_id !== expected.siteName ||
+    ver?.ver_instance_name !== `${expected.nodeName}-${expected.siteName}`
+  )
+    throw new Error('Runtime VER node join unavailable');
+  const state = object16(ver.running_state_status)?.state;
+  if (typeof state !== 'string') throw new Error('Runtime VER state unavailable');
+  const interfaces = Array.isArray(ver.intf_status) ? ver.intf_status.map(object16) : [];
+  const interfacesUp = expected.devices.map((device, index) => {
+    const matches = interfaces.filter((r) => r?.name === device);
+    if (matches.length !== 1) throw new Error('Physical interface status ambiguous');
+    const intf = matches[0];
+    const expectedNetwork = index === 0 ? 'VIRTUAL_NETWORK_SITE_LOCAL' : 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE';
+    const ip = object16(intf.ip);
+    if (
+      intf.network_type !== expectedNetwork ||
+      typeof intf.link_state !== 'boolean' ||
+      !['STATE_ACTIVE', 'STATE_INACTIVE'].includes(String(intf.active_state))
+    )
+      throw new Error('Physical interface state malformed');
+    const address = object16(ip?.ipv4)?.prefix;
+    if (address !== expected.addresses[index]) throw new Error('Physical interface address join differs');
+    return intf.link_state && intf.active_state === 'STATE_ACTIVE';
+  });
+  return {
+    role: expected.role,
+    ...(expected.runtimeRole ? { runtimeRole: nodeInfo.role[0] } : {}),
+    runtimeIdentitySha256: expected.runtimeIdentitySha256,
+    verState: state,
+    interfacesUp,
+  };
+}
+
+// plugins/platform/src/ce/gcp-operational-source.ts
+var object17 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational source malformed');
+  return value;
+};
+function createGcpOperationalSource(
+  expected,
+  identities,
+  profile,
+  pinnedFingerprint,
+  apiUrl,
+  credential,
+  port,
+  fetcher = fetch,
+) {
+  expected = structuredClone(expected);
+  identities = structuredClone(identities);
+  profile = structuredClone(profile);
+  if (
+    identities.length !== 3 ||
+    expected.nodes.some(
+      (node) =>
+        identities.filter((identity) => identity.nodeName === node.nodeName && identity.instanceId === node.instanceId)
+          .length !== 1,
+    )
+  )
+    throw new Error('Original operational source identities required');
+  const commands = createGcpOperationalCommandPort(
+    expected,
+    apiUrl,
+    credential,
+    port.persistedBinding,
+    port.capture,
+    fetcher,
+  );
+  const base = new URL(apiUrl);
+  const verify = async (signal) => {
+    if (fingerprint(await port.persistedBinding(signal)) !== fingerprint(expected))
+      throw new Error('Operational source ownership changed');
+  };
+  const request = async (kind, nodeName, signal) => {
+    const site = expected.siteName;
+    const path = {
+      registration: `/api/register/namespaces/system/registrations_by_site/${site}`,
+      siteStatus: `/api/config/namespaces/system/sites/${site}`,
+      components: `/api/operate/namespaces/system/sites/${site}/vpm/debug/global/ves-system/status?cached=false`,
+      inventory: `/api/operate/namespaces/system/sites/${site}/vpm/debug/global/list-service`,
+    }[kind];
+    const capture = {
+      nodeName,
+      command: ['GET', path],
+      startedAt: new Date().toISOString(),
+      finishedAt: '',
+      body: '',
+      truncated: false,
+    };
+    const chunks = [];
+    let size = 0;
+    try {
+      await verify(signal);
+      const response = await fetcher(new URL(path, base), {
+        method: 'GET',
+        redirect: 'error',
+        signal,
+        headers: { Accept: 'application/json', Authorization: `APIToken ${credential}` },
+      });
+      capture.httpStatus = response.status;
+      if (!response.body) throw new Error('Operational source body unavailable');
+      const reader = response.body.getReader();
+      try {
+        for (;;) {
+          signal.throwIfAborted();
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value.subarray(0, 4 * 1024 * 1024 - size));
+          size += value.byteLength;
+          if (size > 4 * 1024 * 1024) {
+            capture.truncated = true;
+            capture.errorCode = 'malformed';
+            throw new Error('Operational source body exceeds bound');
+          }
+        }
+      } finally {
+        await reader.cancel();
+        reader.releaseLock();
+      }
+      if (!response.ok) {
+        capture.errorCode = 'http';
+        throw new Error('Operational source unavailable');
+      }
+      capture.errorCode = 'malformed';
+      const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+      object17(value);
+      await verify(signal);
+      signal.throwIfAborted();
+      delete capture.errorCode;
+      return value;
+    } catch (error) {
+      capture.errorCode ??= 'transport';
+      throw error;
+    } finally {
+      capture.body = Buffer.concat(chunks).toString('utf8');
+      capture.finishedAt = new Date().toISOString();
+      await port.capture(capture);
+    }
+  };
+  const observation = {
+    binding: port.binding,
+    capture: port.captureProjection,
+    async observe(node, check, signal) {
+      const identity = identities.find((row) => row.nodeName === node.nodeName);
+      if (check === 'interfaces') {
+        await verify(signal);
+        return node.nics;
+      }
+      if (check === 'runtime')
+        return (profile.placementCounts ? collectGcpOperationalRuntimeEvidence : collectGcpOperationalRuntime)(
+          commands,
+          node,
+          expected.ownershipFingerprint,
+          profile,
+          pinnedFingerprint,
+          signal,
+        );
+      if (check === 'diagnostics') {
+        const output = await commands.execute(node, { kind: 'diagnosis' }, signal);
+        return projectGcpOperationalDiagnosis(JSON.parse(output), identity, identities);
+      }
+      if (check === 'siteStatus')
+        return projectGcpOperationalSiteStatus(await request('siteStatus', node.nodeName, signal), {
+          siteName: expected.siteName,
+          runtimeIdentitySha256: expected.runtimeIdentitySha256,
+          nodeName: node.nodeName,
+          role: node.role,
+          runtimeRole: profile.roles[node.role]?.runtimeRole,
+          devices: identity.devices,
+          addresses: identity.addresses,
+        });
+      if (check === 'registration') {
+        const response = object17(await request('registration', node.nodeName, signal));
+        if (
+          !Array.isArray(response.items) ||
+          response.next_page_token ||
+          response.continue ||
+          (response.errors !== undefined && (!Array.isArray(response.errors) || response.errors.length))
+        )
+          throw new Error('Operational registrations incomplete');
+        const rows = response.items
+          .map(object17)
+          .filter((row) => object17(object17(row.get_spec).infra).hostname === node.nodeName);
+        if (rows.length !== 1) throw new Error('Operational registration ambiguous');
+        const row = rows[0];
+        const spec = object17(row.get_spec),
+          infra = object17(spec.infra);
+        if (
+          infra.provider !== 'GOOGLE' ||
+          String(infra.instance_id) !== node.instanceId ||
+          infra.availability_zone !== identity.zone ||
+          object17(spec.passport).cluster_name !== expected.siteName ||
+          typeof row.uid !== 'string'
+        )
+          throw new Error('Operational registration join differs');
+        return {
+          identitySha256: fingerprint({ uid: row.uid }),
+          state: object17(object17(row.object).status).current_state,
+        };
+      }
+      const kind = check === 'components' ? 'components' : 'inventory';
+      const response = object17(await request(kind, node.nodeName, signal));
+      const rows = response[kind === 'components' ? 'status' : 'service'];
+      if (!Array.isArray(rows)) throw new Error('Operational service coverage unavailable');
+      const originals = new Set(expected.nodes.map((n) => n.nodeName));
+      const parsed = rows.map(object17);
+      if (parsed.some((row) => !originals.has(String(row.node)))) throw new Error('Operational service node foreign');
+      return parsed
+        .filter((row) => row.node === node.nodeName)
+        .map((row) =>
+          kind === 'components' ? { name: row.name, state: row.status } : { service: row.value, reference: row.name },
+        );
+    },
+  };
+  return {
+    collect: (signal) => collectGcpOperationalHealth(observation, expected, profile, pinnedFingerprint, signal),
+  };
+}
+
+// plugins/platform/src/ce/gcp-owned-operational.ts
+var object18 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational ownership malformed');
+  return value;
+};
+var uid2 = (value) => {
+  const identity = object18(object18(value).system_metadata).uid;
+  if (typeof identity !== 'string' || !identity) throw new Error('Original operational identity unavailable');
+  return identity;
+};
+var identityHash = (value) => `sha256:${createHash10('sha256').update(uid2(value)).digest('hex')}`;
+async function collectGcpOwnedOperationalHealth(
+  store,
+  intent,
+  siteName,
+  profile,
+  contractFingerprint,
+  apiUrl,
+  credential,
+  cloud,
+  currentContext,
+  fetcher = fetch,
+  signal,
+) {
+  intent = structuredClone(intent);
+  profile = structuredClone(profile);
+  if (
+    !qualifiedOperationalProfile(profile, contractFingerprint) ||
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].name !== siteName ||
+    intent.sites[0].nodes.length !== 3
+  )
+    throw new Error('Qualified original three-node operational scope required');
+  const release = await acquireProcessLock(`${store.directory}/.gcp-operational-lock`);
+  try {
+    const owned = await store.read('gcp-tf-public-ownership.json');
+    if (
+      owned.schemaVersion !== 2 ||
+      !owned.complete ||
+      owned.intentFingerprint !== fingerprint(intent) ||
+      fingerprint([...owned.addresses].sort()) !== fingerprint(publicTerraformAddresses(intent).sort())
+    )
+      throw new Error('Complete original operational ownership required');
+    const contextFingerprint = fingerprint({
+      intentFingerprint: fingerprint(intent),
+      context: intent.platformContext,
+      apiUrl,
+    });
+    const ownershipFingerprint = fingerprint(owned);
+    const persisted = async (readSignal) => {
+      readSignal?.throwIfAborted();
+      await store.verify();
+      const saved = object18(await store.read('gcp-terraform-input-identity.json'));
+      const context = await currentContext();
+      if (
+        fingerprint(saved.intent) !== fingerprint(intent) ||
+        saved.intentFingerprint !== fingerprint(intent) ||
+        saved.platformContext !== intent.platformContext ||
+        context.url !== apiUrl ||
+        context.credential !== credential ||
+        fingerprint(await store.read('gcp-tf-public-ownership.json')) !== ownershipFingerprint
+      )
+        throw new Error('Persisted operational context or ownership changed');
+      const inventory = await readGcpResourceInventory(store, intent);
+      const sorted = (rows) => [...rows].sort((a, b) => a.selfLink.localeCompare(b.selfLink));
+      if (fingerprint(sorted(inventory)) !== fingerprint(sorted(owned.resources)))
+        throw new Error('Original operational resource inventory differs');
+      readSignal?.throwIfAborted();
+      return { contextFingerprint, ownershipFingerprint };
+    };
+    await persisted(signal);
+    const identities = intent.sites[0].nodes.map((node) => {
+      const matches = owned.resources.filter(
+        (r) => r.kind === 'instance' && r.nodeName === node.name && r.siteName === siteName,
+      );
+      if (matches.length !== 1) throw new Error('Original numeric VM identity ambiguous');
+      return {
+        project: intent.project,
+        zone: node.zone,
+        instanceId: matches[0].id,
+        nodeName: node.name,
+        siteName,
+        nics: node.interfaces.map((nic) => {
+          if (nic.role === 'management') throw new Error('Operational management NIC unavailable');
+          return {
+            index: nic.index,
+            role: nic.role,
+            vrf: nic.vrf,
+            network: `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${nic.network}`,
+            subnet: `https://www.googleapis.com/compute/v1/projects/${intent.project}/regions/${intent.region}/subnetworks/${nic.subnet}`,
+          };
+        }),
+      };
+    });
+    const capture = (entry) => store.write(`operational-http-${randomUUID3()}.json`, entry);
+    const read = async (kind, nodeName, readSignal) => {
+      if (kind === 'token' && !identities.some((node) => node.nodeName === nodeName))
+        throw new Error('Original operational token node required');
+      const path = {
+        configuration: `/api/config/namespaces/system/securemesh_site_v2s/${siteName}`,
+        runtime: `/api/config/namespaces/system/sites/${siteName}`,
+        registrations: `/api/register/namespaces/system/registrations_by_site/${siteName}`,
+        components: `/api/operate/namespaces/system/sites/${siteName}/vpm/debug/global/ves-system/status?cached=false`,
+        token: `/api/register/namespaces/system/tokens/${nodeName}-token`,
+      }[kind];
+      const bounded = readSignal
+        ? AbortSignal.any([readSignal, AbortSignal.timeout(60000)])
+        : AbortSignal.timeout(60000);
+      const entry = {
+        nodeName: nodeName ?? siteName,
+        command: ['GET', path],
+        startedAt: new Date().toISOString(),
+        finishedAt: '',
+        body: '',
+        truncated: false,
+      };
+      const chunks = [];
+      let size = 0;
+      try {
+        await persisted(bounded);
+        const response = await fetcher(new URL(path, apiUrl), {
+          method: 'GET',
+          redirect: 'error',
+          signal: bounded,
+          headers: { Accept: 'application/json', Authorization: `APIToken ${credential}` },
+        });
+        entry.httpStatus = response.status;
+        if (!response.body) throw new Error('Operational initial response unavailable');
+        const reader = response.body.getReader();
+        try {
+          for (;;) {
+            bounded.throwIfAborted();
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value.subarray(0, 4 * 1024 * 1024 - size));
+            size += value.byteLength;
+            if (size > 4 * 1024 * 1024) {
+              entry.truncated = true;
+              entry.errorCode = 'malformed';
+              throw new Error('Operational initial capture exceeds bound');
+            }
+          }
+        } finally {
+          await reader.cancel();
+          reader.releaseLock();
+        }
+        if (!response.ok) {
+          entry.errorCode = 'http';
+          throw new Error('Operational initial read unavailable');
+        }
+        entry.errorCode = 'malformed';
+        const value = object18(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))));
+        await persisted(bounded);
+        bounded.throwIfAborted();
+        delete entry.errorCode;
+        return value;
+      } catch (error) {
+        entry.errorCode ??= 'transport';
+        throw error;
+      } finally {
+        entry.body = Buffer.concat(chunks).toString('utf8');
+        entry.finishedAt = new Date().toISOString();
+        await capture(entry);
+      }
+    };
+    const port = {
+      persisted,
+      configuration: (readSignal) => read('configuration', undefined, readSignal),
+      runtimeSite: (readSignal) => read('runtime', undefined, readSignal),
+      registrations: (readSignal) => read('registrations', undefined, readSignal),
+      cloud: async (nodeName, readSignal) => {
+        if (!identities.some((node) => node.nodeName === nodeName))
+          throw new Error('Original operational cloud node required');
+        await persisted(readSignal);
+        const value = await cloud(nodeName, readSignal);
+        await persisted(readSignal);
+        return value;
+      },
+      token: (nodeName, readSignal) => read('token', nodeName, readSignal),
+    };
+    let saved;
+    try {
+      saved = await store.read('gcp-operational-original-binding.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (saved && saved.contractFingerprint !== contractFingerprint)
+      throw new Error('Operational contract drift requires explicit requalification');
+    if (!saved) {
+      const startedAt = Date.now();
+      const configuration = await port.configuration(signal),
+        runtime = await port.runtimeSite(signal),
+        registrations = await port.registrations(signal);
+      if (!Array.isArray(registrations.items) || registrations.items.length !== 3)
+        throw new Error('Three original operational registrations required');
+      const nodes = [],
+        sourceIdentities = [];
+      for (const expected of identities) {
+        const rows = registrations.items
+          .map(object18)
+          .filter((row) => object18(object18(row.get_spec).infra).hostname === expected.nodeName);
+        if (rows.length !== 1 || typeof rows[0].uid !== 'string')
+          throw new Error('Original operational registration ambiguous');
+        const vm = object18(await port.cloud(expected.nodeName, signal));
+        const joins = correlateGcpPhysicalInterfaces(expected, vm, rows[0], configuration);
+        const tokenHash = identityHash(await port.token(expected.nodeName, signal));
+        if (tokenHash !== owned.platform[`xcsh_token.${expected.nodeName.replaceAll('-', '_')}`])
+          throw new Error('Original operational token changed');
+        if (!Array.isArray(vm.networkInterfaces) || vm.networkInterfaces.length !== 2)
+          throw new Error('Original NICs unavailable');
+        const nics = vm.networkInterfaces.map(object18),
+          addresses = nics.map((nic) => nic.networkIP);
+        if (!addresses.every((address) => typeof address === 'string'))
+          throw new Error('Original NIC addresses unavailable');
+        sourceIdentities.push({
+          nodeName: expected.nodeName,
+          instanceId: expected.instanceId,
+          zone: expected.zone,
+          sloAddress: addresses[0],
+          addresses,
+          devices: joins.map((join) => join.device),
+        });
+        nodes.push({
+          nodeName: expected.nodeName,
+          instanceId: expected.instanceId,
+          registrationIdentitySha256: fingerprint({ uid: rows[0].uid }),
+          tokenIdentitySha256: tokenHash,
+          role: Object.keys(profile.roles)[0],
+          nics: joins.map((join, index) =>
+            fingerprint({
+              join,
+              address: addresses[index],
+              network: nics[index].network,
+              subnet: nics[index].subnetwork,
+            }),
+          ),
+        });
+      }
+      const siteHash = identityHash(configuration);
+      if (siteHash !== owned.platform[`xcsh_securemesh_site_v2.${siteName.replaceAll('-', '_')}`])
+        throw new Error('Original operational configuration changed');
+      saved = {
+        contractFingerprint,
+        identities: sourceIdentities,
+        binding: {
+          contextFingerprint,
+          ownershipFingerprint,
+          configurationIdentitySha256: siteHash,
+          runtimeIdentitySha256: fingerprint({ uid: uid2(runtime) }),
+          siteName,
+          nodes,
+        },
+      };
+      await verifyGcpOperationalBinding(port, saved.binding, identities, sourceIdentities, signal);
+      const provisional = structuredClone(saved.binding);
+      const commands = createGcpOperationalCommandPort(
+        provisional,
+        apiUrl,
+        credential,
+        async (readSignal) => {
+          await persisted(readSignal);
+          return provisional;
+        },
+        capture,
+        fetcher,
+      );
+      const components = await read('components', undefined, signal),
+        siteStatus = await port.runtimeSite(signal);
+      if (
+        !Array.isArray(components.status) ||
+        !Array.isArray(siteStatus.status) ||
+        fingerprint({ uid: uid2(siteStatus) }) !== saved.binding.runtimeIdentitySha256
+      )
+        throw new Error('Complete original workload placement required');
+      const componentRows = components.status.map(object18),
+        runtimeRows = siteStatus.status.map(object18);
+      if (componentRows.some((row) => !nodes.some((node) => node.nodeName === row.node)))
+        throw new Error('Foreign workload placement row');
+      const observations = [];
+      for (const node of provisional.nodes) {
+        const rows = runtimeRows.filter((row) => object18(row.node_info).hostname === node.nodeName);
+        const role = rows.length === 1 ? object18(rows[0].node_info).role : undefined;
+        if (!Array.isArray(role) || role.length !== 1 || typeof role[0] !== 'string')
+          throw new Error('Original runtime role ambiguous');
+        observations.push({
+          nodeName: node.nodeName,
+          runtimeRole: role[0],
+          components: componentRows
+            .filter((row) => row.node === node.nodeName)
+            .map((row) => {
+              if (typeof row.name !== 'string' || typeof row.status !== 'string')
+                throw new Error('Original component placement malformed');
+              return { name: row.name, state: row.status };
+            }),
+          containers: parseGcpRuntimeListing(await commands.execute(node, { kind: 'list' }, signal)),
+        });
+      }
+      const roles = resolveGcpOperationalPlacement(
+        profile,
+        contractFingerprint,
+        nodes.map((node) => node.nodeName),
+        observations,
+      );
+      for (const node of saved.binding.nodes) node.role = roles[node.nodeName];
+      await verifyGcpOperationalBinding(port, saved.binding, identities, sourceIdentities, signal);
+      if (Date.now() - startedAt > profile.maximumAgeMs) throw new Error('Initial operational placement stale');
+      await store.write(`operational-placement-${randomUUID3()}.json`, {
+        startedAt,
+        finishedAt: Date.now(),
+        roles,
+        contractFingerprint,
+        bindingFingerprint: fingerprint(saved.binding),
+      });
+      await store.write('gcp-operational-original-binding.json', saved);
+    }
+    const original = saved;
+    const source = createGcpOperationalSource(
+      original.binding,
+      original.identities,
+      profile,
+      contractFingerprint,
+      apiUrl,
+      credential,
+      {
+        binding: (readSignal) =>
+          verifyGcpOperationalBinding(port, original.binding, identities, original.identities, readSignal),
+        persistedBinding: async (readSignal) => {
+          await persisted(readSignal);
+          if (fingerprint(await store.read('gcp-operational-original-binding.json')) !== fingerprint(original))
+            throw new Error('Original operational placement binding changed');
+          return original.binding;
+        },
+        capture,
+        captureProjection: (entry) => store.write(`operational-projection-${randomUUID3()}.json`, entry),
+      },
+      fetcher,
+    );
+    return { binding: original.binding, collection: await source.collect(signal) };
+  } finally {
+    await release();
+  }
+}
+
 // plugins/platform/src/ce/gcp-observation.ts
-async function createGcpPlatformObservations(store, contextName, apiUrl, credential, contract, fetcher = fetch) {
+async function createGcpPlatformObservations(
+  store,
+  contextName,
+  apiUrl,
+  credential,
+  contract,
+  fetcher = fetch,
+  currentContext,
+) {
   contract = structuredClone(contract);
   const base = new URL(apiUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
@@ -5171,6 +6967,42 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
   return {
     contractFingerprint: contract.fingerprint,
     haHealthContract: contract.haHealthContract ? structuredClone(contract.haHealthContract) : undefined,
+    ...(contract.operationalHealthExpected
+      ? { operationalHealthExpected: structuredClone(contract.operationalHealthExpected) }
+      : {}),
+    ...(contract.operationalHealthContract &&
+    currentContext &&
+    qualifiedOperationalProfile(
+      contract.operationalHealthContract.profile,
+      contract.operationalHealthContract.contractFingerprint,
+    ) &&
+    qualifiedOperationalRelease(
+      contract.operationalHealthContract.qualification,
+      contract.operationalHealthContract.qualificationFingerprint,
+      contract.operationalHealthContract.contractFingerprint,
+    )
+      ? {
+          operationalHealthContract: structuredClone(contract.operationalHealthContract),
+          async operationalHealth(site, cloud, signal) {
+            const current = await loadIntent();
+            if (fingerprint(current) !== fingerprint(original) || !contract.operationalHealthContract)
+              throw new Error('Persisted operational intent differs');
+            return collectGcpOwnedOperationalHealth(
+              store,
+              current,
+              site,
+              contract.operationalHealthContract.profile,
+              contract.operationalHealthContract.contractFingerprint,
+              apiUrl,
+              credential,
+              cloud,
+              currentContext,
+              fetcher,
+              signal,
+            );
+          },
+        }
+      : {}),
     ...(contract.haObservations
       ? {
           async haHealth(site, signal) {
@@ -5239,7 +7071,7 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
               const uid = configuration.system_metadata?.uid;
               if (
                 typeof uid !== 'string' ||
-                `sha256:${createHash8('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
+                `sha256:${createHash11('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
               )
                 throw new Error('HA original site identity differs');
             };
@@ -5361,7 +7193,7 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
         const labels = token.metadata.labels;
         if (labels['xcsh-node'] !== node.name || token.spec?.site_name !== site)
           throw new Error('GCP teardown observation token binding differs');
-        tokenIdentitySha256 = `sha256:${createHash8('sha256').update(uid).digest('hex')}`;
+        tokenIdentitySha256 = `sha256:${createHash11('sha256').update(uid).digest('hex')}`;
         tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: site, nodeName: node.name });
       }
       if (fingerprint(await loadIntent()) !== fingerprint(original))
@@ -5373,7 +7205,9 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
         tokenIdentityHash,
         ...(store.owner.engine === 'terraform'
           ? {
-              siteIdentitySha256: siteUid ? `sha256:${createHash8('sha256').update(siteUid).digest('hex')}` : undefined,
+              siteIdentitySha256: siteUid
+                ? `sha256:${createHash11('sha256').update(siteUid).digest('hex')}`
+                : undefined,
               tokenIdentitySha256,
             }
           : {}),
@@ -5386,20 +7220,20 @@ async function createGcpPlatformObservations(store, contextName, apiUrl, credent
 
 // plugins/platform/src/ce/verified-contract.ts
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash9, createHash as createHash10 } from 'node:crypto';
+import { createHash as createHash12, createHash as createHash13 } from 'node:crypto';
 
-var repository = 'f5-sales-demo/api-specs-enriched';
+var repository2 = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v7.0.1';
 var commit = '2513fe498149c98fb737ff2ab207704b8a86fec6';
 var digest2 = 'sha256:48863c0a2e6c6a6fde050f4f8f5a6966b02872851fa1acb7830f26ef2e143cd9';
-var assetUrl = `https://github.com/${repository}/releases/download/${tag}/openapi.json`;
-function object12(value) {
+var assetUrl = `https://github.com/${repository2}/releases/download/${tag}/openapi.json`;
+function object19(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
   return value;
 }
 function parse(bytes) {
   try {
-    return object12(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object19(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE API contract JSON');
   }
@@ -5430,24 +7264,24 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
     }
     return Buffer.concat(chunks);
   };
-  const release = parse(await read(`https://api.github.com/repos/${repository}/releases/tags/${tag}`));
+  const release = parse(await read(`https://api.github.com/repos/${repository2}/releases/tags/${tag}`));
   if (release.tag_name !== tag || release.immutable !== true || release.draft !== false || release.prerelease !== false)
     throw new Error('CE API release is not the pinned immutable publication');
   const matches =
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '7.0.1' || object12(receipt.assets)['openapi.json'] !== digest2)
+  if (receipt.commit !== commit || receipt.version !== '7.0.1' || object19(receipt.assets)['openapi.json'] !== digest2)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
-    ? release.assets.map(object12).filter((asset) => asset.name === 'openapi.json')
+    ? release.assets.map(object19).filter((asset) => asset.name === 'openapi.json')
     : [];
   if (assets.length !== 1 || assets[0].digest !== digest2 || assets[0].browser_download_url !== assetUrl)
     throw new Error('CE API schema asset binding differs from the pinned contract');
-  const resolved = parse(await read(`https://api.github.com/repos/${repository}/commits/${tag}`));
+  const resolved = parse(await read(`https://api.github.com/repos/${repository2}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash9('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash12('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -5455,14 +7289,14 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
 }
 
 // plugins/platform/src/ce/wire-replace.ts
-var object13 = (value) => {
+var object20 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement schema');
   return value;
 };
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
-    const schema = object13(value);
+    const schema = object20(value);
     let resolved = {};
     if (schema.$ref) {
       if (typeof schema.$ref !== 'string' || !schema.$ref.startsWith('#/components/schemas/'))
@@ -5483,7 +7317,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     return {
       ...resolved,
       ...schema,
-      ...(schema.properties ? { properties: { ...resolved.properties, ...object13(schema.properties) } } : {}),
+      ...(schema.properties ? { properties: { ...resolved.properties, ...object20(schema.properties) } } : {}),
     };
   }
   function project(value, schemaValue, top = false) {
@@ -5499,7 +7333,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     if (value && typeof value === 'object') {
       if (schema.properties === undefined && schema.additionalProperties === undefined) return structuredClone(value);
-      const properties = object13(schema.properties ?? {});
+      const properties = object20(schema.properties ?? {});
       const result = {};
       for (const [key, item] of Object.entries(value)) {
         if (!Object.hasOwn(properties, key)) {
@@ -5522,7 +7356,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     return structuredClone(value);
   }
-  return object13(project(value, schemas[root], true));
+  return object20(project(value, schemas[root], true));
 }
 
 // plugins/platform/src/ce/wire-routing.ts
@@ -5548,7 +7382,7 @@ var keywords = new Set([
   'format',
   'nullable',
 ]);
-function object14(value) {
+function object21(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SMSv2 schema is malformed');
   return value;
 }
@@ -5557,7 +7391,7 @@ function requestSchema(schemas, root) {
   const referenced = new Set();
   function convert(value) {
     if (typeof value === 'boolean') return value;
-    const source = object14(value);
+    const source = object21(value);
     if (source.readOnly === true) return false;
     const result = {};
     for (const [key, item] of Object.entries(source)) {
@@ -5572,7 +7406,7 @@ function requestSchema(schemas, root) {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object14(item)).map(([name, schema]) => [name, convert(schema)]),
+          Object.entries(object21(item)).map(([name, schema]) => [name, convert(schema)]),
         );
         result.additionalProperties =
           source.additionalProperties === undefined ? false : convert(source.additionalProperties);
@@ -5676,7 +7510,7 @@ function firstFailure(schemaValue, value, document) {
   if (typeof schemaValue.$ref === 'string') {
     const prefix = '#/definitions/';
     if (!schemaValue.$ref.startsWith(prefix)) return '$ref';
-    const definition = object14(document.definitions)[schemaValue.$ref.slice(prefix.length)];
+    const definition = object21(document.definitions)[schemaValue.$ref.slice(prefix.length)];
     if (definition === undefined) return '$ref';
     const failure = firstFailure(definition, value, document);
     if (failure) return failure;
@@ -5742,7 +7576,7 @@ function firstFailure(schemaValue, value, document) {
       return 'minProperties';
     if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties)
       return 'maxProperties';
-    const properties = schemaValue.properties ? object14(schemaValue.properties) : undefined;
+    const properties = schemaValue.properties ? object21(schemaValue.properties) : undefined;
     for (const [key, item] of entries) {
       const propertySchema = properties?.[key];
       if (propertySchema !== undefined) {
@@ -5960,7 +7794,7 @@ function routingValidators(network, marketplace) {
 }
 
 // plugins/platform/src/ce/wire-site.ts
-var names = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+var names2 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var macs = /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/;
 var defaults = {
   block_all_services: {},
@@ -5974,7 +7808,7 @@ var defaults = {
   disable_url_categorization: {},
   local_vrf: { default_config: {}, default_sli_config: {} },
 };
-function object15(value) {
+function object22(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid SMSv2 site identity');
   return value;
 }
@@ -6003,14 +7837,14 @@ function buildWireSite(intent, schemas) {
   const identities = new Set();
   let layout;
   for (const node of intent.nodes) {
-    if (!names.test(node.hostname) || hostnames.has(node.hostname))
+    if (!names2.test(node.hostname) || hostnames.has(node.hostname))
       throw new Error('SMSv2 hostnames must be unique DNS names');
     hostnames.add(node.hostname);
     if (!Array.isArray(node.interfaces) || node.interfaces.length < 1 || node.interfaces.length > 8)
       throw new Error('Unsupported SMSv2 interface count');
     const interfaceNames = new Set();
     const roles = node.interfaces.map((item) => {
-      const ethernet = object15(item.ethernet_interface);
+      const ethernet = object22(item.ethernet_interface);
       if (typeof ethernet.mac !== 'string' || !macs.test(ethernet.mac) || identities.has(ethernet.mac))
         throw new Error('SMSv2 MAC identity is missing, malformed or duplicated');
       identities.add(ethernet.mac);
@@ -6019,10 +7853,10 @@ function buildWireSite(intent, schemas) {
         (typeof ethernet.device !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device))
       )
         throw new Error('An observed AWS guest device is required before configuring an interface');
-      if (typeof item.name !== 'string' || !names.test(item.name) || interfaceNames.has(item.name))
+      if (typeof item.name !== 'string' || !names2.test(item.name) || interfaceNames.has(item.name))
         throw new Error('SMSv2 interface names must be unique');
       interfaceNames.add(item.name);
-      const network = object15(item.network_option);
+      const network = object22(item.network_option);
       const addressing = ['dhcp_client', 'static_ip', 'no_ipv4_address'].filter((key) => Object.hasOwn(item, key));
       if (addressing.length !== 1) throw new Error('SMSv2 interface addressing must be explicit');
       return { name: item.name, network, addressing: addressing[0], mtu: item.mtu ?? null };
@@ -6037,7 +7871,7 @@ function buildWireSite(intent, schemas) {
       throw new Error('HA interfaces must have homogeneous order, roles and addressing');
     layout = current;
   }
-  const settings = object15(intent.settings);
+  const settings = object22(intent.settings);
   const protectedFields = [
     'aws',
     'azure',
@@ -6058,7 +7892,7 @@ function buildWireSite(intent, schemas) {
   if (protectedFields.some((field) => Object.hasOwn(settings, field)))
     throw new Error('Site settings cannot replace provider, HA or management identity');
   const spec = { ...structuredClone(defaults), ...structuredClone(settings) };
-  const root = object15(schemas.viewssecuremesh_site_v2CreateSpecType);
+  const root = object22(schemas.viewssecuremesh_site_v2CreateSpecType);
   for (const [key, value] of Object.entries(root)) {
     if (!key.startsWith('x-ves-oneof-field-')) continue;
     const group = typeof value === 'string' ? JSON.parse(value) : value;
@@ -6082,16 +7916,16 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash3 = (bytes) => `sha256:${createHash10('sha256').update(bytes).digest('hex')}`;
+var hash3 = (bytes) => `sha256:${createHash13('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
-function object16(value) {
+function object23(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid verified CE contract');
   return value;
 }
 function parse2(bytes) {
   try {
-    return object16(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object23(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE contract artifact');
   }
@@ -6138,8 +7972,8 @@ class VerifiedCeContract {
       read('smsv2-contract-manifest.json'),
       read('smsv2-evidence-receipt.json'),
     ]);
-    const release = object16(manifest.release);
-    const bindings = object16(manifest.assets);
+    const release = object23(manifest.release);
+    const bindings = object23(manifest.assets);
     if (
       manifest.schema_version !== 1 ||
       release.commit !== '2513fe498149c98fb737ff2ab207704b8a86fec6' ||
@@ -6150,7 +7984,7 @@ class VerifiedCeContract {
       bindings['smsv2-evidence-receipt.json'] !== publishedAssets['smsv2-evidence-receipt.json']
     )
       throw new Error('Published SMSv2 contract binding is invalid');
-    const schemas = object16(object16(api.components).schemas);
+    const schemas = object23(object23(api.components).schemas);
     return new VerifiedCeContract(
       '2513fe498149c98fb737ff2ab207704b8a86fec6',
       publishedAssets['smsv2-contract-manifest.json'],
@@ -6181,7 +8015,7 @@ class VerifiedCeContract {
       throw new Error('Pinned routing replacement contract and exact identity are required');
     const schemas = kind === 'external_connector' ? this.#routingSchemas.marketplace : this.#routingSchemas.network;
     const metadata = projectReplaceSnapshot(snapshot.metadata, schemas, 'schemaObjectReplaceMetaType');
-    metadata.labels = { ...object16(metadata.labels), 'xcsh-ce-site-uid': siteUid };
+    metadata.labels = { ...object23(metadata.labels), 'xcsh-ce-site-uid': siteUid };
     const request = { metadata, spec: structuredClone(desiredSpec), resource_version: snapshot.resource_version };
     createWireValidator(schemas, `${kind}ReplaceRequest`)(request);
     return request;
@@ -6198,9 +8032,9 @@ class VerifiedCeContract {
     this.bgpRoutesPath(providerName, 'contract-check');
   }
   azureRouteServerEbgpMultihop() {
-    const azure = object16(object16(this.#contract.providers).azure);
-    const capability = object16(azure.route_server_ebgp_multihop);
-    const source = object16(capability.source);
+    const azure = object23(object23(this.#contract.providers).azure);
+    const capability = object23(azure.route_server_ebgp_multihop);
+    const source = object23(capability.source);
     const schemaPaths = source.schema_paths;
     if (
       capability.availability !== 'unavailable' ||
@@ -6235,11 +8069,11 @@ class VerifiedCeContract {
   }
   configurationPath(providerName, siteName) {
     if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
-    const provider = object16(object16(this.#contract.providers)[providerName]);
-    const observation = object16(object16(provider.runtime).configuration);
-    const mappings = object16(observation.response_mappings);
-    const normalization = object16(observation.normalization);
-    const nullability = object16(observation.nullability);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const observation = object23(object23(provider.runtime).configuration);
+    const mappings = object23(observation.response_mappings);
+    const normalization = object23(observation.normalization);
+    const nullability = object23(observation.nullability);
     const expectedMappings = {
       interfaces: 'interface_list[]',
       mac: 'ethernet_interface.mac',
@@ -6271,11 +8105,11 @@ class VerifiedCeContract {
   }
   bgpPeersPath(providerName, siteName) {
     if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
-    const provider = object16(object16(this.#contract.providers)[providerName]);
-    const runtime = object16(provider.runtime);
-    const observation = object16(runtime.bgp_peers);
-    const mappings = object16(observation.response_mappings);
-    const peerAddress = object16(mappings.peer_address);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const runtime = object23(provider.runtime);
+    const observation = object23(runtime.bgp_peers);
+    const mappings = object23(observation.response_mappings);
+    const peerAddress = object23(mappings.peer_address);
     if (
       observation.method !== 'GET' ||
       observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_peers' ||
@@ -6293,7 +8127,7 @@ class VerifiedCeContract {
       mappings.received_prefix_count !== 'ver[].peer[].received_prefix_count' ||
       mappings.advertised_prefix_count !== 'ver[].peer[].advertised_prefix_count' ||
       mappings.state_changed_at !== 'ver[].peer[].up_down_timestamp' ||
-      object16(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      object23(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
       JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node', 'peer_address'])
     )
       throw new Error(`Verified ${providerName} BGP observation mapping is unavailable`);
@@ -6301,9 +8135,9 @@ class VerifiedCeContract {
   }
   bgpRoutesPath(providerName, siteName) {
     if (providerName === 'gcp') throw new Error('GCP runtime mapping is unavailable');
-    const provider = object16(object16(this.#contract.providers)[providerName]);
-    const observation = object16(object16(provider.runtime).bgp_routes);
-    const mappings = object16(observation.response_mappings);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const observation = object23(object23(provider.runtime).bgp_routes);
+    const mappings = object23(observation.response_mappings);
     if (
       observation.method !== 'GET' ||
       observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_routes' ||
@@ -6322,7 +8156,7 @@ class VerifiedCeContract {
           'ver[].ri_table[].rt_table[].imported[].subnet',
           'ver[].ri_table[].rt_table[].exported[].subnet',
         ]) ||
-      object16(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      object23(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
       JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node'])
     )
       throw new Error(`Verified ${providerName} BGP route observation mapping is unavailable`);
@@ -6370,12 +8204,12 @@ class VerifiedCeContract {
     createWireValidator(this.#schemas, 'securemesh_site_v2ReplaceRequest')(request);
   }
   provider(name) {
-    return structuredClone(object16(object16(this.#contract.providers)[name]));
+    return structuredClone(object23(object23(this.#contract.providers)[name]));
   }
   bootstrapQuery(name) {
     if (name === 'gcp') throw new Error('Verified GCP image bootstrap capability is unavailable');
-    const provider = object16(object16(this.#contract.providers)[name]);
-    const bootstrap = object16(provider.bootstrap);
+    const provider = object23(object23(this.#contract.providers)[name]);
+    const bootstrap = object23(provider.bootstrap);
     if (
       bootstrap.mode !== 'site_bound_jwt_cloud_init' ||
       bootstrap.headless_checkout !== 'available' ||
@@ -6385,8 +8219,8 @@ class VerifiedCeContract {
       Array.isArray(bootstrap.cloud_init)
     )
       throw new Error(`Verified ${name} headless bootstrap capability is unavailable`);
-    const cloudInit = object16(bootstrap.cloud_init);
-    const query = object16(cloudInit.query_fields);
+    const cloudInit = object23(bootstrap.cloud_init);
+    const query = object23(cloudInit.query_fields);
     if (
       cloudInit.method !== 'GET' ||
       cloudInit.path !== '/api/register/namespaces/system/get-cloud-init-config' ||
@@ -6400,7 +8234,7 @@ class VerifiedCeContract {
     return { provider: name, enableManagementNetwork: false };
   }
   get api() {
-    return structuredClone(object16(this.#contract.api));
+    return structuredClone(object23(this.#contract.api));
   }
 }
 
@@ -6481,7 +8315,15 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
           join4(env.XDG_STATE_HOME ?? join4(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
-      return createGcpPlatformObservations(store, contextName, credentials.url, credentials.credential, artifact);
+      return createGcpPlatformObservations(
+        store,
+        contextName,
+        credentials.url,
+        credentials.credential,
+        artifact,
+        undefined,
+        () => context(env, contextName),
+      );
     },
     storage(owner) {
       return CeDeploymentStore.open(
