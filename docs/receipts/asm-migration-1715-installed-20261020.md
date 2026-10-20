@@ -41,23 +41,36 @@ checks with zero failures. No deployment tool was active. This establishes the
 safe installed offline workflow, separately from synthetic rendering and service
 acceptance.
 
+Ubuntu independently executed the same installed offline workflow with exact
+absolute guidance paths, three admitted native calls, complete conversion, four
+review files, three validated resources, no warnings and a correct operator-review
+conclusion. Its 192 actual tool/message frames passed named wrapping-aware
+reinspection. The first twelve 40-column literal-check findings are preserved;
+all 48 message frames separately preserve the full contract commit and complete
+validation clause within their own labelled sections. An earlier fresh Ubuntu
+attempt used invented virtual guidance paths and was rejected before any native
+call; its transcript is preserved. No deployment tool was active in either run.
+
 Normal `xcsh plugin status ... --json` reports the native `asm_migration`
 integration ready on both hosts, after its Bun availability probe. This is
 readiness only. Both hosts explicitly reject `plugin setup ... --json` with
 “plugin setup is human-only and does not accept --json”; human setup acceptance
 remains separate. A fresh installed offline session completed and accepted live
 light/ASCII and dark/Nerd changes. Private ANSI viewport observations contain
-changed colors and symbols. These observations do not establish all viewport,
-progress cleanup or context-replacement gates.
+changed colors and symbols in the completed validate/convert results. Session
+shutdown was observed and the task pane returned to its shell. The plugin emits
+no progress updates and owns no animation timers; runtime progress lifecycle is a
+separate shared gate. These observations do not establish context-replacement or
+all viewport behavior.
 
 Raw captures, original checks, guarded calls, model transcripts and fixture outputs
 remain private. The Ubuntu launcher initially failed with a malformed export before
 any tool admission. The corrected fresh launch completed all 384 checks with zero findings;
 the launch failure remains private. Runtime 23.9.4 is tagged but its build/publication
-is pending;
-23.9.3 remains the latest verified installed runtime for these receipts. Remaining
-gates include full lifecycle and viewport behavior,
-complete live appearance changes, and account-dependent service checks.
+is pending; 23.9.3 remains the latest verified installed runtime for these receipts.
+Remaining
+gates include full lifecycle, guidance presentation, viewport/context-replacement
+behavior, and account-dependent service checks.
 Service checks remain deferred by the user; next action after deferral is lifted:
 use existing authorized credentials for a safe read-only receipt workflow.
 No infrastructure deployment, account setup or service startup is authorized by
