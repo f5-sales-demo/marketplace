@@ -43,3 +43,10 @@ health separately, then execute the approved safe read-only scenarios.
 Historical source receipts and failed captures remain preserved. Complete
 layout, lifecycle, live appearance and safe shipped-workflow gates remain open.
 Neither #1590 nor #1579 is closed by this receipt.
+
+## Receipt validation
+
+After merging current main and the Devcontainer retirement, canonical tracker,
+inventory and renderer ownership checks passed: 12 tests, 506 assertions.
+Changed-scope privacy enforcement and audit, terminology lint and whitespace
+checks passed. All 87 Devcontainer retirement records remain preserved.
