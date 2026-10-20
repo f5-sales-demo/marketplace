@@ -252,6 +252,10 @@ test('inspection reconstructs wrapped fields and each table cell without joining
   }
   expect(check(['│ │ \x1b[1mone\x1b[22m: abc │', '│ │ \x1b[1mtwo\x1b[22m: def │'], 'abcdef')).toBe(false);
   expect(check(['abc', 'def'], 'abcdef')).toBe(false);
+  expect(check(['│   "description": "All Systems │', '│ Operational", │'], 'All Systems Operational')).toBe(true);
+  expect(check(['│   "one": "abc", │', '│   "two": "def" │'], 'abcdef')).toBe(false);
+  expect(check(['│   "one": "abc", │', '│ def │'], 'abcdef')).toBe(false);
+  expect(check(['│   "one": "abc │', '├── Output ──┤', '│ def" │'], 'abcdef')).toBe(false);
 });
 
 test('inspection rejects duplicated or missing evidence markers', () => {
