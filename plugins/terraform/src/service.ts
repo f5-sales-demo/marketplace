@@ -1,7 +1,13 @@
 import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
-import { type Deployment, type PlanReceipt, type TerraformActionIntent, TerraformRunner } from './runner';
+import {
+  type Deployment,
+  type PlanReceipt,
+  type TerraformActionIntent,
+  type TerraformImportIntent,
+  TerraformRunner,
+} from './runner';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
@@ -45,6 +51,11 @@ export interface TerraformSession {
   planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
   planAction(
     intent: TerraformActionIntent,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt>;
+  planImports?(
+    intents: TerraformImportIntent[],
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<PlanReceipt>;
@@ -137,6 +148,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async planAction(intent, env, signal) {
           await checkOwner();
           return runner.planAction(intent, env, signal);
+        },
+        async planImports(intents, env, signal) {
+          await checkOwner();
+          return runner.planImports(intents, env, signal);
         },
         async plan(env, signal) {
           await checkOwner();

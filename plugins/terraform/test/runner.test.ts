@@ -975,3 +975,90 @@ for (const importing of [{ id: 'rtb-12345678_192.0.2.0/24' }, { identity: { id: 
     });
     await expect(runner.plan({})).rejects.toThrow('state import');
   });
+
+const routeImport = {
+  address: 'aws_route.service',
+  type: 'aws_route',
+  providerName: 'registry.terraform.io/hashicorp/aws',
+  idSha256: hash('rtb-12345678_192.0.2.0/24'),
+};
+const importResource = {
+  address: routeImport.address,
+  type: routeImport.type,
+  mode: 'managed',
+  provider_name: routeImport.providerName,
+  change: { actions: ['no-op'], importing: { id: 'rtb-12345678_192.0.2.0/24' } },
+};
+test('binds explicit import-only saved plans without exposing import IDs or reporting no changes', async () => {
+  const { runner, calls } = await fixture({ resource_changes: [importResource], output_changes: {} });
+  const receipt = await runner.planImports([routeImport], {});
+  expect(receipt.imports).toEqual([routeImport]);
+  expect(receipt.noChanges).toBe(false);
+  expect(JSON.stringify(receipt)).not.toContain('rtb-12345678');
+  await expect(
+    runner.apply({ ...receipt, imports: [{ ...routeImport, idSha256: '0'.repeat(64) }] }, {}),
+  ).rejects.toThrow('match');
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  await runner.apply(receipt, {});
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+  await expect(runner.apply(receipt, {})).rejects.toThrow('consumed');
+});
+test('rejects incomplete, foreign, unresolved, duplicate and mutating import-only plans', async () => {
+  for (const rows of [
+    [],
+    [importResource, importResource],
+    [{ ...importResource, mode: 'data' }],
+    [{ ...importResource, provider_name: 'registry.terraform.io/example/foreign' }],
+    [{ ...importResource, address: 'aws_route.foreign' }],
+    [{ ...importResource, change: { actions: ['no-op'], importing: { id: 'foreign' } } }],
+    [{ ...importResource, change: { actions: ['no-op'], importing: { unknown: true } } }],
+    [{ ...importResource, change: { actions: ['no-op'], importing: { identity: { id: 'foreign' } } } }],
+    [{ ...importResource, change: { ...importResource.change, actions: ['update'] } }],
+    [importResource, { address: 'aws_instance.ce', type: 'aws_instance', change: { actions: ['create'] } }],
+  ]) {
+    const { runner, calls } = await fixture({ resource_changes: rows, output_changes: {} });
+    await expect(runner.planImports([routeImport], {})).rejects.toThrow(/import/i);
+    expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+  }
+  const changedOutput = await fixture({
+    resource_changes: [importResource],
+    output_changes: { route: { actions: ['update'] } },
+  });
+  await expect(changedOutput.runner.planImports([routeImport], {})).rejects.toThrow(/import/i);
+});
+test('validates explicit import intent before running Terraform', async () => {
+  for (const intents of [
+    [],
+    [routeImport, routeImport],
+    [{ ...routeImport, idSha256: 'unresolved' }],
+    [{ ...routeImport, address: 'module.foreign.aws_route.service' }],
+  ]) {
+    const { runner, calls } = await fixture();
+    await expect(runner.planImports(intents, {})).rejects.toThrow(/import/i);
+    expect(calls).toHaveLength(0);
+  }
+});
+test('rechecks import identity at application even when the saved binary digest is unchanged', async () => {
+  const resource = structuredClone(importResource);
+  const { runner, calls } = await fixture({ resource_changes: [resource], output_changes: {} });
+  const receipt = await runner.planImports([routeImport], {});
+  resource.change.importing.id = 'foreign';
+  await expect(runner.apply(receipt, {})).rejects.toThrow(/import/i);
+  expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+});
+
+test('interrupted import application retains the original attempt without replay', async () => {
+  const { runner, calls } = await fixture(
+    { resource_changes: [importResource], output_changes: {} },
+    {},
+    undefined,
+    () => {
+      throw new Error('lost import response');
+    },
+  );
+  const receipt = await runner.planImports([routeImport], {});
+  await expect(runner.apply(receipt, {})).rejects.toThrow('lost import response');
+  expect(await runner.readPlanApplicationState(receipt)).toBe('applying');
+  await expect(runner.apply(receipt, {})).rejects.toThrow('consumed');
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+});

@@ -34,6 +34,13 @@ export interface TerraformActionIntent {
   providerName: string;
   configValuesSha256: string;
 }
+/** Internal import-only stage; cloud adapters must independently establish ownership first. */
+export interface TerraformImportIntent {
+  address: string;
+  type: string;
+  providerName: string;
+  idSha256: string;
+}
 export interface PlanReceipt {
   schemaVersion: 1;
   deploymentId: string;
@@ -45,6 +52,7 @@ export interface PlanReceipt {
   changes: Array<{ address: string; type: string; actions: string[] }>;
   noChanges: boolean;
   actionInvocations?: TerraformActionIntent[];
+  imports?: TerraformImportIntent[];
   operation?: 'destroy';
 }
 // Terraform's plan JSON uses a legacy spelling for this flag.
@@ -98,6 +106,68 @@ function validateActionIntent(intent: TerraformActionIntent): void {
     !/^[a-f0-9]{64}$/.test(intent.configValuesSha256)
   )
     throw new Error('Explicit action address, provider and configuration digest required');
+}
+function validateImportIntents(intents: TerraformImportIntent[]): void {
+  if (
+    !Array.isArray(intents) ||
+    !intents.length ||
+    new Set(intents.map((i) => i?.address)).size !== intents.length ||
+    intents.some(
+      (i) =>
+        !i ||
+        Object.keys(i).sort().join(',') !== 'address,idSha256,providerName,type' ||
+        typeof i.type !== 'string' ||
+        !/^[a-z][a-z0-9_]*$/.test(i.type) ||
+        typeof i.address !== 'string' ||
+        !new RegExp(`^${i.type}\\.[a-z][a-z0-9_]*$`).test(i.address) ||
+        typeof i.providerName !== 'string' ||
+        !/^registry\.terraform\.io\/[a-z0-9_-]+\/[a-z0-9_-]+$/.test(i.providerName) ||
+        typeof i.idSha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(i.idSha256),
+    )
+  )
+    throw new Error('Explicit unique import address, provider and ID digest required');
+}
+function inspectImports(plan: Json, expected?: TerraformImportIntent[]): TerraformImportIntent[] {
+  if (expected) validateImportIntents(expected);
+  const rows = plan.resource_changes ?? [];
+  if (!Array.isArray(rows)) throw new Error('Terraform import resource inventory is malformed');
+  const found: TerraformImportIntent[] = [];
+  for (const value of rows) {
+    const row = object(value);
+    const change = object(row.change);
+    if (change.importing === undefined || change.importing === null) continue;
+    if (!expected) throw new Error('Terraform state import requires a separately qualified ownership contract');
+    const intent = expected.find((i) => i.address === row.address);
+    const importing = object(change.importing);
+    if (
+      !intent ||
+      found.some((i) => i.address === row.address) ||
+      row.mode !== 'managed' ||
+      row.type !== intent.type ||
+      row.provider_name !== intent.providerName ||
+      row.previous_address !== undefined ||
+      row.deposed !== undefined ||
+      Object.keys(importing).some((k) => !['id', 'unknown'].includes(k)) ||
+      (importing.unknown !== undefined && importing.unknown !== false) ||
+      typeof importing.id !== 'string' ||
+      !importing.id.length ||
+      digest(importing.id) !== intent.idSha256 ||
+      changeActions(change.actions).join(',') !== 'no-op'
+    )
+      throw new Error('Terraform import identity is unresolved, duplicated, foreign or mutating');
+    found.push({ ...intent });
+  }
+  if (
+    expected &&
+    (found.length !== expected.length ||
+      rows.some((v) => changeActions(object(object(v).change).actions).join(',') !== 'no-op') ||
+      Object.values(object(plan.output_changes ?? {})).some(
+        (v) => changeActions(object(v).actions, true).join(',') !== 'no-op',
+      ))
+  )
+    throw new Error('Terraform import-only plan contains missing imports or unrelated changes');
+  return found.sort((a, b) => a.address.localeCompare(b.address));
 }
 function allFalse(value: unknown): boolean {
   return value === false || (value !== null && typeof value === 'object' && Object.values(value).every(allFalse));
@@ -641,11 +711,22 @@ export class TerraformRunner {
     validateActionIntent(intent);
     return this.#plan(env, signal, intent);
   }
+  /** Import-only saved plan, never an implicit import alongside infrastructure changes. */
+  async planImports(
+    intents: TerraformImportIntent[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt> {
+    intents = structuredClone(intents);
+    validateImportIntents(intents);
+    return this.#plan(env, signal, undefined, false, intents);
+  }
   async #plan(
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
     action?: TerraformActionIntent,
     destroy = false,
+    imports?: TerraformImportIntent[],
   ): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
@@ -686,12 +767,11 @@ export class TerraformRunner {
       )
         throw new Error('Terraform plan JSON is malformed or unsupported');
       const actionInvocations = inspectActionInvocations(plan, action);
+      const imported = inspectImports(plan, imports);
       const changes: PlanReceipt['changes'] = [];
       for (const value of (plan.resource_changes ?? []) as unknown[]) {
         const resource = object(value);
         const change = object(resource.change);
-        if (change.importing !== undefined && change.importing !== null)
-          throw new Error('Terraform state import requires a separately qualified ownership contract');
         const actions = changeActions(change.actions);
         if (
           typeof resource.address !== 'string' ||
@@ -714,7 +794,7 @@ export class TerraformRunner {
           outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
       )
         throw new Error('Terraform destroy plan contains non-delete changes');
-      const noChanges = resourcesUnchanged && actionInvocations.length === 0;
+      const noChanges = resourcesUnchanged && actionInvocations.length === 0 && imported.length === 0;
       if (!noChanges && !plan[planApplicationFlag]) throw new Error('Terraform plan has changes but cannot be applied');
       const manifest = this.#state().manifest;
       const receipt: PlanReceipt = {
@@ -728,6 +808,7 @@ export class TerraformRunner {
         changes,
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
+        ...(imported.length ? { imports: imported } : {}),
         ...(destroy ? { operation: 'destroy' as const } : {}),
       };
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
@@ -1064,6 +1145,10 @@ export class TerraformRunner {
       if (expectedActions.length) validateActionIntent(expectedActions[0]);
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
       inspectActionInvocations(plan, expectedActions[0]);
+      if (receipt.imports && (expectedActions.length || receipt.operation))
+        throw new Error('Saved import stage cannot contain actions or destruction');
+      if (canonical(inspectImports(plan, receipt.imports)) !== canonical(receipt.imports ?? []))
+        throw new Error('Saved import receipt differs from exact plan');
       if (receipt.planSha256 !== digest(await privateRead(join(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
       if (expectedActions.length) {
