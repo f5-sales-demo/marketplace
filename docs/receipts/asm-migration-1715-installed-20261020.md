@@ -12,9 +12,9 @@ both actual user registries; all 41 installed files match. Mac resolves the
 Homebrew 23.9.3 binary and Ubuntu resolves its user CLI binary, reporting 23.9.3.
 Both hosts support offline ASM validation and conversion.
 
-The actual Mac installed 2.3.1 entrypoint, selected from the real user registry,
-passed 384 individually inspected native buffers using the published runtime's
-ToolExecutionComponent: eight fixture cases across 40/76/120/153 columns,
+The actual Mac and Ubuntu installed 2.3.1 entrypoints, selected from their real
+user registries, each passed 384 individually inspected native buffers using the
+published runtime's ToolExecutionComponent: eight fixture cases across 40/76/120/153 columns,
 collapsed/expanded, dark/light and Unicode/ASCII/Nerd. Policy validation, partial
 conversion, deployment plan, native error, empty conversion, nineteen-row lists,
 malformed output and rollback all passed. These synthetic outcomes establish
@@ -51,10 +51,13 @@ changed colors and symbols. These observations do not establish all viewport,
 progress cleanup or context-replacement gates.
 
 Raw captures, original checks, guarded calls, model transcripts and fixture outputs
-remain private. Runtime 23.9.4 is tagged but its build/publication is pending;
+remain private. The Ubuntu launcher initially failed with a malformed export before
+any tool admission. The corrected fresh launch completed all 384 checks with zero findings;
+the launch failure remains private. Runtime 23.9.4 is tagged but its build/publication
+is pending;
 23.9.3 remains the latest verified installed runtime for these receipts. Remaining
 gates include full lifecycle and viewport behavior,
-live appearance changes, Ubuntu rendering, and account-dependent service checks.
+complete live appearance changes, and account-dependent service checks.
 Service checks remain deferred by the user; next action after deferral is lifted:
 use existing authorized credentials for a safe read-only receipt workflow.
 No infrastructure deployment, account setup or service startup is authorized by
