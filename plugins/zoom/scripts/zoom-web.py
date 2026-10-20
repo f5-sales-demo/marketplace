@@ -195,6 +195,9 @@ def launched_browser_pid(process, profile, port):
 
 
 def join(target):
+    ready = status()
+    if not ready["ready"]:
+        return {"exitCode": 1, "error": "baked_zoom_web_prerequisites_missing", "status": ready}
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
     if not runtime.is_absolute() or runtime.stat().st_uid != os.getuid():
         raise ValueError("Owned runtime directory required")
