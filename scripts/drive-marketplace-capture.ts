@@ -7,9 +7,23 @@ function wrappedValues(lines: string[]) {
   const values: string[] = [];
   let cells: string[][] = [];
   let field: string[] = [];
+  let jsonField = false;
   const flushField = () => {
     if (field.length) values.push(field.join(''), field.join(' '));
     field = [];
+    jsonField = false;
+  };
+  const finishJsonField = () => {
+    for (const candidate of [field.join(''), field.join(' ')]) {
+      try {
+        const value = JSON.parse(candidate.replace(/,$/, ''));
+        if (typeof value === 'string') values.push(value);
+        flushField();
+        return;
+      } catch {
+        // A wrapped JSON value remains within its own labelled field and frame.
+      }
+    }
   };
   const flushCells = () => {
     for (const cell of cells) if (cell?.length) values.push(cell.join(''), cell.join(' '));
@@ -42,7 +56,18 @@ function wrappedValues(lines: string[]) {
       .replace(/[│|]\s*$/, '')
       .replace(/^[│|]\s*/, '')
       .trim();
-    if (label) {
+    const jsonLabel = parts.length === 3 ? /^"(?:\\.|[^"\\])+":\s*(.*)$/.exec(body) : null;
+    if (jsonLabel) {
+      flushField();
+      if (!jsonLabel[1] || jsonLabel[1].startsWith('"')) {
+        field = [jsonLabel[1]];
+        jsonField = true;
+        finishJsonField();
+      }
+    } else if (jsonField && parts.length === 3 && body) {
+      field.push(body);
+      finishJsonField();
+    } else if (label) {
       flushField();
       field = [body.slice(body.indexOf(':') + 1).trim()];
     } else if (field.length && parts.length === 4 && body) field.push(body);

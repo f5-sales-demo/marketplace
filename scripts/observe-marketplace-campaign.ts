@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rena
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import {
   assertPrivateCaptureRoot,
   guardScenarioTool,
@@ -10,6 +11,7 @@ import {
   resolveShippedPath,
   selectInstalledPlugin,
   validateScenario,
+  validateScenarioSources,
 } from './marketplace-qualification';
 
 // A read-only observer of the published runtime. It does not manually dispatch lifecycle handlers.
@@ -31,10 +33,17 @@ export default async function observeMarketplaceCampaign(api: any) {
   mkdirSync(root, { recursive: true, mode: 0o700 });
   assertPrivateCaptureRoot(root);
   const scenario = validateScenario(JSON.parse(readFileSync(scenarioPath, 'utf8')));
+  validateScenarioSources(scenario, plugin);
   const guidance = scenario.guidance.map((path) => resolveShippedPath(plugin, path));
-  const activeTools = [...new Set([...scenario.calls.map((call) => call.tool), ...(guidance.length ? ['read'] : [])])];
+  const activeTools = [
+    ...new Set([
+      ...scenario.calls.map((call) => call.tool),
+      ...(guidance.length ? ['read'] : []),
+      ...(scenario.shellCalls?.length ? ['bash'] : []),
+    ]),
+  ];
   const record = (value: any) =>
-    appendFileSync(join(root, 'events.jsonl'), JSON.stringify({ time: Date.now(), ...value }) + '\n', { mode: 0o600 });
+    appendFileSync(join(root, 'events.jsonl'), `${JSON.stringify({ time: Date.now(), ...value })}\n`, { mode: 0o600 });
   const manifest = JSON.parse(readFileSync(join(plugin, '.xcsh-plugin/plugin.json'), 'utf8'));
   if (manifest.name !== selectedName || !manifest.version) throw new Error('Installed manifest identity mismatch');
   const registryPath =
@@ -173,11 +182,25 @@ export default async function observeMarketplaceCampaign(api: any) {
   }
 
   const executions = new Map<string, any>();
-  api.on('tool_execution_start', (event: any) => executions.set(event.toolCallId, event));
+  const consumedShellRules = new Set<number>();
+  const admittedShellCalls = new Map<string, any>();
+  api.on('tool_execution_start', (event: any) => {
+    if (event.toolName === 'bash') {
+      const args = admittedShellCalls.get(event.toolCallId);
+      admittedShellCalls.delete(event.toolCallId);
+      if (!args || !isDeepStrictEqual(args, event.args)) return;
+    }
+    executions.set(event.toolCallId, event);
+  });
   api.on('tool_execution_end', (event: any) => {
     record({ event: 'execution_result', toolName: event.toolName, result: event.result, isError: event.isError });
     const start = executions.get(event.toolCallId);
-    if (start && tools.has(event.toolName))
+    if (
+      start &&
+      start.toolName === event.toolName &&
+      (tools.has(event.toolName) ||
+        (event.toolName === 'bash' && !guardScenarioTool({ toolName: 'bash', input: start.args }, scenario, plugin)))
+    )
       captures.push({
         id: `tool-${captures.length}-${event.toolName}`,
         tool: event.toolName,
@@ -213,7 +236,25 @@ export default async function observeMarketplaceCampaign(api: any) {
         decision = { block: true, reason: 'Guidance path escaped selected installation' };
       }
     }
-    record({ event: 'tool_call', toolName: event.toolName, input: event.input, blocked: Boolean(decision) });
+    if (!decision && event.toolName === 'bash') {
+      const rule = scenario.shellCalls!.findIndex((item) => isDeepStrictEqual(item.args, event.input));
+      if (typeof event.toolCallId !== 'string' || !event.toolCallId || consumedShellRules.has(rule))
+        decision = {
+          block: true,
+          reason: 'Each reviewed collector may be admitted only once per fresh scenario session.',
+        };
+      else {
+        consumedShellRules.add(rule);
+        admittedShellCalls.set(event.toolCallId, JSON.parse(JSON.stringify(event.input)));
+      }
+    }
+    record({
+      event: 'tool_call',
+      toolName: event.toolName,
+      toolCallId: event.toolCallId,
+      input: event.input,
+      blocked: Boolean(decision),
+    });
     return decision;
   });
   api.on('tool_result', (event: any) =>
@@ -315,7 +356,7 @@ export default async function observeMarketplaceCampaign(api: any) {
             const offset = Math.min(Math.max(0, control.scroll ?? 0), Math.max(0, rendered.length - capacity));
             lines = rendered.slice(offset, offset + capacity);
             writeFileSync(
-              join(root, 'frames', control.id + '.json'),
+              join(root, 'frames', `${control.id}.json`),
               JSON.stringify({
                 ...control,
                 tool: item.tool,

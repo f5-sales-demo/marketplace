@@ -1,10 +1,15 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import observe from '../scripts/observe-marketplace-campaign';
 
-async function harness(mode: string, check: (state: any) => Promise<void>) {
+async function harness(
+  mode: string,
+  check: (state: any) => Promise<void>,
+  prepare?: (plugin: string, scenario: string) => void,
+) {
   const root = mkdtempSync(join(tmpdir(), 'marketplace-observer-'));
   const previous = { ...process.env };
   try {
@@ -12,7 +17,11 @@ async function harness(mode: string, check: (state: any) => Promise<void>) {
     mkdirSync(join(plugin, '.xcsh-plugin'), { recursive: true });
     writeFileSync(
       join(plugin, '.xcsh-plugin/plugin.json'),
-      JSON.stringify({ name: 'aws', version: '2.3.0', extensions: ['entry.ts'] }),
+      JSON.stringify({
+        name: 'aws',
+        version: '2.3.0',
+        extensions: ['entry.ts'],
+      }),
     );
     writeFileSync(
       join(plugin, 'entry.ts'),
@@ -35,7 +44,11 @@ async function harness(mode: string, check: (state: any) => Promise<void>) {
     const registry = join(root, 'registry.json');
     writeFileSync(
       registry,
-      JSON.stringify({ plugins: { 'aws@synthetic': [{ installPath: plugin, version: '2.3.0' }] } }),
+      JSON.stringify({
+        plugins: {
+          'aws@synthetic': [{ installPath: plugin, version: '2.3.0' }],
+        },
+      }),
     );
     const fixtures = join(root, 'fixtures.json');
     writeFileSync(
@@ -64,7 +77,11 @@ async function harness(mode: string, check: (state: any) => Promise<void>) {
     const tools = new Map<string, any>();
     let executed = 0;
     const api = {
-      pi: { VERSION: '23.9.3', ToolExecutionComponent: class {}, AssistantMessageComponent: class {} },
+      pi: {
+        VERSION: '23.9.3',
+        ToolExecutionComponent: class {},
+        AssistantMessageComponent: class {},
+      },
       on: (name: string, handler: any) => handlers.set(name, [...(handlers.get(name) ?? []), handler]),
       registerTool: (tool: any) => tools.set(tool.name, tool),
       registerCommand: (name: string, command: any) => commands.set(name, command),
@@ -75,8 +92,15 @@ async function harness(mode: string, check: (state: any) => Promise<void>) {
       sendMessage: () => {},
       setActiveTools: () => {},
     };
+    prepare?.(plugin, scenario);
     await observe(api);
-    await check({ handlers, commands, tools, executed: () => executed, root: captureRoot });
+    await check({
+      handlers,
+      commands,
+      tools,
+      executed: () => executed,
+      root: captureRoot,
+    });
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
@@ -84,12 +108,143 @@ async function harness(mode: string, check: (state: any) => Promise<void>) {
   }
 }
 
+const shellCommand = 'printf "%s\\n" "$QUERY"\n';
+const shellArgs = {
+  command: shellCommand,
+  env: { QUERY: 'synthetic' },
+  timeout: 20,
+};
+function prepareShell(plugin: string, path: string) {
+  writeFileSync(join(plugin, 'commands.md'), `## inspect\n\n\`\`\`bash\n${shellCommand}\`\`\`\n`);
+  const scenario = JSON.parse(readFileSync(path, 'utf8'));
+  scenario.shellCalls = [
+    {
+      path: 'commands.md',
+      section: 'inspect',
+      sha256: createHash('sha256').update(shellCommand).digest('hex'),
+      args: shellArgs,
+    },
+  ];
+  writeFileSync(path, JSON.stringify(scenario));
+}
+
+test('reviewed built-in Bash is activated, guarded and journals actual full results', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      await handlers.get('session_start')[0]({}, { hasUI: true });
+      expect(
+        await handlers.get('tool_call')[0]({
+          toolName: 'bash',
+          toolCallId: 'shell',
+          input: shellArgs,
+        }),
+      ).toBeUndefined();
+      expect(
+        await handlers.get('tool_call')[0]({
+          toolName: 'task',
+          input: shellArgs,
+        }),
+      ).toMatchObject({ block: true });
+      handlers.get('tool_execution_start')[0]({
+        toolName: 'bash',
+        toolCallId: 'shell',
+        args: shellArgs,
+      });
+      const result = {
+        content: [{ type: 'text', text: 'synthetic complete result' }],
+        details: { exitCode: 0 },
+      };
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'bash',
+        toolCallId: 'shell',
+        result,
+        isError: false,
+      });
+      const events = readFileSync(join(root, 'events.jsonl'), 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(events.find((e) => e.event === 'ready').activeTools).toContain('bash');
+      expect(events.find((e) => e.event === 'execution_result').result).toEqual(result);
+      await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([{ id: 'tool-0-bash', tool: 'bash' }]);
+    },
+    prepareShell,
+  );
+});
+
+test('shell admission is consumed once even on failure; blocked and late results never become captures', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const call = handlers.get('tool_call')[0];
+      const start = handlers.get('tool_execution_start')[0];
+      const end = handlers.get('tool_execution_end')[0];
+      const denied = { toolName: 'bash', toolCallId: 'unreviewed', input: { ...shellArgs, timeout: 21 } };
+      expect(call(denied)).toMatchObject({ block: true });
+      const approved = { toolName: 'bash', toolCallId: 'first', input: shellArgs };
+      expect(call(approved)).toBeUndefined();
+      expect(call({ ...approved, toolCallId: 'duplicate' })).toMatchObject({ block: true });
+      const result = { content: [{ type: 'text', text: 'failed collector' }] };
+      start({ toolName: 'bash', toolCallId: 'first', args: shellArgs });
+      end({ toolName: 'bash', toolCallId: 'first', result, isError: true });
+      expect(call({ ...approved, toolCallId: 'retry' })).toMatchObject({ block: true });
+      for (const toolCallId of ['unreviewed', 'duplicate', 'retry', 'never-admitted', 'first']) {
+        start({ toolName: 'bash', toolCallId, args: shellArgs });
+        end({ toolName: 'bash', toolCallId, result, isError: true });
+      }
+      await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([{ id: 'tool-0-bash', tool: 'bash' }]);
+    },
+    prepareShell,
+  );
+  // A fresh observer, with its own private root, may admit the reviewed collector again.
+  await harness(
+    'service',
+    async ({ handlers }) => {
+      expect(handlers.get('tool_call')[0]({ toolName: 'bash', toolCallId: 'fresh', input: shellArgs })).toBeUndefined();
+    },
+    prepareShell,
+  );
+});
+
+test('fixture mode denies even reviewed built-in Bash and startup rejects changed shipped source', async () => {
+  await harness(
+    'fixture',
+    async ({ handlers }) => {
+      expect(
+        await handlers.get('tool_call')[0]({
+          toolName: 'bash',
+          input: shellArgs,
+        }),
+      ).toMatchObject({ block: true });
+    },
+    prepareShell,
+  );
+  await expect(
+    harness(
+      'service',
+      async () => {},
+      (plugin, scenario) => {
+        prepareShell(plugin, scenario);
+        writeFileSync(join(plugin, 'commands.md'), '## inspect\n\n```bash\nfalse\n```\n');
+      },
+    ),
+  ).rejects.toThrow('changed');
+});
+
 test('fixture observer never executes an admitted tool or plugin command and suppresses lifecycle', async () => {
   await harness('fixture', async ({ handlers, tools, commands, executed }) => {
     expect(handlers.has('before_agent_start')).toBe(false);
     expect(() => tools.get('aws_sts_whoami').execute('call', {})).toThrow('cannot execute tools');
     await expect(commands.get('identity').handler('reviewed', {})).rejects.toThrow('reviewed scenario commands');
-    expect(await handlers.get('tool_call')[0]({ toolName: 'aws_sts_whoami', input: {} })).toMatchObject({
+    expect(
+      await handlers.get('tool_call')[0]({
+        toolName: 'aws_sts_whoami',
+        input: {},
+      }),
+    ).toMatchObject({
       block: true,
     });
     expect(executed()).toBe(0);
@@ -98,7 +253,10 @@ test('fixture observer never executes an admitted tool or plugin command and sup
 
 test('service observer preserves normal results and records commands, hidden messages and lifecycle UI', async () => {
   await harness('service', async ({ handlers, tools, commands, executed, root }) => {
-    const ctx = { hasUI: true, ui: { notify: () => {}, setStatus: () => {} } };
+    const ctx = {
+      hasUI: true,
+      ui: { notify: () => {}, setStatus: () => {} },
+    };
     expect(await tools.get('aws_sts_whoami').execute('call', {})).toBe('executed');
     expect(executed()).toBe(1);
     expect(() => tools.get('aws_sts_whoami').execute('call', { profile: 'unexpected' })).toThrow('exact arguments');
