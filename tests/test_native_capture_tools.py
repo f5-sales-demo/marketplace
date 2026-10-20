@@ -2,6 +2,7 @@
 # ruff: noqa: INP001, PT027
 # unittest is the repository standalone runner; keep it dependency-free.
 import gzip
+import hashlib
 import importlib.util
 import json
 import os
@@ -26,6 +27,269 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_representative_scroll_inspects_boundaries_middle_and_final_rows(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_sampling", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        finding = {"offset": 0, "pageLines": 45, "totalLines": 74144}
+        offsets = [0]
+        while True:
+            offset = surface.next_page_offset(finding, "representative")
+            if offset is None:
+                break
+            offsets.append(offset)
+            finding = {**finding, "offset": offset}
+        assert len(offsets) == 5
+        assert offsets[:2] == [0, 44]
+        assert offsets[-1] + finding["pageLines"] == finding["totalLines"]
+        assert 30000 < offsets[2] < 40000
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 30}, "representative"
+            )
+            is None
+        )
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 90}, "representative"
+            )
+            == 44
+        )
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 74144}, "full"
+            )
+            == 44
+        )
+        with self.assertRaises(ValueError):
+            surface.next_page_offset(finding, "unknown")
+
+    def test_capture_retirement_requires_shutdown_and_matching_server(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "manifest.json").write_text(json.dumps({"completed": False}))
+            with (
+                patch.object(starter.subprocess, "check_output") as command,
+                self.assertRaises(ValueError),
+            ):
+                starter.retire_owned_capture(root)
+            command.assert_not_called()
+            (root / "manifest.json").write_text(
+                json.dumps({"completed": True, "lifecycle": []})
+            )
+            with self.assertRaises(ValueError):
+                starter.retire_owned_capture(root)
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {"completed": True, "lifecycle": [{"event": "session_shutdown"}]}
+                )
+            )
+            (root / "owned-pane.json").write_text(
+                json.dumps(
+                    {
+                        "pane": "owned",
+                        "originalPane": "user",
+                        "workspace": "workspace",
+                        "serverBinding": "wrong",
+                    }
+                )
+            )
+            with (
+                patch.object(
+                    starter.subprocess,
+                    "check_output",
+                    return_value=json.dumps({"socket": "socket", "protocol": 27}),
+                ),
+                self.assertRaises(ValueError),
+            ):
+                starter.retire_owned_capture(root)
+
+    def test_capture_retirement_accepts_only_confirmed_owned_pane_absence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {"completed": True, "lifecycle": [{"event": "session_shutdown"}]}
+                )
+            )
+            (root / "owned-pane.json").write_text(
+                json.dumps(
+                    {
+                        "pane": "owned",
+                        "originalPane": "user",
+                        "workspace": "workspace",
+                        "serverBinding": hashlib.sha256(b"socket27").hexdigest(),
+                    }
+                )
+            )
+            server = json.dumps({"socket": "socket", "protocol": 27})
+            inventory = json.dumps({"result": {"panes": [{"pane_id": "user"}]}})
+            with (
+                patch.object(
+                    starter.subprocess, "check_output", side_effect=[server, inventory]
+                ) as command,
+                patch.object(starter.subprocess, "run") as close,
+            ):
+                assert starter.retire_owned_capture(root) == {
+                    "pane": "owned",
+                    "alreadyRetired": True,
+                }
+                assert command.call_args_list[-1].args[0] == [
+                    "herdr",
+                    "pane",
+                    "list",
+                    "--workspace",
+                    "workspace",
+                ]
+                close.assert_not_called()
+            inventory = json.dumps(
+                {"result": {"panes": [{"pane_id": "owned"}, {"pane_id": "user"}]}}
+            )
+            with (
+                patch.object(
+                    starter.subprocess, "check_output", side_effect=[server, inventory]
+                ),
+                patch.object(starter.subprocess, "run") as close,
+            ):
+                assert starter.retire_owned_capture(root) == {
+                    "pane": "owned",
+                    "alreadyRetired": False,
+                }
+                assert close.call_args.args[0] == ["herdr", "pane", "close", "owned"]
+
+    def test_model_argv_requires_the_complete_executed_arguments(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        argv = [
+            "sf",
+            "data",
+            "query",
+            "--query",
+            "SELECT Id FROM Opportunity WHERE Name = '$HOME ; 北方'",
+            "--target-org",
+            "synthetic",
+            "--json",
+        ]
+        tool = {
+            "role": "toolResult",
+            "toolName": "sf_query",
+            "details": {"commandEvidence": {"commands": [argv], "withheld": 0}},
+        }
+
+        def reply(command):
+            return {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "```json\n" + json.dumps(command) + "\n```",
+                    }
+                ],
+            }
+
+        assert campaign.audit_model_commands([tool, reply(argv)])[0]["passed"]
+        assert not campaign.audit_model_commands([tool, reply([*argv[:-3], "--json"])])[
+            0
+        ]["passed"]
+        assert not campaign.audit_model_commands([tool, reply([*argv, "--all-rows"])])[
+            0
+        ]["passed"]
+        assert not campaign.audit_model_commands(
+            [
+                tool,
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Used sf_query successfully"}],
+                },
+            ]
+        )[0]["passed"]
+        assert not campaign.audit_model_commands(
+            [tool, {"role": "user", "content": "Another turn"}, reply(argv)]
+        )[0]["passed"]
+
+    def test_model_argv_accepts_multiple_commands_in_one_turn(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        org = ["sf", "org", "display", "--json"]
+        query = [
+            "sf",
+            "data",
+            "query",
+            "--query",
+            "SELECT Id FROM Opportunity WHERE Id = null",
+            "--json",
+        ]
+        tools = [
+            {
+                "role": "toolResult",
+                "toolName": name,
+                "details": {"commandEvidence": {"commands": [argv]}},
+            }
+            for name, argv in [("sf_org_display", org), ("sf_query", query)]
+        ]
+        reply = {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "```json\n"
+                    + json.dumps(org)
+                    + "\n"
+                    + json.dumps(query)
+                    + "\n```",
+                }
+            ],
+        }
+        assert all(
+            row["passed"] for row in campaign.audit_model_commands([*tools, reply])
+        )
+        assert not any(
+            row["passed"]
+            for row in campaign.audit_model_commands([*tools, {"role": "user"}, reply])
+        )
+
+    def test_campaign_startup_and_independent_operator_faults(self):
+        campaign_spec = importlib.util.spec_from_file_location(
+            "campaign_driver", MODULE.with_name("drive-salesforce-campaign.py")
+        )
+        assert campaign_spec is not None
+        assert campaign_spec.loader is not None
+        campaign = importlib.util.module_from_spec(campaign_spec)
+        campaign_spec.loader.exec_module(campaign)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(TimeoutError):
+                campaign.wait_ready(root, "2.3.15", timeout=0.01)
+            (root / "events.jsonl").write_text(
+                json.dumps({"event": "ready", "hasUI": True, "pluginVersion": "2.3.15"})
+                + "\n"
+            )
+            campaign.wait_ready(root, "2.3.15", timeout=0.02)
+            with self.assertRaisesRegex(RuntimeError, "provenance"):
+                campaign.wait_ready(root, "2.3.14", timeout=0.02)
+        prompts = campaign.fixture_prompts(Path("/synthetic/plugin"), "cli-operator")
+        assert len(prompts) == 4
+        assert "Name = 'partial'" in prompts[-1]
+        assert all("agents/cli-operator.md" in prompt for prompt in prompts)
+        assert all(
+            any(outcome in prompt for prompt in prompts)
+            for outcome in ["empty", "partial", "failed"]
+        )
+
     def test_scroll_capture_retains_compressed_evidence_and_rejects_missing_rows(self):
         surface_spec = importlib.util.spec_from_file_location(
             "surface_driver", MODULE.with_name("drive-salesforce-surface-capture.py")
@@ -58,6 +322,74 @@ class NativeCaptureChecks(unittest.TestCase):
                     gzip.decompress(path.with_suffix(".json.gz").read_bytes())
                     == payload
                 )
+
+    def test_scroll_geometry_requires_height_and_fresh_provenance(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_readiness", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "frames").mkdir()
+            ready = {
+                "runtimeVersion": "23.9.3",
+                "pluginVersion": "2.3.15",
+                "binary": "/synthetic/xcsh",
+                "terminalColumns": 157,
+            }
+            (root / "ready.json").write_text(json.dumps(ready))
+            (root / "manifest.json").write_text(json.dumps(ready))
+            with self.assertRaisesRegex(ValueError, "height"):
+                surface.terminal_geometry(root, ready, None)
+            assert surface.terminal_geometry(
+                root, {**ready, "terminalRows": 49}, None
+            ) == (157, 49)
+            path = root / "frames/geometry.json"
+            frame = {**ready, "terminalRows": 49}
+            path.write_text(json.dumps(frame))
+            assert surface.terminal_geometry(root, ready, "geometry.json") == (157, 49)
+            for field in ["runtimeVersion", "pluginVersion", "binary"]:
+                path.write_text(json.dumps({**frame, field: "wrong"}))
+                with self.assertRaises(ValueError):
+                    surface.terminal_geometry(root, ready, "geometry.json")
+            for height in [None, 0, -1, True, "49"]:
+                path.write_text(json.dumps({**frame, "terminalRows": height}))
+                with self.assertRaisesRegex(ValueError, "height"):
+                    surface.terminal_geometry(root, ready, "geometry.json")
+            path.write_text(json.dumps(frame))
+            os.utime(path, (1, 1))
+            with self.assertRaises(ValueError):
+                surface.terminal_geometry(root, ready, "geometry.json")
+
+    def test_scroll_geometry_change_cannot_pass_as_stable_acceptance(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_geometry", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "frames").mkdir()
+            frame = {
+                "terminalColumns": 160,
+                "terminalRows": 25,
+                "viewport": {"rows": ["row"], "offset": 0, "totalLines": 1},
+            }
+            (root / "frames/page.json").write_text(json.dumps(frame))
+            with (
+                patch.object(surface.time, "sleep"),
+                patch.object(surface.subprocess, "check_output", return_value=b"row\n"),
+            ):
+                result = surface.capture_page(
+                    root, "owned-pane", "page", 153, (160, 51)
+                )
+            assert not result["passed"]
+            assert result["geometryMatches"] is False
 
     def test_remaining_outcomes_are_independent_and_fixture_only(self):
         cases = starter.cases("fixture", "remaining")

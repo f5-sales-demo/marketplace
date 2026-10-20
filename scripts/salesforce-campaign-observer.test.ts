@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test';
-import { currentSalesforceRows, guardCampaignTool, observeHint } from './observe-salesforce-campaign';
+import {
+  campaignGuidance,
+  campaignProvenance,
+  campaignTools,
+  currentSalesforceRows,
+  guardCampaignTool,
+  observeHint,
+} from './observe-salesforce-campaign';
 
 test('read-only admission rejects exec, setup, delegation and unscoped reads', () => {
   for (const toolName of ['bash', 'sf_exec', 'task', 'subagent', 'write'])
@@ -56,4 +63,46 @@ test('inventory excludes retirement history and rejects duplicate current IDs', 
     { id: 'salesforce.lifecycle.status.live', status: 'BLOCKED' },
   ]);
   expect(() => currentSalesforceRows(`${row}\n${row}`)).toThrow('Duplicate');
+});
+
+test('campaign provenance binds published runtime and installed plugin manifest', () => {
+  expect(campaignProvenance('/published/xcsh', '23.9.3', { version: '2.3.15' })).toEqual({
+    binary: '/published/xcsh',
+    runtimeVersion: '23.9.3',
+    pluginVersion: '2.3.15',
+  });
+  expect(() => campaignProvenance('/published/xcsh', '23.9.3', {})).toThrow('plugin version');
+});
+
+test('shipped authentication guidance is admitted without unrelated or credential reads', () => {
+  const guidance = campaignGuidance('/installed/salesforce');
+  for (const path of ['agents/cli-operator.md', 'skills/salesforce-index/SKILL.md', 'skills/salesforce-auth/SKILL.md'])
+    expect(
+      guardCampaignTool({ toolName: 'read', input: { path: `/installed/salesforce/${path}` } }, guidance),
+    ).toBeUndefined();
+  for (const path of [
+    '/installed/salesforce/credentials.json',
+    '/installed/salesforce/skills/other/SKILL.md',
+    '/installed/salesforce/skills/salesforce-auth/../credentials.json',
+  ])
+    expect(guardCampaignTool({ toolName: 'read', input: { path } }, guidance)).toBeDefined();
+});
+
+test('guidance-only mode advertises and admits only shipped guidance reads', () => {
+  expect(campaignTools('guidance')).toEqual(['read']);
+  expect(campaignTools()).toContain('sf_query');
+  expect(() => campaignTools('invalid')).toThrow('mode');
+  const guidance = campaignGuidance('/installed/salesforce');
+  expect(guardCampaignTool({ toolName: 'read', input: { path: guidance[2] } }, guidance, true)).toBeUndefined();
+  for (const toolName of [
+    'sf_org_display',
+    'sf_describe',
+    'sf_pipeline_report',
+    'sf_query',
+    'sf_exec',
+    'bash',
+    'write',
+    'task',
+  ])
+    expect(guardCampaignTool({ toolName, input: { query: 'SELECT Id FROM Account' } }, guidance, true)).toBeDefined();
 });

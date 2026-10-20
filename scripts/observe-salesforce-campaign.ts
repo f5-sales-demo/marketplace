@@ -17,14 +17,27 @@ export function currentSalesforceRows(markdown: string) {
     });
 }
 
-export function guardCampaignTool(event: any, guidance: string[]) {
+export function campaignGuidance(plugin: string) {
+  return ['agents/cli-operator.md', 'skills/salesforce-index/SKILL.md', 'skills/salesforce-auth/SKILL.md'].map((path) =>
+    resolve(plugin, path),
+  );
+}
+
+export function campaignTools(mode = 'service') {
+  if (!['service', 'guidance'].includes(mode)) throw new Error('Invalid campaign mode');
+  return mode === 'guidance' ? ['read'] : ['read', 'sf_org_display', 'sf_query', 'sf_describe', 'sf_pipeline_report'];
+}
+
+export function guardCampaignTool(event: any, guidance: string[], guidanceOnly = false) {
   const input = event.input ?? {};
   const allowed =
     event.toolName === 'read'
       ? guidance.includes(resolve(input.path ?? ''))
-      : event.toolName === 'sf_query'
-        ? typeof input.query === 'string' && /^\s*SELECT\b/i.test(input.query)
-        : ['sf_org_display', 'sf_describe', 'sf_pipeline_report'].includes(event.toolName);
+      : guidanceOnly
+        ? false
+        : event.toolName === 'sf_query'
+          ? typeof input.query === 'string' && /^\s*SELECT\b/i.test(input.query)
+          : ['sf_org_display', 'sf_describe', 'sf_pipeline_report'].includes(event.toolName);
   if (!allowed)
     return {
       block: true,
@@ -47,6 +60,11 @@ export function observeHint(handler: any, record: (value: any) => void) {
   };
 }
 
+export function campaignProvenance(binary: string, runtimeVersion: string, manifest: { version?: string }) {
+  if (!manifest.version) throw new Error('Installed Salesforce plugin version is required');
+  return { binary, runtimeVersion, pluginVersion: manifest.version };
+}
+
 // A read-only observer of the published runtime. It does not manually dispatch lifecycle handlers.
 export default async function observeSalesforceCampaign(api: any) {
   const root = process.env.SALESFORCE_CAMPAIGN_ROOT;
@@ -56,7 +74,11 @@ export default async function observeSalesforceCampaign(api: any) {
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const record = (value: any) =>
     appendFileSync(join(root, 'events.jsonl'), JSON.stringify({ time: Date.now(), ...value }) + '\n', { mode: 0o600 });
-  const guidance = [join(plugin, 'agents/cli-operator.md'), join(plugin, 'skills/salesforce-index/SKILL.md')];
+  const guidance = campaignGuidance(plugin);
+  const activeTools = campaignTools(process.env.SALESFORCE_CAMPAIGN_MODE);
+  const guidanceOnly = activeTools.length === 1;
+  const manifest = JSON.parse(readFileSync(join(plugin, '.xcsh-plugin/plugin.json'), 'utf8'));
+  const provenance = campaignProvenance(process.execPath, api.pi.VERSION, manifest);
   const tools = new Map<string, any>();
   const proxy = new Proxy(api, {
     get(target, key) {
@@ -89,18 +111,18 @@ export default async function observeSalesforceCampaign(api: any) {
   });
   api.on('session_start', async (_event: any, ctx: any) => {
     if (!ctx.hasUI) throw new Error('Interactive runtime required');
-    await api.setActiveTools(['read', 'sf_org_display', 'sf_query', 'sf_describe', 'sf_pipeline_report']);
+    await api.setActiveTools(activeTools);
     record({
       event: 'ready',
       hasUI: ctx.hasUI,
-      binary: process.execPath,
-      runtimeVersion: api.pi.VERSION,
+      ...provenance,
       tools: [...tools.keys()],
+      activeTools,
       sdkComponents: Object.keys(api.pi).filter((key) => /Component|Markdown|Text|Theme|visibleWidth/.test(key)),
     });
   });
   api.on('tool_call', (event: any) => {
-    const decision = guardCampaignTool(event, guidance);
+    const decision = guardCampaignTool(event, guidance, guidanceOnly);
     record({ event: 'tool_call', toolName: event.toolName, input: event.input, blocked: Boolean(decision) });
     return decision;
   });
@@ -138,8 +160,7 @@ export default async function observeSalesforceCampaign(api: any) {
         JSON.stringify({
           terminalColumns: process.stdout.columns,
           terminalRows: process.stdout.rows,
-          runtimeVersion: api.pi.VERSION,
-          binary: process.execPath,
+          ...provenance,
         }),
         { mode: 0o600 },
       );
@@ -202,8 +223,8 @@ export default async function observeSalesforceCampaign(api: any) {
                 lines: control.scroll === undefined ? rendered : lines,
                 viewport: { rows: lines, offset, totalLines: rendered.length, capacity },
                 terminalColumns: process.stdout.columns,
-                runtimeVersion: api.pi.VERSION,
-                binary: process.execPath,
+                terminalRows: process.stdout.rows,
+                ...provenance,
               }),
               { mode: 0o600 },
             );
