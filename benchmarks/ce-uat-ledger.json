@@ -7,12 +7,12 @@
     "draftPullRequest": 1327
   },
   "cohort": {
-    "revision": 41,
+    "revision": 42,
     "versions": {
-      "platform": "7.0.0-uat.41",
-      "aws": "3.0.0-uat.41",
-      "azure": "5.0.0-uat.41",
-      "terraform": "3.0.0-uat.41"
+      "platform": "7.0.0-uat.42",
+      "aws": "3.0.0-uat.42",
+      "azure": "5.0.0-uat.42",
+      "terraform": "3.0.0-uat.42"
     },
     "stableBaseVersions": {
       "platform": "6.2.0",
@@ -24,19 +24,9 @@
     "sourceCommit": "pending-validation",
     "deliverable": false
   },
-  "requiredClouds": [
-    "aws",
-    "azure"
-  ],
-  "requiredEngines": [
-    "native",
-    "terraform"
-  ],
-  "requiredProfiles": [
-    "single-site",
-    "independent-sites",
-    "three-node-ha"
-  ],
+  "requiredClouds": ["aws", "azure"],
+  "requiredEngines": ["native", "terraform"],
+  "requiredProfiles": ["single-site", "independent-sites", "three-node-ha"],
   "requiredFeatures": [
     "discovery",
     "planning",
@@ -225,9 +215,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -258,9 +246,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -287,9 +273,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -316,10 +300,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -352,9 +333,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -387,9 +366,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -422,9 +399,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -451,9 +426,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -480,9 +453,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -509,9 +480,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -538,9 +507,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -567,9 +534,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -596,9 +561,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -625,9 +588,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -654,9 +615,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -683,9 +642,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -712,10 +669,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/native-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/native-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -777,10 +731,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -807,10 +758,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -837,9 +785,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -866,9 +812,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -895,9 +839,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -924,9 +866,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -953,9 +893,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -986,9 +924,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1015,9 +951,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1044,10 +978,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1080,9 +1011,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1115,9 +1044,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1150,9 +1077,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1179,9 +1104,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1208,9 +1131,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1237,9 +1158,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1266,9 +1185,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1295,9 +1212,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1324,9 +1239,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1353,9 +1266,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1382,9 +1293,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1411,9 +1320,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1440,10 +1347,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/native-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/native-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1505,10 +1409,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1535,10 +1436,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1565,9 +1463,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1594,9 +1490,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1623,9 +1517,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1652,9 +1544,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1681,9 +1571,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1714,9 +1602,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1743,9 +1629,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1772,10 +1656,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1808,9 +1689,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1843,9 +1722,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1878,9 +1755,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1907,9 +1782,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1936,9 +1809,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1965,9 +1836,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -1994,9 +1863,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2023,9 +1890,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2052,9 +1917,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2081,9 +1944,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2110,9 +1971,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2139,9 +1998,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2168,10 +2025,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/native-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/native-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2233,10 +2087,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2263,10 +2114,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts",
-          "plugins/aws/test/ce/terraform-apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2293,9 +2141,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2322,9 +2168,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2351,9 +2195,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2380,9 +2222,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2409,9 +2249,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2442,9 +2280,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2471,9 +2307,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2537,9 +2371,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2572,9 +2404,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2607,9 +2437,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2636,9 +2464,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2665,9 +2491,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2694,9 +2518,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2723,9 +2545,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2752,9 +2572,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2781,9 +2599,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2810,9 +2626,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2839,9 +2653,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2868,9 +2680,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -2897,10 +2707,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3024,9 +2831,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3053,9 +2858,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3082,9 +2885,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3111,9 +2912,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3140,9 +2939,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3173,9 +2970,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3202,9 +2997,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3268,9 +3061,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3303,9 +3094,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3338,9 +3127,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3367,9 +3154,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3396,9 +3181,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3425,9 +3208,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3454,9 +3235,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3483,9 +3262,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3512,9 +3289,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3541,9 +3316,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3570,9 +3343,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3599,9 +3370,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3628,10 +3397,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3755,9 +3521,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3784,9 +3548,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3813,9 +3575,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3842,9 +3602,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3871,9 +3629,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3904,9 +3660,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3933,9 +3687,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -3999,9 +3751,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4034,9 +3784,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4069,9 +3817,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4098,9 +3844,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4127,9 +3871,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/status.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4156,9 +3898,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/network-health.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4185,9 +3925,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4214,9 +3952,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4243,9 +3979,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4272,9 +4006,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4301,9 +4033,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4330,9 +4060,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4359,10 +4087,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-failover.test.ts",
-          "plugins/aws/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-failover.test.ts", "plugins/aws/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4486,9 +4211,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4515,9 +4238,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-absence.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4544,9 +4265,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4573,9 +4292,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/aws/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4602,9 +4319,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4635,9 +4350,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4664,9 +4377,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4693,9 +4404,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4728,9 +4437,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4763,9 +4470,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4798,9 +4503,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4827,9 +4530,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4856,9 +4557,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4885,9 +4584,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4914,9 +4611,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4943,9 +4638,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -4972,9 +4665,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5001,9 +4692,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5030,9 +4719,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5059,9 +4746,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5088,10 +4773,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/failover.test.ts",
-          "plugins/azure/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/failover.test.ts", "plugins/azure/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5122,9 +4804,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5151,9 +4831,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5180,9 +4858,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5209,9 +4885,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5238,9 +4912,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5267,9 +4939,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5296,9 +4966,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5325,9 +4993,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5358,9 +5024,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5387,9 +5051,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5416,9 +5078,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5451,9 +5111,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5486,9 +5144,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5521,9 +5177,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5550,9 +5204,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5579,9 +5231,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5608,9 +5258,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5637,9 +5285,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5666,9 +5312,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5695,9 +5339,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5724,9 +5366,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5753,9 +5393,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5782,9 +5420,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5811,10 +5447,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/failover.test.ts",
-          "plugins/azure/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/failover.test.ts", "plugins/azure/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5845,9 +5478,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5874,9 +5505,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5903,9 +5532,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5932,9 +5559,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5961,9 +5586,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -5990,9 +5613,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6019,9 +5640,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6048,9 +5667,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6081,9 +5698,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6110,9 +5725,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6139,9 +5752,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6174,9 +5785,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6209,9 +5818,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6244,9 +5851,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6273,9 +5878,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6302,9 +5905,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6331,9 +5932,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6360,9 +5959,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6389,9 +5986,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6418,9 +6013,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6447,9 +6040,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6476,9 +6067,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6505,9 +6094,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6534,10 +6121,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/failover.test.ts",
-          "plugins/azure/test/ce/terraform-failover.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/failover.test.ts", "plugins/azure/test/ce/terraform-failover.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6568,9 +6152,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6597,9 +6179,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6626,9 +6206,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6655,9 +6233,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6684,9 +6260,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6713,9 +6287,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6742,9 +6314,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6771,9 +6341,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6804,9 +6372,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6833,9 +6399,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6862,9 +6426,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6897,9 +6459,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6932,9 +6492,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6967,9 +6525,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -6996,9 +6552,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7025,9 +6579,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7054,9 +6606,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7083,9 +6633,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7112,9 +6660,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7141,9 +6687,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7170,9 +6714,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7199,9 +6741,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7228,9 +6768,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7292,9 +6830,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7321,9 +6857,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7350,9 +6884,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7379,9 +6911,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7408,9 +6938,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7437,9 +6965,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7466,9 +6992,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7495,9 +7019,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7528,9 +7050,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7557,9 +7077,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7586,9 +7104,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7621,9 +7137,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7656,9 +7170,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7691,9 +7203,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7720,9 +7230,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7749,9 +7257,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7778,9 +7284,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7807,9 +7311,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7836,9 +7338,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7865,9 +7365,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7894,9 +7392,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7923,9 +7419,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -7952,9 +7446,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8016,9 +7508,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8045,9 +7535,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8074,9 +7562,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8103,9 +7589,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8132,9 +7616,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8161,9 +7643,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8190,9 +7670,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8219,9 +7697,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/discovery.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8252,9 +7728,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/planner.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8281,9 +7755,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/tools.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8310,9 +7782,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8345,9 +7815,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8380,9 +7848,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8415,9 +7881,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/runtime.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8444,9 +7908,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/inventory.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/inventory.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8473,9 +7935,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8502,9 +7962,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8531,9 +7989,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/platform/test/ce/interface-evidence.test.ts"
-        ]
+        "tests": ["plugins/platform/test/ce/interface-evidence.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8560,9 +8016,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8589,9 +8043,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/platform-ingress.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/platform-ingress.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8618,9 +8070,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/traffic-probe.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/traffic-probe.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8647,9 +8097,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8676,9 +8124,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/native-upgrade.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/native-upgrade.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8740,9 +8186,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8769,9 +8213,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8798,9 +8240,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8827,9 +8267,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8856,9 +8294,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/apply.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8885,9 +8321,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
@@ -8914,9 +8348,7 @@
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": [
-          "plugins/azure/test/ce/terraform-teardown.test.ts"
-        ]
+        "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified",
