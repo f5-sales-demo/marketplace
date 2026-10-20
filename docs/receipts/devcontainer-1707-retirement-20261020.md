@@ -35,6 +35,16 @@ comparison confirmed all 87 retirement rows preserve their historical fields
 and every unrelated plugin row is unchanged. Generated catalog validation,
 changed-scope privacy enforcement and privacy audit pass.
 
+On Ubuntu, the complete plugin suite passed, including catalog and runtime
+dependency validation. The isolated Python prerequisite matched CI:
+`PyYAML==6.0.3`. The minimum-runtime runner contract also passed with
+`bash tests/test-plugin-minimum-runtime.sh`.
+
+The macOS full-suite attempt retained KVM, Xorg and Zoom failures. Those plugins
+were unchanged; the same failures occurred before removal. Removal-specific
+macOS checks passed, and the Ubuntu full suite passed. This receipt does not
+claim a green macOS full suite.
+
 Required Linux CI remains separately enforced by the linked delivery PR.
 Removal retires acceptance; it does not assert installed or service behavior.
 No services, accounts, infrastructure, meetings or external communications were
