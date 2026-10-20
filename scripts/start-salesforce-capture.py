@@ -162,6 +162,41 @@ def select_cases(
     return [known[identifier] for identifier in requested]
 
 
+def retire_owned_capture(root: Path) -> dict[str, Any]:
+    """Retire only a shutdown-qualified pane on its recorded Herdr server."""
+    manifest = json.loads((root / "manifest.json").read_text())
+    if manifest.get("completed") is not True or not any(
+        row.get("event") == "session_shutdown" for row in manifest.get("lifecycle", [])
+    ):
+        msg = "Capture completion and shutdown evidence are required before retirement"
+        raise ValueError(msg)
+    owned = json.loads((root / "owned-pane.json").read_text())
+    server = json.loads(
+        subprocess.check_output(
+            ["herdr", "status", "server", "--json"],  # noqa: S607 - inherited Herdr CLI
+            text=True,
+        )
+    )
+    binding = hashlib.sha256(
+        (str(server.get("socket")) + str(server.get("protocol"))).encode()
+    ).hexdigest()
+    if owned["serverBinding"] != binding or owned["pane"] == owned["originalPane"]:
+        msg = "Capture pane ownership or Herdr server binding does not match"
+        raise ValueError(msg)
+    inventory = json.loads(
+        subprocess.check_output(  # noqa: S603 - verified owned workspace
+            ["herdr", "pane", "list", "--workspace", owned["workspace"]],  # noqa: S607 - inherited Herdr CLI
+            text=True,
+        )
+    )
+    absent = all(
+        pane["pane_id"] != owned["pane"] for pane in inventory["result"]["panes"]
+    )
+    if not absent:
+        subprocess.run(["herdr", "pane", "close", owned["pane"]], check=True)  # noqa: S603,S607 - verified owned pane on inherited Herdr server
+    return {"pane": owned["pane"], "alreadyRetired": absent}
+
+
 def main() -> None:
     """Run the explicitly scoped capture workflow."""
     parser = argparse.ArgumentParser()
