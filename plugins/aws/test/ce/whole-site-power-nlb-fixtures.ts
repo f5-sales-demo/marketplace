@@ -7,6 +7,7 @@ export async function nlbPowerFixture(engine: 'native' | 'terraform' = 'native')
   const { planId: _id, planSha256: _sha, ...draft } = f.base;
   draft.intent = {
     ...draft.intent,
+    partition: 'aws',
     routing: { ...draft.intent.routing, profile: 'nlb-ingress' },
     ingress: {
       mode: 'nlb',

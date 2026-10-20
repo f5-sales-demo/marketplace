@@ -15,7 +15,11 @@ const dirs: string[] = [];
 afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true });
 });
-async function fixture(engine: 'native' | 'terraform' = 'native') {
+async function fixture(
+  engine: 'native' | 'terraform' = 'native',
+  routingState: 'running' | 'partial' | 'complete' = 'complete',
+  validOutput = true,
+) {
   const nlb = await nlbPowerFixture(engine),
     hardware = powerIdentityFixture(engine);
   const dir = await mkdtemp(join(tmpdir(), 'public-ce-power-'));
@@ -56,9 +60,9 @@ async function fixture(engine: 'native' | 'terraform' = 'native') {
       engine,
       planId: nlb.base.planId,
       planSha256: nlb.base.planSha256,
-      state: 'complete',
+      state: routingState,
       completedActionIds: [],
-      resolvedValues: { ...nlb.values, ...hardware.resolved },
+      resolvedValues: hardware.resolved,
     });
   }
   const runtime = {
@@ -86,6 +90,13 @@ async function fixture(engine: 'native' | 'terraform' = 'native') {
       return {
         open: async () => ({
           readOutputs: async () => ({
+            ce_ingress: {
+              load_balancer_arn: nlb.values.__NLB_ARN__,
+              target_group_arn: nlb.values.__NLB_TARGET_GROUP_ARN__,
+              listener_arn: nlb.values.__NLB_LISTENER_ARN__,
+              port: validOutput ? nlb.base.intent.ingress?.port : 1,
+              scheme: nlb.base.intent.ingress?.scheme,
+            },
             ce_instances: {
               '1': {
                 id: hardware.instance.InstanceId,
@@ -152,6 +163,7 @@ test('public power rejects caller evidence, missing hashes and absent stopped ma
 test('public Terraform power preserves provider ownership and pending qualification', async () => {
   const f = await fixture('terraform');
   const prepared = await f.run({ ...f.base, operation: 'prepare-stop' });
+  if (prepared.isError) throw Error(prepared.content[0].text);
   expect(prepared.isError).toBe(false);
   const ref = (prepared.details as { power: { planId: string; planSha256: string; engine: string } }).power;
   expect(ref.engine).toBe('terraform');
@@ -164,4 +176,25 @@ test('public Terraform power preserves provider ownership and pending qualificat
   expect(result.isError).toBe(false);
   expect((result.details as { power: { status: string } }).power.status).toBe('power-pending');
   expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+});
+
+test('public Terraform power resolves current NLB outputs with retained running routing progress', async () => {
+  const f = await fixture('terraform', 'running');
+  const prepared = await f.run({ ...f.base, operation: 'prepare-stop' });
+  if (prepared.isError) throw Error(prepared.content[0].text);
+  expect(prepared.isError).toBe(false);
+  const ref = (prepared.details as { power: { planId: string } }).power;
+  const saved = (await f.store.read(`${ref.planId}.json`)) as {
+    bindings: { servicesInventory: { components: Array<{ kind: string }> } };
+  };
+  expect(saved.bindings.servicesInventory.components.some((row) => row.kind === 'nlb')).toBe(true);
+  expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+});
+
+test('public Terraform power rejects partial routing and current output drift before mutation', async () => {
+  for (const f of [await fixture('terraform', 'partial'), await fixture('terraform', 'running', false)]) {
+    const result = await f.run({ ...f.base, operation: 'prepare-stop' });
+    expect(result.isError).toBe(true);
+    expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+  }
 });

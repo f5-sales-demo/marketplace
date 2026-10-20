@@ -21905,11 +21905,26 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
         let values;
         if (terraform) {
           const workflow = await readAwsTerraformWorkflowStatus(base, storage);
-          if (workflow.progress.state !== 'registered' || !workflow.routing || workflow.routing.state !== 'complete')
+          if (workflow.progress.state !== 'registered' || !workflow.routing || workflow.routing.state === 'partial')
             throw Error('Current Terraform registered routing execution bindings unavailable');
           const session = await terraform.open(owner, await awsTerraformFoundationDeployment(base), 'current');
           const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
-          values = { ...workflow.routing.resolvedValues, ...instances };
+          const outputs = await session.readOutputs(
+            [
+              ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
+              ...(base.intent.routing.profile === 'tgw-static'
+                ? ['ce_vpc_id', 'ce_transport_attachment', 'ce_static_route_tables']
+                : []),
+            ],
+            process.env,
+            signal,
+          );
+          values = {
+            ...workflow.routing.resolvedValues,
+            ...instances,
+            ...bindTerraformIngress(base, outputs),
+            ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),
+          };
         } else {
           const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, base.planId, base.planSha256);
           if (!checkpoint || checkpoint.engine !== base.engine || checkpoint.state !== 'complete')
@@ -22005,6 +22020,8 @@ var init_aws_ce_power = __esm(() => {
   init_platform();
   init_terraform_apply();
   init_terraform_foundation();
+  init_terraform_routing();
+  init_terraform_static();
   init_terraform_status();
   init_whole_site_power();
   init_whole_site_power_bindings();
