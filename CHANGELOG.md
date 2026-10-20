@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.3.1 preserves literal lifecycle guidance, reports missing Python and malformed observations safely, shows meeting and camera summaries, and retains complete expandable command evidence (#1603).
+
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
 - **`asm-migration`** v2.3.2 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.

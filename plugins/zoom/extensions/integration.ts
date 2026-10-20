@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { presentTool as enrichTool } from './presentation';
+import { commandPresentation, presentTool as enrichTool } from './presentation';
 
 interface ExtensionApi {
   presentation: import('@f5-sales-demo/xcsh/presentation').PresentationAPI;
@@ -1096,7 +1096,7 @@ export const createZoomCommandHandler =
       const result = execute(parsed.action, parsed.args);
       const exitCode = typeof result.exitCode === 'number' ? result.exitCode : 1;
       const { evidence: _evidence, ...visibleResult } = result;
-      if (display) display(visibleResult);
+      if (display) display(result);
       else ctx.ui.notify(JSON.stringify(visibleResult, null, 2), exitCode === 0 ? 'info' : 'error');
     } catch (error) {
       ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error');
@@ -1117,16 +1117,43 @@ export default function zoomIntegration(pi: ExtensionApi) {
       verification: [{ argv: ['python3', ZOOM_SETUP, 'verify', '--json'], timeoutMs: 120000 }],
     },
     async probe() {
-      const result = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
-      if (result.exitCode !== 0) return { state: 'setup_required', reason: 'terminal_camera_not_ready' };
+      let result: ReturnType<typeof Bun.spawnSync>;
       try {
-        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;
-        return value.ready === true
-          ? { state: 'ready', value }
-          : { state: 'setup_required', reason: 'terminal_camera_not_ready', value };
-      } catch {
-        return { state: 'setup_required', reason: 'invalid_response' };
+        result = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
+      } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+          return { state: 'setup_required', reason: 'cli_missing' };
+        }
+        throw error;
       }
+      const stdout = new TextDecoder().decode(result.stdout);
+      const stderr = new TextDecoder().decode(result.stderr);
+      let value: unknown;
+      try {
+        value = JSON.parse(stdout.trim() ? stdout : stderr);
+      } catch {
+        return { state: 'degraded', reason: 'invalid_response', value: { stdout, stderr } };
+      }
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        typeof (value as Record<string, unknown>).ready !== 'boolean' ||
+        ((value as Record<string, unknown>).error !== undefined &&
+          typeof (value as Record<string, unknown>).error !== 'string')
+      ) {
+        return { state: 'degraded', reason: 'invalid_response', value };
+      }
+      const observation = value as Record<string, unknown>;
+      const evidence =
+        stdout.trim() && stderr.trim() && stderr.trim() !== stdout.trim() ? { ...observation, stderr } : value;
+      return result.exitCode === 0 && observation.ready === true
+        ? { state: 'ready', value: evidence }
+        : {
+            state: 'setup_required',
+            reason: typeof observation.error === 'string' ? observation.error : 'terminal_camera_not_ready',
+            value: evidence,
+          };
     },
   });
   pi.registerTool(
@@ -1161,11 +1188,7 @@ export default function zoomIntegration(pi: ExtensionApi) {
               customType: 'zoom',
               content: JSON.stringify(result),
               display: true,
-              presentation: {
-                summary: result.exitCode === 0 ? 'Zoom command result' : 'Zoom command failed',
-                warnings: result.exitCode === 0 ? [] : ['Zoom command failed; inspect the returned diagnostics.'],
-                sections: pi.presentation.data(result),
-              },
+              presentation: commandPresentation(pi.presentation, result),
             })
         : undefined,
     ),
