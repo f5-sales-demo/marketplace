@@ -6,6 +6,7 @@ import {
   type PlanReceipt,
   type TerraformActionIntent,
   type TerraformImportIntent,
+  type TerraformRelinquishmentIntent,
   TerraformRunner,
 } from './runner';
 
@@ -56,6 +57,11 @@ export interface TerraformSession {
   ): Promise<PlanReceipt>;
   planImports?(
     intents: TerraformImportIntent[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt>;
+  planRelinquishments?(
+    intents: TerraformRelinquishmentIntent[],
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<PlanReceipt>;
@@ -152,6 +158,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async planImports(intents, env, signal) {
           await checkOwner();
           return runner.planImports(intents, env, signal);
+        },
+        async planRelinquishments(intents, env, signal) {
+          await checkOwner();
+          return runner.planRelinquishments(intents, env, signal);
         },
         async plan(env, signal) {
           await checkOwner();

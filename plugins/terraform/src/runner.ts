@@ -41,6 +41,8 @@ export interface TerraformImportIntent {
   providerName: string;
   idSha256: string;
 }
+/** State-only withdrawal after a cloud adapter independently verifies restoration and ownership. */
+export interface TerraformRelinquishmentIntent extends TerraformImportIntent {}
 export interface PlanReceipt {
   schemaVersion: 1;
   deploymentId: string;
@@ -53,6 +55,7 @@ export interface PlanReceipt {
   noChanges: boolean;
   actionInvocations?: TerraformActionIntent[];
   imports?: TerraformImportIntent[];
+  relinquishments?: TerraformRelinquishmentIntent[];
   operation?: 'destroy';
 }
 // Terraform's plan JSON uses a legacy spelling for this flag.
@@ -82,10 +85,19 @@ function canonical(value: unknown): string {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-function changeActions(value: unknown, output = false): string[] {
+function changeActions(value: unknown, output = false, relinquishment = false): string[] {
   const allowed = output
     ? ['no-op', 'create', 'update', 'delete']
-    : ['no-op', 'read', 'create', 'update', 'delete', 'delete,create', 'create,delete'];
+    : [
+        'no-op',
+        'read',
+        'create',
+        'update',
+        'delete',
+        'delete,create',
+        'create,delete',
+        ...(relinquishment ? ['forget'] : []),
+      ];
   if (
     !Array.isArray(value) ||
     value.some((item) => typeof item !== 'string' || item.includes(',')) ||
@@ -167,6 +179,67 @@ function inspectImports(plan: Json, expected?: TerraformImportIntent[]): Terrafo
       ))
   )
     throw new Error('Terraform import-only plan contains missing imports or unrelated changes');
+  return found.sort((a, b) => a.address.localeCompare(b.address));
+}
+function validateRelinquishmentIntents(intents: TerraformRelinquishmentIntent[]): void {
+  try {
+    validateImportIntents(intents);
+  } catch {
+    throw Error('Explicit unique relinquishment address, provider and ID digest required');
+  }
+}
+function inspectRelinquishments(
+  plan: Json,
+  expected?: TerraformRelinquishmentIntent[],
+): TerraformRelinquishmentIntent[] {
+  if (expected) validateRelinquishmentIntents(expected);
+  const rows = plan.resource_changes ?? [];
+  if (!Array.isArray(rows)) throw Error('Terraform relinquishment inventory is malformed');
+  const found: TerraformRelinquishmentIntent[] = [];
+  for (const value of rows) {
+    const row = object(value),
+      change = object(row.change);
+    if (Array.isArray(change.actions) && change.actions.join(',') === 'forget') {
+      if (!expected) throw Error('Terraform state relinquishment requires a separately qualified ownership contract');
+      const intent = expected.find((i) => i.address === row.address);
+      const before = object(change.before);
+      const sensitivity = change.before_sensitive;
+      if (
+        !intent ||
+        found.some((i) => i.address === row.address) ||
+        row.mode !== 'managed' ||
+        row.type !== intent.type ||
+        row.provider_name !== intent.providerName ||
+        row.previous_address !== undefined ||
+        row.deposed !== undefined ||
+        (change.importing !== undefined && change.importing !== null) ||
+        typeof before.id !== 'string' ||
+        !before.id.length ||
+        digest(before.id) !== intent.idSha256 ||
+        sensitivity === true ||
+        (sensitivity !== undefined &&
+          sensitivity !== false &&
+          object(sensitivity).id !== undefined &&
+          object(sensitivity).id !== false) ||
+        change.after !== null ||
+        !allFalse(change.after_unknown)
+      )
+        throw Error('Terraform relinquishment identity is unresolved, sensitive, duplicated, foreign or mutating');
+      found.push({ ...intent });
+    } else if (expected && changeActions(change.actions).join(',') !== 'no-op') {
+      throw Error('Terraform relinquishment-only plan contains unrelated resource changes');
+    }
+  }
+  if (
+    expected &&
+    (found.length !== expected.length ||
+      Object.values(object(plan.output_changes ?? {})).some(
+        (v) => changeActions(object(v).actions, true).join(',') !== 'no-op',
+      ) ||
+      !Array.isArray(plan.deferred_changes ?? []) ||
+      (plan.deferred_changes as unknown[] | undefined)?.length)
+  )
+    throw Error('Terraform relinquishment-only plan contains missing withdrawals, output changes or deferred evidence');
   return found.sort((a, b) => a.address.localeCompare(b.address));
 }
 function allFalse(value: unknown): boolean {
@@ -721,12 +794,23 @@ export class TerraformRunner {
     validateImportIntents(intents);
     return this.#plan(env, signal, undefined, false, intents);
   }
+  /** Explicit state-only saved plan; restoration and physical preservation belong to the owning cloud adapter. */
+  async planRelinquishments(
+    intents: TerraformRelinquishmentIntent[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt> {
+    intents = structuredClone(intents);
+    validateRelinquishmentIntents(intents);
+    return this.#plan(env, signal, undefined, false, undefined, intents);
+  }
   async #plan(
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
     action?: TerraformActionIntent,
     destroy = false,
     imports?: TerraformImportIntent[],
+    relinquishments?: TerraformRelinquishmentIntent[],
   ): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
@@ -768,11 +852,12 @@ export class TerraformRunner {
         throw new Error('Terraform plan JSON is malformed or unsupported');
       const actionInvocations = inspectActionInvocations(plan, action);
       const imported = inspectImports(plan, imports);
+      const relinquished = inspectRelinquishments(plan, relinquishments);
       const changes: PlanReceipt['changes'] = [];
       for (const value of (plan.resource_changes ?? []) as unknown[]) {
         const resource = object(value);
         const change = object(resource.change);
-        const actions = changeActions(change.actions);
+        const actions = changeActions(change.actions, false, !!relinquishments);
         if (
           typeof resource.address !== 'string' ||
           typeof resource.type !== 'string' ||
@@ -794,7 +879,8 @@ export class TerraformRunner {
           outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
       )
         throw new Error('Terraform destroy plan contains non-delete changes');
-      const noChanges = resourcesUnchanged && actionInvocations.length === 0 && imported.length === 0;
+      const noChanges =
+        resourcesUnchanged && actionInvocations.length === 0 && imported.length === 0 && relinquished.length === 0;
       if (!noChanges && !plan[planApplicationFlag]) throw new Error('Terraform plan has changes but cannot be applied');
       const manifest = this.#state().manifest;
       const receipt: PlanReceipt = {
@@ -809,6 +895,7 @@ export class TerraformRunner {
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
         ...(imported.length ? { imports: imported } : {}),
+        ...(relinquished.length ? { relinquishments: relinquished } : {}),
         ...(destroy ? { operation: 'destroy' as const } : {}),
       };
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
@@ -1145,10 +1232,14 @@ export class TerraformRunner {
       if (expectedActions.length) validateActionIntent(expectedActions[0]);
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
       inspectActionInvocations(plan, expectedActions[0]);
-      if (receipt.imports && (expectedActions.length || receipt.operation))
+      if (receipt.imports && (expectedActions.length || receipt.operation || receipt.relinquishments))
         throw new Error('Saved import stage cannot contain actions or destruction');
       if (canonical(inspectImports(plan, receipt.imports)) !== canonical(receipt.imports ?? []))
         throw new Error('Saved import receipt differs from exact plan');
+      if (receipt.relinquishments && (expectedActions.length || receipt.operation || receipt.imports))
+        throw Error('Saved relinquishment stage cannot contain imports, actions or destruction');
+      if (canonical(inspectRelinquishments(plan, receipt.relinquishments)) !== canonical(receipt.relinquishments ?? []))
+        throw Error('Saved relinquishment receipt differs from exact plan');
       if (receipt.planSha256 !== digest(await privateRead(join(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
       if (expectedActions.length) {

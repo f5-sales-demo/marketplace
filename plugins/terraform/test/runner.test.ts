@@ -1062,3 +1062,100 @@ test('interrupted import application retains the original attempt without replay
   await expect(runner.apply(receipt, {})).rejects.toThrow('consumed');
   expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
 });
+
+const relinquishedRoute = {
+  address: routeImport.address,
+  type: routeImport.type,
+  mode: 'managed',
+  provider_name: routeImport.providerName,
+  change: {
+    actions: ['forget'],
+    before: { id: 'rtb-12345678_192.0.2.0/24', gateway_id: 'PRIVATE_PRIOR_CONFIGURATION' },
+    before_sensitive: { gateway_id: true },
+    after: null,
+    after_unknown: false,
+  },
+};
+test('requires explicit owning relinquishment and never reports forget as no changes', async () => {
+  const { runner, calls } = await fixture({ resource_changes: [relinquishedRoute], output_changes: {} });
+  await expect(runner.plan({})).rejects.toThrow(/relinquishment/i);
+  const receipt = await runner.planRelinquishments([routeImport], {});
+  expect(receipt.relinquishments).toEqual([routeImport]);
+  expect(receipt.noChanges).toBe(false);
+  expect(receipt.changes[0].actions).toEqual(['forget']);
+  expect(JSON.stringify(receipt)).not.toContain('rtb-12345678');
+  expect(JSON.stringify(receipt)).not.toContain('PRIVATE_PRIOR_CONFIGURATION');
+  await runner.apply(receipt, {});
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+  await expect(runner.apply(receipt, {})).rejects.toThrow('consumed');
+});
+for (const kind of [
+  'missing',
+  'duplicate',
+  'foreign-provider',
+  'data-mode',
+  'foreign-address',
+  'foreign-id',
+  'sensitive-id',
+  'unknown-id',
+  'delete',
+  'update',
+  'after',
+  'move',
+  'deposed',
+  'import',
+  'other-create',
+  'output',
+  'deferred',
+] as const)
+  test(`rejects ${kind} in an explicit relinquishment-only plan`, async () => {
+    const row = structuredClone(relinquishedRoute);
+    const overrides: Record<string, unknown> = { resource_changes: [row], output_changes: {} };
+    if (kind === 'missing') overrides.resource_changes = [];
+    if (kind === 'duplicate') overrides.resource_changes = [row, row];
+    if (kind === 'data-mode') row.mode = 'data';
+    if (kind === 'foreign-provider') row.provider_name = 'registry.terraform.io/example/foreign';
+    if (kind === 'foreign-address') row.address = 'aws_route.foreign';
+    if (kind === 'foreign-id') row.change.before.id = 'foreign';
+    if (kind === 'sensitive-id') Object.assign(row.change, { before_sensitive: { id: true } });
+    if (kind === 'unknown-id') Object.assign(row.change, { before: { id: null } });
+    if (kind === 'delete') row.change.actions = ['delete'];
+    if (kind === 'update') row.change.actions = ['update'];
+    if (kind === 'after') Object.assign(row.change, { after: { id: row.change.before.id } });
+    if (kind === 'move') Object.assign(row, { previous_address: 'aws_route.foreign' });
+    if (kind === 'deposed') Object.assign(row, { deposed: 'old-instance' });
+    if (kind === 'import') Object.assign(row.change, { importing: { id: row.change.before.id } });
+    if (kind === 'other-create')
+      overrides.resource_changes = [
+        row,
+        { address: 'aws_instance.foreign', type: 'aws_instance', change: { actions: ['create'] } },
+      ];
+    if (kind === 'output') overrides.output_changes = { route: { actions: ['delete'] } };
+    if (kind === 'deferred') overrides.deferred_changes = [{ resource_change: row }];
+    const { runner, calls } = await fixture(overrides);
+    await expect(runner.planRelinquishments([routeImport], {})).rejects.toThrow();
+    expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+  });
+test('relinquishment intents must resolve uniquely before Terraform runs', async () => {
+  for (const intents of [[], [routeImport, routeImport], [{ ...routeImport, idSha256: 'unresolved' }]]) {
+    const { runner, calls } = await fixture();
+    await expect(runner.planRelinquishments(intents, {})).rejects.toThrow(/relinquishment/i);
+    expect(calls).toHaveLength(0);
+  }
+});
+test('rechecks exact prior identity and refuses relinquishment replay after interrupted apply', async () => {
+  const row = structuredClone(relinquishedRoute);
+  const { runner, calls } = await fixture({ resource_changes: [row], output_changes: {} });
+  const receipt = await runner.planRelinquishments([routeImport], {});
+  row.change.before.id = 'foreign';
+  await expect(runner.apply(receipt, {})).rejects.toThrow(/relinquishment/i);
+  expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+  const lost = await fixture({ resource_changes: [relinquishedRoute], output_changes: {} }, {}, undefined, () => {
+    throw Error('lost relinquishment response');
+  });
+  const attempt = await lost.runner.planRelinquishments([routeImport], {});
+  await expect(lost.runner.apply(attempt, {})).rejects.toThrow('lost relinquishment response');
+  expect(await lost.runner.readPlanApplicationState(attempt)).toBe('applying');
+  await expect(lost.runner.apply(attempt, {})).rejects.toThrow('consumed');
+  expect(lost.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+});

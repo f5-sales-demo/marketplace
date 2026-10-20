@@ -60,6 +60,8 @@ test('Terraform revalidates durable ownership before execution', async () => {
     { mode: 0o600 },
   );
   await expect(session.plan({})).rejects.toThrow();
+  if (!session.planRelinquishments) throw Error('Owning relinquishment method missing');
+  await expect(session.planRelinquishments([], {})).rejects.toThrow();
   await expect(session.readConfiguration('0'.repeat(64))).rejects.toThrow();
   await expect(
     session.readPlannedResourceFields({} as PlanReceipt, { 'terraform_data.ce': ['id'] }, {}),
