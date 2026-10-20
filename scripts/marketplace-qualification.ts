@@ -25,7 +25,6 @@ export const pluginOrder = [
   'gitlab',
   'cloudstatus',
   'firecrawl',
-  'devcontainer',
   'asm-migration',
   'kvm',
   'terraform',

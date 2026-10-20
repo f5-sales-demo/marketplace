@@ -73,8 +73,6 @@ export const focus = {
     'Install/setup/status and terminal guidance; platform limitations, executable provenance and configuration summaries.',
   firecrawl:
     'Scrape/crawl/map/search, service setup/status and skills; retain target, limits, partial results and failure explanations.',
-  devcontainer:
-    'Identity/tool catalog, diagnosis, maintenance and integration setup/status. Separate available tools, missing dependencies and unsupported capabilities.',
   'docs-tools':
     'Every registered validation/review command, skill and agent, including surfaces without native adapters. Findings include file locations, severity and verified outcomes.',
   'docs-pipeline':
