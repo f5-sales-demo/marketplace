@@ -6,6 +6,7 @@ export interface Scenario {
   id: string;
   calls: { tool: string; args: Record<string, unknown> }[];
   guidance: string[];
+  guidanceOptions?: { sel?: ''; timeout?: number }[];
   commands?: { name: string; args: string }[];
 }
 export const pluginOrder = [
@@ -125,6 +126,26 @@ export function validateScenario(value: any): Scenario {
     )
   )
     throw new Error('Scenario guidance must be shipped relative paths');
+  if (value.guidanceOptions !== undefined) {
+    const options = value.guidanceOptions;
+    if (
+      !Array.isArray(options) ||
+      !options.length ||
+      options.some(
+        (option: any) =>
+          !option ||
+          typeof option !== 'object' ||
+          Array.isArray(option) ||
+          Object.keys(option).some((key) => !['sel', 'timeout'].includes(key)) ||
+          ('sel' in option && option.sel !== '') ||
+          ('timeout' in option && (!Number.isFinite(option.timeout) || option.timeout <= 0)),
+      ) ||
+      options.some((option: any, index: number) =>
+        options.slice(0, index).some((previous: any) => isDeepStrictEqual(previous, option)),
+      )
+    )
+      throw new Error('Scenario guidance options require distinct exact full-file selectors and positive timeouts');
+  }
   if (
     value.commands !== undefined &&
     (!Array.isArray(value.commands) ||
@@ -146,8 +167,10 @@ export function guardScenarioTool(event: any, scenario: Scenario, plugin: string
   const allowed =
     event.toolName === 'read'
       ? input &&
-        Object.keys(input).length === 1 &&
         typeof input.path === 'string' &&
+        (scenario.guidanceOptions ?? [{}]).some((options) =>
+          isDeepStrictEqual(input, { path: input.path, ...options }),
+        ) &&
         scenario.guidance.some((path) => resolve(plugin, path) === resolve(input.path))
       : scenario.calls.some((call) => call.tool === event.toolName && isDeepStrictEqual(call.args, input));
   if (!allowed)
