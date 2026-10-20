@@ -128,6 +128,27 @@ describe('GCP readiness boundary', () => {
     i.sites[0].nodes[1].interfaces[1].vrf = 'changed';
     expect(() => planGcpCe(i, discovery())).toThrow('homogeneous');
   });
+  it('accepts identical HA interfaces regardless of JSON field order but binds actual topology changes', () => {
+    const i = intent();
+    const node = i.sites[0].nodes[0];
+    i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
+    const d = discovery();
+    const original = planGcpCe(i, d).planHash;
+    i.sites[0].nodes[1].interfaces = node.interfaces.map((nic) => ({
+      cidr: nic.cidr,
+      subnet: nic.subnet,
+      network: nic.network,
+      vrf: nic.vrf,
+      role: nic.role,
+      index: nic.index,
+    }));
+    expect(planGcpCe(i, d).planHash).toBe(original);
+    for (const field of ['network', 'subnet', 'vrf'] as const) {
+      const changed = structuredClone(i);
+      changed.sites[0].nodes[1].interfaces[1][field] = 'changed';
+      expect(() => planGcpCe(changed, discovery())).toThrow('homogeneous');
+    }
+  });
   it('discovers current CE CRT image names as well as legacy CECRT names', () => {
     const current = {
       ...image,
@@ -196,6 +217,81 @@ const boundary = async () => ({
   reason: 'gcp_provider_not_published' as const,
 });
 describe('GCP typed tools', () => {
+  it('collects HA readiness preflight without admitting deployment or requesting approval', async () => {
+    const i = intent();
+    const node = i.sites[0].nodes[0];
+    i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
+    let collections = 0;
+    const tools = createGcpCeTools(
+      { typebox: { Type } },
+      () => ({
+        exec: async (_command, args) => {
+          const value =
+            args[0] === 'billing'
+              ? { billingEnabled: true }
+              : args[0] === 'services'
+                ? [{ config: { name: 'compute.googleapis.com' } }, { config: { name: 'serviceusage.googleapis.com' } }]
+                : args[1] === 'regions'
+                  ? { quotas: [] }
+                  : args[1] === 'images'
+                    ? [image]
+                    : discovery().machineTypes;
+          return { stdout: JSON.stringify(value), stderr: '', exitCode: 0 };
+        },
+      }),
+      boundary,
+      async () => {
+        throw new Error('must not open a mutation runtime');
+      },
+      async (observed) => {
+        collections++;
+        expect(fingerprint(observed)).toBe(fingerprint(i));
+        return {
+          schemaVersion: 1,
+          project: i.project,
+          region: i.region,
+          intentFingerprint: fingerprint(i),
+          observedAt: new Date().toISOString(),
+          receipts: [],
+          checks: {
+            iam: 'verified',
+            quota: 'verified',
+            organizationPolicy: 'verified',
+            image: 'verified',
+            machineNicLimit: 'verified',
+            zone: 'verified',
+            licenseUseFee: 'none',
+            legalAcceptance: 'unknown',
+            zoneCapacity: 'not-reserved',
+          },
+        };
+      },
+      async () => ({
+        identity: 'f5xc-ce-automation-policy/v2',
+        url: 'https://example.test/policy',
+        normalizedSha256: fingerprint('policy'),
+        observedAt: new Date().toISOString(),
+      }),
+      undefined,
+      async () => {
+        throw new Error('funding unavailable');
+      },
+    );
+    const tool = tools.find((t) => t.name === 'gcp_ce_plan');
+    if (!tool) throw new Error('missing plan tool');
+    const result = await tool.execute('id', { project: i.project, region: i.region, intent: i }, undefined, null, {
+      cwd: '/tmp',
+    });
+    expect(collections).toBe(1);
+    expect(result.isError).not.toBe(true);
+    expect(result.details.plan).toMatchObject({
+      executable: false,
+      approval: 'not-requested',
+      actions: [],
+      preflight: { intentFingerprint: fingerprint(i) },
+    });
+    expect(result.details.mutationAttempted).not.toBe(true);
+  });
   it('rejects every mutation before any cloud command', async () => {
     let calls = 0;
     const tools = createGcpCeTools(

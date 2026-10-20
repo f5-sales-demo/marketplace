@@ -167,13 +167,14 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "6.2.0",
+      "version": "6.3.3",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.5.1",
+      "extensions": ["runtime/index.js"],
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -361,7 +362,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "2.3.2",
+      "version": "2.3.3",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
@@ -416,14 +417,15 @@
     },
     {
       "name": "gcloud",
-      "description": "Google Cloud authentication and CLI tools with gated Customer Edge discovery and lifecycle readiness planning",
-      "version": "1.6.1",
+      "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
+      "version": "1.7.19",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.8.0",
+      "extensions": ["runtime/index.js"],
       "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud", "gcp-ce", "customer-edge"],
@@ -550,13 +552,14 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.3.0",
+      "version": "2.4.3",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "minimumRuntimeVersion": "23.5.1",
+      "extensions": ["extensions/integration.ts", "runtime/index.js"],
       "source": "./plugins/terraform",
       "category": "development",
       "keywords": ["terraform", "hcl", "iac", "devops", "hashicorp", "testing", "troubleshooting"],
