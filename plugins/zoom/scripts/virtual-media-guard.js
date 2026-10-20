@@ -61,7 +61,12 @@
           throw new Error('Captured device differs from required virtual device');
         if (key === 'video') {
           const settings = tracks[0].getSettings();
-          if (!cameraReady || settings.width !== profile.width || settings.height !== profile.height || settings.frameRate !== profile.fps)
+          if (
+            !cameraReady ||
+            settings.width !== profile.width ||
+            settings.height !== profile.height ||
+            settings.frameRate !== profile.fps
+          )
             throw new Error('Virtual camera profile differs from the producer profile');
         }
       }
@@ -91,17 +96,26 @@
   window.__piZoomMediaGuard = {
     version: state.version,
     setCameraProfile: (next) => {
-      if (next.width !== 1280 || next.height !== 720 || ![5,10,15,30].includes(next.fps))
+      if (next.width !== 1280 || next.height !== 720 || ![5, 10, 15, 30].includes(next.fps))
         throw new Error('Unsupported camera profile');
       if (next.fps !== profile.fps) {
         cameraReady = false;
-        state.streams.flatMap((s) => s.getVideoTracks()).forEach((t) => t.stop());
+        state.streams
+          .flatMap((s) => s.getVideoTracks())
+          .forEach((t) => {
+            t.stop();
+          });
       }
       profile = next;
     },
     setCameraReady: (ready) => {
       cameraReady = ready === true;
-      if (!cameraReady) state.streams.flatMap((s) => s.getVideoTracks()).forEach((t) => t.stop());
+      if (!cameraReady)
+        state.streams
+          .flatMap((s) => s.getVideoTracks())
+          .forEach((t) => {
+            t.stop();
+          });
     },
     inventory: async () => (await inventory()).map((d) => ({ kind: d.kind, label: d.label })),
     stats: async () => {
