@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`zoom`** v1.3.1 preserves literal lifecycle guidance, reports missing Python and malformed observations safely, shows meeting and camera summaries, and retains complete expandable command evidence (#1603).
+- **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
 
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
