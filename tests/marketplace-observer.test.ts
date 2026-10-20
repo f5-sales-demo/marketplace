@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import observe from '../scripts/observe-marketplace-campaign';
@@ -12,6 +12,7 @@ async function harness(
 ) {
   const root = mkdtempSync(join(tmpdir(), 'marketplace-observer-'));
   const previous = { ...process.env };
+  let stopCapture: (() => void) | undefined;
   try {
     const plugin = join(root, 'plugin');
     mkdirSync(join(plugin, '.xcsh-plugin'), { recursive: true });
@@ -76,11 +77,22 @@ async function harness(
     const commands = new Map<string, any>();
     const tools = new Map<string, any>();
     let executed = 0;
+    let appearanceGate: Promise<void> = Promise.resolve();
     const api = {
       pi: {
         VERSION: '23.9.3',
-        ToolExecutionComponent: class {},
+        ToolExecutionComponent: class {
+          setArgsComplete() {}
+          updateResult() {}
+          setExpanded() {}
+          stopAnimation() {}
+          invalidate() {}
+          render() {
+            return ['synthetic identity'];
+          }
+        },
         AssistantMessageComponent: class {},
+        setSymbolPreset: () => appearanceGate,
       },
       on: (name: string, handler: any) => handlers.set(name, [...(handlers.get(name) ?? []), handler]),
       registerTool: (tool: any) => tools.set(tool.name, tool),
@@ -100,8 +112,27 @@ async function harness(
       tools,
       executed: () => executed,
       root: captureRoot,
+      gate: (promise: Promise<void>) => {
+        appearanceGate = promise;
+      },
+      capture: async () => {
+        let component: any;
+        let closed = 0;
+        await commands.get('marketplace-campaign-capture').handler('', {
+          ui: {
+            setTheme: async () => ({ success: true }),
+            custom: async (factory: any) => {
+              component = factory({ requestRender() {} }, {}, {}, () => closed++);
+            },
+          },
+        });
+        stopCapture = () => component.handleInput('\u001b');
+        return { component, closed: () => closed };
+      },
     });
   } finally {
+    stopCapture?.();
+    await new Promise((resolve) => setTimeout(resolve, 80));
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
     rmSync(root, { recursive: true });
@@ -358,5 +389,83 @@ test('service observer preserves normal results and records commands, hidden mes
     expect(events.some((e) => e.event === 'plugin_command_end' && e.result === 'exact-result')).toBe(true);
     expect(events.some((e) => e.event === 'plugin_message_dispatch' && e.args[0].display === false)).toBe(true);
     expect(events.some((e) => e.event === 'plugin_dispatch' && e.message.display === false)).toBe(true);
+  });
+});
+
+const frameControl = {
+  id: 'frame',
+  case: 'identity',
+  width: 40,
+  expanded: false,
+  theme: 'xcsh-dark',
+  preset: 'ascii',
+};
+const tick = () => new Promise((resolve) => setTimeout(resolve, 100));
+
+test('capture cancellation is idempotent and discards late appearance frames', async () => {
+  await harness('fixture', async (state) => {
+    let release!: () => void;
+    state.gate(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const capture = await state.capture();
+    writeFileSync(join(state.root, 'control.json'), JSON.stringify(frameControl));
+    await tick();
+    capture.component.handleInput('\u001b');
+    capture.component.handleInput('\u001b');
+    release();
+    await tick();
+    expect(capture.closed()).toBe(1);
+    expect(existsSync(join(state.root, 'frames/frame.json'))).toBe(false);
+    expect(existsSync(join(state.root, 'ack.json'))).toBe(false);
+  });
+});
+
+test('shutdown closes capture once and discards a late appearance update', async () => {
+  await harness('fixture', async (state) => {
+    let release!: () => void;
+    state.gate(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const capture = await state.capture();
+    writeFileSync(join(state.root, 'control.json'), JSON.stringify(frameControl));
+    await tick();
+    for (const handler of state.handlers.get('session_shutdown')) handler({}, { hasUI: true });
+    release();
+    await tick();
+    expect(capture.closed()).toBe(1);
+    expect(existsSync(join(state.root, 'frames/frame.json'))).toBe(false);
+    expect(existsSync(join(state.root, 'ack.json'))).toBe(false);
+    await expect(state.commands.get('marketplace-campaign-guidance-capture').handler('', {})).rejects.toThrow('closed');
+  });
+});
+
+test('capture rejects invalid scroll offsets instead of accepting misleading viewports', async () => {
+  for (const scroll of [-1, 0.5, '1']) {
+    await harness('fixture', async (state) => {
+      const capture = await state.capture();
+      writeFileSync(join(state.root, 'control.json'), JSON.stringify({ ...frameControl, scroll }));
+      await tick();
+      expect(capture.closed()).toBe(1);
+      expect(existsSync(join(state.root, 'error.json'))).toBe(true);
+      expect(existsSync(join(state.root, 'frames/frame.json'))).toBe(false);
+    });
+  }
+});
+
+test('normal finish closes capture and ignores subsequent frame controls', async () => {
+  await harness('fixture', async (state) => {
+    const capture = await state.capture();
+    writeFileSync(join(state.root, 'control.json'), JSON.stringify({ action: 'finish' }));
+    await tick();
+    expect(capture.closed()).toBe(1);
+    writeFileSync(join(state.root, 'control.json'), JSON.stringify(frameControl));
+    await tick();
+    expect(existsSync(join(state.root, 'frames/frame.json'))).toBe(false);
+    expect(readFileSync(join(state.root, 'events.jsonl'), 'utf8')).toContain('capture_closed');
   });
 });
