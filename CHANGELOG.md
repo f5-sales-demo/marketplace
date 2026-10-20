@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`aws` 2.3.3** uses a placeholder account in the presentation fixture so
+  changed-content privacy validation accepts the synthetic test evidence.
+
 - **`terraform` 2.4.3 and `gcloud` 1.7.19** bound executor identity persistence
   and gate release to fifteen seconds. Startup failures verify child exit before
   releasing owned locks; unresolved stops continue to block recovery. Private
