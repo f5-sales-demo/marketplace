@@ -10,6 +10,7 @@ import {
   type OperationalCollection,
   type OperationalProfile,
   qualifiedOperationalProfile,
+  qualifiedOperationalRelease,
 } from '../../src/ce/operational-health';
 
 const hash = (n: number) => fingerprint({ n });
@@ -32,6 +33,7 @@ export function operationalFixture() {
           name: service,
           podPrefix: `${service}-`,
           namespace: 'default',
+          podShape: 'daemon' as const,
         })),
         diagnostics: ['peer-connectivity', 'required-domains'],
       },
@@ -41,7 +43,7 @@ export function operationalFixture() {
       evidenceSha256: hash(3),
       reason: 'auxiliary-outside-operational-scope',
     })),
-    qualification: { evidenceSha256: hash(4), discoveryCleanupSha256: hash(5), campaignCleanupSha256: hash(6) },
+    qualification: { evidenceSha256: hash(4), discoveryCleanupSha256: hash(5) },
   };
   const binding: OperationalBinding = {
     contextFingerprint: hash(7),
@@ -89,7 +91,7 @@ export function operationalFixture() {
         profile.roles.control.containers.map((mapping, j) => ({
           containerIdentitySha256: hash(100 + 100 * i + j),
           name: mapping.name,
-          pod: `${mapping.service}-abc`,
+          pod: `${mapping.service}-abc12`,
           namespace: mapping.namespace,
           liveness: 'running',
         })),
@@ -300,4 +302,87 @@ it('distinguishes daemon and deployment pods sharing a service prefix', () => {
   expect(matchesGcpOperationalPod('ver-55b8559b8-sfb88', daemon)).toBe(false);
   expect(matchesGcpOperationalPod('ver-55b8559b8-sfb88', deployment)).toBe(true);
   expect(matchesGcpOperationalPod('ver-abc12', deployment)).toBe(false);
+});
+
+it('accepts the observed VER enum and requires frozen pod shapes', () => {
+  const f = operationalFixture();
+  f.profile.verRunningStates = ['OPERATIONAL_READY'];
+  for (const row of f.collection.nodes) {
+    const site = row.siteStatus.projection as { verState: string };
+    site.verState = 'OPERATIONAL_READY';
+    row.siteStatus.projectionFingerprint = fingerprint(site);
+  }
+  f.collection.contractFingerprint = fingerprint(f.profile);
+  expect(evaluate(f).status).toBe('healthy');
+  delete f.profile.roles.control.containers[0].podShape;
+  expect(qualifiedOperationalProfile(f.profile, fingerprint(f.profile))).toBe(false);
+});
+it('requires auxiliary placement across actual roles and unique checks for multiple service containers', () => {
+  const f = operationalFixture();
+  const auxiliary = 'kube-state-metrics';
+  f.profile.exclusions = f.profile.exclusions.filter((e) => e.service !== auxiliary);
+  f.profile.roles.primary = structuredClone(f.profile.roles.control);
+  f.profile.roles.primary.containers.push({
+    service: auxiliary,
+    name: auxiliary,
+    namespace: 'default',
+    podPrefix: `${auxiliary}-`,
+    podShape: 'daemon',
+  });
+  expect(qualifiedOperationalProfile(f.profile, fingerprint(f.profile))).toBe(true);
+  f.collection.contractFingerprint = fingerprint(f.profile);
+  expect(evaluate(f).reasonCodes).toContain('required-service-placement-uncovered');
+  f.profile.exclusions.push({
+    service: auxiliary,
+    reason: 'auxiliary-outside-operational-scope',
+    evidenceSha256: hash(3),
+  });
+  const second = { ...f.profile.roles.control.containers[0], name: 'secondary' };
+  f.profile.roles.control.containers.push(second);
+  for (const [i, row] of f.collection.nodes.entries()) {
+    const runtime = row.runtime.projection as Array<Record<string, unknown>>;
+    runtime.push({
+      containerIdentitySha256: hash(500 + i),
+      name: 'secondary',
+      pod: `${second.podPrefix}abc12`,
+      namespace: 'default',
+      liveness: 'running',
+    });
+    row.runtime.projectionFingerprint = fingerprint(runtime);
+  }
+  f.collection.contractFingerprint = fingerprint(f.profile);
+  const result = evaluate(f);
+  expect(result.status).toBe('healthy');
+  for (const node of result.nodes)
+    expect(new Set(node.checks.map((check) => check.check)).size).toBe(node.checks.length);
+});
+
+it('keeps release qualification separate from the unchanged candidate contract', () => {
+  const f = operationalFixture();
+  const contractFingerprint = fingerprint(f.profile);
+  const receipt = {
+    schemaVersion: 2,
+    contractFingerprint,
+    bindingFingerprint: fingerprint(f.binding),
+    healthyRoundFingerprints: [hash(800), hash(801)],
+    evidenceSha256: hash(802),
+    campaignCleanupSha256: hash(803),
+    objectsAbsent: 18,
+    emptyDestroy: true,
+    stableState: true,
+    repeatedResumeNoSubmission: true,
+  };
+  expect(qualifiedOperationalRelease(receipt, fingerprint(receipt), contractFingerprint)).toBe(true);
+  expect(
+    qualifiedOperationalRelease(f.profile.qualification, fingerprint(f.profile.qualification), contractFingerprint),
+  ).toBe(false);
+  expect(qualifiedOperationalRelease(receipt, hash(804), contractFingerprint)).toBe(false);
+  expect(qualifiedOperationalRelease(receipt, fingerprint(receipt), hash(805))).toBe(false);
+  for (const field of ['objectsAbsent', 'emptyDestroy', 'stableState', 'repeatedResumeNoSubmission']) {
+    const candidate = { ...receipt, [field]: false };
+    expect(qualifiedOperationalRelease(candidate, fingerprint(candidate), contractFingerprint)).toBe(false);
+  }
+  receipt.healthyRoundFingerprints[1] = receipt.healthyRoundFingerprints[0];
+  expect(qualifiedOperationalRelease(receipt, fingerprint(receipt), contractFingerprint)).toBe(false);
+  expect(fingerprint(f.profile)).toBe(contractFingerprint);
 });

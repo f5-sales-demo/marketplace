@@ -56,7 +56,16 @@ networking runtime dependencies remain mandatory on each role.
 Auxiliary monitoring and webhook services have been observed directly. Their
 coverage or exclusions still require frozen evidence and public disclosure.
 
-Remaining gates are authenticated isolated discovery, independent cleanup,
-upstream contract publication, a second fresh qualification campaign, immutable
+Discovery authentication and independent cleanup are complete. Cleanup verified
+eighteen independent absences, an empty destroy plan, stable state and two
+resumes without submission.
+
+The scoped candidate source now combines fixed uncached component and inventory
+reads with node-bound runtime inspection and diagnosis. It captures each raw
+attempt privately and emits only parser projections. Frozen pod shapes are
+mandatory. Role-dependent auxiliary coverage must exist on an actual original
+node, and each mapped container receives a distinct public check identity.
+
+Remaining gates are upstream contract publication, a second fresh qualification campaign, immutable
 release verification, downstream pinning and installed public handler campaigns.
 Existing campaigns, provider pins, billing association and draft PRs are preserved.

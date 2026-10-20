@@ -11,7 +11,7 @@ function fixture(omit?: string, duplicate?: string) {
     .map((mapping, index) => ({
       id: (index + 1).toString(16).padStart(64, '0'),
       name: mapping.name,
-      pod: `${mapping.podPrefix}abc`,
+      pod: `${mapping.podPrefix}abc12`,
       namespace: mapping.namespace,
     }));
   if (duplicate) rows.push({ ...rows.find((row) => row.name === duplicate)!, id: 'f'.repeat(64) });

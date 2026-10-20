@@ -46,7 +46,7 @@ export interface OperationalProfile {
   inventoryServices: string[];
   verRunningStates: string[];
   exclusions: Array<{ service: string; evidenceSha256: string; reason: 'auxiliary-outside-operational-scope' }>;
-  qualification: { evidenceSha256: string; discoveryCleanupSha256: string; campaignCleanupSha256: string };
+  qualification: { evidenceSha256: string; discoveryCleanupSha256: string };
 }
 export interface OperationalBinding {
   contextFingerprint: string;
@@ -142,14 +142,17 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
     return false;
   const qualification = p.qualification as Record<string, unknown>;
   if (
-    Object.keys(qualification).sort().join(',') !== 'campaignCleanupSha256,discoveryCleanupSha256,evidenceSha256' ||
+    Object.keys(qualification).sort().join(',') !== 'discoveryCleanupSha256,evidenceSha256' ||
     !Object.values(qualification).every((hash) => typeof hash === 'string' && HASH.test(hash))
   )
     return false;
   if (
     !names(p.inventoryServices) ||
     !GCP_OPERATIONAL_CORE_SEED.every((name) => (p.inventoryServices as string[]).includes(name)) ||
-    !names(p.verRunningStates)
+    !Array.isArray(p.verRunningStates) ||
+    !p.verRunningStates.length ||
+    !p.verRunningStates.every((state) => typeof state === 'string' && /^[A-Za-z][A-Za-z0-9_/-]{0,62}$/.test(state)) ||
+    new Set(p.verRunningStates).size !== p.verRunningStates.length
   )
     return false;
   if (
@@ -186,7 +189,7 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
           !names([c.service]) ||
           !names([c.name]) ||
           !names([c.namespace]) ||
-          (c.podShape !== undefined && !['daemon', 'deployment', 'stateful'].includes(String(c.podShape))) ||
+          !['daemon', 'deployment', 'stateful'].includes(String(c.podShape)) ||
           typeof c.podPrefix !== 'string' ||
           !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
       )
@@ -203,10 +206,14 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       return false;
     for (const service of role.components as string[]) if (!services.includes(service)) return false;
     if (role.components.some((component) => !(p.inventoryServices as string[]).includes(component))) return false;
-    for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
-      if (!p.exclusions.some((e) => e.service === auxiliary) && !services.includes(auxiliary)) return false;
   }
   const declaredRoles = Object.values(p.roles as OperationalProfile['roles']);
+  for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
+    if (
+      !p.exclusions.some((e) => e.service === auxiliary) &&
+      !declaredRoles.some((role) => role.containers.some((c) => c.service === auxiliary))
+    )
+      return false;
   for (const service of p.inventoryServices as string[])
     if (
       !declaredRoles.some(
@@ -268,7 +275,10 @@ export function evaluateGcpOperationalHealth(
   if (
     profile &&
     Array.isArray(expected.nodes) &&
-    profile.inventoryServices.some(
+    [
+      ...profile.inventoryServices,
+      ...GCP_OPERATIONAL_AUXILIARIES.filter((service) => !profile.exclusions.some((e) => e.service === service)),
+    ].some(
       (service) =>
         !expected.nodes.some((node) => {
           const role = profile.roles[node?.role];
@@ -477,7 +487,7 @@ export function evaluateGcpOperationalHealth(
                 matchesGcpOperationalPod(String(r.pod), mapping),
             );
             check(
-              `container:${mapping.service}`,
+              `container:${mapping.service}:${mapping.namespace}:${mapping.name}:${mapping.podPrefix}:${mapping.podShape}`,
               matches.length !== 1 ? 'unknown' : matches[0]?.liveness === 'running' ? 'healthy' : 'degraded',
               'runtime-coverage-ambiguous-or-not-running',
             );
@@ -590,4 +600,44 @@ export function advanceGcpOperationalRounds(
     qualificationFingerprint: result.qualificationFingerprint,
     lastFinishedAt: result.finishedAt,
   };
+}
+
+export interface OperationalReleaseQualification {
+  schemaVersion: 2;
+  contractFingerprint: string;
+  bindingFingerprint: string;
+  healthyRoundFingerprints: [string, string];
+  evidenceSha256: string;
+  campaignCleanupSha256: string;
+  objectsAbsent: 18;
+  emptyDestroy: true;
+  stableState: true;
+  repeatedResumeNoSubmission: true;
+}
+/** A separate pinned release receipt avoids changing the contract that the fresh campaign tested. */
+export function qualifiedOperationalRelease(
+  value: unknown,
+  pinnedReceiptFingerprint: string,
+  contractFingerprint: string,
+): value is OperationalReleaseQualification {
+  const receipt = object(value);
+  return (
+    !!receipt &&
+    HASH.test(pinnedReceiptFingerprint) &&
+    safeFingerprint(receipt) === pinnedReceiptFingerprint &&
+    receipt.schemaVersion === 2 &&
+    receipt.contractFingerprint === contractFingerprint &&
+    HASH.test(contractFingerprint) &&
+    ['bindingFingerprint', 'evidenceSha256', 'campaignCleanupSha256'].every(
+      (key) => typeof receipt[key] === 'string' && HASH.test(receipt[key]),
+    ) &&
+    Array.isArray(receipt.healthyRoundFingerprints) &&
+    receipt.healthyRoundFingerprints.length === 2 &&
+    receipt.healthyRoundFingerprints.every((hash) => typeof hash === 'string' && HASH.test(hash)) &&
+    receipt.healthyRoundFingerprints[0] !== receipt.healthyRoundFingerprints[1] &&
+    receipt.objectsAbsent === 18 &&
+    receipt.emptyDestroy === true &&
+    receipt.stableState === true &&
+    receipt.repeatedResumeNoSubmission === true
+  );
 }
