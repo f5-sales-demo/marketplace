@@ -206,6 +206,7 @@ class SetupTests(unittest.TestCase):
         with (
             patch.dict(setup.os.environ, {"HOME": "/home/example"}, clear=True),
             patch.object(setup.os, "getuid", return_value=502),
+            patch.object(setup.shutil, "which", return_value="/usr/bin/gsettings"),
             patch.object(
                 setup,
                 "_command",
