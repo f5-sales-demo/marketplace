@@ -31,16 +31,29 @@ function renderedContains(lines: string[], marker: string): boolean {
   const plain = lines.map((line) => Bun.stripANSI(line));
   const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
   if (normalize(plain.join(' ')).includes(normalize(marker))) return true;
-  const columns: string[][] = [];
+  let columns: string[][] = [];
+  const values: string[] = [];
+  const flush = () => {
+    for (const column of columns) if (column) values.push(normalize(column.join(' ')));
+    columns = [];
+  };
   for (const line of plain) {
+    if (/[┌├└+][─-]/.test(line)) {
+      flush();
+      continue;
+    }
     const cells = line.split('│');
-    if (cells.length < 3) continue;
+    if (cells.length < 3) {
+      flush();
+      continue;
+    }
     for (let i = 1; i < cells.length - 1; i++) {
       columns[i] ??= [];
       columns[i].push(cells[i].trim());
     }
   }
-  return columns.some((column) => normalize(column.join(' ')).includes(normalize(marker)));
+  flush();
+  return values.some((value) => value.includes(normalize(marker)));
 }
 test('rendered markers retain complete ordered words within wrapped table columns', () => {
   const lines = ['│ 1 │ Synthetic │ OPEN │', '│   │ issue     │      │'];
@@ -48,6 +61,7 @@ test('rendered markers retain complete ordered words within wrapped table column
   expect(renderedContains(lines, 'Synthetic missing issue')).toBe(false);
   expect(renderedContains(lines, 'issue Synthetic')).toBe(false);
   expect(renderedContains(['│ Synthetic │ issue │'], 'Synthetic issue')).toBe(false);
+  expect(renderedContains(['│ Synthetic │', '├───────────┤', '│ issue │'], 'Synthetic issue')).toBe(false);
 });
 async function verify(tool: any, args: unknown, marker: string) {
   const result = await tool.execute('synthetic-suite', args, undefined, undefined, ctx);
