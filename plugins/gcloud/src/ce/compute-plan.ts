@@ -10,12 +10,22 @@ export interface GcpNativeAction {
   sensitiveInput?: 'restricted-node-metadata-file';
 }
 
+function assertComputeOnly(intent: GcpCeIntent): void {
+  if (
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Compute translation cannot configure ingress or destination routes');
+}
+
 /** Candidate translation only. Execution requires immutable contract, approval and shared ledger. */
 export function translateGcpNativeCompute(intent: GcpCeIntent) {
   validateIntent(intent);
   if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
   const actions: GcpNativeAction[] = [];
   const networks = new Map<string, { subnet: string; cidr: string }>();
   for (const site of intent.sites)
@@ -106,6 +116,7 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
   if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
   const networks: Record<string, unknown> = {},
     subnets: Record<string, unknown> = {},
     instances: Record<string, unknown> = {};
@@ -177,6 +188,148 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
         google_compute_network: networks,
         google_compute_subnetwork: subnets,
         google_compute_instance: instances,
+      },
+    },
+  };
+}
+
+/** Qualification configuration: site-bound JWT remains in sensitive Terraform state, never in exported plans. */
+export function translateGcpTerraformSiteCompute(
+  intent: GcpCeIntent,
+  versions: { google: string; xcsh: string; terraform: string },
+) {
+  for (const version of Object.values(versions))
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
+  const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const sites: Record<string, unknown> = {};
+  const tokens: Record<string, unknown> = {};
+  const instances = cloud.configuration.resource.google_compute_instance as Record<string, Record<string, unknown>>;
+  for (const site of intent.sites) {
+    const siteKey = site.name.replaceAll('-', '_');
+    sites[siteKey] = {
+      name: site.name,
+      namespace: 'system',
+      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
+      gcp: { not_managed: {} },
+      ...(intent.initialVersions
+        ? {
+            software_settings: {
+              sw: { volterra_software_version: intent.initialVersions.software },
+              os: { operating_system_version: intent.initialVersions.os },
+            },
+          }
+        : {}),
+      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
+      disable_management_network: {},
+      block_all_services: {},
+      no_network_policy: {},
+      no_forward_proxy: {},
+      f5_proxy: {},
+      no_proxy_bypass: {},
+      logs_streaming_disabled: {},
+      no_s2s_connectivity_sli: {},
+      no_s2s_connectivity_slo: {},
+      disable_url_categorization: {},
+      local_vrf: { default_config: {}, default_sli_config: {} },
+    };
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
+      tokens[key] = {
+        name: `${node.name}-token`,
+        namespace: 'system',
+        type: 1,
+        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
+        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
+      };
+      // Terraform marks token.content sensitive in the exact provider schema.
+      // Deliberately do not create outputs or caller-supplied token variables.
+      const userData = `#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    permissions: "0600"\n    owner: root\n    content: |\n      token: \${xcsh_token.${key}.content}\n`;
+      instances[key].metadata = {
+        VmDnsSetting: 'ZonePreferred',
+        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
+      };
+    }
+  }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_version: `= ${versions.terraform}`,
+        required_providers: {
+          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
+          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
+        },
+      },
+      provider: { ...cloud.configuration.provider, xcsh: [{}] },
+      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
+    },
+  };
+}
+
+/** Public v2 configuration owns the disk even when VM creation never reaches state. */
+export function translateGcpPublicTerraformSiteCompute(
+  intent: GcpCeIntent,
+  versions: { google: string; xcsh: string; terraform: string },
+) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions);
+  const disks: Record<
+    string,
+    { name: string; project: string; zone: string; image: string; size: number; type: string }
+  > = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      disks[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        image: intent.image.selfLink,
+        size: intent.diskGiB,
+        type: 'pd-balanced',
+      };
+      const instance = translated.configuration.resource.google_compute_instance[key] as Record<string, unknown>;
+      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
+    }
+  const firewalls: Record<string, unknown> = {};
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const tag = `${site.name}-ha-peer`;
+    const dependencies: string[] = [];
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['INGRESS', 'EGRESS']) {
+        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
+        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
+        const key = name.replaceAll('-', '_');
+        firewalls[key] = {
+          name,
+          project: intent.project,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
+          direction,
+          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
+          target_tags: [tag],
+          allow: [{ protocol: 'all' }],
+        };
+        dependencies.push(`google_compute_firewall.${key}`);
+      }
+    for (const node of site.nodes) {
+      const instance = translated.configuration.resource.google_compute_instance[
+        node.name.replaceAll('-', '_')
+      ] as Record<string, unknown>;
+      instance.tags = [...new Set([...((instance.tags as string[]) ?? []), tag])];
+      instance.depends_on = dependencies;
+    }
+  }
+  return {
+    ...translated,
+    schemaVersion: 2 as const,
+    configuration: {
+      ...translated.configuration,
+      resource: {
+        ...translated.configuration.resource,
+        google_compute_disk: disks,
+        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
       },
     },
   };
