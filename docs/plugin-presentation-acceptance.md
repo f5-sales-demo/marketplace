@@ -1,10 +1,15 @@
 # Plugin presentation acceptance
 
-The 23-plugin catalog uses the shared presentation API. The current verified
-stable development and installed qualification runtime is xcsh 23.9.3
+The 22-plugin catalog uses the shared presentation API. The current verified
+stable development and installed qualification runtime is xcsh 23.9.5
 (checked 2026-10-20). Registration discovery remains pinned to 23.8.0;
 each changed plugin also runs a separate lane at its declared minimum runtime.
 These lanes establish different evidence and must be recorded separately.
+The [current foundation receipt](receipts/marketplace-1731-foundation-20261020.md)
+records catalog and installed inventory. Existing per-plugin development pins
+remain until their individual migration; the latest stable lane does not
+retroactively qualify them. Devcontainer is retired with preserved historical
+tracker IDs.
 Executable plugins provide
 presentation data; xcsh owns terminal layout, preview policy, theme and fallback
 rendering. Content and integration plugins use the shared message and lifecycle
@@ -62,6 +67,7 @@ meeting joins, destructive operations or external communications.
 
 Verify release/tag identity, independently downloaded bytes and digests before
 checking installed versions, files and resolved executables on Mac and Ubuntu.
+Account-dependent service gates are deferred by user instruction.
 Unsupported service hosts and missing credentials remain separate blockers with
 an exact next action. Publish sanitized receipts and retain raw captures privately.
 Update only canonical tracker IDs supported by current evidence; preserve prior
