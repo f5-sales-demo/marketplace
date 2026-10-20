@@ -162,3 +162,22 @@ Native buffer checks do not establish viewport inspection, exact shell copying,
 progress advancement/cleanup, service fidelity or executed shipped guidance.
 Those gates require their respective retained evidence. Existing Salesforce
 capture, viewport and progress controls remain available and unchanged.
+
+## Development and minimum compatibility lanes
+
+The current verified stable development lane is 23.9.3 (GitHub stable release and
+npm `latest`, checked 2026-10-20). Changed runtime plugins migrate their exact
+development pin and frozen lock to that release independently of the manifest
+minimum and peer range. Existing qualified dependency pins remain during the
+per-plugin migration; Salesforce and the 23.8.0 discovery graph retain their
+historical qualification. This dependency lane does not verify any tracker row.
+
+Run `bash scripts/run-plugin-minimum-runtime.sh aws` (or another runtime plugin)
+after focused latest-runtime tests. The runner copies only that plugin into an
+owned temporary directory, resolves and checks its exact declared minimum,
+excludes cloud CLIs from the test PATH, and runs its Bun suite. It preserves the
+source manifest, lock and installed graph, retains a private log, and removes its
+owned copy. This is a source compatibility gate; installed rendering and safe
+service/workflow qualification remain separate. Inspect test/import initialization
+before running: PATH exclusions are not a sandbox for arbitrary network or direct
+process operations.
