@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError } from '../src/failure';
-import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
+import { type Invocation, startTerraformGate, TerraformRunner, terraformExecutor } from '../src/runner';
 import actionFixture from './fixtures/site-upgrade-action.json';
 
 const directories: string[] = [];
@@ -999,3 +999,95 @@ test('rejects unselected foreign resources even alongside correctly reviewed res
   expect(state.lineage).toBe('fixture-lineage');
   expect(state.sha256).toMatch(/^[a-f0-9]{64}$/);
 }, 30_000);
+
+test('gate deadline terminates its child and releases a late identity claim only after exit', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-gate-'));
+  directories.push(root);
+  const child = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  let released = 0;
+  await expect(
+    startTerraformGate(
+      child,
+      async () => {
+        await Bun.sleep(80);
+        return async () => {
+          expect(await child.exited).toBeNumber();
+          released++;
+        };
+      },
+      20,
+      200,
+    ),
+  ).rejects.toThrow('startup deadline');
+  await Bun.sleep(100);
+  expect(released).toBe(1);
+  expect(await child.exited).toBeNumber();
+});
+
+test('gate persistence failure after acquiring its identity releases exactly once after child exit', async () => {
+  const child = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  let released = 0;
+  await expect(
+    startTerraformGate(
+      child,
+      async () => async () => {
+        expect(await child.exited).toBeNumber();
+        released++;
+      },
+      200,
+      200,
+      async (phase) => {
+        if (phase === 'identity-persisted') throw new Error('private capture interrupted');
+      },
+    ),
+  ).rejects.toThrow('private capture interrupted');
+  expect(released).toBe(1);
+});
+
+test('unresolved executor stop retains its acquired claim and blocks recovery', async () => {
+  let released = false;
+  const child = {
+    stdin: { write: () => {}, flush: async () => {}, end: async () => {} },
+    kill: () => {
+      throw new Error('denied');
+    },
+    exited: new Promise<number>(() => {}),
+  } as unknown as Bun.Subprocess<'pipe', 'pipe', 'pipe'>;
+  await expect(
+    startTerraformGate(
+      child,
+      async () => async () => {
+        released = true;
+      },
+      20,
+      20,
+      async (phase) => {
+        if (phase === 'identity-persisted') await new Promise(() => {});
+      },
+    ),
+  ).rejects.toThrow('stop unresolved');
+  expect(released).toBe(false);
+});
+
+test('stopped executor is killed before its process claim is released', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-stopped-gate-'));
+  directories.push(root);
+  const child = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  const path = join(root, '.terraform-executor-lock');
+  await expect(
+    startTerraformGate(
+      child,
+      async () => {
+        const release = await acquireProcessLock(path, child.pid);
+        child.kill('SIGSTOP');
+        await Bun.sleep(100);
+        return release;
+      },
+      80,
+      200,
+    ),
+  ).rejects.toThrow('startup deadline');
+  await Bun.sleep(150);
+  expect(await child.exited).toBeNumber();
+  expect(await lstat(path).catch(() => undefined)).toBeUndefined();
+});

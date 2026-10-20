@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.3 and `gcloud` 1.7.19** bound executor identity persistence
+  and gate release to fifteen seconds. Startup failures verify child exit before
+  releasing owned locks; unresolved stops continue to block recovery. Private
+  gate transitions retain executable and process identity without exporting
+  arguments or credentials (#1559).
+
 - **`gcloud` 1.7.17 and `platform` 6.3.3** collect scoped HA component status and independent
   service inventory, checking original site and node identities before and after
   reads. Status and diagnostics report a versioned HA result with per-node health,
@@ -106,7 +112,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.18 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.19 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Live lifecycle gates remain explicit (#1559).
@@ -121,7 +127,7 @@ and this project adheres to
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
   live saved-plan replay and fresh installed live typed Terraform teardown pass,
   with exact saved-plan apply, final empty destroy and independent absence (#1559).
-- **`terraform`** v2.4.2 loads the isolated CE runner alongside existing CLI integration,
+- **`terraform`** v2.4.3 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
 - **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
 

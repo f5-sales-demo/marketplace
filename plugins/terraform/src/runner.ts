@@ -184,12 +184,86 @@ async function persist(path: string, value: unknown): Promise<void> {
   await rename(temporary, path);
 }
 
+/** Gate failures never release an executor claim until the exact child has exited. */
+export async function startTerraformGate(
+  child: Bun.Subprocess<'pipe', 'pipe', 'pipe'>,
+  acquire: () => Promise<() => Promise<void>>,
+  timeoutMs = 15_000,
+  killAfterMs = 5_000,
+  transition: (phase: string) => Promise<void> = async () => {},
+): Promise<() => Promise<void>> {
+  let stopped = false;
+  let failed = false;
+  let release: (() => Promise<void>) | undefined;
+  let releasing: Promise<void> | undefined;
+  const releaseOnce = () => (releasing ??= release?.());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const startup = (async () => {
+    await transition('identity-pending');
+    release = await acquire();
+    if (failed) {
+      if (stopped) await releaseOnce();
+      throw new Error('Terraform executor gate startup deadline exceeded');
+    }
+    await transition('identity-persisted');
+    if (failed) throw new Error('Terraform executor gate startup deadline exceeded');
+    child.stdin.write('go\n');
+    await child.stdin.flush();
+    await child.stdin.end();
+    await transition('gate-released');
+    return release;
+  })();
+  try {
+    return await Promise.race([
+      startup,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Terraform executor gate startup deadline exceeded')), timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    failed = true;
+    // No SIGCONT or unrelated-process manipulation, including on managed hosts.
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      /* Exit evidence below remains mandatory. */
+    }
+    let exitTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        child.exited,
+        new Promise<never>((_, reject) => {
+          exitTimer = setTimeout(
+            () => reject(new Error('Terraform executor stop unresolved; recovery remains blocked')),
+            killAfterMs,
+          );
+        }),
+      ]);
+      stopped = true;
+      if (release) await releaseOnce();
+      await transition('startup-failed-child-exited');
+    } finally {
+      if (exitTimer) clearTimeout(exitTimer);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function terraformExecutor(
   limits = {
     timeoutMs: 900_000,
     applyTimeoutMs: 3_600_000,
     maxOutputBytes: 64 * 1024 * 1024,
     killAfterMs: 5_000,
+    startupTimeoutMs: 15_000,
+  } as {
+    timeoutMs: number;
+    applyTimeoutMs: number;
+    maxOutputBytes: number;
+    killAfterMs: number;
+    startupTimeoutMs?: number;
   },
   retainFailure = false,
 ): Executor {
@@ -212,16 +286,36 @@ export function terraformExecutor(
         stderr: 'pipe',
       },
     );
-    let releaseExecutor: (() => Promise<void>) | undefined;
-    try {
-      releaseExecutor = await acquireProcessLock(join(cwd, '.terraform-executor-lock'), child.pid);
-      child.stdin.write('go\n');
-      child.stdin.end();
-    } catch {
-      child.kill('SIGKILL');
-      await child.exited;
-      throw new Error('Terraform executor identity could not be persisted');
-    }
+    const invocationId = randomUUID();
+    const transition = async (phase: string) => {
+      if (!retainFailure) return;
+      const directory = join(cwd, 'executor-diagnostics');
+      await privateDirectory(directory);
+      const claim = await privateRead(join(cwd, '.terraform-executor-lock', 'claim.json')).then(
+        (bytes) => JSON.parse(bytes.toString('utf8')),
+        () => undefined,
+      );
+      const executable = Bun.which('terraform', { cwd, PATH: env.PATH });
+      await persist(join(directory, `${invocationId}-${phase}.json`), {
+        schemaVersion: 1,
+        invocationId,
+        phase,
+        observedAt: new Date().toISOString(),
+        pid: child.pid,
+        operation: args[0],
+        launcher: '/bin/sh',
+        executable,
+        executableSha256: executable ? digest(await readFile(executable)) : undefined,
+        executorIdentity: claim?.pid === child.pid ? claim : undefined,
+      });
+    };
+    const releaseExecutor = await startTerraformGate(
+      child,
+      () => acquireProcessLock(join(cwd, '.terraform-executor-lock'), child.pid),
+      limits.startupTimeoutMs ?? 15_000,
+      limits.killAfterMs,
+      transition,
+    );
     let failure: string | undefined;
     let escalation: ReturnType<typeof setTimeout> | undefined;
     const stop = (reason: string) => {
