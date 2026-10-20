@@ -66,15 +66,16 @@ export function parseControllerEnvelope(
   return envelope;
 }
 
+export function controllerArgv(command: string, params: Record<string, unknown> = {}, action?: string) {
+  return [KVM_SMSV2_CONTROLLER, '--json', command, ...(action ? [action] : []), '--params', JSON.stringify(params)];
+}
+
 export const invokeController: ControllerInvoker = (command, params = {}, action, environment = process.env) => {
-  const result = Bun.spawnSync(
-    [KVM_SMSV2_CONTROLLER, '--json', command, ...(action ? [action] : []), '--params', JSON.stringify(params)],
-    {
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: environment,
-    },
-  );
+  const result = Bun.spawnSync(controllerArgv(command, params, action), {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: environment,
+  });
   return parseControllerEnvelope(command, result.exitCode, result.stdout, result.stderr);
 };
 
