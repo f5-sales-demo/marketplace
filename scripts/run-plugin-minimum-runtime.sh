@@ -2,8 +2,8 @@
 # Test an exact minimum in an owned copy; never rewrite a developer dependency graph.
 set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|github|gitlab|salesforce)$ ]]; then
-  echo "Usage: $0 <aws|azure|gcloud|github|gitlab|salesforce>" >&2
+if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|platform|github|gitlab|salesforce)$ ]]; then
+  echo "Usage: $0 <aws|azure|gcloud|platform|github|gitlab|salesforce>" >&2
   exit 2
 fi
 PLUGIN="$1"

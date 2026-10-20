@@ -21,7 +21,7 @@ EXPECTED_TYPEBOX_RANGE="^0.34.52"
 EXPECTED_BUN_TYPES_RANGE="^1.4.2"
 EXPECTED_TYPEBOX="0.34.52"
 EXPECTED_BUN_TYPES="1.4.2"
-RUNTIME_PLUGINS=(aws azure gcloud github gitlab salesforce)
+RUNTIME_PLUGINS=(aws azure gcloud platform github gitlab salesforce)
 STATIC_FAILURES=0
 INSTALLED_FAILURES=0
 
