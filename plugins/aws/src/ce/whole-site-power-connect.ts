@@ -5,6 +5,7 @@ import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
 import { siteForNode } from './topology';
 import type { AwsCePlan } from './types';
+
 type Json = Record<string, unknown>;
 function object(v: unknown): Json {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');

@@ -1,7 +1,7 @@
 import type { ExpectedBgpSession } from '../../../platform/src/ce/bgp-evidence';
 import {
-  buildAwsBgpPowerPolicyRevision,
   type AwsBgpPowerPolicyRevision,
+  buildAwsBgpPowerPolicyRevision,
 } from '../../../platform/src/ce/bgp-power-policy';
 import type { ExpectedBgpServiceTable } from '../../../platform/src/ce/bgp-service-membership';
 import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
