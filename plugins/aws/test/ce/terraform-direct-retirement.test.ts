@@ -1,0 +1,216 @@
+import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
+import type { TerraformSession } from '../../../terraform/src/service';
+import { renderAwsTerraformDirectImport } from '../../src/ce/terraform-direct-import';
+import { collectAwsTerraformDirectRouteOwnership } from '../../src/ce/terraform-direct-ownership';
+import { retireAwsTerraformDirectRoutes } from '../../src/ce/terraform-direct-retirement';
+import { renderAwsTerraformDirectTransition } from '../../src/ce/terraform-direct-transition';
+import { directOwnershipFixture } from './terraform-direct-fixture';
+
+const hash = (s: string) => createHash('sha256').update(s).digest('hex');
+async function fixture() {
+  const f = directOwnershipFixture();
+  const ownership = await collectAwsTerraformDirectRouteOwnership(f.base, f.values, f.api);
+  const original = renderAwsTerraformDirectImport(
+    f.base,
+    ownership,
+    JSON.stringify({ resource: { aws_instance: { node_1: {} } }, output: { ce_vpc_id: { value: ownership.vpcId } } }),
+  );
+  let configuration = renderAwsTerraformDirectTransition(
+    f.base,
+    ownership,
+    original.configuration,
+    'original',
+    'ce',
+  ).configuration;
+  const cloud = f.table.Routes[0] as Record<string, unknown>;
+  delete cloud.GatewayId;
+  cloud.NetworkInterfaceId = f.values.__ENI_1_1__;
+  const records = new Map<string, unknown>([['terraform-direct-ownership.json', ownership]]);
+  let actions = 0,
+    lostResponse = false,
+    preserveFailure = false,
+    relinquished = false;
+  const owner = {
+    deploymentId: f.base.deploymentName,
+    engine: 'terraform' as const,
+    provider: 'aws' as const,
+    account: f.base.accountId,
+    region: f.base.region,
+  };
+  const storage = {
+    owner,
+    verify: async () => {},
+    read: async (name: string) => {
+      if (!records.has(name)) throw Object.assign(Error('missing'), { code: 'ENOENT' });
+      return structuredClone(records.get(name));
+    },
+    write: async (name: string, value: unknown) => {
+      records.set(name, structuredClone(value));
+    },
+  };
+  const receipt = (actions: string[], intents?: unknown[]) => ({
+    schemaVersion: 1 as const,
+    deploymentId: f.base.deploymentName,
+    engine: 'terraform' as const,
+    backendIdentity: 'local:owned',
+    configurationSha256: hash(configuration),
+    providerLockSha256: 'a'.repeat(64),
+    planSha256: 'b'.repeat(64),
+    noChanges: actions[0] === 'no-op',
+    changes: [{ address: 'aws_route.direct_0', type: 'aws_route', actions }],
+    ...(intents ? { relinquishments: intents } : {}),
+  });
+  const session = {
+    readConfigurationSha256: async () => hash(configuration),
+    readConfiguration: async (expected: string) => {
+      if (expected !== hash(configuration)) throw Error('revision differs');
+      return configuration;
+    },
+    reviseConfiguration: async (expected: string, next: string) => {
+      if (expected !== hash(configuration)) throw Error('revision differs');
+      configuration = next;
+      return hash(next);
+    },
+    plan: async () => receipt([cloud.GatewayId ? 'no-op' : 'update']),
+    readPlannedResourceIds: async () => ({ 'aws_route.direct_0': 'r-rtb-123456782746858862' }),
+    readPlannedResourceFields: async () => ({
+      'aws_route.direct_0': {
+        route_table_id: 'rtb-12345678',
+        destination_cidr_block: '192.0.2.0/24',
+        network_interface_id: f.values.__ENI_1_1__,
+        gateway_id: null,
+        nat_gateway_id: null,
+        transit_gateway_id: null,
+        vpc_peering_connection_id: null,
+      },
+    }),
+    readProposedResourceFields: async () => ({
+      'aws_route.direct_0': {
+        route_table_id: 'rtb-12345678',
+        destination_cidr_block: '192.0.2.0/24',
+        network_interface_id: null,
+        gateway_id: 'igw-12345678',
+        nat_gateway_id: null,
+        transit_gateway_id: null,
+        vpc_peering_connection_id: null,
+      },
+    }),
+    planRelinquishments: async (intents: unknown[]) => receipt(['forget'], intents),
+    readResourceIdentities: async () =>
+      relinquished ? [] : [{ address: 'aws_route.direct_0', type: 'aws_route', id: 'r-rtb-123456782746858862' }],
+    apply: async (plan: { relinquishments?: unknown[] }) => {
+      actions++;
+      if (plan.relinquishments) relinquished = true;
+      else if (!preserveFailure) {
+        delete cloud.NetworkInterfaceId;
+        cloud.GatewayId = 'igw-12345678';
+      }
+      if (lostResponse) throw Error('response lost');
+    },
+  } as unknown as TerraformSession;
+  return {
+    ...f,
+    ownership,
+    storage,
+    session,
+    records,
+    run: () => retireAwsTerraformDirectRoutes(f.base, ownership, session, storage, f.api, {}),
+    actions: () => actions,
+    interrupt: () => {
+      lostResponse = true;
+    },
+    failPreservation: () => {
+      preserveFailure = true;
+    },
+  };
+}
+test('owning direct retirement restores routes then independently verifies before forgetting exact state IDs', async () => {
+  const f = await fixture();
+  await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
+  expect(f.actions()).toBe(2);
+  expect(f.records.get('terraform-direct-retirement.json')).toHaveProperty('phase', 'preserved');
+});
+test('direct retirement refuses forget when restored cloud evidence is absent', async () => {
+  const f = await fixture();
+  f.failPreservation();
+  await expect(f.run()).rejects.toThrow();
+  expect(f.actions()).toBe(1);
+});
+test('direct retirement rejects unrelated mutations before apply', async () => {
+  const f = await fixture();
+  const plan = f.session.plan;
+  f.session.plan = async (...args) => ({
+    ...(await plan(...args)),
+    changes: [{ address: 'aws_instance.node_1', type: 'aws_instance', actions: ['update'] }],
+  });
+  await expect(f.run()).rejects.toThrow();
+  expect(f.actions()).toBe(0);
+});
+test('direct retirement retains ambiguous application without blind replay', async () => {
+  const f = await fixture();
+  f.interrupt();
+  await expect(f.run()).rejects.toThrow('response lost');
+  await expect(f.run()).rejects.toThrow('reconciliation');
+  expect(f.actions()).toBe(1);
+});
+test('direct retirement rejects foreign durable owner and missing runner capability', async () => {
+  const f = await fixture();
+  f.storage.owner.account = '000000000000';
+  await expect(f.run()).rejects.toThrow();
+  expect(f.actions()).toBe(0);
+  const g = await fixture();
+  g.session.planRelinquishments = undefined;
+  await expect(g.run()).rejects.toThrow();
+  expect(g.actions()).toBe(0);
+});
+
+for (const mode of [
+  'foreign-prior-id',
+  'missing-fields',
+  'foreign-proposed-target',
+  'state-drift',
+  'wrong-forget',
+  'state-retained',
+])
+  test(`direct retirement rejects ${mode}`, async () => {
+    const f = await fixture();
+    if (mode === 'foreign-prior-id')
+      f.session.readPlannedResourceIds = async () => ({ 'aws_route.direct_0': 'rtb-12345678_192.0.2.0/24' });
+    if (mode === 'missing-fields') f.session.readPlannedResourceFields = async () => ({ 'aws_route.direct_0': null });
+    if (mode === 'foreign-proposed-target')
+      f.session.readProposedResourceFields = async () => ({
+        'aws_route.direct_0': {
+          route_table_id: 'rtb-12345678',
+          destination_cidr_block: '192.0.2.0/24',
+          gateway_id: 'igw-ffffffff',
+        },
+      });
+    if (mode === 'state-drift') {
+      const ids = f.session.readPlannedResourceIds;
+      let reads = 0;
+      f.session.readPlannedResourceIds = async (...args) =>
+        ++reads === 1 ? ids(...args) : { 'aws_route.direct_0': 'r-rtb-ffffffff2746858862' };
+    }
+    if (mode === 'wrong-forget') {
+      const forget = f.session.planRelinquishments;
+      if (!forget) throw Error('fixture capability missing');
+      f.session.planRelinquishments = async (...args) => ({
+        ...(await forget(...args)),
+        changes: [{ address: 'aws_route.direct_0', type: 'aws_route', actions: ['delete'] }],
+      });
+    }
+    if (mode === 'state-retained')
+      f.session.readResourceIdentities = async () => [
+        { address: 'aws_route.direct_0', type: 'aws_route', id: 'r-rtb-123456782746858862' },
+      ];
+    await expect(f.run()).rejects.toThrow();
+    expect(f.actions()).toBe(
+      ['foreign-prior-id', 'missing-fields', 'foreign-proposed-target'].includes(mode)
+        ? 0
+        : mode === 'state-retained'
+          ? 2
+          : 1,
+    );
+    expect(f.records.get('terraform-direct-retirement.json')).not.toHaveProperty('phase', 'preserved');
+  });
