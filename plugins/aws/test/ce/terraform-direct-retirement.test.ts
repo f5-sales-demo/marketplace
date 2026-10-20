@@ -285,6 +285,37 @@ for (const mode of ['marker', 'source', 'configuration', 'state', 'cloud', 'plan
     expect(f.actions()).toBe(2);
   });
 
+for (const mode of ['missing', 'duplicate', 'foreign-id', 'wrong-type', 'unavailable', 'configuration', 'cloud'])
+  test(`restoration refresh resume rejects changed evidence: ${mode}`, async () => {
+    const f = await fixture();
+    const plan = f.session.plan;
+    let calls = 0;
+    f.session.plan = async (...args) => {
+      const receipt = await plan(...args);
+      if (++calls === 2) throw Error('refresh interrupted');
+      return receipt;
+    };
+    await expect(f.run()).rejects.toThrow('refresh interrupted');
+    const identities = f.session.readResourceIdentities;
+    f.session.readResourceIdentities = async (...args) => {
+      const rows = await identities(...args);
+      if (mode === 'missing') return [];
+      if (mode === 'duplicate') return [...rows, ...rows];
+      if (mode === 'foreign-id') return rows.map((r) => ({ ...r, id: 'foreign' }));
+      if (mode === 'wrong-type') return rows.map((r) => ({ ...r, type: 'aws_instance' }));
+      if (mode === 'unavailable') throw Error('state unavailable');
+      return rows;
+    };
+    if (mode === 'configuration') f.session.readConfiguration = async () => '{}';
+    if (mode === 'cloud')
+      f.api.exec = async () => {
+        throw Error('cloud unavailable');
+      };
+    await expect(f.run()).rejects.toThrow();
+    expect(f.actions()).toBe(1);
+    expect(calls).toBe(2);
+  });
+
 test('cloud teardown restores and relinquishes original routes before its first destroy plan', async () => {
   const f = await fixture();
   let destroyPlans = 0;
@@ -440,3 +471,44 @@ test('missing interrupted relinquishment plan cannot regenerate a plan or replay
   await expect(f.run()).rejects.toThrow('no durable exact plan');
   expect(f.actions()).toBe(2);
 });
+
+for (const point of ['refresh-response', 'refresh-identities', 'phase-write'])
+  test(`direct retirement resumes after restoration refresh interruption: ${point}`, async () => {
+    const f = await fixture();
+    const plan = f.session.plan;
+    const identities = f.session.readPlannedResourceIds;
+    const write = f.storage.write;
+    let plans = 0;
+    let failed = false;
+    f.session.plan = async (...args) => {
+      const receipt = await plan(...args);
+      if (++plans === 2 && point === 'refresh-response') {
+        failed = true;
+        throw Error('refresh interrupted');
+      }
+      return receipt;
+    };
+    f.session.readPlannedResourceIds = async (...args) => {
+      if (plans === 2 && point === 'refresh-identities' && !failed) {
+        failed = true;
+        throw Error('refresh interrupted');
+      }
+      return identities(...args);
+    };
+    f.storage.write = async (name, value) => {
+      if (
+        point === 'phase-write' &&
+        !failed &&
+        name === 'terraform-direct-retirement.json' &&
+        (value as { phase?: string }).phase === 'relinquishment-pending'
+      ) {
+        failed = true;
+        throw Error('refresh interrupted');
+      }
+      return write(name, value);
+    };
+    await expect(f.run()).rejects.toThrow('refresh interrupted');
+    expect(f.actions()).toBe(1);
+    await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
+    expect(f.actions()).toBe(2);
+  });

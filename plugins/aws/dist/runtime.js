@@ -14514,7 +14514,22 @@ async function retireAwsTerraformDirectRoutes(plan, ownership, session, storage,
     return { status: 'direct-routes-preserved', preserved, configurationSha256 };
   };
   const finishRestoration = async (source) => {
+    const currentSha = await readConfigurationSha256();
+    if (
+      currentSha !== source.restoredConfigurationSha256 ||
+      (await session.readConfiguration(currentSha)) !== source.restoredConfiguration
+    )
+      throw Error('Restoration refresh configuration identity differs');
+    const identities = (await readResourceIdentities(env, signal)).filter((r) => routeNames.includes(r.address));
+    if (
+      identities.length !== routeNames.length ||
+      new Set(identities.map((r) => r.address)).size !== routeNames.length ||
+      identities.some((r) => r.type !== 'aws_route' || r.id !== source.stateIds[r.address])
+    )
+      throw Error('Restoration refresh route state identity differs');
     const restoration = await observeAwsTerraformDirectPhase(plan, ownership, 'original', api, signal);
+    await storage.verify();
+    await storage.write(marker, checkpointFor(source, 'restoration-refresh-pending', { restoration }));
     const refresh = await session.plan(env, signal);
     if (
       !refresh.noChanges ||
@@ -14544,11 +14559,14 @@ async function retireAwsTerraformDirectRoutes(plan, ownership, session, storage,
     const checkpoint = prior;
     if (
       !checkpoint ||
-      !['preserved', 'restoration-pending', 'relinquishment-pending'].includes(String(checkpoint.phase))
+      !['preserved', 'restoration-pending', 'restoration-refresh-pending', 'relinquishment-pending'].includes(
+        String(checkpoint.phase),
+      )
     )
       throw Error('Existing direct retirement attempt requires evidence reconciliation before replay');
     const source = await storage.read(sourceFile);
     checkSource(checkpoint, source);
+    if (checkpoint.phase === 'restoration-refresh-pending') return finishRestoration(source);
     if (checkpoint.phase === 'restoration-pending') {
       const receipt = await storage.read('terraform-direct-restoration-plan.json');
       checkReceipt(receipt, source.restoredConfigurationSha256, 'update');
