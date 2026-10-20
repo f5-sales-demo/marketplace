@@ -8,7 +8,7 @@ and downloaded archive SHA256:
 Independent Mac and Ubuntu receipts each compare all 36 source files and all
 36 installed files against the tag archive. Both installed registries and
 manifests resolve Cloudstatus 1.9.2 with xcsh 23.9.3. Resolved binaries are
-`/opt/homebrew/bin/xcsh` and `/home/robin/.local/bin/xcsh`, respectively.
+`/opt/homebrew/bin/xcsh` and `/home/user/.local/bin/xcsh`, respectively (portable user placeholder).
 These establish artifact and installation provenance, separately from service
 and presentation acceptance. Runtime 23.9.3 remains the latest stable release
 observed on 2026-10-20; minimum 23.5.1 and discovery 23.8.0 remain unchanged.
