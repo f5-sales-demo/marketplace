@@ -30,11 +30,24 @@ installed route recovery, cloud teardown, live preservation, or execution throug
 No checkout-file trace claim is made. The smoke harness initially omitted the required service protocol version;
 that task-owned process was terminated, the protocol corrected, and the check rerun successfully.
 
+## Ubuntu requalification
+
+- Exact source and documentation commits transferred with the verified bundle digest and prerequisite.
+- Bun 1.4.2 on Linux: 45 focused tests and 132 assertions; 1809 broad tests and 11157 assertions.
+- Four compiler checks pass; four runtime builds reproduce the archived bundles byte for byte.
+- Biome checks 455 files; tracker check has 478 assertions; asset/mapping/readiness checks have 44 assertions.
+- Plugin manifests, full Markdown inventory and diff checks pass.
+- Exact archives load with installed xcsh 23.8.0 and 23.9.3: 38 tools and 288 schema mappings each.
+- Public teardown reaches the bound owning session; missing binding rejects before session opening.
+- File traces show zero CE source checkout opens. Synthetic pending-origin drain; no cloud mutation.
+- Initial archive-layout and missing fixture-environment harness errors are retained privately.
+
 ## Open gates
 
 UAT52's exact head failed CI on formatting in the brownfield regression test. UAT53 repairs that formatting
-locally. Ubuntu's home SSH and travel-router jump are unavailable, so no UAT53 push or CI pass is claimed.
-The local Podman Linux VM also failed to start because its gvproxy socket was unavailable.
+locally. Ubuntu SSH recovered and the verified delivery bundle fast-forwarded the owned worktree, preserving
+both source commits. Exact UAT53 CI and installed qualification are tracked separately; no CI pass is claimed.
+The earlier local Podman startup failure is retained as historical evidence.
 
 Preparation interruptions before durable saved-plan persistence and replaced restoration-refresh journals
 still require recovery work. Missing exact receipts fail closed. Installed public route restoration/cloud
