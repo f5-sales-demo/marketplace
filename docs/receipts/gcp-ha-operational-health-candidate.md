@@ -32,8 +32,16 @@ least forty-five seconds apart with unchanged qualification and identities.
 The documented [Site CLI catalogue](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ea-sitecli-ref)
 provides read-only `crictl-ps-a` and `crictl-inspect` commands. Live console
 authentication succeeded after correcting the supplied password. API
-authentication also succeeded. Discovery is in progress; actual node-bound
-request and response mappings and role placement remain unqualified.
+authentication also succeeded. The isolated console uses the documented node-bound `exec-user` POST for
+read-only Site CLI commands. The candidate transport freezes the namespace and
+original node, bounds each attempt to sixty seconds and four MiB, captures failed
+reads privately, and checks ownership before and after successful commands.
+
+All three original nodes have ONLINE registrations and both NIC joins in the
+discovery campaign. Site CLI catalogue, `crictl-ps-a` and `diagnosis` requests
+currently return HTTP 503 on every node while bootstrap upgrades progress.
+Component and inventory reads remain unavailable. Actual runtime response
+mappings and service placement therefore remain unqualified.
 
 Remaining gates are authenticated isolated discovery, independent cleanup,
 upstream contract publication, a second fresh qualification campaign, immutable

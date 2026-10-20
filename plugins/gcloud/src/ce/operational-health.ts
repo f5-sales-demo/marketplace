@@ -297,7 +297,7 @@ export function evaluateGcpOperationalHealth(
               ? 'degraded'
               : 'unknown',
           registration.identitySha256 === node.registrationIdentitySha256
-            ? undefined
+            ? 'registration-not-online-or-invalid'
             : 'registration-identity-mismatch',
         );
       if (registration && registration.identitySha256 !== node.registrationIdentitySha256)
@@ -353,7 +353,8 @@ export function evaluateGcpOperationalHealth(
         if (
           !rows.length ||
           rows.some((r) => !r || typeof r.name !== 'string' || typeof r.state !== 'string') ||
-          new Set(rows.map((r) => r?.name)).size !== rows.length
+          new Set(rows.map((r) => r?.name)).size !== rows.length ||
+          rows.some((r) => !role?.components.includes(String(r?.name)))
         )
           check('components', 'unknown', 'malformed-or-duplicate-component');
         else
@@ -485,7 +486,8 @@ export function evaluateGcpOperationalHealth(
     bindingFingerprint: safeFingerprint(expected),
     nodes,
     reasonCodes: [...reasons],
-    exclusions: profile?.exclusions ?? [],
+    exclusions:
+      profile?.exclusions.map(({ service, evidenceSha256, reason }) => ({ service, evidenceSha256, reason })) ?? [],
     coverage: {
       containers: 'liveness-only',
       siteHealthScores: 'informational',

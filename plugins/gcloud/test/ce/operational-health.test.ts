@@ -224,6 +224,8 @@ it('rejects changed identities, roles, NIC joins, peer joins, stale reads and pr
 });
 it('withholds arbitrary raw and sensitive projection fields from public hashes and output', () => {
   const f = operationalFixture();
+  Object.assign(f.profile.exclusions[0], { privateEvidence: 'PRIVATE' });
+  f.collection.contractFingerprint = fingerprint(f.profile);
   rewrite(f, 'registration', {
     state: 'ONLINE',
     identitySha256: f.binding.nodes[0].registrationIdentitySha256,
@@ -233,4 +235,18 @@ it('withholds arbitrary raw and sensitive projection fields from public hashes a
   const output = evaluate(f);
   expect(output.status).toBe('healthy');
   expect(JSON.stringify(output)).not.toContain('PRIVATE');
+});
+
+it('requires requalification for component coverage drift and gives non-online registrations fixed reasons', () => {
+  const f = operationalFixture();
+  const rows = f.collection.nodes[0].components.projection as Array<{ name: string; state: string }>;
+  rewrite(f, 'components', [...rows, { name: 'new-service', state: 'Ready' }]);
+  expect(evaluate(f).status).toBe('unknown');
+  const g = operationalFixture();
+  rewrite(g, 'registration', { state: 'OFFLINE', identitySha256: g.binding.nodes[0].registrationIdentitySha256 });
+  const result = evaluate(g);
+  expect(result.status).toBe('degraded');
+  expect(result.nodes[0].checks.find((c) => c.check === 'registration')?.reasonCode).toBe(
+    'registration-not-online-or-invalid',
+  );
 });
