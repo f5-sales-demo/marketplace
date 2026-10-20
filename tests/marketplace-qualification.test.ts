@@ -473,10 +473,17 @@ test('reviewed shell cwd admits only an exact existing directory and rejects cha
   try {
     expect(validateScenario(reviewed)).toEqual(reviewed);
     expect(guardScenarioTool({ toolName: 'bash', input: rule.args }, reviewed, root)).toBeUndefined();
-    expect(
-      guardScenarioTool({ toolName: 'bash', input: { ...rule.args, cwd: root } }, reviewed, root),
-    ).toMatchObject({ block: true });
-    for (const target of ['work', '', '/tmp/../tmp', join(root, 'missing'), join(root, 'commands.md'), join(root, 'link')]) {
+    expect(guardScenarioTool({ toolName: 'bash', input: { ...rule.args, cwd: root } }, reviewed, root)).toMatchObject({
+      block: true,
+    });
+    for (const target of [
+      'work',
+      '',
+      '/tmp/../tmp',
+      join(root, 'missing'),
+      join(root, 'commands.md'),
+      join(root, 'link'),
+    ]) {
       const unsafe = { ...reviewed, shellCalls: [{ ...rule, args: { ...rule.args, cwd: target } }] };
       expect(guardScenarioTool({ toolName: 'bash', input: unsafe.shellCalls[0].args }, unsafe, root)).toMatchObject({
         block: true,
