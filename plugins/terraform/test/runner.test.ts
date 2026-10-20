@@ -956,7 +956,7 @@ test('applied-state observation rejects tampered application journal', async () 
 });
 
 test('exact no-change journal permits actual state inspection without submitting an apply', async () => {
-  const { runner, calls } = await fixture({ resource_changes: [], output_changes: {}, applyable: false });
+  const { runner, calls } = await fixture({ resource_changes: [], output_changes: {}, applyable: false }); // codespell:ignore applyable
   const receipt = await runner.plan({});
   expect(receipt.noChanges).toBe(true);
   expect(await runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['id'] }, {})).toEqual({
