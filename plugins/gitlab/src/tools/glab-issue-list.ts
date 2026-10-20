@@ -4,6 +4,7 @@ import { execGlabJson, GlabAuthError } from '../glab/exec';
 import { formatIssueTable } from '../glab/formatters';
 import type { GlabIssue } from '../glab/types';
 import glabIssueListDescription from '../prompts/glab-issue-list.md' with { type: 'text' };
+import { issueListArgs } from './command-args';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
@@ -11,7 +12,11 @@ import { detectErrorType, errorResult, makeExecApi, textResult } from './shared'
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
  * through without spawning the real CLI.
  */
-export function createGlabIssueListTool(pi: PluginHost, makeApi: (cwd: string) => GlabExecApi = makeExecApi) {
+export function createGlabIssueListTool(
+  pi: PluginHost,
+  makeApi: (cwd: string) => GlabExecApi = makeExecApi,
+  resolve = resolveProject,
+) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -60,23 +65,14 @@ export function createGlabIssueListTool(pi: PluginHost, makeApi: (cwd: string) =
       ctx: { cwd: string },
     ) {
       const api = makeApi(ctx.cwd);
-      const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
+      const project = await resolve(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
         return errorResult('No GitLab project configured. Run: xcsh plugin setup gitlab', {
           errorType: 'setup_required',
         });
       }
 
-      const args = ['issue', 'list', '--output', 'json', '--repo', project];
-      if (params.state === 'closed') args.push('--closed');
-      else if (params.state === 'all') args.push('--all');
-      if (params.labels?.length) args.push('--label', params.labels.join(','));
-      if (params.assignee) args.push('--assignee', params.assignee);
-      if (params.search) args.push('--search', params.search);
-      if (params.milestone) args.push('--milestone', params.milestone);
-      if (params.sort) args.push('--order', params.sort);
-      if (params.order) args.push('--sort', params.order);
-      args.push('--per-page', String(Math.min(params.limit ?? 30, 100)));
+      const args = issueListArgs(params, project);
 
       try {
         const issues = await execGlabJson<GlabIssue[]>(api, args, signal);
@@ -85,6 +81,8 @@ export function createGlabIssueListTool(pi: PluginHost, makeApi: (cwd: string) =
           items: issues,
           total: issues.length,
           project,
+          commandArgs: args,
+          limit: Math.min(params.limit ?? 30, 100),
         });
       } catch (err) {
         if (err instanceof GlabAuthError)
