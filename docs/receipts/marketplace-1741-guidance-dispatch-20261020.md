@@ -41,6 +41,18 @@ accepted as final qualification. Final source checks and the corrected installed
 workflow on Ubuntu remain pending because the verified SSH route timed out.
 Raw failures and diagnostic journals remain private.
 
+A resumed Mac run independently passed the same 45 tests and 724 assertions.
+The full marketplace runner was exercised in an isolated copy of this commit,
+with frozen dependency repair and retained Git history for the Salesforce
+ownership regression. It reached every plugin suite but did not pass overall.
+KVM initially lacked PyYAML; its complete fixture suite passed after installing
+CI's exact `PyYAML==6.0.3` in an isolated environment. Xorg's accessibility test
+assumes a locally available `gsettings`, and Zoom setup tests reach the Ubuntu
+platform guard and macOS path-alias differences. Those current Mac failures
+remain recorded; they are not waived or presented as a green full-suite result.
+The hermetic diagnostic passed: 354 tests, 2,394 assertions, zero failures.
+No plugin test depended on a real cloud CLI.
+
 ## Installed qualification
 
 A fresh Ubuntu readiness turn on published 23.9.5 and installed KVM 3.2.1
@@ -73,6 +85,23 @@ An initial inspection named a heading absent from the skill; that failed
 expectation is retained, and the corrected selected-literal check passed.
 All 48 buffers rebuilt exactly from 444 viewport pages, preserving every row
 without omissions or duplication.
+
+## Additional guarded Mac observations
+
+Normal installed `xcsh plugin setup kvm` displayed its declared dependencies,
+environment names, install command, verification command and exact confirmation
+prompt. Entering `cancel` returned the explicit setup-cancelled error without
+running the plan. This CLI observation does not qualify a TUI review matrix.
+Two private attempts to observe the open TUI review did not reach dispatched
+setup and yielded no accepted frames; those failed probes remain private. The
+task-owned runtime process was stopped and the existing task pane returned to
+its shell. No setup confirmation was sent.
+
+An additional guidance-only scenario permitting omitted read options was denied
+when the model supplied `sel: ""` and `timeout: 20`. Its journal records the
+failed guard result and the model's accurate refusal conclusion. It adds no
+accepted guidance evidence and does not alter the already qualified explicit
+option scenario. The failure is preserved; restrictions were not broadened.
 
 ## Remaining delivery and acceptance
 
