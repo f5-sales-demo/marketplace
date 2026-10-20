@@ -29,3 +29,18 @@ Preserve supported SLI control/original freshness dependencies, the six-interfac
 matrix, qualified producer publication before repinning, independent cleanup and scanner convergence.
 Recovery remains failed at 212977 ms versus 45000 ms. Readiness remains false: 288 rows and 300 blockers.
 PR1565 stays draft; normal publication and final UAT acceptance remain pending.
+
+## Read-only installed checkpoint and base repair
+
+Exact UAT54 archives load through isolated installed xcsh 23.8.0 and 23.9.3: 38 tools and 288 schema mappings.
+Public teardown reaches the owning session and rejects missing binding before session opening. File traces
+show zero CE checkout opens. This synthetic pending-origin baseline does not qualify installed route recovery.
+
+Fresh platform capabilities and Azure discovery pass. Azure reports 63 regions, 48 eligible and accepted
+Marketplace image terms. AWS discovery fails on ExpiredToken; all four existing Ubuntu profiles fail STS.
+No cloud mutation occurred. The failed AWS attempt and private traces are retained.
+
+Missing CI runs were traced to conflicts with current main. Changelog entries and both tracker evidence
+histories were preserved. All four CE plugin trees remain identical to the archived source. Incoming KVM
+checks initially used an older dependency pool; its locked xcsh 23.9.5 isolation passes 38 tests / 241 assertions.
+Exact merged-head CI remains a separate gate.

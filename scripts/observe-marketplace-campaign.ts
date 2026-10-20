@@ -185,44 +185,65 @@ export default async function observeMarketplaceCampaign(api: any) {
   const guidanceCaptures: any[] = [];
   const admittedGuidanceCalls = new Map<string, any>();
   const seenGuidanceCalls = new Set<string>();
+  const seenGuidanceStarts = new Set<string>();
+  const seenShellStarts = new Set<string>();
   const consumedShellRules = new Set<number>();
   const admittedShellCalls = new Map<string, any>();
+  const guidanceArgsMatch = (admitted: any, started: any) => {
+    const normalized = { ...started };
+    // Published read dispatch represents omitted optional fields as null.
+    for (const key of ['sel', 'timeout']) if (!(key in admitted) && normalized[key] === null) delete normalized[key];
+    return isDeepStrictEqual(admitted, normalized);
+  };
   api.on('tool_execution_start', (event: any) => {
+    record({ event: 'execution_start', toolName: event.toolName, toolCallId: event.toolCallId, args: event.args });
     if (event.toolName === 'read') {
-      const admitted = admittedGuidanceCalls.get(event.toolCallId);
-      admittedGuidanceCalls.delete(event.toolCallId);
-      if (!admitted || !isDeepStrictEqual(admitted.args, event.args)) return;
-      executions.set(event.toolCallId, {
-        ...event,
-        guidancePath: admitted.path,
-        guidanceSha256: admitted.sha256,
-      });
+      // Core start and wrapper admission can arrive in either order. Join at end.
+      if (typeof event.toolCallId !== 'string' || !event.toolCallId || seenGuidanceStarts.has(event.toolCallId)) return;
+      seenGuidanceStarts.add(event.toolCallId);
+      executions.set(event.toolCallId, { ...event, args: JSON.parse(JSON.stringify(event.args)) });
       return;
     }
     if (event.toolName === 'bash') {
-      const args = admittedShellCalls.get(event.toolCallId);
-      admittedShellCalls.delete(event.toolCallId);
-      if (!args || !isDeepStrictEqual(args, event.args)) return;
+      if (typeof event.toolCallId !== 'string' || !event.toolCallId || seenShellStarts.has(event.toolCallId)) return;
+      seenShellStarts.add(event.toolCallId);
+      executions.set(event.toolCallId, { ...event, args: JSON.parse(JSON.stringify(event.args)) });
+      return;
     }
     executions.set(event.toolCallId, event);
   });
   api.on('tool_execution_end', (event: any) => {
-    record({ event: 'execution_result', toolName: event.toolName, result: event.result, isError: event.isError });
+    record({
+      event: 'execution_result',
+      toolName: event.toolName,
+      toolCallId: event.toolCallId,
+      result: event.result,
+      isError: event.isError,
+    });
     const start = executions.get(event.toolCallId);
-    if (start?.toolName === 'read' && event.toolName === 'read')
+    const admittedShell = admittedShellCalls.get(event.toolCallId);
+    admittedShellCalls.delete(event.toolCallId);
+    const admittedGuidance = admittedGuidanceCalls.get(event.toolCallId);
+    admittedGuidanceCalls.delete(event.toolCallId);
+    if (
+      start?.toolName === 'read' &&
+      event.toolName === 'read' &&
+      admittedGuidance &&
+      guidanceArgsMatch(admittedGuidance.args, start.args)
+    )
       guidanceCaptures.push({
         id: `guidance-${guidanceCaptures.length}-read`,
         tool: 'read',
         args: start.args,
         result: { ...event.result, isError: event.isError },
-        guidancePath: start.guidancePath,
-        guidanceSha256: start.guidanceSha256,
+        guidancePath: admittedGuidance.path,
+        guidanceSha256: admittedGuidance.sha256,
       });
     if (
       start &&
       start.toolName === event.toolName &&
       (tools.has(event.toolName) ||
-        (event.toolName === 'bash' && !guardScenarioTool({ toolName: 'bash', input: start.args }, scenario, plugin)))
+        (event.toolName === 'bash' && admittedShell && isDeepStrictEqual(admittedShell, start.args)))
     )
       captures.push({
         id: `tool-${captures.length}-${event.toolName}`,
