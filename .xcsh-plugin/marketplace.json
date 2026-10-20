@@ -361,13 +361,13 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.5.1",
+      "minimumRuntimeVersion": "23.8.0",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],

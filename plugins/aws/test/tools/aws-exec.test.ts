@@ -273,3 +273,10 @@ describe('aws_help execute', () => {
     expect(r.isError).toBe(true);
   });
 });
+
+it('explicit equals-form output flags are not overridden', () => {
+  for (const flag of ['--output=text', '-o=text']) {
+    const args = ['sts', 'get-caller-identity', flag];
+    expect(buildAwsArgs(args)).toEqual(args);
+  }
+});

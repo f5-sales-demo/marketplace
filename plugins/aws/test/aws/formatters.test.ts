@@ -105,7 +105,7 @@ describe('parseS3LsOutput', () => {
     ].join('\n');
     const objects = parseS3LsOutput(raw);
     expect(objects).toEqual([
-      { key: 'logs/', size: 0, lastModified: '' },
+      { key: 'logs/', size: null, lastModified: '' },
       { key: 'file.txt', size: 1234, lastModified: '2021-01-01 12:00:00' },
       { key: 'dir/nested.json', size: 42, lastModified: '2021-06-15 08:30:59' },
     ]);
@@ -184,4 +184,20 @@ describe('formatInstanceTable', () => {
     // empty name and public IP render as '-'
     expect(out).toContain('| i-1 | - | running |');
   });
+});
+
+it('S3 listings distinguish prefixes from zero-byte objects and preserve exact large sizes and key spaces', () => {
+  expect(
+    parseS3LsOutput(
+      '                           PRE logs/\n2021-01-01 12:00:00 0 empty\n2021-01-01 12:00:00 9007199254740993 key with spaces  ',
+    ),
+  ).toEqual([
+    { key: 'logs/', size: null, lastModified: '' },
+    { key: 'empty', size: 0, lastModified: '2021-01-01 12:00:00' },
+    { key: 'key with spaces  ', size: '9007199254740993', lastModified: '2021-01-01 12:00:00' },
+  ]);
+});
+
+it('malformed nonempty S3 output cannot silently become an empty successful listing', () => {
+  expect(() => parseS3LsOutput('literal corrective guidance')).toThrow('literal corrective guidance');
 });
