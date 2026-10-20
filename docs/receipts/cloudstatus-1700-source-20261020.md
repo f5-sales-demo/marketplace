@@ -41,9 +41,12 @@ independently reviewed exact-script/argument/target lane, then execute the actua
 installed Cloudstatus status operator and its parent workflow with private
 journals. Content-only guidance cannot establish those executed results.
 
-The first Mac repository-wide run retained failures in the pre-fix Cloudstatus
-dataset scan and existing KVM/Xorg/Zoom host-path cases. Retry the corrected
-source and validate the Linux host suites on Ubuntu; retain both runs separately.
+Mac repository-wide logs retain the pre-fix Cloudstatus dataset scan and existing
+KVM/Xorg/Zoom host-path failures; overlapping Mac runs are not a clean final receipt.
+The first Ubuntu full run failed because its default Python lacked PyYAML. A fresh
+run using the same isolated PyYAML 6.0.3 fixture dependency as CI passed every
+plugin suite. Hermeticity, changed-scope privacy and catalog checks also passed on
+Ubuntu. Earlier failures and the separate successful retry remain private.
 Campaign #1579 and child #1592 remain open until every current gate is verified
 or legitimately not applicable. Publication and installed/service receipts must
 reference the final merged source and independently verified stable artifact.
