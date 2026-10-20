@@ -1,8 +1,10 @@
+import { helpArgs } from '../aws/arguments';
 import type { AwsExecApi } from '../aws/exec';
+import { detectAwsError } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import { HELP_PATH_PATTERN } from '../aws/types';
 import awsHelpDescription from '../prompts/aws-help.md' with { type: 'text' };
-import { errorResult, makeExecApi, textResult } from './shared';
+import { detectErrorType, errorResult, makeExecApi, renderError, textResult } from './shared';
 
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
@@ -53,19 +55,21 @@ export function createAwsHelpTool(pi: PluginInterface, makeApi: (cwd: string) =>
 
       const api = makeApi(ctx.cwd);
       // NOTE: aws uses the `help` subcommand, NOT a `--help` flag.
-      const args = [...parts, 'help'];
+      const args = helpArgs(params.command_path);
 
       try {
         const result = await api.exec('aws', args, { signal });
+        if (result.exitCode !== 0) throw detectAwsError(result.stderr || result.stdout, result.exitCode);
         const output = result.stdout || result.stderr;
         if (!output.trim()) {
           return errorResult(`No help output for "aws ${commandPath}".`, { ...base, errorType: 'exec_error' });
         }
         return textResult(output, base);
       } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+        if (err instanceof Error && ['AbortError', 'ToolAbortError'].includes(err.name)) throw err;
+        return errorResult(`Error: ${renderError(err)}`, {
           ...base,
-          errorType: 'exec_error',
+          errorType: detectErrorType(err),
         });
       }
     },

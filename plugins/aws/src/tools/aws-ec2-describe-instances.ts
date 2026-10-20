@@ -1,3 +1,4 @@
+import { instanceArgs } from '../aws/arguments';
 import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson } from '../aws/exec';
 import { formatInstanceTable, normalizeReservations } from '../aws/formatters';
@@ -74,10 +75,7 @@ export function createAwsEc2DescribeInstancesTool(
       }
 
       const api = makeApi(ctx.cwd);
-      const args = ['ec2', 'describe-instances'];
-      if (params.region) args.push('--region', params.region);
-      if (params.instanceIds && params.instanceIds.length > 0) args.push('--instance-ids', ...params.instanceIds);
-      if (params.filters && params.filters.length > 0) args.push('--filters', ...params.filters);
+      const args = instanceArgs(params);
 
       try {
         const raw = await execAwsJson<Record<string, unknown>>(api, args, signal);

@@ -11,7 +11,7 @@ export interface AwsBucket {
 
 export interface AwsS3Object {
   key: string;
-  size: number;
+  size: number | string | null;
   lastModified: string;
 }
 
