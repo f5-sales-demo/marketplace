@@ -444,7 +444,7 @@
     {
       "name": "gitlab",
       "description": "GitLab CLI integration with shared lifecycle readiness, profile discovery, and issue management tools",
-      "version": "1.5.0",
+      "version": "1.5.2",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -469,7 +469,7 @@
     {
       "name": "github",
       "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-      "version": "3.3.0",
+      "version": "3.3.1",
       "author": {
         "name": "f5-sales-demo"
       },

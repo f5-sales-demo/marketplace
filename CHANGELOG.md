@@ -141,6 +141,9 @@ and this project adheres to
   with exact saved-plan apply, final empty destroy and independent absence (#1559).
 - **`terraform`** v2.4.3 loads the isolated CE runner alongside existing CLI integration,
   preserving provider locks, saved-plan identity and deployment ownership.
+- **`gitlab`** v1.5.2 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).
+
+- **`github`** v3.3.1 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
 
 - **`platform`** v6.2.1 shows site identity, twelve-row network tables, exact plan hashes and artifacts, bootstrap scope and unavailable telemetry through shared presentation. Expanded views preserve complete safe evidence once; HTTP operations no longer imply executable CLI commands (#1688).
 
