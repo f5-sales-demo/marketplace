@@ -10,6 +10,7 @@ import {
 import { fingerprint } from './discovery';
 import type { GcpPolicyReceipt } from './policy';
 import { assertPublicTerraformContext } from './terraform-context';
+import { gcpDeploymentLifecycleFingerprint } from './terraform-ha-profile';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
   assertOriginalFirewallInsert,
@@ -194,6 +195,9 @@ export async function planPublicTerraformTeardown(
       engine: 'terraform' as const,
       intentFingerprint: fingerprint(intent),
       apiRelease: contract.release,
+      ...(intent.sites[0].nodes.length === 3
+        ? { lifecycleFingerprint: gcpDeploymentLifecycleFingerprint(intent, contract) }
+        : {}),
       policyReceipt: policy,
       originalAuthorization: original,
       ownershipHash: fingerprint(owned),
@@ -237,6 +241,8 @@ export async function applyPublicTerraformTeardown(
       fingerprint(body) !== approvedHash ||
       plan.intentFingerprint !== fingerprint(intent) ||
       fingerprint(plan.apiRelease) !== fingerprint(contract.release) ||
+      plan.lifecycleFingerprint !==
+        (intent.sites[0].nodes.length === 3 ? gcpDeploymentLifecycleFingerprint(intent, contract) : undefined) ||
       plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
     )
       throw new Error('Reviewed cleanup binding changed');

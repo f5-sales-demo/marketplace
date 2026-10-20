@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto';
 import { fingerprint } from './discovery';
 import type { OperationalProfile, OperationalReleaseQualification } from './operational-health';
 import { GCP_OPERATIONAL_RELEASE_PIN, resolveGcpOperationalRelease } from './operational-release';
+import { type GcpTerraformHaProfile, qualifiedGcpTerraformHaProfile } from './terraform-ha-profile';
 
 export interface GcpOperationalContract {
   profile: OperationalProfile;
   contractFingerprint: string;
   qualification: OperationalReleaseQualification;
   qualificationFingerprint: string;
+  terraformHaLifecycle?: GcpTerraformHaProfile;
 }
 
 export const GCP_CE_API_RELEASE = {
@@ -33,6 +35,7 @@ export interface GcpCeContractBoundary {
   operationalHealthContract?: GcpOperationalContract;
   operationalHealthExpected?: { contractFingerprint: string; qualificationFingerprint: string };
   singleNodeLifecycle?: Record<string, unknown>;
+  terraformHaLifecycle?: GcpTerraformHaProfile;
 }
 /** Bind read-only HA paths to the exact owning immutable schema asset. */
 export function qualifiedGcpHaObservationMappings(assets: unknown): GcpCeContractBoundary['haObservations'] {
@@ -152,6 +155,13 @@ export async function resolveGcpContract(
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
     ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    // The compiled verified lifecycle pin remains usable for owned cleanup when health reads fail.
+    ...(GCP_OPERATIONAL_RELEASE_PIN?.terraformHaLifecycle &&
+    qualifiedGcpTerraformHaProfile(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) &&
+    fingerprint(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) ===
+      GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycleFingerprint
+      ? { terraformHaLifecycle: structuredClone(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) }
+      : {}),
     ...(GCP_OPERATIONAL_RELEASE_PIN
       ? {
           operationalHealthExpected: {

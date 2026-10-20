@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { fingerprint } from '../../src/ce/discovery';
 import { type GcpOperationalReleasePin, resolveGcpOperationalRelease } from '../../src/ce/operational-release';
 import { operationalFixture } from './operational-health.test';
+import { terraformHaProfileFixture } from './terraform-ha-profile.test';
 
 function fixture() {
   const f = operationalFixture();
@@ -102,4 +103,21 @@ it('failed release reads never supply a prior qualification', async () => {
       f.profile.sourceHashes,
     ),
   ).rejects.toThrow('unavailable');
+});
+
+it('verifies the lifecycle asset against its compiled pin before enabling HA admission', async () => {
+  const f = fixture(),
+    lifecycle = terraformHaProfileFixture().profile;
+  lifecycle.operationalContractFingerprint = f.pin.contractFingerprint;
+  f.pin.terraformHaLifecycle = lifecycle;
+  f.pin.terraformHaLifecycleFingerprint = fingerprint(lifecycle);
+  Object.assign(f.qualification, { terraformHaLifecycle: lifecycle });
+  f.bodies['gcp-operational-qualification-v2.json'] = JSON.stringify(f.qualification);
+  f.pin.qualificationFingerprint = fingerprint(f.qualification);
+  f.pin.qualificationAssetDigest = `sha256:${createHash('sha256').update(f.bodies['gcp-operational-qualification-v2.json']).digest('hex')}`;
+  f.release.assets.find((a) => a.name === 'gcp-operational-qualification-v2.json')!.digest =
+    f.pin.qualificationAssetDigest;
+  expect((await f.resolve())?.terraformHaLifecycle).toEqual(lifecycle);
+  f.pin.terraformHaLifecycle = { ...lifecycle, lifecycleEvidenceSha256: fingerprint({ changed: true }) };
+  await expect(f.resolve()).rejects.toThrow('lifecycle qualification');
 });

@@ -19,6 +19,7 @@ import { type GcpPolicyReceipt, readGcpCePolicy } from './policy';
 import { collectGcpLaunchPreflight, type GcpLaunchPreflight } from './preflight';
 import { createGcpPreflightPort } from './preflight-port';
 import type { GcpQualificationGates } from './qualification-gates';
+import { assertGcpTerraformHaProfile } from './terraform-ha-profile';
 import type { GcpCeDiscovery, GcpCeIntent } from './types';
 
 /** Dependencies are implementation ports. They are never exposed as tool arguments. */
@@ -89,6 +90,7 @@ export async function collectGcpDeploymentPrerequisites(
   if (engine === 'native') profile(intent, boundary, platform);
   else {
     assertGcpTeardownProfile(intent, boundary, 'terraform');
+    if (intent.sites[0].nodes.length === 3) assertGcpTerraformHaProfile(intent, boundary, true);
     if (
       intent.operation !== 'deploy' ||
       intent.machineType !== 'n2-standard-8' ||

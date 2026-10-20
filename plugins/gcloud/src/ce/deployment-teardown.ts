@@ -15,6 +15,7 @@ import {
 } from './ownership';
 import type { GcpPolicyReceipt } from './policy';
 import { planGcpOwnedTeardown } from './teardown-plan';
+import { assertGcpTerraformHaProfile } from './terraform-ha-profile';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
@@ -25,11 +26,13 @@ export function assertGcpTeardownProfile(
 ) {
   validateIntent(intent);
   if (intent.engine !== engine) throw new Error(`Teardown requires owning engine ${engine}`);
+  const ha = engine === 'terraform' && intent.sites.length === 1 && intent.sites[0].nodes.length === 3;
+  if (ha) assertGcpTerraformHaProfile(intent, contract);
   if (!contract.singleNodeLifecycle || fingerprint(contract.release) !== fingerprint(GCP_CE_API_RELEASE))
     throw new Error('Qualified immutable teardown contract required');
   if (
     intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 1 ||
+    (!ha && intent.sites[0].nodes.length !== 1) ||
     intent.sites[0].nodes[0].interfaces.length !== 2 ||
     intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
     intent.egress.mode !== 'external-ip' ||

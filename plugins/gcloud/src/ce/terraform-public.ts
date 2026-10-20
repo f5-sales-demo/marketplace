@@ -2,11 +2,13 @@ import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { PlanReceipt } from '../../../terraform/src/runner';
+import type { GcpCeContractBoundary } from './contract';
 import { collectGcpDeploymentPrerequisites, fundingBinding, type GcpDeploymentSources } from './deployment-review';
 import { assertGcpTeardownProfile } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import { recordGcpResource } from './ownership';
 import { assertPublicTerraformContext } from './terraform-context';
+import { assertGcpTerraformHaProfile, gcpDeploymentLifecycleFingerprint } from './terraform-ha-profile';
 import {
   inspectPublicTerraformOwnership,
   type PublicTerraformOwnership,
@@ -25,7 +27,11 @@ export async function readOptional<T>(runtime: GcpTerraformTeardownRuntime, name
     throw error;
   }
 }
-async function sessionBinding(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+async function sessionBinding(
+  runtime: GcpTerraformTeardownRuntime,
+  intent: GcpCeIntent,
+  boundary: GcpCeContractBoundary,
+) {
   const saved = (await runtime.store.read('gcp-terraform-session-inputs.json')) as {
     schemaVersion: number;
     inputs: GcpTerraformInputs;
@@ -48,6 +54,14 @@ async function sessionBinding(runtime: GcpTerraformTeardownRuntime, intent: GcpC
     !runtime.session.readConfigurationSha256
   )
     throw new Error('Original public Terraform input binding differs');
+  if (intent.sites[0].nodes.length === 3) {
+    const profile = assertGcpTerraformHaProfile(intent, boundary);
+    if (
+      fingerprint(saved.inputs.versions) !== fingerprint(profile.versions) ||
+      saved.inputs.expectedLockSha256 !== profile.providerLockSha256
+    )
+      throw new Error('Qualified Terraform HA provider versions or lock differ');
+  }
   return {
     platformContextHash: await assertPublicTerraformContext(runtime, intent),
     inputHash: fingerprint(saved),
@@ -85,7 +99,7 @@ export async function planPublicTerraformDeployment(
       },
       signal,
     );
-    const binding = await sessionBinding(runtime, intent);
+    const binding = await sessionBinding(runtime, intent, current.boundary);
     const receipt = await runtime.session.plan(runtime.environment, signal);
     assertGcpTerraformOwnedTransition(intent, receipt, 'deploy', publicTerraformAddresses(intent));
     if (
@@ -101,7 +115,13 @@ export async function planPublicTerraformDeployment(
       platformContext: intent.platformContext,
       apiRelease: current.boundary.release,
       contractFingerprint: current.boundary.fingerprint,
-      lifecycleFingerprint: fingerprint(current.boundary.singleNodeLifecycle),
+      lifecycleFingerprint: gcpDeploymentLifecycleFingerprint(intent, current.boundary),
+      ...(intent.sites[0].nodes.length === 3
+        ? {
+            operationalContractFingerprint: current.boundary.operationalHealthContract?.contractFingerprint,
+            operationalQualificationFingerprint: current.boundary.operationalHealthContract?.qualificationFingerprint,
+          }
+        : {}),
       policyReceipt: current.policy,
       funding: fundingBinding(current.funding),
       byolAuthorizationHash: current.byol.authorizationHash,
@@ -205,8 +225,14 @@ export async function applyPublicTerraformDeployment(
       plan.platformContext !== intent.platformContext ||
       fingerprint(plan.apiRelease) !== fingerprint(boundary.release) ||
       plan.contractFingerprint !== boundary.fingerprint ||
-      plan.lifecycleFingerprint !== fingerprint(boundary.singleNodeLifecycle) ||
-      fingerprint(plan.binding) !== fingerprint(await sessionBinding(runtime, intent))
+      plan.lifecycleFingerprint !== gcpDeploymentLifecycleFingerprint(intent, boundary) ||
+      plan.operationalContractFingerprint !==
+        (intent.sites[0].nodes.length === 3 ? boundary.operationalHealthContract?.contractFingerprint : undefined) ||
+      plan.operationalQualificationFingerprint !==
+        (intent.sites[0].nodes.length === 3
+          ? boundary.operationalHealthContract?.qualificationFingerprint
+          : undefined) ||
+      fingerprint(plan.binding) !== fingerprint(await sessionBinding(runtime, intent, boundary))
     )
       throw new Error('Reviewed Terraform deployment bindings changed');
     assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'deploy', publicTerraformAddresses(intent));
@@ -251,7 +277,8 @@ export async function applyPublicTerraformDeployment(
       current.policy.normalizedSha256 !== plan.policyReceipt.normalizedSha256 ||
       fingerprint(fundingBinding(current.funding)) !== fingerprint(plan.funding) ||
       current.byol.authorizationHash !== plan.byolAuthorizationHash ||
-      current.boundary.fingerprint !== plan.contractFingerprint
+      current.boundary.fingerprint !== plan.contractFingerprint ||
+      gcpDeploymentLifecycleFingerprint(intent, current.boundary) !== plan.lifecycleFingerprint
     )
       throw new Error('Reviewed prerequisites/funding/BYOL changed');
     signal?.throwIfAborted();

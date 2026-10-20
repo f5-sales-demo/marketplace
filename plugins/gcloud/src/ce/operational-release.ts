@@ -3,6 +3,7 @@ import type { GcpOperationalContract } from './contract';
 import { fingerprint } from './discovery';
 import { qualifiedOperationalProfile, qualifiedOperationalRelease } from './operational-health';
 import sourceHashes from './operational-source-hashes.json';
+import { type GcpTerraformHaProfile, qualifiedGcpTerraformHaProfile } from './terraform-ha-profile';
 
 export interface GcpOperationalReleasePin {
   tag: string;
@@ -11,6 +12,8 @@ export interface GcpOperationalReleasePin {
   contractFingerprint: string;
   qualificationAssetDigest: string;
   qualificationFingerprint: string;
+  terraformHaLifecycle?: GcpTerraformHaProfile;
+  terraformHaLifecycleFingerprint?: string;
 }
 /** Populated only after fresh private qualification and immutable upstream publication. */
 export const GCP_OPERATIONAL_RELEASE_PIN: GcpOperationalReleasePin | undefined = undefined;
@@ -104,10 +107,19 @@ export async function resolveGcpOperationalRelease(
     throw new Error('Operational profile or qualification differs');
   if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
     throw new Error('Operational parser source drift requires explicit requalification');
+  if (
+    (pin.terraformHaLifecycle !== undefined || pin.terraformHaLifecycleFingerprint !== undefined) &&
+    (!qualifiedGcpTerraformHaProfile(pin.terraformHaLifecycle) ||
+      pin.terraformHaLifecycle.operationalContractFingerprint !== pin.contractFingerprint ||
+      fingerprint(pin.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint ||
+      fingerprint(qualification.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint)
+  )
+    throw new Error('Operational lifecycle qualification differs');
   return {
     profile,
     contractFingerprint: pin.contractFingerprint,
     qualification,
     qualificationFingerprint: pin.qualificationFingerprint,
+    ...(pin.terraformHaLifecycle ? { terraformHaLifecycle: structuredClone(pin.terraformHaLifecycle) } : {}),
   };
 }

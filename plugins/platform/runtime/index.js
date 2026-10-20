@@ -656,7 +656,7 @@ function canonical5(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-function hash4(value) {
+function hash5(value) {
   return createHash14('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
@@ -678,7 +678,7 @@ function createSitePlan(request) {
     config: request.config ?? null,
     expectedEtag: request.expectedEtag ?? null,
   };
-  const planSha256 = hash4(draft);
+  const planSha256 = hash5(draft);
   return { ...draft, planId: `f5xc-ce-v2-${planSha256.slice(0, 24)}`, planSha256 };
 }
 function createF5xcCeV2SiteTool(pi, makeDriver = createDefaultCeV2Driver) {
@@ -1421,6 +1421,31 @@ var operational_source_hashes_default = {
   evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
 };
 
+// plugins/gcloud/src/ce/terraform-ha-profile.ts
+var hash = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
+function qualifiedGcpTerraformHaProfile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const p = value;
+  return (
+    Object.keys(p).sort().join(',') ===
+      'diskGiB,imageIdentitySha256,lifecycleEvidenceSha256,machineType,operationalContractFingerprint,providerLockSha256,region,schemaVersion,scope,versions,zones' &&
+    Array.isArray(p.zones) &&
+    !!p.versions &&
+    typeof p.versions === 'object' &&
+    p.schemaVersion === 2 &&
+    p.scope === 'original-three-node-terraform-ha' &&
+    p.region === 'northamerica-northeast1' &&
+    fingerprint(p.zones) ===
+      fingerprint(['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c']) &&
+    p.machineType === 'n2-standard-8' &&
+    p.diskGiB === 80 &&
+    fingerprint(p.versions) === fingerprint({ terraform: '1.16.6', google: '8.7.0', xcsh: '15.13.0' }) &&
+    [p.imageIdentitySha256, p.providerLockSha256, p.operationalContractFingerprint, p.lifecycleEvidenceSha256].every(
+      hash,
+    )
+  );
+}
+
 // plugins/gcloud/src/ce/operational-release.ts
 var GCP_OPERATIONAL_RELEASE_PIN;
 var repository = 'f5-sales-demo/api-specs-enriched';
@@ -1509,11 +1534,20 @@ async function resolveGcpOperationalRelease(
     throw new Error('Operational profile or qualification differs');
   if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
     throw new Error('Operational parser source drift requires explicit requalification');
+  if (
+    (pin.terraformHaLifecycle !== undefined || pin.terraformHaLifecycleFingerprint !== undefined) &&
+    (!qualifiedGcpTerraformHaProfile(pin.terraformHaLifecycle) ||
+      pin.terraformHaLifecycle.operationalContractFingerprint !== pin.contractFingerprint ||
+      fingerprint(pin.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint ||
+      fingerprint(qualification.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint)
+  )
+    throw new Error('Operational lifecycle qualification differs');
   return {
     profile,
     contractFingerprint: pin.contractFingerprint,
     qualification,
     qualificationFingerprint: pin.qualificationFingerprint,
+    ...(pin.terraformHaLifecycle ? { terraformHaLifecycle: structuredClone(pin.terraformHaLifecycle) } : {}),
   };
 }
 
@@ -1635,6 +1669,12 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
     ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN?.terraformHaLifecycle &&
+    qualifiedGcpTerraformHaProfile(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) &&
+    fingerprint(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) ===
+      GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycleFingerprint
+      ? { terraformHaLifecycle: structuredClone(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) }
+      : {}),
     ...(GCP_OPERATIONAL_RELEASE_PIN
       ? {
           operationalHealthExpected: {
@@ -2145,7 +2185,7 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash = (value) => createHash6('sha256').update(canonical(value)).digest('hex');
+var hash2 = (value) => createHash6('sha256').update(canonical(value)).digest('hex');
 var same = (a, b) => canonical(a) === canonical(b);
 var uid = (value) => {
   const result = object6(value.system_metadata).uid;
@@ -2318,7 +2358,7 @@ class CeIngressLifecycle {
         observedAt: new Date().toISOString(),
         material,
       };
-      const sha256 = hash(draft);
+      const sha256 = hash2(draft);
       const id = sha256.slice(0, 24);
       const plan = { ...draft, id, sha256, request: material.request };
       await this.storage.write(`ingress-plan-${id}.json`, plan);
@@ -2333,7 +2373,7 @@ class CeIngressLifecycle {
       savedId !== id ||
       draft.schemaVersion !== 1 ||
       draft.kind !== 'ce-inside-http-ingress' ||
-      hash(draft) !== sha256 ||
+      hash2(draft) !== sha256 ||
       sha256.slice(0, 24) !== id ||
       !same(request, draft.material.request) ||
       !same(draft.material.owner, this.storage.owner) ||
@@ -2952,7 +2992,7 @@ function canonical3(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash2 = (value) => createHash8('sha256').update(canonical3(value)).digest('hex');
+var hash3 = (value) => createHash8('sha256').update(canonical3(value)).digest('hex');
 var name2 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text = (value) => typeof value === 'string' && !!value.trim();
 var list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
@@ -3035,7 +3075,7 @@ async function drainCePlatform(input, store, port, signal) {
   validate(plan, store, port);
   signal?.throwIfAborted();
   await store.verify();
-  const sha256 = hash2(plan);
+  const sha256 = hash3(plan);
   let saved;
   try {
     saved = await store.read('platform-drain-source.json');
@@ -7916,7 +7956,7 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash3 = (bytes) => `sha256:${createHash13('sha256').update(bytes).digest('hex')}`;
+var hash4 = (bytes) => `sha256:${createHash13('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
 function object23(value) {
@@ -7964,7 +8004,7 @@ class VerifiedCeContract {
       const response = await fetcher(`${publishedBase}/${name}`, { signal });
       if (!response.ok) throw new Error('Published SMSv2 contract asset download failed');
       const bytes = new Uint8Array(await response.arrayBuffer());
-      if (hash3(bytes) !== publishedAssets[name]) throw new Error('Published SMSv2 contract asset checksum mismatch');
+      if (hash4(bytes) !== publishedAssets[name]) throw new Error('Published SMSv2 contract asset checksum mismatch');
       return parse2(bytes);
     };
     const [contract, manifest, evidence] = await Promise.all([

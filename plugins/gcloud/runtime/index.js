@@ -2012,6 +2012,78 @@ var init_operational_source_hashes = __esm(() => {
   };
 });
 
+// plugins/gcloud/src/ce/terraform-ha-profile.ts
+function qualifiedGcpTerraformHaProfile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const p = value;
+  return (
+    Object.keys(p).sort().join(',') ===
+      'diskGiB,imageIdentitySha256,lifecycleEvidenceSha256,machineType,operationalContractFingerprint,providerLockSha256,region,schemaVersion,scope,versions,zones' &&
+    Array.isArray(p.zones) &&
+    !!p.versions &&
+    typeof p.versions === 'object' &&
+    p.schemaVersion === 2 &&
+    p.scope === 'original-three-node-terraform-ha' &&
+    p.region === 'northamerica-northeast1' &&
+    fingerprint(p.zones) ===
+      fingerprint(['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c']) &&
+    p.machineType === 'n2-standard-8' &&
+    p.diskGiB === 80 &&
+    fingerprint(p.versions) === fingerprint({ terraform: '1.16.6', google: '8.7.0', xcsh: '15.13.0' }) &&
+    [p.imageIdentitySha256, p.providerLockSha256, p.operationalContractFingerprint, p.lifecycleEvidenceSha256].every(
+      hash,
+    )
+  );
+}
+function assertGcpTerraformHaProfile(intent, boundary, deployment = false) {
+  const p = boundary.terraformHaLifecycle;
+  const contract = boundary.operationalHealthContract;
+  const expected = boundary.operationalHealthExpected;
+  if (
+    !qualifiedGcpTerraformHaProfile(p) ||
+    p.operationalContractFingerprint !== (contract?.contractFingerprint ?? expected?.contractFingerprint) ||
+    !hash(contract?.qualificationFingerprint ?? expected?.qualificationFingerprint) ||
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.region !== p.region ||
+    intent.machineType !== p.machineType ||
+    intent.diskGiB !== p.diskGiB ||
+    fingerprint(intent.image) !== p.imageIdentitySha256 ||
+    fingerprint(intent.sites[0].nodes.map((n) => n.zone).sort()) !== fingerprint(p.zones) ||
+    intent.sites[0].nodes.some(
+      (n) => n.interfaces.length !== 2 || n.interfaces[0].role !== 'slo' || n.interfaces[1].role !== 'sli',
+    )
+  )
+    throw new Error('Qualified immutable Terraform HA lifecycle scope required');
+  if (
+    deployment &&
+    (!contract ||
+      !qualifiedOperationalRelease(
+        contract.qualification,
+        contract.qualificationFingerprint,
+        contract.contractFingerprint,
+      ))
+  )
+    throw new Error('Qualified operational release required for Terraform HA deployment');
+  return p;
+}
+function gcpDeploymentLifecycleFingerprint(intent, boundary) {
+  if (intent.sites[0]?.nodes.length !== 3) return fingerprint(boundary.singleNodeLifecycle);
+  const profile = assertGcpTerraformHaProfile(intent, boundary);
+  return fingerprint({
+    profile,
+    operationalQualificationFingerprint:
+      boundary.operationalHealthContract?.qualificationFingerprint ??
+      boundary.operationalHealthExpected?.qualificationFingerprint,
+  });
+}
+var hash = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
+var init_terraform_ha_profile = __esm(() => {
+  init_discovery();
+  init_operational_health();
+});
+
 // plugins/gcloud/src/ce/operational-release.ts
 import { createHash as createHash2 } from 'node:crypto';
 
@@ -2100,11 +2172,20 @@ async function resolveGcpOperationalRelease(
     throw new Error('Operational profile or qualification differs');
   if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
     throw new Error('Operational parser source drift requires explicit requalification');
+  if (
+    (pin.terraformHaLifecycle !== undefined || pin.terraformHaLifecycleFingerprint !== undefined) &&
+    (!qualifiedGcpTerraformHaProfile(pin.terraformHaLifecycle) ||
+      pin.terraformHaLifecycle.operationalContractFingerprint !== pin.contractFingerprint ||
+      fingerprint(pin.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint ||
+      fingerprint(qualification.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint)
+  )
+    throw new Error('Operational lifecycle qualification differs');
   return {
     profile,
     contractFingerprint: pin.contractFingerprint,
     qualification,
     qualificationFingerprint: pin.qualificationFingerprint,
+    ...(pin.terraformHaLifecycle ? { terraformHaLifecycle: structuredClone(pin.terraformHaLifecycle) } : {}),
   };
 }
 var GCP_OPERATIONAL_RELEASE_PIN,
@@ -2113,6 +2194,7 @@ var init_operational_release = __esm(() => {
   init_discovery();
   init_operational_health();
   init_operational_source_hashes();
+  init_terraform_ha_profile();
 });
 
 // plugins/gcloud/src/ce/contract.ts
@@ -2230,6 +2312,12 @@ async function resolveGcpContract(fetcher = fetch, signal) {
       : 'gcp_provider_not_published',
     ...(observations ? { observations } : {}),
     ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN?.terraformHaLifecycle &&
+    qualifiedGcpTerraformHaProfile(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) &&
+    fingerprint(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) ===
+      GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycleFingerprint
+      ? { terraformHaLifecycle: structuredClone(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) }
+      : {}),
     ...(GCP_OPERATIONAL_RELEASE_PIN
       ? {
           operationalHealthExpected: {
@@ -2253,6 +2341,7 @@ var GCP_CE_API_RELEASE;
 var init_contract = __esm(() => {
   init_discovery();
   init_operational_release();
+  init_terraform_ha_profile();
   GCP_CE_API_RELEASE = {
     repository: 'f5-sales-demo/api-specs-enriched',
     tag: 'v12.1.3',
@@ -3009,11 +3098,13 @@ import { join as join3 } from 'node:path';
 function assertGcpTeardownProfile(intent, contract, engine = 'native') {
   validateIntent(intent);
   if (intent.engine !== engine) throw new Error(`Teardown requires owning engine ${engine}`);
+  const ha = engine === 'terraform' && intent.sites.length === 1 && intent.sites[0].nodes.length === 3;
+  if (ha) assertGcpTerraformHaProfile(intent, contract);
   if (!contract.singleNodeLifecycle || fingerprint(contract.release) !== fingerprint(GCP_CE_API_RELEASE))
     throw new Error('Qualified immutable teardown contract required');
   if (
     intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 1 ||
+    (!ha && intent.sites[0].nodes.length !== 1) ||
     intent.sites[0].nodes[0].interfaces.length !== 2 ||
     intent.sites[0].nodes[0].interfaces[1].role !== 'sli' ||
     intent.egress.mode !== 'external-ip' ||
@@ -3339,6 +3430,7 @@ var init_deployment_teardown = __esm(() => {
   init_native_teardown();
   init_ownership();
   init_teardown_plan();
+  init_terraform_ha_profile();
   init_validation();
 });
 
@@ -5508,6 +5600,7 @@ async function collectGcpDeploymentPrerequisites(platform, intent, sources, sign
   if (engine === 'native') profile(intent, boundary, platform);
   else {
     assertGcpTeardownProfile(intent, boundary, 'terraform');
+    if (intent.sites[0].nodes.length === 3) assertGcpTerraformHaProfile(intent, boundary, true);
     if (
       intent.operation !== 'deploy' ||
       intent.machineType !== 'n2-standard-8' ||
@@ -5761,6 +5854,7 @@ var init_deployment_review = __esm(() => {
   init_policy();
   init_preflight();
   init_preflight_port();
+  init_terraform_ha_profile();
 });
 
 // plugins/gcloud/src/ce/marketplace-agreement.ts
@@ -7233,6 +7327,9 @@ async function planPublicTerraformTeardown(runtime, intent, contract, policy, si
       engine: 'terraform',
       intentFingerprint: fingerprint(intent),
       apiRelease: contract.release,
+      ...(intent.sites[0].nodes.length === 3
+        ? { lifecycleFingerprint: gcpDeploymentLifecycleFingerprint(intent, contract) }
+        : {}),
       policyReceipt: policy,
       originalAuthorization: original,
       ownershipHash: fingerprint(owned),
@@ -7265,6 +7362,8 @@ async function applyPublicTerraformTeardown(runtime, intent, contract, policy, a
       fingerprint(body) !== approvedHash ||
       plan.intentFingerprint !== fingerprint(intent) ||
       fingerprint(plan.apiRelease) !== fingerprint(contract.release) ||
+      plan.lifecycleFingerprint !==
+        (intent.sites[0].nodes.length === 3 ? gcpDeploymentLifecycleFingerprint(intent, contract) : undefined) ||
       plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
     )
       throw new Error('Reviewed cleanup binding changed');
@@ -7369,6 +7468,7 @@ var init_terraform_public_teardown = __esm(() => {
   init_deployment_teardown();
   init_discovery();
   init_terraform_context();
+  init_terraform_ha_profile();
   init_terraform_public();
   init_terraform_public_ownership();
   init_terraform_teardown();
@@ -7385,7 +7485,7 @@ async function readOptional(runtime, name) {
     throw error;
   }
 }
-async function sessionBinding(runtime, intent) {
+async function sessionBinding(runtime, intent, boundary) {
   const saved = await runtime.store.read('gcp-terraform-session-inputs.json');
   const identity = await runtime.store.read('gcp-terraform-input-identity.json');
   if (
@@ -7400,6 +7500,14 @@ async function sessionBinding(runtime, intent) {
     !runtime.session.readConfigurationSha256
   )
     throw new Error('Original public Terraform input binding differs');
+  if (intent.sites[0].nodes.length === 3) {
+    const profile = assertGcpTerraformHaProfile(intent, boundary);
+    if (
+      fingerprint(saved.inputs.versions) !== fingerprint(profile.versions) ||
+      saved.inputs.expectedLockSha256 !== profile.providerLockSha256
+    )
+      throw new Error('Qualified Terraform HA provider versions or lock differ');
+  }
   return {
     platformContextHash: await assertPublicTerraformContext(runtime, intent),
     inputHash: fingerprint(saved),
@@ -7431,7 +7539,7 @@ async function planPublicTerraformDeployment(runtime, platform, intent, sources,
       },
       signal,
     );
-    const binding = await sessionBinding(runtime, intent);
+    const binding = await sessionBinding(runtime, intent, current.boundary);
     const receipt = await runtime.session.plan(runtime.environment, signal);
     assertGcpTerraformOwnedTransition(intent, receipt, 'deploy', publicTerraformAddresses(intent));
     if (
@@ -7447,7 +7555,13 @@ async function planPublicTerraformDeployment(runtime, platform, intent, sources,
       platformContext: intent.platformContext,
       apiRelease: current.boundary.release,
       contractFingerprint: current.boundary.fingerprint,
-      lifecycleFingerprint: fingerprint(current.boundary.singleNodeLifecycle),
+      lifecycleFingerprint: gcpDeploymentLifecycleFingerprint(intent, current.boundary),
+      ...(intent.sites[0].nodes.length === 3
+        ? {
+            operationalContractFingerprint: current.boundary.operationalHealthContract?.contractFingerprint,
+            operationalQualificationFingerprint: current.boundary.operationalHealthContract?.qualificationFingerprint,
+          }
+        : {}),
       policyReceipt: current.policy,
       funding: fundingBinding(current.funding),
       byolAuthorizationHash: current.byol.authorizationHash,
@@ -7523,8 +7637,14 @@ async function applyPublicTerraformDeployment(runtime, platform, intent, approve
       plan.platformContext !== intent.platformContext ||
       fingerprint(plan.apiRelease) !== fingerprint(boundary.release) ||
       plan.contractFingerprint !== boundary.fingerprint ||
-      plan.lifecycleFingerprint !== fingerprint(boundary.singleNodeLifecycle) ||
-      fingerprint(plan.binding) !== fingerprint(await sessionBinding(runtime, intent))
+      plan.lifecycleFingerprint !== gcpDeploymentLifecycleFingerprint(intent, boundary) ||
+      plan.operationalContractFingerprint !==
+        (intent.sites[0].nodes.length === 3 ? boundary.operationalHealthContract?.contractFingerprint : undefined) ||
+      plan.operationalQualificationFingerprint !==
+        (intent.sites[0].nodes.length === 3
+          ? boundary.operationalHealthContract?.qualificationFingerprint
+          : undefined) ||
+      fingerprint(plan.binding) !== fingerprint(await sessionBinding(runtime, intent, boundary))
     )
       throw new Error('Reviewed Terraform deployment bindings changed');
     assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'deploy', publicTerraformAddresses(intent));
@@ -7566,7 +7686,8 @@ async function applyPublicTerraformDeployment(runtime, platform, intent, approve
       current.policy.normalizedSha256 !== plan.policyReceipt.normalizedSha256 ||
       fingerprint(fundingBinding(current.funding)) !== fingerprint(plan.funding) ||
       current.byol.authorizationHash !== plan.byolAuthorizationHash ||
-      current.boundary.fingerprint !== plan.contractFingerprint
+      current.boundary.fingerprint !== plan.contractFingerprint ||
+      gcpDeploymentLifecycleFingerprint(intent, current.boundary) !== plan.lifecycleFingerprint
     )
       throw new Error('Reviewed prerequisites/funding/BYOL changed');
     signal?.throwIfAborted();
@@ -7674,6 +7795,7 @@ var init_terraform_public = __esm(() => {
   init_discovery();
   init_ownership();
   init_terraform_context();
+  init_terraform_ha_profile();
   init_terraform_public_ownership();
   init_terraform_public_teardown();
   init_terraform_teardown();

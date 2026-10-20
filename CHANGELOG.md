@@ -14,7 +14,9 @@ and this project adheres to
   collector for public Terraform ownership, persist complete original placement
   once, and verify immutable profile, qualification and parser identities.
   Unavailable qualification returns scoped v2 unknown; failed reads preserve
-  known failures. The release pin and public HA admission await fresh live
+  known failures. Terraform HA reviews bind lifecycle and health fingerprints;
+  the fixed profile requires qualified image/provider pins and permits cleanup
+  without live health collection. The release pin and public HA admission await fresh live
   qualification (#1559).
 
 - **`aws` 2.3.3** uses a placeholder account in the presentation fixture so

@@ -9,8 +9,8 @@ it('HA ownership preparation cannot admit public deployment or cleanup through t
   const f = await fixture();
   const node = f.i.sites[0].nodes[0];
   f.i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
-  await expect(planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources)).rejects.toThrow('single-node');
-  await expect(planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy)).rejects.toThrow('single-node');
+  await expect(planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources)).rejects.toThrow('HA lifecycle');
+  await expect(planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy)).rejects.toThrow('HA lifecycle');
   expect(f.applies()).toBe(0);
   expect(f.followPlans()).toBe(0);
 });
