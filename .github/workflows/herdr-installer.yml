@@ -39,6 +39,8 @@ jobs:
       - name: Run hermetic installer and probe tests
         run: bun test plugins/herdr/test
       - name: Run stable-channel installer smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash plugins/herdr/test/install-unix-live-smoke.sh
 
   windows:
@@ -51,4 +53,6 @@ jobs:
           persist-credentials: false
       - name: Run manifest, checksum, activation, and idempotence smoke
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./plugins/herdr/test/install-windows-smoke.ps1

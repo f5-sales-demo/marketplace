@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import { presentTool as enrichTool } from './presentation';
 import type { PluginHost } from './tools/plugin-host';
@@ -62,6 +63,8 @@ type GitLabHost = PluginHost &
     on: NonNullable<PluginHost['on']>;
   };
 
+const bakedDesktop = () => existsSync('/etc/pi-desktop/desktop-lock.json');
+
 const factory = async (pi: GitLabHost) => {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('GitLab');
@@ -86,7 +89,7 @@ const factory = async (pi: GitLabHost) => {
           timeoutMs: 300_000,
           stdin: 'inherit',
         },
-      ],
+      ].filter((step) => !bakedDesktop() || step.kind !== 'install'),
       verification: [{ argv: ['glab', 'api', 'user'], timeoutMs: 30_000 }],
     },
     async probe() {

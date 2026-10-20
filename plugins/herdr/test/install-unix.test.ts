@@ -77,17 +77,12 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(unrelated, 'utf8')).toBe('keep');
   });
 
-  it('embeds the immutable 0.19.2 release and every supported checksum', () => {
+  it('resolves current stable fork inputs outside synthetic package tests', () => {
     const source = readFileSync(installer, 'utf8');
-    expect(source).toContain('PINNED_VERSION=0.19.2');
-    expect(source).not.toContain('releases/latest');
-    for (const checksum of [
-      '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394',
-      'dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c',
-      '36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a',
-      'f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a',
-    ])
-      expect(source).toContain(checksum);
+    expect(source).toContain('resolve-latest.py');
+    expect(source).not.toContain('PINNED_VERSION=');
+    const resolver = readFileSync(join(import.meta.dir, '..', 'scripts', 'resolve-latest.py'), 'utf8');
+    expect(resolver).toContain('f5-sales-demo/herdr/releases/latest');
   });
 
   it('keeps the old binary on interruption and recovers on the next run', () => {

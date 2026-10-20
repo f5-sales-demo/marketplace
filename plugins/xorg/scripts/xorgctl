@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+# ruff: noqa: D103, PLC0415, PLR0911, S603
 """Exact-argv local/SSH Xorg computer control. Run --help for the command contract."""
-# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements
-# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements
+# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements,too-many-locals,too-many-return-statements
+# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements,too-many-locals,too-many-return-statements
 
 import argparse
 import base64
@@ -40,6 +41,7 @@ def main() -> None:
         "--session", default=os.environ.get("XORGCTL_SESSION", "console")
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--backend", choices=["x11", "wayland"], default="x11")
     parser.add_argument(
         "command",
         choices=[
@@ -98,7 +100,6 @@ def main() -> None:
     ):
         parser.add_argument("--" + key)
     for key in (
-        "window",
         "x",
         "y",
         "width",
@@ -112,6 +113,7 @@ def main() -> None:
         "monitor",
     ):
         parser.add_argument("--" + key, type=int)
+    parser.add_argument("--window")
     parser.add_argument("--immediate", action="store_true")
     parser.add_argument("--no-cursor", action="store_true")
     a = parser.parse_args()
@@ -141,7 +143,6 @@ def main() -> None:
         "device",
         "password_file",
         "token",
-        "window",
         "x",
         "y",
         "width",
@@ -156,6 +157,8 @@ def main() -> None:
     ):
         if getattr(a, key) is not None:
             params[key] = getattr(a, key)
+    if a.window is not None and a.backend == "x11":
+        params["window"] = int(a.window, 0)
     if a.immediate:
         params["immediate"] = True
     if a.no_cursor:
@@ -211,6 +214,8 @@ def main() -> None:
             "--session",
             a.session,
             "--json",
+            "--backend",
+            a.backend,
             a.command,
         ]
         if a.action:
@@ -238,6 +243,20 @@ def main() -> None:
                 )
         else:
             sys.stdout.buffer.write(p.stdout)
+        return
+    if a.backend == "wayland":
+        from xorgctl_lib.wayland import Hyprland
+
+        result, data = Hyprland().dispatch(a.command, a.action, params, payload)
+        if data is not None and a.output:
+            if a.output == "-":
+                sys.stdout.buffer.write(data)
+            else:
+                pathlib.Path(a.output).write_bytes(data)
+                pathlib.Path(a.output).chmod(0o600)
+            sys.stderr.write(json.dumps({"ok": True, "result": result}) + "\n")
+        else:
+            sys.stdout.write(json.dumps({"ok": True, "result": result}) + "\n")
         return
     if a.command == "setup":
         from xorgctl_lib.setup import manage as manage_setup
@@ -267,6 +286,7 @@ def main() -> None:
     elif a.command == "capabilities":
         result = {
             "version": VERSION,
+            "backend": "x11",
             "session": rpc(a.session, "status", {}),
             "contract": {
                 "clipboard": "Qt PRIMARY and CLIPBOARD arbitrary multi-format bundles",

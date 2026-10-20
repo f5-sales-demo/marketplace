@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { PluginInterface } from './az/types';
 import { presentTool as enrichTool } from './presentation';
 
@@ -52,6 +53,8 @@ export function azureInstallArgv(platform = process.platform): string[] {
   return ['sudo', 'apt-get', 'install', '--yes', 'azure-cli'];
 }
 
+const bakedDesktop = () => existsSync('/etc/pi-desktop/desktop-lock.json');
+
 const factory: ExtensionFactory = async (pi) => {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('Azure');
@@ -81,7 +84,7 @@ const factory: ExtensionFactory = async (pi) => {
           argv: ['az', 'login', '--use-device-code'],
           timeoutMs: 300_000,
         },
-      ],
+      ].filter((step) => !bakedDesktop() || step.kind !== 'install'),
       verification: [
         {
           argv: ['az', 'account', 'show', '--output', 'json'],

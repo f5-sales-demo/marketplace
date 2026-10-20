@@ -206,7 +206,11 @@ def start(c):
 
 
 def _worker_interpreter() -> str:
-    managed = pathlib.Path.home() / ".local/share/xorgctl/venv/bin/python"
+    managed = (
+        pathlib.Path("/opt/pi-desktop/python/venv/bin/python")
+        if pathlib.Path("/etc/pi-desktop/desktop-lock.json").is_file()
+        else pathlib.Path.home() / ".local/share/xorgctl/venv/bin/python"
+    )
     return str(managed) if managed.is_file() else sys.executable
 
 

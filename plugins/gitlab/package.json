@@ -1,7 +1,7 @@
 {
   "name": "@f5-sales-demo/xcsh-gitlab",
-  "version": "1.5.0",
-  "description": "GitLab CLI integration for xcsh — native tools, welcome screen status, issue management",
+  "version": "1.5.1",
+  "description": "GitLab CLI integration for xcsh \u2014 native tools, welcome screen status, issue management",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "GitLab",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "description": "GitLab CLI integration",
     "extensions": [
       "src/index.ts"

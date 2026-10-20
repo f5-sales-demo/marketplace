@@ -14,34 +14,6 @@ export const REQUIRED_RUNTIME_CAPABILITIES = [
   'worker_context_handoff',
   'xcsh_semantic_tracking',
 ] as const;
-export const PINNED_VERSION = '0.19.2';
-export const PINNED_RELEASES: Record<string, { protocol: number; url: string; sha256: string }> = {
-  'linux-x86_64': {
-    protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-x86_64',
-    sha256: '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394',
-  },
-  'linux-aarch64': {
-    protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-aarch64',
-    sha256: 'dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c',
-  },
-  'macos-x86_64': {
-    protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-macos-x86_64',
-    sha256: '36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a',
-  },
-  'macos-aarch64': {
-    protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-macos-aarch64',
-    sha256: 'f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a',
-  },
-  'windows-x86_64': {
-    protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-windows-x86_64.zip',
-    sha256: 'b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b',
-  },
-};
 const UNIX_SETUP = resolve(import.meta.dir, '..', 'scripts', 'install-unix.sh');
 const WINDOWS_SETUP = resolve(import.meta.dir, '..', 'scripts', 'install-windows.ps1');
 
@@ -295,7 +267,7 @@ export function probeHerdr(dependencies: ProbeDependencies = systemDependencies(
     };
   }
   const paths = defaultPaths(dependencies.platform, dependencies.homeDir, dependencies.env);
-  const pinned = PINNED_RELEASES[target];
+  const pinned = { protocol: MINIMUM_PROTOCOL };
   if (!pinned) {
     return {
       state: 'unavailable',
@@ -334,12 +306,11 @@ export function probeHerdr(dependencies: ProbeDependencies = systemDependencies(
   }
   if (
     receipt.plugin_version !== PLUGIN_VERSION ||
-    receipt.herdr_version !== PINNED_VERSION ||
-    receipt.protocol !== pinned.protocol ||
+    receipt.protocol < pinned.protocol ||
     receipt.target !== target ||
     receipt.installed_path !== paths.binary ||
-    receipt.url !== pinned.url ||
-    receipt.sha256 !== pinned.sha256
+    receipt.url !==
+      `https://github.com/f5-sales-demo/herdr/releases/download/v${receipt.herdr_version}/herdr-${target}${target.startsWith('windows-') ? '.zip' : ''}`
   ) {
     return base(
       { state: 'stale_receipt', binary: paths.binary, receipt: paths.receipt, target },
@@ -406,7 +377,50 @@ export function probeHerdr(dependencies: ProbeDependencies = systemDependencies(
   };
 }
 
+export function probeBakedHerdr() {
+  const path = '/etc/pi-desktop/desktop-lock.json';
+  if (!existsSync(path)) return undefined;
+  const context = contextDetails(process.env);
+  try {
+    const lock = JSON.parse(readFileSync(path, 'utf8'));
+    const runtime = lock.baked_tools?.herdr;
+    if (
+      runtime?.repository !== 'f5-sales-demo/herdr' ||
+      typeof runtime.version !== 'string' ||
+      !/^[0-9a-f]{64}$/.test(runtime.binary_sha256)
+    )
+      throw new Error('invalid_baked_receipt');
+    const binary = '/usr/local/bin/herdr';
+    const hash = createHash('sha256').update(readFileSync(binary)).digest('hex');
+    const version = Bun.spawnSync([binary, '--version']);
+    if (
+      hash !== runtime.binary_sha256 ||
+      version.exitCode !== 0 ||
+      parseVersion(new TextDecoder().decode(version.stdout)) !== runtime.version
+    )
+      throw new Error('baked_binary_mismatch');
+    return {
+      state: 'ready',
+      value: {
+        installation: {
+          state: 'ready',
+          binary,
+          hash,
+          version: runtime.version,
+          repository: runtime.repository,
+          source: 'immutable baked receipt',
+        },
+        context,
+        runtime: { state: context.state === 'unpaired' ? 'unpaired' : 'pending_runtime_probe' },
+      },
+    };
+  } catch {
+    return { state: 'degraded', reason: 'invalid_baked_receipt', value: { context } };
+  }
+}
+
 export default function herdrIntegration(pi: ExtensionApi) {
+  const baked = existsSync('/etc/pi-desktop/desktop-lock.json');
   pi.integrations.register({
     id: 'herdr',
     name: 'Herdr',
@@ -416,11 +430,16 @@ export default function herdrIntegration(pi: ExtensionApi) {
       pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: setupCommand(process.platform, 'apply'), timeoutMs: 300_000 }],
-      verification: [{ argv: setupCommand(process.platform, 'verify'), timeoutMs: 30_000 }],
+      steps: baked ? [] : [{ kind: 'install', argv: setupCommand(process.platform, 'apply'), timeoutMs: 300_000 }],
+      verification: [
+        {
+          argv: baked ? ['/usr/local/bin/herdr', '--version'] : setupCommand(process.platform, 'verify'),
+          timeoutMs: 30_000,
+        },
+      ],
     },
     async probe() {
-      return probeHerdr();
+      return probeBakedHerdr() ?? probeHerdr();
     },
   });
 }
