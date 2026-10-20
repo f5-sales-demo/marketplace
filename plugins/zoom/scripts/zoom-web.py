@@ -377,6 +377,7 @@ def maintain_browser_guard(page, selected):
     while not page.is_closed():
         try:
             profile = camera_profile()
+            page.evaluate("profile => window.__piZoomMediaGuard?.setCameraProfile(profile)", profile)
             page.evaluate("ready => window.__piZoomMediaGuard?.setCameraReady(ready)", camera_live(profile))
             acknowledge_meeting_notices(page)
             name = page.locator("#input-for-name")

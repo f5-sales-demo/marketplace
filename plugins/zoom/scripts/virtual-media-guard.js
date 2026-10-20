@@ -5,7 +5,7 @@
   if (!media) throw new Error('Virtual media API unavailable');
   const enumerate = media.enumerateDevices.bind(media);
   const capture = media.getUserMedia.bind(media);
-  const profile = window.__piZoomCameraProfile || { width: 1280, height: 720, fps: 30 };
+  let profile = window.__piZoomCameraProfile || { width: 1280, height: 720, fps: 30 };
   let cameraReady = !window.__piZoomCameraProfile?.output;
   const state = { version: 1, streams: [], requests: 0, peers: [] };
   const Peer = window.RTCPeerConnection;
@@ -90,6 +90,15 @@
   }
   window.__piZoomMediaGuard = {
     version: state.version,
+    setCameraProfile: (next) => {
+      if (next.width !== 1280 || next.height !== 720 || ![5,10,15,30].includes(next.fps))
+        throw new Error('Unsupported camera profile');
+      if (next.fps !== profile.fps) {
+        cameraReady = false;
+        state.streams.flatMap((s) => s.getVideoTracks()).forEach((t) => t.stop());
+      }
+      profile = next;
+    },
     setCameraReady: (ready) => {
       cameraReady = ready === true;
       if (!cameraReady) state.streams.flatMap((s) => s.getVideoTracks()).forEach((t) => t.stop());
