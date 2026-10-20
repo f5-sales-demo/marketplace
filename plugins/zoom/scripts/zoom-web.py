@@ -18,7 +18,10 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
+MIN_CAMERA_FRAMES = 3
+CAMERA_FRESH_SECONDS = 3
 CAMERA_PROFILE = Path("/etc/pi-desktop/camera-profile.json")
 
 
@@ -27,11 +30,18 @@ def camera_profile():
     if not CAMERA_PROFILE.exists():
         return {"width": 1280, "height": 720, "fps": 30}
     profile = json.loads(CAMERA_PROFILE.read_text())
-    if (profile.get("schema") != 1 or profile.get("device") != "/dev/video42"
-        or profile.get("label") != "xcsh Camera" or profile.get("output") != "PI-CAMERA"
-        or profile.get("width") != 1280 or profile.get("height") != 720
-        or profile.get("fps") not in (15, 10, 5) or profile.get("pixel_format") != "yuv420p"):
-        raise ValueError("Invalid dedicated camera profile")
+    if (
+        profile.get("schema") != 1
+        or profile.get("device") != "/dev/video42"
+        or profile.get("label") != "xcsh Camera"
+        or profile.get("output") != "PI-CAMERA"
+        or profile.get("width") != CAMERA_WIDTH
+        or profile.get("height") != CAMERA_HEIGHT
+        or profile.get("fps") not in (15, 10, 5)
+        or profile.get("pixel_format") != "yuv420p"
+    ):
+        message = "Invalid dedicated camera profile"
+        raise ValueError(message)
     return profile
 
 
@@ -42,10 +52,13 @@ def camera_live(profile):
         runtime = Path(os.environ["XDG_RUNTIME_DIR"])
         proof = json.loads((runtime / "pi-camera-ready.json").read_text())
         terminal = json.loads((runtime / "pi-camera-terminal.json").read_text())
-        return (proof["profile"] == profile and proof["frames_observed"] >= 3
-                and 0 <= time.monotonic() - proof["monotonic"] < 3
-                and 0 <= time.monotonic() - terminal["monotonic"] < 3
-                and Path("/proc", str(proof["producer_pid"])).exists())
+        return (
+            proof["profile"] == profile
+            and proof["frames_observed"] >= MIN_CAMERA_FRAMES
+            and 0 <= time.monotonic() - proof["monotonic"] < CAMERA_FRESH_SECONDS
+            and 0 <= time.monotonic() - terminal["monotonic"] < CAMERA_FRESH_SECONDS
+            and Path("/proc", str(proof["producer_pid"])).exists()
+        )
     except (OSError, ValueError, KeyError):
         return False
 
@@ -87,14 +100,22 @@ def status():
                 probe.returncode == 0
                 and "Driver name      : v4l2 loopback" in probe.stdout
                 and bool(re.search(r"Width/Height\s*:\s*1280/720", probe.stdout))
-                and bool(re.search(rf"Frames per second:\s*{profile['fps']}[.]", probe.stdout))
+                and bool(
+                    re.search(
+                        rf"Frames per second:\s*{profile['fps']}[.]", probe.stdout
+                    )
+                )
             )
         except (OSError, subprocess.TimeoutExpired):
             camera_format = False
     audio = "xcsh_zoom_microphone" in sources and "xcsh_zoom_output" in sinks
     return {
         "backend": "zoom-web",
-        "ready": not missing and virtual_camera and camera_format and audio and camera_live(profile),
+        "ready": not missing
+        and virtual_camera
+        and camera_format
+        and audio
+        and camera_live(profile),
         "missing_software": missing,
         "virtual_camera": virtual_camera,
         "virtual_camera_device": "/dev/video42",
@@ -197,12 +218,17 @@ def launched_browser_pid(process, profile, port):
 def join(target):
     ready = status()
     if not ready["ready"]:
-        return {"exitCode": 1, "error": "baked_zoom_web_prerequisites_missing", "status": ready}
+        return {
+            "exitCode": 1,
+            "error": "baked_zoom_web_prerequisites_missing",
+            "status": ready,
+        }
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
     if not runtime.is_absolute() or runtime.stat().st_uid != os.getuid():
-        raise ValueError("Owned runtime directory required")
+        message = "Owned runtime directory required"
+        raise ValueError(message)
     lock = (runtime / "pi-zoom-web-launch.lock").open("w")
-    os.chmod(lock.name, 0o600)
+    Path(lock.name).chmod(0o600)
     with lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         state = runtime / "pi-zoom-web-state.json"
@@ -212,7 +238,8 @@ def join(target):
             except (ValueError, OSError):
                 pass
             else:
-                raise ValueError("Owned Zoom browser already running; leave and close before joining again")
+                message = "Owned Zoom browser already running; leave and close before joining again"
+                raise ValueError(message)
         return launch_browser(target)
 
 
@@ -400,8 +427,14 @@ def maintain_browser_guard(page, selected):
     while not page.is_closed():
         try:
             profile = camera_profile()
-            page.evaluate("profile => window.__piZoomMediaGuard?.setCameraProfile(profile)", profile)
-            page.evaluate("ready => window.__piZoomMediaGuard?.setCameraReady(ready)", camera_live(profile))
+            page.evaluate(
+                "profile => window.__piZoomMediaGuard?.setCameraProfile(profile)",
+                profile,
+            )
+            page.evaluate(
+                "ready => window.__piZoomMediaGuard?.setCameraReady(ready)",
+                camera_live(profile),
+            )
             acknowledge_meeting_notices(page)
             name = page.locator("#input-for-name")
             if name.count() == 1 and name.is_visible() and not name.input_value():
@@ -457,7 +490,9 @@ def initialize_browser(url, persistent=False):
             )
             guard = Path(__file__).with_name("virtual-media-guard.js").read_text()
             profile = camera_profile()
-            guard = "window.__piZoomCameraProfile = " + json.dumps(profile) + ";\n" + guard
+            guard = (
+                "window.__piZoomCameraProfile = " + json.dumps(profile) + ";\n" + guard
+            )
             page = context.pages[0]
             context.add_init_script(guard)
             page.goto(url, wait_until="commit", timeout=30000)

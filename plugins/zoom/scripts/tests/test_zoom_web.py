@@ -19,12 +19,16 @@ spec.loader.exec_module(module)
 
 class ZoomWebSafety(unittest.TestCase):
     def test_duplicate_join_rejects_a_live_owned_browser(self):
-        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{"XDG_RUNTIME_DIR":d}), \
-             patch.object(module,"status",return_value={"ready":True}), \
-             patch.object(module,"owned_browser_state",return_value={"pid":123}), \
-             patch.object(module,"launch_browser") as launch:
-            Path(d,"pi-zoom-web-state.json").write_text('{}')
-            with self.assertRaises(ValueError):module.join("12345678901")
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.dict(os.environ, {"XDG_RUNTIME_DIR": d}),
+            patch.object(module, "status", return_value={"ready": True}),
+            patch.object(module, "owned_browser_state", return_value={"pid": 123}),
+            patch.object(module, "launch_browser") as launch,
+        ):
+            Path(d, "pi-zoom-web-state.json").write_text("{}")
+            with self.assertRaises(ValueError):
+                module.join("12345678901")
             launch.assert_not_called()
 
     def test_numeric_id_and_zoom_https_invitation_only(self):
