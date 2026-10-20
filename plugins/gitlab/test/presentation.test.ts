@@ -53,8 +53,7 @@ test('help and exec preserve complete stderr and exact executed arguments', asyn
     expect(tool.presentation.result(r, options, input).sections.find((s) => s.kind === 'code')?.text).toBe(
       presentation.command(['glab', ...calls.at(-1)!]).text,
     );
-    if (tool.name === 'glab_exec')
-      expect(JSON.stringify(tool.presentation.result(r, options, input))).toContain('STDERR_GUIDANCE');
+    expect(JSON.stringify(tool.presentation.result(r, options, input))).toContain('STDERR_GUIDANCE');
   }
 });
 for (const shell of ['bash', 'zsh']) {

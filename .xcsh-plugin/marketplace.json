@@ -442,7 +442,7 @@
     {
       "name": "gitlab",
       "description": "GitLab CLI integration with shared lifecycle readiness, profile discovery, and issue management tools",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "author": {
         "name": "f5-sales-demo"
       },

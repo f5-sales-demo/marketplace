@@ -58,6 +58,8 @@ export function createGlabHelpTool(pi: PluginHost, makeApi: (cwd: string) => Gla
         return textResult(output || `No help output for "glab ${commandPath}".`, {
           tool: 'glab_help',
           commandArgs: args,
+          fullOutput: output || `No help output for "glab ${commandPath}".`,
+          stderr: result.stdout ? result.stderr : '',
         });
       } catch (err) {
         if (err instanceof GlabAuthError)
