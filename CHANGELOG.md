@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
+- **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
 
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
