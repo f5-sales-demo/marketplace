@@ -4,7 +4,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/benchmarks" "$WORK/bin" "$WORK/logs"
-for plugin in aws platform firecrawl; do
+for plugin in aws platform firecrawl asm-migration; do
   mkdir -p "$WORK/repo/plugins/$plugin/.xcsh-plugin" "$WORK/repo/plugins/$plugin/node_modules"
   cp "$ROOT/plugins/$plugin/package.json" "$WORK/repo/plugins/$plugin/package.json"
   cp "$ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$WORK/repo/plugins/$plugin/.xcsh-plugin/plugin.json"
@@ -20,7 +20,7 @@ case "${1:-}" in
 install)
   [ "$PWD" != "$ORIGINAL_PLUGIN" ]
   [ ! -e node_modules/sentinel ]
-  [ ! -e bun.lock ]
+  if [ "${KEEP_SHIPPED_LOCK:-0}" = 1 ]; then [ "$(cat bun.lock)" = "original lock" ]; else [ ! -e bun.lock ]; fi
   [ "${2:-}" = --ignore-scripts ]
   mkdir -p node_modules/@f5-sales-demo/xcsh
   jq '{version: (.devDependencies["@f5-sales-demo/xcsh"] // .dependencies["@f5-sales-demo/xcsh"])}' package.json >node_modules/@f5-sales-demo/xcsh/package.json
@@ -47,7 +47,9 @@ shutil.copytree(sys.argv[-2], sys.argv[-1], dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns('node_modules', '.git'))
 MOCK
 chmod +x "$WORK/bin/rsync"
-for plugin in aws platform firecrawl; do
+for plugin in aws platform firecrawl asm-migration; do
+  export KEEP_SHIPPED_LOCK=0
+  [ "$plugin" != asm-migration ] || export KEEP_SHIPPED_LOCK=1
   export ORIGINAL_PLUGIN="$WORK/repo/plugins/$plugin"
   export EXPECTED_MINIMUM
   EXPECTED_MINIMUM=$(jq -er '.minimumRuntimeVersion' "$ORIGINAL_PLUGIN/.xcsh-plugin/plugin.json")
