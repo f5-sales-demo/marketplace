@@ -5,6 +5,7 @@
 
 import argparse
 import contextlib
+import fcntl
 import json
 import os
 import re
@@ -194,6 +195,25 @@ def launched_browser_pid(process, profile, port):
 
 
 def join(target):
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
+    if not runtime.is_absolute() or runtime.stat().st_uid != os.getuid():
+        raise ValueError("Owned runtime directory required")
+    lock = (runtime / "pi-zoom-web-launch.lock").open("w")
+    os.chmod(lock.name, 0o600)
+    with lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        state = runtime / "pi-zoom-web-state.json"
+        if state.exists():
+            try:
+                owned_browser_state()
+            except (ValueError, OSError):
+                pass
+            else:
+                raise ValueError("Owned Zoom browser already running; leave and close before joining again")
+        return launch_browser(target)
+
+
+def launch_browser(target):
     ready = status()
     if not ready["ready"]:
         return {
