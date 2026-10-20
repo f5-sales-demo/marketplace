@@ -164,3 +164,57 @@ test('individual frame inspection reports failed, empty, overflow and lost liter
     inspectCapture({ ...frame, lines: ['x'.repeat(41)] }, { contains: ['0'] }, (text) => text.length).failures,
   ).toEqual(['overflow', 'missing-literal:0']);
 });
+
+test('inspection reconstructs wrapped fields and each table cell without joining unrelated values', () => {
+  const frame = { id: 'wrapped', case: 'wrapped', width: 153, expanded: true, resultIsError: false };
+  const check = (lines: string[], literal: string) =>
+    inspectCapture({ ...frame, lines }, { contains: [literal] }, (line) => Bun.stripANSI(line).length).passed;
+  expect(check(['│ │ \x1b[1mid\x1b[22m: abc │', '│ │ def │'], 'abcdef')).toBe(true);
+  for (const bar of ['│', '|']) {
+    const lines = [`${bar} ${bar} first ${bar} Example ${bar} ${bar}`, `${bar} ${bar} cell ${bar} 11 ${bar} ${bar}`];
+    expect(check(lines, 'Example 11')).toBe(true);
+    expect(check(lines, 'firstcell')).toBe(true);
+    expect(check(lines, 'firstExample')).toBe(false);
+    expect(check([lines[0], `${bar} +---+---+ ${bar}`, lines[1]], 'Example 11')).toBe(false);
+  }
+  expect(check(['│ │ \x1b[1mone\x1b[22m: abc │', '│ │ \x1b[1mtwo\x1b[22m: def │'], 'abcdef')).toBe(false);
+  expect(check(['abc', 'def'], 'abcdef')).toBe(false);
+});
+
+test('inspection rejects duplicated or missing evidence markers', () => {
+  const frame = { id: 'once', case: 'once', width: 40, expanded: true, resultIsError: false };
+  for (const [lines, passed] of [
+    [['ce-once'], true],
+    [['ce-once ce-once'], false],
+    [['other'], false],
+  ] as const)
+    expect(inspectCapture({ ...frame, lines }, { occurrences: { 'ce-once': 1 } }, (line) => line.length).passed).toBe(
+      passed,
+    );
+});
+
+test('wrapped forbidden values remain detectable and appearance-specific occurrence rules override defaults', () => {
+  const frame = { id: 'wrapped-unsafe', case: 'unsafe', width: 76, expanded: true, resultIsError: false };
+  const lines = ['│ │ \x1b[1mvalue\x1b[22m: SYNTHETIC_SECRET_ │', '│ │ SENTINEL │'];
+  const finding = inspectCapture(
+    { ...frame, lines },
+    { absent: ['SYNTHETIC_SECRET_SENTINEL'] },
+    (line) => Bun.stripANSI(line).length,
+  );
+  expect(finding.failures).toContain('unexpected-literal:SYNTHETIC_SECRET_SENTINEL');
+  expect(finding.failures).toContain('unsafe-evidence');
+  expect(
+    inspectCapture(
+      { ...frame, lines: ['once'] },
+      { occurrences: { once: 0 }, expandedOccurrences: { once: 1 } },
+      (line) => line.length,
+    ).passed,
+  ).toBe(true);
+  expect(
+    inspectCapture(
+      { ...frame, expanded: false, lines: ['once'] },
+      { occurrences: { once: 0 }, collapsedOccurrences: { once: 1 } },
+      (line) => line.length,
+    ).passed,
+  ).toBe(true);
+});
