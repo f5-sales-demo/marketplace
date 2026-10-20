@@ -24,7 +24,7 @@ the API and return structured results.
 
 ## Key Facts
 
-- **API base URL**: `http://localhost:3002`
+- **API base URL**: `FIRECRAWL_API_URL`, default `http://127.0.0.1:3002`
 - **API version**: v1 (self-hosted open-source)
 - **Authentication**: None required (USE_DB_AUTHENTICATION=false)
 - **No API keys**: This is a local instance, not the cloud service
@@ -62,16 +62,18 @@ You do **NOT** have `write`, `edit`, or `task`. You are execution-only.
 Run this before any operation to verify the API is available.
 
 ```bash
-curl -sf --connect-timeout 5 http://localhost:3002/
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py" --check
 ```
 
-Expected: `{"message":"Firecrawl API","documentation_url":"https://docs.firecrawl.dev"}`
+Expected: collector `state` is `ready`, with the verified identity response under `evidence.identity.body`. Optional health failures remain visible in `warnings`.
+
+Use a 15-second Bash timeout for the collector. It verifies Firecrawl identity at the configured endpoint and reports optional health/version failures separately. A verified API identity does not prove backend or scraping readiness.
 
 If the health check fails, report:
 
 ```text
 RESULT: API_UNAVAILABLE
-The firecrawl API is not responding on port 3002.
+The configured Firecrawl API is unavailable or returned an invalid identity.
 Check that firecrawl is running: ps aux | grep firecrawl
 ```
 
@@ -84,13 +86,16 @@ Extract content from a single URL. Synchronous — returns content directly.
 ### Scrape: Health check
 
 ```bash
-curl -sf --connect-timeout 5 http://localhost:3002/ | jq -r '.message'
+python3 "${XCSH_PLUGIN_ROOT}/scripts/firecrawl-status.py" --check
 ```
 
 ### Scrape: Execute scrape
 
 ```bash
-curl -sf --max-time 60 http://localhost:3002/v1/scrape \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 60 "${FIRECRAWL_API_BASE}/v1/scrape" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -170,7 +175,10 @@ Scrape multiple URLs in a single request. Async — returns a job ID.
 ### Batch: Start batch job
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/batch/scrape \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/batch/scrape" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -200,9 +208,12 @@ curl -sf --max-time 30 http://localhost:3002/v1/batch/scrape \
 ### Batch: Poll for completion
 
 ```bash
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
 JOB_ID="<batch-job-id>"
 for i in $(seq 1 30); do
-  RESP=$(curl -sf http://localhost:3002/v1/batch/scrape/${JOB_ID})
+  RESP=$(curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/batch/scrape/${JOB_ID}")
   STATUS=$(echo "$RESP" | jq -r '.status')
   COMPLETED=$(echo "$RESP" | jq -r '.completed // 0')
   TOTAL=$(echo "$RESP" | jq -r '.total // 0')
@@ -216,12 +227,19 @@ for i in $(seq 1 30); do
   echo "Status: $STATUS ($COMPLETED/$TOTAL) — attempt $i/30"
   sleep 3
 done
+if [ "$STATUS" != "completed" ]; then
+  printf 'RESULT: INCOMPLETE — last status: %s; polling ended without completion\n' "$STATUS"
+  exit 1
+fi
 ```
 
 ### Batch: Fetch results
 
 ```bash
-curl -sf http://localhost:3002/v1/batch/scrape/${JOB_ID} | jq '.'
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/batch/scrape/${JOB_ID}" | jq '.'
 ```
 
 **Completed response:**
@@ -267,7 +285,10 @@ Crawl multiple pages starting from a URL. Async — returns a job ID.
 ### Crawl: Start crawl job
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/crawl \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/crawl" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -301,9 +322,12 @@ curl -sf --max-time 30 http://localhost:3002/v1/crawl \
 ### Crawl: Poll for completion
 
 ```bash
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
 CRAWL_ID="<crawl-job-id>"
 for i in $(seq 1 20); do
-  STATUS=$(curl -sf http://localhost:3002/v1/crawl/${CRAWL_ID} | jq -r '.status')
+  STATUS=$(curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/crawl/${CRAWL_ID}" | jq -r '.status')
   if [ "$STATUS" = "completed" ]; then
     echo "Crawl completed"
     break
@@ -314,12 +338,19 @@ for i in $(seq 1 20); do
   echo "Status: $STATUS (attempt $i/20)"
   sleep 3
 done
+if [ "$STATUS" != "completed" ]; then
+  printf 'RESULT: INCOMPLETE — last status: %s; polling ended without completion\n' "$STATUS"
+  exit 1
+fi
 ```
 
 ### Crawl: Fetch and report
 
 ```bash
-curl -sf http://localhost:3002/v1/crawl/${CRAWL_ID} | jq '.'
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/crawl/${CRAWL_ID}" | jq '.'
 ```
 
 ```markdown
@@ -346,7 +377,10 @@ Markdown for those pages.
 Cancel a running crawl job.
 
 ```bash
-curl -sf -X DELETE http://localhost:3002/v1/crawl/<CRAWL_ID> | jq '.'
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 15 -X DELETE "${FIRECRAWL_API_BASE}/v1/crawl/<CRAWL_ID>" | jq '.'
 ```
 
 Report: `Crawl job <id> cancelled.`
@@ -358,7 +392,10 @@ Report: `Crawl job <id> cancelled.`
 List all currently active crawl jobs.
 
 ```bash
-curl -sf http://localhost:3002/v1/crawl/active | jq '.'
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/crawl/active" | jq '.'
 ```
 
 **Response:**
@@ -397,7 +434,10 @@ If no active crawls, report: `No active crawl jobs.`
 Get error details for a crawl job.
 
 ```bash
-curl -sf http://localhost:3002/v1/crawl/<CRAWL_ID>/errors | jq '.'
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/crawl/<CRAWL_ID>/errors" | jq '.'
 ```
 
 Report any errors with their URLs and error messages.
@@ -413,7 +453,10 @@ Discover all URLs on a site without scraping content. Synchronous.
 ### Map: Execute map
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/map \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/map" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -463,7 +506,10 @@ Search the web and optionally scrape the results. Synchronous.
 ### Search: Execute search
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/search \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/search" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -531,7 +577,10 @@ will return an error about missing model configuration.
 ### Extract: Start extract job
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/extract \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/extract" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -570,9 +619,12 @@ curl -sf --max-time 30 http://localhost:3002/v1/extract \
 ### Extract: Poll for completion
 
 ```bash
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
 JOB_ID="<extract-job-id>"
 for i in $(seq 1 20); do
-  RESP=$(curl -sf http://localhost:3002/v1/extract/${JOB_ID})
+  RESP=$(curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/extract/${JOB_ID}")
   STATUS=$(echo "$RESP" | jq -r '.status')
   if [ "$STATUS" = "completed" ]; then
     echo "Extract completed"
@@ -586,6 +638,10 @@ for i in $(seq 1 20); do
   echo "Status: $STATUS (attempt $i/20)"
   sleep 5
 done
+if [ "$STATUS" != "completed" ]; then
+  printf 'RESULT: INCOMPLETE — last status: %s; polling ended without completion\n' "$STATUS"
+  exit 1
+fi
 ```
 
 ### Extract: Report
@@ -632,7 +688,10 @@ summary of a site optimized for LLM consumption. Async — returns a job ID.
 ### LLMSTXT: Start llms.txt generation
 
 ```bash
-curl -sf --max-time 30 http://localhost:3002/v1/llmstxt \
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
+curl -sf --max-time 30 "${FIRECRAWL_API_BASE}/v1/llmstxt" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -660,9 +719,12 @@ curl -sf --max-time 30 http://localhost:3002/v1/llmstxt \
 ### LLMSTXT: Poll for completion
 
 ```bash
+set -euo pipefail
+FIRECRAWL_API_BASE="${FIRECRAWL_API_URL:-http://127.0.0.1:3002}"
+FIRECRAWL_API_BASE="${FIRECRAWL_API_BASE%/}"
 JOB_ID="<llmstxt-job-id>"
 for i in $(seq 1 30); do
-  RESP=$(curl -sf http://localhost:3002/v1/llmstxt/${JOB_ID})
+  RESP=$(curl -sf --max-time 15 "${FIRECRAWL_API_BASE}/v1/llmstxt/${JOB_ID}")
   STATUS=$(echo "$RESP" | jq -r '.status')
   if [ "$STATUS" = "completed" ]; then
     echo "llms.txt generation completed"
@@ -675,6 +737,10 @@ for i in $(seq 1 30); do
   echo "Status: $STATUS (attempt $i/30)"
   sleep 3
 done
+if [ "$STATUS" != "completed" ]; then
+  printf 'RESULT: INCOMPLETE — last status: %s; polling ended without completion\n' "$STATUS"
+  exit 1
+fi
 ```
 
 ### LLMSTXT: Report
@@ -700,8 +766,8 @@ The standard polling pattern:
 2. GET the status endpoint every 3-5 seconds
 3. Check `status` field: `"completed"`, `"failed"`, `"scraping"`, `"processing"`
 4. Maximum 30 poll attempts (90-150 seconds depending on interval)
-5. On completion, extract `data` from the response
-6. On failure, extract and report the error
+5. On completion, retain the full response and follow every `next` page only within the same configured endpoint. Keep job identity and scope. Report incomplete evidence if a page fails, repeats, leaves the endpoint, or reaches the explicit page/time limit; never label partial data complete.
+6. On failure or exhausted polling, report the error or last observed status as incomplete. Never report a timeout as success.
 
 ---
 
@@ -716,8 +782,10 @@ The standard polling pattern:
 ## Output Rules
 
 - Keep output concise — summarize large content unless full output requested
-- For scrape results over 5000 characters, show first 3000 chars with a note about truncation
+- Keep the complete safe tool result available once for expansion. Do not truncate the only copy of content or evidence. Use twelve-row list previews in conclusions, with explicit total and omitted counts. Preserve zero, false, empty strings, unknown values, and literal corrective guidance.
 - Always include metadata (title, URL, status code) when available
 - Format links as Markdown links: `[text](url)`
 - Use fenced code blocks for HTML/raw content
-- For batch/crawl results, show summaries per page unless full content is requested
+- For batch/crawl results, summarize each page with identity, scope, status, counts, units, important findings, warnings, and completion. Retain full sanitized evidence once in the tool result; do not duplicate it in the conclusion.
+- Present counts, durations, and sizes with explicit units. Readable tables must name their columns.
+- Before returning evidence, redact credential fields and credential-bearing URLs. Keep unavailable or malformed evidence explicit rather than inventing a successful summary.

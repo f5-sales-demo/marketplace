@@ -2,8 +2,8 @@
 # Test an exact minimum in an owned copy; never rewrite a developer dependency graph.
 set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|platform|github|gitlab|salesforce)$ ]]; then
-  echo "Usage: $0 <aws|azure|gcloud|platform|github|gitlab|salesforce>" >&2
+if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl)$ ]]; then
+  echo "Usage: $0 <aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl>" >&2
   exit 2
 fi
 PLUGIN="$1"
@@ -42,13 +42,28 @@ done
 printf 'Minimum runtime: plugin=%s runtime=%s log=%s\n' "$PLUGIN" "$MINIMUM" "$LOG"
 (
   export PUPPETEER_SKIP_DOWNLOAD=1
-  if [ "$PLUGIN" = salesforce ]; then
+  if [ "$PLUGIN" = salesforce ] || [ "$PLUGIN" = firecrawl ]; then
     validation="$WORK/repo/scripts/agent-validation-runtime"
     mkdir -p "$validation"
     jq --arg minimum "$MINIMUM" '.dependencies["@f5-sales-demo/xcsh"] = $minimum' \
       "$REPO_ROOT/scripts/agent-validation-runtime/package.json" >"$validation/package.json"
+    if [ "$PLUGIN" = firecrawl ]; then
+      cp "$REPO_ROOT/scripts/agent-validation-runtime/firecrawl-workflows.test.ts" "$validation/"
+    fi
     (cd "$validation" && bun install --ignore-scripts)
     [ "$(jq -er '.version' "$validation/node_modules/@f5-sales-demo/xcsh/package.json")" = "$MINIMUM" ]
+  fi
+  if [ "$PLUGIN" = firecrawl ]; then
+    export PATH="$WORK/bin"
+    for cli in aws az gcloud gh glab sf; do
+      if command -v "$cli" >/dev/null; then
+        echo "CLI exclusion failed: $cli" >&2
+        exit 1
+      fi
+    done
+    cd "$validation"
+    bun test firecrawl-workflows.test.ts || exit $?
+    exit 0
   fi
   cd "$COPY"
   bun install --ignore-scripts
