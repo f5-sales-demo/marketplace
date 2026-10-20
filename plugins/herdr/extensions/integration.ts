@@ -224,12 +224,13 @@ function runtimeDetails(binary: string, context: Record<string, unknown>, spawn:
   if (context.state === 'unpaired') return { state: 'unpaired' };
   const status = spawn([binary, 'status', '--json']);
   if (status.exitCode !== 0) return { state: 'unavailable' };
-  let parsed: Record<string, unknown>;
+  let parsed: Record<string, unknown> | undefined;
   try {
-    parsed = JSON.parse(status.stdout) as Record<string, unknown>;
+    parsed = record(JSON.parse(status.stdout));
   } catch {
     return { state: 'invalid_status' };
   }
+  if (!parsed) return { state: 'invalid_status' };
   const client = record(parsed.client);
   const server = record(parsed.server);
   if (!client || !server || server.running !== true) return { state: 'unavailable' };
