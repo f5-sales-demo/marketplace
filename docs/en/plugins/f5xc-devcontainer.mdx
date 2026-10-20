@@ -1,48 +1,13 @@
 ---
-title: Development container
-description: Choose installed tools, inspect container health, and identify catalog drift.
-sidebar:
-  order: 6
-prev: false
-next: false
+title: Development container plugin retired
+description: The deprecated Devcontainer plugin has been removed from the marketplace.
 ---
 
-import { Badge } from '@astrojs/starlight/components';
+The `devcontainer` plugin is deprecated and has been removed from the marketplace.
+It is no longer available for installation. Existing installations are retained;
+remove them through xcsh plugin management when they are no longer needed.
 
-Choose installed tools, inspect container health, and identify catalog drift.
+Historical releases and qualification receipts remain available. The plugin's
+presentation tasks are preserved in the [retired surfaces tracker](https://github.com/f5-sales-demo/marketplace/blob/main/docs/marketplace-presentation-todo.md#retired-surfaces).
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
-
-## Requirements
-
-- A supported development container runtime.
-- Access to the container's tool catalog and Dockerfile.
-
-## Install
-
-```bash
-xcsh plugin install devcontainer@f5-sales-demo-marketplace
-```
-
-Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
-
-## Inspect tools and catalog drift
-
-Run `/devcontainer:devcontainer-status` in the intended container. Ask which installed tool fits your task and compare its version and authentication requirements with the catalog. For drift, compare the catalog with the Dockerfile.
-
-Use `tool-catalog` to choose a tool and find its usage and authentication
-requirements. Use `self-awareness` to inspect the container's identity, build
-history, resources, and health.
-
-For tool changes, update the container build source and rebuild so the result persists.
-
-## Check the result
-
-Run `/devcontainer:devcontainer-status` in the intended container. Compare
-tool versions with the catalog and record any missing or unexpected tools.
-
-## Next steps
-
-- [Terraform](/marketplace/en/plugins/terraform/)
-- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer/skills)
-- [Plugin catalog](/marketplace/en/plugins/)
+Removal is tracked in [#1707](https://github.com/f5-sales-demo/marketplace/issues/1707).

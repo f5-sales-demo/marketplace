@@ -52,9 +52,9 @@ test('canonical presentation tracker covers actual registrations and every shipp
       'utf8',
     ),
   ).version;
-  expect(catalog.plugins).toHaveLength(23);
+  expect(catalog.plugins).toHaveLength(22);
   const registeredEntrypoints = new Set<string>();
-  expect(new Set(catalog.plugins.map((p) => p.name)).size).toBe(23);
+  expect(new Set(catalog.plugins.map((p) => p.name)).size).toBe(22);
   const inventory: InventoryPlugin[] = catalog.plugins.map((plugin) => {
     const manifest = JSON.parse(readFileSync(join(root, plugin.source, '.xcsh-plugin/plugin.json'), 'utf8'));
     expect(manifest.name).toBe(plugin.name);
@@ -203,7 +203,7 @@ test('canonical presentation tracker covers actual registrations and every shipp
     writeFileSync(trackerPath, renderTracker(inventory, metadata, tasks, retired));
   }
   const final = readFileSync(trackerPath, 'utf8');
-  expect(final.match(/^## Plugin /gm)).toHaveLength(23);
+  expect(final.match(/^## Plugin /gm)).toHaveLength(22);
   expect(
     final
       .match(/^## Plugin (.+)$/gm)
@@ -212,6 +212,6 @@ test('canonical presentation tracker covers actual registrations and every shipp
   ).toEqual(inventory.map((p) => p.name).sort());
   for (const plugin of inventory) for (const surface of plugin.surfaces) expect(final).toContain(`\`${surface.id}\``);
   console.log(
-    `TRACKER_VALID: 23 plugins; ${inventory.reduce((n, p) => n + p.surfaces.length, 0)} surfaces; ${tasks.length} tasks; runtime ${runtime}; action=${action}`,
+    `TRACKER_VALID: 22 plugins; ${inventory.reduce((n, p) => n + p.surfaces.length, 0)} surfaces; ${tasks.length} tasks; runtime ${runtime}; action=${action}`,
   );
 }, 120000);
