@@ -121,6 +121,11 @@ published binary, with automatic extensions disabled. Set private paths through
 `MARKETPLACE_CAMPAIGN_NAME` and `MARKETPLACE_CAMPAIGN_SCENARIO`. The scenario
 contains a safe ID, `calls` with exact `{tool, args}` rules, and shipped relative
 `guidance` paths. Optional `commands` bind exact `{name, args}` invocations.
+Optional `guidanceOptions` lists exact reviewed read option objects, for example
+`[{}, {"sel":"", "timeout":20}]`, to admit the published tool's full-file selector
+and timeout explicitly. Without it, only the path argument is admitted. Partial
+selectors, arbitrary keys and unreviewed option combinations remain denied;
+every read still binds a selected shipped path and passes symlink containment.
 The installed registry must agree with the selected path and manifest version;
 `MARKETPLACE_CAMPAIGN_REGISTRY` overrides the default user registry for isolated tests.
 Review those rules against the plugin's execution semantics:

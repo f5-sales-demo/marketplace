@@ -90,6 +90,43 @@ test('scenario rejects malformed, duplicate and incomplete rules rather than all
   expect(validateScenario(scenario)).toEqual(scenario);
 });
 
+test('guidance binds explicitly reviewed full-file read options without widening path or argument access', () => {
+  const reviewed = { ...scenario, guidanceOptions: [{}, { sel: '' as const, timeout: 20 }] };
+  expect(validateScenario(reviewed)).toEqual(reviewed);
+  const path = '/installed/aws/skills/aws-cli/SKILL.md';
+  for (const options of reviewed.guidanceOptions)
+    expect(
+      guardScenarioTool({ toolName: 'read', input: { path, ...options } }, reviewed, '/installed/aws'),
+    ).toBeUndefined();
+  for (const input of [
+    { path, sel: '' },
+    { path, sel: '', timeout: 21 },
+    { path, sel: '', timeout: 20, offset: 1 },
+    { path: '/installed/aws/credentials', sel: '', timeout: 20 },
+  ])
+    expect(guardScenarioTool({ toolName: 'read', input }, reviewed, '/installed/aws')).toMatchObject({ block: true });
+  // The original path-only policy remains exact when no options were reviewed.
+  expect(
+    guardScenarioTool({ toolName: 'read', input: { path, sel: '', timeout: 20 } }, scenario, '/installed/aws'),
+  ).toMatchObject({ block: true });
+});
+
+test('guidance option declarations reject partial reads, arbitrary keys and invalid timeouts', () => {
+  for (const guidanceOptions of [
+    null,
+    {},
+    [],
+    [null],
+    [{ path: 'credentials' }],
+    [{ sel: '1:5' }],
+    [{ timeout: 0 }],
+    [{ timeout: Infinity }],
+    [{ timeout: '20' }],
+    [{}, {}],
+  ])
+    expect(() => validateScenario({ ...scenario, guidanceOptions })).toThrow('guidance options');
+});
+
 test('shipped paths cannot escape through traversal or symlinks', () => {
   const root = mkdtempSync(join(tmpdir(), 'qualification-path-'));
   try {
