@@ -1,3 +1,4 @@
+import { s3Args } from '../aws/arguments';
 import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson, execAwsRaw } from '../aws/exec';
 import { formatBucketTable, formatS3ObjectTable, normalizeBucket, parseS3LsOutput } from '../aws/formatters';
@@ -42,12 +43,12 @@ export function createAwsS3LsTool(pi: PluginInterface, makeApi: (cwd: string) =>
 
       try {
         if (params.target) {
-          const result = await execAwsRaw(api, ['s3', 'ls', params.target], signal);
+          const result = await execAwsRaw(api, s3Args(params.target), signal);
           const objects = parseS3LsOutput(result.stdout);
           return textResult(formatS3ObjectTable(objects), { ...base, objects });
         }
 
-        const raw = await execAwsJson<{ Buckets?: Record<string, unknown>[] }>(api, ['s3api', 'list-buckets'], signal);
+        const raw = await execAwsJson<{ Buckets?: Record<string, unknown>[] }>(api, s3Args(), signal);
         const buckets = (raw.Buckets ?? []).map(normalizeBucket);
         return textResult(formatBucketTable(buckets), { ...base, buckets });
       } catch (err) {

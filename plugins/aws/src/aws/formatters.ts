@@ -1,3 +1,4 @@
+import { AwsExecError } from './exec';
 import type { AwsBucket, AwsEc2Instance, AwsIdentity, AwsS3Object } from './types';
 
 // ---------------------------------------------------------------------------
@@ -60,14 +61,21 @@ export function parseS3LsOutput(raw: string): AwsS3Object[] {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
 
-    if (trimmed.startsWith('PRE ')) {
-      out.push({ key: trimmed.slice(4).trim(), size: 0, lastModified: '' });
+    const prefix = line.match(/^\s*PRE (.+)$/);
+    if (prefix) {
+      out.push({ key: prefix[1], size: null, lastModified: '' });
       continue;
     }
 
-    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+(.+)$/);
+    const match = line.match(/^\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+) (.+)$/);
     if (match) {
-      out.push({ key: match[3], size: Number(match[2]), lastModified: match[1] });
+      out.push({
+        key: match[3],
+        size: Number.isSafeInteger(Number(match[2])) ? Number(match[2]) : match[2],
+        lastModified: match[1],
+      });
+    } else {
+      throw new AwsExecError(`Malformed S3 listing; complete results cannot be verified.\n${raw}`);
     }
   }
   return out;
@@ -97,7 +105,7 @@ export function formatS3ObjectTable(objects: AwsS3Object[]): string {
   if (objects.length === 0) return 'No objects found.';
   const header = '| Key | Size | Last Modified |';
   const sep = '|-----|------|---------------|';
-  const rows = objects.map((o) => `| ${o.key} | ${o.size} | ${o.lastModified || '-'} |`);
+  const rows = objects.map((o) => `| ${o.key} | ${o.size ?? 'Not applicable (prefix)'} | ${o.lastModified || '-'} |`);
   return [header, sep, ...rows].join('\n');
 }
 
