@@ -23,5 +23,4 @@ that failed attempt remains private. After fetching, a fresh independent downloa
 and all comparisons passed. Raw downloads, registry evidence and command logs
 remain private. Historical 2.3.1 receipts are retained. Account-dependent service
 checks remain deferred; after deferral is lifted, use an existing authorized
-read-only receipt workflow. Human-reviewed setup remains separate. #1600 and
-#1579 remain open.
+read-only receipt workflow. Human-reviewed setup remains separate. Issues #1600 and #1579 remain open.
