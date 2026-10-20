@@ -35,6 +35,31 @@ else
   fail "current runtime manifests and locks must pass"
 fi
 
+LATEST="$WORK/latest-development"
+copy_runtime_state "$LATEST"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
+  "$LATEST/plugins/aws/package.json" >"$LATEST/package.tmp"
+mv "$LATEST/package.tmp" "$LATEST/plugins/aws/package.json"
+sed 's/@f5-sales-demo\/xcsh@23\.5\.1/@f5-sales-demo\/xcsh@23.9.3/g; s/@f5-sales-demo\/pi-utils@23\.5\.1/@f5-sales-demo\/pi-utils@23.9.3/g' \
+  "$LATEST/plugins/aws/bun.lock" >"$LATEST/lock.tmp"
+mv "$LATEST/lock.tmp" "$LATEST/plugins/aws/bun.lock"
+if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
+  pass "latest development pin is independent of minimum peer"
+else
+  fail "latest development pin must pass with original minimum peer"
+fi
+
+STALE="$WORK/stale-development"
+copy_runtime_state "$STALE"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.2"' \
+  "$STALE/plugins/aws/package.json" >"$STALE/package.tmp"
+mv "$STALE/package.tmp" "$STALE/plugins/aws/package.json"
+if REPO_ROOT="$STALE" bash "$CHECK" >/dev/null 2>&1; then
+  fail "an unqualified intermediate development pin must fail"
+else
+  pass "unqualified intermediate development pin fails"
+fi
+
 BAD_MANIFEST="$WORK/bad-manifest"
 copy_runtime_state "$BAD_MANIFEST"
 jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=1.0.0"' \
