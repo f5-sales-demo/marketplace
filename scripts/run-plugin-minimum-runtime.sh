@@ -2,8 +2,8 @@
 # Test an exact minimum in an owned copy; never rewrite a developer dependency graph.
 set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl)$ ]]; then
-  echo "Usage: $0 <aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl>" >&2
+if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^(aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl|asm-migration)$ ]]; then
+  echo "Usage: $0 <aws|azure|gcloud|platform|github|gitlab|salesforce|firecrawl|asm-migration>" >&2
   exit 2
 fi
 PLUGIN="$1"
@@ -25,7 +25,8 @@ rsync -a --exclude=node_modules --exclude=.git "$SOURCE/" "$COPY/"
 jq --arg minimum "$MINIMUM" '.devDependencies["@f5-sales-demo/xcsh"] = $minimum' \
   "$COPY/package.json" >"$WORK/package.tmp"
 mv "$WORK/package.tmp" "$COPY/package.json"
-rm -f "$COPY/bun.lock" "$COPY/bun.lockb"
+# ASM bundles production dependencies: retain their shipped resolutions while changing only the runtime lane.
+if [ "$PLUGIN" != asm-migration ]; then rm -f "$COPY/bun.lock" "$COPY/bun.lockb"; fi
 # Match canonical test-runner exclusions by binary, not by PATH directory.
 IFS=':' read -r -a ENTRIES <<<"$PATH"
 for entry in "${ENTRIES[@]}"; do
