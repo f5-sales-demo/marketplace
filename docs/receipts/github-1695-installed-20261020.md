@@ -13,7 +13,7 @@ All sixty tracked plugin files match merged source. On Mac and Ubuntu, each
 installed 3.3.1 cache matches all sixty file digests independently. Each registry
 contains exactly one GitHub installation. The resolved executable paths are
 `/opt/homebrew/bin/xcsh` and `/opt/homebrew/bin/gh` on Mac;
-`/home/robin/.local/bin/xcsh` and the managed shell-tools `gh` on Ubuntu.
+`~/.local/bin/xcsh` and the managed shell-tools `gh` on Ubuntu.
 Both installed runtimes are 23.9.3. Minimum compatibility remains 23.5.1 and
 catalog discovery remains 23.8.0. No discovery fingerprint was upgraded.
 
