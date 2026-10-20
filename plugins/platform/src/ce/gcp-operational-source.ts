@@ -3,7 +3,7 @@ import type { OperationalBinding, OperationalProfile } from '../../../gcloud/src
 import { createGcpOperationalCommandPort, type OperationalCommandCapture } from './gcp-operational-command';
 import { projectGcpOperationalDiagnosis } from './gcp-operational-diagnosis';
 import { collectGcpOperationalHealth, type GcpOperationalObservationPort } from './gcp-operational-observation';
-import { collectGcpOperationalRuntime } from './gcp-operational-runtime';
+import { collectGcpOperationalRuntime, collectGcpOperationalRuntimeEvidence } from './gcp-operational-runtime';
 import { projectGcpOperationalSiteStatus } from './gcp-operational-site-status';
 
 const object = (value: unknown): Record<string, unknown> => {
@@ -142,7 +142,7 @@ export function createGcpOperationalSource(
         return node.nics;
       }
       if (check === 'runtime')
-        return collectGcpOperationalRuntime(
+        return (profile.placementCounts ? collectGcpOperationalRuntimeEvidence : collectGcpOperationalRuntime)(
           commands,
           node,
           expected.ownershipFingerprint,
@@ -160,6 +160,7 @@ export function createGcpOperationalSource(
           runtimeIdentitySha256: expected.runtimeIdentitySha256,
           nodeName: node.nodeName,
           role: node.role,
+          runtimeRole: profile.roles[node.role]?.runtimeRole,
           devices: identity.devices,
           addresses: identity.addresses,
         });

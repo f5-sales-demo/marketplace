@@ -386,3 +386,40 @@ it('keeps release qualification separate from the unchanged candidate contract',
   expect(qualifiedOperationalRelease(receipt, fingerprint(receipt), contractFingerprint)).toBe(false);
   expect(fingerprint(f.profile)).toBe(contractFingerprint);
 });
+
+it('retains known component failures alongside unexpected workload placement', () => {
+  const f = operationalFixture();
+  rewrite(f, 'components', [
+    ...f.profile.roles.control.components.map((name) => ({ name, state: name === 'etcd' ? 'Failed' : 'Ready' })),
+    { name: 'unexpected', state: 'Ready' },
+  ]);
+  const result = evaluate(f);
+  expect(result.status).toBe('unknown');
+  expect(result.nodes[0].knownFailures).toContain('component:etcd');
+});
+it('requires fresh placement evidence and preserves liveness failures when a workload moves', () => {
+  const f = operationalFixture();
+  f.profile.roles.control.runtimeRole = 'k8s-master-primary';
+  f.profile.placementCounts = Object.fromEntries(f.profile.roles.control.containers.map((c) => [c.service, 3]));
+  f.collection.contractFingerprint = fingerprint(f.profile);
+  for (const node of f.collection.nodes) {
+    node.siteStatus.projection = { ...(node.siteStatus.projection as object), runtimeRole: 'k8s-master-primary' };
+    node.siteStatus.projectionFingerprint = fingerprint(node.siteStatus.projection);
+    node.runtime.projection = { schemaVersion: 2, placementState: 'unchanged', containers: node.runtime.projection };
+    node.runtime.projectionFingerprint = fingerprint(node.runtime.projection);
+  }
+  expect(evaluate(f).status).toBe('healthy');
+  const runtime = f.collection.nodes[0].runtime.projection as {
+    placementState: string;
+    containers: Array<{ name: string; liveness: string }>;
+  };
+  runtime.placementState = 'drift';
+  runtime.containers.find((row) => row.name === 'etcd')!.liveness = 'not-running';
+  f.collection.nodes[0].runtime.projectionFingerprint = fingerprint(runtime);
+  const result = evaluate(f);
+  expect(result.status).toBe('unknown');
+  expect(result.nodes[0].knownFailures.some((check) => check.startsWith('container:etcd:'))).toBe(true);
+  expect(result.nodes[0].checks.find((check) => check.check === 'runtime-placement')?.reasonCode).toBe(
+    'runtime-placement-requalification-required',
+  );
+});

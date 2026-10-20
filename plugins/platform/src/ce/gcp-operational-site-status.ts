@@ -1,5 +1,5 @@
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
-export const GCP_SITE_STATUS_PARSER_VERSION = 'site-status-ver-and-interfaces/v1';
+export const GCP_SITE_STATUS_PARSER_VERSION = 'site-status-ver-and-interfaces/v2';
 const object = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 /** Exact runtime-object, node status identity and physical-device joins; tunnel interfaces are outside this projection. */
@@ -10,6 +10,7 @@ export function projectGcpOperationalSiteStatus(
     runtimeIdentitySha256: string;
     nodeName: string;
     role: string;
+    runtimeRole?: string;
     devices: [string, string];
     addresses: [string, string];
   },
@@ -30,7 +31,11 @@ export function projectGcpOperationalSiteStatus(
   if (nodeRows.length !== 1 || verRows.length !== 1) throw new Error('Runtime node status identity ambiguous');
   const node = nodeRows[0]!;
   const nodeInfo = object(node.node_info);
-  if (!Array.isArray(nodeInfo?.role) || nodeInfo.role.length !== 1 || nodeInfo.role[0] !== 'k8s-master-primary')
+  if (
+    !Array.isArray(nodeInfo?.role) ||
+    nodeInfo.role.length !== 1 ||
+    nodeInfo.role[0] !== (expected.runtimeRole ?? 'k8s-master-primary')
+  )
     throw new Error('Runtime node role requires requalification');
   const row = verRows[0]!;
   const statusMetadata = object(row.metadata);
@@ -61,5 +66,11 @@ export function projectGcpOperationalSiteStatus(
     if (address !== expected.addresses[index]) throw new Error('Physical interface address join differs');
     return intf.link_state && intf.active_state === 'STATE_ACTIVE';
   });
-  return { role: expected.role, runtimeIdentitySha256: expected.runtimeIdentitySha256, verState: state, interfacesUp };
+  return {
+    role: expected.role,
+    ...(expected.runtimeRole ? { runtimeRole: nodeInfo.role[0] } : {}),
+    runtimeIdentitySha256: expected.runtimeIdentitySha256,
+    verState: state,
+    interfacesUp,
+  };
 }

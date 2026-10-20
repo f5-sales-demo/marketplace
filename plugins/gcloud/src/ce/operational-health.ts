@@ -32,6 +32,7 @@ export interface OperationalProfile {
   roles: Record<
     string,
     {
+      runtimeRole?: string;
       components: string[];
       containers: Array<{
         service: string;
@@ -44,6 +45,8 @@ export interface OperationalProfile {
     }
   >;
   inventoryServices: string[];
+  /** Frozen cluster-wide node counts. Role selection never changes these counts. */
+  placementCounts?: Record<string, number>;
   verRunningStates: string[];
   exclusions: Array<{ service: string; evidenceSha256: string; reason: 'auxiliary-outside-operational-scope' }>;
   qualification: { evidenceSha256: string; discoveryCleanupSha256: string };
@@ -181,6 +184,7 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       !role.containers.length
     )
       return false;
+    if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
     const containers = role.containers.map(object);
     if (
       containers.some(
@@ -223,7 +227,42 @@ export function qualifiedOperationalProfile(value: unknown, pinnedFingerprint: s
       return false;
   for (const service of GCP_OPERATIONAL_CORE_SEED)
     if (!declaredRoles.some((role) => role.components.includes(service))) return false;
+  if (p.placementCounts !== undefined) {
+    const counts = object(p.placementCounts);
+    const required = new Set([
+      ...p.inventoryServices,
+      ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
+    ]);
+    if (
+      !counts ||
+      Object.keys(counts).length !== required.size ||
+      [...required].some(
+        (service) => !Number.isInteger(counts[service]) || Number(counts[service]) < 1 || Number(counts[service]) > 3,
+      ) ||
+      declaredRoles.some(
+        (role) => !role.runtimeRole || !GCP_OPERATIONAL_CORE_SEED.every((service) => role.components.includes(service)),
+      ) ||
+      [...GCP_OPERATIONAL_CORE_SEED, ...GCP_OPERATIONAL_DEPENDENCIES].some((service) => counts[service] !== 3)
+    )
+      return false;
+  }
   return true;
+}
+
+/** Count node placements, not containers (a service may have several required containers). */
+export function hasGcpOperationalPlacementCoverage(profile: OperationalProfile, roles: string[]): boolean {
+  return (
+    roles.length === 3 &&
+    roles.every((name) => !!profile.roles[name]) &&
+    Object.entries(profile.placementCounts ?? {}).every(
+      ([service, count]) =>
+        roles.filter(
+          (name) =>
+            profile.roles[name].components.includes(service) ||
+            profile.roles[name].containers.some((c) => c.service === service),
+        ).length === count,
+    )
+  );
 }
 function validBinding(value: OperationalBinding): boolean {
   if (
@@ -272,6 +311,14 @@ export function evaluateGcpOperationalHealth(
   const c = object(value);
   if (!profile) reasons.add('operational-contract-unqualified');
   if (!validBinding(expected)) reasons.add('invalid-original-binding');
+  if (
+    profile &&
+    !hasGcpOperationalPlacementCoverage(
+      profile,
+      Array.isArray(expected.nodes) ? expected.nodes.map((node) => node.role) : [],
+    )
+  )
+    reasons.add('required-service-placement-count-mismatch');
   if (
     profile &&
     Array.isArray(expected.nodes) &&
@@ -370,6 +417,12 @@ export function evaluateGcpOperationalHealth(
       const site = object(siteValue);
       if (siteValue !== undefined && !site) check('siteStatus', 'unknown', 'required-projection-malformed');
       if (site) {
+        if (role?.runtimeRole)
+          check(
+            'runtime-role',
+            site.runtimeRole === role.runtimeRole ? 'healthy' : 'unknown',
+            'runtime-role-requalification-required',
+          );
         check(
           'runtime-identity',
           site.runtimeIdentitySha256 === expected.runtimeIdentitySha256 && site.role === node.role
@@ -410,21 +463,21 @@ export function evaluateGcpOperationalHealth(
           rows.some((r) => !role?.components.includes(String(r?.name)))
         )
           check('components', 'unknown', 'malformed-or-duplicate-component');
-        else
-          for (const name of role?.components ?? []) {
-            const component = rows.find((r) => r?.name === name);
-            check(
-              `component:${name}`,
-              !component
-                ? 'unknown'
-                : component.state === 'Ready'
-                  ? 'healthy'
-                  : ['NotReady', 'Failed'].includes(String(component.state))
-                    ? 'degraded'
-                    : 'unknown',
-              'component-not-ready-or-missing',
-            );
-          }
+        for (const name of role?.components ?? []) {
+          const matches = rows.filter((r) => r?.name === name);
+          const component = matches.length === 1 ? matches[0] : undefined;
+          check(
+            `component:${name}`,
+            !component
+              ? 'unknown'
+              : component.state === 'Ready'
+                ? 'healthy'
+                : ['NotReady', 'Failed'].includes(String(component.state))
+                  ? 'degraded'
+                  : 'unknown',
+            'component-not-ready-or-missing',
+          );
+        }
       }
       const inventory = read('inventory');
       let repeatedReferences = 0;
@@ -462,7 +515,15 @@ export function evaluateGcpOperationalHealth(
       }
       const runtime = read('runtime');
       if (runtime !== undefined) {
-        const rows = Array.isArray(runtime) ? runtime.map(object) : [];
+        const envelope = object(runtime);
+        if (profile?.placementCounts)
+          check(
+            'runtime-placement',
+            envelope?.schemaVersion === 2 && envelope.placementState === 'unchanged' ? 'healthy' : 'unknown',
+            'runtime-placement-requalification-required',
+          );
+        const entries = profile?.placementCounts ? envelope?.containers : runtime;
+        const rows = Array.isArray(entries) ? entries.map(object) : [];
         if (
           !rows.length ||
           rows.some(
@@ -524,6 +585,8 @@ export function evaluateGcpOperationalHealth(
             : 'healthy';
       return {
         nodeName: node.nodeName,
+        role: node.role,
+        ...(role?.runtimeRole ? { runtimeRole: role.runtimeRole } : {}),
         status: state,
         checks,
         knownFailures: checks.filter((c) => c.state === 'degraded').map((c) => c.check),

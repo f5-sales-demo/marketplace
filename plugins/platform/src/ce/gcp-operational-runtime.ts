@@ -8,7 +8,7 @@ import type { createGcpOperationalCommandPort } from './gcp-operational-command'
 import { parseGcpRuntimeListing, projectGcpRuntimeInspection } from './gcp-runtime-diagnostics';
 
 /** Collect only frozen mappings from this original node's current listing. Ambiguous joins cannot be inspected. */
-export async function collectGcpOperationalRuntime(
+async function collectRuntimeEvidence(
   commands: ReturnType<typeof createGcpOperationalCommandPort>,
   node: OperationalBinding['nodes'][number],
   ownershipFingerprint: string,
@@ -29,31 +29,61 @@ export async function collectGcpOperationalRuntime(
     containers,
   };
   const mappings = profile.roles[node.role].containers;
-  const selected = mappings.map((mapping) => {
-    const matching = containers.filter(
-      (container) =>
-        container.namespace === mapping.namespace &&
-        container.name === mapping.name &&
-        matchesGcpOperationalPod(container.pod, mapping),
-    );
-    const running = matching.filter((container) => container.state === 'Running');
-    const matches = running.length ? running : matching;
-    if (matches.length !== 1) throw new Error('Required runtime coverage missing or ambiguous');
-    return matches[0];
-  });
+  const selected = mappings
+    .map((mapping) => {
+      const matching = containers.filter(
+        (container) =>
+          container.namespace === mapping.namespace &&
+          container.name === mapping.name &&
+          matchesGcpOperationalPod(container.pod, mapping),
+      );
+      const running = matching.filter((container) => container.state === 'Running');
+      const matches = running.length ? running : matching;
+      return matches.length === 1 ? matches[0] : undefined;
+    })
+    .filter((container): container is NonNullable<typeof container> => !!container);
   if (new Set(selected.map((container) => container.id)).size !== selected.length)
     throw new Error('Required runtime mappings overlap');
   const projections: ReturnType<typeof projectGcpRuntimeInspection>[] = [];
   for (const container of selected) {
     signal?.throwIfAborted();
-    const output = await commands.execute(node, { kind: 'inspect', containerId: container.id, listing }, signal);
-    let value: unknown;
     try {
-      value = JSON.parse(output);
+      const output = await commands.execute(node, { kind: 'inspect', containerId: container.id, listing }, signal);
+      projections.push(projectGcpRuntimeInspection(JSON.parse(output), container));
     } catch {
-      throw new Error('Required runtime inspection malformed');
+      // The transport already retained the failed read privately. A missing projection remains unknown
+      // while independently verified failures from other mappings survive.
+      signal?.throwIfAborted();
     }
-    projections.push(projectGcpRuntimeInspection(value, container));
   }
-  return projections;
+  const placementDrift = Object.values(profile.roles)
+    .flatMap((role) => role.containers)
+    .some(
+      (mapping) =>
+        containers.some(
+          (container) =>
+            container.state === 'Running' &&
+            container.name === mapping.name &&
+            container.namespace === mapping.namespace &&
+            matchesGcpOperationalPod(container.pod, mapping),
+        ) &&
+        !mappings.some(
+          (declared) =>
+            declared.service === mapping.service &&
+            declared.name === mapping.name &&
+            declared.namespace === mapping.namespace &&
+            declared.podPrefix === mapping.podPrefix &&
+            declared.podShape === mapping.podShape,
+        ),
+    );
+  return {
+    schemaVersion: 2,
+    containers: projections,
+    placementState: placementDrift ? ('drift' as const) : ('unchanged' as const),
+  };
 }
+
+export async function collectGcpOperationalRuntime(...args: Parameters<typeof collectRuntimeEvidence>) {
+  return (await collectRuntimeEvidence(...args)).containers;
+}
+export const collectGcpOperationalRuntimeEvidence = collectRuntimeEvidence;
