@@ -91,3 +91,12 @@ test('rejects partial, substituted, duplicate, and malformed BGP route inventori
   ];
   for (const value of variants) expect(() => parseBgpRoutes(value, expectedNodes)).toThrow();
 });
+
+test('empty routing instances and empty table inventories are incomplete route evidence', () => {
+  const value = response();
+  value.ver[0].ri_table = [];
+  expect(() => parseBgpRoutes(value, expectedNodes)).toThrow('Incomplete');
+  const noTables = response();
+  noTables.ver[0].ri_table[0].rt_table = [];
+  expect(() => parseBgpRoutes(noTables, expectedNodes)).toThrow('Incomplete');
+});

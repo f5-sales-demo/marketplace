@@ -17,6 +17,7 @@ async function fixture(
   outputValues: Record<string, unknown> = {},
   configuration = '{"terraform":{"required_version":"= 1.14.0"}}',
   onApply?: () => void,
+  stateOverride?: Record<string, unknown>,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
@@ -32,25 +33,33 @@ async function fixture(
           ? JSON.stringify({ terraform_version: '1.14.0' })
           : request.args[0] === 'output'
             ? JSON.stringify(outputValues)
-            : request.args[0] === 'show'
-              ? JSON.stringify({
-                  format_version: '1.2',
-                  terraform_version: '1.14.0',
-                  errored: false,
-                  complete: true,
-                  applyable: true, // codespell:ignore applyable
-                  resource_changes: [
-                    {
-                      address: 'terraform_data.ce',
-                      mode: 'managed',
-                      type: 'terraform_data',
-                      change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
-                    },
-                  ],
-                  output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
-                  ...planOverrides,
-                })
-              : '',
+            : request.args[0] === 'show' && request.args.length === 2
+              ? JSON.stringify(
+                  stateOverride ?? {
+                    format_version: '1.0',
+                    terraform_version: '1.14.0',
+                    values: planOverrides.values ?? { root_module: { resources: [] } },
+                  },
+                )
+              : request.args[0] === 'show'
+                ? JSON.stringify({
+                    format_version: '1.2',
+                    terraform_version: '1.14.0',
+                    errored: false,
+                    complete: true,
+                    applyable: true, // codespell:ignore applyable
+                    resource_changes: [
+                      {
+                        address: 'terraform_data.ce',
+                        mode: 'managed',
+                        type: 'terraform_data',
+                        change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
+                      },
+                    ],
+                    output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
+                    ...planOverrides,
+                  })
+                : '',
     };
   });
   await runner.prepare({
@@ -713,4 +722,245 @@ test('destroy plans use refresh and exact saved-plan application and reject non-
     output_changes: {},
   });
   await expect(invalid.runner.planDestroy({})).rejects.toThrow();
+});
+
+test('proposed power fields come from after values while teardown projection retains before values', async () => {
+  const resource = {
+    address: 'aws_ec2_instance_state.ce',
+    type: 'aws_ec2_instance_state',
+    change: {
+      actions: ['update'],
+      before: { instance_id: 'i-12345678', state: 'running', force: false },
+      after: { instance_id: 'i-12345678', state: 'stopped', force: false, secret: 'PRIVATE' },
+      after_unknown: { instance_id: false },
+      after_sensitive: { secret: true },
+    },
+  };
+  const { runner } = await fixture({ resource_changes: [resource], output_changes: {} });
+  const receipt = await runner.plan({});
+  expect(await runner.readPlannedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['state'] }, {})).toEqual({
+    'aws_ec2_instance_state.ce': { state: 'running' },
+  });
+  expect(
+    await runner.readProposedResourceFields(
+      receipt,
+      { 'aws_ec2_instance_state.ce': ['instance_id', 'state', 'force'] },
+      {},
+    ),
+  ).toEqual({ 'aws_ec2_instance_state.ce': { instance_id: 'i-12345678', state: 'stopped', force: false } });
+  await expect(
+    runner.readProposedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['secret'] }, {}),
+  ).rejects.toThrow('sensitive');
+  await expect(
+    runner.readProposedResourceFields(
+      { ...receipt, planSha256: '0'.repeat(64) },
+      { 'aws_ec2_instance_state.ce': ['state'] },
+      {},
+    ),
+  ).rejects.toThrow('differs');
+});
+for (const mode of ['unknown', 'sensitive', 'missing'] as const)
+  test(`proposed ${mode} power identity rejects before apply`, async () => {
+    const after: Record<string, unknown> = { instance_id: 'i-12345678', state: 'stopped', force: false };
+    if (mode === 'missing') delete after.instance_id;
+    const { runner, calls } = await fixture({
+      resource_changes: [
+        {
+          address: 'aws_ec2_instance_state.ce',
+          type: 'aws_ec2_instance_state',
+          change: {
+            actions: ['create'],
+            before: null,
+            after,
+            after_unknown: { instance_id: mode === 'unknown' },
+            after_sensitive: { instance_id: mode === 'sensitive' },
+          },
+        },
+      ],
+      output_changes: {},
+    });
+    const receipt = await runner.plan({});
+    await expect(
+      runner.readProposedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['instance_id'] }, {}),
+    ).rejects.toThrow();
+    expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+  });
+test('proposed deletion is null but removed control prior identity remains available', async () => {
+  const { runner } = await fixture({
+    resource_changes: [
+      {
+        address: 'aws_ec2_instance_state.ce',
+        type: 'aws_ec2_instance_state',
+        change: {
+          actions: ['delete'],
+          before: { instance_id: 'i-12345678', state: 'running', force: false },
+          after: null,
+        },
+      },
+    ],
+    output_changes: {},
+  });
+  const receipt = await runner.plan({});
+  expect(
+    await runner.readProposedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['instance_id'] }, {}),
+  ).toEqual({ 'aws_ec2_instance_state.ce': null });
+  expect(await runner.readPlannedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['instance_id'] }, {})).toEqual(
+    { 'aws_ec2_instance_state.ce': { instance_id: 'i-12345678' } },
+  );
+});
+
+test('application journal proves unsubmitted versus submitted without replaying a saved plan', async () => {
+  const { runner } = await fixture();
+  const receipt = await runner.plan({});
+  expect(await runner.readPlanApplicationState(receipt)).toBe('planned');
+  await runner.apply(receipt, {});
+  expect(await runner.readPlanApplicationState(receipt)).toBe('applied');
+  await expect(runner.readPlanApplicationState({ ...receipt, planSha256: '0'.repeat(64) })).rejects.toThrow('differs');
+});
+test('applied-state power fields require exact receipt and independently reflect state rather than desired plan', async () => {
+  const state = {
+    values: {
+      root_module: {
+        resources: [
+          {
+            address: 'aws_ec2_instance_state.ce',
+            mode: 'managed',
+            type: 'aws_ec2_instance_state',
+            name: 'ce',
+            provider_name: 'registry.terraform.io/hashicorp/aws',
+            values: { id: 'i-12345678', instance_id: 'i-12345678', state: 'running', force: false, secret: 'PRIVATE' },
+            sensitive_values: { secret: true },
+          },
+        ],
+      },
+    },
+  };
+  const { runner, calls } = await fixture({
+    ...state,
+    resource_changes: [
+      {
+        address: 'aws_ec2_instance_state.ce',
+        type: 'aws_ec2_instance_state',
+        change: { actions: ['update'], before: { state: 'running' }, after: { state: 'stopped' } },
+      },
+    ],
+    output_changes: {},
+  });
+  const receipt = await runner.plan({});
+  await expect(
+    runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['state'] }, {}),
+  ).rejects.toThrow('submitted');
+  await runner.apply(receipt, {});
+  expect(
+    await runner.readAppliedResourceFields(
+      receipt,
+      { 'aws_ec2_instance_state.ce': ['state', 'instance_id', 'force'] },
+      {},
+    ),
+  ).toEqual({ 'aws_ec2_instance_state.ce': { state: 'running', instance_id: 'i-12345678', force: false } });
+  await expect(
+    runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['secret'] }, {}),
+  ).rejects.toThrow('sensitive');
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+});
+test('interrupted application retains applying journal and exact state observation without repeating apply', async () => {
+  const { runner, calls } = await fixture(
+    { values: { root_module: { resources: [] } }, output_changes: {} },
+    {},
+    undefined,
+    () => {
+      throw Error('lost response');
+    },
+  );
+  const receipt = await runner.plan({});
+  await expect(runner.apply(receipt, {})).rejects.toThrow();
+  expect(await runner.readPlanApplicationState(receipt)).toBe('applying');
+  expect(await runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['id'] }, {})).toEqual({
+    'aws_ec2_instance_state.ce': null,
+  });
+  expect(calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+});
+for (const mode of ['duplicate', 'sensitive', 'missing', 'unknown'] as const)
+  test(`applied-state ${mode} resource evidence rejects`, async () => {
+    const resource = {
+      address: 'aws_ec2_instance_state.ce',
+      mode: 'managed',
+      type: 'aws_ec2_instance_state',
+      name: 'ce',
+      provider_name: 'registry.terraform.io/hashicorp/aws',
+      values: { instance_id: mode === 'unknown' ? null : 'i-12345678' },
+      sensitive_values: { instance_id: mode === 'sensitive' },
+    };
+    if (mode === 'missing') Object.assign(resource, { values: {} });
+    const { runner } = await fixture({
+      values: { root_module: { resources: mode === 'duplicate' ? [resource, resource] : [resource] } },
+      output_changes: {},
+    });
+    const receipt = await runner.plan({});
+    await runner.apply(receipt, {});
+    await expect(
+      runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['instance_id'] }, {}),
+    ).rejects.toThrow();
+  });
+
+for (const mode of [
+  'missing-values',
+  'malformed-inventory',
+  'foreign-type',
+  'foreign-name',
+  'missing-provider',
+  'wrong-version',
+  'wrong-format',
+] as const)
+  test(`applied-state ${mode} inventory rejects`, async () => {
+    const resource: Record<string, unknown> = {
+      address: 'aws_ec2_instance_state.ce',
+      mode: 'managed',
+      type: 'aws_ec2_instance_state',
+      name: 'ce',
+      provider_name: 'registry.terraform.io/hashicorp/aws',
+      values: { instance_id: 'i-12345678' },
+      sensitive_values: {},
+    };
+    if (mode === 'foreign-type') resource.type = 'aws_instance';
+    if (mode === 'foreign-name') resource.name = 'other';
+    if (mode === 'missing-provider') delete resource.provider_name;
+    const state: Record<string, unknown> = {
+      format_version: '1.0',
+      terraform_version: '1.14.0',
+      values: { root_module: { resources: [resource] } },
+    };
+    if (mode === 'missing-values') state.values = null;
+    if (mode === 'malformed-inventory') state.values = { root_module: { resources: {} } };
+    if (mode === 'wrong-version') state.terraform_version = '1.13.0';
+    if (mode === 'wrong-format') state.format_version = '2.0';
+    const { runner } = await fixture({}, {}, undefined, undefined, state);
+    const receipt = await runner.plan({});
+    await runner.apply(receipt, {});
+    await expect(
+      runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['instance_id'] }, {}),
+    ).rejects.toThrow();
+  });
+test('applied-state observation rejects tampered application journal', async () => {
+  const { runner, root } = await fixture();
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  await writeFile(
+    join(root, 'ce-test', 'plan-receipt.json'),
+    JSON.stringify({ state: 'planned', receipt: { ...receipt, backendIdentity: 'local:foreign' } }),
+    { mode: 0o600 },
+  );
+  await expect(runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['id'] }, {})).rejects.toThrow(
+    'differs',
+  );
+});
+
+test('exact no-change journal permits actual state inspection without submitting an apply', async () => {
+  const { runner, calls } = await fixture({ resource_changes: [], output_changes: {}, applyable: false });
+  const receipt = await runner.plan({});
+  expect(receipt.noChanges).toBe(true);
+  expect(await runner.readAppliedResourceFields(receipt, { 'aws_ec2_instance_state.ce': ['id'] }, {})).toEqual({
+    'aws_ec2_instance_state.ce': null,
+  });
+  expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
 });

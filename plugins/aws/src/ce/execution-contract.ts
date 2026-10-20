@@ -5,9 +5,9 @@ export const AWS_CE_PROVIDER_LOCK_SHA256 = 'c4fbed57d353b4b7ee92bcdd16be57a9674d
 import type { AwsCeIntent } from './types';
 
 /** Power operations need coordinated withdrawal/restoration, not just EC2 power actions. */
-export function assertAwsWholeSitePowerSupported(intent: Pick<AwsCeIntent, 'operation'>): void {
+export function assertAwsDeploymentCompilerOperation(intent: Pick<AwsCeIntent, 'operation'>): void {
   if (intent.operation === 'start' || intent.operation === 'stop')
     throw new Error(
-      `Whole-site ${intent.operation} is unavailable until reviewed service withdrawal, restoration and traffic gates are implemented; use the owning-engine selected-node failover workflow only for its supported topology`,
+      `Whole-site ${intent.operation} requires aws_ce_power with the exact original deployment and saved power plan; the deployment compiler lacks immutable service and maintenance bindings`,
     );
 }

@@ -39,6 +39,7 @@ test.skipIf(!installed)(
       'aws_ce_diagnose',
       'aws_ce_upgrade',
       'aws_ce_failover',
+      'aws_ce_power',
       'aws_ce_teardown',
     ]) {
       const tool = tools.find((tool) => tool.name === name);

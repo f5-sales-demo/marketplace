@@ -122,7 +122,11 @@ import { isIP } from 'node:net';
 
 function parseBgpSessions(response, expected) {
   if (
-    ![2, 4, 6].includes(expected.length) ||
+    !Array.isArray(expected) ||
+    expected.length < 2 ||
+    expected.length > 24 ||
+    expected.length % 2 !== 0 ||
+    new Set(expected.map((item) => item.node)).size > 3 ||
     new Set(expected.map((item) => `${item.node}/${item.interfaceName}/${item.peerAddress}`)).size !==
       expected.length ||
     expected.some(
@@ -267,10 +271,12 @@ function parseBgpRoutes(response, expectedNodes) {
         };
         return { name: table.name, imported: routes('imported'), exported: routes('exported') };
       });
+      if (!tables.length) throw new Error('Incomplete BGP route table evidence');
       if (new Set(tables.map((table) => table.name)).size !== tables.length)
         throw new Error('Duplicate BGP route table evidence');
       return { name: instance.routing_instance, tables };
     });
+    if (!routingInstances.length) throw new Error('Incomplete BGP routing instance evidence');
     if (new Set(routingInstances.map((instance) => instance.name)).size !== routingInstances.length)
       throw new Error('Duplicate BGP routing instance evidence');
     return { node, routingInstances };
@@ -298,6 +304,98 @@ var object2 = (value) => {
     );
   };
 var init_bgp_route_evidence = () => {};
+
+// plugins/platform/src/ce/bgp-service-membership.ts
+import { isIP as isIP3 } from 'node:net';
+
+function subnet(value) {
+  const [ip, bits] = value.split('/');
+  return {
+    family: isIP3(ip),
+    bits: Number(bits),
+    address: ip.split('.').reduce((n, o) => (n * 256 + Number(o)) >>> 0, 0),
+  };
+}
+function overlaps(left, right) {
+  const a = subnet(left),
+    b = subnet(right);
+  if (a.family !== 4 || b.family !== 4) return false;
+  const bits = Math.min(a.bits, b.bits),
+    mask = bits === 0 ? 0 : (4294967295 << (32 - bits)) >>> 0;
+  return (a.address & mask) >>> 0 === (b.address & mask) >>> 0;
+}
+function parseBgpServiceMembership(peerResponse, routeResponse, expected, bindings, servicePrefixes) {
+  const nodes = [...new Set(expected.map((s) => s.node))];
+  if (
+    !Array.isArray(bindings) ||
+    bindings.length !== nodes.length ||
+    new Set(bindings.map((b) => b.node)).size !== nodes.length ||
+    nodes.some((node) => !bindings.some((b) => b.node === node)) ||
+    bindings.some(
+      (b) =>
+        typeof b.routingInstance !== 'string' ||
+        !b.routingInstance ||
+        b.routingInstance.includes('__') ||
+        typeof b.table !== 'string' ||
+        !b.table ||
+        b.table.includes('__'),
+    ) ||
+    !Array.isArray(servicePrefixes) ||
+    !servicePrefixes.length ||
+    new Set(servicePrefixes).size !== servicePrefixes.length
+  )
+    throw Error('BGP service binding incomplete or ambiguous');
+  for (const cidr of servicePrefixes) {
+    const [ip, bits, extra] = cidr.split('/');
+    if (
+      isIP3(ip) !== 4 ||
+      !/^\d{1,2}$/.test(bits ?? '') ||
+      Number(bits) < 1 ||
+      Number(bits) > 32 ||
+      extra !== undefined
+    )
+      throw Error('BGP service prefix unresolved');
+    const address = ip.split('.').reduce((n, o) => (n * 256 + Number(o)) >>> 0, 0),
+      mask = (4294967295 << (32 - Number(bits))) >>> 0;
+    if ((address & mask) >>> 0 !== address) throw Error('BGP service prefix is not network aligned');
+  }
+  const sessions = parseBgpSessions(peerResponse, expected);
+  const routes = parseBgpRoutes(routeResponse, nodes);
+  const membership = bindings.map((binding) => {
+    const node = routes.nodes.find((n) => n.node === binding.node);
+    const instance = node?.routingInstances.find((r) => r.name === binding.routingInstance);
+    const table = instance?.tables.find((t) => t.name === binding.table);
+    if (!table) throw Error('BGP service routing instance or table missing');
+    return {
+      ...binding,
+      prefixes: servicePrefixes.map((prefix) => ({
+        prefix,
+        exported: table.exported.includes(prefix),
+        overlappingExports: table.exported.filter((route) => overlaps(route, prefix)),
+      })),
+    };
+  });
+  const flags = membership.flatMap((m) => m.prefixes.map((p) => p.exported));
+  return {
+    status:
+      sessions.status !== 'healthy'
+        ? 'pending'
+        : flags.every(Boolean)
+          ? 'active'
+          : flags.every((v) => !v) &&
+              membership.every((row) => row.prefixes.every((prefix) => prefix.overlappingExports.length === 0))
+            ? 'withdrawn'
+            : 'pending',
+    sessions: sessions.sessions,
+    membership,
+    freshness: 'unqualified',
+    traffic: 'unknown',
+  };
+}
+var init_bgp_service_membership = __esm(() => {
+  init_bgp_evidence();
+  init_bgp_route_evidence();
+});
 
 // plugins/platform/src/ce/bootstrap.ts
 function object3(value) {
@@ -469,7 +567,7 @@ var init_process_lock = __esm(() => {
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 import { createHash as createHash2 } from 'node:crypto';
-import { isIP as isIP3 } from 'node:net';
+import { isIP as isIP4 } from 'node:net';
 import { join as join3 } from 'node:path';
 
 function object4(value) {
@@ -567,7 +665,7 @@ class CeIngressLifecycle {
           : ![1, 3].includes(binding.nodes.length) || !binding.nodes.includes(selected.node)) ||
         !/^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(selected.mac) ||
         (selected.insideAddress !== undefined &&
-          (isIP3(selected.insideAddress) !== 4 || addresses.has(selected.insideAddress)))
+          (isIP4(selected.insideAddress) !== 4 || addresses.has(selected.insideAddress)))
       )
         throw new Error(`Ingress requires distinct owned ${provider} sites with an observed inside interface`);
       names.add(binding.siteName);
@@ -988,7 +1086,7 @@ function initialSoftwareSettings(value) {
 }
 
 // plugins/platform/src/ce/interface-evidence.ts
-import { isIP as isIP4 } from 'node:net';
+import { isIP as isIP5 } from 'node:net';
 
 function observedIpv4(link) {
   if (link.active_state !== 'STATE_ACTIVE') return null;
@@ -996,7 +1094,7 @@ function observedIpv4(link) {
     const ipv4 = object5(object5(link.ip).ipv4);
     if (
       typeof ipv4.prefix !== 'string' ||
-      isIP4(ipv4.prefix) !== 4 ||
+      isIP5(ipv4.prefix) !== 4 ||
       !Number.isInteger(ipv4.plen) ||
       Number(ipv4.plen) < 0 ||
       Number(ipv4.plen) > 32
@@ -2172,6 +2270,60 @@ class CeRuntime {
     this.#owned(site, binding);
     return site;
   }
+  async observePowerVersions(binding, signal) {
+    binding = structuredClone(binding);
+    this.#binding(binding);
+    const source = `/api/config/namespaces/system/sites/${binding.siteName}`;
+    const base = {
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      nodes: [...binding.nodes],
+      contractFingerprint: this.contract.fingerprint,
+      source,
+      collectedAt: new Date().toISOString(),
+      freshness: 'unqualified',
+      canSatisfyInterfaceMutationGate: false,
+    };
+    try {
+      const logical = await this.observeOwnedSite(binding, signal),
+        siteUid = object11(logical.system_metadata).uid;
+      if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
+      const read = async () => {
+        const physical = await this.#request(source, {}, signal);
+        this.#owned(physical, binding);
+        return parseSiteUpgradeState(physical, binding);
+      };
+      const state = await read(),
+        finalLogical = await this.observeOwnedSite(binding, signal),
+        finalState = await read();
+      if (
+        object11(finalLogical.system_metadata).uid !== siteUid ||
+        JSON.stringify(state) !== JSON.stringify(finalState)
+      )
+        throw new CeApiError('conflict');
+      return {
+        ...base,
+        ...state,
+        siteUid,
+        status: 'observed',
+        collectedAt: new Date().toISOString(),
+        stable:
+          state.online &&
+          [state.software, state.os].every(
+            (version) => version.phase === 'UPGRADE_COMPLETED' && ['Completed', 'success'].includes(version.result),
+          ),
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown',
+        stable: false,
+        collectedAt: new Date().toISOString(),
+        reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
+      };
+    }
+  }
   async observeUpgrade(binding, contract, targetSoftware, signal) {
     binding = structuredClone(binding);
     this.#binding(binding);
@@ -2711,6 +2863,34 @@ class CeRuntime {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
+  async observeBgpServiceMembership(binding, siteUid, expected, tables, prefixes, signal) {
+    this.#binding(binding);
+    const nodes = [...new Set(expected.map((s) => s.node))];
+    if (!siteUid.trim() || nodes.length !== binding.nodes.length || nodes.some((node) => !binding.nodes.includes(node)))
+      throw Error('BGP service logical site UID or expected nodes differ');
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object11(site.system_metadata).uid !== siteUid) throw Error('BGP service site identity changed');
+    };
+    await checkSite();
+    const sources = {
+      peers: this.contract.bgpPeersPath(binding.owner.provider, binding.siteName),
+      routes: this.contract.bgpRoutesPath(binding.owner.provider, binding.siteName),
+    };
+    const peerResponse = await this.#request(sources.peers, {}, signal);
+    const routeResponse = await this.#request(sources.routes, {}, signal);
+    const observation = parseBgpServiceMembership(peerResponse, routeResponse, expected, tables, prefixes);
+    await checkSite();
+    return {
+      ...observation,
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      siteUid,
+      sources,
+      contractFingerprint: this.contract.fingerprint,
+      collectedAt: new Date().toISOString(),
+    };
+  }
   async observeBgpSessions(binding, expected, signal) {
     this.#binding(binding);
     this.#owned(await this.observeSite(binding, signal), binding);
@@ -2769,6 +2949,17 @@ class CeRuntime {
       );
       const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
       const interfaces = correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider);
+      const finalConfiguration = await this.#request(
+        this.contract.configurationPath(binding.owner.provider, binding.siteName),
+        {},
+        signal,
+      );
+      this.#owned(finalConfiguration, binding);
+      if (
+        object11(finalConfiguration.system_metadata).uid !== object11(configuration.system_metadata).uid ||
+        JSON.stringify(finalConfiguration.spec) !== JSON.stringify(configuration.spec)
+      )
+        throw new CeApiError('conflict');
       await this.recordBinding?.(binding, String(object11(configuration.system_metadata).uid), expected);
       return {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
@@ -2851,110 +3042,12 @@ class CeRuntime {
           existing = await observe();
         }
         this.#owned(existing, { ...binding, siteName: resource.name });
-        if (kind === 'bgp_routing_policy' && !subset(existing.spec, resource.spec)) {
-          const rules = object11(existing.spec).rules;
-          const legacy =
-            Array.isArray(rules) &&
-            rules.length === 1 &&
-            JSON.stringify(rules[0]) ===
-              JSON.stringify({
-                match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
-                action: { deny: {} },
-              });
-          const uid = object11(existing.system_metadata).uid;
-          const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object11(site.system_metadata).uid;
-          if (!legacy || typeof uid !== 'string' || !uid || typeof siteUid !== 'string' || !siteUid)
-            throw new Error('Existing routing object differs from site-bound intent; replan required');
-          await checkpoint({
-            kind,
-            name: resource.name,
-            siteName: binding.siteName,
-            uid,
-            owner: binding.owner,
-            contractFingerprint: this.contract.fingerprint,
-            phase: 'export-policy-migration-pending',
-          });
-          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
-          try {
-            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
-          } catch (error) {
-            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
-          }
-          existing = await observe();
-          this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object11(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
-            throw new Error('Export-policy migration readback differs');
-        }
-        if (
-          kind === 'bgp' &&
-          Array.isArray(object11(existing.spec).peers) &&
-          object11(existing.spec).peers.some(
-            (peer) => peer && typeof peer === 'object' && Object.hasOwn(peer, 'routing_policies'),
-          )
-        ) {
-          const legacy = structuredClone(object11(existing.spec));
-          const peers = legacy.peers;
-          const expectedPolicyName = `${binding.siteName.slice(0, 43)}-tgw-export-policy`;
-          const exactLegacyPolicies =
-            Array.isArray(peers) &&
-            peers.length > 0 &&
-            peers.every((peer) => {
-              const policy = object11(object11(peer).routing_policies).route_policy;
-              if (!Array.isArray(policy) || policy.length !== 1) return false;
-              const row = object11(policy[0]);
-              const refs = row.object_refs;
-              if (
-                Object.keys(row).sort().join(',') !== 'all_nodes,object_refs,outbound' ||
-                Object.keys(object11(row.all_nodes)).length !== 0 ||
-                Object.keys(object11(row.outbound)).length !== 0 ||
-                !Array.isArray(refs) ||
-                refs.length !== 1
-              )
-                return false;
-              const ref = object11(refs[0]);
-              return (
-                ref.name === expectedPolicyName &&
-                ref.namespace === 'system' &&
-                Object.keys(ref).every((key) => ['kind', 'name', 'namespace', 'tenant', 'uid'].includes(key))
-              );
-            });
-          if (Array.isArray(peers)) for (const peer of peers) delete object11(peer).routing_policies;
-          const uid = object11(existing.system_metadata).uid;
-          const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object11(site.system_metadata).uid;
-          if (
-            !exactLegacyPolicies ||
-            !subset(legacy, resource.spec) ||
-            typeof uid !== 'string' ||
-            !uid ||
-            typeof siteUid !== 'string' ||
-            !siteUid
-          )
-            throw new Error('Existing routing object differs from site-bound intent; replan required');
-          await checkpoint({
-            kind,
-            name: resource.name,
-            siteName: binding.siteName,
-            uid,
-            owner: binding.owner,
-            contractFingerprint: this.contract.fingerprint,
-            phase: 'bgp-export-migration-pending',
-          });
-          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
-          try {
-            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
-          } catch (error) {
-            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
-          }
-          existing = await observe();
-          this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object11(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
-            throw new Error('BGP export migration readback differs');
-        }
         if (
           object11(object11(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-          !subset(existing.spec, resource.spec)
+          !subset(existing.spec, resource.spec) ||
+          (kind === 'bgp' &&
+            Array.isArray(object11(existing.spec).peers) &&
+            object11(existing.spec).peers.some((peer) => Object.hasOwn(object11(peer), 'routing_policies')))
         )
           throw new Error('Existing routing object differs from site-bound intent; replan required');
         const uid = object11(existing.system_metadata).uid;
@@ -3094,6 +3187,311 @@ class CeRuntime {
       routeServerAddresses: [...routeServerAddresses],
       contractFingerprint: this.contract.fingerprint,
     });
+  }
+  async createPowerRoutingPolicy(input, disposition, checkpoint, signal) {
+    return this.#createPowerRoutingPolicy(input, disposition, checkpoint, signal, 'native');
+  }
+  async createTerraformPowerRoutingPolicy(input, disposition, checkpoint, signal) {
+    return this.#createPowerRoutingPolicy(input, disposition, checkpoint, signal, 'terraform');
+  }
+  async #createPowerRoutingPolicy(input, disposition, checkpoint, signal, expectedEngine) {
+    const intent = structuredClone(input);
+    const { binding, siteUid, name, spec, attemptId } = intent;
+    this.#binding(binding, true);
+    if (
+      this.engine !== expectedEngine ||
+      (expectedEngine === 'terraform' && !this.resourceMutation) ||
+      binding.owner.provider !== 'aws' ||
+      !safeName.test(name) ||
+      !siteUid.trim() ||
+      !/^[a-f0-9]{64}$/.test(attemptId) ||
+      intent.contractFingerprint !== this.contract.fingerprint ||
+      !['not-submitted', 'submitted'].includes(disposition)
+    )
+      throw Error('Power policy creation identity or contract differs');
+    this.contract.validateRouting('bgp_routing_policy', spec);
+    const request = this.contract.routingCreateRequest(
+      'bgp_routing_policy',
+      {
+        name,
+        namespace: 'system',
+        labels: {
+          ...this.#labels(binding),
+          'xcsh-ce-site': binding.siteName,
+          'xcsh-ce-site-uid': siteUid,
+          'xcsh-ce-power-attempt': attemptId,
+        },
+      },
+      spec,
+    );
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object11(site.system_metadata).uid !== siteUid) throw Error('Power policy site identity changed');
+    };
+    await checkSite();
+    const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
+    const read = async () => {
+      let child;
+      try {
+        child = await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return;
+        throw error;
+      }
+      this.#owned(child, { ...binding, siteName: name });
+      const labels = object11(object11(child.metadata).labels),
+        uid = object11(child.system_metadata).uid;
+      if (
+        labels['xcsh-ce-site'] !== binding.siteName ||
+        labels['xcsh-ce-site-uid'] !== siteUid ||
+        labels['xcsh-ce-power-attempt'] !== attemptId ||
+        typeof uid !== 'string' ||
+        !uid.trim()
+      )
+        throw Error('Power policy child identity or original attempt differs');
+      if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
+        throw Error('Power policy revision missing');
+      const projected = this.contract.routingReplaceRequest('bgp_routing_policy', child, object11(child.spec), siteUid);
+      if (!subset(projected.spec, spec) || !subset(spec, projected.spec))
+        throw Error('Power policy actual spec differs');
+      return {
+        ...intent,
+        kind: 'bgp_routing_policy',
+        uid,
+        resourceVersion: child.resource_version,
+        spec: object11(projected.spec),
+        collectedAt: new Date().toISOString(),
+      };
+    };
+    let observed = await read();
+    if (!observed && disposition === 'not-submitted') {
+      await checkpoint({ ...intent, kind: 'bgp_routing_policy', phase: 'power-policy-create-dispatch' });
+      await checkSite();
+      observed = await read();
+      if (!observed) {
+        signal?.throwIfAborted();
+        try {
+          await this.#request(
+            '/api/config/namespaces/system/bgp_routing_policys',
+            {
+              method: 'POST',
+              body: JSON.stringify(request),
+            },
+            signal,
+          );
+        } catch (error) {
+          if (!(error instanceof CeApiError && ['transient', 'conflict', 'deadline'].includes(error.category)))
+            throw error;
+        }
+        observed = await read();
+      }
+    }
+    await checkSite();
+    return observed
+      ? { ...observed, status: 'observed' }
+      : { ...intent, status: 'pending', collectedAt: new Date().toISOString() };
+  }
+  async deletePowerRoutingPolicy(input, disposition, checkpoint, signal) {
+    return this.#deletePowerRoutingPolicy(input, disposition, checkpoint, signal, 'native');
+  }
+  async deleteTerraformPowerRoutingPolicy(input, disposition, checkpoint, signal) {
+    return this.#deletePowerRoutingPolicy(input, disposition, checkpoint, signal, 'terraform');
+  }
+  async #deletePowerRoutingPolicy(input, disposition, checkpoint, signal, expectedEngine) {
+    const snapshot = structuredClone(input),
+      { binding, siteUid, name, uid, resourceVersion, spec, attemptId } = snapshot;
+    this.#binding(binding, true);
+    if (
+      this.engine !== expectedEngine ||
+      (expectedEngine === 'terraform' && !this.resourceMutation) ||
+      binding.owner.provider !== 'aws' ||
+      !safeName.test(name) ||
+      !siteUid.trim() ||
+      !uid.trim() ||
+      !resourceVersion.trim() ||
+      !/^[a-f0-9]{64}$/.test(attemptId) ||
+      snapshot.contractFingerprint !== this.contract.fingerprint ||
+      !['not-submitted', 'submitted'].includes(disposition)
+    )
+      throw Error('Power policy retirement identity or contract differs');
+    this.contract.validateRouting('bgp_routing_policy', spec);
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object11(site.system_metadata).uid !== siteUid) throw Error('Power policy retirement site identity changed');
+    };
+    const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
+    const read = async () => {
+      let child;
+      try {
+        child = await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return;
+        throw error;
+      }
+      this.#owned(child, { ...binding, siteName: name });
+      const labels = object11(object11(child.metadata).labels);
+      if (
+        object11(child.system_metadata).uid !== uid ||
+        labels['xcsh-ce-site'] !== binding.siteName ||
+        labels['xcsh-ce-site-uid'] !== siteUid ||
+        labels['xcsh-ce-power-attempt'] !== attemptId ||
+        child.resource_version !== resourceVersion
+      )
+        throw Error('Power policy retirement child identity, attempt or revision differs');
+      this.contract.validateRouting('bgp_routing_policy', object11(child.spec));
+      if (!subset(child.spec, spec) || !subset(spec, child.spec))
+        throw Error('Power policy retirement actual spec differs');
+      return child;
+    };
+    await checkSite();
+    let existing = await read();
+    if (existing && disposition === 'not-submitted') {
+      await checkpoint({ ...snapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' });
+      await checkSite();
+      existing = await read();
+      if (existing) {
+        signal?.throwIfAborted();
+        try {
+          await this.#request(path, { method: 'DELETE' }, signal);
+        } catch (error) {
+          if (
+            !(
+              error instanceof CeApiError && ['transient', 'conflict', 'deadline', 'not-found'].includes(error.category)
+            )
+          )
+            throw error;
+        }
+        existing = await read();
+      }
+    }
+    await checkSite();
+    return {
+      ...snapshot,
+      status: existing ? 'pending' : 'deleted',
+      collectedAt: new Date().toISOString(),
+    };
+  }
+  async observePowerRouting(binding, kind, name, signal) {
+    this.#binding(binding);
+    if (
+      binding.owner.provider !== 'aws' ||
+      !['bgp', 'bgp_routing_policy', 'external_connector'].includes(kind) ||
+      !safeName.test(name)
+    )
+      throw Error('Power routing observation scope differs');
+    const site = await this.observeOwnedSite(binding, signal);
+    const siteUid = object11(site.system_metadata).uid;
+    if (typeof siteUid !== 'string' || !siteUid.trim()) throw Error('Power routing site identity missing');
+    const child = await this.#request(`/api/config/namespaces/system/${kind}s/${name}`, {}, signal);
+    this.#owned(child, { ...binding, siteName: name });
+    const uid = object11(child.system_metadata).uid;
+    if (
+      typeof uid !== 'string' ||
+      !uid.trim() ||
+      object11(object11(child.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object11(object11(child.metadata).labels)['xcsh-ce-site-uid'] !== siteUid
+    )
+      throw Error('Power routing child identity differs');
+    if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
+      throw Error('Power routing revision missing');
+    const request = this.contract.routingReplaceRequest(kind, child, object11(child.spec), siteUid);
+    const finalSite = await this.observeOwnedSite(binding, signal);
+    if (object11(finalSite.system_metadata).uid !== siteUid)
+      throw Error('Power routing site identity changed during observation');
+    return {
+      binding: structuredClone(binding),
+      kind,
+      name,
+      uid,
+      siteUid,
+      resourceVersion: child.resource_version,
+      spec: object11(request.spec),
+      contractFingerprint: this.contract.fingerprint,
+      collectedAt: new Date().toISOString(),
+    };
+  }
+  async replacePowerRouting(snapshot, desired, checkpoint, signal) {
+    const { binding } = snapshot;
+    this.#binding(binding, true);
+    if (
+      binding.owner.provider !== 'aws' ||
+      snapshot.contractFingerprint !== this.contract.fingerprint ||
+      !['bgp', 'bgp_routing_policy'].includes(snapshot.kind) ||
+      !safeName.test(snapshot.name) ||
+      !snapshot.uid.trim() ||
+      !snapshot.siteUid.trim() ||
+      !snapshot.resourceVersion.trim()
+    )
+      throw Error('Power routing identity or contract differs');
+    const site = await this.observeOwnedSite(binding, signal);
+    if (object11(site.system_metadata).uid !== snapshot.siteUid) throw Error('Power routing site identity differs');
+    const path = `/api/config/namespaces/system/${snapshot.kind}s/${snapshot.name}`;
+    const check = (value) => {
+      this.#owned(value, { ...binding, siteName: snapshot.name });
+      if (
+        object11(value.system_metadata).uid !== snapshot.uid ||
+        object11(object11(value.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+        object11(object11(value.metadata).labels)['xcsh-ce-site-uid'] !== snapshot.siteUid
+      )
+        throw Error('Power routing object identity differs');
+    };
+    let existing = await this.#request(path, {}, signal);
+    check(existing);
+    const request = this.contract.routingReplaceRequest(snapshot.kind, existing, desired, snapshot.siteUid);
+    const projection = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      existing,
+      object11(existing.spec),
+      snapshot.siteUid,
+    );
+    if (subset(projection.spec, request.spec) && subset(request.spec, projection.spec)) return;
+    if (
+      existing.resource_version !== snapshot.resourceVersion ||
+      !subset(projection.spec, snapshot.spec) ||
+      !subset(snapshot.spec, projection.spec)
+    )
+      throw Error('Power routing original revision differs; reconcile retained attempt');
+    await checkpoint({
+      kind: snapshot.kind,
+      name: snapshot.name,
+      uid: snapshot.uid,
+      siteUid: snapshot.siteUid,
+      resourceVersion: snapshot.resourceVersion,
+      contractFingerprint: snapshot.contractFingerprint,
+      phase: 'power-routing-dispatch',
+    });
+    const freshSite = await this.observeOwnedSite(binding, signal);
+    if (object11(freshSite.system_metadata).uid !== snapshot.siteUid)
+      throw Error('Power routing site identity changed');
+    const fresh = await this.#request(path, {}, signal);
+    check(fresh);
+    const freshProjection = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      fresh,
+      object11(fresh.spec),
+      snapshot.siteUid,
+    );
+    if (
+      fresh.resource_version !== snapshot.resourceVersion ||
+      !subset(freshProjection.spec, snapshot.spec) ||
+      !subset(snapshot.spec, freshProjection.spec)
+    )
+      throw Error('Power routing original revision changed');
+    try {
+      await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+    }
+    existing = await this.#request(path, {}, signal);
+    check(existing);
+    const observed = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      existing,
+      object11(existing.spec),
+      snapshot.siteUid,
+    );
+    if (!subset(observed.spec, request.spec) || !subset(request.spec, observed.spec))
+      throw Error('Power routing replacement pending; reconcile retained attempt');
   }
   async deleteRouting(binding, resource, signal) {
     this.#binding(binding, true);
@@ -3606,6 +4004,7 @@ var CE_API_ERROR_BRAND, CeApiError, safeName;
 var init_runtime = __esm(() => {
   init_bgp_evidence();
   init_bgp_route_evidence();
+  init_bgp_service_membership();
   init_bootstrap();
   init_ingress_lifecycle();
   init_interface_evidence();
@@ -4006,7 +4405,7 @@ var object14 = (value) => {
 };
 
 // plugins/platform/src/ce/wire-schema.ts
-import { isIP as isIP5 } from 'node:net';
+import { isIP as isIP6 } from 'node:net';
 
 function object15(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SMSv2 schema is malformed');
@@ -4123,13 +4522,13 @@ function equal(left, right) {
 function validFormat(format, value) {
   if (format === 'cidr') {
     const [address, length, extra] = value.split('/');
-    const family = isIP5(address);
+    const family = isIP6(address);
     if (!family || extra !== undefined || !/^\d+$/.test(length ?? '')) return false;
     const bits = Number(length);
     return bits >= 0 && bits <= (family === 4 ? 32 : 128);
   }
-  if (format === 'ipv4') return isIP5(value) === 4;
-  if (format === 'ipv6') return isIP5(value) === 6;
+  if (format === 'ipv4') return isIP6(value) === 4;
+  if (format === 'ipv6') return isIP6(value) === 6;
   if (format === 'uuid')
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   if (format === 'dns-label') return /^(?!-)[a-z0-9-]{1,63}(?<!-)$/i.test(value);
@@ -4268,7 +4667,7 @@ var init_wire_schema = __esm(() => {
 });
 
 // plugins/platform/src/ce/wire-routing.ts
-import { isIP as isIP6 } from 'node:net';
+import { isIP as isIP7 } from 'node:net';
 
 function buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, validate) {
   const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -4285,7 +4684,7 @@ function buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerA
     remoteAsn !== 65515 ||
     routeServerAddresses.length !== 2 ||
     new Set(routeServerAddresses).size !== 2 ||
-    routeServerAddresses.some((address) => isIP6(address) !== 4)
+    routeServerAddresses.some((address) => isIP7(address) !== 4)
   )
     throw new Error('Unsupported Azure Route Server site or peer topology');
   const nodes = new Set();
@@ -4347,7 +4746,7 @@ function buildAwsRouting(siteName, localAsn, remoteAsn, bindings, deniedExportPr
     new Set(deniedExportPrefixes).size !== deniedExportPrefixes.length ||
     deniedExportPrefixes.some((prefix) => {
       const [address, length, extra] = prefix.split('/');
-      return extra !== undefined || isIP6(address) !== 4 || !/^\d+$/.test(length ?? '') || Number(length) > 32;
+      return extra !== undefined || isIP7(address) !== 4 || !/^\d+$/.test(length ?? '') || Number(length) > 32;
     })
   )
     throw new Error('Unsupported AWS routing site or peer topology');
@@ -4369,7 +4768,7 @@ function buildAwsRouting(siteName, localAsn, remoteAsn, bindings, deniedExportPr
     names.add(binding.name);
     if (
       [binding.awsGreAddress, binding.ceInsideAddress, ...binding.awsBgpAddresses].some(
-        (address) => isIP6(address) !== 4,
+        (address) => isIP7(address) !== 4,
       ) ||
       binding.awsBgpAddresses[0] === binding.awsBgpAddresses[1] ||
       binding.awsBgpAddresses.includes(binding.ceInsideAddress)
@@ -4693,6 +5092,13 @@ class VerifiedCeContract {
   buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses) {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, this.#routing);
+  }
+  routingCreateRequest(kind, metadata, spec) {
+    if (!this.#routingSchemas) throw Error('Pinned routing creation contract is required');
+    const schemas = kind === 'external_connector' ? this.#routingSchemas.marketplace : this.#routingSchemas.network;
+    const request = { metadata: structuredClone(metadata), spec: structuredClone(spec) };
+    createWireValidator(schemas, `${kind}CreateRequest`)(request);
+    return request;
   }
   routingReplaceRequest(kind, snapshot, desiredSpec, siteUid) {
     if (

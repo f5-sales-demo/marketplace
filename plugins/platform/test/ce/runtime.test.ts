@@ -3,6 +3,7 @@ import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
 import routingSchema from '../fixtures/aws-routing-schema.json';
+import recordedInterfaces from '../fixtures/aws-site-publisher-links.json';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schema from '../fixtures/smsv2-create-schema.json';
 import replaceSchema from '../fixtures/smsv2-replace-schema.json';
@@ -1032,6 +1033,95 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
   expect(puts).toHaveLength(3);
 });
 
+for (const mismatch of ['policy', 'peer-policy'] as const)
+  test(`next generation AWS routing rejects ${mismatch} drift without migration`, async () => {
+    const contract = fixture(true);
+    type RoutingObject = {
+      metadata: { name: string; namespace: string; labels: Record<string, string> };
+      system_metadata: { uid: string };
+      resource_version: string;
+      spec: unknown;
+    };
+    const objects = new Map<string, RoutingObject>();
+    const puts: string[] = [];
+    const siteUid = 'replacement-site';
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path.includes('securemesh_site_v2s/'))
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: siteUid },
+        });
+      if (init?.method === 'PUT') {
+        puts.push(path);
+        const current = objects.get(path);
+        if (!current) throw new Error('Missing test routing object');
+        objects.set(path, { ...JSON.parse(String(init.body)), system_metadata: current.system_metadata });
+        throw new Error('response lost after durable update');
+      }
+      return objects.has(path) ? json(objects.get(path)) : json({}, 404);
+    });
+    const interfaces = [
+      {
+        name: 'ce-gre',
+        node: 'node-one',
+        interfaceName: 'eth0',
+        interfaceMtu: 1500,
+        awsGreAddress: '100.64.0.1',
+        ceInsideAddress: '169.254.10.1',
+        awsBgpAddresses: ['169.254.10.2', '169.254.10.3'] as [string, string],
+      },
+    ];
+    const desired = contract.buildAwsRouting(binding.siteName, 65010, 64512, interfaces, ['10.253.0.0/16']);
+    const resources = [
+      { kind: 'external_connector' as const, name: 'ce-gre', uid: 'connector' },
+      { kind: 'bgp_routing_policy' as const, name: desired.exportPolicy.name, uid: 'policy' },
+      { kind: 'bgp' as const, name: desired.bgp.name, uid: 'bgp' },
+    ];
+    for (const resource of resources)
+      objects.set(`/api/config/namespaces/system/${resource.kind}s/${resource.name}`, {
+        metadata: { name: resource.name, namespace: 'system', labels: { ...labels, 'xcsh-ce-site': binding.siteName } },
+        system_metadata: { uid: resource.uid },
+        resource_version: '1',
+        spec:
+          resource.kind === 'bgp'
+            ? desired.bgp.spec
+            : resource.kind === 'bgp_routing_policy'
+              ? desired.exportPolicy.spec
+              : desired.connectors[0].spec,
+      });
+
+    if (mismatch === 'policy') {
+      const current = objects.get(`/api/config/namespaces/system/bgp_routing_policys/${desired.exportPolicy.name}`);
+      if (!current) throw Error('missing fixture');
+      current.spec = {
+        rules: [
+          {
+            match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
+            action: { deny: {} },
+          },
+        ],
+      };
+    } else {
+      const current = objects.get(`/api/config/namespaces/system/bgps/${desired.bgp.name}`);
+      if (!current) throw Error('missing fixture');
+      const spec = structuredClone(desired.bgp.spec);
+      for (const peer of spec.peers)
+        Object.assign(peer, {
+          routing_policies: {
+            route_policy: [
+              { all_nodes: {}, outbound: {}, object_refs: [{ name: desired.exportPolicy.name, namespace: 'system' }] },
+            ],
+          },
+        });
+      current.spec = spec;
+    }
+    await expect(
+      runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, ['10.253.0.0/16'], async () => {}),
+    ).rejects.toThrow('differs');
+    expect(puts).toHaveLength(0);
+  });
+
 test('bootstrap revocation reconciles lost responses and requires absence before completion', async () => {
   const contract = fixture();
   for (const mode of ['deleted', 'lost-response', 'pending', 'foreign', 'forbidden'] as const) {
@@ -1132,3 +1222,695 @@ test('replacement preserves observed primary identity flags and rejects caller c
     }),
   ).toThrow();
 });
+
+test('routing power replacement checkpoints before PUT and reconciles exact retained UID without replay', async () => {
+  const contract = fixture(true);
+  const originalSpec = {
+    bgp_parameters: { asn: 65010, local_address: {} },
+    where: {
+      site: {
+        network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
+        ref: [{ name: binding.siteName, namespace: 'system' }],
+      },
+    },
+    peers: [],
+  };
+  let current: Record<string, unknown> = {
+    metadata: {
+      name: 'power-bgp',
+      namespace: 'system',
+      labels: { ...labels, 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': 'site-one' },
+    },
+    system_metadata: { uid: 'bgp-one' },
+    resource_version: 'version-one',
+    spec: originalSpec,
+  };
+  let puts = 0;
+  let checkpointed = false;
+  const desired = { ...originalSpec, peers: [{ metadata: { name: 'test-peer' } }] };
+  const portContract = new Proxy(contract, {
+    get(target, key) {
+      if (key === 'routingReplaceRequest')
+        return (_kind: string, snapshot: Record<string, unknown>, spec: unknown) => ({
+          metadata: snapshot.metadata,
+          spec,
+          resource_version: snapshot.resource_version,
+        });
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const runtime = new CeRuntime(portContract, 'native', 'https://tenant.test', 'credential', async (url, init) => {
+    if (String(url).includes('securemesh_site_v2s/'))
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: { uid: 'site-one' },
+      });
+    if (init?.method === 'PUT') {
+      expect(checkpointed).toBe(true);
+      puts++;
+      const request = JSON.parse(String(init.body));
+      current = { ...current, spec: request.spec, resource_version: 'version-two' };
+      return json({}, 503);
+    }
+    return json(current);
+  });
+  const snapshot = {
+    binding,
+    siteUid: 'site-one',
+    kind: 'bgp' as const,
+    name: 'power-bgp',
+    uid: 'bgp-one',
+    resourceVersion: 'version-one',
+    spec: originalSpec,
+    contractFingerprint: contract.fingerprint,
+  };
+  await expect(
+    runtime.replacePowerRouting(snapshot, desired, async () => {
+      throw Error('checkpoint interruption');
+    }),
+  ).rejects.toThrow('checkpoint interruption');
+  expect(puts).toBe(0);
+  await runtime.replacePowerRouting(snapshot, desired, async () => {
+    checkpointed = true;
+  });
+  expect(puts).toBe(1);
+  await runtime.replacePowerRouting(snapshot, desired, async () => {
+    throw Error('must not checkpoint completed replacement');
+  });
+  expect(puts).toBe(1);
+  current = { ...current, system_metadata: { uid: 'foreign' } };
+  await expect(runtime.replacePowerRouting(snapshot, desired, async () => {})).rejects.toThrow('identity');
+  expect(puts).toBe(1);
+});
+
+test('maintenance routing observation binds site and child identity before writable projection', async () => {
+  const contract = fixture(true);
+  const bgp = contract.buildAwsRouting(
+    binding.siteName,
+    65010,
+    64512,
+    [
+      {
+        name: 'ce-gre',
+        node: 'node-one',
+        interfaceName: 'ens6',
+        interfaceMtu: 1500,
+        awsGreAddress: '100.64.0.1',
+        ceInsideAddress: '169.254.10.1',
+        awsBgpAddresses: ['169.254.10.2', '169.254.10.3'],
+      },
+    ],
+    ['10.253.0.0/16'],
+  ).bgp;
+  let foreign = false;
+  let missingVersion = false;
+  let reads = 0;
+  const portContract = new Proxy(contract, {
+    get(target, key) {
+      if (key === 'routingReplaceRequest')
+        return (_kind: string, snapshot: Record<string, unknown>, spec: unknown) => ({
+          metadata: snapshot.metadata,
+          spec,
+          resource_version: snapshot.resource_version,
+        });
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const runtime = new CeRuntime(portContract, 'native', 'https://tenant.test', 'credential', async (url) => {
+    reads++;
+    if (String(url).includes('securemesh_site_v2s/'))
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: { uid: 'site-one' },
+      });
+    return json({
+      metadata: {
+        name: bgp.name,
+        namespace: 'system',
+        labels: { ...labels, 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': foreign ? 'foreign' : 'site-one' },
+      },
+      system_metadata: { uid: 'bgp-one' },
+      resource_version: missingVersion ? '' : 'v1',
+      spec: bgp.spec,
+    });
+  });
+  const observed = await runtime.observePowerRouting(binding, 'bgp', bgp.name);
+  expect(observed).toMatchObject({ siteUid: 'site-one', uid: 'bgp-one', resourceVersion: 'v1', spec: bgp.spec });
+  expect(reads).toBe(3);
+  foreign = true;
+  await expect(runtime.observePowerRouting(binding, 'bgp', bgp.name)).rejects.toThrow('identity');
+  foreign = false;
+  missingVersion = true;
+  await expect(runtime.observePowerRouting(binding, 'bgp', bgp.name)).rejects.toThrow('revision');
+});
+
+for (const mode of [
+  'create',
+  'lost-response',
+  'accepted-absent',
+  'submitted-absent',
+  'foreign-attempt',
+  'checkpoint-interrupted',
+  'site-changed',
+  'wrong-engine',
+  'terraform-runtime',
+  'forbidden',
+] as const)
+  test(`maintenance policy creation ${mode} retains original submission`, async () => {
+    const contract = fixture(true);
+    const spec = {
+      rules: [
+        {
+          match: { ip_prefixes: { prefixes: [{ ip_prefixes: '10.200.0.0/16', equal_or_longer_than: {} }] } },
+          action: { deny: {} },
+        },
+      ],
+    };
+    let child: Record<string, unknown> | undefined;
+    let posts = 0;
+    let siteUid = 'site-one';
+    const events: string[] = [];
+    const portContract = new Proxy(contract, {
+      get(target, key) {
+        if (key === 'routingReplaceRequest')
+          return (_kind: string, snapshot: Record<string, unknown>, value: unknown) => ({
+            metadata: snapshot.metadata,
+            spec: value,
+            resource_version: snapshot.resource_version,
+          });
+        const value = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const runtime = new CeRuntime(
+      portContract,
+      mode === 'terraform-runtime' ? 'terraform' : 'native',
+      'https://tenant.test',
+      'credential',
+      async (url, init) => {
+        if (String(url).includes('securemesh_site_v2s/'))
+          return json({
+            metadata: { name: binding.siteName, namespace: 'system', labels },
+            system_metadata: { uid: siteUid },
+          });
+        if (init?.method === 'POST') {
+          events.push('post');
+          posts++;
+          if (mode === 'forbidden') return json({}, 403);
+          if (mode === 'accepted-absent') return json({});
+          child = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'policy-one' }, resource_version: 'v1' };
+          return json({}, mode === 'lost-response' ? 503 : 200);
+        }
+        return child ? json(child) : json({}, 404);
+      },
+    );
+    const intent = {
+      binding: ['wrong-engine', 'terraform-runtime'].includes(mode)
+        ? { ...binding, owner: { ...binding.owner, engine: 'terraform' as const } }
+        : binding,
+      siteUid: 'site-one',
+      name: 'ce-one-tgw-power-policy',
+      spec,
+      attemptId: 'a'.repeat(64),
+      contractFingerprint: contract.fingerprint,
+    };
+    if (mode === 'foreign-attempt')
+      child = {
+        metadata: {
+          name: intent.name,
+          namespace: 'system',
+          labels: {
+            ...labels,
+            'xcsh-ce-site': binding.siteName,
+            'xcsh-ce-site-uid': 'site-one',
+            'xcsh-ce-power-attempt': 'b'.repeat(64),
+          },
+        },
+        system_metadata: { uid: 'foreign-policy' },
+        resource_version: 'v1',
+        spec,
+      };
+    const invoke = () =>
+      runtime.createPowerRoutingPolicy(
+        intent,
+        mode === 'submitted-absent' ? 'submitted' : 'not-submitted',
+        async () => {
+          events.push('checkpoint');
+          if (mode === 'checkpoint-interrupted') throw Error('checkpoint interrupted');
+          if (mode === 'site-changed') siteUid = 'replacement-site';
+        },
+      );
+    if (
+      [
+        'foreign-attempt',
+        'checkpoint-interrupted',
+        'site-changed',
+        'wrong-engine',
+        'terraform-runtime',
+        'forbidden',
+      ].includes(mode)
+    ) {
+      await expect(invoke()).rejects.toThrow();
+      expect(posts).toBe(mode === 'forbidden' ? 1 : 0);
+    } else {
+      const result = await invoke();
+      expect(result.status).toBe(['submitted-absent', 'accepted-absent'].includes(mode) ? 'pending' : 'observed');
+      if (!['submitted-absent', 'accepted-absent'].includes(mode)) {
+        expect(result).toMatchObject({ uid: 'policy-one', siteUid: 'site-one', attemptId: intent.attemptId, spec });
+        expect(events).toEqual(['checkpoint', 'post']);
+        await runtime.createPowerRoutingPolicy(intent, 'submitted', async () => {
+          throw Error('must not checkpoint again');
+        });
+      }
+      const before = posts;
+      await runtime.createPowerRoutingPolicy(intent, 'submitted', async () => {
+        throw Error('must not replay');
+      });
+      expect(posts).toBe(before);
+      expect(posts).toBe(mode === 'submitted-absent' ? 0 : 1);
+    }
+  });
+
+for (const mode of [
+  'delete',
+  'lost-response',
+  'pending',
+  'submitted-present',
+  'already-absent',
+  'foreign-uid',
+  'foreign-attempt',
+  'checkpoint-interrupted',
+  'site-changed',
+] as const)
+  test(`maintenance policy retirement ${mode} binds exact retained identity`, async () => {
+    const contract = fixture(true),
+      name = 'ce-one-tgw-power-policy',
+      attemptId = 'a'.repeat(64);
+    const spec = {
+      rules: [
+        {
+          match: { ip_prefixes: { prefixes: [{ ip_prefixes: '10.200.0.0/16', equal_or_longer_than: {} }] } },
+          action: { deny: {} },
+        },
+      ],
+    };
+    let child: Record<string, unknown> | undefined =
+      mode === 'already-absent'
+        ? undefined
+        : {
+            metadata: {
+              name,
+              namespace: 'system',
+              labels: {
+                ...labels,
+                'xcsh-ce-site': binding.siteName,
+                'xcsh-ce-site-uid': 'site-one',
+                'xcsh-ce-power-attempt': mode === 'foreign-attempt' ? 'b'.repeat(64) : attemptId,
+              },
+            },
+            system_metadata: { uid: mode === 'foreign-uid' ? 'foreign' : 'policy-one' },
+            resource_version: 'v1',
+            spec,
+          };
+    let deletes = 0,
+      siteUid = 'site-one';
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'credential', async (url, init) => {
+      if (String(url).includes('securemesh_site_v2s/'))
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: siteUid },
+        });
+      if (init?.method === 'DELETE') {
+        deletes++;
+        if (mode !== 'pending') child = undefined;
+        return json({}, mode === 'lost-response' ? 503 : 200);
+      }
+      return child ? json(child) : json({}, 404);
+    });
+    const snapshot = {
+      binding,
+      siteUid: 'site-one',
+      name,
+      uid: 'policy-one',
+      resourceVersion: 'v1',
+      spec,
+      attemptId,
+      contractFingerprint: contract.fingerprint,
+    };
+    const invoke = () =>
+      runtime.deletePowerRoutingPolicy(
+        snapshot,
+        mode === 'submitted-present' ? 'submitted' : 'not-submitted',
+        async () => {
+          if (mode === 'checkpoint-interrupted') throw Error('checkpoint interrupted');
+          if (mode === 'site-changed') siteUid = 'replacement';
+        },
+      );
+    if (['foreign-uid', 'foreign-attempt', 'checkpoint-interrupted', 'site-changed'].includes(mode)) {
+      await expect(invoke()).rejects.toThrow();
+      expect(deletes).toBe(0);
+    } else {
+      const result = await invoke();
+      expect(result.status).toBe(['pending', 'submitted-present'].includes(mode) ? 'pending' : 'deleted');
+      const before = deletes;
+      await runtime.deletePowerRoutingPolicy(snapshot, 'submitted', async () => {
+        throw Error('must not repeat delete');
+      });
+      expect(deletes).toBe(before);
+      expect(deletes).toBe(['submitted-present', 'already-absent'].includes(mode) ? 0 : 1);
+    }
+  });
+
+for (const mode of ['active', 'withdrawn', 'identity-changed', 'unavailable'] as const)
+  test(`owned BGP service observer ${mode} separates freshness`, async () => {
+    const contract = fixture(true);
+    let siteReads = 0;
+    const expected = ['169.254.10.2', '169.254.10.3'].map((peerAddress) => ({
+      node: binding.nodes[0],
+      interfaceName: 'ce-gre-one',
+      peerAddress,
+    }));
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'credential', async (url) => {
+      const path = String(url);
+      if (path.includes('securemesh_site_v2s/')) {
+        siteReads++;
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: mode === 'identity-changed' && siteReads > 1 ? 'replacement' : 'site-one' },
+        });
+      }
+      if (mode === 'unavailable') return json({}, 503);
+      if (path.includes('bgp_peers'))
+        return json({
+          ver: [
+            {
+              name: binding.nodes[0],
+              peer: expected.map((p) => ({
+                interface_name: p.interfaceName,
+                peer_address: { ipv4: { addr: p.peerAddress } },
+                protocol_status: 'Established',
+                received_prefix_count: 1,
+                advertised_prefix_count: mode === 'withdrawn' ? 0 : 1,
+                up_down_timestamp: '2026-09-10T12:00:00Z',
+              })),
+            },
+          ],
+        });
+      return json({
+        ver: [
+          {
+            name: binding.nodes[0],
+            ri_table: [
+              {
+                routing_instance: 'site-local-inside',
+                rt_table: [
+                  { name: 'inet.0', imported: [], exported: mode === 'withdrawn' ? [] : [{ subnet: '10.200.0.0/16' }] },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    });
+    const invoke = () =>
+      runtime.observeBgpServiceMembership(
+        binding,
+        'site-one',
+        expected,
+        [{ node: binding.nodes[0], routingInstance: 'site-local-inside', table: 'inet.0' }],
+        ['10.200.0.0/16'],
+      );
+    if (mode === 'identity-changed' || mode === 'unavailable') await expect(invoke()).rejects.toThrow();
+    else {
+      const observed = await invoke();
+      expect(observed).toMatchObject({
+        status: mode,
+        siteUid: 'site-one',
+        freshness: 'unqualified',
+        traffic: 'unknown',
+      });
+      expect(siteReads).toBe(2);
+    }
+  });
+
+test('owned power observation exposes the exact generated external connector snapshot', async () => {
+  const contract = fixture(true),
+    spec = contract.buildAwsRouting(
+      binding.siteName,
+      65010,
+      64512,
+      [
+        {
+          name: 'ce-gre-one',
+          node: binding.nodes[0],
+          interfaceName: 'ens6',
+          interfaceMtu: 1500,
+          awsGreAddress: '100.64.0.1',
+          ceInsideAddress: '169.254.10.1',
+          awsBgpAddresses: ['169.254.10.2', '169.254.10.3'],
+        },
+      ],
+      ['10.0.0.0/16'],
+    ).connectors[0].spec;
+  const portContract = new Proxy(contract, {
+    get(target, key) {
+      if (key === 'routingReplaceRequest')
+        return (kind: string, snapshot: Record<string, unknown>, value: unknown) => {
+          expect(kind).toBe('external_connector');
+          return { metadata: snapshot.metadata, spec: value, resource_version: snapshot.resource_version };
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const runtime = new CeRuntime(portContract, 'native', 'https://tenant.test', 'credential', async (url) =>
+    String(url).includes('securemesh_site_v2s/')
+      ? json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: 'site-one' },
+        })
+      : json({
+          metadata: {
+            name: 'ce-gre-one',
+            namespace: 'system',
+            labels: { ...labels, 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': 'site-one' },
+          },
+          system_metadata: { uid: 'connector-one' },
+          resource_version: 'v1',
+          spec,
+        }),
+  );
+  expect(await runtime.observePowerRouting(binding, 'external_connector', 'ce-gre-one')).toMatchObject({
+    kind: 'external_connector',
+    uid: 'connector-one',
+    siteUid: 'site-one',
+    resourceVersion: 'v1',
+    spec,
+  });
+});
+
+for (const mode of ['create', 'submitted', 'foreign-attempt', 'delete', 'pending-delete'] as const)
+  test(`Terraform power policy ${mode} uses provider-owned execution exclusively`, async () => {
+    const contract = fixture(true),
+      own = { ...binding, owner: { ...binding.owner, engine: 'terraform' as const } },
+      terraformLabels = { ...labels, 'xcsh-ce-engine': 'terraform' },
+      name = 'ce-one-tgw-power-policy',
+      attemptId = 'a'.repeat(64),
+      spec = {
+        rules: [
+          {
+            match: { ip_prefixes: { prefixes: [{ ip_prefixes: '10.200.0.0/16', equal_or_longer_than: {} }] } },
+            action: { deny: {} },
+          },
+        ],
+      };
+    let child: Record<string, unknown> | undefined = ['delete', 'pending-delete', 'foreign-attempt'].includes(mode)
+      ? {
+          metadata: {
+            name,
+            namespace: 'system',
+            labels: {
+              ...terraformLabels,
+              'xcsh-ce-site': own.siteName,
+              'xcsh-ce-site-uid': 'site-one',
+              'xcsh-ce-power-attempt': mode === 'foreign-attempt' ? 'b'.repeat(64) : attemptId,
+            },
+          },
+          system_metadata: { uid: 'policy-one' },
+          resource_version: 'v1',
+          spec,
+        }
+      : undefined;
+    const mutations: string[] = [];
+    const portContract = new Proxy(contract, {
+      get(target, key) {
+        if (key === 'routingReplaceRequest')
+          return (_kind: unknown, child: Record<string, unknown>, spec: unknown) => ({
+            metadata: child.metadata,
+            spec,
+            resource_version: child.resource_version,
+          });
+        const value = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const runtime = new CeRuntime(
+      portContract,
+      'terraform',
+      'https://tenant.test',
+      'credential',
+      async (url, init) => {
+        if (['POST', 'PUT', 'DELETE'].includes(init?.method ?? '')) throw Error('native REST mutation forbidden');
+        return String(url).includes('securemesh_site_v2s/')
+          ? json({
+              metadata: { name: own.siteName, namespace: 'system', labels: terraformLabels },
+              system_metadata: { uid: 'site-one' },
+            })
+          : child
+            ? json(child)
+            : json({}, 404);
+      },
+      async (owner, _path, init) => {
+        expect(owner).toEqual(own.owner);
+        mutations.push(init.method ?? '');
+        if (init.method === 'POST')
+          child = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'policy-one' }, resource_version: 'v1' };
+        if (init.method === 'DELETE' && mode !== 'pending-delete') child = undefined;
+        return child ?? {};
+      },
+    );
+    const intent = {
+      binding: own,
+      siteUid: 'site-one',
+      name,
+      spec,
+      attemptId,
+      contractFingerprint: contract.fingerprint,
+    };
+    const checkpoints: string[] = [];
+    const invoke = () =>
+      ['delete', 'pending-delete'].includes(mode)
+        ? runtime.deleteTerraformPowerRoutingPolicy(
+            { ...intent, uid: 'policy-one', resourceVersion: 'v1' },
+            'not-submitted',
+            async () => {
+              checkpoints.push('delete');
+            },
+          )
+        : runtime.createTerraformPowerRoutingPolicy(
+            intent,
+            mode === 'submitted' ? 'submitted' : 'not-submitted',
+            async () => {
+              checkpoints.push('create');
+            },
+          );
+    if (mode === 'foreign-attempt') {
+      await expect(invoke()).rejects.toThrow();
+      expect(mutations).toEqual([]);
+    } else {
+      const result = await invoke();
+      expect(result.status).toBe(
+        mode === 'submitted' || mode === 'pending-delete' ? 'pending' : mode === 'delete' ? 'deleted' : 'observed',
+      );
+      expect(mutations).toEqual(
+        mode === 'submitted' ? [] : [mode === 'delete' || mode === 'pending-delete' ? 'DELETE' : 'POST'],
+      );
+      expect(checkpoints).toEqual(
+        mode === 'submitted' ? [] : [mode === 'delete' || mode === 'pending-delete' ? 'delete' : 'create'],
+      );
+    }
+  });
+
+for (const mode of ['stable', 'upgrading', 'offline', 'stale', 'replacement', 'changed-version', 'foreign'] as const)
+  test(`owned power version observation ${mode} keeps freshness separate`, async () => {
+    let logicalReads = 0,
+      physicalReads = 0;
+    const calls: string[] = [];
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      calls.push(init?.method ?? 'GET');
+      const metadata = { name: binding.siteName, namespace: 'system', labels: mode === 'foreign' ? {} : labels };
+      if (new URL(url).pathname.includes('securemesh_site_v2s'))
+        return json({
+          metadata,
+          system_metadata: { uid: mode === 'replacement' && ++logicalReads > 1 ? 'replacement' : 'logical-one' },
+        });
+      physicalReads++;
+      return json({
+        metadata,
+        system_metadata: { uid: 'physical-one' },
+        spec: { site_state: mode === 'offline' ? 'OFFLINE' : 'ONLINE', main_nodes: [{ name: 'node-one' }] },
+        status: [
+          {
+            metadata: {
+              uid: 'sw-publisher',
+              creator_class: 'maurice',
+              status_id: 'software-version',
+              publish: 'STATUS_PUBLISH',
+              vtrp_stale: mode === 'stale',
+            },
+            volterra_software_status: {
+              last_installed_version:
+                mode === 'changed-version' && physicalReads > 1 ? 'crt-20260201-0179' : 'crt-20260201-0178',
+              available_version: 'crt-20260201-0179',
+              deployment_state: {
+                phase: mode === 'upgrading' ? 'UPGRADE_IN_PROGRESS' : 'UPGRADE_COMPLETED',
+                result: 'Completed',
+              },
+            },
+          },
+          {
+            metadata: {
+              uid: 'os-publisher',
+              creator_class: 'maurice',
+              status_id: 'operating-system-version',
+              publish: 'STATUS_PUBLISH',
+              vtrp_stale: false,
+            },
+            operating_system_status: {
+              available_version: '9.2026.17',
+              deployment_state: { version: '9.2026.14', phase: 'UPGRADE_COMPLETED', result: 'success' },
+            },
+          },
+        ],
+      });
+    });
+    const result = await runtime.observePowerVersions(binding);
+    expect(result.freshness).toBe('unqualified');
+    expect(result.canSatisfyInterfaceMutationGate).toBe(false);
+    expect(result.status).toBe(
+      ['stale', 'replacement', 'changed-version', 'foreign'].includes(mode) ? 'unknown' : 'observed',
+    );
+    expect(result.stable).toBe(mode === 'stable');
+    expect(calls.every((method) => method === 'GET')).toBe(true);
+  });
+
+for (const mode of ['stable', 'replaced', 'configuration-changed'] as const)
+  test(`interface observation ${mode} rechecks owned site configuration`, async () => {
+    const data = structuredClone(recordedInterfaces),
+      selected = {
+        ...binding,
+        siteName: data.configuration.metadata.name,
+        nodes: data.expected.map((row) => row.node).filter((node, i, all) => all.indexOf(node) === i),
+      };
+    Object.assign(data.configuration.metadata, { labels });
+    let reads = 0;
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url) => {
+      const path = new URL(url).pathname;
+      if (path.includes('securemesh_site_v2s')) {
+        reads++;
+        const configuration = structuredClone(data.configuration);
+        if (reads > 1 && mode === 'replaced') configuration.system_metadata.uid = 'replacement';
+        if (reads > 1 && mode === 'configuration-changed')
+          configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 1400;
+        return json(configuration);
+      }
+      return json(path.includes('network_interfaces') ? data.objects : data.physical);
+    });
+    const expected = data.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
+    const result = await runtime.observeAwsInterfaces(selected, expected);
+    expect(result.status).toBe(mode === 'stable' ? 'observed' : 'unknown');
+    if (mode !== 'stable') expect(result.interfaces).toHaveLength(0);
+    expect(reads).toBe(2);
+  });

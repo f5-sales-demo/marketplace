@@ -14,27 +14,37 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 16,
-            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpRoutePolicy" }
+            "items": {
+              "$ref": "#/components/schemas/bgp_routing_policyBgpRoutePolicy"
+            }
           }
         }
       },
       "bgp_routing_policyBgpRoutePolicy": {
         "type": "object",
         "properties": {
-          "action": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteAction" },
-          "match": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteMatch" }
+          "action": {
+            "$ref": "#/components/schemas/bgp_routing_policyBgpRouteAction"
+          },
+          "match": {
+            "$ref": "#/components/schemas/bgp_routing_policyBgpRouteMatch"
+          }
         }
       },
       "bgp_routing_policyBgpRouteMatch": {
         "type": "object",
         "properties": {
-          "ip_prefixes": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatchList" }
+          "ip_prefixes": {
+            "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatchList"
+          }
         }
       },
       "bgp_routing_policyBgpRouteAction": {
         "type": "object",
         "properties": {
-          "deny": { "$ref": "#/components/schemas/ioschemaEmpty" }
+          "deny": {
+            "$ref": "#/components/schemas/ioschemaEmpty"
+          }
         }
       },
       "bgp_routing_policyBgpPrefixMatchList": {
@@ -44,15 +54,22 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 8,
-            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatch" }
+            "items": {
+              "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatch"
+            }
           }
         }
       },
       "bgp_routing_policyBgpPrefixMatch": {
         "type": "object",
         "properties": {
-          "equal_or_longer_than": { "$ref": "#/components/schemas/ioschemaEmpty" },
-          "ip_prefixes": { "type": "string", "format": "cidr" }
+          "equal_or_longer_than": {
+            "$ref": "#/components/schemas/ioschemaEmpty"
+          },
+          "ip_prefixes": {
+            "type": "string",
+            "format": "cidr"
+          }
         }
       },
       "bgpCreateSpecType": {
@@ -2700,6 +2717,298 @@
             "primary": "system",
             "alternatives": [],
             "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "schemaObjectCreateMetaType": {
+        "type": "object",
+        "description": "ObjectCreateMetaType is metadata that can be specified in Create request of an object.",
+        "title": "ObjectCreateMetaType",
+        "x-displayname": "Create Metadata.",
+        "x-ves-proto-message": "ves.io.schema.ObjectCreateMetaType",
+        "properties": {
+          "annotations": {
+            "type": "object",
+            "description": "Annotations is an unstructured key value map stored with a resource that may be\nset by external tools to store and retrieve arbitrary metadata. They are not\nqueryable and should be preserved when modifying objects.",
+            "title": "annotations",
+            "x-displayname": "Annotation.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.map.keys.string.max_len": "64",
+              "ves.io.schema.rules.map.keys.string.min_len": "1",
+              "ves.io.schema.rules.map.values.string.max_len": "1024",
+              "ves.io.schema.rules.map.values.string.min_len": "1"
+            },
+            "x-f5xc-example": "value",
+            "x-validation-rules": {
+              "ves.io.schema.rules.map.keys.string.max_len": "64",
+              "ves.io.schema.rules.map.keys.string.min_len": "1",
+              "ves.io.schema.rules.map.values.string.max_len": "1024",
+              "ves.io.schema.rules.map.values.string.min_len": "1"
+            },
+            "x-f5xc-description-short": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
+            "x-f5xc-description-medium": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "Human readable description for the object.",
+            "title": "description",
+            "maxLength": 1200,
+            "x-displayname": "Description.",
+            "x-ves-example": "Virtual Host for Example Corp website.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "1200"
+            },
+            "x-f5xc-example": "Virtual Host for Example Corp website",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "1200"
+            },
+            "x-f5xc-description-short": "Human readable description for the object.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1200,
+              "minLength": 0,
+              "characterSet": {
+                "description": "Free text with UTF-8 support"
+              },
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "byteLength": {
+                "max": 1200
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 21,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "disable": {
+            "type": "boolean",
+            "description": "A value of true will administratively disable the object.",
+            "title": "disable",
+            "format": "boolean",
+            "x-displayname": "Disable",
+            "x-f5xc-example": "true",
+            "x-f5xc-description-short": "Value of true will administratively disable the object.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "labels": {
+            "type": "object",
+            "description": "Map of string keys and values that can be used to organize and categorize\n(scope and select) objects as chosen by the user. Values specified here will be used\nby selector expression.",
+            "title": "labels",
+            "x-displayname": "Labels",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user.",
+            "x-f5xc-description-medium": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user. Values specified here will be used by selector expression.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "This is the name of configuration object. It has to be unique within the namespace.\nIt can only be specified during create API and cannot be changed during replace API.\nThe value of name has to follow DNS-1035 format.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Example-corp-web.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-f5xc-example": "example-corp-web",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-f5xc-description-short": "Name of configuration object. It has to be unique within the namespace.",
+            "x-f5xc-description-medium": "Name of configuration object. It has to be unique within the namespace. It can only be specified during create API and cannot be changed during replace API.",
+            "maxLength": 63,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "This defines the workspace within which each the configuration object is to be created.\nMust be a DNS_LABEL format. For a namespace object itself, namespace value will be \"\"",
+            "title": "namespace",
+            "x-displayname": "Namespace",
+            "x-ves-example": "Staging",
+            "x-f5xc-example": "staging",
+            "x-f5xc-description-short": "Defines the workspace within which each the configuration object is to be created.",
+            "x-f5xc-description-medium": "Defines the workspace within which each the configuration object is to be created. Must be a DNS_LABEL format. For a namespace object itself, namespace value will be \"\".",
+            "maxLength": 63,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          }
+        },
+        "x-f5xc-description-short": "ObjectCreateMetaType is metadata that can be specified in Create request of an object.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaObjectCreateMetaType",
+          "required_fields": ["name"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"name\": \"example-corp-web\"\n}",
+          "example_yaml": "name: example-corp-web"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "bgp_routing_policyCreateRequest": {
+        "type": "object",
+        "description": "This is the input message of the 'Create' RPC.",
+        "title": "CreateRequest is used to create an instance of bgp_routing_policy",
+        "x-displayname": "Create Request.",
+        "x-ves-proto-message": "ves.io.schema.bgp_routing_policy.CreateRequest",
+        "properties": {
+          "metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaObjectCreateMetaType"
+              }
+            ],
+            "x-f5xc-example": "{\"key\": \"value\"}",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "spec": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemabgp_routing_policyCreateSpecType"
+              }
+            ],
+            "x-f5xc-example": "{\"key\": \"value\"}",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgp_routing_policyCreateRequest",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP routing policies are platform-level routing"
           },
           "classification": {
             "category": "networking",

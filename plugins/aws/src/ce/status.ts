@@ -1,9 +1,11 @@
+import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AwsExecApi } from '../aws/exec';
 import { collectAwsCeInventory } from './inventory';
 import { collectAwsNetworkHealth } from './network-health';
 import { scopedAwsApi } from './scoped-exec';
 import { siteBindings, siteForNode } from './topology';
+import { readAwsTrafficProbeEvidence } from './traffic-probe';
 import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 type RuntimeObserver = Pick<CeRuntime, 'observeHealth' | 'observeRegistrations'>;
@@ -13,6 +15,7 @@ export async function collectAwsCeStatus(
   api: AwsExecApi,
   runtime?: RuntimeObserver,
   signal?: AbortSignal,
+  storage?: CeDeploymentStore,
 ) {
   const observedAt = new Date().toISOString();
   let aws: Record<string, unknown>;
@@ -146,6 +149,9 @@ export async function collectAwsCeStatus(
     aws,
     f5: { registration: aggregate('registration'), health: aggregate('health'), sites },
     routing,
-    traffic: unknown('traffic-collector-pending'),
+    traffic:
+      identitiesVerified && storage
+        ? await readAwsTrafficProbeEvidence(plan, storage, checkpoint?.resolvedValues ?? {})
+        : unknown('traffic-receipt-unavailable'),
   };
 }

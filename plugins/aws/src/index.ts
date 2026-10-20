@@ -203,6 +203,7 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAwsCeTeardownTool } = await import('./tools/aws-ce-teardown');
     const { createAwsCeUpgradeTool } = await import('./tools/aws-ce-upgrade');
     const { createAwsCeFailoverTool } = await import('./tools/aws-ce-failover');
+    const { createAwsCePowerTool } = await import('./tools/aws-ce-power');
     const { createAwsCeStatusTool } = await import('./tools/aws-ce-status');
     const { createAwsCeDiagnoseTool } = await import('./tools/aws-ce-diagnose');
     const { createAwsCloudInitAnalyzeTool } = await import('./tools/aws-cloud-init-analyze');
@@ -219,6 +220,7 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(presentTool(withErrorType(createAwsCeTeardownTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeUpgradeTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeFailoverTool(pi))));
+    pi.registerTool(presentTool(withErrorType(createAwsCePowerTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeStatusTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCeDiagnoseTool(pi))));
     pi.registerTool(presentTool(withErrorType(createAwsCloudInitAnalyzeTool(pi))));

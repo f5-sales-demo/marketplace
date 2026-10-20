@@ -23,10 +23,10 @@ const capabilities: AwsCeF5Capabilities = {
 };
 const ownerPlanSha256 = 'a'.repeat(64);
 
-it('gates whole-site power plans for both engines until service withdrawal and restoration exist', () => {
+it('routes whole-site power to exact saved-plan workflow for both engines', () => {
   for (const engine of ['native', 'terraform'] as const)
     for (const operation of ['start', 'stop'] as const)
-      expect(() => compileAwsCePlan(intent({ engine, operation }), observation())).toThrow('service withdrawal');
+      expect(() => compileAwsCePlan(intent({ engine, operation }), observation())).toThrow('aws_ce_power');
 });
 
 function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] {

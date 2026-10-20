@@ -836,6 +836,24 @@ export class TerraformRunner {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Record<string, Record<string, unknown> | null>> {
+    return this.#projectResourceFields(receipt, selections, 'before', env, signal);
+  }
+  /** Resolved proposed values from the exact saved plan, never prior-state or unknown values. */
+  async readProposedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>> {
+    return this.#projectResourceFields(receipt, selections, 'after', env, signal);
+  }
+  async #projectResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    side: 'before' | 'after',
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>> {
     if (
       !selections ||
       typeof selections !== 'object' ||
@@ -882,27 +900,141 @@ export class TerraformRunner {
           continue;
         }
         const change = object(matches[0].change);
-        if (change.before === null || change.before === undefined) {
+        if (change[side] === null || change[side] === undefined) {
           result[address] = null;
           continue;
         }
-        const before = object(change.before);
+        const values = object(change[side]);
+        const sensitive = change[`${side}_sensitive`];
         const sensitivity =
-          change.before_sensitive === undefined || change.before_sensitive === false
-            ? {}
-            : change.before_sensitive === true
-              ? true
-              : object(change.before_sensitive);
+          sensitive === undefined || sensitive === false ? {} : sensitive === true ? true : object(sensitive);
+        const unknown = side === 'after' ? change.after_unknown : undefined;
+        const unknownFields =
+          unknown === undefined || unknown === false ? {} : unknown === true ? true : object(unknown);
         const selected: Record<string, unknown> = {};
         for (const field of fields) {
-          if (!Object.hasOwn(before, field) || sensitivity === true || !nonsensitive(sensitivity[field]))
-            throw new Error('Terraform resource field is unavailable or sensitive');
-          selected[field] = before[field];
+          if (
+            !Object.hasOwn(values, field) ||
+            sensitivity === true ||
+            !nonsensitive(sensitivity[field]) ||
+            unknownFields === true ||
+            !nonsensitive(unknownFields[field])
+          )
+            throw new Error('Terraform resource field is unavailable or sensitive; proposed fields must be resolved');
+          selected[field] = values[field];
         }
         result[address] = selected;
       }
       if (receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
+      return result;
+    });
+  }
+  async #applicationState(receipt: PlanReceipt): Promise<'planned' | 'applying' | 'applied'> {
+    await this.#verifyInputs();
+    const { directory, manifest } = this.#state();
+    const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+    if (
+      !['planned', 'applying', 'applied'].includes(String(journal.state)) ||
+      canonical(journal.receipt) !== canonical(receipt) ||
+      receipt.engine !== 'terraform' ||
+      receipt.deploymentId !== manifest.deploymentId ||
+      receipt.backendIdentity !== manifest.backendIdentity ||
+      receipt.configurationSha256 !== manifest.configurationSha256 ||
+      receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+      receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan')))
+    )
+      throw Error('Terraform application journal differs from exact saved plan');
+    return journal.state as 'planned' | 'applying' | 'applied';
+  }
+  /** Exact journal state distinguishes an interrupted call before submission from ambiguous application. */
+  async readPlanApplicationState(receipt: PlanReceipt): Promise<'planned' | 'applying' | 'applied'> {
+    receipt = structuredClone(receipt);
+    return this.#exclusive(() => this.#applicationState(receipt));
+  }
+  /** Restricted applied-state observation. Desired plan values never substitute for applied state. */
+  async readAppliedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>> {
+    receipt = structuredClone(receipt);
+    selections = structuredClone(selections);
+    if (
+      !selections ||
+      !Object.keys(selections).length ||
+      Object.entries(selections).some(
+        ([address, fields]) =>
+          !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+          !Array.isArray(fields) ||
+          !fields.length ||
+          new Set(fields).size !== fields.length ||
+          fields.some((f) => !/^[a-z][a-z0-9_]*$/.test(f)),
+      )
+    )
+      throw Error('Explicit applied-state root addresses and unique fields required');
+    const resolved = (v: unknown): boolean =>
+      v !== null && v !== undefined && (typeof v !== 'object' || Object.values(v).every(resolved));
+    const nonsensitive = (v: unknown): boolean =>
+      v === undefined || v === false || (v !== null && typeof v === 'object' && Object.values(v).every(nonsensitive));
+    return this.#exclusive(async () => {
+      if ((await this.#applicationState(receipt)) === 'planned' && !receipt.noChanges)
+        throw Error('Terraform applied-state observation requires submitted plan');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== this.#state().manifest.terraformVersion)
+        throw Error('Terraform version changed');
+      const state = decode(await this.#run(['show', '-json'], env, signal));
+      const resources: Json[] = [];
+      if (state.format_version !== '1.0' || state.terraform_version !== this.#state().manifest.terraformVersion)
+        throw Error('Applied-state format or Terraform version differs');
+      const walk = (module: Json) => {
+        if (!Array.isArray(module.resources ?? []) || !Array.isArray(module.child_modules ?? []))
+          throw Error('Malformed applied-state inventory');
+        for (const value of (module.resources ?? []) as unknown[]) resources.push(object(value));
+        for (const child of (module.child_modules ?? []) as unknown[]) walk(object(child));
+      };
+      walk(object(object(state.values).root_module));
+      if (new Set(resources.map((r) => r.address)).size !== resources.length)
+        throw Error('Duplicate applied-state resources');
+      const result: Record<string, Record<string, unknown> | null> = {};
+      for (const [address, fields] of Object.entries(selections)) {
+        const matches = resources.filter((r) => r.address === address);
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const row = matches[0];
+        const [type, name] = address.split('.');
+        if (
+          row.mode !== 'managed' ||
+          row.type !== type ||
+          row.name !== name ||
+          typeof row.provider_name !== 'string' ||
+          !/^registry\.terraform\.io\/[a-z0-9_-]+\/[a-z0-9_-]+$/.test(row.provider_name)
+        )
+          throw Error('Applied resource identity differs');
+        const values = object(row.values);
+        const sensitive =
+          row.sensitive_values === true
+            ? true
+            : row.sensitive_values === undefined || row.sensitive_values === false
+              ? {}
+              : object(row.sensitive_values);
+        const selected: Record<string, unknown> = {};
+        for (const field of fields) {
+          if (
+            !Object.hasOwn(values, field) ||
+            !resolved(values[field]) ||
+            sensitive === true ||
+            !nonsensitive(sensitive[field])
+          )
+            throw Error('Applied resource field unavailable or sensitive');
+          selected[field] = values[field];
+        }
+        result[address] = selected;
+      }
+      await this.#applicationState(receipt);
       return result;
     });
   }

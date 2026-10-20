@@ -21,7 +21,11 @@ const matchesNode = (expected: string, actual: unknown) =>
 /** Parse a complete, exact platform BGP inventory; no caller-supplied health claims are accepted. */
 export function parseBgpSessions(response: unknown, expected: ExpectedBgpSession[]) {
   if (
-    ![2, 4, 6].includes(expected.length) ||
+    !Array.isArray(expected) ||
+    expected.length < 2 ||
+    expected.length > 24 ||
+    expected.length % 2 !== 0 ||
+    new Set(expected.map((item) => item.node)).size > 3 ||
     new Set(expected.map((item) => `${item.node}/${item.interfaceName}/${item.peerAddress}`)).size !==
       expected.length ||
     expected.some(

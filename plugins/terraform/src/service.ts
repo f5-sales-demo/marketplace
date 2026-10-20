@@ -21,6 +21,13 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Record<string, Record<string, unknown> | null>>;
+  /** Resolved nonsensitive proposed fields, separately from prior-state ownership projection. */
+  readProposedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
     addresses: string[],
@@ -42,6 +49,13 @@ export interface TerraformSession {
     signal?: AbortSignal,
   ): Promise<PlanReceipt>;
   plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
+  readPlanApplicationState(receipt: PlanReceipt): Promise<'planned' | 'applying' | 'applied'>;
+  readAppliedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>>;
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
 export interface CeTerraformService {
@@ -92,6 +106,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
           await checkOwner();
           return runner.readPlannedResourceFields(receipt, selections, env, signal);
         },
+        async readProposedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readProposedResourceFields(receipt, selections, env, signal);
+        },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceIds(receipt, addresses, env, signal);
@@ -123,6 +141,14 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async plan(env, signal) {
           await checkOwner();
           return runner.plan(env, signal);
+        },
+        async readPlanApplicationState(receipt) {
+          await checkOwner();
+          return runner.readPlanApplicationState(receipt);
+        },
+        async readAppliedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readAppliedResourceFields(receipt, selections, env, signal);
         },
         async apply(receipt, env, signal) {
           await checkOwner();

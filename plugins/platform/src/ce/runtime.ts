@@ -1,5 +1,6 @@
 import { type ExpectedBgpSession, parseBgpSessions } from './bgp-evidence';
 import { parseBgpRoutes } from './bgp-route-evidence';
+import { type ExpectedBgpServiceTable, parseBgpServiceMembership } from './bgp-service-membership';
 import { bindAwsCloudInit } from './bootstrap';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
@@ -262,6 +263,59 @@ export class CeRuntime {
     return site;
   }
   /** Read-only, freshly collected version evidence; this does not authorize an upgrade. */
+  /** Owned installed-version snapshot for power recovery. Collection does not qualify publisher freshness. */
+  async observePowerVersions(binding: SiteBinding, signal?: AbortSignal) {
+    binding = structuredClone(binding);
+    this.#binding(binding);
+    const source = `/api/config/namespaces/system/sites/${binding.siteName}`;
+    const base = {
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      nodes: [...binding.nodes],
+      contractFingerprint: this.contract.fingerprint,
+      source,
+      collectedAt: new Date().toISOString(),
+      freshness: 'unqualified' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+    };
+    try {
+      const logical = await this.observeOwnedSite(binding, signal),
+        siteUid = object(logical.system_metadata).uid;
+      if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
+      const read = async () => {
+        const physical = await this.#request(source, {}, signal);
+        this.#owned(physical, binding);
+        return parseSiteUpgradeState(physical, binding);
+      };
+      const state = await read(),
+        finalLogical = await this.observeOwnedSite(binding, signal),
+        finalState = await read();
+      if (object(finalLogical.system_metadata).uid !== siteUid || JSON.stringify(state) !== JSON.stringify(finalState))
+        throw new CeApiError('conflict');
+      return {
+        ...base,
+        ...state,
+        siteUid,
+        status: 'observed' as const,
+        collectedAt: new Date().toISOString(),
+        stable:
+          state.online &&
+          [state.software, state.os].every(
+            (version) => version.phase === 'UPGRADE_COMPLETED' && ['Completed', 'success'].includes(version.result),
+          ),
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        stable: false,
+        collectedAt: new Date().toISOString(),
+        reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
+      };
+    }
+  }
+
   async observeUpgrade(
     binding: SiteBinding,
     contract: VerifiedUpgradeContract,
@@ -903,6 +957,42 @@ export class CeRuntime {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
+  /** Current owned route/session membership; collection time never substitutes for original publisher freshness. */
+  async observeBgpServiceMembership(
+    binding: SiteBinding,
+    siteUid: string,
+    expected: ExpectedBgpSession[],
+    tables: ExpectedBgpServiceTable[],
+    prefixes: string[],
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding);
+    const nodes = [...new Set(expected.map((s) => s.node))];
+    if (!siteUid.trim() || nodes.length !== binding.nodes.length || nodes.some((node) => !binding.nodes.includes(node)))
+      throw Error('BGP service logical site UID or expected nodes differ');
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object(site.system_metadata).uid !== siteUid) throw Error('BGP service site identity changed');
+    };
+    await checkSite();
+    const sources = {
+      peers: this.contract.bgpPeersPath(binding.owner.provider, binding.siteName),
+      routes: this.contract.bgpRoutesPath(binding.owner.provider, binding.siteName),
+    };
+    const peerResponse = await this.#request(sources.peers, {}, signal);
+    const routeResponse = await this.#request(sources.routes, {}, signal);
+    const observation = parseBgpServiceMembership(peerResponse, routeResponse, expected, tables, prefixes);
+    await checkSite();
+    return {
+      ...observation,
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      siteUid,
+      sources,
+      contractFingerprint: this.contract.fingerprint,
+      collectedAt: new Date().toISOString(),
+    };
+  }
   async observeBgpSessions(binding: SiteBinding, expected: ExpectedBgpSession[], signal?: AbortSignal) {
     this.#binding(binding);
     this.#owned(await this.observeSite(binding, signal), binding);
@@ -965,6 +1055,17 @@ export class CeRuntime {
       );
       const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
       const interfaces = correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider);
+      const finalConfiguration = await this.#request(
+        this.contract.configurationPath(binding.owner.provider, binding.siteName),
+        {},
+        signal,
+      );
+      this.#owned(finalConfiguration, binding);
+      if (
+        object(finalConfiguration.system_metadata).uid !== object(configuration.system_metadata).uid ||
+        JSON.stringify(finalConfiguration.spec) !== JSON.stringify(configuration.spec)
+      )
+        throw new CeApiError('conflict');
       await this.recordBinding?.(binding, String(object(configuration.system_metadata).uid), expected);
       return {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
@@ -1062,110 +1163,12 @@ export class CeRuntime {
           existing = await observe();
         }
         this.#owned(existing, { ...binding, siteName: resource.name });
-        if (kind === 'bgp_routing_policy' && !subset(existing.spec, resource.spec)) {
-          const rules = object(existing.spec).rules;
-          const legacy =
-            Array.isArray(rules) &&
-            rules.length === 1 &&
-            JSON.stringify(rules[0]) ===
-              JSON.stringify({
-                match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
-                action: { deny: {} },
-              });
-          const uid = object(existing.system_metadata).uid;
-          const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object(site.system_metadata).uid;
-          if (!legacy || typeof uid !== 'string' || !uid || typeof siteUid !== 'string' || !siteUid)
-            throw new Error('Existing routing object differs from site-bound intent; replan required');
-          await checkpoint({
-            kind,
-            name: resource.name,
-            siteName: binding.siteName,
-            uid,
-            owner: binding.owner,
-            contractFingerprint: this.contract.fingerprint,
-            phase: 'export-policy-migration-pending',
-          });
-          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
-          try {
-            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
-          } catch (error) {
-            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
-          }
-          existing = await observe();
-          this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
-            throw new Error('Export-policy migration readback differs');
-        }
-        if (
-          kind === 'bgp' &&
-          Array.isArray(object(existing.spec).peers) &&
-          (object(existing.spec).peers as unknown[]).some(
-            (peer) => peer && typeof peer === 'object' && Object.hasOwn(peer, 'routing_policies'),
-          )
-        ) {
-          const legacy = structuredClone(object(existing.spec));
-          const peers = legacy.peers;
-          const expectedPolicyName = `${binding.siteName.slice(0, 43)}-tgw-export-policy`;
-          const exactLegacyPolicies =
-            Array.isArray(peers) &&
-            peers.length > 0 &&
-            peers.every((peer) => {
-              const policy = object(object(peer).routing_policies).route_policy;
-              if (!Array.isArray(policy) || policy.length !== 1) return false;
-              const row = object(policy[0]);
-              const refs = row.object_refs;
-              if (
-                Object.keys(row).sort().join(',') !== 'all_nodes,object_refs,outbound' ||
-                Object.keys(object(row.all_nodes)).length !== 0 ||
-                Object.keys(object(row.outbound)).length !== 0 ||
-                !Array.isArray(refs) ||
-                refs.length !== 1
-              )
-                return false;
-              const ref = object(refs[0]);
-              return (
-                ref.name === expectedPolicyName &&
-                ref.namespace === 'system' &&
-                Object.keys(ref).every((key) => ['kind', 'name', 'namespace', 'tenant', 'uid'].includes(key))
-              );
-            });
-          if (Array.isArray(peers)) for (const peer of peers) delete object(peer).routing_policies;
-          const uid = object(existing.system_metadata).uid;
-          const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object(site.system_metadata).uid;
-          if (
-            !exactLegacyPolicies ||
-            !subset(legacy, resource.spec) ||
-            typeof uid !== 'string' ||
-            !uid ||
-            typeof siteUid !== 'string' ||
-            !siteUid
-          )
-            throw new Error('Existing routing object differs from site-bound intent; replan required');
-          await checkpoint({
-            kind,
-            name: resource.name,
-            siteName: binding.siteName,
-            uid,
-            owner: binding.owner,
-            contractFingerprint: this.contract.fingerprint,
-            phase: 'bgp-export-migration-pending',
-          });
-          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
-          try {
-            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
-          } catch (error) {
-            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
-          }
-          existing = await observe();
-          this.#owned(existing, { ...binding, siteName: resource.name });
-          if (object(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
-            throw new Error('BGP export migration readback differs');
-        }
         if (
           object(object(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-          !subset(existing.spec, resource.spec)
+          !subset(existing.spec, resource.spec) ||
+          (kind === 'bgp' &&
+            Array.isArray(object(existing.spec).peers) &&
+            (object(existing.spec).peers as unknown[]).some((peer) => Object.hasOwn(object(peer), 'routing_policies')))
         )
           throw new Error('Existing routing object differs from site-bound intent; replan required');
         const uid = object(existing.system_metadata).uid;
@@ -1316,6 +1319,414 @@ export class CeRuntime {
       routeServerAddresses: [...routeServerAddresses],
       contractFingerprint: this.contract.fingerprint,
     });
+  }
+  /** Internal native creation. The owning coordinator persists disposition before submission; submitted attempts only reconcile. */
+  async createPowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    return this.#createPowerRoutingPolicy(input, disposition, checkpoint, signal, 'native');
+  }
+  async createTerraformPowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    return this.#createPowerRoutingPolicy(input, disposition, checkpoint, signal, 'terraform');
+  }
+  async #createPowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal: AbortSignal | undefined,
+    expectedEngine: 'native' | 'terraform',
+  ) {
+    const intent = structuredClone(input);
+    const { binding, siteUid, name, spec, attemptId } = intent;
+    this.#binding(binding, true);
+    if (
+      this.engine !== expectedEngine ||
+      (expectedEngine === 'terraform' && !this.resourceMutation) ||
+      binding.owner.provider !== 'aws' ||
+      !safeName.test(name) ||
+      !siteUid.trim() ||
+      !/^[a-f0-9]{64}$/.test(attemptId) ||
+      intent.contractFingerprint !== this.contract.fingerprint ||
+      !['not-submitted', 'submitted'].includes(disposition)
+    )
+      throw Error('Power policy creation identity or contract differs');
+    this.contract.validateRouting('bgp_routing_policy', spec);
+    const request = this.contract.routingCreateRequest(
+      'bgp_routing_policy',
+      {
+        name,
+        namespace: 'system',
+        labels: {
+          ...this.#labels(binding),
+          'xcsh-ce-site': binding.siteName,
+          'xcsh-ce-site-uid': siteUid,
+          'xcsh-ce-power-attempt': attemptId,
+        },
+      },
+      spec,
+    );
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object(site.system_metadata).uid !== siteUid) throw Error('Power policy site identity changed');
+    };
+    await checkSite();
+    const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
+    const read = async () => {
+      let child: Json;
+      try {
+        child = await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return undefined;
+        throw error;
+      }
+      this.#owned(child, { ...binding, siteName: name });
+      const labels = object(object(child.metadata).labels),
+        uid = object(child.system_metadata).uid;
+      if (
+        labels['xcsh-ce-site'] !== binding.siteName ||
+        labels['xcsh-ce-site-uid'] !== siteUid ||
+        labels['xcsh-ce-power-attempt'] !== attemptId ||
+        typeof uid !== 'string' ||
+        !uid.trim()
+      )
+        throw Error('Power policy child identity or original attempt differs');
+      if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
+        throw Error('Power policy revision missing');
+      const projected = this.contract.routingReplaceRequest('bgp_routing_policy', child, object(child.spec), siteUid);
+      if (!subset(projected.spec, spec) || !subset(spec, projected.spec))
+        throw Error('Power policy actual spec differs');
+      return {
+        ...intent,
+        kind: 'bgp_routing_policy' as const,
+        uid,
+        resourceVersion: child.resource_version,
+        spec: object(projected.spec),
+        collectedAt: new Date().toISOString(),
+      };
+    };
+    let observed = await read();
+    if (!observed && disposition === 'not-submitted') {
+      await checkpoint({ ...intent, kind: 'bgp_routing_policy', phase: 'power-policy-create-dispatch' });
+      await checkSite();
+      // Another original worker may have completed during persistence. Never replace or adopt a foreign attempt.
+      observed = await read();
+      if (!observed) {
+        signal?.throwIfAborted();
+        try {
+          await this.#request(
+            '/api/config/namespaces/system/bgp_routing_policys',
+            {
+              method: 'POST',
+              body: JSON.stringify(request),
+            },
+            signal,
+          );
+        } catch (error) {
+          if (!(error instanceof CeApiError && ['transient', 'conflict', 'deadline'].includes(error.category)))
+            throw error;
+        }
+        observed = await read();
+      }
+    }
+    await checkSite();
+    return observed
+      ? { ...observed, status: 'observed' as const }
+      : { ...intent, status: 'pending' as const, collectedAt: new Date().toISOString() };
+  }
+  /** Internal retirement after the coordinator verifies restored BGP and service evidence. Submitted deletions never replay. */
+  async deletePowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      uid: string;
+      resourceVersion: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    return this.#deletePowerRoutingPolicy(input, disposition, checkpoint, signal, 'native');
+  }
+  async deleteTerraformPowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      uid: string;
+      resourceVersion: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    return this.#deletePowerRoutingPolicy(input, disposition, checkpoint, signal, 'terraform');
+  }
+  async #deletePowerRoutingPolicy(
+    input: {
+      binding: SiteBinding;
+      siteUid: string;
+      name: string;
+      uid: string;
+      resourceVersion: string;
+      spec: Json;
+      attemptId: string;
+      contractFingerprint: string;
+    },
+    disposition: 'not-submitted' | 'submitted',
+    checkpoint: (record: Json) => Promise<void>,
+    signal: AbortSignal | undefined,
+    expectedEngine: 'native' | 'terraform',
+  ) {
+    const snapshot = structuredClone(input),
+      { binding, siteUid, name, uid, resourceVersion, spec, attemptId } = snapshot;
+    this.#binding(binding, true);
+    if (
+      this.engine !== expectedEngine ||
+      (expectedEngine === 'terraform' && !this.resourceMutation) ||
+      binding.owner.provider !== 'aws' ||
+      !safeName.test(name) ||
+      !siteUid.trim() ||
+      !uid.trim() ||
+      !resourceVersion.trim() ||
+      !/^[a-f0-9]{64}$/.test(attemptId) ||
+      snapshot.contractFingerprint !== this.contract.fingerprint ||
+      !['not-submitted', 'submitted'].includes(disposition)
+    )
+      throw Error('Power policy retirement identity or contract differs');
+    this.contract.validateRouting('bgp_routing_policy', spec);
+    const checkSite = async () => {
+      const site = await this.observeOwnedSite(binding, signal);
+      if (object(site.system_metadata).uid !== siteUid) throw Error('Power policy retirement site identity changed');
+    };
+    const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
+    const read = async () => {
+      let child: Json;
+      try {
+        child = await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return undefined;
+        throw error;
+      }
+      this.#owned(child, { ...binding, siteName: name });
+      const labels = object(object(child.metadata).labels);
+      if (
+        object(child.system_metadata).uid !== uid ||
+        labels['xcsh-ce-site'] !== binding.siteName ||
+        labels['xcsh-ce-site-uid'] !== siteUid ||
+        labels['xcsh-ce-power-attempt'] !== attemptId ||
+        child.resource_version !== resourceVersion
+      )
+        throw Error('Power policy retirement child identity, attempt or revision differs');
+      this.contract.validateRouting('bgp_routing_policy', object(child.spec));
+      if (!subset(child.spec, spec) || !subset(spec, child.spec))
+        throw Error('Power policy retirement actual spec differs');
+      return child;
+    };
+    await checkSite();
+    let existing = await read();
+    if (existing && disposition === 'not-submitted') {
+      await checkpoint({ ...snapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' });
+      await checkSite();
+      existing = await read();
+      if (existing) {
+        signal?.throwIfAborted();
+        try {
+          await this.#request(path, { method: 'DELETE' }, signal);
+        } catch (error) {
+          if (
+            !(
+              error instanceof CeApiError && ['transient', 'conflict', 'deadline', 'not-found'].includes(error.category)
+            )
+          )
+            throw error;
+        }
+        existing = await read();
+      }
+    }
+    await checkSite();
+    return {
+      ...snapshot,
+      status: existing ? ('pending' as const) : ('deleted' as const),
+      collectedAt: new Date().toISOString(),
+    };
+  }
+  /** Current owned routing configuration; collection time is not a CE publisher heartbeat. */
+  async observePowerRouting(
+    binding: SiteBinding,
+    kind: 'bgp' | 'bgp_routing_policy' | 'external_connector',
+    name: string,
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding);
+    if (
+      binding.owner.provider !== 'aws' ||
+      !['bgp', 'bgp_routing_policy', 'external_connector'].includes(kind) ||
+      !safeName.test(name)
+    )
+      throw Error('Power routing observation scope differs');
+    const site = await this.observeOwnedSite(binding, signal);
+    const siteUid = object(site.system_metadata).uid;
+    if (typeof siteUid !== 'string' || !siteUid.trim()) throw Error('Power routing site identity missing');
+    const child = await this.#request(`/api/config/namespaces/system/${kind}s/${name}`, {}, signal);
+    this.#owned(child, { ...binding, siteName: name });
+    const uid = object(child.system_metadata).uid;
+    if (
+      typeof uid !== 'string' ||
+      !uid.trim() ||
+      object(object(child.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object(object(child.metadata).labels)['xcsh-ce-site-uid'] !== siteUid
+    )
+      throw Error('Power routing child identity differs');
+    if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
+      throw Error('Power routing revision missing');
+    const request = this.contract.routingReplaceRequest(kind, child, object(child.spec), siteUid);
+    const finalSite = await this.observeOwnedSite(binding, signal);
+    if (object(finalSite.system_metadata).uid !== siteUid)
+      throw Error('Power routing site identity changed during observation');
+    return {
+      binding: structuredClone(binding),
+      kind,
+      name,
+      uid,
+      siteUid,
+      resourceVersion: child.resource_version,
+      spec: object(request.spec),
+      contractFingerprint: this.contract.fingerprint,
+      collectedAt: new Date().toISOString(),
+    };
+  }
+  /** Internal routing replacement. Coordinator supplies an owned immutable power plan and persists the original attempt. */
+  async replacePowerRouting(
+    snapshot: {
+      binding: SiteBinding;
+      siteUid: string;
+      kind: 'bgp' | 'bgp_routing_policy';
+      name: string;
+      uid: string;
+      resourceVersion: string;
+      spec: Json;
+      contractFingerprint: string;
+    },
+    desired: Json,
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { binding } = snapshot;
+    this.#binding(binding, true);
+    if (
+      binding.owner.provider !== 'aws' ||
+      snapshot.contractFingerprint !== this.contract.fingerprint ||
+      !['bgp', 'bgp_routing_policy'].includes(snapshot.kind) ||
+      !safeName.test(snapshot.name) ||
+      !snapshot.uid.trim() ||
+      !snapshot.siteUid.trim() ||
+      !snapshot.resourceVersion.trim()
+    )
+      throw Error('Power routing identity or contract differs');
+    const site = await this.observeOwnedSite(binding, signal);
+    if (object(site.system_metadata).uid !== snapshot.siteUid) throw Error('Power routing site identity differs');
+    const path = `/api/config/namespaces/system/${snapshot.kind}s/${snapshot.name}`;
+    const check = (value: Json) => {
+      this.#owned(value, { ...binding, siteName: snapshot.name });
+      if (
+        object(value.system_metadata).uid !== snapshot.uid ||
+        object(object(value.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+        object(object(value.metadata).labels)['xcsh-ce-site-uid'] !== snapshot.siteUid
+      )
+        throw Error('Power routing object identity differs');
+    };
+    let existing = await this.#request(path, {}, signal);
+    check(existing);
+    const request = this.contract.routingReplaceRequest(snapshot.kind, existing, desired, snapshot.siteUid);
+    const projection = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      existing,
+      object(existing.spec),
+      snapshot.siteUid,
+    );
+    if (subset(projection.spec, request.spec) && subset(request.spec, projection.spec)) return;
+    if (
+      existing.resource_version !== snapshot.resourceVersion ||
+      !subset(projection.spec, snapshot.spec) ||
+      !subset(snapshot.spec, projection.spec)
+    )
+      throw Error('Power routing original revision differs; reconcile retained attempt');
+    await checkpoint({
+      kind: snapshot.kind,
+      name: snapshot.name,
+      uid: snapshot.uid,
+      siteUid: snapshot.siteUid,
+      resourceVersion: snapshot.resourceVersion,
+      contractFingerprint: snapshot.contractFingerprint,
+      phase: 'power-routing-dispatch',
+    });
+    const freshSite = await this.observeOwnedSite(binding, signal);
+    if (object(freshSite.system_metadata).uid !== snapshot.siteUid) throw Error('Power routing site identity changed');
+    const fresh = await this.#request(path, {}, signal);
+    check(fresh);
+    const freshProjection = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      fresh,
+      object(fresh.spec),
+      snapshot.siteUid,
+    );
+    if (
+      fresh.resource_version !== snapshot.resourceVersion ||
+      !subset(freshProjection.spec, snapshot.spec) ||
+      !subset(snapshot.spec, freshProjection.spec)
+    )
+      throw Error('Power routing original revision changed');
+    try {
+      await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+    }
+    existing = await this.#request(path, {}, signal);
+    check(existing);
+    const observed = this.contract.routingReplaceRequest(
+      snapshot.kind,
+      existing,
+      object(existing.spec),
+      snapshot.siteUid,
+    );
+    if (!subset(observed.spec, request.spec) || !subset(request.spec, observed.spec))
+      throw Error('Power routing replacement pending; reconcile retained attempt');
   }
   /** Remove only a routing object recorded for this exact owned site. */
   async deleteRouting(

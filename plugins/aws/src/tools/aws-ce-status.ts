@@ -117,8 +117,18 @@ export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string
             : undefined;
         let workflowProgress: Record<string, unknown> | undefined;
         let runtime: CeRuntime | undefined;
+        let storage:
+          | Awaited<ReturnType<import('../../../platform/src/ce/service').CePlatformService['storage']>>
+          | undefined;
         try {
           const platform = await awsPlatformService(pi, signal);
+          storage = await platform.storage({
+            deploymentId: plan.deploymentName,
+            engine: plan.engine,
+            provider: 'aws',
+            account: plan.accountId,
+            region: plan.region,
+          });
           if (plan.engine === 'terraform') {
             try {
               const workflow = await readAwsTerraformWorkflowStatus(
@@ -168,13 +178,13 @@ export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string
           if (plan.engine === 'terraform' && !workflowProgress)
             workflowProgress = { state: 'unknown', engine: 'terraform', reason: 'platform-service-unavailable' };
         }
-        const status = await collectAwsCeStatus(plan, checkpoint, makeApi(ctx.cwd), runtime, signal);
+        const status = await collectAwsCeStatus(plan, checkpoint, makeApi(ctx.cwd), runtime, signal, storage);
         if (workflowProgress) Object.assign(status.checkpoint, workflowProgress);
         return {
           content: [
             {
               type: 'text' as const,
-              text: `AWS CE ${plan.deploymentName}: cloud evidence ${status.aws.status}; registration ${status.f5.registration.status}; site health ${status.f5.health.status}. Routing evidence ${status.routing.status}; traffic evidence remains unknown.`,
+              text: `AWS CE ${plan.deploymentName}: cloud evidence ${status.aws.status}; registration ${status.f5.registration.status}; site health ${status.f5.health.status}. Routing evidence ${status.routing.status}; traffic evidence ${status.traffic.status}.`,
             },
           ],
           details: { tool: 'aws_ce_status', status },

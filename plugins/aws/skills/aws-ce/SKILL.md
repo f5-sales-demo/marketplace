@@ -62,6 +62,11 @@ contract for their acceptance scope and public-tool integration status.
    `aws_ce_failover` with the owning engine to prepare and execute one selected-node outage and
    exact BGP withdrawal and restoration. Terraform also releases its temporary power control and
    requires a final no-change plan. Use
+   `aws_ce_power` for whole-site single-node maintenance: `prepare-stop` retains the complete
+   owned service and hardware plan; `prepare-start` requires the exact stopped plan and maintenance
+   receipt. `apply` requires the exact saved power plan ID and digest; `status` only reads evidence.
+   Unknown publisher freshness, blocked traffic, or identity evidence keeps execution pending.
+   Multi-node power and Terraform direct-route maintenance remain unqualified. Use
    `aws_ce_teardown` for the owning engine: native teardown consumes a separately reviewed fresh
    `aws_ce_plan` teardown plan bound to the original deployment, while Terraform derives its saved
    destroy plan internally. Both retain authorization and resume from durable evidence; version

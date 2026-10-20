@@ -7,7 +7,7 @@ import {
   AWS_CE_PROVIDER_LOCK_SHA256,
   AWS_CE_TERRAFORM_PROVIDER_VERSION,
   AWS_CE_TERRAFORM_VERSION,
-  assertAwsWholeSitePowerSupported,
+  assertAwsDeploymentCompilerOperation,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
@@ -928,7 +928,7 @@ function compileActions(
     }
     return actions;
   }
-  assertAwsWholeSitePowerSupported(intent);
+  assertAwsDeploymentCompilerOperation(intent);
   const ownedInstances = orderedOwnedInstances(observation, intent.topology.nodeCount);
   if (intent.operation === 'resize') {
     if (ownedInstances.length !== intent.topology.nodeCount)

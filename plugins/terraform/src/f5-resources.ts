@@ -14,6 +14,15 @@ const object = (value: unknown): Json => {
     throw new Error('Malformed F5 Terraform resource evidence');
   return value as Json;
 };
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const kinds: Record<string, string> = {
   securemesh_site_v2s: 'xcsh_securemesh_site_v2',
@@ -140,7 +149,8 @@ export async function executeF5TerraformResource(
     if (method !== 'POST' && !book.resources[addressName])
       throw new Error('F5 view is not owned by Terraform state; adoption is prohibited');
     const env = { ...process.env, ...(await platform.providerEnvironment(contextName)) };
-    const base = new URL(env.XCSH_API_URL!);
+    if (!env.XCSH_API_URL || !env.XCSH_API_TOKEN) throw Error('F5 provider credentials unavailable');
+    const base = new URL(env.XCSH_API_URL);
     if (base.protocol !== 'https:' || (tenantOrigin !== undefined && base.origin !== tenantOrigin))
       throw new Error('F5 provider tenant must use HTTPS');
     const read = async (): Promise<Json | undefined> => {
@@ -212,7 +222,7 @@ export async function executeF5TerraformResource(
     else
       next[addressName] = {
         type,
-        values: renderProviderResource(request!, resourceSchema, type),
+        values: renderProviderResource(object(request), resourceSchema, type),
         path: itemPath,
         uid: book.resources[addressName]?.uid,
       };
@@ -222,6 +232,11 @@ export async function executeF5TerraformResource(
       resource[view.type][key] = view.values;
     }
     const configuration = JSON.stringify({ ...empty, ...(Object.keys(resource).length ? { resource } : {}) });
+    // Compare the full writable provider projection; subset matching can retain an unwanted BGP policy.
+    const specMatches = (value: Json): boolean =>
+      canonical(
+        renderProviderResource({ metadata: object(request).metadata, spec: object(value.spec) }, resourceSchema, type),
+      ) === canonical(next[addressName].values);
     const requestSha256 = hash({ owner, path, method, request });
     if (book.pending && book.pending.planSha256 !== auth.planSha256)
       throw new Error('Pending F5 operation belongs to another authorization');
@@ -236,21 +251,6 @@ export async function executeF5TerraformResource(
     if (book.pending?.submitted) {
       const identities = await session.readResourceIdentities(env, signal);
       const identity = identities.filter((row) => row.address === address);
-      const subset = (actual: unknown, desired: unknown): boolean => {
-        if (Array.isArray(desired))
-          return (
-            Array.isArray(actual) &&
-            actual.length === desired.length &&
-            desired.every((row, index) => subset(actual[index], row))
-          );
-        if (desired && typeof desired === 'object')
-          return Boolean(
-            actual &&
-              typeof actual === 'object' &&
-              Object.entries(desired).every(([key, value]) => subset((actual as Json)[key], value)),
-          );
-        return actual === desired;
-      };
       const stateMatches =
         method === 'DELETE'
           ? identity.length === 0
@@ -259,7 +259,7 @@ export async function executeF5TerraformResource(
             identity[0].name === name &&
             identity[0].namespace === parts[1] &&
             Object.entries(labels).every(([key, v]) => object(identity[0].labels)[key] === v);
-      const apiMatches = method === 'DELETE' ? !before : before && subset(before.spec, request!.spec);
+      const apiMatches = method === 'DELETE' ? !before : before && specMatches(before);
       if (!stateMatches || !apiMatches || !book.pending.receipt)
         throw new Error('F5 saved apply outcome remains unknown; no mutation was replayed');
       const evidence = { requestSha256, identities, uid: before ? object(before.system_metadata).uid : null };
@@ -313,6 +313,9 @@ export async function executeF5TerraformResource(
     const after = await read();
     if ((method === 'DELETE' && after) || (method !== 'DELETE' && !after))
       throw new Error('F5 provider readback did not converge');
+    if (after && before && object(after.system_metadata).uid !== object(before.system_metadata).uid)
+      throw new Error('F5 provider readback identity changed during apply');
+    if (after && !specMatches(after)) throw new Error('F5 provider requested spec readback did not converge');
     if (after) next[addressName].uid = String(object(after.system_metadata).uid);
     book.resources = next;
     book.configurationSha256 = await session.readConfigurationSha256();

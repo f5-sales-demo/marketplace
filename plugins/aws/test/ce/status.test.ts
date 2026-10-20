@@ -193,3 +193,73 @@ test('rejects duplicate active candidates and a terminal checkpoint target', asy
     expect(calls).toBe(0);
   }
 });
+
+test('status reads a current bound HTTP receipt only after cloud identity correlation without executing a probe', async () => {
+  const sourceInstanceId = 'i-0feedface12345678';
+  const current = {
+    ...plan,
+    planSha256: 'a'.repeat(64),
+    ownershipInventory: [{ resourceId: sourceInstanceId, owned: false, action: 'modify-approved' }],
+    intent: {
+      ...plan.intent,
+      brownfield: { resourceIds: [sourceInstanceId] },
+      ingress: {
+        mode: 'nlb',
+        loadBalancer: { privateAddresses: ['10.9.0.10'] },
+        probe: { sourceInstanceId, expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
+      },
+    },
+  } as AwsCePlan;
+  const evidence = {
+    status: 'healthy',
+    loadBalancerArn: `arn:aws:elasticloadbalancing:${current.region}:${current.accountId}:loadbalancer/net/ce/abcdef12`,
+    endpointDns: 'internal-ce.example.aws',
+    remoteAddress: '10.9.0.10',
+    source: 'aws:ssm:get-command-invocation',
+    sourceInstanceId,
+    commandId: '12345678-1234-1234-1234-123456789abc',
+    httpStatus: 200,
+    expectedStatus: 200,
+    bodySha256: '4'.repeat(64),
+    expectedBodySha256: '4'.repeat(64),
+    startedAt: new Date(Date.now() - 1000).toISOString(),
+    executedAt: new Date().toISOString(),
+    observedAt: new Date().toISOString(),
+  };
+  let reads = 0;
+  const storage = {
+    owner: {
+      deploymentId: current.deploymentName,
+      engine: current.engine,
+      provider: 'aws',
+      account: current.accountId,
+      region: current.region,
+    },
+    verify: async () => {},
+    read: async () => {
+      reads++;
+      return {
+        schemaVersion: 1,
+        engine: 'native',
+        planSha256: current.planSha256,
+        sourceInstanceId,
+        commandId: evidence.commandId,
+        phase: 'complete',
+        evidence,
+      };
+    },
+  } as unknown as import('../../../platform/src/ce/deployment-store').CeDeploymentStore;
+  const status = await collectAwsCeStatus(
+    current,
+    { ...checkpoint, resolvedValues: { ...checkpoint.resolvedValues, __NLB_ARN__: evidence.loadBalancerArn } },
+    api,
+    undefined,
+    undefined,
+    storage,
+  );
+  expect(status.traffic.status).toBe('healthy');
+  expect(reads).toBe(1);
+  const unknown = await collectAwsCeStatus(current, undefined, api, undefined, undefined, storage);
+  expect(unknown.traffic.status).toBe('unknown');
+  expect(reads).toBe(1);
+});

@@ -104,3 +104,50 @@ test('rejects partial, duplicated, substituted and malformed BGP evidence', () =
   ];
   for (const value of variants) expect(() => parseBgpSessions(value, expected)).toThrow();
 });
+
+for (const count of [8, 12, 24])
+  test(`binds complete ${count}-session Connect inventory`, () => {
+    const inventory = Array.from({ length: count }, (_, i) => ({
+      node: `node-${Math.floor(i / (count / (count === 8 ? 2 : 3))) + 1}`,
+      interfaceName: `gre-${Math.floor(i / 2) + 1}`,
+      peerAddress: `169.254.10.${i + 1}`,
+    }));
+    const value = {
+      ver: [...new Set(inventory.map((p) => p.node))].map((node) => ({
+        name: node,
+        peer: inventory
+          .filter((p) => p.node === node)
+          .map((p) => ({
+            interface_name: p.interfaceName,
+            peer_address: { ipv4: { addr: p.peerAddress } },
+            protocol_status: 'Established',
+            received_prefix_count: 1,
+            advertised_prefix_count: 1,
+            up_down_timestamp: '2026-09-10T12:00:00Z',
+          })),
+      })),
+    };
+    expect(parseBgpSessions(value, inventory)).toMatchObject({
+      status: 'healthy',
+      expectedSessions: count,
+      establishedSessions: count,
+    });
+    value.ver[0].peer.pop();
+    expect(() => parseBgpSessions(value, inventory)).toThrow('count');
+  });
+
+test('rejects out-of-contract odd, oversized and excess-node session bindings', () => {
+  const sample = { node: 'node-one', interfaceName: 'gre-one', peerAddress: '169.254.10.1' };
+  for (const count of [1, 3, 26])
+    expect(() =>
+      parseBgpSessions(
+        { ver: [] },
+        Array.from({ length: count }, (_, i) => ({ ...sample, peerAddress: `169.254.10.${i + 1}` })),
+      ),
+    ).toThrow('expected');
+  const excess = ['node-one', 'node-two', 'node-three', 'node-four'].flatMap((node) => [
+    { ...sample, node },
+    { ...sample, node, peerAddress: '169.254.10.2' },
+  ]);
+  expect(() => parseBgpSessions({ ver: [] }, excess)).toThrow('expected');
+});

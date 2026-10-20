@@ -65,10 +65,12 @@ export function parseBgpRoutes(response: unknown, expectedNodes: string[]) {
         };
         return { name: table.name, imported: routes('imported'), exported: routes('exported') };
       });
+      if (!tables.length) throw new Error('Incomplete BGP route table evidence');
       if (new Set(tables.map((table) => table.name)).size !== tables.length)
         throw new Error('Duplicate BGP route table evidence');
       return { name: instance.routing_instance, tables };
     });
+    if (!routingInstances.length) throw new Error('Incomplete BGP routing instance evidence');
     if (new Set(routingInstances.map((instance) => instance.name)).size !== routingInstances.length)
       throw new Error('Duplicate BGP routing instance evidence');
     return { node, routingInstances };

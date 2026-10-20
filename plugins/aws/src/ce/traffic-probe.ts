@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { type AwsExecApi, AwsNotFoundError, detectAwsError } from '../aws/exec';
 import { scopedAwsApi } from './scoped-exec';
@@ -9,6 +10,37 @@ const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed AWS traffic evidence');
   return value as Json;
 };
+function validSampleTimes(evidence: Json, now: number, current: boolean): boolean {
+  const start = Date.parse(String(evidence.startedAt)),
+    end = Date.parse(String(evidence.executedAt)),
+    collected = Date.parse(String(evidence.observedAt));
+  return (
+    ['startedAt', 'executedAt', 'observedAt'].every((key) => typeof evidence[key] === 'string') &&
+    [start, end, collected].every(Number.isFinite) &&
+    start <= end &&
+    end <= collected &&
+    collected <= now &&
+    (!current || (now - end <= 30_000 && now - collected <= 30_000))
+  );
+}
+function verifiedPeer(plan: AwsCePlan, address: unknown): boolean {
+  return (
+    plan.intent.ingress?.mode === 'nlb' &&
+    typeof address === 'string' &&
+    isIP(address) === 4 &&
+    plan.intent.ingress.loadBalancer.privateAddresses.includes(address)
+  );
+}
+function storeOwnedByPlan(plan: AwsCePlan, storage: CeDeploymentStore): boolean {
+  const expected = {
+    deploymentId: plan.deploymentName,
+    engine: plan.engine,
+    provider: 'aws',
+    account: plan.accountId,
+    region: plan.region,
+  };
+  return Object.entries(expected).every(([key, value]) => (storage.owner as unknown as Json)?.[key] === value);
+}
 async function run(api: AwsExecApi, plan: AwsCePlan, args: string[]): Promise<Json> {
   const result = await api.exec('aws', [...args, '--region', plan.region, '--output', 'json']);
   if (result.exitCode !== 0) throw detectAwsError(result.stderr, result.exitCode);
@@ -33,6 +65,7 @@ export async function collectAwsTrafficProbe(
 ) {
   if (plan.intent.ingress?.mode !== 'nlb') throw new Error('AWS traffic probe requires explicit NLB ingress');
   await storage.verify();
+  if (!storeOwnedByPlan(plan, storage)) throw new Error('Traffic deployment store owner differs');
   const api = scopedAwsApi(rawApi, plan.intent.awsProfile, signal);
   const probe = plan.intent.ingress.probe;
   if (
@@ -120,10 +153,23 @@ export async function collectAwsTrafficProbe(
         evidence.expectedStatus !== probe.expectedStatus ||
         evidence.expectedBodySha256 !== probe.expectedBodySha256 ||
         typeof evidence.observedAt !== 'string' ||
-        !Number.isFinite(Date.parse(evidence.observedAt))
+        !Number.isFinite(Date.parse(evidence.observedAt)) ||
+        !verifiedPeer(plan, evidence.remoteAddress) ||
+        !validSampleTimes(evidence, Date.now(), false)
       )
         throw new Error('Persisted traffic evidence differs from the owning plan');
-      return evidence;
+      if (evidence.loadBalancerArn !== arn || evidence.endpointDns !== dns)
+        throw new Error('Persisted traffic endpoint differs from the current deployment');
+      if (validSampleTimes(evidence, Date.now(), true)) return evidence;
+      const receipts = Array.isArray(state.receipts) ? state.receipts.map(object) : [];
+      state = {
+        ...state,
+        phase: 'ready',
+        commandId: undefined,
+        evidence: undefined,
+        receipts: [...receipts, evidence].slice(-40),
+      };
+      await storage.write(file, state);
     }
   } else {
     state = {
@@ -140,11 +186,11 @@ export async function collectAwsTrafficProbe(
     const body = `${probe.expectedBodySha256}`;
     const command =
       `body=$(mktemp); trap 'rm -f "$body"' EXIT; ` +
-      `code=$(curl --silent --show-error --max-time 15 --output "$body" --write-out '%{http_code}' ` +
+      `code=$(curl --noproxy '*' --silent --show-error --max-time 15 --output "$body" --write-out '%{http_code} %{remote_ip}' ` +
       `--header 'Host: ${plan.intent.ingress.listener.domain}' ` +
       `'http://${dns}:${plan.intent.ingress.port}${probe.path}'); ` +
       `digest=$(sha256sum "$body" | awk '{print $1}'); printf '%s %s\n' "$code" "$digest"; ` +
-      `[ "$code" = "${probe.expectedStatus}" ] && [ "$digest" = "${body}" ]`;
+      `[ "\${code%% *}" = "${probe.expectedStatus}" ] && [ "$digest" = "${body}" ]`;
     const submitted = await run(api, plan, [
       'ssm',
       'send-command',
@@ -204,22 +250,29 @@ export async function collectAwsTrafficProbe(
       typeof invocation.ResponseCode !== 'number'
     )
       throw new Error('Traffic probe response is malformed');
-    const match = /^(\d{3}) ([a-f0-9]{64})\n?$/.exec(output);
+    const match = /^(\d{3}) ([0-9.]+) ([a-f0-9]{64})\n?$/.exec(output);
     const evidence = {
       status:
         invocation.Status === 'Success' && invocation.ResponseCode === 0 && errorOutput === '' && match
           ? 'healthy'
           : 'degraded',
       source: 'aws:ssm:get-command-invocation',
+      loadBalancerArn: arn,
+      endpointDns: dns,
       sourceInstanceId: probe.sourceInstanceId,
       commandId,
       httpStatus: match ? Number(match[1]) : undefined,
-      bodySha256: match?.[2],
+      remoteAddress: match?.[2],
+      bodySha256: match?.[3],
       expectedStatus: probe.expectedStatus,
       expectedBodySha256: probe.expectedBodySha256,
+      startedAt: invocation.ExecutionStartDateTime,
+      executedAt: invocation.ExecutionEndDateTime,
       observedAt: new Date().toISOString(),
     };
     if (
+      !verifiedPeer(plan, evidence.remoteAddress) ||
+      !validSampleTimes(evidence, Date.now(), true) ||
       evidence.status !== 'healthy' ||
       evidence.httpStatus !== probe.expectedStatus ||
       evidence.bodySha256 !== probe.expectedBodySha256
@@ -241,5 +294,60 @@ export async function collectAwsTrafficProbe(
     }
     await storage.write(file, { ...state, phase: 'complete', evidence });
     return evidence;
+  }
+}
+
+/** Read-only receipt inspection. Receipt age describes this HTTP test, never a CE publisher heartbeat. */
+export async function readAwsTrafficProbeEvidence(
+  plan: AwsCePlan,
+  storage: CeDeploymentStore,
+  values?: Record<string, string>,
+) {
+  const unknown = (reason: string) => ({ status: 'unknown' as const, reason, observedAt: new Date().toISOString() });
+  if (plan.intent.ingress?.mode !== 'nlb') return unknown('traffic-probe-not-configured');
+  const probe = plan.intent.ingress.probe;
+  try {
+    await storage.verify();
+    if (!storeOwnedByPlan(plan, storage)) return unknown('traffic-store-owner-unverified');
+    const state = await optional(storage, 'aws-traffic-probe.json');
+    if (state?.phase !== 'complete') return unknown('traffic-receipt-unavailable');
+    const evidence = object(state.evidence),
+      at = Date.parse(String(evidence.observedAt));
+    if (
+      !verifiedPeer(plan, evidence.remoteAddress) ||
+      !validSampleTimes(evidence, Date.now(), true) ||
+      typeof evidence.loadBalancerArn !== 'string' ||
+      !evidence.loadBalancerArn.startsWith(
+        `arn:${plan.partition ?? 'aws'}:elasticloadbalancing:${plan.region}:${plan.accountId}:loadbalancer/net/`,
+      ) ||
+      evidence.loadBalancerArn !== values?.__NLB_ARN__ ||
+      typeof evidence.endpointDns !== 'string' ||
+      !/^[A-Za-z0-9.-]{1,253}$/.test(evidence.endpointDns) ||
+      state.schemaVersion !== 1 ||
+      state.engine !== plan.engine ||
+      state.planSha256 !== plan.planSha256 ||
+      state.sourceInstanceId !== probe.sourceInstanceId ||
+      !COMMAND_ID.test(String(state.commandId)) ||
+      evidence.status !== 'healthy' ||
+      evidence.source !== 'aws:ssm:get-command-invocation' ||
+      evidence.sourceInstanceId !== probe.sourceInstanceId ||
+      evidence.commandId !== state.commandId ||
+      evidence.httpStatus !== probe.expectedStatus ||
+      evidence.expectedStatus !== probe.expectedStatus ||
+      evidence.bodySha256 !== probe.expectedBodySha256 ||
+      evidence.expectedBodySha256 !== probe.expectedBodySha256 ||
+      typeof evidence.observedAt !== 'string' ||
+      !Number.isFinite(at) ||
+      at > Date.now() ||
+      Date.now() - at > 30000 ||
+      !plan.intent.brownfield.resourceIds.includes(probe.sourceInstanceId) ||
+      !plan.ownershipInventory.some(
+        (row) => row.resourceId === probe.sourceInstanceId && !row.owned && row.action === 'modify-approved',
+      )
+    )
+      return unknown('traffic-receipt-unverified');
+    return { ...evidence, status: 'healthy' as const, receiptOnly: true as const };
+  } catch {
+    return unknown('traffic-receipt-unavailable');
   }
 }

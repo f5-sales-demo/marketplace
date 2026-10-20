@@ -69,7 +69,7 @@ it('previously persisted whole-site power plans cannot bypass the lifecycle gate
           destructionAuthorized: true,
           env: { XCSH_CE_HEADLESS_MUTATIONS: '1', XCSH_CE_ALLOW_DESTROY: '1' },
         }),
-      ).toThrow('service withdrawal');
+      ).toThrow('aws_ce_power');
     }
 });
 const capabilities = {

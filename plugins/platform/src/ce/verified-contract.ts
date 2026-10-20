@@ -140,6 +140,13 @@ export class VerifiedCeContract {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, this.#routing);
   }
+  routingCreateRequest(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', metadata: Json, spec: Json): Json {
+    if (!this.#routingSchemas) throw Error('Pinned routing creation contract is required');
+    const schemas = kind === 'external_connector' ? this.#routingSchemas.marketplace : this.#routingSchemas.network;
+    const request = { metadata: structuredClone(metadata), spec: structuredClone(spec) };
+    createWireValidator(schemas, `${kind}CreateRequest`)(request);
+    return request;
+  }
   routingReplaceRequest(
     kind: 'external_connector' | 'bgp_routing_policy' | 'bgp',
     snapshot: Json,
