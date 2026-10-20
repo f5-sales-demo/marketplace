@@ -71,6 +71,11 @@ jobs:
       - name: Prepare isolated Python fixture dependencies
         run: |
           set -euo pipefail
+          # Exact command reconstruction is qualified under both supported shells.
+          if ! command -v zsh >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends zsh
+          fi
           plugin_test_python_root="$RUNNER_TEMP/plugin-tests-python"
           python3 -m venv "$plugin_test_python_root"
           "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3'
