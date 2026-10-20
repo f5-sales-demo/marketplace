@@ -336,7 +336,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "4.6.0",
+      "version": "4.6.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "license": "Apache-2.0",
       "author": {
@@ -361,7 +361,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
@@ -386,7 +386,7 @@
     {
       "name": "kvm",
       "description": "Dual-NIC KVM Secure Mesh Site v2 with isolated SLO, home-LAN SLI, inside VIP, and rollback-protected host preparation",
-      "version": "3.2.0",
+      "version": "3.2.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
       "license": "Apache-2.0",
       "author": {
@@ -417,7 +417,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and CLI tools with gated Customer Edge discovery and lifecycle readiness planning",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
@@ -442,7 +442,7 @@
     {
       "name": "gitlab",
       "description": "GitLab CLI integration with shared lifecycle readiness, profile discovery, and issue management tools",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -493,7 +493,7 @@
     {
       "name": "herdr",
       "description": "Install and operate the stable F5 Herdr fork with verified native xcsh health, explicit pairing, and complete pane-control guidance.",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
       "license": "Apache-2.0",
       "author": {
@@ -502,7 +502,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Herdr",
-        "version": "1.3.0"
+        "version": "1.4.0"
       },
       "minimumRuntimeVersion": "23.5.1",
       "source": "./plugins/herdr",
@@ -550,7 +550,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {
@@ -573,7 +573,7 @@
     },
     {
       "name": "xorg",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "description": "Ubuntu 24.04 Xorg desktop automation substrate",
       "license": "Apache-2.0",
       "author": {
@@ -582,7 +582,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Xorg",
-        "version": "1.3.0"
+        "version": "1.4.0"
       },
       "minimumRuntimeVersion": "23.5.1",
       "source": "./plugins/xorg",
@@ -603,8 +603,8 @@
     },
     {
       "name": "zoom",
-      "version": "1.3.0",
-      "description": "Verified Zoom Workplace control through public xorgctl JSON",
+      "version": "1.4.0",
+      "description": "Zoom Web on Linux ARM64 and native Workplace on supported hosts, with verified virtual media",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
@@ -612,7 +612,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Zoom",
-        "version": "1.3.0"
+        "version": "1.4.0"
       },
       "minimumRuntimeVersion": "23.5.1",
       "source": "./plugins/zoom",
@@ -624,10 +624,14 @@
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["zoom"],
-        "requirements": ["Ubuntu 24.04 amd64", "Zoom Workplace 7.2.1.5760", "Xorg, Herdr, and Ghostty plugins"],
+        "requirements": [
+          "Chrome and configured virtual media for ARM64 Zoom Web",
+          "Verified local desktop backend and Herdr",
+          "amd64 Zoom Workplace remains supported"
+        ],
         "setupRequired": true,
         "collectedData": [],
-        "pluginDependencies": ["xorg", "herdr", "ghostty"]
+        "pluginDependencies": ["xorg", "herdr"]
       }
     },
     {

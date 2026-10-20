@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { PluginInterface } from './aws/types';
 import { presentTool as enrichTool } from './presentation';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
@@ -81,6 +82,8 @@ export function withErrorType<T extends { name: string; execute: (...args: never
   };
 }
 
+const bakedDesktop = () => existsSync('/etc/pi-desktop/desktop-lock.json');
+
 const factory: ExtensionFactory = async (pi) => {
   const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, pi.presentation);
   pi.setLabel('AWS');
@@ -101,7 +104,7 @@ const factory: ExtensionFactory = async (pi) => {
           timeoutMs: 300_000,
         },
         { kind: 'login', argv: ['aws', 'sso', 'login'], timeoutMs: 300_000 },
-      ],
+      ].filter((step) => !bakedDesktop() || step.kind !== 'install'),
       verification: [
         {
           argv: ['aws', 'sts', 'get-caller-identity', '--output', 'json'],
