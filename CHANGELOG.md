@@ -35,7 +35,7 @@ and this project adheres to
 
 - **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
-- **`gcloud`** bumped to v1.6.0
+- **`gcloud`** v1.6.1 shows configuration identity, twelve-row lists and CE readiness summaries through shared rendering. Exact command argv retains JSON projections; authentication failures preserve corrective guidance. Requires xcsh 23.8.0 (#1684).
 
 - Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
   readiness planning to the Google Cloud plugin, with topology, sizing and engine
