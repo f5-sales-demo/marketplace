@@ -17,7 +17,7 @@ import {
 test('catalog includes all current surfaces and entrypoints without Salesforce retirement history', () => {
   const catalog = qualificationCatalog(join(import.meta.dir, '..'));
   expect(catalog).toHaveLength(23);
-  expect(catalog.find((p) => p.name === 'aws')?.entrypoints).toEqual(['src/index.ts']);
+  expect(catalog.find((p) => p.name === 'aws')?.entrypoints).toEqual(['dist/runtime.js']);
   expect(catalog.find((p) => p.name === 'zoom')?.entrypoints).toEqual(['extensions/integration.ts']);
   expect(catalog.find((p) => p.name === 'brand')?.entrypoints).toEqual([]);
   expect(catalog.find((p) => p.name === 'salesforce')?.surfaces).not.toContain(
