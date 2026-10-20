@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Observe each expanded viewport page in an owned installed-native session."""
+"""Observe selected expanded viewport pages in an owned installed-native session."""
 
 # Standalone script follows repository CLI conventions.
 # pylint: disable=invalid-name
@@ -94,13 +94,35 @@ def terminal_geometry(
     return columns, height
 
 
+def next_page_offset(finding: dict, policy: str) -> int | None:
+    """Choose exhaustive pages or representative boundaries, middle, and final rows."""
+    if policy not in {"full", "representative"}:
+        message = f"Unknown page policy: {policy}"
+        raise ValueError(message)
+    offset = finding["offset"]
+    page_lines = finding["pageLines"]
+    total_lines = finding["totalLines"]
+    if offset + page_lines >= total_lines:
+        return None
+    stride = max(1, page_lines - 1)
+    last = total_lines - page_lines
+    if policy == "full" or last <= 3 * stride:
+        return offset + stride
+    return next(
+        value for value in (stride, last // 2, last - stride, last) if value > offset
+    )
+
+
 def main() -> None:
-    """Capture every page and compare each observation against the native frame."""
+    """Compare each selected observation against its complete native frame."""
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     parser.add_argument("--pane", required=True)
     parser.add_argument("--all-cases", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--page-policy", choices=["full", "representative"], default="full"
+    )
     parser.add_argument("--geometry-frame", help="Fresh native geometry frame filename")
     args = parser.parse_args()
     root = args.root.resolve()
@@ -116,6 +138,7 @@ def main() -> None:
     completed = {item["id"]: item for item in previous if item["passed"]}
     failures = []
     pages = 0
+    reused_pages = 0
     with (root / "surface-inspection.jsonl").open("a") as findings:
         for preset in ["unicode", "ascii", "nerd"]:
             for theme in ["xcsh-dark", "xcsh-light"]:
@@ -128,12 +151,11 @@ def main() -> None:
                             )
                             prior = completed.get(identifier)
                             if prior:
-                                if (
-                                    prior["offset"] + prior["pageLines"]
-                                    >= prior["totalLines"]
-                                ):
+                                pages += 1
+                                reused_pages += 1
+                                offset = next_page_offset(prior, args.page_policy)
+                                if offset is None:
                                     break
-                                offset += max(1, prior["pageLines"] - 1)
                                 continue
                             driver.atomic(
                                 root / "control.json",
@@ -156,12 +178,9 @@ def main() -> None:
                             if not finding["passed"]:
                                 failures.append(identifier)
                             pages += 1
-                            if (
-                                finding["offset"] + finding["pageLines"]
-                                >= finding["totalLines"]
-                            ):
+                            offset = next_page_offset(finding, args.page_policy)
+                            if offset is None:
                                 break
-                            offset += max(1, finding["pageLines"] - 1)
                     print(
                         f"SURFACE_CAPTURE case={case['id']} pages={pages} failures={len(failures)}",
                         flush=True,
@@ -170,6 +189,8 @@ def main() -> None:
         root / "surface-summary.json",
         {
             "pages": pages,
+            "reusedPages": reused_pages,
+            "pagePolicy": args.page_policy,
             "failureCount": len(failures),
             "failures": failures,
             "runtimeVersion": ready.get("runtimeVersion", "not-declared"),

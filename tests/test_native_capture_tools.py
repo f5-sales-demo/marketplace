@@ -27,6 +27,47 @@ start_spec.loader.exec_module(starter)
 
 
 class NativeCaptureChecks(unittest.TestCase):
+    def test_representative_scroll_inspects_boundaries_middle_and_final_rows(self):
+        surface_spec = importlib.util.spec_from_file_location(
+            "surface_sampling", MODULE.with_name("drive-salesforce-surface-capture.py")
+        )
+        assert surface_spec is not None
+        assert surface_spec.loader is not None
+        surface = importlib.util.module_from_spec(surface_spec)
+        surface_spec.loader.exec_module(surface)
+        finding = {"offset": 0, "pageLines": 45, "totalLines": 74144}
+        offsets = [0]
+        while True:
+            offset = surface.next_page_offset(finding, "representative")
+            if offset is None:
+                break
+            offsets.append(offset)
+            finding = {**finding, "offset": offset}
+        assert len(offsets) == 5
+        assert offsets[:2] == [0, 44]
+        assert offsets[-1] + finding["pageLines"] == finding["totalLines"]
+        assert 30000 < offsets[2] < 40000
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 30}, "representative"
+            )
+            is None
+        )
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 90}, "representative"
+            )
+            == 44
+        )
+        assert (
+            surface.next_page_offset(
+                {"offset": 0, "pageLines": 45, "totalLines": 74144}, "full"
+            )
+            == 44
+        )
+        with self.assertRaises(ValueError):
+            surface.next_page_offset(finding, "unknown")
+
     def test_capture_retirement_requires_shutdown_and_matching_server(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
