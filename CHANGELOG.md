@@ -15,6 +15,8 @@ and this project adheres to
 - CE UAT51 restores and relinquishes original direct routes before AWS Terraform cloud destruction, and verifies completed retirement resume against configuration, state and fresh cloud evidence (#1651). Full UAT remains blocked.
 
 - **`gcloud`** v1.6.2 — use explicit example project identifiers in presentation regression fixtures.
+- **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
+
 - **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
 - **`asm-migration`** v2.3.2 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.

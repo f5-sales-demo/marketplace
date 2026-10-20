@@ -268,9 +268,14 @@ function terraformIntegration(pi) {
       verification: [{ argv: ['terraform', 'version'], timeoutMs: 30000 }],
     },
     async probe() {
-      return Bun.spawnSync(['terraform', 'version']).exitCode === 0
-        ? { state: 'ready' }
-        : { state: 'setup_required', reason: 'cli_missing' };
+      try {
+        return Bun.spawnSync(['terraform', 'version']).exitCode === 0
+          ? { state: 'ready' }
+          : { state: 'setup_required', reason: 'cli_missing' };
+      } catch (error) {
+        if (error?.code === 'ENOENT') return { state: 'setup_required', reason: 'cli_missing' };
+        throw error;
+      }
     },
   });
 }
