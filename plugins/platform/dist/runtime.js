@@ -11,7 +11,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// plugins/platform/src/ce/deployment-store.ts
+// src/ce/deployment-store.ts
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -117,7 +117,7 @@ class CeDeploymentStore {
 }
 var init_deployment_store = () => {};
 
-// plugins/platform/src/ce/bgp-evidence.ts
+// src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
 
 function parseBgpSessions(response, expected) {
@@ -225,7 +225,7 @@ var object = (value) => {
     actual === expected || (typeof actual === 'string' && actual.startsWith(`${expected}.`));
 var init_bgp_evidence = () => {};
 
-// plugins/platform/src/ce/bgp-route-evidence.ts
+// src/ce/bgp-route-evidence.ts
 import { isIP as isIP2 } from 'node:net';
 
 function parseBgpRoutes(response, expectedNodes) {
@@ -305,7 +305,7 @@ var object2 = (value) => {
   };
 var init_bgp_route_evidence = () => {};
 
-// plugins/platform/src/ce/bgp-service-membership.ts
+// src/ce/bgp-service-membership.ts
 import { isIP as isIP3 } from 'node:net';
 
 function subnet(value) {
@@ -397,7 +397,7 @@ var init_bgp_service_membership = __esm(() => {
   init_bgp_route_evidence();
 });
 
-// plugins/platform/src/ce/bootstrap.ts
+// src/ce/bootstrap.ts
 function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed bootstrap response');
   return value;
@@ -429,7 +429,7 @@ function bindAwsCloudInit(response, jwt) {
 }
 var init_bootstrap = () => {};
 
-// plugins/platform/src/ce/process-lock.ts
+// src/ce/process-lock.ts
 import { randomUUID as randomUUID2 } from 'node:crypto';
 import {
   lstat as lstat2,
@@ -565,7 +565,7 @@ var init_process_lock = __esm(() => {
   bootPattern = /^[a-f0-9-]{36}$/;
 });
 
-// plugins/platform/src/ce/ingress-lifecycle.ts
+// src/ce/ingress-lifecycle.ts
 import { createHash as createHash2 } from 'node:crypto';
 import { isIP as isIP4 } from 'node:net';
 import { join as join3 } from 'node:path';
@@ -1069,7 +1069,7 @@ var init_ingress_lifecycle = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/initial-versions.ts
+// src/ce/initial-versions.ts
 function initialSoftwareSettings(value) {
   if (
     !value ||
@@ -1085,7 +1085,7 @@ function initialSoftwareSettings(value) {
   return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
 }
 
-// plugins/platform/src/ce/interface-evidence.ts
+// src/ce/interface-evidence.ts
 import { isIP as isIP5 } from 'node:net';
 
 function observedIpv4(link) {
@@ -1241,7 +1241,7 @@ var object5 = (value) => {
     actual === expected || (typeof actual === 'string' && actual.startsWith(`${expected}.`));
 var init_interface_evidence = () => {};
 
-// plugins/platform/src/ce/origin-teardown.ts
+// src/ce/origin-teardown.ts
 import { createHash as createHash3 } from 'node:crypto';
 
 function object6(value) {
@@ -1390,7 +1390,7 @@ var init_origin_teardown = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/platform-drain.ts
+// src/ce/platform-drain.ts
 import { createHash as createHash4 } from 'node:crypto';
 
 function canonical3(value) {
@@ -1561,7 +1561,7 @@ var init_platform_drain = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/registration-devices.ts
+// src/ce/registration-devices.ts
 function correlateRegistrationDevices(response, siteName, instances, expected, provider = 'aws') {
   if (
     response.next_page_token ||
@@ -1676,7 +1676,7 @@ var object7 = (value) => {
     return value.toLowerCase();
   };
 
-// plugins/platform/src/ce/registration-observation.ts
+// src/ce/registration-observation.ts
 function registrationInstanceBindings(response, siteName, nodes, cloudIds) {
   if (!Array.isArray(response.items)) throw new Error('Missing registration observation');
   const result = {};
@@ -1753,7 +1753,7 @@ var object8 = (value) => {
   return value;
 };
 
-// plugins/platform/src/ce/site-labels.ts
+// src/ce/site-labels.ts
 function writableSiteLabels(labels) {
   return Object.fromEntries(
     Object.entries(labels).filter(
@@ -1772,7 +1772,7 @@ var init_site_labels = __esm(() => {
   discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
 });
 
-// plugins/platform/src/ce/teardown-inventory.ts
+// src/ce/teardown-inventory.ts
 async function collectCeTeardownInventory(port, input, namespaces, contracts, signal) {
   const bindings = structuredClone(input);
   namespaces = structuredClone(namespaces);
@@ -1974,7 +1974,7 @@ var init_teardown_inventory = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/upgrade-evidence.ts
+// src/ce/upgrade-evidence.ts
 function object10(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
@@ -2095,7 +2095,7 @@ function parseUpgradeProgress(raw, siteName) {
 }
 var init_upgrade_evidence = () => {};
 
-// plugins/platform/src/ce/runtime.ts
+// src/ce/runtime.ts
 function object11(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CeApiError('malformed');
   return value;
@@ -4048,7 +4048,7 @@ var init_runtime = __esm(() => {
   safeName = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 });
 
-// plugins/platform/src/ce/contract-auth.ts
+// src/ce/contract-auth.ts
 import { execFileSync } from 'node:child_process';
 
 function existingContractCredential(env = process.env) {
@@ -4086,7 +4086,7 @@ function authenticatedContractHeaders(url) {
 }
 var init_contract_auth = () => {};
 
-// plugins/platform/src/ce/verified-api-release.ts
+// src/ce/verified-api-release.ts
 import { createHash as createHash5 } from 'node:crypto';
 
 function object12(value) {
@@ -4193,7 +4193,7 @@ var init_verified_api_release = __esm(() => {
   verifiedSchemas = new WeakMap();
 });
 
-// plugins/platform/src/ce/release-contract.ts
+// src/ce/release-contract.ts
 function fail(message) {
   throw new ReleaseContractFailure(message);
 }
@@ -4327,7 +4327,7 @@ var init_release_contract = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/wire-replace.ts
+// src/ce/wire-replace.ts
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
@@ -4404,7 +4404,7 @@ var object14 = (value) => {
   return value;
 };
 
-// plugins/platform/src/ce/wire-schema.ts
+// src/ce/wire-schema.ts
 import { isIP as isIP6 } from 'node:net';
 
 function object15(value) {
@@ -4666,7 +4666,7 @@ var init_wire_schema = __esm(() => {
   ]);
 });
 
-// plugins/platform/src/ce/wire-routing.ts
+// src/ce/wire-routing.ts
 import { isIP as isIP7 } from 'node:net';
 
 function buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, validate) {
@@ -4872,7 +4872,7 @@ var init_wire_routing = __esm(() => {
   init_wire_schema();
 });
 
-// plugins/platform/src/ce/wire-site.ts
+// src/ce/wire-site.ts
 function object16(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid SMSv2 site identity');
   return value;
@@ -4998,7 +4998,7 @@ var init_wire_site = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/verified-contract.ts
+// src/ce/verified-contract.ts
 import { createHash as createHash6 } from 'node:crypto';
 
 function object17(value) {
@@ -5413,7 +5413,7 @@ var init_verified_contract = __esm(() => {
   });
 });
 
-// plugins/platform/src/ce/service.ts
+// src/ce/service.ts
 import { readdir, readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join4 } from 'node:path';
@@ -5627,7 +5627,7 @@ var init_service = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/security.ts
+// src/ce/security.ts
 function containsControlCharacters(value) {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
@@ -5667,7 +5667,7 @@ var init_security = __esm(() => {
   PublicCeError = class PublicCeError extends Error {};
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-site.ts
+// src/tools/f5xc-ce-v2-site.ts
 import { createHash as createHash7, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
@@ -5833,7 +5833,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
   init_service();
 });
 
-// plugins/platform/src/ce/token-store.ts
+// src/ce/token-store.ts
 import { createHash as createHash8, randomUUID as randomUUID3 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -5885,7 +5885,7 @@ var init_token_store = __esm(() => {
   SAFE_ID = /^[a-zA-Z0-9._-]{1,128}$/;
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-bootstrap.ts
+// src/tools/f5xc-ce-v2-bootstrap.ts
 import { randomUUID as randomUUID4 } from 'node:crypto';
 
 function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformService(), root = defaultBootstrapRoot()) {
@@ -5981,7 +5981,7 @@ var init_f5xc_ce_v2_bootstrap = __esm(() => {
   init_token_store();
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-status.ts
+// src/tools/f5xc-ce-v2-status.ts
 function createF5xcCeV2StatusTool(pi, makeService = () => createCePlatformService()) {
   const { Type } = pi.typebox;
   return {
@@ -6061,7 +6061,7 @@ var init_f5xc_ce_v2_status = __esm(() => {
   init_service();
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-capabilities.ts
+// src/tools/f5xc-ce-v2-capabilities.ts
 function createF5xcCeV2CapabilitiesTool(pi, makeService = () => createCePlatformService()) {
   const { Type } = pi.typebox;
   return {
@@ -6109,10 +6109,10 @@ var init_f5xc_ce_v2_capabilities = __esm(() => {
   init_verified_api_release();
 });
 
-// plugins/platform/src/index.ts
+// src/index.ts
 init_service();
 
-// plugins/platform/src/presentation.ts
+// src/presentation.ts
 var record = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
 var rows = (v) => Array.isArray(v) && v.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x));
 var strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -6375,7 +6375,7 @@ function presentTool(tool, p) {
   });
 }
 
-// plugins/platform/src/index.ts
+// src/index.ts
 function activeContextEnvironment(pi, settings) {
   const environment = { ...process.env };
   const configured = (settings ?? pi.settings)?.get('bash.environment');

@@ -17,6 +17,10 @@ import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
 import { verifyAwsCePlan } from './artifacts';
 import { awsCeInterfacePrivateAddresses, awsCeNlbIngress } from './planner';
+import {
+  type AwsTerraformBrownfieldPlacement,
+  assertAwsTerraformBrownfieldPlacement,
+} from './terraform-brownfield-placement';
 import { siteForNode, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -25,14 +29,25 @@ const ref = (address: string) => `\${${address}}`;
 const literal = terraformLiteral;
 
 /** Network/compute stage; XC registration and routing are subsequent lifecycle stages. */
-export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: Record<string, string> = {}): string {
+export function renderAwsTerraformFoundation(
+  plan: AwsCePlan,
+  bootstrapByNode: Record<string, string> = {},
+  placement?: AwsTerraformBrownfieldPlacement,
+): string {
   verifyAwsCePlan(plan);
   assertAwsDeploymentCompilerOperation(plan.intent);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Terraform foundation requires a Terraform deployment plan');
   const intent = plan.intent;
-  if (intent.vpc.mode !== 'greenfield' || intent.egress.mode !== 'elastic-ip')
-    throw new Error('Terraform foundation currently requires greenfield VPC and Elastic IP egress');
+  if (intent.egress.mode !== 'elastic-ip') throw new Error('Terraform foundation requires Elastic IP egress');
+  if (!['greenfield', 'brownfield'].includes(intent.vpc.mode))
+    throw new Error('Terraform foundation VPC mode is unknown');
+  const brownfield = intent.vpc.mode === 'brownfield';
+  if (brownfield) assertAwsTerraformBrownfieldPlacement(plan, placement);
+  else if (placement) throw new Error('Greenfield foundation cannot consume brownfield placement');
+  const vpcId = placement ? placement.vpcId : ref('aws_vpc.ce.id');
+  const subnetId = (node: number, index: number) =>
+    placement ? placement.subnets[`${node}:${index}`] : ref(`aws_subnet.node_${node}_nic_${index}.id`);
   validateAwsCeAddressing(intent);
   const keys = Object.keys(bootstrapByNode);
   if (keys.some((key) => !/^[1-3]$/.test(key) || Number(key) > intent.topology.nodeCount))
@@ -53,24 +68,24 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     ...(node ? { 'xcsh-node-index': String(node) } : {}),
     ...(index !== undefined ? { 'xcsh-interface-index': String(index) } : {}),
   });
-  add('aws_vpc', 'ce', {
-    cidr_block: intent.vpc.cidr,
-    enable_dns_support: true,
-    enable_dns_hostnames: true,
-    tags: tags(),
-  });
-  add('aws_internet_gateway', 'ce', { vpc_id: ref('aws_vpc.ce.id'), tags: tags() });
   const staticRoutes = staticAzRoutes(intent);
-  for (const role of new Set(intent.interfaces.map((item) => item.role)))
-    if (role !== 'sli' || !staticRoutes.length)
-      add('aws_route_table', role, { vpc_id: ref('aws_vpc.ce.id'), tags: tags() });
-  for (const az of staticRoutes)
-    add('aws_route_table', `static_${az.node}`, { vpc_id: ref('aws_vpc.ce.id'), tags: tags(az.node) });
-  add('aws_route', 'internet', {
-    route_table_id: ref('aws_route_table.slo.id'),
-    destination_cidr_block: '0.0.0.0/0',
-    gateway_id: ref('aws_internet_gateway.ce.id'),
-  });
+  if (!brownfield) {
+    add('aws_vpc', 'ce', {
+      cidr_block: intent.vpc.cidr,
+      enable_dns_support: true,
+      enable_dns_hostnames: true,
+      tags: tags(),
+    });
+    add('aws_internet_gateway', 'ce', { vpc_id: vpcId, tags: tags() });
+    for (const role of new Set(intent.interfaces.map((item) => item.role)))
+      if (role !== 'sli' || !staticRoutes.length) add('aws_route_table', role, { vpc_id: vpcId, tags: tags() });
+    for (const az of staticRoutes) add('aws_route_table', `static_${az.node}`, { vpc_id: vpcId, tags: tags(az.node) });
+    add('aws_route', 'internet', {
+      route_table_id: ref('aws_route_table.slo.id'),
+      destination_cidr_block: '0.0.0.0/0',
+      gateway_id: ref('aws_internet_gateway.ce.id'),
+    });
+  }
   for (const [index, group] of intent.securityGroups.entries()) {
     const rules = (direction: 'ingress' | 'egress') => {
       const configured = group[direction].map((rule) => ({
@@ -101,7 +116,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     add('aws_security_group', `group_${index}`, {
       name: literal(`${intent.deploymentName}-${group.name}`),
       description: 'Customer Edge deployment security group',
-      vpc_id: ref('aws_vpc.ce.id'),
+      vpc_id: vpcId,
       ingress: rules('ingress'),
       egress: rules('egress'),
       tags: tags(),
@@ -113,16 +128,17 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     for (const item of intent.interfaces) {
       const name = `node_${node}_nic_${item.index}`;
       const subnet = item.subnets[node - 1];
-      if (!subnet?.cidr) throw new Error('Terraform foundation subnet CIDR is missing');
-      add('aws_subnet', name, {
-        vpc_id: ref('aws_vpc.ce.id'),
-        availability_zone: subnet.availabilityZone,
-        cidr_block: subnet.cidr,
-        tags: tags(node, item.index),
-      });
+      if (!brownfield && !subnet?.cidr) throw new Error('Terraform foundation subnet CIDR is missing');
+      if (!brownfield)
+        add('aws_subnet', name, {
+          vpc_id: vpcId,
+          availability_zone: subnet.availabilityZone,
+          cidr_block: subnet.cidr,
+          tags: tags(node, item.index),
+        });
       const privateAddresses = awsCeInterfacePrivateAddresses(intent, node, item.index);
       add('aws_network_interface', name, {
-        subnet_id: ref(`aws_subnet.${name}.id`),
+        subnet_id: subnetId(node, item.index),
         security_groups: interfaceSecurityGroups(intent, item.index).map((name) =>
           ref(`aws_security_group.group_${intent.securityGroups.findIndex((group) => group.name === name)}.id`),
         ),
@@ -130,15 +146,16 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         ...(privateAddresses.length ? { private_ip_list_enabled: true, private_ip_list: privateAddresses } : {}),
         tags: tags(node, item.index),
       });
-      add('aws_route_table_association', name, {
-        subnet_id: ref(`aws_subnet.${name}.id`),
-        route_table_id: ref(
-          `aws_route_table.${item.role === 'sli' && staticRoutes.length ? `static_${node}` : item.role}.id`,
-        ),
-      });
+      if (!brownfield)
+        add('aws_route_table_association', name, {
+          subnet_id: subnetId(node, item.index),
+          route_table_id: ref(
+            `aws_route_table.${item.role === 'sli' && staticRoutes.length ? `static_${node}` : item.role}.id`,
+          ),
+        });
       interfaceOutputs[`${node}:${item.index}`] = {
         id: ref(`aws_network_interface.${name}.id`),
-        subnet_id: ref(`aws_subnet.${name}.id`),
+        subnet_id: subnetId(node, item.index),
         mac: ref(`aws_network_interface.${name}.mac_address`),
         private_ip: ref(`aws_network_interface.${name}.private_ip`),
         site_name: siteForNode(intent, node).name,
@@ -174,7 +191,9 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       ],
       tags: tags(node),
       volume_tags: tags(node),
-      depends_on: ['aws_route.internet', `aws_route_table_association.node_${node}_nic_0`],
+      depends_on: brownfield
+        ? intent.interfaces.map((item) => `aws_network_interface.node_${node}_nic_${item.index}`)
+        : ['aws_route.internet', `aws_route_table_association.node_${node}_nic_0`],
     });
     add('aws_eip_association', `node_${node}`, {
       allocation_id: ref(`aws_eip.node_${node}.id`),
@@ -205,7 +224,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
             })),
           }
         : {
-            subnets: intent.interfaces[0].subnets.map((_subnet, index) => ref(`aws_subnet.node_${index + 1}_nic_0.id`)),
+            subnets: intent.interfaces[0].subnets.map((_subnet, index) => subnetId(index + 1, 0)),
           }),
       enable_cross_zone_load_balancing: true,
       tags: tags(),
@@ -215,7 +234,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       port: ingress.port,
       protocol: 'TCP',
       target_type: 'ip',
-      vpc_id: intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : ref('aws_vpc.ce.id'),
+      vpc_id: intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : vpcId,
       health_check: [
         {
           protocol: check.protocol,
@@ -262,7 +281,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     },
     resource,
     output: {
-      ce_vpc_id: { value: ref('aws_vpc.ce.id') },
+      ce_vpc_id: { value: vpcId },
       ce_interfaces: { value: interfaceOutputs },
       ce_instances: { value: instanceOutputs },
       ...(ingress
@@ -287,8 +306,9 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
 export async function awsTerraformFoundationDeployment(
   plan: AwsCePlan,
   bootstrapByNode: Record<string, string> = {},
+  placement?: AwsTerraformBrownfieldPlacement,
 ): Promise<Deployment> {
-  const configuration = renderAwsTerraformFoundation(plan, bootstrapByNode);
+  const configuration = renderAwsTerraformFoundation(plan, bootstrapByNode, placement);
   const providerLock = await readFile(new URL('../../terraform/provider-lock.hcl', import.meta.url), 'utf8');
   if (createHash('sha256').update(providerLock).digest('hex') !== AWS_CE_PROVIDER_LOCK_SHA256)
     throw new Error('AWS provider lock changed');

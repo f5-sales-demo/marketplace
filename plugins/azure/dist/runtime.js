@@ -11,7 +11,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// plugins/azure/src/az/arguments.ts
+// src/az/arguments.ts
 function accountArgs(params) {
   const args = ['account', params.action === 'list' ? 'list' : 'show'];
   if (params.action !== 'list' && params.subscription) args.push('--subscription', params.subscription);
@@ -32,7 +32,7 @@ function resourceArgs(params) {
 var jsonArgs = (args) => [...args, '--output', 'json'],
   helpArgs = (path) => [...(path?.trim().split(' ').filter(Boolean) ?? []), '--help'];
 
-// plugins/azure/src/az/exec.ts
+// src/az/exec.ts
 function detectAzError(stderr, _exitCode) {
   const lower = stderr.toLowerCase();
   if (lower.includes('az login') || lower.includes('no subscription found')) {
@@ -92,7 +92,7 @@ var init_exec = __esm(() => {
   };
 });
 
-// plugins/azure/src/az/formatters.ts
+// src/az/formatters.ts
 function formatSubscriptionTable(subs) {
   if (subs.length === 0) return 'No subscriptions found.';
   const header = '| Name | ID | State | Default | Tenant |';
@@ -177,7 +177,7 @@ function formatActivityLogEvidence(result) {
 `);
 }
 
-// plugins/azure/src/az/types.ts
+// src/az/types.ts
 var SUBSCRIPTION_ID_PATTERN,
   RESOURCE_GROUP_PATTERN,
   SUBSCRIPTION_NAME_PATTERN,
@@ -193,7 +193,7 @@ var init_types = __esm(() => {
   TAG_PATTERN = /^[a-zA-Z0-9._-]+(=[a-zA-Z0-9._@: -]*)?$/;
 });
 
-// plugins/azure/src/prompts/az-activity-log-list.md
+// src/prompts/az-activity-log-list.md
 var az_activity_log_list_default = `# Azure Activity Log Evidence
 
 Retrieve bounded, read-only Azure Activity Log evidence for exactly one resource group or exact resource.
@@ -210,7 +210,7 @@ date, for Customer Edge Activity Log attribution.
 `;
 var init_az_activity_log_list = () => {};
 
-// plugins/azure/src/tools/shared.ts
+// src/tools/shared.ts
 function textResult(text, details) {
   return { content: [{ type: 'text', text }], details };
 }
@@ -315,7 +315,7 @@ var init_shared = __esm(() => {
   init_exec();
 });
 
-// plugins/azure/src/tools/az-activity-log-list.ts
+// src/tools/az-activity-log-list.ts
 function invalid(message) {
   return errorResult(`Error: ${message}`, { tool: 'az_activity_log_list', outcome: 'invalid_input' });
 }
@@ -621,12 +621,12 @@ var init_az_activity_log_list2 = __esm(() => {
   NETWORK_LITERAL_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-f]*:[0-9a-f:]+$/i;
 });
 
-// plugins/azure/src/prompts/az-exec.md
+// src/prompts/az-exec.md
 var az_exec_default =
   '# Execute Azure CLI Commands\n\nExecute any `az` CLI subcommand directly.\n\nThis is the general-purpose tool for running az commands that are not covered by the typed tools (az_account, az_group, az_resource, az_vm). Use typed tools when available \u2014 they validate inputs and return structured data.\n\n## Usage\n\nPass the subcommand and flags as an array of arguments. Do NOT include `az` itself \u2014 it is prepended automatically.\n\n**Example:** To run `az webapp list --resource-group myRG`:\n\n```json\n{ "args": ["webapp", "list", "--resource-group", "myRG"] }\n```\n\n## Safety\n\n- Arguments are passed as an array directly to the `az` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `az` invocation runs, including full JMESPath `--query` syntax.\n- **Read-only by default:** mutating verbs (`create`, `delete`, `update`, `set`, `purge`, `start`, `stop`, `restart`, `scale`, `restore`, \u2026) are blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `cli-operator` agent), not `az_exec`.\n- Output is capped to prevent context overflow.\n\n## Querying with `--query` (JMESPath)\n\nThe full JMESPath grammar is supported \u2014 pass the expression as a single argument value. Common patterns:\n\n- Field projection: `--query "[].{name:name, location:location}"`\n- Filter: `--query "[?location==\'eastus\']"`\n- Substring match: `--query "[?contains(name, \'prod\')]"`\n- Backtick literals (numbers/booleans/quoted enums): `` --query "[?powerState==`VM running`]" ``\n- OR / AND / NOT: `--query "[?a==\'x\' || b==\'y\']"`, `--query "[?a && b]"`, `--query "[?!disabled]"`\n- Pipe to post-process a projection: `--query "[].name | [0]"`\n\nAll of the above \u2014 including `||`, `|`, and backticks \u2014 are accepted verbatim.\n\nFor `az graph query`, use the typed `az_resource_graph_query` tool. Resource Graph KQL belongs in\nits `query` field and maps to `--graph-query`; global `--query` remains only a JMESPath output\nprojection. An unambiguous `az graph query --query <KQL>` mix-up is rejected before execution.\n\n## Common Subcommands Not Covered by Typed Tools\n\n- `az webapp list` / `az webapp show` \u2014 App Service\n- `az aks list` / `az aks show` \u2014 Kubernetes Service\n- `az storage account list` \u2014 Storage accounts\n- `az network vnet list` \u2014 Virtual Networks\n- `az network nsg list` \u2014 Network Security Groups\n- `az sql server list` \u2014 SQL servers\n- `az keyvault list` \u2014 Key Vaults\n- `az container list` \u2014 Container Instances\n- `az acr list` \u2014 Container Registries\n- `az functionapp list` \u2014 Function Apps\n\n## Tips\n\n- `--output json` is added automatically unless you pass your own `--output`/`-o` (e.g. `-o table`, `-o tsv`), which is respected\n- Use `--subscription NAME_OR_ID` to target a specific subscription\n- Use `--resource-group NAME` to scope to a resource group\n- Use `az_help` tool first if unsure about available flags\n';
 var init_az_exec = () => {};
 
-// plugins/azure/src/tools/az-exec.ts
+// src/tools/az-exec.ts
 function hasControlChars(arg) {
   return CONTROL_CHAR_PATTERN2.test(arg);
 }
@@ -786,7 +786,7 @@ var init_az_exec2 = __esm(() => {
   ]);
 });
 
-// plugins/azure/src/az/resource-graph.ts
+// src/az/resource-graph.ts
 var RESOURCE_GRAPH_REQUIRED_FLAGS;
 var init_resource_graph = __esm(() => {
   RESOURCE_GRAPH_REQUIRED_FLAGS = [
@@ -799,12 +799,12 @@ var init_resource_graph = __esm(() => {
   ];
 });
 
-// plugins/azure/src/prompts/az-resource-graph-query.md
+// src/prompts/az-resource-graph-query.md
 var az_resource_graph_query_default =
   '# Query Azure Resource Graph\n\nRun a read-only Resource Graph query with typed paging and subscription scope.\n\n- Put KQL in `query`; it is passed only to `--graph-query`.\n- Put an optional JMESPath result transform in `output_projection`; it is passed only to global `--query`.\n- Use `subscriptions` for individual Azure subscription UUIDs.\n- Use `first` with either `skip` or `skip_token`; never combine `skip` and `skip_token`.\n- Set `allow_partial_scopes` only when partial accessible-scope results are acceptable.\n\nThe tool disables dynamic extension installation. A setup-required result must be handled through\n`xcsh plugin setup azure`, which reviews the exact installation and authentication plan before execution.\n';
 var init_az_resource_graph_query = () => {};
 
-// plugins/azure/src/tools/az-resource-graph-query.ts
+// src/tools/az-resource-graph-query.ts
 function invalid2(message) {
   return errorResult(`Error: ${message}`, { tool: 'az_resource_graph_query', outcome: 'invalid_input' });
 }
@@ -987,12 +987,12 @@ var init_az_resource_graph_query2 = __esm(() => {
   CONTROL_CHAR_PATTERN3 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 });
 
-// plugins/azure/src/prompts/az-vm-list.md
+// src/prompts/az-vm-list.md
 var az_vm_list_default =
   '# List Azure virtual machines\n\nUse `az vm list`.\n\n## Usage\n\n```json\n{\n  "resource_group": "optional-name",\n  "subscription": "optional-name-or-id",\n  "include_power_state": true,\n  "include_network_identifiers": false\n}\n```\n\n## Flags\n\n| Parameter | Description |\n| --- | --- |\n| `resource_group` | Filter by resource group |\n| `subscription` | Name or ID of subscription |\n| `include_power_state` | Include runtime state. Defaults to `true` and may require additional Azure API calls. |\n| `include_network_identifiers` | Include public IP addresses and FQDNs. Defaults to `false`; enable only for an explicit endpoint request. |\n\n## Output Fields (JSON)\n\nThe result always includes:\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 VM name\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `vmSize` \u2014 VM size (for example, Standard_D2s_v5)\n- `osType` \u2014 Linux or Windows\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n\nWith `include_power_state` enabled (the default):\n\n- `powerState` \u2014 VM running, VM deallocated, VM stopped, etc.\n\nOnly with `include_network_identifiers: true`:\n\n- `publicIps` \u2014 Public IP addresses as an array\n- `fqdns` \u2014 Fully qualified domain names as an array\n\n## Common VM Operations\n\n- `az vm show --name NAME --resource-group RG` \u2014 Show single VM\n- `az vm start --name NAME --resource-group RG` \u2014 Start VM\n- `az vm stop --name NAME --resource-group RG` \u2014 Stop VM\n- `az vm deallocate --name NAME --resource-group RG` \u2014 Deallocate (stop billing)\n- `az vm restart --name NAME --resource-group RG` \u2014 Restart VM\n- `az vm list-ip-addresses --name NAME --resource-group RG` \u2014 Get IPs\n- `az vm list-sizes --location LOCATION` \u2014 List available sizes\n- `az vm open-port --name NAME --resource-group RG --port PORT` \u2014 Open port\n\n## Notes\n\nWithout `resource_group`, the tool lists all VMs in the subscription. Runtime state and endpoint\nlookups may require additional Azure API calls. Network identifiers are excluded from both text and\nstructured results unless `include_network_identifiers` is explicitly true.\n';
 var init_az_vm_list = () => {};
 
-// plugins/azure/src/tools/az-vm-list.ts
+// src/tools/az-vm-list.ts
 function vmListProjection(includePowerState, includeNetworkIdentifiers) {
   const fields = [...BASE_VM_FIELDS];
   if (includePowerState) fields.push('powerState:powerState');
@@ -1077,7 +1077,7 @@ var init_az_vm_list2 = __esm(() => {
   ];
 });
 
-// plugins/azure/src/prompts/az-account-show.md
+// src/prompts/az-account-show.md
 var az_account_show_default = `# Show or list Azure subscriptions
 
 Use \`az account\`.
@@ -1122,7 +1122,7 @@ az account list [--all] [--refresh]
 `;
 var init_az_account_show = () => {};
 
-// plugins/azure/src/tools/az-account-show.ts
+// src/tools/az-account-show.ts
 function createAzAccountShowTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -1179,7 +1179,7 @@ var init_az_account_show2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/prompts/az-group-list.md
+// src/prompts/az-group-list.md
 var az_group_list_default = `# List or show Azure resource groups
 
 Use \`az group\`.
@@ -1227,7 +1227,7 @@ Resource group names: 1-90 chars, alphanumeric, periods, underscores, hyphens, p
 `;
 var init_az_group_list = () => {};
 
-// plugins/azure/src/tools/az-group-list.ts
+// src/tools/az-group-list.ts
 function createAzGroupListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -1295,12 +1295,12 @@ var init_az_group_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/prompts/az-resource-list.md
+// src/prompts/az-resource-list.md
 var az_resource_list_default =
   '# List Azure resources\n\nUse `az resource list`.\n\n## Usage\n\n```bash\naz resource list [--resource-group NAME] [--resource-type TYPE] [--location LOCATION] [--name NAME] [--tag KEY[=VALUE]] [--subscription NAME_OR_ID]\n```\n\n## Flags\n\n| Flag | Description |\n| --- | --- |\n| `--resource-group`, `-g` | Filter by resource group name |\n| `--resource-type` | Filter by type (e.g. `Microsoft.Compute/virtualMachines`). Accepts `namespace/type` format. |\n| `--location`, `-l` | Filter by region |\n| `--name`, `-n` | Filter by resource name |\n| `--tag` | Filter by tag in `key[=value]` format |\n| `--subscription` | Name or ID of subscription |\n\n## Output Fields (JSON)\n\n- `id` \u2014 Full resource ID\n- `name` \u2014 Resource name\n- `type` \u2014 Resource type (e.g. `Microsoft.Compute/virtualMachines`)\n- `location` \u2014 Azure region\n- `resourceGroup` \u2014 Parent resource group\n- `provisioningState` \u2014 Succeeded, Failed, etc.\n- `tags` \u2014 Key-value tag pairs\n\n## Common Resource Types\n\n- `Microsoft.Compute/virtualMachines` \u2014 VMs\n- `Microsoft.Storage/storageAccounts` \u2014 Storage\n- `Microsoft.Network/virtualNetworks` \u2014 VNets\n- `Microsoft.Network/publicIPAddresses` \u2014 Public IPs\n- `Microsoft.Network/networkSecurityGroups` \u2014 NSGs\n- `Microsoft.Web/sites` \u2014 App Service / Functions\n- `Microsoft.ContainerService/managedClusters` \u2014 AKS\n- `Microsoft.Sql/servers` \u2014 SQL servers\n- `Microsoft.KeyVault/vaults` \u2014 Key Vaults\n\n## Notes\n\nWithout `--resource-group`, lists all resources in the subscription (can be large). Always specify a resource group when possible.\n\n## Related Commands\n\n- `az resource show --ids RESOURCE_ID` \u2014 Show single resource\n- `az resource delete --ids RESOURCE_ID` \u2014 Delete resource\n- `az resource tag --ids RESOURCE_ID --tags KEY=VALUE` \u2014 Tag resource\n';
 var init_az_resource_list = () => {};
 
-// plugins/azure/src/tools/az-resource-list.ts
+// src/tools/az-resource-list.ts
 function createAzResourceListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -1358,7 +1358,7 @@ var init_az_resource_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/ce/canonical.ts
+// src/ce/canonical.ts
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 function canonicalize(value) {
@@ -1445,7 +1445,7 @@ function fingerprintDeploymentObservation(observation, brownfieldResourceIds, se
 }
 var init_canonical = () => {};
 
-// plugins/azure/src/ce/inventory.ts
+// src/ce/inventory.ts
 import { createHash as createHash2 } from 'node:crypto';
 
 function failure(stage, errorType) {
@@ -2220,7 +2220,7 @@ var init_inventory = __esm(() => {
   };
 });
 
-// plugins/azure/src/prompts/azure-ce-inventory.md
+// src/prompts/azure-ce-inventory.md
 var azure_ce_inventory_default = `# Azure Customer Edge Inventory
 
 Build a deterministic, read-only inventory of existing F5 Customer Edge resources across one Azure
@@ -2235,7 +2235,7 @@ generic \`az_exec\`, deployment discovery, planning, mutation, or web research f
 `;
 var init_azure_ce_inventory = () => {};
 
-// plugins/azure/src/tools/azure-ce-inventory.ts
+// src/tools/azure-ce-inventory.ts
 function failureResult(failureStage, errorType) {
   const authenticationFailure = errorType === 'auth_required' || errorType === 'session_expired';
   return {
@@ -2334,7 +2334,7 @@ var init_azure_ce_inventory2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/prompts/az-help.md
+// src/prompts/az-help.md
 var az_help_default = `# View Azure CLI Help
 
 Fetch help documentation for any \`az\` CLI command group or subcommand.
@@ -2381,7 +2381,7 @@ Returns the raw \`az <command> --help\` output, which includes:
 `;
 var init_az_help = () => {};
 
-// plugins/azure/src/tools/az-help.ts
+// src/tools/az-help.ts
 function createAzHelpTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -2437,7 +2437,7 @@ var init_az_help2 = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/ce/native-action-recovery.ts
+// src/ce/native-action-recovery.ts
 function object(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
@@ -2867,17 +2867,17 @@ var init_native_action_recovery = __esm(() => {
   ]);
 });
 
-// plugins/azure/src/ce/types.ts
+// src/ce/types.ts
 var AZURE_CE_SCHEMA_VERSION = 3,
   AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4,
   AZURE_CE_SHARED_CONTRACT_URL =
     'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 
-// plugins/azure/src/ce/workload-fixture.ts
+// src/ce/workload-fixture.ts
 var AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE = 'Standard_B1s',
   AZURE_CE_WORKLOAD_FIXTURE_VCPUS = 1;
 
-// plugins/azure/src/ce/recovery.ts
+// src/ce/recovery.ts
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -3407,7 +3407,7 @@ var init_recovery = __esm(() => {
   );
 });
 
-// plugins/azure/src/ce/artifacts.ts
+// src/ce/artifacts.ts
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -3519,7 +3519,7 @@ var init_artifacts = __esm(() => {
   memoryPlans = new Map();
 });
 
-// plugins/azure/src/ce/discovery.ts
+// src/ce/discovery.ts
 function normalizeResearchDocument(body) {
   let source = body
     .replace(/^\uFEFF/, '')
@@ -4096,7 +4096,7 @@ var init_discovery = __esm(() => {
   ];
 });
 
-// plugins/azure/src/tools/azure-compute-discover.ts
+// src/tools/azure-compute-discover.ts
 function createAzureComputeDiscoverTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -4175,7 +4175,7 @@ var init_azure_compute_discover = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/ce/planner.ts
+// src/ce/planner.ts
 import { isIP } from 'node:net';
 
 function fail(message) {
@@ -5915,7 +5915,7 @@ var init_planner = __esm(() => {
   DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 });
 
-// plugins/azure/src/tools/azure-ce-plan.ts
+// src/tools/azure-ce-plan.ts
 function createAzureCePlanTool(pi) {
   const { Type } = pi.typebox;
   const subnet = Type.Object({
@@ -6088,7 +6088,7 @@ var init_azure_ce_plan = __esm(() => {
   init_planner();
 });
 
-// plugins/platform/src/ce/contract-auth.ts
+// ../platform/src/ce/contract-auth.ts
 import { execFileSync } from 'node:child_process';
 
 function existingContractCredential(env = process.env) {
@@ -6126,7 +6126,7 @@ function authenticatedContractHeaders(url) {
 }
 var init_contract_auth = () => {};
 
-// plugins/platform/src/ce/verified-api-release.ts
+// ../platform/src/ce/verified-api-release.ts
 import { createHash as createHash3 } from 'node:crypto';
 
 function object2(value) {
@@ -6233,7 +6233,7 @@ var init_verified_api_release = __esm(() => {
   verifiedSchemas = new WeakMap();
 });
 
-// plugins/platform/src/ce/wire-replace.ts
+// ../platform/src/ce/wire-replace.ts
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
@@ -6310,7 +6310,7 @@ var object3 = (value) => {
   return value;
 };
 
-// plugins/platform/src/ce/wire-ingress.ts
+// ../platform/src/ce/wire-ingress.ts
 import { isIP as isIP2 } from 'node:net';
 
 function projectInsideHttpListener(spec, schemas, validate) {
@@ -6436,7 +6436,7 @@ function buildInsideHttpListener(input, validate) {
 }
 var init_wire_ingress = () => {};
 
-// plugins/platform/src/ce/wire-origin.ts
+// ../platform/src/ce/wire-origin.ts
 import { isIP as isIP3 } from 'node:net';
 
 function projectSiteLocalHttpOrigin(spec, schemas, validate) {
@@ -6500,7 +6500,7 @@ function buildSiteLocalHttpOrigin(input, validate) {
 }
 var init_wire_origin = () => {};
 
-// plugins/platform/src/ce/wire-schema.ts
+// ../platform/src/ce/wire-schema.ts
 import { isIP as isIP4 } from 'node:net';
 
 function object4(value) {
@@ -6762,7 +6762,7 @@ var init_wire_schema = __esm(() => {
   ]);
 });
 
-// plugins/platform/src/ce/ingress-contract.ts
+// ../platform/src/ce/ingress-contract.ts
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress contract');
   return value;
@@ -6818,7 +6818,7 @@ var init_ingress_contract = __esm(() => {
   init_wire_schema();
 });
 
-// plugins/azure/src/ce/apply.ts
+// src/ce/apply.ts
 function assertObservationFresh(plan, current, expectedFingerprint = plan.observationFingerprint) {
   const fingerprint = fingerprintCurrentObservation(plan, current);
   if (!safeHexEqual(expectedFingerprint, fingerprint)) {
@@ -7022,7 +7022,7 @@ var init_apply = __esm(() => {
   PARENT_OWNED_MUTATION_KINDS = new Set(['route-server-peer-update']);
 });
 
-// plugins/azure/src/ce/execution.ts
+// src/ce/execution.ts
 function withAzureCeExecution(api, cancellation, timeoutMs = 2 * 60 * 60000) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2 * 60 * 60000)
     throw new Error('Invalid Azure CE execution deadline');
@@ -7048,7 +7048,7 @@ function withAzureCeExecution(api, cancellation, timeoutMs = 2 * 60 * 60000) {
   };
 }
 
-// plugins/azure/src/ce/interface-address.ts
+// src/ce/interface-address.ts
 import { isIP as isIP5 } from 'node:net';
 
 async function resolveInterfaceAddress(api, plan, node, role, ownerPlanSha256 = plan.planSha256) {
@@ -7135,7 +7135,7 @@ async function resolveInterfaceAddress(api, plan, node, role, ownerPlanSha256 = 
 }
 var init_interface_address = () => {};
 
-// plugins/azure/src/ce/platform-health.ts
+// src/ce/platform-health.ts
 async function collectAzurePlatformHealth(
   plan,
   vms,
@@ -7258,7 +7258,7 @@ async function collectAzurePlatformHealth(
   }
 }
 
-// plugins/azure/src/ce/route-server-health.ts
+// src/ce/route-server-health.ts
 import { isIP as isIP6 } from 'node:net';
 
 async function captureAzureRouteServerOwnership(plan, api, signal) {
@@ -7599,7 +7599,7 @@ var init_route_server_health = __esm(() => {
   init_interface_address();
 });
 
-// plugins/platform/src/ce/initial-versions.ts
+// ../platform/src/ce/initial-versions.ts
 function initialSoftwareSettings(value) {
   if (
     !value ||
@@ -7615,7 +7615,7 @@ function initialSoftwareSettings(value) {
   return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
 }
 
-// plugins/platform/src/ce/upgrade-evidence.ts
+// ../platform/src/ce/upgrade-evidence.ts
 function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
@@ -7654,7 +7654,7 @@ function parseSoftwareTargets(raw) {
 }
 var init_upgrade_evidence = () => {};
 
-// plugins/platform/src/ce/wire-upgrade.ts
+// ../platform/src/ce/wire-upgrade.ts
 function buildSiteUpgradeRequest(input, validate) {
   if (
     !input ||
@@ -7675,7 +7675,7 @@ function buildSiteUpgradeRequest(input, validate) {
   };
 }
 
-// plugins/platform/src/ce/upgrade-transition.ts
+// ../platform/src/ce/upgrade-transition.ts
 function matchesVersionIdentity(expected, observation) {
   if (observation.status !== 'observed') return false;
   const { binding } = expected;
@@ -7785,7 +7785,7 @@ var init_upgrade_transition = __esm(() => {
   init_upgrade_evidence();
 });
 
-// plugins/platform/src/ce/process-lock.ts
+// ../platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join as join2 } from 'node:path';
@@ -7914,7 +7914,7 @@ var init_process_lock = __esm(() => {
   bootPattern = /^[a-f0-9-]{36}$/;
 });
 
-// plugins/terraform/src/ce-upgrade.ts
+// ../terraform/src/ce-upgrade.ts
 import { createHash as createHash4, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
 function canonical(value) {
@@ -8148,7 +8148,7 @@ var init_ce_upgrade = __esm(() => {
   init_upgrade_transition();
 });
 
-// plugins/terraform/src/provider-lock.ts
+// ../terraform/src/provider-lock.ts
 import { createHash as createHash5 } from 'node:crypto';
 import { readFile as readFile2 } from 'node:fs/promises';
 
@@ -8162,7 +8162,7 @@ var XCSH_PROVIDER_VERSION = '15.12.1',
   XCSH_PROVIDER_LOCK_SHA256 = '6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782';
 var init_provider_lock = () => {};
 
-// plugins/azure/src/ce/terraform-foundation.ts
+// src/ce/terraform-foundation.ts
 import { readFile as readFile3 } from 'node:fs/promises';
 
 function renderAzureTerraformFoundation(plan, bootstrapByNode = {}) {
@@ -8629,7 +8629,7 @@ var init_terraform_foundation = __esm(() => {
   init_artifacts();
 });
 
-// plugins/azure/src/ce/terraform-upgrade.ts
+// src/ce/terraform-upgrade.ts
 function azureUpgradeBinding(plan) {
   verifyAzureCePlan(plan);
   return {
@@ -8773,7 +8773,7 @@ var init_terraform_upgrade = __esm(() => {
   init_terraform_foundation();
 });
 
-// plugins/azure/src/ce/native-workflow.ts
+// src/ce/native-workflow.ts
 import { chmod, mkdtemp, rm as rm2, writeFile as writeFile2 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join as join3 } from 'node:path';
@@ -9270,7 +9270,7 @@ var init_native_workflow = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/platform.ts
+// src/ce/platform.ts
 function azurePlatformService(pi, signal) {
   const bus = pi.events;
   if (typeof bus?.emit !== 'function') return Promise.reject(new Error('Platform CE v2 service is required'));
@@ -9324,7 +9324,7 @@ function azureTerraformService(pi, signal) {
   });
 }
 
-// plugins/azure/src/ce/traffic-source.ts
+// src/ce/traffic-source.ts
 import { isIP as isIP7 } from 'node:net';
 
 function object8(value, message) {
@@ -9442,7 +9442,7 @@ var init_traffic_source = __esm(() => {
   UUID3 = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 });
 
-// plugins/azure/src/ce/platform-ingress.ts
+// src/ce/platform-ingress.ts
 function object9(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
@@ -9599,7 +9599,7 @@ var init_platform_ingress = __esm(() => {
   init_traffic_source();
 });
 
-// plugins/azure/src/ce/routing-workflow.ts
+// src/ce/routing-workflow.ts
 async function configureAzureRouteServerRouting(plan, expectedInterfaces, runtime, storage, api, signal, retained) {
   verifyAzureCePlan(plan);
   if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
@@ -9657,7 +9657,7 @@ var init_routing_workflow = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/terraform-lifecycle.ts
+// src/ce/terraform-lifecycle.ts
 import { createHash as createHash6 } from 'node:crypto';
 import { readFile as readFile4 } from 'node:fs/promises';
 
@@ -9926,7 +9926,7 @@ var init_terraform_lifecycle = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/terraform-replacement.ts
+// src/ce/terraform-replacement.ts
 import { createHash as createHash7 } from 'node:crypto';
 
 function selectedNode(plan) {
@@ -10602,7 +10602,7 @@ var init_terraform_replacement = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/terraform-identities.ts
+// src/ce/terraform-identities.ts
 import { isIP as isIP8 } from 'node:net';
 
 async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
@@ -10775,7 +10775,7 @@ var object11 = (value) => (value && typeof value === 'object' && !Array.isArray(
   uuid2 = (value) => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 var init_terraform_identities = () => {};
 
-// plugins/azure/src/ce/terraform-workflow.ts
+// src/ce/terraform-workflow.ts
 import { createHash as createHash8 } from 'node:crypto';
 
 async function runAzureTerraformAdmission(
@@ -11049,7 +11049,7 @@ var init_terraform_workflow = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/traffic-probe.ts
+// src/ce/traffic-probe.ts
 function object12(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Azure traffic evidence');
   return value;
@@ -11213,7 +11213,7 @@ var init_traffic_probe = __esm(() => {
   init_traffic_source();
 });
 
-// plugins/azure/src/ce/terraform-apply.ts
+// src/ce/terraform-apply.ts
 function reconcileAzureTerraformMarketplaceTermsAcceptance(plan, current) {
   if (
     plan.engine !== 'terraform' ||
@@ -11429,7 +11429,7 @@ var init_terraform_apply = __esm(() => {
   init_traffic_probe();
 });
 
-// plugins/azure/src/tools/azure-ce-apply.ts
+// src/tools/azure-ce-apply.ts
 async function replacementsFor(args, api, plan, ownerPlanSha256 = plan.planSha256) {
   const replacements = {};
   for (const arg of args) {
@@ -11970,7 +11970,7 @@ var init_azure_ce_apply = __esm(() => {
   };
 });
 
-// plugins/azure/src/ce/terraform-status.ts
+// src/ce/terraform-status.ts
 async function readAzureTerraformWorkflowStatus(plan, storage) {
   if (plan.engine !== 'terraform') throw new Error('Terraform checkpoint requires the owning engine');
   await storage.verify();
@@ -12001,7 +12001,7 @@ async function readAzureTerraformWorkflowStatus(plan, storage) {
   };
 }
 
-// plugins/azure/src/tools/azure-ce-status.ts
+// src/tools/azure-ce-status.ts
 async function commandJson(api, args) {
   const result = await api.exec('az', [...args, '--output', 'json']);
   if (result.exitCode !== 0)
@@ -12194,7 +12194,7 @@ var init_azure_ce_status = __esm(() => {
   init_shared();
 });
 
-// plugins/platform/src/ce/upgrade-contract.ts
+// ../platform/src/ce/upgrade-contract.ts
 function object13(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade contract');
   return value;
@@ -12260,7 +12260,7 @@ var init_upgrade_contract = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/native-upgrade.ts
+// ../platform/src/ce/native-upgrade.ts
 import { createHash as createHash9, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
 function canonical2(value) {
@@ -12480,7 +12480,7 @@ var init_native_upgrade = __esm(() => {
   init_upgrade_transition();
 });
 
-// plugins/azure/src/ce/native-upgrade.ts
+// src/ce/native-upgrade.ts
 function build2(base, expectation, contract) {
   verifyAzureCePlan(base);
   initialSoftwareSettings(expectation.before);
@@ -12560,7 +12560,7 @@ var init_native_upgrade2 = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/tools/azure-ce-upgrade.ts
+// src/tools/azure-ce-upgrade.ts
 async function optional5(storage, name) {
   try {
     return await storage.read(name);
@@ -12746,7 +12746,7 @@ var init_azure_ce_upgrade = __esm(() => {
   };
 });
 
-// plugins/azure/src/ce/failover.ts
+// src/ce/failover.ts
 import { isIP as isIP9 } from 'node:net';
 
 function azureFailoverOwner(plan) {
@@ -13170,7 +13170,7 @@ var init_failover = __esm(() => {
   init_traffic_probe();
 });
 
-// plugins/azure/src/ce/terraform-failover.ts
+// src/ce/terraform-failover.ts
 import { createHash as createHash10 } from 'node:crypto';
 import { readFile as readFile5 } from 'node:fs/promises';
 
@@ -13336,7 +13336,7 @@ var init_terraform_failover = __esm(() => {
   init_terraform_lifecycle();
 });
 
-// plugins/azure/src/tools/azure-ce-failover.ts
+// src/tools/azure-ce-failover.ts
 async function optional8(storage, name) {
   try {
     return await storage.read(name);
@@ -13538,7 +13538,7 @@ var init_azure_ce_failover = __esm(() => {
   };
 });
 
-// plugins/azure/src/ce/terraform-destroy-ownership.ts
+// src/ce/terraform-destroy-ownership.ts
 async function read4(api, plan, args, signal) {
   signal?.throwIfAborted();
   const result = await api.exec(
@@ -13713,7 +13713,7 @@ var init_terraform_destroy_ownership = __esm(() => {
   localTypes = new Set(['tls_private_key']);
 });
 
-// plugins/azure/src/ce/terraform-cloud-teardown.ts
+// src/ce/terraform-cloud-teardown.ts
 async function optional9(storage, name) {
   try {
     return await storage.read(name);
@@ -13771,7 +13771,7 @@ var init_terraform_cloud_teardown = __esm(() => {
   init_terraform_destroy_ownership();
 });
 
-// plugins/azure/src/ce/terraform-teardown.ts
+// src/ce/terraform-teardown.ts
 import { readdir as readdir2 } from 'node:fs/promises';
 
 function compileAzureTerraformTeardown(base, drain, retirement) {
@@ -14003,7 +14003,7 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/ce/native-teardown.ts
+// src/ce/native-teardown.ts
 function validateCloudPlan(base, cloud) {
   verifyAzureCePlan(base);
   verifyAzureCePlan(cloud);
@@ -14174,7 +14174,7 @@ var init_native_teardown = __esm(() => {
   init_terraform_upgrade();
 });
 
-// plugins/azure/src/tools/azure-ce-teardown.ts
+// src/tools/azure-ce-teardown.ts
 function createAzureCeTeardownTool(pi, dependencies = defaults3) {
   const { Type } = pi.typebox;
   return {
@@ -14407,7 +14407,7 @@ var init_azure_ce_teardown = __esm(() => {
   };
 });
 
-// plugins/azure/src/tools/azure-ce-diagnose.ts
+// src/tools/azure-ce-diagnose.ts
 function validateActiveTarget(target) {
   if (
     !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(target.destinationIp) ||
@@ -14730,7 +14730,7 @@ var init_azure_ce_diagnose = __esm(() => {
   init_shared();
 });
 
-// plugins/azure/src/ce/cloud-init.ts
+// src/ce/cloud-init.ts
 function analyzeCloudInit(source, secrets = []) {
   const findings = [];
   const hasForbiddenControl = Array.from(source).some((character) => {
@@ -14766,7 +14766,7 @@ function analyzeCloudInit(source, secrets = []) {
   };
 }
 
-// plugins/azure/src/tools/azure-cloud-init-analyze.ts
+// src/tools/azure-cloud-init-analyze.ts
 function createAzureCloudInitAnalyzeTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   return {
@@ -14846,7 +14846,7 @@ var init_azure_cloud_init_analyze = __esm(() => {
   init_canonical();
   init_shared();
 });
-// plugins/azure/src/presentation/ce.ts
+// src/presentation/ce.ts
 var record = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var fields = (values, title) => ({
   kind: 'fields',
@@ -14989,7 +14989,7 @@ function ceSummary(name, details) {
   return;
 }
 
-// plugins/azure/src/presentation.ts
+// src/presentation.ts
 init_az_activity_log_list2();
 init_az_exec2();
 init_az_resource_graph_query2();
@@ -15196,7 +15196,7 @@ function presentTool(tool, p) {
   });
 }
 
-// plugins/azure/src/index.ts
+// src/index.ts
 function sanitizeHintField(value, maxLen = 200) {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
