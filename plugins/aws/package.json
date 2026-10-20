@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "2.3.0",
+  "version": "2.3.2",
   "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -10,18 +10,18 @@
   },
   "xcsh": {
     "name": "AWS",
-    "version": "2.3.0",
+    "version": "2.3.2",
     "extensions": [
       "src/index.ts"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.5.1"
+    "@f5-sales-demo/xcsh": ">=23.8.0"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.2",
-    "@f5-sales-demo/xcsh": "23.5.1"
+    "@f5-sales-demo/xcsh": "23.9.3"
   },
   "license": "Apache-2.0"
 }

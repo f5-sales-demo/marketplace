@@ -1,3 +1,4 @@
+import { jsonArgs } from './arguments';
 import type { AwsRawResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -133,7 +134,7 @@ export interface AwsExecApi {
 }
 
 export async function execAwsJson<T>(api: AwsExecApi, args: string[], signal?: AbortSignal): Promise<T> {
-  const fullArgs = [...args, '--output', 'json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('aws', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectAwsError(result.stderr, result.exitCode);

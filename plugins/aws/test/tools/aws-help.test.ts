@@ -70,3 +70,24 @@ describe('aws_help command path validation', () => {
     expect(result.content[0].text).toContain('must not start with');
   });
 });
+
+it('failed help preserves corrective guidance and failure classification', async () => {
+  const tool = createAwsHelpTool({ typebox: mockTypebox }, () => ({
+    exec: async () => ({ stdout: '', stderr: 'Unable to locate credentials', exitCode: 1 }),
+  }));
+  const r = await tool.execute('id', { command_path: 'ec2' }, undefined, null, { cwd: '/tmp' });
+  expect(r.isError).toBe(true);
+  expect(r.details.errorType).toBe('auth_required');
+  expect(r.content[0].text).toContain('xcsh plugin setup aws');
+});
+
+it('help cancellation reaches the agent lifecycle', async () => {
+  const cancelled = new Error('cancelled');
+  cancelled.name = 'AbortError';
+  const tool = createAwsHelpTool({ typebox: mockTypebox }, () => ({
+    exec: async () => {
+      throw cancelled;
+    },
+  }));
+  await expect(tool.execute('id', {}, undefined, null, { cwd: '/tmp' })).rejects.toBe(cancelled);
+});

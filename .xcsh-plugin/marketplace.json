@@ -337,13 +337,13 @@
     {
       "name": "azure",
       "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "4.6.0",
+      "version": "4.6.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.5.1",
+      "minimumRuntimeVersion": "23.8.0",
       "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
@@ -362,13 +362,13 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "2.3.0",
+      "version": "2.3.2",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.5.1",
+      "minimumRuntimeVersion": "23.8.0",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
@@ -424,7 +424,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.5.1",
+      "minimumRuntimeVersion": "23.8.0",
       "extensions": ["runtime/index.js"],
       "source": "./plugins/gcloud",
       "category": "development",

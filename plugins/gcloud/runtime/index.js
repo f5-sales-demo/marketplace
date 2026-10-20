@@ -12,6 +12,197 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// plugins/gcloud/src/gcloud/arguments.ts
+function jsonArgs(args) {
+  const formats = args.flatMap((arg, i) =>
+    arg === '--format' ? [args[i + 1] ?? ''] : arg.startsWith('--format=') ? [arg.slice(9)] : [],
+  );
+  if (formats.some((format) => !/^json(?:\([^\r\n]*\))?$/.test(format)))
+    throw new Error('Typed gcloud tools require a JSON format');
+  return formats.length ? [...args] : [...args, '--format=json'];
+}
+function listArgs(kind, params) {
+  const args =
+    kind === 'projects'
+      ? ['projects', 'list']
+      : kind === 'instances'
+        ? ['compute', 'instances', 'list']
+        : ['storage', 'buckets', 'list'];
+  if (kind === 'instances' && params.zone) args.push(`--zones=${params.zone}`);
+  if (params.filter) args.push(`--filter=${params.filter}`);
+  if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
+  return args;
+}
+function helpArgs(path) {
+  return [...(path?.trim().split(' ').filter(Boolean) ?? []), '--help'];
+}
+function inventoryArgs(project, deploymentName) {
+  return [
+    'compute',
+    'instances',
+    'list',
+    `--project=${project}`,
+    `--filter=labels.xcsh-deployment=${deploymentName}`,
+    '--format=json(id,name,zone,status,labels)',
+  ];
+}
+
+// plugins/gcloud/src/tools/gcloud-exec-guard.ts
+function getPositionals(args) {
+  return args.filter((arg) => !arg.startsWith('-'));
+}
+function isKnownVerb(tok) {
+  return (
+    READ_EXACT.has(tok) ||
+    READ_PREFIXES.some((p) => tok.startsWith(p)) ||
+    DANGEROUS_VERBS.has(tok) ||
+    MUTATING_VERBS.has(tok)
+  );
+}
+function findVerb(positionals) {
+  return positionals.find((tok) => isKnownVerb(tok)) ?? null;
+}
+function findDangerous(positionals) {
+  return positionals.find((tok) => DANGEROUS_VERBS.has(tok)) ?? null;
+}
+function findMutating(positionals) {
+  return positionals.find((tok) => MUTATING_VERBS.has(tok)) ?? null;
+}
+function isRead(verb) {
+  return READ_EXACT.has(verb) || READ_PREFIXES.some((p) => verb.startsWith(p));
+}
+function checkGcloud(args) {
+  const positionals = getPositionals(args);
+  if (positionals.length === 0) {
+    return { blocked: true, reason: 'no gcloud command provided' };
+  }
+  const d = findDangerous(positionals);
+  if (d) {
+    return {
+      blocked: true,
+      reason: `"${d}" is an execution/credential vector (opens a session, runs code, or mints/consumes credentials) and cannot run through gcloud_exec. Run it through the gcloud:cli-operator agent.`,
+    };
+  }
+  const m = findMutating(positionals);
+  if (m) {
+    return { blocked: true, reason: `"${m}" is a mutating operation. ${WRITE_DELEGATION}` };
+  }
+  if (READ_TOP.has(positionals[0])) {
+    return { blocked: false };
+  }
+  const v = findVerb(positionals);
+  if (v && isRead(v)) {
+    return { blocked: false };
+  }
+  return {
+    blocked: true,
+    reason: `unrecognized gcloud command; provide a read-only verb (list/describe/get-iam-policy/\u2026). ${WRITE_DELEGATION}`,
+  };
+}
+function buildGcloudArgs(args) {
+  const hasFormat = args.some((a) => a === '--format' || a.startsWith('--format='));
+  return hasFormat ? [...args] : [...args, '--format=json'];
+}
+var READ_EXACT, READ_PREFIXES, READ_TOP, DANGEROUS_VERBS, MUTATING_VERBS, WRITE_DELEGATION;
+var init_gcloud_exec_guard = __esm(() => {
+  READ_EXACT = new Set([
+    'list',
+    'describe',
+    'get-iam-policy',
+    'get-value',
+    'get-server-config',
+    'get-ancestors',
+    'list-grantable-roles',
+    'print-settings',
+    'version',
+    'info',
+  ]);
+  READ_PREFIXES = ['list-', 'describe-'];
+  READ_TOP = new Set(['version', 'info', 'help', 'topic', 'cheat-sheet']);
+  DANGEROUS_VERBS = new Set([
+    'ssh',
+    'scp',
+    'connect',
+    'call',
+    'execute',
+    'interactive',
+    'login',
+    'revoke',
+    'get-credentials',
+    'print-access-token',
+    'print-identity-token',
+    'reset-windows-password',
+    'simulate-maintenance-event',
+    'enable-service',
+    'configure-docker',
+  ]);
+  MUTATING_VERBS = new Set([
+    'install',
+    'uninstall',
+    'create',
+    'delete',
+    'update',
+    'patch',
+    'remove',
+    'add',
+    'set',
+    'set-iam-policy',
+    'add-iam-policy-binding',
+    'remove-iam-policy-binding',
+    'deploy',
+    'import',
+    'export',
+    'apply',
+    'enable',
+    'disable',
+    'start',
+    'stop',
+    'restart',
+    'resize',
+    'suspend',
+    'resume',
+    'reset',
+    'rollback',
+    'promote',
+    'migrate',
+    'undelete',
+    'restore',
+    'activate',
+    'deactivate',
+    'attach',
+    'detach',
+    'bind',
+    'unbind',
+    'clear',
+    'move',
+    'clone',
+    'copy',
+    'wait',
+    'abandon',
+    'recreate',
+    'rotate',
+    'acknowledge',
+    'publish',
+    'seek',
+    'purge',
+    'cancel',
+    'override',
+    'unset',
+    'snapshot',
+    'upgrade',
+    'downgrade',
+    'repair',
+    'drain',
+    'uncordon',
+    'cordon',
+    'add-tags',
+    'remove-tags',
+  ]);
+  WRITE_DELEGATION =
+    'gcloud_exec is read-only by default. Run write/destructive operations through an ' +
+    'explicitly confirmed path (delegate to the gcloud:cli-operator agent), not gcloud_exec.';
+});
+
 // plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -227,7 +418,7 @@ function parseGcloudJsonOutput(raw) {
   }
 }
 async function execGcloudJson(api, args, signal) {
-  const fullArgs = [...args, '--format=json'];
+  const fullArgs = jsonArgs(args);
   const result = await api.exec('gcloud', fullArgs, { signal });
   if (result.exitCode !== 0) {
     throw detectGcloudError(result.stderr, result.exitCode);
@@ -588,9 +779,7 @@ function createGcloudProjectsListTool(pi, makeApi = makeExecApi) {
         return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
       }
       const api = makeApi(ctx.cwd);
-      const args = ['projects', 'list'];
-      if (params.filter) args.push(`--filter=${params.filter}`);
-      if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
+      const args = listArgs('projects', params);
       try {
         const raw = await execGcloudJson(api, args, signal);
         const projects = normalizeProjects(raw);
@@ -642,10 +831,7 @@ function createGcloudComputeInstancesListTool(pi, makeApi = makeExecApi) {
         return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
       }
       const api = makeApi(ctx.cwd);
-      const args = ['compute', 'instances', 'list'];
-      if (params.zone) args.push(`--zones=${params.zone}`);
-      if (params.filter) args.push(`--filter=${params.filter}`);
-      if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
+      const args = listArgs('instances', params);
       try {
         const raw = await execGcloudJson(api, args, signal);
         const instances = normalizeInstances(raw);
@@ -686,9 +872,7 @@ function createGcloudStorageBucketsListTool(pi, makeApi = makeExecApi) {
         return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
       }
       const api = makeApi(ctx.cwd);
-      const args = ['storage', 'buckets', 'list'];
-      if (params.filter) args.push(`--filter=${params.filter}`);
-      if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
+      const args = listArgs('buckets', params);
       try {
         const raw = await execGcloudJson(api, args, signal);
         const buckets = normalizeBuckets(raw);
@@ -776,162 +960,6 @@ Shapes *how* the selected resources are rendered locally.
 `;
 var init_gcloud_exec = () => {};
 
-// plugins/gcloud/src/tools/gcloud-exec-guard.ts
-function getPositionals(args) {
-  return args.filter((arg) => !arg.startsWith('-'));
-}
-function isKnownVerb(tok) {
-  return (
-    READ_EXACT.has(tok) ||
-    READ_PREFIXES.some((p) => tok.startsWith(p)) ||
-    DANGEROUS_VERBS.has(tok) ||
-    MUTATING_VERBS.has(tok)
-  );
-}
-function findVerb(positionals) {
-  return positionals.find((tok) => isKnownVerb(tok)) ?? null;
-}
-function findDangerous(positionals) {
-  return positionals.find((tok) => DANGEROUS_VERBS.has(tok)) ?? null;
-}
-function findMutating(positionals) {
-  return positionals.find((tok) => MUTATING_VERBS.has(tok)) ?? null;
-}
-function isRead(verb) {
-  return READ_EXACT.has(verb) || READ_PREFIXES.some((p) => verb.startsWith(p));
-}
-function checkGcloud(args) {
-  const positionals = getPositionals(args);
-  if (positionals.length === 0) {
-    return { blocked: true, reason: 'no gcloud command provided' };
-  }
-  const d = findDangerous(positionals);
-  if (d) {
-    return {
-      blocked: true,
-      reason: `"${d}" is an execution/credential vector (opens a session, runs code, or mints/consumes credentials) and cannot run through gcloud_exec. Run it through the gcloud:cli-operator agent.`,
-    };
-  }
-  const m = findMutating(positionals);
-  if (m) {
-    return { blocked: true, reason: `"${m}" is a mutating operation. ${WRITE_DELEGATION}` };
-  }
-  if (READ_TOP.has(positionals[0])) {
-    return { blocked: false };
-  }
-  const v = findVerb(positionals);
-  if (v && isRead(v)) {
-    return { blocked: false };
-  }
-  return {
-    blocked: true,
-    reason: `unrecognized gcloud command; provide a read-only verb (list/describe/get-iam-policy/\u2026). ${WRITE_DELEGATION}`,
-  };
-}
-function buildGcloudArgs(args) {
-  const hasFormat = args.some((a) => a === '--format' || a.startsWith('--format='));
-  return hasFormat ? [...args] : [...args, '--format=json'];
-}
-var READ_EXACT, READ_PREFIXES, READ_TOP, DANGEROUS_VERBS, MUTATING_VERBS, WRITE_DELEGATION;
-var init_gcloud_exec_guard = __esm(() => {
-  READ_EXACT = new Set([
-    'list',
-    'describe',
-    'get-iam-policy',
-    'get-value',
-    'get-server-config',
-    'get-ancestors',
-    'list-grantable-roles',
-    'print-settings',
-    'version',
-    'info',
-  ]);
-  READ_PREFIXES = ['list-', 'describe-'];
-  READ_TOP = new Set(['version', 'info', 'help', 'topic', 'cheat-sheet']);
-  DANGEROUS_VERBS = new Set([
-    'ssh',
-    'scp',
-    'connect',
-    'call',
-    'execute',
-    'interactive',
-    'login',
-    'revoke',
-    'get-credentials',
-    'print-access-token',
-    'print-identity-token',
-    'reset-windows-password',
-    'simulate-maintenance-event',
-    'enable-service',
-    'configure-docker',
-  ]);
-  MUTATING_VERBS = new Set([
-    'install',
-    'uninstall',
-    'create',
-    'delete',
-    'update',
-    'patch',
-    'remove',
-    'add',
-    'set',
-    'set-iam-policy',
-    'add-iam-policy-binding',
-    'remove-iam-policy-binding',
-    'deploy',
-    'import',
-    'export',
-    'apply',
-    'enable',
-    'disable',
-    'start',
-    'stop',
-    'restart',
-    'resize',
-    'suspend',
-    'resume',
-    'reset',
-    'rollback',
-    'promote',
-    'migrate',
-    'undelete',
-    'restore',
-    'activate',
-    'deactivate',
-    'attach',
-    'detach',
-    'bind',
-    'unbind',
-    'clear',
-    'move',
-    'clone',
-    'copy',
-    'wait',
-    'abandon',
-    'recreate',
-    'rotate',
-    'acknowledge',
-    'publish',
-    'seek',
-    'purge',
-    'cancel',
-    'override',
-    'unset',
-    'snapshot',
-    'upgrade',
-    'downgrade',
-    'repair',
-    'drain',
-    'uncordon',
-    'cordon',
-    'add-tags',
-    'remove-tags',
-  ]);
-  WRITE_DELEGATION =
-    'gcloud_exec is read-only by default. Run write/destructive operations through an ' +
-    'explicitly confirmed path (delegate to the gcloud:cli-operator agent), not gcloud_exec.';
-});
-
 // plugins/gcloud/src/tools/gcloud-exec.ts
 function createGcloudExecTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
@@ -967,9 +995,10 @@ function createGcloudExecTool(pi, makeApi = makeExecApi) {
         const api = makeApi(ctx.cwd);
         const result = await api.exec('gcloud', buildGcloudArgs(args), { signal });
         if (result.exitCode !== 0) {
-          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
+          const failure = detectGcloudError(result.stderr || result.stdout, result.exitCode);
+          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${failure.message}`, {
             ...base,
-            errorType: detectErrorType(detectGcloudError(result.stderr, result.exitCode)),
+            errorType: detectErrorType(failure),
           });
         }
         let output = result.stdout;
@@ -1076,7 +1105,7 @@ function createGcloudHelpTool(pi, makeApi = makeExecApi) {
           base,
         );
       }
-      const args = [...parts, '--help'];
+      const args = helpArgs(params.command_path);
       const api = makeApi(ctx.cwd);
       try {
         const result = await api.exec('gcloud', args, { signal });
@@ -4832,7 +4861,7 @@ function parseGcpGlobalHealth(value, nodeName) {
     return { ...base, status: 'unknown', reason: 'unknown-health-state' };
   return { ...base, state: row.state, status: row.state === 'PROVISIONED' ? 'healthy' : 'degraded' };
 }
-function record(value) {
+function record2(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
 }
 function evidenceFingerprint(value) {
@@ -4843,7 +4872,7 @@ function evidenceFingerprint(value) {
   }
 }
 function qualifiedGcpHaHealthContract(value) {
-  const row = record(value);
+  const row = record2(value);
   if (!row) return false;
   const { evidenceSha256, ...semantics } = row;
   return (
@@ -4854,7 +4883,7 @@ function qualifiedGcpHaHealthContract(value) {
 }
 function evaluateGcpHaHealth(value, expected, contractFingerprint, healthContract, now = Date.now()) {
   const reasons = new Set();
-  const collection = record(value);
+  const collection = record2(value);
   if (!qualifiedGcpHaHealthContract(healthContract)) reasons.add('health-contract-unqualified');
   if (
     expected.length !== 3 ||
@@ -4885,7 +4914,7 @@ function evaluateGcpHaHealth(value, expected, contractFingerprint, healthContrac
     reasons.add('stale-or-malformed-observation');
   const receipts = [];
   const reads = (key) => {
-    const read = record(collection?.[key]);
+    const read = record2(collection?.[key]);
     const at = typeof read?.observedAt === 'string' ? Date.parse(read.observedAt) : NaN;
     if (!Number.isFinite(at) || at < start || at > finish) reasons.add(`${key}-observation-time-invalid`);
     if (read?.available !== true || typeof read.receiptHash !== 'string' || !HASH.test(read.receiptHash)) {
@@ -4898,7 +4927,7 @@ function evaluateGcpHaHealth(value, expected, contractFingerprint, healthContrac
     }
     if (Number.isFinite(at) && at >= start && at <= finish)
       receipts.push({ source: key, sha256: read.receiptHash, observedAt: new Date(at).toISOString() });
-    const body = record(read.value);
+    const body = record2(read.value);
     if (
       !body ||
       body.next_page_token ||
@@ -4918,7 +4947,7 @@ function evaluateGcpHaHealth(value, expected, contractFingerprint, healthContrac
     const rows = body?.[field];
     if (!Array.isArray(rows) || !rows.length) reasons.add(`${source}-missing-rows`);
     for (const raw of Array.isArray(rows) ? rows : []) {
-      const row = record(raw);
+      const row = record2(raw);
       if (!row || typeof row.node !== 'string' || !row.node || typeof row[identity] !== 'string' || !row[identity]) {
         reasons.add(`${source}-malformed-row`);
         continue;
@@ -8793,18 +8822,7 @@ function createGcpCeTools(
             );
             return result(tool, { availability: 'read-only', evidence, mutationAttempted: false });
           }
-          const raw = await execGcloudJson(
-            api,
-            [
-              'compute',
-              'instances',
-              'list',
-              `--project=${params.project}`,
-              `--filter=labels.xcsh-deployment=${params.deploymentName}`,
-              '--format=json(id,name,zone,status,labels)',
-            ],
-            signal,
-          );
+          const raw = await execGcloudJson(api, inventoryArgs(params.project, params.deploymentName), signal);
           if (!Array.isArray(raw)) throw new Error('Malformed inventory');
           const instances = raw
             .filter((r) => r.labels?.['xcsh-deployment'] === params.deploymentName)
@@ -8904,20 +8922,255 @@ var init_gcp_ce = __esm(() => {
 });
 
 // plugins/gcloud/src/presentation.ts
+init_gcloud_exec_guard();
+var record = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
+var rows = (v) => Array.isArray(v) && v.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x));
+var fields = (values, title) => ({
+  kind: 'fields',
+  title,
+  values,
+  previewFields: 'all',
+});
+var labels = new Map([
+  ['projectId', 'Project ID'],
+  ['projectNumber', 'Project number'],
+  ['lifecycleState', 'Lifecycle state'],
+  ['name', 'Name'],
+  ['zone', 'Zone'],
+  ['machineType', 'Machine type'],
+  ['status', 'Status'],
+  ['internalIp', 'Internal IP'],
+  ['externalIp', 'External IP'],
+  ['location', 'Location'],
+  ['storageClass', 'Storage class'],
+  ['created', 'Created'],
+  ['ownership', 'Ownership evidence'],
+]);
+function argv(name, args) {
+  switch (name) {
+    case 'gcloud_config_list':
+      return ['gcloud', ...jsonArgs(['config', 'list'])];
+    case 'gcloud_projects_list':
+      return ['gcloud', ...jsonArgs(listArgs('projects', args))];
+    case 'gcloud_compute_instances_list':
+      return ['gcloud', ...jsonArgs(listArgs('instances', args))];
+    case 'gcloud_storage_buckets_list':
+      return ['gcloud', ...jsonArgs(listArgs('buckets', args))];
+    case 'gcloud_help':
+      return ['gcloud', ...helpArgs(typeof args.command_path === 'string' ? args.command_path : undefined)];
+    case 'gcloud_exec':
+      return Array.isArray(args.args) && args.args.every((x) => typeof x === 'string')
+        ? ['gcloud', ...buildGcloudArgs(args.args)]
+        : undefined;
+    case 'gcp_project_identity':
+      return typeof args.project === 'string'
+        ? ['gcloud', ...jsonArgs(['projects', 'describe', args.project, `--project=${args.project}`])]
+        : undefined;
+    case 'gcp_ce_inventory':
+    case 'gcp_ce_status':
+    case 'gcp_ce_diagnose':
+      return typeof args.project === 'string' && typeof args.deploymentName === 'string'
+        ? ['gcloud', ...jsonArgs(inventoryArgs(args.project, args.deploymentName))]
+        : undefined;
+  }
+}
 function presentTool(tool, p) {
+  const prefix = (args) => {
+    const command = argv(tool.name, args);
+    const scope = Object.fromEntries(
+      Object.entries(args).filter(([key]) =>
+        ['project', 'region', 'zone', 'filter', 'limit', 'deploymentName', 'engine'].includes(key),
+      ),
+    );
+    return [
+      ...(command ? [p.command(command)] : []),
+      fields(
+        {
+          ...scope,
+          Coverage: 'Returned cloud data does not establish platform, interface, routing or application health.',
+        },
+        'Scope',
+      ),
+    ];
+  };
   return p.withPresentation(tool, {
-    command: 'gcloud',
-    scopeKeys: ['project', 'filter', 'zone', 'region', 'limit', 'deploymentName', 'engine'],
-    collections: ['projects', 'instances', 'buckets'],
-    labels: Object.fromEntries([
-      ['projectId', 'Project ID'],
-      ['projectNumber', 'Project number'],
-      ['name', 'Name'],
-      ['zone', 'Zone'],
-      ['status', 'Status'],
-      ['machineType', 'Machine type'],
-      ['location', 'Location'],
-    ]),
+    call: (input, options) => ({
+      sections: options.expanded ? p.data(record(input)) : prefix(record(input)),
+    }),
+    result: (result, options, input) => {
+      const details = record(result.details),
+        base = prefix(record(input));
+      const texts = result.content
+        .filter((b) => b.type === 'text')
+        .map((b) => ({
+          kind: 'code',
+          title: result.isError ? 'Complete corrective guidance' : 'CLI evidence',
+          text: b.text ?? '',
+        }));
+      if (result.isError) return { summary: 'Google Cloud operation failed', sections: [...base, ...texts] };
+      const collection = {
+        gcloud_projects_list: 'projects',
+        gcloud_compute_instances_list: 'instances',
+        gcloud_storage_buckets_list: 'buckets',
+        gcp_ce_inventory: 'instances',
+        gcp_ce_status: 'instances',
+        gcp_ce_diagnose: 'instances',
+      }[tool.name];
+      if (collection && rows(details[collection])) {
+        const items = details[collection],
+          { [collection]: _items, ...metadata } = details;
+        const keys = [...new Set(items.flatMap((row) => Object.keys(row)))];
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...base,
+            fields({ 'Returned rows': items.length }, 'Results'),
+            {
+              ...p.table(
+                items,
+                keys.map((key) => ({ key, label: labels.get(key) ?? key })),
+                collection,
+              ),
+              previewRows: 12,
+            },
+            ...(tool.name.startsWith('gcp_')
+              ? [fields(metadata, 'Coverage and health boundaries')]
+              : p.data(metadata, 'Coverage and metadata')),
+          ],
+          warnings: options.isPartial ? ['Partial result; execution has not completed.'] : [],
+        };
+      }
+      if (tool.name === 'gcloud_config_list' && Object.keys(record(details.config)).length)
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...base,
+            fields(record(details.config), 'Configuration identity'),
+            ...p.data(
+              Object.fromEntries(Object.entries(details).filter(([key]) => !['config', 'tool'].includes(key))),
+              'Metadata',
+            ),
+          ],
+        };
+      if (
+        tool.name === 'gcp_project_identity' &&
+        typeof details.project === 'string' &&
+        typeof details.projectNumber === 'string'
+      )
+        return { expandedEvidence: 'provided', sections: [...base, fields(details, 'Project identity')] };
+      const discovery = record(details.discovery);
+      if (
+        tool.name === 'gcp_compute_discover' &&
+        discovery.schemaVersion === 1 &&
+        typeof discovery.project === 'string' &&
+        rows(discovery.images) &&
+        rows(discovery.machineTypes) &&
+        rows(discovery.quotas) &&
+        Array.isArray(discovery.enabledApis) &&
+        Array.isArray(discovery.receipts) &&
+        Object.keys(record(discovery.checks)).length
+      ) {
+        const summary = fields(
+          {
+            Project: discovery.project,
+            Region: discovery.region,
+            'Observed at': discovery.observedAt,
+            'Billing enabled': discovery.billingEnabled,
+            Images: discovery.images.length,
+            'Machine types': discovery.machineTypes.length,
+            'Enabled APIs': discovery.enabledApis.length,
+            IAM: record(discovery.checks).iam,
+            ...Object.fromEntries(Object.entries(record(discovery.checks)).filter(([key]) => key !== 'iam')),
+          },
+          'Compute readiness',
+        );
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...base,
+            ...(options.expanded
+              ? p.data(details, 'Complete safe discovery evidence')
+              : [
+                  summary,
+                  {
+                    ...p.table(
+                      discovery.machineTypes,
+                      [
+                        { key: 'name', label: 'Name' },
+                        { key: 'zone', label: 'Zone' },
+                        { key: 'guestCpus', label: 'vCPUs' },
+                        { key: 'memoryMb', label: 'Memory (MB)' },
+                      ],
+                      'Machine types',
+                    ),
+                    previewRows: 12,
+                  },
+                  {
+                    ...p.table(
+                      discovery.quotas,
+                      [
+                        { key: 'metric', label: 'Quota metric' },
+                        { key: 'limit', label: 'Limit (metric units)' },
+                        { key: 'usage', label: 'Usage (metric units)' },
+                      ],
+                      'Quotas',
+                    ),
+                    previewRows: 12,
+                  },
+                ]),
+          ],
+          warnings: [
+            'Discovery does not qualify IAM, organization policy, capacity, NIC limits or license acceptance.',
+          ],
+        };
+      }
+      const plan = record(details.plan);
+      if (
+        tool.name === 'gcp_ce_plan' &&
+        plan.schemaVersion === 1 &&
+        typeof plan.planHash === 'string' &&
+        plan.executable === false &&
+        Array.isArray(plan.actions) &&
+        Array.isArray(plan.unavailable) &&
+        Object.keys(record(plan.intent)).length
+      ) {
+        return {
+          expandedEvidence: 'provided',
+          sections: [
+            ...base,
+            ...(options.expanded
+              ? p.data(details, 'Complete safe plan evidence')
+              : [
+                  fields(
+                    {
+                      'Plan hash': plan.planHash,
+                      Executable: plan.executable,
+                      Engine: plan.engine,
+                      Approval: plan.approval,
+                      'Disk (GiB)': record(plan.intent).diskGiB,
+                      Prerequisites: plan.unavailable,
+                      Availability: details.availability,
+                    },
+                    'Customer Edge readiness plan',
+                  ),
+                ]),
+          ],
+          warnings: ['Readiness plan is non-executable; no mutation or approval was attempted.'],
+        };
+      }
+      if (tool.name === 'gcloud_exec' && typeof details.fullOutput === 'string') {
+        try {
+          return {
+            expandedEvidence: 'provided',
+            sections: [...base, ...p.data(JSON.parse(details.fullOutput), 'Complete CLI result')],
+            warnings: details.modelPreviewTruncated
+              ? ['Model preview was truncated; complete CLI output is available.']
+              : [],
+          };
+        } catch {}
+      }
+      return { sections: [...base, ...texts] };
+    },
   });
 }
 

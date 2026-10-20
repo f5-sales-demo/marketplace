@@ -1,3 +1,4 @@
+import { accountArgs } from '../az/arguments';
 import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatSubscriptionDetail, formatSubscriptionTable } from '../az/formatters';
@@ -49,7 +50,7 @@ export function createAzAccountShowTool(pi: PluginInterface, makeApi: (cwd: stri
 
       try {
         if (params.action === 'list') {
-          const raw = await execAzJson<Record<string, unknown>[]>(api, ['account', 'list'], signal);
+          const raw = await execAzJson<Record<string, unknown>[]>(api, accountArgs(params), signal);
           let subs = raw.map(normalizeSubscription);
           if (params.subscription) {
             const filter = params.subscription.toLowerCase();
@@ -58,8 +59,7 @@ export function createAzAccountShowTool(pi: PluginInterface, makeApi: (cwd: stri
           return textResult(formatSubscriptionTable(subs), { ...base, subscriptions: subs });
         }
 
-        const args = ['account', 'show'];
-        if (params.subscription) args.push('--subscription', params.subscription);
+        const args = accountArgs(params);
         const raw = await execAzJson<Record<string, unknown>>(api, args, signal);
         const sub = normalizeSubscription(raw);
         return textResult(formatSubscriptionDetail(sub), { ...base, subscriptions: [sub] });
