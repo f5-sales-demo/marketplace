@@ -156,7 +156,7 @@ test('CE summaries preserve guarded multi-command evidence without inventing a C
   expect(JSON.stringify(call)).toContain('12');
 });
 
-test('declared commands reproduce execution argv and Bash/Zsh literal arguments', async () => {
+test('declared commands reproduce execution argv', async () => {
   const { Type } = await import('@sinclair/typebox');
   const { createAwsStsWhoamiTool } = await import('../src/tools/aws-sts-whoami');
   const { createAwsEc2DescribeInstancesTool } = await import('../src/tools/aws-ec2-describe-instances');
@@ -193,24 +193,28 @@ test('declared commands reproduce execution argv and Bash/Zsh literal arguments'
     if (!executed) throw new Error('Expected AWS execution arguments');
     expect(argv).toEqual(['aws', ...executed]);
   }
-  const { execFileSync } = await import('node:child_process');
-  const argv = [
-    'synthetic-harmless',
-    '',
-    ' spaces ',
-    "quote'",
-    '"double"',
-    '$x',
-    '`literal`',
-    '|',
-    ';',
-    '☁',
-    'line\nbreak',
-  ];
-  // A shell function prints NUL-separated arguments and never invokes a cloud CLI.
-  const command = presentation.command(argv).text;
-  for (const shell of ['bash', 'zsh']) {
+});
+
+for (const shell of ['bash', 'zsh']) {
+  const shellTest = Bun.which(shell) ? test : test.skip;
+  shellTest(`declared commands preserve literal arguments in ${shell}`, async () => {
+    const { execFileSync } = await import('node:child_process');
+    const argv = [
+      'synthetic-harmless',
+      '',
+      ' spaces ',
+      "quote'",
+      '"double"',
+      '$x',
+      '`literal`',
+      '|',
+      ';',
+      '☁',
+      'line\nbreak',
+    ];
+    // A shell function prints NUL-separated arguments and never invokes a cloud CLI.
+    const command = presentation.command(argv).text;
     const bytes = execFileSync(shell, ['-c', `synthetic-harmless() { printf '%s\\0' "$@"; }; ${command}`]);
     expect(bytes.toString().split('\0').slice(0, -1)).toEqual(argv.slice(1));
-  }
-});
+  });
+}
