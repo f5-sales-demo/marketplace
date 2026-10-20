@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github`** v3.3.1 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
+
 - **`platform`** v6.2.1 shows site identity, twelve-row network tables, exact plan hashes and artifacts, bootstrap scope and unavailable telemetry through shared presentation. Expanded views preserve complete safe evidence once; HTTP operations no longer imply executable CLI commands (#1688).
 
 - **`aws`** v2.3.2 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).

@@ -870,6 +870,73 @@ function buildGhSearchArgs(
   return args;
 }
 
+/** Effective typed CLI argv shared by execution and public presentation. Multi-step tools return no single command. */
+export function buildGhCommandArgs(name: string, input: Record<string, unknown>): string[] | undefined {
+  const repo = normalizeOptionalString(input.repo as string | undefined);
+  const identifier = normalizeOptionalString((input.issue ?? input.pr) as string | undefined);
+  if (name === 'gh_repo_view') {
+    const args = ['repo', 'view'];
+    if (repo) args.push(repo);
+    const branch = normalizeOptionalString(input.branch as string | undefined);
+    if (branch) args.push('--branch', branch);
+    return [...args, '--json', GH_REPO_FIELDS.join(',')];
+  }
+  if (name === 'gh_issue_view' || name === 'gh_pr_view') {
+    const issue = name === 'gh_issue_view';
+    const args = [issue ? 'issue' : 'pr', 'view'];
+    if (issue) args.push(requireNonEmpty(identifier, 'issue'));
+    else if (identifier) args.push(identifier);
+    appendRepoFlag(args, repo, identifier);
+    const comments = input.comments ?? true;
+    const fields = issue
+      ? comments
+        ? GH_ISSUE_FIELDS
+        : GH_ISSUE_FIELDS_NO_COMMENTS
+      : comments
+        ? GH_PR_FIELDS
+        : GH_PR_FIELDS_NO_COMMENTS;
+    return [...args, '--json', fields.join(',')];
+  }
+  if (name === 'gh_pr_diff') {
+    const args = ['pr', 'diff'];
+    if (identifier) args.push(identifier);
+    appendRepoFlag(args, repo, identifier);
+    args.push('--color', 'never');
+    if (input.nameOnly) args.push('--name-only');
+    for (const pattern of (input.exclude ?? []) as string[])
+      args.push('--exclude', requireNonEmpty(pattern, 'exclude pattern'));
+    return args;
+  }
+  if (name === 'gh_search_issues' || name === 'gh_search_prs') {
+    return buildGhSearchArgs(
+      name === 'gh_search_issues' ? 'issues' : 'prs',
+      requireNonEmpty(input.query as string, 'query'),
+      resolveSearchLimit(input.limit as number | undefined),
+      repo,
+    );
+  }
+  if (name === 'gh_help') {
+    const commandPath = (input.command_path as string | undefined)?.trim() ?? '';
+    const parts = commandPath.split(' ').filter(Boolean);
+    if ((commandPath && !HELP_PATH_PATTERN.test(commandPath)) || parts.some((p) => p.startsWith('-'))) return undefined;
+    return [...parts, '--help'];
+  }
+  if (
+    name === 'gh_exec' &&
+    Array.isArray(input.args) &&
+    input.args.length > 0 &&
+    input.args.every((a) => typeof a === 'string' && !hasControlChars(a))
+  )
+    return [...input.args];
+  return undefined;
+}
+
+function requireGhCommandArgs(name: string, input: Record<string, unknown>): string[] {
+  const args = buildGhCommandArgs(name, input);
+  if (!args) throw new ToolError(`No valid CLI arguments for ${name}.`);
+  return args;
+}
+
 function sanitizeRemoteName(value: string): string {
   const sanitized = value
     .toLowerCase()
@@ -1565,14 +1632,7 @@ export class GhRepoViewTool implements AgentTool<typeof ghRepoViewSchema, GhTool
     return untilAborted(signal, async () => {
       const repo = normalizeOptionalString(params.repo);
       const branch = normalizeOptionalString(params.branch);
-      const args = ['repo', 'view'];
-      if (repo) {
-        args.push(repo);
-      }
-      if (branch) {
-        args.push('--branch', branch);
-      }
-      args.push('--json', GH_REPO_FIELDS.join(','));
+      const args = requireGhCommandArgs(this.name, params as Record<string, unknown>);
 
       const data = await git.github.json<GhRepoViewData>(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -1611,9 +1671,7 @@ export class GhIssueViewTool implements AgentTool<typeof ghIssueViewSchema, GhTo
       const issue = requireNonEmpty(params.issue, 'issue');
       const repo = normalizeOptionalString(params.repo);
       const includeComments = params.comments ?? true;
-      const args = ['issue', 'view', issue];
-      appendRepoFlag(args, repo, issue);
-      args.push('--json', (includeComments ? GH_ISSUE_FIELDS : GH_ISSUE_FIELDS_NO_COMMENTS).join(','));
+      const args = requireGhCommandArgs(this.name, params as unknown as Record<string, unknown>);
 
       const data = await git.github.json<GhIssueViewData>(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -1651,12 +1709,7 @@ export class GhPrViewTool implements AgentTool<typeof ghPrViewSchema, GhToolDeta
       const pr = normalizeOptionalString(params.pr);
       const repo = normalizeOptionalString(params.repo);
       const includeComments = params.comments ?? true;
-      const args = ['pr', 'view'];
-      if (pr) {
-        args.push(pr);
-      }
-      appendRepoFlag(args, repo, pr);
-      args.push('--json', (includeComments ? GH_PR_FIELDS : GH_PR_FIELDS_NO_COMMENTS).join(','));
+      const args = requireGhCommandArgs(this.name, params as unknown as Record<string, unknown>);
 
       const data = await git.github.json<GhPrViewData>(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -1695,21 +1748,8 @@ export class GhPrDiffTool implements AgentTool<typeof ghPrDiffSchema, GhToolDeta
     _context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
-      const pr = normalizeOptionalString(params.pr);
       const repo = normalizeOptionalString(params.repo);
-      const args = ['pr', 'diff'];
-      if (pr) {
-        args.push(pr);
-      }
-      appendRepoFlag(args, repo, pr);
-      args.push('--color', 'never');
-      if (params.nameOnly) {
-        args.push('--name-only');
-      }
-      for (const pattern of params.exclude ?? []) {
-        const normalizedPattern = requireNonEmpty(pattern, 'exclude pattern');
-        args.push('--exclude', normalizedPattern);
-      }
+      const args = requireGhCommandArgs(this.name, params as unknown as Record<string, unknown>);
 
       const output = await git.github.text(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -1952,7 +1992,7 @@ export class GhSearchIssuesTool implements AgentTool<typeof ghSearchIssuesSchema
       const query = requireNonEmpty(params.query, 'query');
       const repo = normalizeOptionalString(params.repo);
       const limit = resolveSearchLimit(params.limit);
-      const args = buildGhSearchArgs('issues', query, limit, repo);
+      const args = requireGhCommandArgs(this.name, params as unknown as Record<string, unknown>);
 
       const items = await git.github.json<GhSearchResult[]>(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -1993,7 +2033,7 @@ export class GhSearchPrsTool implements AgentTool<typeof ghSearchPrsSchema, GhTo
       const query = requireNonEmpty(params.query, 'query');
       const repo = normalizeOptionalString(params.repo);
       const limit = resolveSearchLimit(params.limit);
-      const args = buildGhSearchArgs('prs', query, limit, repo);
+      const args = requireGhCommandArgs(this.name, params as unknown as Record<string, unknown>);
 
       const items = await git.github.json<GhSearchResult[]>(this.session.cwd, args, signal, {
         repoProvided: Boolean(repo),
@@ -2058,7 +2098,11 @@ export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails>
           details: { tool: 'gh_help' },
         };
       }
-      const result = await git.github.run(this.session.cwd, [...parts, '--help'], signal);
+      const result = await git.github.run(
+        this.session.cwd,
+        requireGhCommandArgs(this.name, params as Record<string, unknown>),
+        signal,
+      );
       const output = result.stdout || result.stderr;
       return buildTextResult(output || `No help output for "gh ${commandPath}".`, undefined, { tool: 'gh_help' });
     });
