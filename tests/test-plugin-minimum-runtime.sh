@@ -31,6 +31,18 @@ test)
 esac
 MOCK
 chmod +x "$WORK/bin/bun"
+# Exercise the runner contract without requiring rsync in the shell-unit image.
+# Real minimum qualification still uses the production rsync executable.
+cat >"$WORK/bin/rsync" <<'MOCK'
+#!/usr/bin/env python3
+import shutil
+import sys
+
+assert sys.argv[1:-2] == ['-a', '--exclude=node_modules', '--exclude=.git']
+shutil.copytree(sys.argv[-2], sys.argv[-1], dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('node_modules', '.git'))
+MOCK
+chmod +x "$WORK/bin/rsync"
 export ORIGINAL_PLUGIN="$WORK/repo/plugins/aws"
 export EXPECTED_MINIMUM
 EXPECTED_MINIMUM=$(jq -er '.minimumRuntimeVersion' "$ORIGINAL_PLUGIN/.xcsh-plugin/plugin.json")
