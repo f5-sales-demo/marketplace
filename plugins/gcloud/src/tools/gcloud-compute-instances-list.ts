@@ -1,3 +1,4 @@
+import { listArgs } from '../gcloud/arguments';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { execGcloudJson } from '../gcloud/exec';
 import { formatInstanceTable, normalizeInstances } from '../gcloud/formatters';
@@ -45,13 +46,7 @@ export function createGcloudComputeInstancesListTool(
       }
 
       const api = makeApi(ctx.cwd);
-      const args = ['compute', 'instances', 'list'];
-      // gcloud filters the instances list by zone with the `--zones` flag.
-      // Bind value flags with the `=` form so a value beginning with `-` can never be
-      // re-tokenised by gcloud as a separate flag (argv flag-smuggling defense).
-      if (params.zone) args.push(`--zones=${params.zone}`);
-      if (params.filter) args.push(`--filter=${params.filter}`);
-      if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
+      const args = listArgs('instances', params);
 
       try {
         const raw = await execGcloudJson<unknown[]>(api, args, signal);

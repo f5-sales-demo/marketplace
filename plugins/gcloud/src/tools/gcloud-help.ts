@@ -1,3 +1,4 @@
+import { helpArgs } from '../gcloud/arguments';
 import type { GcloudExecApi } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import { HELP_PATH_PATTERN } from '../gcloud/types';
@@ -53,7 +54,7 @@ export function createGcloudHelpTool(pi: PluginInterface, makeApi: (cwd: string)
       }
 
       // Help output is plain text; do NOT append --format=json.
-      const args = [...parts, '--help'];
+      const args = helpArgs(params.command_path);
       const api = makeApi(ctx.cwd);
 
       try {
