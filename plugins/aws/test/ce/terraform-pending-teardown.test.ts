@@ -437,3 +437,45 @@ test('pending retirement persists its plan binding before token mutation and ret
     plan.planSha256,
   );
 });
+
+for (const method of ['POST', 'PUT'])
+  test(`pending prepare cancels only the selected unsubmitted site ${method} before inventory`, async () => {
+    const f = await fixture(),
+      owner = f.binding.owner,
+      path = '/api/config/namespaces/system/securemesh_site_v2s';
+    const labels = {
+      'xcsh-ce-deployment': owner.deploymentId,
+      'xcsh-ce-engine': 'terraform',
+      'xcsh-ce-provider': 'aws',
+      'xcsh-ce-account': owner.account,
+      'xcsh-ce-region': owner.region,
+    };
+    const book = (await f.storage.read('terraform-f5-resources.json')) as Record<string, unknown>;
+    if (method === 'POST') {
+      book.resources = {};
+      f.removed();
+    }
+    book.pending = {
+      method,
+      path: method === 'POST' ? path : `${path}/${f.binding.siteName}`,
+      planSha256: f.base.planSha256,
+      submitted: false,
+      request: { metadata: { name: f.binding.siteName, namespace: 'system', labels }, spec: {} },
+    };
+    await f.storage.write('terraform-f5-resources.json', book);
+    let calls = 0;
+    const runtime = {
+      ...f.runtime,
+      cancelUnsubmittedTerraformResources: async (selected: unknown) => {
+        expect(selected).toEqual(owner);
+        calls++;
+        const current = (await f.storage.read('terraform-f5-resources.json')) as Record<string, unknown>;
+        delete current.pending;
+        await f.storage.write('terraform-f5-resources.json', current);
+      },
+    };
+    const plan = await prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage);
+    expect(plan.retirement[0].siteUid).toBe(method === 'POST' ? null : 'logical-uid');
+    expect(calls).toBe(1);
+    expect(f.mutations).toHaveLength(0);
+  });

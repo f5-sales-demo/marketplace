@@ -106,7 +106,7 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
   // Only a digest leaves private storage; bootstrap content is never copied into a public plan.
   return canonicalSha256({ auth, workflow, admission, siteRecords });
 }
-async function reconcileSubmittedF5Site(base: AwsCePlan, runtime: CeRuntime, storage: Store, signal?: AbortSignal) {
+async function reconcilePendingF5Site(base: AwsCePlan, runtime: CeRuntime, storage: Store, signal?: AbortSignal) {
   let value: unknown;
   try {
     value = await storage.read('terraform-f5-resources.json');
@@ -121,8 +121,8 @@ async function reconcileSubmittedF5Site(base: AwsCePlan, runtime: CeRuntime, sto
   const pending = object(book.pending);
   if (pending.method === 'DELETE') return;
   if (
-    pending.submitted !== true ||
-    !pending.receipt ||
+    ![true, false].includes(pending.submitted as boolean) ||
+    (pending.submitted === true && !pending.receipt) ||
     pending.planSha256 !== base.planSha256 ||
     !['POST', 'PUT'].includes(String(pending.method))
   )
@@ -139,8 +139,8 @@ async function reconcileSubmittedF5Site(base: AwsCePlan, runtime: CeRuntime, sto
     'xcsh-ce-region': storage.owner.region,
   };
   if (
-    pending.submitted !== true ||
-    !pending.receipt ||
+    ![true, false].includes(pending.submitted as boolean) ||
+    (pending.submitted === true && !pending.receipt) ||
     pending.planSha256 !== base.planSha256 ||
     !['POST', 'PUT'].includes(String(pending.method)) ||
     pending.path !== (pending.method === 'POST' ? path : `${path}/${binding.siteName}`) ||
@@ -149,8 +149,9 @@ async function reconcileSubmittedF5Site(base: AwsCePlan, runtime: CeRuntime, sto
     Object.entries(expectedLabels).some(([key, value]) => labels[key] !== value)
   )
     throw new Error('Pending F5 creation or update requires separate interruption reconciliation');
-  // This typed service proves the original submitted state/API outcome and has no apply replay path.
-  await runtime.reconcileObservedTerraformResources(storage.owner, signal);
+  // Both typed services prove the original owner state and cannot replay provider apply.
+  if (pending.submitted === true) await runtime.reconcileObservedTerraformResources(storage.owner, signal);
+  else await runtime.cancelUnsubmittedTerraformResources(storage.owner, signal);
 }
 async function verifyF5State(base: AwsCePlan, storage: Store, planned: Retirement[]) {
   let value: unknown;
@@ -293,7 +294,7 @@ export async function prepareAwsPendingTeardown(
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
   const before = await journal(base, storage, runtime.contract.fingerprint);
-  await reconcileSubmittedF5Site(base, runtime, storage, signal);
+  await reconcilePendingF5Site(base, runtime, storage, signal);
   const receipt = fresh(
     await runtime.pendingAdmissionInventory(
       siteBindings(base).map((row) => row.binding),

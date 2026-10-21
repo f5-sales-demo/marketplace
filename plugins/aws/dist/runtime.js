@@ -13507,6 +13507,7 @@ async function assertAwsTerraformDeploymentActive(storage) {
   await storage.verify();
   for (const name of [
     markerFile,
+    'terraform-f5-cancellation-pending.json',
     'aws-terraform-teardown-source.json',
     'terraform-cloud-teardown-source.json',
     'terraform-cloud-teardown.json',
@@ -13515,7 +13516,7 @@ async function assertAwsTerraformDeploymentActive(storage) {
     'aws-terraform-teardown-receipt.json',
   ])
     if ((await optional6(storage, name)) !== undefined)
-      throw new Error('AWS Terraform retirement has started; resume teardown instead of deployment');
+      throw new Error('AWS Terraform retirement or cancellation has started; resume teardown instead of deployment');
 }
 async function beginAwsTerraformRetirement(base, plan, storage) {
   await storage.verify();
@@ -16309,7 +16310,7 @@ async function journal(base, storage, siteFingerprint) {
   }
   return canonicalSha256({ auth, workflow, admission, siteRecords });
 }
-async function reconcileSubmittedF5Site(base, runtime, storage, signal) {
+async function reconcilePendingF5Site(base, runtime, storage, signal) {
   let value;
   try {
     value = await storage.read('terraform-f5-resources.json');
@@ -16324,8 +16325,8 @@ async function reconcileSubmittedF5Site(base, runtime, storage, signal) {
   const pending = object22(book.pending);
   if (pending.method === 'DELETE') return;
   if (
-    pending.submitted !== true ||
-    !pending.receipt ||
+    ![true, false].includes(pending.submitted) ||
+    (pending.submitted === true && !pending.receipt) ||
     pending.planSha256 !== base.planSha256 ||
     !['POST', 'PUT'].includes(String(pending.method))
   )
@@ -16342,8 +16343,8 @@ async function reconcileSubmittedF5Site(base, runtime, storage, signal) {
     'xcsh-ce-region': storage.owner.region,
   };
   if (
-    pending.submitted !== true ||
-    !pending.receipt ||
+    ![true, false].includes(pending.submitted) ||
+    (pending.submitted === true && !pending.receipt) ||
     pending.planSha256 !== base.planSha256 ||
     !['POST', 'PUT'].includes(String(pending.method)) ||
     pending.path !== (pending.method === 'POST' ? path : `${path}/${binding.siteName}`) ||
@@ -16352,7 +16353,8 @@ async function reconcileSubmittedF5Site(base, runtime, storage, signal) {
     Object.entries(expectedLabels).some(([key, value]) => labels[key] !== value)
   )
     throw new Error('Pending F5 creation or update requires separate interruption reconciliation');
-  await runtime.reconcileObservedTerraformResources(storage.owner, signal);
+  if (pending.submitted === true) await runtime.reconcileObservedTerraformResources(storage.owner, signal);
+  else await runtime.cancelUnsubmittedTerraformResources(storage.owner, signal);
 }
 async function verifyF5State(base, storage, planned) {
   let value;
@@ -16483,7 +16485,7 @@ async function prepareAwsPendingTeardown(base, runtime, contract, storage, signa
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
   const before = await journal(base, storage, runtime.contract.fingerprint);
-  await reconcileSubmittedF5Site(base, runtime, storage, signal);
+  await reconcilePendingF5Site(base, runtime, storage, signal);
   const receipt = fresh(
     await runtime.pendingAdmissionInventory(
       siteBindings(base).map((row) => row.binding),

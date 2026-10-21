@@ -161,7 +161,11 @@ test('public apply resumes a durable direct import before re-entering bootstrap 
   expect(f.bootstrapped).toEqual([]);
 });
 
-for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-cloud-teardown-source.json'])
+for (const marker of [
+  'aws-terraform-lifecycle-retirement.json',
+  'terraform-cloud-teardown-source.json',
+  'terraform-f5-cancellation-pending.json',
+])
   test(`public deployment resume rejects ${marker} before reconciliation or runner opening`, async () => {
     const f = admissionFixture(false, false, true);
     let reconciles = 0;

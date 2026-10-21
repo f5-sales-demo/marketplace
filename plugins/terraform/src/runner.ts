@@ -493,30 +493,116 @@ export class TerraformRunner {
   }
   /** Advance desired configuration without changing cloud ownership, providers or backend. */
   async reviseConfiguration(expectedSha256: string, configuration: string): Promise<string> {
+    return this.#exclusive(() => this.#reviseConfiguration(expectedSha256, configuration));
+  }
+  async #reviseConfiguration(expectedSha256: string, configuration: string): Promise<string> {
+    await this.#verifyInputs();
+    const { directory, manifest } = this.#state();
+    if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
+    this.#validateRevision(configuration, (await privateRead(join(directory, 'main.tf.json'))).toString());
+    const nextSha256 = digest(configuration);
+    if (nextSha256 === expectedSha256) return nextSha256;
+    let receipt: Json | undefined;
+    try {
+      receipt = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (receipt?.state === 'applying')
+      throw new Error('Reconcile interrupted Terraform apply before revising configuration');
+    const transition = {
+      previous: manifest,
+      next: { ...manifest, configurationSha256: nextSha256 },
+      configuration,
+      archiveId: randomUUID(),
+    };
+    await this.#replacePrivate(join(directory, 'configuration-transition.json'), JSON.stringify(transition));
+    await this.#recoverRevision();
+    return nextSha256;
+  }
+  /** Cancel only an independently proven unsubmitted attempt. This operation never invokes apply. */
+  async cancelUnsubmittedPlan(
+    receipt: PlanReceipt | undefined,
+    expectedSha256: string,
+    configuration: string,
+    evidenceSha256: string,
+  ): Promise<string> {
+    receipt = receipt === undefined ? undefined : structuredClone(object(receipt) as unknown as PlanReceipt);
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-      this.#validateRevision(configuration, (await privateRead(join(directory, 'main.tf.json'))).toString());
       const nextSha256 = digest(configuration);
-      if (nextSha256 === expectedSha256) return nextSha256;
-      let receipt: Json | undefined;
-      try {
-        receipt = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
-      if (receipt?.state === 'applying')
-        throw new Error('Reconcile interrupted Terraform apply before revising configuration');
-      const transition = {
-        previous: manifest,
-        next: { ...manifest, configurationSha256: nextSha256 },
-        configuration,
-        archiveId: randomUUID(),
+      if (!/^[a-f0-9]{64}$/.test(expectedSha256) || !/^[a-f0-9]{64}$/.test(evidenceSha256))
+        throw new Error('Unsubmitted cancellation evidence is malformed');
+      const cancellation = {
+        schemaVersion: 1,
+        deploymentId: manifest.deploymentId,
+        backendIdentity: manifest.backendIdentity,
+        providerLockSha256: manifest.providerLockSha256,
+        expectedSha256,
+        nextSha256,
+        receipt: receipt ?? null,
+        evidenceSha256,
       };
-      await this.#replacePrivate(join(directory, 'configuration-transition.json'), JSON.stringify(transition));
-      await this.#recoverRevision();
-      return nextSha256;
+      const recordPath = join(
+        directory,
+        `configuration-cancellation-${digest(canonical({ receipt: receipt ?? null, expectedSha256, nextSha256 }))}.json`,
+      );
+      const readOptional = async (path: string): Promise<Buffer | undefined> => {
+        try {
+          return await privateRead(path);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      };
+      const recorded = await readOptional(recordPath);
+      if (recorded && canonical(decode(recorded.toString())) !== canonical(cancellation))
+        throw new Error('Unsubmitted cancellation source evidence changed');
+      const retireOriginalPlan = async () => {
+        const currentJournal = await readOptional(join(directory, 'plan-receipt.json'));
+        const savedPlan = await readOptional(join(directory, 'saved.tfplan'));
+        if (currentJournal) {
+          const journal = decode(currentJournal.toString());
+          const currentReceipt = object(journal.receipt) as unknown as PlanReceipt;
+          if (receipt && journal.state === 'planned' && canonical(currentReceipt) === canonical(receipt)) {
+            if (savedPlan && digest(savedPlan) !== receipt.planSha256)
+              throw new Error('Cancelled saved plan bytes changed');
+            // The original plan and journal are retained in the verified private archive.
+            await rm(join(directory, 'saved.tfplan'), { force: true });
+            await rm(join(directory, 'plan-receipt.json'));
+          } else if (
+            journal.state !== 'planned' ||
+            currentReceipt.noChanges !== true ||
+            (await this.#applicationState(currentReceipt)) !== 'planned'
+          )
+            throw new Error('Unsubmitted cancellation recovery found another submitted or changing plan');
+        } else if (savedPlan) {
+          if (!receipt || digest(savedPlan) !== receipt.planSha256)
+            throw new Error('Unsubmitted cancellation recovery has an unbound saved plan');
+          await rm(join(directory, 'saved.tfplan'));
+        }
+      };
+      if (manifest.configurationSha256 !== expectedSha256) {
+        if (!recorded || manifest.configurationSha256 !== nextSha256)
+          throw new Error('Unsubmitted cancellation configuration is stale');
+        await retireOriginalPlan();
+        return nextSha256;
+      }
+      if (receipt) {
+        if ((await this.#applicationState(receipt)) !== 'planned')
+          throw new Error('Unsubmitted cancellation cannot revise an applying or applied plan');
+      } else if (
+        (await readOptional(join(directory, 'plan-receipt.json'))) ||
+        (await readOptional(join(directory, 'saved.tfplan')))
+      )
+        throw new Error('Unsubmitted cancellation requires the original saved-plan receipt');
+      this.#validateRevision(configuration, (await privateRead(join(directory, 'main.tf.json'))).toString());
+      // Persist provenance before the existing recoverable configuration transition.
+      if (!recorded) await this.#replacePrivate(recordPath, JSON.stringify(cancellation));
+      await this.#archivePlanAttempt();
+      const result = await this.#reviseConfiguration(expectedSha256, configuration);
+      await retireOriginalPlan();
+      return result;
     });
   }
   #validateRevision(configuration: string, previousConfiguration?: string): void {

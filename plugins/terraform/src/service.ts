@@ -47,6 +47,13 @@ export interface TerraformSession {
     signal?: AbortSignal,
   ): Promise<Record<string, unknown>>;
   reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
+  /** Owner-scoped no-apply rollback, requiring runner proof that the selected plan is unsubmitted. */
+  cancelUnsubmittedPlan?(
+    receipt: PlanReceipt | undefined,
+    expectedSha256: string,
+    configuration: string,
+    evidenceSha256: string,
+  ): Promise<string>;
   /** Resolve an interrupted apply only after the cloud adapter persists exact outcome evidence. */
   reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string): Promise<void>;
   planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
@@ -142,6 +149,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
           return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async cancelUnsubmittedPlan(receipt, expectedSha256, configuration, evidenceSha256) {
+          await checkOwner();
+          return runner.cancelUnsubmittedPlan(receipt, expectedSha256, configuration, evidenceSha256);
         },
         async reconcileApplyFromEvidence(receipt, evidenceSha256) {
           await checkOwner();

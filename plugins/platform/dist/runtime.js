@@ -3004,6 +3004,11 @@ class CeRuntime {
       throw new Error('Terraform F5 state service is unavailable');
     await this.resourceMutation(owner, '/api/config/terraform-f5-reconcile', { method: 'RECONCILE_OBSERVED' }, signal);
   }
+  async cancelUnsubmittedTerraformResources(owner, signal) {
+    if (this.engine !== 'terraform' || owner.engine !== 'terraform' || !this.resourceMutation)
+      throw new Error('Terraform F5 state service is unavailable');
+    await this.resourceMutation(owner, '/api/config/terraform-f5-cancel', { method: 'CANCEL_UNSUBMITTED' }, signal);
+  }
   requireAwsHaContract() {
     this.contract.requireAwsHaNodeConfiguration();
   }

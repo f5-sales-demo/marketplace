@@ -1159,3 +1159,95 @@ test('rechecks exact prior identity and refuses relinquishment replay after inte
   await expect(lost.runner.apply(attempt, {})).rejects.toThrow('consumed');
   expect(lost.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
 });
+
+for (const planned of [false, true])
+  test(`unsubmitted cancellation restores desired configuration without apply (${planned ? 'saved plan' : 'no plan'})`, async () => {
+    const before =
+      '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"pending"}}}}';
+    const prior = '{"terraform":{"required_version":"= 1.14.0"}}';
+    const f = await fixture({}, {}, before);
+    const receipt = planned ? await f.runner.plan({}) : undefined;
+    expect(await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64))).toBe(hash(prior));
+    expect(await f.runner.readConfigurationSha256()).toBe(hash(prior));
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+    expect(await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64))).toBe(hash(prior));
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  });
+
+test('unsubmitted cancellation rejects applying, applied, missing receipt and changed execution evidence', async () => {
+  for (const mode of [
+    'applying',
+    'applied',
+    'missing-receipt',
+    'foreign-plan',
+    'foreign-config',
+    'foreign-evidence',
+    'changed-provider',
+  ]) {
+    const before =
+      '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"pending"}}}}';
+    const prior = '{"terraform":{"required_version":"= 1.14.0"}}';
+    const f = await fixture({}, {}, before);
+    const receipt = await f.runner.plan({});
+    const dir = join(f.root, 'ce-test');
+    if (['applying', 'applied'].includes(mode))
+      await writeFile(join(dir, 'plan-receipt.json'), JSON.stringify({ state: mode, receipt }), { mode: 0o600 });
+    if (mode === 'foreign-evidence') await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64));
+    const run = () =>
+      f.runner.cancelUnsubmittedPlan(
+        mode === 'missing-receipt'
+          ? undefined
+          : mode === 'foreign-plan'
+            ? { ...receipt, planSha256: 'f'.repeat(64) }
+            : receipt,
+        mode === 'foreign-config' ? 'f'.repeat(64) : hash(before),
+        mode === 'changed-provider' ? '{"terraform":{"required_version":"= 1.15.0"}}' : prior,
+        mode === 'foreign-evidence' ? 'b'.repeat(64) : 'a'.repeat(64),
+      );
+    await expect(run()).rejects.toThrow();
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  }
+});
+
+for (const remaining of ['plan', 'journal', 'both'])
+  test(`cancellation resumes exact partial saved-plan retirement (${remaining})`, async () => {
+    const before =
+        '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"pending"}}}}',
+      prior = '{"terraform":{"required_version":"= 1.14.0"}}';
+    const f = await fixture({}, {}, before),
+      receipt = await f.runner.plan({}),
+      dir = join(f.root, 'ce-test');
+    await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64));
+    if (remaining !== 'journal') await writeFile(join(dir, 'saved.tfplan'), 'binary-plan', { mode: 0o600 });
+    if (remaining !== 'plan')
+      await writeFile(join(dir, 'plan-receipt.json'), JSON.stringify({ state: 'planned', receipt }), { mode: 0o600 });
+    await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64));
+    expect(await readdir(dir)).not.toContain('saved.tfplan');
+    expect(await readdir(dir)).not.toContain('plan-receipt.json');
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  });
+test('cancellation recovery permits a bound no-change refresh but rejects late submitted or foreign plan bytes', async () => {
+  for (const mode of ['no-change', 'late-submission', 'foreign-bytes']) {
+    const before =
+        '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"pending"}}}}',
+      prior = '{"terraform":{"required_version":"= 1.14.0"}}';
+    const f = await fixture({ resource_changes: [], output_changes: {} }, {}, before),
+      receipt = await f.runner.plan({}),
+      dir = join(f.root, 'ce-test');
+    await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64));
+    if (mode === 'no-change') {
+      await f.runner.plan({});
+      await f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64));
+    } else {
+      await writeFile(join(dir, 'saved.tfplan'), mode === 'foreign-bytes' ? 'foreign' : 'binary-plan', { mode: 0o600 });
+      await writeFile(
+        join(dir, 'plan-receipt.json'),
+        JSON.stringify({ state: mode === 'late-submission' ? 'applying' : 'planned', receipt }),
+        { mode: 0o600 },
+      );
+      await expect(f.runner.cancelUnsubmittedPlan(receipt, hash(before), prior, 'a'.repeat(64))).rejects.toThrow();
+      expect(await readdir(dir)).toContain('plan-receipt.json');
+    }
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  }
+});

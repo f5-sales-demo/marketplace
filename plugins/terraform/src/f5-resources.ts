@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
+import { cancelUnsubmittedF5Resource } from './f5-cancellation';
 import { loadXcshProviderLock, XCSH_PROVIDER_VERSION } from './provider-lock';
 import { renderProviderResource } from './resource-renderer';
 import type { PlanReceipt } from './runner';
@@ -62,6 +63,8 @@ export async function executeF5TerraformResource(
   tenantOrigin?: string,
   execution: 'mutate' | 'observe-only' = 'mutate',
 ) {
+  if (init.method === 'CANCEL_UNSUBMITTED')
+    return cancelUnsubmittedF5Resource(platform, terraform, owner, contextName, signal, tenantOrigin);
   if (['RECONCILE', 'RECONCILE_OBSERVED'].includes(init.method ?? '')) {
     const storage = await platform.storage(owner);
     let book: Book;
@@ -124,6 +127,14 @@ export async function executeF5TerraformResource(
   const storage = await platform.storage(owner);
   const release = await acquireProcessLock(join(storage.directory, '.f5-resource-lock'));
   try {
+    let cancellation: unknown;
+    try {
+      cancellation = await storage.read('terraform-f5-cancellation-pending.json');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (cancellation !== undefined)
+      throw new Error('F5 cancellation is pending; resume cancellation before resource execution');
     const auth = object(await storage.read('terraform-authorization.json'));
     if (
       auth.engine !== 'terraform' ||

@@ -1993,3 +1993,25 @@ test('observed-only F5 reconciliation uses the typed Terraform owner service', a
   await expect(runtime.reconcileObservedTerraformResources(binding.owner)).rejects.toThrow('unavailable');
   expect(calls).toHaveLength(1);
 });
+
+test('unsubmitted F5 cancellation uses the typed Terraform owner service', async () => {
+  const owner = { ...binding.owner, engine: 'terraform' as const };
+  const calls: Array<{ method: unknown; owner: unknown }> = [];
+  const runtime = new CeRuntime(
+    fixture(),
+    'terraform',
+    'https://tenant.test',
+    'test-credential',
+    async () => {
+      throw Error('native REST must not execute');
+    },
+    async (actual, _path, init) => {
+      calls.push({ owner: actual, method: init.method });
+      return {};
+    },
+  );
+  await runtime.cancelUnsubmittedTerraformResources(owner);
+  expect(calls).toEqual([{ owner, method: 'CANCEL_UNSUBMITTED' }]);
+  await expect(runtime.cancelUnsubmittedTerraformResources(binding.owner)).rejects.toThrow('unavailable');
+  expect(calls).toHaveLength(1);
+});

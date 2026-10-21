@@ -106,7 +106,13 @@ identities, advanced admission or unavailable evidence block further mutation.
 A durably submitted F5 create/update can be reconciled during preparation only
 through the observation-only provider operation: exact original request, owner,
 saved plan, provider state and API readback must agree, with no apply replay.
-Unsubmitted or unproven requests remain blocked. During retirement, only the
+An unsubmitted original site create/update can instead be cancelled through the
+owning provider service. Cancellation proves the complete prior provider state and
+API identity/spec, independently checks the runner's unsubmitted journal, restores
+only the prior desired configuration without apply, and requires a bound no-change
+refresh plus unchanged readbacks before clearing the pending request. Interrupted
+refresh retains the pending request and exact cancellation provenance for resume.
+Missing, malformed or unproven evidence remains blocked. During retirement, only the
 selected pending F5 delete uses the ordinary reconciliation path. Physical or partial
 registration requires its own retirement contract. Source or synthetic receipts do not qualify live interruption/recovery,
 sensitive staging retirement, or full CE acceptance.

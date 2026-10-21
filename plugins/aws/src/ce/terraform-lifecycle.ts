@@ -19,6 +19,7 @@ export async function assertAwsTerraformDeploymentActive(storage: Store) {
   await storage.verify();
   for (const name of [
     markerFile,
+    'terraform-f5-cancellation-pending.json',
     'aws-terraform-teardown-source.json',
     'terraform-cloud-teardown-source.json',
     'terraform-cloud-teardown.json',
@@ -27,7 +28,7 @@ export async function assertAwsTerraformDeploymentActive(storage: Store) {
     'aws-terraform-teardown-receipt.json',
   ])
     if ((await optional(storage, name)) !== undefined)
-      throw new Error('AWS Terraform retirement has started; resume teardown instead of deployment');
+      throw new Error('AWS Terraform retirement or cancellation has started; resume teardown instead of deployment');
 }
 /** Called after the selected coordinator validates authorization and live prerequisites, before its first mutation. */
 export async function beginAwsTerraformRetirement(
