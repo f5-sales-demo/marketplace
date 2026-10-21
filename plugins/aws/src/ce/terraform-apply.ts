@@ -291,7 +291,10 @@ export async function executeAwsCeTerraformApply(
       ...result,
       ...(await importAwsTerraformDirectRoutes(
         plan,
-        discovered.bindings,
+        {
+          ...discovered.bindings,
+          __INSTANCE_1__: String((outputs.ce_instances as Record<string, { id?: unknown }>)['1']?.id ?? ''),
+        },
         session,
         storage,
         api,

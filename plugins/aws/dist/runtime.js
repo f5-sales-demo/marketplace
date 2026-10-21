@@ -13948,7 +13948,10 @@ ${plan.planSha256}`,
       ...result,
       ...(await importAwsTerraformDirectRoutes(
         plan,
-        discovered.bindings,
+        {
+          ...discovered.bindings,
+          __INSTANCE_1__: String(outputs.ce_instances['1']?.id ?? ''),
+        },
         session,
         storage,
         api,
