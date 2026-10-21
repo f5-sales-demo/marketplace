@@ -28,7 +28,7 @@ punctuation and Unicode. Fixture SHA256:
 `5842f0820eccc0dcdfe4c082d0e34039a776a305e4d2662ccb21ab5d2d1bc715`.
 The direct installed `engine/cli.ts` ran under the resolved Bun executable:
 Mac `/private/tmp/gcp-bun-142/bun-darwin-aarch64/bun`, Ubuntu
-`/home/robin/.local/share/shell-tools/20261012/bin/bun`.
+`~/.local/share/shell-tools/20261012/bin/bun`.
 
 On both hosts `validate`, `next` and `score` exited one, reported `ok: false`
 and twelve legacy fields, and preserved the fixture bytes. Each refusal
@@ -42,7 +42,7 @@ and fixture bytes remained unchanged.
 A separate synthetic conflict populated both old and current field names.
 Installed validation exited one, required manual resolution, omitted apply
 advice and preserved its bytes. No real deal or CRM mutation occurred.
-The first Ubuntu probe assumed an absent `/home/robin/.local/bin/bun` and
+The first Ubuntu probe assumed an absent `~/.local/bin/bun` and
 failed before engine execution. Its root is preserved. The successful probe
 uses the independently resolved installed executable in a fresh root.
 
