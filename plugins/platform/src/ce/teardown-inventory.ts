@@ -302,3 +302,149 @@ export async function collectCeUnregisteredAbsence(
     };
   }
 }
+
+/** Read-only pre-admission identities. Physical registration requires the registered contract. */
+export async function collectCePendingAdmissionInventory(
+  port: Port,
+  input: SiteBinding[],
+  namespaces: string[],
+  contracts: { site: string; ingress: string },
+  signal?: AbortSignal,
+) {
+  const bindings = structuredClone(input);
+  namespaces = structuredClone(namespaces);
+  contracts = structuredClone(contracts);
+  const { owner, labels, nodes } = validateScope(bindings, namespaces, contracts);
+  signal?.throwIfAborted();
+  const sources: string[] = [];
+  const base = {
+    owner,
+    siteContractFingerprint: contracts.site,
+    ingressContractFingerprint: contracts.ingress,
+    startedAt: new Date().toISOString(),
+  };
+  const read = async (path: string) => {
+    signal?.throwIfAborted();
+    sources.push(path);
+    return object(await port.request(path, {}, signal));
+  };
+  const owned = (value: unknown) => {
+    const row = object(value);
+    if (Object.entries(labels).some(([key, value]) => row[key] !== value))
+      throw new Error('Pending admission ownership differs');
+    return row;
+  };
+  const collection = (value: Json) => {
+    if (
+      !Array.isArray(value.items) ||
+      value.items.length > 10000 ||
+      (value.errors !== undefined && (!Array.isArray(value.errors) || value.errors.length)) ||
+      Object.keys(value).some((key) => !['items', 'errors'].includes(key))
+    )
+      throw new Error('Incomplete pending admission collection');
+    return value.items;
+  };
+  const absent = async (path: string) => {
+    try {
+      await read(path);
+    } catch (error) {
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
+    throw new Error('Physical site is present');
+  };
+  const snapshot = async () => {
+    const sites: Array<{ siteName: string; siteUid: string | null; physicalSiteUid: null }> = [];
+    const resources: CeTeardownResource[] = [];
+    const uids = new Set<string>(),
+      names = new Set<string>();
+    for (const binding of bindings) {
+      let siteUid: string | null = null;
+      let value: Json | undefined;
+      try {
+        value = await read(`/api/config/namespaces/system/securemesh_site_v2s/${binding.siteName}`);
+      } catch (error) {
+        if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+      }
+      if (value) {
+        const metadata = object(value.metadata),
+          uid = object(value.system_metadata).uid;
+        owned(metadata.labels);
+        if (metadata.name !== binding.siteName || metadata.namespace !== 'system' || !text(uid) || uids.has(uid))
+          throw new Error('Pending logical site identity differs');
+        siteUid = uid;
+        uids.add(uid);
+      }
+      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid: null });
+      await absent(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      if (collection(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`)).length)
+        throw new Error('Registration is present');
+    }
+    const query = new URLSearchParams({ label_filter: `xcsh-ce-deployment=${owner.deploymentId}` });
+    const tokens = collection(await read(`/api/register/namespaces/system/tokens?${query}`));
+    for (const item of tokens) {
+      const row = object(item),
+        rowLabels = owned(row.labels),
+        node = rowLabels['xcsh-ce-node'];
+      if (
+        !name(row.name) ||
+        row.namespace !== 'system' ||
+        !text(row.uid) ||
+        names.has(String(row.name)) ||
+        uids.has(row.uid) ||
+        typeof node !== 'string' ||
+        !nodes.has(node)
+      )
+        throw new Error('Pending token identity differs');
+      const metadata = row.metadata == null ? {} : object(row.metadata);
+      const system = row.system_metadata == null ? {} : object(row.system_metadata);
+      if (
+        ['name', 'namespace'].some(
+          (key) => metadata[key] !== undefined && metadata[key] !== '' && metadata[key] !== row[key],
+        ) ||
+        (system.uid !== undefined && system.uid !== '' && system.uid !== row.uid)
+      )
+        throw new Error('Conflicting pending token identities');
+      if (metadata.labels !== undefined && Object.keys(object(metadata.labels)).length) {
+        const nested = owned(metadata.labels);
+        if (nested['xcsh-ce-node'] !== node) throw new Error('Conflicting pending token node');
+      }
+      resources.push({
+        kind: 'tokens',
+        name: row.name as string,
+        namespace: 'system',
+        uid: row.uid,
+        node,
+        siteName: nodes.get(node),
+      });
+      names.add(String(row.name));
+      uids.add(row.uid);
+    }
+    const collections = [
+      ...['bgps', 'bgp_routing_policys', 'external_connectors'].map((kind) => ({ namespace: 'system', kind })),
+      ...namespaces.flatMap((namespace) => ['http_loadbalancers', 'origin_pools'].map((kind) => ({ namespace, kind }))),
+    ];
+    for (const { namespace, kind } of collections)
+      if (collection(await read(`/api/config/namespaces/${namespace}/${kind}?${query}`)).length)
+        throw new Error('Post-admission resource is present');
+    sites.sort((a, b) => a.siteName.localeCompare(b.siteName));
+    resources.sort((a, b) => a.name.localeCompare(b.name));
+    return { sites, resources };
+  };
+  try {
+    const first = await snapshot(),
+      second = await snapshot();
+    if (JSON.stringify(first) !== JSON.stringify(second))
+      throw new Error('Pending inventory changed during collection');
+    return { ...base, status: 'observed' as const, ...second, sources, observedAt: new Date().toISOString() };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return {
+      ...base,
+      status: 'unknown' as const,
+      reason: error instanceof CeApiError ? error.category : 'ownership-or-collection-incomplete',
+      sources,
+      observedAt: new Date().toISOString(),
+    };
+  }
+}

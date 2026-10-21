@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import type { VerifiedIngressContract } from '../../src/ce/ingress-contract';
 import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
@@ -1914,3 +1915,28 @@ for (const mode of ['stable', 'replaced', 'configuration-changed'] as const)
     if (mode !== 'stable') expect(result.interfaces).toHaveLength(0);
     expect(reads).toBe(2);
   });
+
+test('pending admission runtime validates scope and performs only read-only complete observations', async () => {
+  const requests: string[] = [];
+  const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+    expect(init?.method ?? 'GET').toBe('GET');
+    requests.push(String(url));
+    if (String(url).includes('/securemesh_site_v2s/'))
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: { uid: 'logical-uid' },
+      });
+    if (String(url).includes('/sites/')) return json({}, 404);
+    return json({ items: [], errors: [] });
+  });
+  const ingress = { fingerprint: 'verified-ingress' } as unknown as VerifiedIngressContract;
+  expect(() =>
+    runtime.pendingAdmissionInventory([{ ...binding, siteName: '../escape' }], ['default'], ingress),
+  ).toThrow('binding');
+  expect(requests).toHaveLength(0);
+  const receipt = await runtime.pendingAdmissionInventory([binding], ['default'], ingress);
+  expect(receipt.status).toBe('observed');
+  expect(receipt.siteContractFingerprint).toBe(runtime.contract.fingerprint);
+  expect(receipt.ingressContractFingerprint).toBe(ingress.fingerprint);
+  expect(requests).toHaveLength(18);
+});

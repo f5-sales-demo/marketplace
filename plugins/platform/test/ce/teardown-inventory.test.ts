@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 import { CeApiError } from '../../src/ce/runtime';
-import { collectCeTeardownInventory, collectCeUnregisteredAbsence } from '../../src/ce/teardown-inventory';
+import {
+  collectCePendingAdmissionInventory,
+  collectCeTeardownInventory,
+  collectCeUnregisteredAbsence,
+} from '../../src/ce/teardown-inventory';
 
 const owner = {
   deploymentId: 'ce-test',
@@ -201,6 +205,148 @@ test('unregistered absence validates scope and cancellation before contacting th
         site: 'site',
         ingress: 'ingress',
       },
+      AbortSignal.abort(),
+    ),
+  ).rejects.toThrow();
+});
+
+function pendingFixture(mode = 'valid') {
+  let reads = 0;
+  return {
+    async request(path: string) {
+      if (path.includes('/sites/')) {
+        if (mode === 'physical')
+          return {
+            metadata: { name: 'ce-site', namespace: 'system', labels },
+            system_metadata: { uid: 'physical' },
+            spec: { main_nodes: [{ name: 'ce-node' }] },
+          };
+        throw new CeApiError('not-found', 404);
+      }
+      if (path.includes('/registrations_by_site/'))
+        return mode === 'registration' ? { items: [{}] } : { items: [], errors: [] };
+      if (path.includes('/securemesh_site_v2s/')) {
+        reads++;
+        if (mode === 'absent') throw new CeApiError('not-found', 404);
+        return {
+          metadata: {
+            name: 'ce-site',
+            namespace: 'system',
+            labels: mode === 'foreign' ? { ...labels, 'xcsh-ce-engine': 'native' } : labels,
+          },
+          system_metadata: { uid: mode === 'changed' && reads > 1 ? 'replacement' : 'logical' },
+        };
+      }
+      if (path.includes('/tokens?')) {
+        const row = {
+          name: 'ce-token',
+          namespace: 'system',
+          uid: 'token-uid',
+          labels: { ...labels, 'xcsh-ce-node': mode === 'foreign-node' ? 'foreign-node' : 'ce-node' },
+          get_spec: { jwt: 'never-export-bootstrap' },
+        };
+        return { items: mode === 'duplicate' ? [row, row] : [row] };
+      }
+      if (mode === 'routing' && path.includes('/bgps?')) return { items: [{ name: 'unexpected' }] };
+      if (mode === 'partial') return { items: [], nextToken: 'more' };
+      return { items: [], errors: [] };
+    },
+  };
+}
+test('pending admission inventory retains exact logical and token identity with explicit physical absence', async () => {
+  const receipt = await collectCePendingAdmissionInventory(pendingFixture(), bindings, ['default'], {
+    site: 'site',
+    ingress: 'ingress',
+  });
+  expect(receipt.status).toBe('observed');
+  if (receipt.status === 'observed') {
+    expect(receipt.sites).toEqual([{ siteName: 'ce-site', siteUid: 'logical', physicalSiteUid: null }]);
+    expect(receipt.resources).toEqual([
+      { kind: 'tokens', name: 'ce-token', namespace: 'system', uid: 'token-uid', node: 'ce-node', siteName: 'ce-site' },
+    ]);
+  }
+  expect(JSON.stringify(receipt)).not.toContain('never-export');
+  const absent = await collectCePendingAdmissionInventory(pendingFixture('absent'), bindings, ['default'], {
+    site: 'site',
+    ingress: 'ingress',
+  });
+  expect(absent.status).toBe('observed');
+  if (absent.status === 'observed') expect(absent.sites[0].siteUid).toBeNull();
+});
+test('pending admission never substitutes absence for physical registration, routing or incomplete identity', async () => {
+  for (const mode of [
+    'physical',
+    'registration',
+    'foreign',
+    'changed',
+    'foreign-node',
+    'duplicate',
+    'routing',
+    'partial',
+  ]) {
+    const receipt = await collectCePendingAdmissionInventory(pendingFixture(mode), bindings, ['default'], {
+      site: 'site',
+      ingress: 'ingress',
+    });
+    expect(receipt.status).toBe('unknown');
+  }
+});
+
+test('pending admission rejects service failures and token identity races without leaking partial evidence', async () => {
+  for (const mode of [
+    'authorization',
+    'service',
+    'plain-404',
+    'token-replaced',
+    'token-removed',
+    'token-conflict',
+    'token-node-conflict',
+    'token-site-uid',
+  ]) {
+    let tokenReads = 0;
+    const base = pendingFixture();
+    const port = {
+      async request(path: string) {
+        if (mode === 'authorization') throw new CeApiError('authorization', 403);
+        if (mode === 'service') throw new CeApiError('transient', 503);
+        if (mode === 'plain-404') throw new Error('404 not found');
+        const result = await base.request(path);
+        if (path.includes('/tokens?')) {
+          tokenReads++;
+          const row = (result as { items: Array<Record<string, unknown>> }).items[0];
+          if (mode === 'token-replaced' && tokenReads > 1) row.uid = 'replacement-token';
+          if (mode === 'token-removed' && tokenReads > 1) return { items: [] };
+          if (mode === 'token-conflict') row.metadata = { name: 'different' };
+          if (mode === 'token-node-conflict') row.metadata = { labels: { ...labels, 'xcsh-ce-node': 'foreign-node' } };
+          if (mode === 'token-site-uid') row.uid = 'logical';
+        }
+        return result;
+      },
+    };
+    const result = await collectCePendingAdmissionInventory(port, bindings, ['default'], {
+      site: 'site',
+      ingress: 'ingress',
+    });
+    expect(result.status).toBe('unknown');
+    expect('resources' in result).toBe(false);
+    expect('sites' in result).toBe(false);
+  }
+});
+test('pending admission validates scope and propagates cancellation before requests', async () => {
+  const port = {
+    async request() {
+      throw new Error('must not contact API');
+    },
+  };
+  await expect(
+    collectCePendingAdmissionInventory(port, bindings, ['../escape'], { site: 'site', ingress: 'ingress' }),
+  ).rejects.toThrow('scope');
+  await expect(
+    collectCePendingAdmissionInventory(
+      port,
+      bindings,
+      ['default'],
+      { site: 'site', ingress: 'ingress' },
       AbortSignal.abort(),
     ),
   ).rejects.toThrow();

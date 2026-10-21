@@ -2072,6 +2072,144 @@ async function collectCeUnregisteredAbsence(port, input, namespaces, contracts, 
     };
   }
 }
+async function collectCePendingAdmissionInventory(port, input, namespaces, contracts, signal) {
+  const bindings = structuredClone(input);
+  namespaces = structuredClone(namespaces);
+  contracts = structuredClone(contracts);
+  const { owner, labels, nodes } = validateScope(bindings, namespaces, contracts);
+  signal?.throwIfAborted();
+  const sources = [];
+  const base = {
+    owner,
+    siteContractFingerprint: contracts.site,
+    ingressContractFingerprint: contracts.ingress,
+    startedAt: new Date().toISOString(),
+  };
+  const read = async (path) => {
+    signal?.throwIfAborted();
+    sources.push(path);
+    return object9(await port.request(path, {}, signal));
+  };
+  const owned = (value) => {
+    const row = object9(value);
+    if (Object.entries(labels).some(([key, value]) => row[key] !== value))
+      throw new Error('Pending admission ownership differs');
+    return row;
+  };
+  const collection = (value) => {
+    if (
+      !Array.isArray(value.items) ||
+      value.items.length > 1e4 ||
+      (value.errors !== undefined && (!Array.isArray(value.errors) || value.errors.length)) ||
+      Object.keys(value).some((key) => !['items', 'errors'].includes(key))
+    )
+      throw new Error('Incomplete pending admission collection');
+    return value.items;
+  };
+  const absent = async (path) => {
+    try {
+      await read(path);
+    } catch (error) {
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
+    throw new Error('Physical site is present');
+  };
+  const snapshot = async () => {
+    const sites = [];
+    const resources = [];
+    const uids = new Set(),
+      names = new Set();
+    for (const binding of bindings) {
+      let siteUid = null;
+      let value;
+      try {
+        value = await read(`/api/config/namespaces/system/securemesh_site_v2s/${binding.siteName}`);
+      } catch (error) {
+        if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+      }
+      if (value) {
+        const metadata = object9(value.metadata),
+          uid = object9(value.system_metadata).uid;
+        owned(metadata.labels);
+        if (metadata.name !== binding.siteName || metadata.namespace !== 'system' || !text2(uid) || uids.has(uid))
+          throw new Error('Pending logical site identity differs');
+        siteUid = uid;
+        uids.add(uid);
+      }
+      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid: null });
+      await absent(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      if (collection(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`)).length)
+        throw new Error('Registration is present');
+    }
+    const query = new URLSearchParams({ label_filter: `xcsh-ce-deployment=${owner.deploymentId}` });
+    const tokens = collection(await read(`/api/register/namespaces/system/tokens?${query}`));
+    for (const item of tokens) {
+      const row = object9(item),
+        rowLabels = owned(row.labels),
+        node = rowLabels['xcsh-ce-node'];
+      if (
+        !name2(row.name) ||
+        row.namespace !== 'system' ||
+        !text2(row.uid) ||
+        names.has(String(row.name)) ||
+        uids.has(row.uid) ||
+        typeof node !== 'string' ||
+        !nodes.has(node)
+      )
+        throw new Error('Pending token identity differs');
+      const metadata = row.metadata == null ? {} : object9(row.metadata);
+      const system = row.system_metadata == null ? {} : object9(row.system_metadata);
+      if (
+        ['name', 'namespace'].some(
+          (key) => metadata[key] !== undefined && metadata[key] !== '' && metadata[key] !== row[key],
+        ) ||
+        (system.uid !== undefined && system.uid !== '' && system.uid !== row.uid)
+      )
+        throw new Error('Conflicting pending token identities');
+      if (metadata.labels !== undefined && Object.keys(object9(metadata.labels)).length) {
+        const nested = owned(metadata.labels);
+        if (nested['xcsh-ce-node'] !== node) throw new Error('Conflicting pending token node');
+      }
+      resources.push({
+        kind: 'tokens',
+        name: row.name,
+        namespace: 'system',
+        uid: row.uid,
+        node,
+        siteName: nodes.get(node),
+      });
+      names.add(String(row.name));
+      uids.add(row.uid);
+    }
+    const collections = [
+      ...['bgps', 'bgp_routing_policys', 'external_connectors'].map((kind) => ({ namespace: 'system', kind })),
+      ...namespaces.flatMap((namespace) => ['http_loadbalancers', 'origin_pools'].map((kind) => ({ namespace, kind }))),
+    ];
+    for (const { namespace, kind } of collections)
+      if (collection(await read(`/api/config/namespaces/${namespace}/${kind}?${query}`)).length)
+        throw new Error('Post-admission resource is present');
+    sites.sort((a, b) => a.siteName.localeCompare(b.siteName));
+    resources.sort((a, b) => a.name.localeCompare(b.name));
+    return { sites, resources };
+  };
+  try {
+    const first = await snapshot(),
+      second = await snapshot();
+    if (JSON.stringify(first) !== JSON.stringify(second))
+      throw new Error('Pending inventory changed during collection');
+    return { ...base, status: 'observed', ...second, sources, observedAt: new Date().toISOString() };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return {
+      ...base,
+      status: 'unknown',
+      reason: error instanceof CeApiError ? error.category : 'ownership-or-collection-incomplete',
+      sources,
+      observedAt: new Date().toISOString(),
+    };
+  }
+}
 var object9 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed teardown inventory');
     return value;
@@ -2539,6 +2677,16 @@ class CeRuntime {
   unregisteredAbsence(bindings, namespaces, contract, signal) {
     for (const binding of bindings) this.#binding(binding);
     return collectCeUnregisteredAbsence(
+      { request: (path, init, signal) => this.#request(path, init, signal) },
+      bindings,
+      namespaces,
+      { site: this.contract.fingerprint, ingress: contract.fingerprint },
+      signal,
+    );
+  }
+  pendingAdmissionInventory(bindings, namespaces, contract, signal) {
+    for (const binding of bindings) this.#binding(binding);
+    return collectCePendingAdmissionInventory(
       { request: (path, init, signal) => this.#request(path, init, signal) },
       bindings,
       namespaces,
