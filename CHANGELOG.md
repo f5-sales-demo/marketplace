@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
+- **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.
 - **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
 
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
