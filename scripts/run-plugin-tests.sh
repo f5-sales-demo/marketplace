@@ -46,7 +46,7 @@ python3 tests/test_native_capture_tools.py || exit 1
 bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-observer.test.ts scripts/observed-lifecycle-component.test.ts scripts/observe-marketplace-lifecycle.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
-bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {
+bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/ghostty-probe.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {
   echo "FATAL: marketplace integration lifecycle tests failed" >&2
   exit 1
 }

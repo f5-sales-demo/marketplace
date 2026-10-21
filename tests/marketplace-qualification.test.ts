@@ -24,6 +24,7 @@ test('catalog includes all current surfaces and entrypoints without Salesforce r
     'salesforce.lifecycle.event.tool_execution_end',
   );
   expect(catalog.find((p) => p.name === 'salesforce')?.serviceHosts).toEqual(['darwin']);
+  expect(catalog.find((p) => p.name === 'ghostty')?.serviceHosts).toEqual(['linux']);
 });
 
 test('installed selection rejects ambiguity, missing version and mismatched identity', () => {
