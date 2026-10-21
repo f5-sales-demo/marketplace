@@ -317,3 +317,100 @@ test('logical absence cannot manufacture successful F5 state retirement', async 
   ).rejects.toThrow('state retirement');
   expect(f.mutations).toEqual(['cloud']);
 });
+
+test('pending prepare reconciles a submitted owned site create from evidence before collecting immutable identities', async () => {
+  const f = await fixture();
+  const path = '/api/config/namespaces/system/securemesh_site_v2s';
+  const labels = {
+    'xcsh-ce-deployment': f.binding.owner.deploymentId,
+    'xcsh-ce-engine': 'terraform',
+    'xcsh-ce-provider': 'aws',
+    'xcsh-ce-account': f.binding.owner.account,
+    'xcsh-ce-region': f.binding.owner.region,
+  };
+  await f.storage.write('terraform-f5-resources.json', {
+    schemaVersion: 1,
+    owner: f.binding.owner,
+    resources: {},
+    pending: {
+      method: 'POST',
+      path,
+      planSha256: f.base.planSha256,
+      submitted: true,
+      receipt: { planSha256: 'a'.repeat(64) },
+      request: { metadata: { name: f.binding.siteName, namespace: 'system', labels }, spec: {} },
+    },
+  });
+  let reconciliations = 0;
+  const runtime = {
+    ...f.runtime,
+    reconcileObservedTerraformResources: async () => {
+      reconciliations++;
+      await f.storage.write('terraform-f5-resources.json', {
+        schemaVersion: 1,
+        owner: f.binding.owner,
+        resources: {
+          site: { type: 'xcsh_securemesh_site_v2', path: `${path}/${f.binding.siteName}`, uid: 'logical-uid' },
+        },
+      });
+    },
+  };
+  const plan = await prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage);
+  expect(plan.retirement[0].siteUid).toBe('logical-uid');
+  expect(reconciliations).toBe(1);
+  expect(f.mutations).toHaveLength(0);
+});
+
+test('submitted F5 reconciliation rejects unrelated requests before calling the provider owner', async () => {
+  for (const mode of [
+    'foreign-site',
+    'foreign-owner',
+    'foreign-labels',
+    'wrong-plan',
+    'unsubmitted',
+    'missing-receipt',
+  ]) {
+    const f = await fixture();
+    const owner = f.binding.owner;
+    const labels = {
+      'xcsh-ce-deployment': owner.deploymentId,
+      'xcsh-ce-engine': 'terraform',
+      'xcsh-ce-provider': 'aws',
+      'xcsh-ce-account': owner.account,
+      'xcsh-ce-region': owner.region,
+    };
+    const pending: Record<string, unknown> = {
+      method: 'PUT',
+      path: `/api/config/namespaces/system/securemesh_site_v2s/${f.binding.siteName}`,
+      planSha256: mode === 'wrong-plan' ? 'foreign' : f.base.planSha256,
+      submitted: mode !== 'unsubmitted',
+      receipt: { planSha256: 'a'.repeat(64) },
+      request: {
+        metadata: {
+          name: mode === 'foreign-site' ? 'foreign' : f.binding.siteName,
+          namespace: 'system',
+          labels: mode === 'foreign-labels' ? { ...labels, 'xcsh-ce-engine': 'native' } : labels,
+        },
+        spec: {},
+      },
+    };
+    if (mode === 'missing-receipt') delete pending.receipt;
+    await f.storage.write('terraform-f5-resources.json', {
+      schemaVersion: 1,
+      owner: mode === 'foreign-owner' ? { ...owner, engine: 'native' } : owner,
+      resources: {},
+      pending,
+    });
+    let calls = 0;
+    const runtime = {
+      ...f.runtime,
+      reconcileObservedTerraformResources: async () => {
+        calls++;
+        throw Error('must not execute');
+      },
+    };
+    await expect(prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage)).rejects.toThrow();
+    expect(calls).toBe(0);
+    expect(f.mutations).toHaveLength(0);
+  }
+});

@@ -103,7 +103,10 @@ retires cloud resources through the existing Terraform ownership guard and saved
 destroy plan, then deletes the exact logical UID through Terraform-owned F5 state
 execution. Already-removed planned identities can be resumed. New or substituted
 identities, advanced admission or unavailable evidence block further mutation.
-Only an exact pending F5 delete can be reconciled during resume. A pending F5 create
-or update requires separate interruption reconciliation. Physical or partial
+A durably submitted F5 create/update can be reconciled during preparation only
+through the observation-only provider operation: exact original request, owner,
+saved plan, provider state and API readback must agree, with no apply replay.
+Unsubmitted or unproven requests remain blocked. During retirement, only the
+selected pending F5 delete uses the ordinary reconciliation path. Physical or partial
 registration requires its own retirement contract. Source or synthetic receipts do not qualify live interruption/recovery,
 sensitive staging retirement, or full CE acceptance.

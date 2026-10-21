@@ -16225,6 +16225,51 @@ async function journal(base, storage, siteFingerprint) {
   }
   return canonicalSha256({ auth, workflow, admission, siteRecords });
 }
+async function reconcileSubmittedF5Site(base, runtime, storage, signal) {
+  let value;
+  try {
+    value = await storage.read('terraform-f5-resources.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (value === undefined) return;
+  const book = object22(value);
+  if (book.schemaVersion !== 1 || canonicalSha256(book.owner) !== canonicalSha256(storage.owner))
+    throw new Error('Pending F5 reconciliation state owner differs');
+  if (book.pending === undefined) return;
+  const pending = object22(book.pending);
+  if (pending.method === 'DELETE') return;
+  if (
+    pending.submitted !== true ||
+    !pending.receipt ||
+    pending.planSha256 !== base.planSha256 ||
+    !['POST', 'PUT'].includes(String(pending.method))
+  )
+    throw new Error('Pending F5 creation or update requires separate interruption reconciliation');
+  const { binding } = siteBindings(base)[0];
+  const path = '/api/config/namespaces/system/securemesh_site_v2s';
+  const metadata = object22(object22(pending.request).metadata),
+    labels = object22(metadata.labels);
+  const expectedLabels = {
+    'xcsh-ce-deployment': storage.owner.deploymentId,
+    'xcsh-ce-engine': 'terraform',
+    'xcsh-ce-provider': 'aws',
+    'xcsh-ce-account': storage.owner.account,
+    'xcsh-ce-region': storage.owner.region,
+  };
+  if (
+    pending.submitted !== true ||
+    !pending.receipt ||
+    pending.planSha256 !== base.planSha256 ||
+    !['POST', 'PUT'].includes(String(pending.method)) ||
+    pending.path !== (pending.method === 'POST' ? path : `${path}/${binding.siteName}`) ||
+    metadata.name !== binding.siteName ||
+    metadata.namespace !== 'system' ||
+    Object.entries(expectedLabels).some(([key, value]) => labels[key] !== value)
+  )
+    throw new Error('Pending F5 creation or update requires separate interruption reconciliation');
+  await runtime.reconcileObservedTerraformResources(storage.owner, signal);
+}
 async function verifyF5State(base, storage, planned) {
   let value;
   try {
@@ -16354,6 +16399,7 @@ async function prepareAwsPendingTeardown(base, runtime, contract, storage, signa
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
   const before = await journal(base, storage, runtime.contract.fingerprint);
+  await reconcileSubmittedF5Site(base, runtime, storage, signal);
   const receipt = fresh(
     await runtime.pendingAdmissionInventory(
       siteBindings(base).map((row) => row.binding),

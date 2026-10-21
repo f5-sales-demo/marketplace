@@ -60,8 +60,9 @@ export async function executeF5TerraformResource(
   contextName?: string,
   signal?: AbortSignal,
   tenantOrigin?: string,
+  execution: 'mutate' | 'observe-only' = 'mutate',
 ) {
-  if (init.method === 'RECONCILE') {
+  if (['RECONCILE', 'RECONCILE_OBSERVED'].includes(init.method ?? '')) {
     const storage = await platform.storage(owner);
     let book: Book;
     try {
@@ -70,7 +71,18 @@ export async function executeF5TerraformResource(
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
       throw error;
     }
+    if (
+      book.schemaVersion !== 1 ||
+      owner.engine !== 'terraform' ||
+      ['deploymentId', 'engine', 'provider', 'account', 'region'].some(
+        (key) => (book.owner as unknown as Json)?.[key] !== (owner as unknown as Json)[key],
+      )
+    )
+      throw new Error('F5 reconciliation state owner differs');
     if (!book.pending) return {};
+    const observationOnly = init.method === 'RECONCILE_OBSERVED';
+    if (observationOnly && (book.pending.submitted !== true || !book.pending.receipt))
+      throw new Error('Observed reconciliation requires a durably submitted saved apply');
     return executeF5TerraformResource(
       platform,
       terraform,
@@ -80,6 +92,7 @@ export async function executeF5TerraformResource(
       contextName,
       signal,
       tenantOrigin,
+      observationOnly ? 'observe-only' : execution,
     );
   }
   if (owner.engine !== 'terraform' || !platform.providerEnvironment)
@@ -142,6 +155,10 @@ export async function executeF5TerraformResource(
       )
     )
       throw new Error('F5 Terraform state owner differs');
+    // Recheck under the owning lock. Observation-only execution must never revise an
+    // unsubmitted request or reach provider apply, even if the pre-lock book changed.
+    if (execution === 'observe-only' && (book.pending?.submitted !== true || !book.pending.receipt))
+      throw new Error('Observed reconciliation lost its submitted saved apply binding');
     const addressName = `view_${hash([parts[2], parts[1], name]).slice(0, 24)}`;
     const type = kinds[parts[2]],
       address = `${type}.${addressName}`,
@@ -306,6 +323,7 @@ export async function executeF5TerraformResource(
     )
       throw new Error('F5 resource changed after saved-plan review');
     if (!reconciled) {
+      if (execution === 'observe-only') throw new Error('Observed reconciliation cannot replay provider apply');
       book.pending.submitted = true;
       await storage.write('terraform-f5-resources.json', book);
       await session.apply(receipt, env, signal);

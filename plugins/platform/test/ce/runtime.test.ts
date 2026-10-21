@@ -1971,3 +1971,25 @@ for (const mode of ['valid', 'foreign-uid', 'absent', 'lost-response'] as const)
     else await runtime.deleteBootstrapTokenExact(binding, binding.nodes[0], 'ce-token', 'token-uid');
     expect(deletes).toBe(['valid', 'lost-response'].includes(mode) ? 1 : 0);
   });
+
+test('observed-only F5 reconciliation uses the typed Terraform owner service', async () => {
+  const owner = { ...binding.owner, engine: 'terraform' as const };
+  const calls: Array<{ method: unknown; owner: unknown }> = [];
+  const runtime = new CeRuntime(
+    fixture(),
+    'terraform',
+    'https://tenant.test',
+    'test-credential',
+    async () => {
+      throw Error('native REST must not execute');
+    },
+    async (actual, _path, init) => {
+      calls.push({ owner: actual, method: init.method });
+      return {};
+    },
+  );
+  await runtime.reconcileObservedTerraformResources(owner);
+  expect(calls).toEqual([{ owner, method: 'RECONCILE_OBSERVED' }]);
+  await expect(runtime.reconcileObservedTerraformResources(binding.owner)).rejects.toThrow('unavailable');
+  expect(calls).toHaveLength(1);
+});

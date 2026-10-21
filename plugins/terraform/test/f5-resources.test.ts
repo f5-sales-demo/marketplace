@@ -45,7 +45,9 @@ async function fixture() {
     applyCount = 0,
     wrongUid = false,
     wrongSpec = false,
-    lose = false;
+    lose = false,
+    missingState = false,
+    foreignState = false;
   const receipt = { planSha256: 'b'.repeat(64), noChanges: false, changes: [] };
   const session = {
     readProviderSchemas: async () => ({
@@ -70,8 +72,17 @@ async function fixture() {
       return value;
     },
     readResourceIdentities: async () => {
+      if (missingState) return [];
       const book = (await storage.read('terraform-f5-resources.json')) as { pending?: { address: string } };
-      return [{ address: book.pending?.address, type: 'xcsh_bgp', name: 'site-bgp', namespace: 'system', labels }];
+      return [
+        {
+          address: book.pending?.address,
+          type: 'xcsh_bgp',
+          name: 'site-bgp',
+          namespace: 'system',
+          labels: foreignState ? { ...labels, 'xcsh-ce-engine': 'native' } : labels,
+        },
+      ];
     },
     plan: async () => ({ ...receipt, noChanges: applyCount > 0 }),
     apply: async () => {
@@ -112,8 +123,24 @@ async function fixture() {
   return {
     storage,
     request,
+    observedReconcile: () =>
+      executeF5TerraformResource(platform, terraform, owner, '/api/config/terraform-f5-reconcile', {
+        method: 'RECONCILE_OBSERVED',
+      }),
     run,
     applyCount: () => applyCount,
+    missingState: () => {
+      missingState = true;
+    },
+    foreignState: () => {
+      foreignState = true;
+    },
+    missingApi: () => {
+      actual = undefined;
+    },
+    serviceFailure: () => {
+      globalThis.fetch = (async () => new Response(null, { status: 503 })) as unknown as typeof fetch;
+    },
     wrongUid: () => {
       wrongUid = true;
     },
@@ -163,4 +190,57 @@ test('exact lost-apply readback reconciles the original saved plan once without 
   expect(f.applyCount()).toBe(1);
   const book = (await f.storage.read('terraform-f5-resources.json')) as { pending?: unknown };
   expect(book.pending).toBeUndefined();
+});
+
+test('observed-only reconciliation commits a proven submitted create without replaying provider apply', async () => {
+  const f = await fixture();
+  f.lose();
+  await expect(f.run()).rejects.toThrow('lost apply');
+  const value = await f.observedReconcile();
+  expect(value.system_metadata).toEqual({ uid: 'bgp-one' });
+  expect(f.applyCount()).toBe(1);
+  const book = (await f.storage.read('terraform-f5-resources.json')) as { pending?: unknown };
+  expect(book.pending).toBeUndefined();
+});
+test('observed-only reconciliation rejects unsubmitted or unproven pending requests without apply', async () => {
+  for (const mode of ['unsubmitted', 'missing-receipt', 'wrong-spec']) {
+    const f = await fixture();
+    f.lose();
+    await expect(f.run()).rejects.toThrow('lost apply');
+    const book = (await f.storage.read('terraform-f5-resources.json')) as { pending: Record<string, unknown> };
+    if (mode === 'unsubmitted') book.pending.submitted = false;
+    if (mode === 'missing-receipt') delete book.pending.receipt;
+    if (mode === 'wrong-spec') f.extraPolicy();
+    await f.storage.write('terraform-f5-resources.json', book);
+    await expect(f.observedReconcile()).rejects.toThrow();
+    expect(f.applyCount()).toBe(1);
+    const after = (await f.storage.read('terraform-f5-resources.json')) as { pending?: unknown };
+    expect(after.pending).toBeDefined();
+  }
+});
+
+test('observed-only reconciliation commits an exact submitted update without a second update apply', async () => {
+  const f = await fixture();
+  await f.run();
+  f.request.spec.peers[0].external.address = '192.0.2.2';
+  f.lose();
+  await expect(f.run('PUT')).rejects.toThrow('lost apply');
+  const result = await f.observedReconcile();
+  expect(result.system_metadata).toEqual({ uid: 'bgp-one' });
+  expect(f.applyCount()).toBe(2);
+});
+test('observed reconciliation preserves pending state for missing, foreign and unavailable state/API evidence', async () => {
+  for (const mode of ['missing-state', 'foreign-state', 'missing-api', 'service']) {
+    const f = await fixture();
+    f.lose();
+    await expect(f.run()).rejects.toThrow('lost apply');
+    if (mode === 'missing-state') f.missingState();
+    if (mode === 'foreign-state') f.foreignState();
+    if (mode === 'missing-api') f.missingApi();
+    if (mode === 'service') f.serviceFailure();
+    await expect(f.observedReconcile()).rejects.toThrow();
+    expect(f.applyCount()).toBe(1);
+    const book = (await f.storage.read('terraform-f5-resources.json')) as { pending?: unknown };
+    expect(book.pending).toBeDefined();
+  }
 });

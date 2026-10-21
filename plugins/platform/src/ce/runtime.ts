@@ -817,6 +817,12 @@ export class CeRuntime {
       throw new Error('Terraform F5 state service is unavailable');
     await this.resourceMutation(owner, '/api/config/terraform-f5-reconcile', { method: 'RECONCILE' }, signal);
   }
+  /** Reconcile only a submitted apply whose exact state/API outcome is proven; never replay apply. */
+  async reconcileObservedTerraformResources(owner: CeOwner, signal?: AbortSignal): Promise<void> {
+    if (this.engine !== 'terraform' || owner.engine !== 'terraform' || !this.resourceMutation)
+      throw new Error('Terraform F5 state service is unavailable');
+    await this.resourceMutation(owner, '/api/config/terraform-f5-reconcile', { method: 'RECONCILE_OBSERVED' }, signal);
+  }
   requireAwsHaContract(): void {
     this.contract.requireAwsHaNodeConfiguration();
   }
