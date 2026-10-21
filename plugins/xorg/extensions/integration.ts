@@ -1,5 +1,5 @@
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import { controllerArgv, type DesktopInput, INSTALLED_XORGCTL } from './commands';
 import { presentTool as enrichTool } from './presentation';
 
 interface ExtensionApi {
@@ -16,9 +16,8 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
-const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync([INSTALLED_XORGCTL, ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
@@ -54,18 +53,33 @@ export default function xorgIntegration(pi: ExtensionApi) {
       ],
     },
     async probe() {
-      const r = invoke(undefined, ['capabilities']);
-      const text = new TextDecoder().decode(r.stdout);
-      if (r.exitCode !== 0 || !text.includes(VERSION)) {
-        return { state: 'degraded', reason: 'version_mismatch' };
+      let r: ReturnType<typeof invoke>;
+      try {
+        r = invoke(undefined, ['capabilities']);
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'ENOENT') throw error;
+        return { state: 'setup_required', reason: 'cli_missing', value: { next: 'xcsh plugin setup xorg' } };
+      }
+      if (r.exitCode !== 0) return { state: 'degraded', reason: 'capabilities_probe_failed' };
+      try {
+        const envelope = JSON.parse(new TextDecoder().decode(r.stdout));
+        if (envelope?.ok !== true || envelope.result?.version !== VERSION)
+          return { state: 'degraded', reason: 'version_mismatch' };
+      } catch {
+        return { state: 'degraded', reason: 'capabilities_probe_invalid' };
       }
       const setup = invoke(undefined, ['setup', 'status', '--params', JSON.stringify({ expected_version: VERSION })]);
       if (setup.exitCode !== 0) return { state: 'degraded', reason: 'setup_probe_failed' };
       try {
-        const envelope = JSON.parse(new TextDecoder().decode(setup.stdout)) as {
-          result?: { state?: string; missing?: string[] };
-        };
-        return envelope.result?.state === 'ready'
+        const envelope = JSON.parse(new TextDecoder().decode(setup.stdout));
+        if (
+          envelope?.ok !== true ||
+          !envelope.result ||
+          typeof envelope.result !== 'object' ||
+          Array.isArray(envelope.result)
+        )
+          return { state: 'degraded', reason: 'setup_probe_invalid' };
+        return envelope.result.state === 'ready'
           ? { state: 'ready', value: envelope.result }
           : { state: 'degraded', reason: 'setup_incomplete', value: envelope.result };
       } catch {
@@ -85,24 +99,17 @@ export default function xorgIntegration(pi: ExtensionApi) {
         action: pi.typebox.Type.String(),
         params: pi.typebox.Type.Record(pi.typebox.Type.String(), pi.typebox.Type.Unknown()),
       }),
-      async execute(
-        _toolCallId: string,
-        input: { session?: string; command: string; action?: string; params?: Record<string, unknown> },
-      ) {
-        const r = invoke(input.session, [
-          input.command,
-          ...(input.action ? [input.action] : []),
-          '--params',
-          JSON.stringify(input.params ?? {}),
-        ]);
+      async execute(_toolCallId: string, input: DesktopInput) {
+        const r = Bun.spawnSync(controllerArgv(input));
         const output = new TextDecoder().decode(r.stdout);
+        const stderr = new TextDecoder().decode(r.stderr);
         let observation: unknown;
         try {
-          observation = JSON.parse(output);
+          observation = JSON.parse(r.exitCode !== 0 && !output.trim() ? stderr : output);
         } catch {
           observation = undefined;
         }
-        const details = { exitCode: r.exitCode, output, observation };
+        const details = { exitCode: r.exitCode, output, stderr, observation };
         return { content: [{ type: 'text', text: JSON.stringify(details) }], details, isError: r.exitCode !== 0 };
       },
     }),
