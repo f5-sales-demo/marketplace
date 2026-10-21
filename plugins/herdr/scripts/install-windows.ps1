@@ -14,8 +14,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $MinimumProtocol = 27
-$PinnedVersion = "0.19.2"
-$PinnedSha256 = "b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b"
+$PinnedVersion = "0.19.4"
+$PinnedSha256 = "b2d064a0bb726eada8bec81bed7554a55a230c1e4e785138f641012cdc6ecbfe"
 
 function Get-Target {
     param([string]$RequestedArchitecture)
