@@ -68,9 +68,15 @@ describe('full marketplace presentation through installed-plugin discovery', () 
         expect(descriptor.call?.({ count: 0, enabled: false }, options)).toBeDefined();
         const view = descriptor.result?.(output, options, {});
         const data = JSON.stringify(view);
-        expect(data).toContain('total');
-        expect(data).toContain('false');
-        expect(data).toContain('null');
+        const opaqueZoom = registered.definition.name === 'zoom_meeting';
+        if (opaqueZoom) {
+          expect(view?.expandedEvidence).not.toBe('provided');
+          expect(view?.warnings?.join(' ')).toContain('readiness is unverified');
+        } else {
+          expect(data).toContain('total');
+          expect(data).toContain('false');
+          expect(data).toContain('null');
+        }
         expect(output.content[0].text).toContain('"total":0');
         const tool = wrapRegisteredTool(registered, { createContext: () => ({}) } as ExtensionRunner);
         for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
@@ -86,11 +92,16 @@ describe('full marketplace presentation through installed-plugin discovery', () 
               for (const width of [40, 76, 120, 153]) {
                 const lines = component.render(width);
                 expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
-                expect(lines.join('\n')).toContain('total');
-                expect(lines.join('\n')).toContain('false');
-                expect(lines.join('\n')).toContain('null');
+                if (expanded || !opaqueZoom) {
+                  expect(lines.join('\n')).toContain('total');
+                  expect(lines.join('\n')).toContain('false');
+                  expect(lines.join('\n')).toContain('null');
+                } else {
+                  expect(Bun.stripANSI(lines.join('\n'))).toContain('unverified');
+                }
               }
             }
+            component.stopAnimation();
           }
         }
       }
