@@ -52,6 +52,7 @@ async function inventory(
   teardown: Teardown,
   evidenceSha256: string,
   store: CeDeploymentStore,
+  recorded?: Map<string, Item>,
 ): Promise<Item[]> {
   await directory(store.directory);
   const items: Item[] = [];
@@ -153,6 +154,85 @@ async function inventory(
     for (const suffix of ['', '-authorization', '-checkpoint', '-action-plan', '-receipt', '-stage-retirement'])
       upgradeJournals.add(`${String(source.planId)}${suffix}.json`);
   }
+  const replacementJournals = new Set<string>();
+  if (recorded) {
+    for (const item of recorded.values())
+      if (
+        !item.preserve &&
+        /^aws-ce-replace-[a-f0-9]{24}(?:-mtu|-terraform-(?:source|quiesce-plan|launch-plan|launch|refresh|final-refresh))?\.json$/.test(
+          item.path,
+        )
+      )
+        replacementJournals.add(item.path);
+  }
+  for (const { binding } of siteBindings(base)) {
+    const frozenName = `terraform-initial-replacement-${binding.siteName}.json`;
+    if (!(await readdir(store.directory)).includes(frozenName)) continue;
+    // The initial inventory qualifies every replacement source before recording any removal.
+    // On resume its exact hashes admit surviving journals after source/checkpoint removal.
+    if (recorded?.has(frozenName)) continue;
+    const frozen = object(await store.read(frozenName)),
+      plan = object(frozen.plan),
+      checkpoint = object(await store.read(`${String(plan.planId)}.json`));
+    const { planId: _id, planSha256: _digest, ...draft } = plan;
+    const versions = object(plan.versions),
+      preparation = object(plan.preparation),
+      versionIdentity = object(versions.identity),
+      instances = object(checkpoint.instances),
+      bootstrap = object(checkpoint.bootstrap),
+      bootstrapSha256 = object(checkpoint.bootstrapSha256);
+    if (
+      frozen.sourcePlanSha256 !== base.planSha256 ||
+      !sha(frozen.configurationSha256) ||
+      plan.schemaVersion !== 2 ||
+      plan.kind !== 'aws-ce-site-replacement' ||
+      plan.engine !== 'terraform' ||
+      plan.sourcePlanSha256 !== base.planSha256 ||
+      canonicalSha256(plan.binding) !== canonicalSha256(binding) ||
+      !sha(plan.planSha256) ||
+      canonicalSha256(draft) !== plan.planSha256 ||
+      plan.planId !== `aws-ce-replace-${String(plan.planSha256).slice(0, 24)}` ||
+      versions.schemaVersion !== 1 ||
+      canonicalSha256(versionIdentity.binding) !== canonicalSha256(binding) ||
+      versionIdentity.siteUid !== preparation.uid ||
+      !versionIdentity.physicalSiteUid ||
+      checkpoint.physicalSiteUid === versionIdentity.physicalSiteUid ||
+      checkpoint.schemaVersion !== 2 ||
+      checkpoint.planSha256 !== plan.planSha256 ||
+      checkpoint.phase !== 'complete' ||
+      typeof checkpoint.siteUid !== 'string' ||
+      !checkpoint.siteUid ||
+      checkpoint.siteUid === preparation.uid ||
+      typeof checkpoint.physicalSiteUid !== 'string' ||
+      !checkpoint.physicalSiteUid ||
+      !sha(checkpoint.quiesceConfigurationSha256) ||
+      checkpoint.versionAdmissionSha256 !== canonicalSha256(versions) ||
+      Object.keys(instances).length !== binding.nodes.length ||
+      new Set(Object.values(instances)).size !== binding.nodes.length ||
+      Object.keys(bootstrap).length !== binding.nodes.length ||
+      Object.keys(bootstrapSha256).length !== binding.nodes.length ||
+      binding.nodes.some(
+        (node) =>
+          !/^i-[a-f0-9]{8,17}$/.test(String(instances[node])) ||
+          instances[node] === object(preparation.instances)[node] ||
+          typeof bootstrap[node] !== 'string' ||
+          !bootstrap[node] ||
+          bootstrapSha256[node] !== canonicalSha256(bootstrap[node]),
+      )
+    )
+      throw Error('Completed replacement parent provenance differs');
+    for (const suffix of [
+      '',
+      '-mtu',
+      '-terraform-source',
+      '-terraform-quiesce-plan',
+      '-terraform-launch-plan',
+      '-terraform-launch',
+      '-terraform-refresh',
+      '-terraform-final-refresh',
+    ])
+      replacementJournals.add(`${String(plan.planId)}${suffix}.json`);
+  }
   for (const name of upgradeJournals) preserve.add(name);
   if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   let rootRunner = false;
@@ -179,6 +259,7 @@ async function inventory(
     if (
       !preserve.has(name) &&
       !drainJournals.has(name) &&
+      !replacementJournals.has(name) &&
       !/^(?:terraform-|aws-terraform-|ingress-plan-|ingress-checkpoint-|ingress-origin-checkpoint-)[a-zA-Z0-9._-]+\.json$/.test(
         name,
       )
@@ -284,7 +365,7 @@ export async function retireAwsTerraformParentArtifacts(
       throw Error('Parent retirement inventory malformed');
     expected.set(item.path, item as unknown as Item);
   }
-  const current = await inventory(base, teardown, evidenceSha256, store);
+  const current = await inventory(base, teardown, evidenceSha256, store, expected);
   if (
     current.some((item) => canonicalSha256(item) !== canonicalSha256(expected.get(item.path))) ||
     [...expected.values()].some((item) => item.preserve && !current.some((row) => row.path === item.path)) ||

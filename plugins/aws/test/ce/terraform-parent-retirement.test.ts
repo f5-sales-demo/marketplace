@@ -8,6 +8,7 @@ import { canonicalSha256 } from '../../src/ce/canonical';
 import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
 import { retireAwsTerraformParentArtifacts } from '../../src/ce/terraform-parent-retirement';
 import { siteBindings } from '../../src/ce/topology';
+import { replacementVersions } from './replacement-version-fixtures';
 import { foundationPlan } from './terraform-fixtures';
 
 const roots: string[] = [];
@@ -227,6 +228,99 @@ test('parent retirement resumes after cancellation between recorded removals', a
   expect(
     ((await f.store.read('aws-terraform-parent-artifact-retirement.json')) as Record<string, unknown>).status,
   ).toBe('retiring');
+  expect((await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).status).toBe(
+    'deployment-artifacts-retired',
+  );
+});
+
+async function completedReplacement(f: Awaited<ReturnType<typeof fixture>>) {
+  const binding = siteBindings(f.base)[0].binding;
+  const node = binding.nodes[0];
+  const versions = replacementVersions(binding);
+  const draft = {
+    schemaVersion: 2,
+    kind: 'aws-ce-site-replacement',
+    engine: 'terraform',
+    sourcePlanSha256: f.base.planSha256,
+    binding,
+    preparation: { uid: 'old-site', instances: { [node]: 'i-12345678' } },
+    versions,
+  };
+  const digest = canonicalSha256(draft);
+  const plan = { ...draft, planId: `aws-ce-replace-${digest.slice(0, 24)}`, planSha256: digest };
+  await f.store.write(`terraform-initial-replacement-${binding.siteName}.json`, {
+    sourcePlanSha256: f.base.planSha256,
+    configurationSha256: 'e'.repeat(64),
+    plan,
+  });
+  await f.store.write(`${plan.planId}.json`, {
+    schemaVersion: 2,
+    planSha256: digest,
+    phase: 'complete',
+    siteUid: 'new-site',
+    physicalSiteUid: 'new-physical-site',
+    quiesceConfigurationSha256: 'f'.repeat(64),
+    versionAdmissionSha256: canonicalSha256(versions),
+    instances: { [node]: 'i-87654321' },
+    bootstrap: { [node]: 'PRIVATE_SYNTHETIC_BOOTSTRAP' },
+    bootstrapSha256: { [node]: canonicalSha256('PRIVATE_SYNTHETIC_BOOTSTRAP') },
+  });
+  await f.store.write(`${plan.planId}-terraform-final-refresh.json`, { syntheticFinalRefresh: true });
+  return plan;
+}
+
+test('parent retirement removes completed frozen initial replacement journals and sensitive bootstrap', async () => {
+  const f = await fixture();
+  const plan = await completedReplacement(f);
+  const result = await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store);
+  expect(result.status).toBe('deployment-artifacts-retired');
+  expect(await readdir(f.store.directory)).not.toContain(`${plan.planId}.json`);
+  expect(await readdir(f.store.directory)).not.toContain(`${plan.planId}-terraform-final-refresh.json`);
+  expect(await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).toEqual(result);
+});
+
+test('parent retirement rejects unbound, incomplete, corrupt or unexpected replacement journals before removal', async () => {
+  for (const mode of ['source', 'owner', 'digest', 'phase', 'bootstrap', 'instance', 'unknown', 'orphan']) {
+    const f = await fixture();
+    const plan = await completedReplacement(f);
+    const frozenName = `terraform-initial-replacement-${plan.binding.siteName}.json`;
+    const frozen = (await f.store.read(frozenName)) as { sourcePlanSha256: string; plan: typeof plan };
+    const checkpoint = (await f.store.read(`${plan.planId}.json`)) as {
+      phase: string;
+      bootstrap: Record<string, string>;
+      instances: Record<string, string>;
+    };
+    if (mode === 'source') frozen.sourcePlanSha256 = '0'.repeat(64);
+    if (mode === 'owner') frozen.plan.binding.owner.account = 'example-foreign-account';
+    if (mode === 'digest') frozen.plan.planSha256 = '0'.repeat(64);
+    if (mode === 'phase') checkpoint.phase = 'registration';
+    if (mode === 'bootstrap') checkpoint.bootstrap[plan.binding.nodes[0]] = 'SUBSTITUTED';
+    if (mode === 'instance') checkpoint.instances = {};
+    if (mode === 'unknown') await f.store.write(`${plan.planId}-unexpected.json`, {});
+    await f.store.write(frozenName, frozen);
+    await f.store.write(`${plan.planId}.json`, checkpoint);
+    if (mode === 'orphan') await f.store.remove(frozenName);
+    await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
+    expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+    expect(await readdir(f.store.directory)).not.toContain('aws-terraform-parent-artifact-retirement.json');
+  }
+});
+
+test('completed replacement cleanup resumes after its checkpoint was removed', async () => {
+  const f = await fixture();
+  const plan = await completedReplacement(f);
+  const controller = new AbortController();
+  const verify = f.store.verify.bind(f.store);
+  f.store.verify = async () => {
+    await verify();
+    const files = await readdir(f.store.directory);
+    if (files.includes('aws-terraform-parent-artifact-retirement.json') && !files.includes(`${plan.planId}.json`))
+      controller.abort();
+  };
+  await expect(
+    retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store, controller.signal),
+  ).rejects.toThrow();
+  f.store.verify = verify;
   expect((await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).status).toBe(
     'deployment-artifacts-retired',
   );

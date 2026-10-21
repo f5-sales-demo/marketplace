@@ -8,6 +8,10 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## CE UAT87
+
+- Retire validated completed initial-replacement journals and bootstrap staging during AWS Terraform parent cleanup, retaining exact interruption recovery.
+
 ## CE UAT86
 
 - Qualify provider-computed interface readback for Terraform replacement reconciliation; retain strict writable configuration and identity checks.
