@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import observe from '../scripts/observe-marketplace-campaign';
@@ -603,4 +603,83 @@ test('normal finish closes capture and ignores subsequent frame controls', async
     expect(existsSync(join(state.root, 'frames/frame.json'))).toBe(false);
     expect(readFileSync(join(state.root, 'events.jsonl'), 'utf8')).toContain('capture_closed');
   });
+});
+
+function prepareFixtureRead(plugin: string, path: string) {
+  const root = realpathSync(join(plugin, '..'));
+  const file = join(root, 'review.mdx');
+  writeFileSync(file, 'synthetic review\n');
+  const scenario = JSON.parse(readFileSync(path, 'utf8'));
+  scenario.calls = [];
+  scenario.fixtureReads = [
+    {
+      root,
+      path: file,
+      sha256: createHash('sha256').update('synthetic review\n').digest('hex'),
+      args: { path: file, sel: '', timeout: 120 },
+    },
+  ];
+  writeFileSync(path, JSON.stringify(scenario));
+}
+
+test('reviewed fixture reads capture actual workflow evidence separately from shipped guidance', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(realpathSync(join(root, '..')), 'review.mdx'), sel: '', timeout: 120 };
+      const start = { toolName: 'read', toolCallId: 'fixture', args: input };
+      handlers.get('tool_execution_start')[0](start);
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'fixture', input })).toBeUndefined();
+      const end = {
+        toolName: 'read',
+        toolCallId: 'fixture',
+        result: { content: [{ type: 'text', text: 'synthetic review' }] },
+        isError: false,
+      };
+      handlers.get('tool_execution_end')[0](end);
+      handlers.get('tool_execution_end')[0](end);
+      expect(handlers.get('tool_call')[0]({ toolName: 'read', toolCallId: 'repeat', input })).toMatchObject({
+        block: true,
+      });
+      await expect(commands.get('marketplace-campaign-guidance-capture').handler('', {})).rejects.toThrow('No actual');
+      await commands.get('marketplace-campaign-capture').handler('', { ui: { custom: async () => {} } });
+      expect(JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8'))).toEqual([
+        {
+          id: 'tool-0-read',
+          tool: 'read',
+          fixturePath: input.path,
+          fixtureSha256: createHash('sha256').update('synthetic review\n').digest('hex'),
+        },
+      ]);
+    },
+    prepareFixtureRead,
+  );
+});
+
+test('fixture evidence rejects changed files, mismatched arguments and unadmitted late results', async () => {
+  await harness(
+    'service',
+    async ({ handlers, commands, root }) => {
+      const input = { path: join(realpathSync(join(root, '..')), 'review.mdx'), sel: '', timeout: 120 };
+      const call = { toolName: 'read', toolCallId: 'changed', input };
+      expect(handlers.get('tool_call')[0](call)).toBeUndefined();
+      handlers.get('tool_execution_start')[0]({ ...call, args: input });
+      writeFileSync(input.path, 'changed');
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'read',
+        toolCallId: 'changed',
+        result: { content: [{ type: 'text', text: 'changed' }] },
+        isError: false,
+      });
+      handlers.get('tool_execution_start')[0]({ toolName: 'read', toolCallId: 'unadmitted', args: input });
+      handlers.get('tool_execution_end')[0]({
+        toolName: 'read',
+        toolCallId: 'unadmitted',
+        result: { content: [] },
+        isError: false,
+      });
+      await expect(commands.get('marketplace-campaign-capture').handler('', {})).rejects.toThrow('No actual');
+    },
+    prepareFixtureRead,
+  );
 });
