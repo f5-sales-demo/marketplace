@@ -2014,7 +2014,7 @@ describe('catalog tool presentation mappings', () => {
               {},
             ),
           ),
-        ).toContain('Corrective guidance');
+        ).toContain(plugin === 'zoom' ? 'readiness is unverified' : 'Corrective guidance');
       }
     });
   }

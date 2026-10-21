@@ -53,13 +53,12 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
       input: unknown,
     ) {
       const d = record(result.details);
+      // The runtime appends automatic evidence for opaque observations. Keep this
+      // view useful without copying the same raw payload into adapter sections.
       const fallback = () => ({
-        sections: [
-          ...p.data(result.details),
-          ...result.content
-            .filter((b) => b.type === 'text')
-            .map((b) => ({ kind: 'code' as const, title: 'Complete Zoom output', text: b.text ?? '' })),
-        ],
+        summary: 'Zoom observation is unavailable or malformed',
+        warnings: ['Expand the result for complete output and corrective guidance; readiness is unverified.'],
+        sections: [scope(input)],
       });
       if (
         typeof d.exitCode !== 'number' ||
