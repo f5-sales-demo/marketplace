@@ -152,7 +152,7 @@ test('parent retirement rejects directory symlink substitution without deleting 
   await rename(original, external);
   await symlink(external, original);
   await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
-  expect(await readdir(external)).toEqual(['artifact-retirement.json', 'deployment.json']);
+  expect((await readdir(external)).sort()).toEqual(['artifact-retirement.json', 'deployment.json']);
   expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
 });
 test('parent interrupted cleanup rejects changed preserved bindings and newly created journals', async () => {
