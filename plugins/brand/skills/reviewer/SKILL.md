@@ -106,14 +106,25 @@ Use Glob to find all SVG files that appear to be logos
 Scan Mermaid diagrams and Astro component imports for icon
 pack references.
 
-**Registered packs**: `f5-brand`, `f5xc`, `hashicorp-flight`,
-`carbon`, `lucide`, `mdi`, `phosphor`, `tabler`, `azure`,
-`aws`, `gcp`, `simple-icons`
+**Default Mermaid registrations**: `f5-brand`, `f5xc`, `hashicorp-flight`,
+`carbon`, `lucide`, `mdi`, `phosphor`, `tabler`, `azure`
+
+Additional available packages: `aws`, `gcp`, `simple-icons`.
+Availability does not establish Mermaid registration or an Astro import.
+Check the target's Mermaid configuration and Astro dependencies/imports
+separately. Custom Mermaid registrations are valid when present in that target.
+If configuration or icon definitions cannot be inspected, report the check
+as unassessed; do not infer missing registration or icon names.
+
+The default list comes from `docs-theme/config.ts`,
+`mermaid.registerIconPacks`, inspected at commit
+`b7bfd07b1d3cbe6674987cf913485164598e6b6d`. Verify the target's version.
 
 **Severities:**
 
-- Reference to unregistered icon pack → WARNING
-- Icon name not found in registered pack → SUGGESTION
+- Mermaid reference to a pack absent from the inspected target registrations
+  → WARNING
+- Icon name absent from inspected pack definitions → SUGGESTION
 
 ## Check 5: Accessibility compliance
 
@@ -195,13 +206,14 @@ Z suggestion(s).
 
 ### WARNINGS (likely issues)
 
-- **file.mdx:L8** — Screenshot missing dark variant
 - **styles.css:L45** — Hardcoded `#e4002b`; use
   `var(--f5-red)` instead
 - **file.mdx:L3** — Image missing alt text
 
 ### SUGGESTIONS (style improvements)
 
+- **file.mdx:L8** — Screenshot missing dark variant;
+  capture a separate dark-mode screenshot
 - **file.mdx:L20** — "bot defense" should be
   capitalized: "Bot Defense"
 - **file.mdx:L1** — "F5 XC" used without prior

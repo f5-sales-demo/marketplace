@@ -41,7 +41,9 @@ white-forced background container regardless of site theme.
 
 ### Registered icon packs
 
-Source: `docs-theme/config.ts` lines 307-317
+Source: `docs-theme/config.ts`, `mermaid.registerIconPacks`, inspected at
+commit `b7bfd07b1d3cbe6674987cf913485164598e6b6d`. Verify the target's
+configuration before treating these defaults as active registrations.
 
 | Pack name | Icon count | Best for |
 | --------- | ---------- | -------- |
@@ -198,7 +200,7 @@ use them directly.
 ### Slide layout guidelines
 
 - F5 logo on every slide — top-right or bottom-right
-- Title slides: F5 Red or River gradient background with
+- Title slides: River gradient background with
   white text (Neusa Bold)
 - Content slides: white background, dark text
 - Data visualization: use the brand color series in order —
@@ -212,7 +214,7 @@ For complete slide template specs, consult
 
 ### Thumbnails
 
-- **Background**: F5 Red or River gradient, or dark navy
+- **Background**: River gradient, or dark navy
   (River-4 `#072155`)
 - **Text**: white, Neusa Next Pro Wide Bold (or Arial Black
   fallback), large enough to read at thumbnail size
@@ -245,7 +247,7 @@ product naming.
 
 ### Social media design rules
 
-- Use brand color backgrounds (River, Red, or dark navy)
+- Use brand color backgrounds (River or dark navy)
   with contrasting white text
 - Include the F5 logo on all branded social graphics
 - Hashtag conventions: `#F5` `#F5XC` `#AppSecurity`

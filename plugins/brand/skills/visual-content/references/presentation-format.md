@@ -8,7 +8,7 @@
 | ------------- | -------- | --- |
 | Background (light) | White | `#ffffff` |
 | Background (dark) | River-4 | `#072155` |
-| Background (accent) | F5 Red | `#e4002b` |
+| Background (accent) | River | `#0e41aa` |
 | Background (gradient start) | River-2 | `#6e8dcc` |
 | Background (gradient end) | River | `#0e41aa` |
 | Title text (on light) | Black | `#000000` |
@@ -37,7 +37,7 @@
 
 #### Title slide
 
-- Background: F5 Red or River gradient (135deg)
+- Background: River gradient (135deg)
 - Title: white, Neusa Bold, 36-44pt
 - Subtitle: white, Proxima Regular, 18-24pt
 - F5 logo: bottom-right, white variant
@@ -86,7 +86,7 @@
 | Property | Value |
 | -------- | ----- |
 | Dimensions | 1280x720px (16:9) |
-| Background | F5 Red gradient, River gradient, or dark navy (River-4) |
+| Background | River gradient, or dark navy (River-4) |
 | Text font | Neusa Next Pro Wide Bold (or Arial Black) |
 | Text color | White |
 | Text size | Large enough to read at 120x68px preview |
@@ -97,7 +97,7 @@
 
 | Property | Value |
 | -------- | ----- |
-| Background | River-4 (`#072155`) or F5 Red gradient |
+| Background | River-4 (`#072155`) or River gradient |
 | Title font | Neusa Next Pro Wide Bold, 48-64pt |
 | Title color | White |
 | Subtitle | Proxima Nova Regular, 24-32pt, white |
@@ -131,7 +131,7 @@
 
 ### Social image design
 
-- Background: brand color (River, Red, or River-4)
+- Background: brand color (River or River-4)
   with contrasting white text
 - Text: Neusa Next Pro Wide Bold (or Arial Black)
 - Keep text to 3-5 words — social images must
