@@ -50,6 +50,14 @@ communication occurred. Other panes, queued work and historical receipts remain
 preserved. Only immutable publication and installed file provenance advance;
 child #1599 and campaign #1579 stay open.
 
+The merged #1800 implementation worktrees and confirmed-merged local branches
+were retired on Mac and Ubuntu after inspecting ignored files and checking
+worktree consumers. Private recovery bundles preserve each branch; private
+archives preserve generated dependencies, Python caches and dependency links.
+No unrelated worktree or qualification pane was removed. This closes source-task
+cleanup only; the #1809 receipt worktrees and remaining installed/service gates
+stay active.
+
 Private evidence roots are `herdr1800-published-mac-20261021` and
 `herdr1800-published-ubuntu-20261021`, containing independent archives, API
 metadata, source comparisons, installed digests and literal status outputs.
