@@ -8,6 +8,20 @@ description: >-
   demo-housekeeping agent.
 ---
 
+## Evidence and reporting
+
+Keep the caller's repository, target and requested stage explicit. If required
+workspace guidance is missing or unreadable, report incomplete evidence and its
+exact path; do not substitute a default product, environment or readiness claim.
+Lead reports with scope, completion, observed findings, warnings and next action.
+Separate observations, assumptions, proposed actions and unverified conclusions.
+Preserve zero, false, empty strings and unknown values. Show at most twelve
+findings initially, then include remaining evidence once with sources and literal
+corrective guidance. Redact credentials and sensitive variable values in every
+message, table and command example; report variable names and resolution state.
+A status request does not authorize Prepare, Teardown, deployment or service
+startup. Retain each workflow's existing authorization and mutation guards.
+
 **Canonical skill URI**: `skill://sales-engineer:demo-ops`
 
 # Demo Environment Operations
@@ -54,8 +68,8 @@ session context for the live demo.
 1. Spawn the `demo-housekeeping` subagent (from the plugin's agents)
    with the prompt: "Run Prepare stage"
 2. Wait for the subagent to return its readiness report
-3. Display the full tiered readiness summary and resolved variable
-   table to the operator
+3. Display the tiered readiness summary and redacted variable names
+   and resolution states to the operator; never display sensitive values
 4. If the subagent reports **NOT READY** status (any T0–T2 FAIL) or
    missing required variables, relay the specifics to the operator
    and stop
