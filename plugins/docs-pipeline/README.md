@@ -39,6 +39,12 @@ working with MDX files, or setting up local preview.
 
 Starts a local Docker dev server for docs preview.
 
+### /docs-pipeline-status
+
+Inspects content, the shared Pages workflow and governance using the caller's
+repository root. Status performs no build or service startup. Missing, unreadable
+or malformed indicators remain incomplete, with literal corrective guidance.
+
 ## Installation
 
 ```bash
