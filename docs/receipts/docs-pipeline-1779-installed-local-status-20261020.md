@@ -65,11 +65,40 @@ owned pane returning to its shell. Raw events, scenario, captures and semantic
 checks remain private under `docs-pipeline1757-installed-status-mac-20261020`.
 No raw environment, credentials or customer content is published.
 
+## Missing and malformed indicators
+
+A second executed scenario retained one content path, omitted the index and
+shared workflow, and supplied deliberately malformed governance JSON. The exact
+installed guidance read and shipped Bash call both succeeded with zero blocked
+or extra calls. The collector returned completion incomplete, content present,
+entrypoint missing, workflow missing, governance malformed and contentCount 1.
+remainingContent stayed empty and all three execution flags remained false.
+
+The final answer preserved every observed value and each literal warning:
+
+- Provide docs/index.md or docs/index.mdx and validate its frontmatter separately.
+- Review the shared Pages workflow through docs-control; do not create local Astro configuration.
+- Repair malformed governance through docs-control and repeat the inspection.
+
+It distinguished successful script execution from incomplete local inspection.
+The actual Bash result and assistant conclusion passed another 96 appearance
+frames; all 48 assistant frames retained the three complete warnings, empty
+remaining evidence and false flags. Capture closure and session shutdown were
+observed. Scenario SHA256:
+`c183ef9bbd507a4b2bdc6edccf210791ec888ed0c165cf1dfde3c096174d17fd`.
+
+Two preceding attempts were safely rejected: a plugin URI instead of the
+absolute installed read path, then omission of the shipped script's trailing
+newline. Both sessions shut down; no collector executed in either. These failed
+runs remain private and do not qualify results. The successful retry supplied
+the exact reviewed argument object, including the trailing newline. Raw evidence
+is retained under `docs-pipeline1779-installed-malformed-exact-argv-mac-20261020`.
+
 ## Remaining actions
 
 Only `docs-pipeline.command.docs-pipeline-status.capture` is supported by this
-scoped Mac receipt. Repeat the exact fixture on Ubuntu, qualify missing,
-malformed and unavailable indicators, and execute full command invocation with
+scoped Mac receipt. Repeat the exact fixture on Ubuntu, qualify empty and
+unavailable indicators, and execute full command invocation with
 complete guidance fidelity. Delegated operator execution needs a session that
 permits subagents. Preview startup remains deferred. Resolve the content-only
 public lifecycle representation before accepting its status gate. Historical
