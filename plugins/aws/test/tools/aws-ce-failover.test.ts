@@ -277,3 +277,71 @@ test('public failover routes native ownership without opening Terraform', async 
   expect(nativeRuns).toBe(1);
   expect(artifacts.some((value) => value.includes('aws-ce-native-failover'))).toBe(true);
 });
+
+for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-f5-cancellation-pending.json'])
+  test(`public Terraform failover rejects ${marker} before provider access`, async () => {
+    const fixture = connectFixture(),
+      { planId: _id, planSha256: _sha, ...draft } = fixture.plan;
+    draft.routing = structuredClone(draft.intent.routing);
+    const normalized = {
+      ...draft,
+      accountId: fixture.plan.intent.accountId,
+      region: fixture.plan.intent.region,
+      deploymentName: fixture.plan.intent.deploymentName,
+    };
+    const planSha256 = canonicalSha256(normalized),
+      plan = { ...normalized, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+    const directory = await mkdtemp(join(tmpdir(), 'aws-ce-failover-retired-'));
+    directories.push(directory);
+    const owner = {
+      deploymentId: plan.deploymentName,
+      engine: 'terraform' as const,
+      provider: 'aws' as const,
+      account: plan.accountId,
+      region: plan.region,
+    };
+    const storage = await CeDeploymentStore.open(directory, owner);
+    await storage.write(marker, { malformed: true });
+    let providers = 0;
+    const platform = { storage: async () => storage } as unknown as CePlatformService;
+    const ctx = {
+      cwd: directory,
+      hasUI: false,
+      ui: {
+        confirm: async () => {
+          throw Error('approval forbidden');
+        },
+      },
+      sessionManager: {
+        getSessionId: () => directory,
+        getArtifactsDir: () => null,
+        getArtifactPath: async () => null,
+        saveArtifact: async () => 'saved',
+      },
+    } satisfies AwsCeToolContext;
+    await saveAwsPlan(ctx.sessionManager, plan, {} as never);
+    const tool = createAwsCeFailoverTool({ typebox } as PluginInterface, {
+      platform: async () => platform,
+      terraform: async () => {
+        providers++;
+        throw Error('provider forbidden');
+      },
+    });
+    for (const operation of ['prepare', 'apply'] as const) {
+      const result = (await tool.execute(
+        `retired-${operation}`,
+        {
+          operation,
+          basePlanId: plan.planId,
+          basePlanSha256: plan.planSha256,
+          ...(operation === 'prepare' ? { nodeIndex: 1 } : {}),
+        },
+        undefined,
+        undefined,
+        ctx,
+      )) as { isError: boolean; content: unknown };
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('retirement');
+      expect(providers).toBe(0);
+    }
+  });

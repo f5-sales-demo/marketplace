@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
@@ -298,3 +299,68 @@ test('public upgrade tool executes a native upgrade without opening Terraform', 
   ).toBe('upgrade-complete');
   expect({ submissions, confirms, terraformCalls }).toEqual({ submissions: 1, confirms: 1, terraformCalls: 0 });
 });
+
+for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-f5-cancellation-pending.json', 'held-lock'])
+  test(`public Terraform upgrade rejects ${marker} before runtime access`, async () => {
+    const initial = foundationPlan(),
+      { planId: _id, planSha256: _sha, ...draft } = initial;
+    const normalized = {
+      ...draft,
+      deploymentName: initial.intent.deploymentName,
+      accountId: initial.intent.accountId,
+      region: initial.intent.region,
+    };
+    const planSha256 = canonicalSha256(normalized),
+      plan = { ...normalized, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+    const path = await mkdtemp(join(tmpdir(), 'aws-ce-upgrade-retired-'));
+    directories.push(path);
+    const storage = await CeDeploymentStore.open(path, siteBindings(plan)[0].binding.owner);
+    const release =
+      marker === 'held-lock'
+        ? await acquireProcessLock(join(storage.directory, '.aws-terraform-lifecycle-lock'))
+        : undefined;
+    if (!release) await storage.write(marker, { malformed: true });
+    let runtimes = 0;
+    const platform = {
+      storage: async () => storage,
+      runtime: async () => {
+        runtimes++;
+        throw Error('runtime must not execute');
+      },
+    } as unknown as CePlatformService;
+    const ctx = {
+      cwd: path,
+      hasUI: false,
+      ui: {
+        confirm: async () => {
+          throw Error('approval must not execute');
+        },
+      },
+      sessionManager: {
+        getSessionId: () => path,
+        getArtifactsDir: () => null,
+        getArtifactPath: async () => null,
+        saveArtifact: async () => 'saved',
+      },
+    } satisfies AwsCeToolContext;
+    await saveAwsPlan(ctx.sessionManager, plan, {} as never);
+    const tool = createAwsCeUpgradeTool({ typebox } as PluginInterface, {
+      platform: async () => platform,
+      contract: async () => {
+        throw Error('contract must not execute');
+      },
+    });
+    for (const operation of ['prepare', 'apply'] as const) {
+      const result = (await tool.execute(
+        `retired-${operation}`,
+        { operation, basePlanId: plan.planId, basePlanSha256: plan.planSha256 },
+        undefined,
+        undefined,
+        ctx,
+      )) as { isError: boolean; content: unknown };
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(marker === 'held-lock' ? 'live process' : 'retirement');
+      expect(runtimes).toBe(0);
+    }
+    await release?.();
+  });

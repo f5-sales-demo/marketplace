@@ -256,3 +256,15 @@ test('public Terraform power rejects retained interface binding drift despite ma
   expect(result.content[0].text).toContain('retained routing bindings');
   expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
 });
+
+for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-f5-cancellation-pending.json'])
+  test(`public Terraform power rejects ${marker} across public operations`, async () => {
+    const f = await fixture('terraform');
+    await f.store.write(marker, { malformed: true });
+    for (const operation of ['prepare-stop', 'prepare-start', 'apply', 'status']) {
+      const result = await f.run({ ...f.base, operation } as never);
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('retirement');
+    }
+    expect(f.nlb.calls.some((args) => args[1] === 'deregister-targets')).toBe(false);
+  });

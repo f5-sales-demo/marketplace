@@ -18721,130 +18721,136 @@ function createAwsCeUpgradeTool(pi, dependencies = defaults2) {
           region: plan.region,
         };
         const storage = await platform.storage(owner);
-        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
-        const contract = await dependencies.contract(signal);
-        if (params.operation === 'prepare') {
-          if (!params.siteName || !params.kind || !params.version)
-            throw new Error('Upgrade preparation requires siteName, kind and version');
-          const upgrade =
-            plan.engine === 'terraform'
-              ? await prepareAwsTerraformUpgrade(
-                  plan,
-                  params.siteName,
-                  { kind: params.kind, version: params.version },
-                  runtime,
-                  contract,
-                  signal,
-                )
-              : await prepareAwsNativeUpgrade(
-                  plan,
-                  params.siteName,
-                  { kind: params.kind, version: params.version },
-                  runtime,
-                  contract,
-                  signal,
-                );
-          const existing = await optional13(storage, `${upgrade.planId}.json`);
-          if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
-          else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
-            throw new Error('Persisted AWS CE upgrade plan differs');
-          const artifactId = await ctx.sessionManager.saveArtifact(
-            JSON.stringify({
-              kind: upgrade.kind,
-              engine: upgrade.engine,
-              planId: upgrade.planId,
-              planSha256: upgrade.planSha256,
-              sourcePlanSha256: upgrade.sourcePlanSha256,
-              siteName: upgrade.expectation.binding.siteName,
-              target: upgrade.expectation.target,
-            }),
-            'aws-ce-upgrade-plan',
-          );
-          if (!artifactId) throw new Error('AWS CE upgrade plan artifact persistence failed');
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Upgrade plan ID: ${upgrade.planId}
+        const executeActive = async () => {
+          if (plan.engine === 'terraform') await assertAwsTerraformDeploymentActive(storage);
+          const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
+          const contract = await dependencies.contract(signal);
+          if (params.operation === 'prepare') {
+            if (!params.siteName || !params.kind || !params.version)
+              throw new Error('Upgrade preparation requires siteName, kind and version');
+            const upgrade =
+              plan.engine === 'terraform'
+                ? await prepareAwsTerraformUpgrade(
+                    plan,
+                    params.siteName,
+                    { kind: params.kind, version: params.version },
+                    runtime,
+                    contract,
+                    signal,
+                  )
+                : await prepareAwsNativeUpgrade(
+                    plan,
+                    params.siteName,
+                    { kind: params.kind, version: params.version },
+                    runtime,
+                    contract,
+                    signal,
+                  );
+            const existing = await optional13(storage, `${upgrade.planId}.json`);
+            if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
+            else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
+              throw new Error('Persisted AWS CE upgrade plan differs');
+            const artifactId = await ctx.sessionManager.saveArtifact(
+              JSON.stringify({
+                kind: upgrade.kind,
+                engine: upgrade.engine,
+                planId: upgrade.planId,
+                planSha256: upgrade.planSha256,
+                sourcePlanSha256: upgrade.sourcePlanSha256,
+                siteName: upgrade.expectation.binding.siteName,
+                target: upgrade.expectation.target,
+              }),
+              'aws-ce-upgrade-plan',
+            );
+            if (!artifactId) throw new Error('AWS CE upgrade plan artifact persistence failed');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Upgrade plan ID: ${upgrade.planId}
 SHA-256: ${upgrade.planSha256}
 Site: ${upgrade.expectation.binding.siteName}
 Target: ${upgrade.expectation.target.kind} ${upgrade.expectation.target.version}
 Artifact: artifact://${artifactId}`,
+                },
+              ],
+              details: {
+                tool: 'aws_ce_upgrade',
+                operation: 'prepare',
+                artifactId,
+                planId: upgrade.planId,
+                planSha256: upgrade.planSha256,
               },
-            ],
-            details: {
-              tool: 'aws_ce_upgrade',
-              operation: 'prepare',
-              artifactId,
-              planId: upgrade.planId,
-              planSha256: upgrade.planSha256,
-            },
-          };
-        }
-        if (!params.upgradePlanId || !params.upgradePlanSha256)
-          throw new Error('Upgrade apply requires the exact upgrade plan ID and SHA-256');
-        const upgrade = await storage.read(`${params.upgradePlanId}.json`);
-        if (plan.engine === 'terraform') await verifyAwsTerraformUpgrade(plan, upgrade, contract);
-        else verifyAwsNativeUpgrade(plan, upgrade, contract);
-        if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
-          throw new Error('Persisted AWS CE upgrade plan identity differs');
-        const authorizationName = `${upgrade.planId}-authorization.json`;
-        const authorization = await optional13(storage, authorizationName);
-        if (authorization !== undefined) {
-          if (
-            !authorization ||
-            typeof authorization !== 'object' ||
-            authorization.schemaVersion !== 1 ||
-            authorization.engine !== plan.engine ||
-            authorization.sourcePlanSha256 !== plan.planSha256 ||
-            authorization.upgradePlanSha256 !== upgrade.planSha256 ||
-            authorization.mutations !== true
-          )
-            throw new Error('Persisted AWS CE upgrade authorization differs');
-        } else {
-          if (
-            ctx.hasUI &&
-            !(await ctx.ui.confirm(
-              'Apply immutable AWS CE upgrade plan',
-              `${upgrade.planId}
+            };
+          }
+          if (!params.upgradePlanId || !params.upgradePlanSha256)
+            throw new Error('Upgrade apply requires the exact upgrade plan ID and SHA-256');
+          const upgrade = await storage.read(`${params.upgradePlanId}.json`);
+          if (plan.engine === 'terraform') await verifyAwsTerraformUpgrade(plan, upgrade, contract);
+          else verifyAwsNativeUpgrade(plan, upgrade, contract);
+          if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
+            throw new Error('Persisted AWS CE upgrade plan identity differs');
+          const authorizationName = `${upgrade.planId}-authorization.json`;
+          const authorization = await optional13(storage, authorizationName);
+          if (authorization !== undefined) {
+            if (
+              !authorization ||
+              typeof authorization !== 'object' ||
+              authorization.schemaVersion !== 1 ||
+              authorization.engine !== plan.engine ||
+              authorization.sourcePlanSha256 !== plan.planSha256 ||
+              authorization.upgradePlanSha256 !== upgrade.planSha256 ||
+              authorization.mutations !== true
+            )
+              throw new Error('Persisted AWS CE upgrade authorization differs');
+          } else {
+            if (
+              ctx.hasUI &&
+              !(await ctx.ui.confirm(
+                'Apply immutable AWS CE upgrade plan',
+                `${upgrade.planId}
 ${upgrade.planSha256}
 ${upgrade.expectation.binding.siteName}: ${upgrade.expectation.target.kind} ${upgrade.expectation.target.version}`,
-            ))
-          )
-            throw new Error('AWS CE upgrade was not approved');
-          await storage.write(authorizationName, {
-            schemaVersion: 1,
-            engine: plan.engine,
-            sourcePlanSha256: plan.planSha256,
-            upgradePlanSha256: upgrade.planSha256,
-            mutations: true,
-          });
-        }
-        const result =
-          plan.engine === 'terraform'
-            ? await runAwsTerraformUpgrade(
-                plan,
-                upgrade,
-                params.upgradePlanSha256,
-                runtime,
-                contract,
-                await dependencies.terraform(pi, signal),
-                storage,
-                process.env,
-                signal,
-              )
-            : await runAwsNativeUpgrade(plan, upgrade, params.upgradePlanSha256, runtime, contract, storage, signal);
-        const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-upgrade-checkpoint');
-        if (!artifactId) throw new Error('AWS CE upgrade checkpoint artifact persistence failed');
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `AWS CE upgrade ${upgrade.expectation.binding.siteName}: ${String(result.status)}. Node, routing and traffic health require separate collected evidence.`,
-            },
-          ],
-          details: { tool: 'aws_ce_upgrade', operation: 'apply', artifactId, ...result },
+              ))
+            )
+              throw new Error('AWS CE upgrade was not approved');
+            await storage.write(authorizationName, {
+              schemaVersion: 1,
+              engine: plan.engine,
+              sourcePlanSha256: plan.planSha256,
+              upgradePlanSha256: upgrade.planSha256,
+              mutations: true,
+            });
+          }
+          const result =
+            plan.engine === 'terraform'
+              ? await runAwsTerraformUpgrade(
+                  plan,
+                  upgrade,
+                  params.upgradePlanSha256,
+                  runtime,
+                  contract,
+                  await dependencies.terraform(pi, signal),
+                  storage,
+                  process.env,
+                  signal,
+                )
+              : await runAwsNativeUpgrade(plan, upgrade, params.upgradePlanSha256, runtime, contract, storage, signal);
+          const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-upgrade-checkpoint');
+          if (!artifactId) throw new Error('AWS CE upgrade checkpoint artifact persistence failed');
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `AWS CE upgrade ${upgrade.expectation.binding.siteName}: ${String(result.status)}. Node, routing and traffic health require separate collected evidence.`,
+              },
+            ],
+            details: { tool: 'aws_ce_upgrade', operation: 'apply', artifactId, ...result },
+          };
         };
+        return plan.engine === 'terraform'
+          ? await withAwsTerraformLifecycle(storage, signal, executeActive)
+          : await executeActive();
       } catch (error) {
         signal?.throwIfAborted();
         return {
@@ -18869,6 +18875,7 @@ var init_aws_ce_upgrade = __esm(() => {
   init_native_upgrade2();
   init_platform();
   init_terraform_apply();
+  init_terraform_lifecycle();
   init_terraform_upgrade();
   defaults2 = {
     platform: awsPlatformService,
@@ -19557,213 +19564,221 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
           region: plan.region,
         };
         const storage = await platform.storage(owner);
-        if (params.operation === 'prepare') {
-          if (!Number.isInteger(params.nodeIndex)) throw new Error('Failover preparation requires an exact nodeIndex');
-          let failover;
-          if (plan.engine === 'terraform') {
-            const terraform = await dependencies.terraform(pi, signal);
-            const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
-            const marker = object25(await storage.read('terraform-connect-stage.json'));
-            if (
-              marker.schemaVersion !== 1 ||
-              marker.engine !== 'terraform' ||
-              marker.planSha256 !== plan.planSha256 ||
-              marker.stage !== 'applied' ||
-              typeof marker.configurationSha256 !== 'string'
-            )
-              throw new Error('Terraform Connect deployment has not completed');
-            const configuration = await session.readConfiguration(marker.configurationSha256);
-            const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
-            const instances = object25(outputs.ce_instances);
-            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object25(value) }));
-            if (
-              identities.length !== plan.intent.topology.nodeCount ||
-              new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
-              identities.some(
-                ({ node, value }) =>
-                  !/^i-[0-9a-f]{8,17}$/.test(String(value.id)) ||
-                  value.hostname !== `${plan.deploymentName}-${node}` ||
-                  value.site_name !== siteForNode(plan.intent, Number(node)).name,
-              )
-            )
-              throw new Error('Terraform instance output is incomplete');
-            const selected = object25(instances[String(params.nodeIndex)]);
-            if (typeof selected.id !== 'string') throw new Error('Selected Terraform instance identity is unavailable');
-            failover = buildAwsTerraformFailover(
-              plan,
-              params.nodeIndex,
-              selected.id,
-              configuration,
-              marker.configurationSha256,
-            );
-          } else {
-            const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
-            const instanceId = checkpoint?.resolvedValues[`__INSTANCE_${params.nodeIndex}__`];
-            if (checkpoint?.engine !== 'native' || checkpoint.state !== 'complete' || typeof instanceId !== 'string')
-              throw new Error('Completed native deployment identity is unavailable');
-            const registration = (plan.actions ?? []).find(
-              (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
-            );
-            const replacement = registration
-              ? await optional16(storage, `${registration.id}-initial-mtu-replacement.json`)
-              : undefined;
-            let instancePlanSha256 = plan.planSha256;
-            if (replacement !== undefined) {
-              const envelope = object25(replacement);
-              const child = object25(envelope.plan);
-              const binding = object25(child.binding);
-              const { planId, planSha256, ...draft } = child;
-              const expectedSite = siteForNode(plan.intent, params.nodeIndex);
+        const executeActive = async () => {
+          if (plan.engine === 'terraform') await assertAwsTerraformDeploymentActive(storage);
+          if (params.operation === 'prepare') {
+            if (!Number.isInteger(params.nodeIndex))
+              throw new Error('Failover preparation requires an exact nodeIndex');
+            let failover;
+            if (plan.engine === 'terraform') {
+              const terraform = await dependencies.terraform(pi, signal);
+              const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+              const marker = object25(await storage.read('terraform-connect-stage.json'));
               if (
-                envelope.sourcePlanSha256 !== plan.planSha256 ||
-                typeof planSha256 !== 'string' ||
-                planId !== `aws-ce-replace-${planSha256.slice(0, 24)}` ||
-                canonicalSha256(draft) !== planSha256 ||
-                binding.siteName !== expectedSite.name ||
-                !Array.isArray(binding.nodes) ||
-                !binding.nodes.includes(`${plan.deploymentName}-${params.nodeIndex}`) ||
-                !checkpoint.childPlanSha256s?.includes(planSha256)
+                marker.schemaVersion !== 1 ||
+                marker.engine !== 'terraform' ||
+                marker.planSha256 !== plan.planSha256 ||
+                marker.stage !== 'applied' ||
+                typeof marker.configurationSha256 !== 'string'
               )
-                throw new Error('Native replacement instance plan identity differs');
-              instancePlanSha256 = planSha256;
+                throw new Error('Terraform Connect deployment has not completed');
+              const configuration = await session.readConfiguration(marker.configurationSha256);
+              const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
+              const instances = object25(outputs.ce_instances);
+              const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object25(value) }));
+              if (
+                identities.length !== plan.intent.topology.nodeCount ||
+                new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
+                identities.some(
+                  ({ node, value }) =>
+                    !/^i-[0-9a-f]{8,17}$/.test(String(value.id)) ||
+                    value.hostname !== `${plan.deploymentName}-${node}` ||
+                    value.site_name !== siteForNode(plan.intent, Number(node)).name,
+                )
+              )
+                throw new Error('Terraform instance output is incomplete');
+              const selected = object25(instances[String(params.nodeIndex)]);
+              if (typeof selected.id !== 'string')
+                throw new Error('Selected Terraform instance identity is unavailable');
+              failover = buildAwsTerraformFailover(
+                plan,
+                params.nodeIndex,
+                selected.id,
+                configuration,
+                marker.configurationSha256,
+              );
+            } else {
+              const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+              const instanceId = checkpoint?.resolvedValues[`__INSTANCE_${params.nodeIndex}__`];
+              if (checkpoint?.engine !== 'native' || checkpoint.state !== 'complete' || typeof instanceId !== 'string')
+                throw new Error('Completed native deployment identity is unavailable');
+              const registration = (plan.actions ?? []).find(
+                (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
+              );
+              const replacement = registration
+                ? await optional16(storage, `${registration.id}-initial-mtu-replacement.json`)
+                : undefined;
+              let instancePlanSha256 = plan.planSha256;
+              if (replacement !== undefined) {
+                const envelope = object25(replacement);
+                const child = object25(envelope.plan);
+                const binding = object25(child.binding);
+                const { planId, planSha256, ...draft } = child;
+                const expectedSite = siteForNode(plan.intent, params.nodeIndex);
+                if (
+                  envelope.sourcePlanSha256 !== plan.planSha256 ||
+                  typeof planSha256 !== 'string' ||
+                  planId !== `aws-ce-replace-${planSha256.slice(0, 24)}` ||
+                  canonicalSha256(draft) !== planSha256 ||
+                  binding.siteName !== expectedSite.name ||
+                  !Array.isArray(binding.nodes) ||
+                  !binding.nodes.includes(`${plan.deploymentName}-${params.nodeIndex}`) ||
+                  !checkpoint.childPlanSha256s?.includes(planSha256)
+                )
+                  throw new Error('Native replacement instance plan identity differs');
+                instancePlanSha256 = planSha256;
+              }
+              failover = buildAwsNativeFailover(plan, params.nodeIndex, instanceId, instancePlanSha256);
             }
-            failover = buildAwsNativeFailover(plan, params.nodeIndex, instanceId, instancePlanSha256);
+            const existing = await optional16(storage, `${failover.planId}.json`);
+            if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
+            else if (canonicalSha256(existing) !== canonicalSha256(failover))
+              throw new Error('Persisted AWS CE failover plan differs');
+            const artifactId = await ctx.sessionManager.saveArtifact(
+              JSON.stringify({
+                kind: failover.kind,
+                engine: failover.engine,
+                planId: failover.planId,
+                planSha256: failover.planSha256,
+                sourcePlanSha256: failover.sourcePlanSha256,
+                nodeIndex: failover.nodeIndex,
+              }),
+              'aws-ce-failover-plan',
+            );
+            if (!artifactId) throw new Error('AWS CE failover plan artifact persistence failed');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Failover plan ID: ${failover.planId}
+SHA-256: ${failover.planSha256}
+Node: ${failover.nodeIndex}
+Artifact: artifact://${artifactId}`,
+                },
+              ],
+              details: {
+                tool: 'aws_ce_failover',
+                operation: 'prepare',
+                artifactId,
+                planId: failover.planId,
+                planSha256: failover.planSha256,
+              },
+            };
           }
-          const existing = await optional16(storage, `${failover.planId}.json`);
-          if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
-          else if (canonicalSha256(existing) !== canonicalSha256(failover))
-            throw new Error('Persisted AWS CE failover plan differs');
-          const artifactId = await ctx.sessionManager.saveArtifact(
-            JSON.stringify({
-              kind: failover.kind,
-              engine: failover.engine,
-              planId: failover.planId,
-              planSha256: failover.planSha256,
-              sourcePlanSha256: failover.sourcePlanSha256,
-              nodeIndex: failover.nodeIndex,
-            }),
-            'aws-ce-failover-plan',
-          );
-          if (!artifactId) throw new Error('AWS CE failover plan artifact persistence failed');
+          if (!params.failoverPlanId || !params.failoverPlanSha256)
+            throw new Error('Failover apply requires the exact failover plan identity');
+          const failover = await storage.read(`${params.failoverPlanId}.json`);
+          if (plan.engine === 'terraform') verifyAwsTerraformFailover(plan, failover);
+          else verifyAwsNativeFailover(plan, failover);
+          if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
+            throw new Error('Persisted AWS CE failover plan identity differs');
+          const authorizationName = `${failover.planId}-authorization.json`;
+          const authorization = await optional16(storage, authorizationName);
+          if (authorization === undefined) {
+            if (
+              ctx.hasUI &&
+              !(await ctx.ui.confirm(
+                'Execute planned AWS CE failover',
+                `${failover.planId}
+${failover.planSha256}
+Node ${failover.nodeIndex}`,
+              ))
+            )
+              throw new Error('AWS CE failover was not approved');
+            await storage.write(authorizationName, {
+              schemaVersion: 1,
+              engine: plan.engine,
+              sourcePlanSha256: plan.planSha256,
+              failoverPlanSha256: failover.planSha256,
+              mutations: true,
+            });
+          } else if (
+            canonicalSha256(authorization) !==
+            canonicalSha256({
+              schemaVersion: 1,
+              engine: plan.engine,
+              sourcePlanSha256: plan.planSha256,
+              failoverPlanSha256: failover.planSha256,
+              mutations: true,
+            })
+          )
+            throw new Error('Persisted AWS CE failover authorization differs');
+          const api = scopedAwsApi(dependencies.makeApi(ctx.cwd), plan.intent.awsProfile, signal);
+          const routing =
+            plan.engine === 'terraform'
+              ? await storage.read('terraform-routing-checkpoint.json')
+              : await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+          if (!routing) throw new Error('AWS CE routing checkpoint is unavailable');
+          const collect = (phase, currentSignal) =>
+            dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal);
+          const result =
+            plan.engine === 'terraform'
+              ? await dependencies.run(
+                  plan,
+                  failover,
+                  params.failoverPlanSha256,
+                  await (await dependencies.terraform(pi, signal)).open(
+                    owner,
+                    await awsTerraformFoundationDeployment(plan),
+                    'current',
+                  ),
+                  storage,
+                  collect,
+                  process.env,
+                  signal,
+                )
+              : await dependencies.runNative(
+                  plan,
+                  failover,
+                  params.failoverPlanSha256,
+                  storage,
+                  (currentSignal) => dependencies.observeNative(plan, failover, api, currentSignal),
+                  async (phase, currentSignal) => {
+                    const response = await api.exec(
+                      'aws',
+                      [
+                        'ec2',
+                        phase === 'stop' ? 'stop-instances' : 'start-instances',
+                        '--instance-ids',
+                        failover.instanceId,
+                        '--region',
+                        plan.region,
+                        '--output',
+                        'json',
+                      ],
+                      { signal: currentSignal },
+                    );
+                    if (response.exitCode !== 0) throw new Error(`Native failover ${phase} request failed`);
+                  },
+                  collect,
+                  signal,
+                );
+          const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-failover-receipt');
+          if (!artifactId) throw new Error('AWS CE failover receipt persistence failed');
           return {
             content: [
               {
                 type: 'text',
-                text: `Failover plan ID: ${failover.planId}
-SHA-256: ${failover.planSha256}
-Node: ${failover.nodeIndex}
-Artifact: artifact://${artifactId}`,
+                text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Traffic and origin-control evidence remain separate.`,
               },
             ],
-            details: {
-              tool: 'aws_ce_failover',
-              operation: 'prepare',
-              artifactId,
-              planId: failover.planId,
-              planSha256: failover.planSha256,
-            },
+            ...('acceptance' in result && result.acceptance !== 'passed' ? { isError: true } : {}),
+            details: { tool: 'aws_ce_failover', operation: 'apply', artifactId, ...result },
           };
-        }
-        if (!params.failoverPlanId || !params.failoverPlanSha256)
-          throw new Error('Failover apply requires the exact failover plan identity');
-        const failover = await storage.read(`${params.failoverPlanId}.json`);
-        if (plan.engine === 'terraform') verifyAwsTerraformFailover(plan, failover);
-        else verifyAwsNativeFailover(plan, failover);
-        if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
-          throw new Error('Persisted AWS CE failover plan identity differs');
-        const authorizationName = `${failover.planId}-authorization.json`;
-        const authorization = await optional16(storage, authorizationName);
-        if (authorization === undefined) {
-          if (
-            ctx.hasUI &&
-            !(await ctx.ui.confirm(
-              'Execute planned AWS CE failover',
-              `${failover.planId}
-${failover.planSha256}
-Node ${failover.nodeIndex}`,
-            ))
-          )
-            throw new Error('AWS CE failover was not approved');
-          await storage.write(authorizationName, {
-            schemaVersion: 1,
-            engine: plan.engine,
-            sourcePlanSha256: plan.planSha256,
-            failoverPlanSha256: failover.planSha256,
-            mutations: true,
-          });
-        } else if (
-          canonicalSha256(authorization) !==
-          canonicalSha256({
-            schemaVersion: 1,
-            engine: plan.engine,
-            sourcePlanSha256: plan.planSha256,
-            failoverPlanSha256: failover.planSha256,
-            mutations: true,
-          })
-        )
-          throw new Error('Persisted AWS CE failover authorization differs');
-        const api = scopedAwsApi(dependencies.makeApi(ctx.cwd), plan.intent.awsProfile, signal);
-        const routing =
-          plan.engine === 'terraform'
-            ? await storage.read('terraform-routing-checkpoint.json')
-            : await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
-        if (!routing) throw new Error('AWS CE routing checkpoint is unavailable');
-        const collect = (phase, currentSignal) =>
-          dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal);
-        const result =
-          plan.engine === 'terraform'
-            ? await dependencies.run(
-                plan,
-                failover,
-                params.failoverPlanSha256,
-                await (await dependencies.terraform(pi, signal)).open(
-                  owner,
-                  await awsTerraformFoundationDeployment(plan),
-                  'current',
-                ),
-                storage,
-                collect,
-                process.env,
-                signal,
-              )
-            : await dependencies.runNative(
-                plan,
-                failover,
-                params.failoverPlanSha256,
-                storage,
-                (currentSignal) => dependencies.observeNative(plan, failover, api, currentSignal),
-                async (phase, currentSignal) => {
-                  const response = await api.exec(
-                    'aws',
-                    [
-                      'ec2',
-                      phase === 'stop' ? 'stop-instances' : 'start-instances',
-                      '--instance-ids',
-                      failover.instanceId,
-                      '--region',
-                      plan.region,
-                      '--output',
-                      'json',
-                    ],
-                    { signal: currentSignal },
-                  );
-                  if (response.exitCode !== 0) throw new Error(`Native failover ${phase} request failed`);
-                },
-                collect,
-                signal,
-              );
-        const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-failover-receipt');
-        if (!artifactId) throw new Error('AWS CE failover receipt persistence failed');
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Traffic and origin-control evidence remain separate.`,
-            },
-          ],
-          ...('acceptance' in result && result.acceptance !== 'passed' ? { isError: true } : {}),
-          details: { tool: 'aws_ce_failover', operation: 'apply', artifactId, ...result },
         };
+        return plan.engine === 'terraform'
+          ? await withAwsTerraformLifecycle(storage, signal, executeActive)
+          : await executeActive();
       } catch (error) {
         signal?.throwIfAborted();
         return {
@@ -19794,6 +19809,7 @@ var init_aws_ce_failover = __esm(() => {
   init_terraform_apply();
   init_terraform_failover();
   init_terraform_foundation();
+  init_terraform_lifecycle();
   init_shared();
   defaults3 = {
     platform: awsPlatformService,
@@ -24968,8 +24984,7 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
         const { plan: base } = await loadAwsPlan(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
         if (base.intent.operation !== 'deploy' || base.topology.nodeCount !== 1)
           throw Error('AWS power requires original single-node deployment; multi-node lifecycle unqualified');
-        const platform = await dependencies.platform(pi, signal),
-          runtime = await platform.runtime(base.engine, base.intent.platformContext);
+        const platform = await dependencies.platform(pi, signal);
         const owner = {
           deploymentId: base.deploymentName,
           engine: base.engine,
@@ -24977,128 +24992,136 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
           account: base.accountId,
           region: base.region,
         };
-        const storage = await platform.storage(owner),
-          api = dependencies.makeApi(ctx.cwd);
-        await storage.verify();
-        const terraform = base.engine === 'terraform' ? await dependencies.terraform(pi, signal) : undefined;
-        let values;
-        if (terraform) {
-          const workflow = await readAwsTerraformWorkflowStatus(base, storage);
-          if (
-            workflow.progress.state !== 'registered' ||
-            workflow.routing?.state === 'partial' ||
-            (base.intent.routing.profile === 'tgw-connect' && !workflow.routing)
-          )
-            throw Error('Current Terraform registered routing execution bindings unavailable');
-          const session = await terraform.open(owner, await awsTerraformFoundationDeployment(base), 'current');
-          const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
-          const outputs = await session.readOutputs(
-            [
-              'ce_vpc_id',
-              'ce_interfaces',
-              'ce_instances',
-              ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
-              ...(base.intent.routing.profile === 'tgw-static'
-                ? ['ce_transport_attachment', 'ce_static_route_tables']
-                : []),
-            ],
-            process.env,
-            signal,
-          );
-          const discovered = await discoverAwsTerraformInterfaces(base, outputs, api, signal);
-          for (const [key, value] of Object.entries(discovered.bindings)) {
-            const retained = workflow.routing?.resolvedValues[key];
-            if (retained !== undefined && retained !== value)
-              throw Error('Current Terraform interfaces differ from retained routing bindings');
+        const storage = await platform.storage(owner);
+        const executeActive = async () => {
+          if (base.engine === 'terraform') await assertAwsTerraformDeploymentActive(storage);
+          const runtime = await platform.runtime(base.engine, base.intent.platformContext);
+          const api = dependencies.makeApi(ctx.cwd);
+          await storage.verify();
+          const terraform = base.engine === 'terraform' ? await dependencies.terraform(pi, signal) : undefined;
+          let values;
+          if (terraform) {
+            const workflow = await readAwsTerraformWorkflowStatus(base, storage);
+            if (
+              workflow.progress.state !== 'registered' ||
+              workflow.routing?.state === 'partial' ||
+              (base.intent.routing.profile === 'tgw-connect' && !workflow.routing)
+            )
+              throw Error('Current Terraform registered routing execution bindings unavailable');
+            const session = await terraform.open(owner, await awsTerraformFoundationDeployment(base), 'current');
+            const instances = await readAwsTerraformInstanceBindings(base, session, process.env, signal);
+            const outputs = await session.readOutputs(
+              [
+                'ce_vpc_id',
+                'ce_interfaces',
+                'ce_instances',
+                ...(base.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
+                ...(base.intent.routing.profile === 'tgw-static'
+                  ? ['ce_transport_attachment', 'ce_static_route_tables']
+                  : []),
+              ],
+              process.env,
+              signal,
+            );
+            const discovered = await discoverAwsTerraformInterfaces(base, outputs, api, signal);
+            for (const [key, value] of Object.entries(discovered.bindings)) {
+              const retained = workflow.routing?.resolvedValues[key];
+              if (retained !== undefined && retained !== value)
+                throw Error('Current Terraform interfaces differ from retained routing bindings');
+            }
+            const currentInstances = outputs.ce_instances;
+            for (let node = 1; node <= base.topology.nodeCount; node++)
+              if (currentInstances[String(node)]?.id !== instances[`__INSTANCE_${node}__`])
+                throw Error('Current Terraform instance identity changed during power binding collection');
+            values = {
+              ...workflow.routing?.resolvedValues,
+              ...discovered.bindings,
+              ...instances,
+              ...bindTerraformIngress(base, outputs),
+              ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),
+            };
+          } else {
+            const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, base.planId, base.planSha256);
+            if (!checkpoint || checkpoint.engine !== base.engine || checkpoint.state !== 'complete')
+              throw Error('Exact completed native execution bindings unavailable');
+            values = checkpoint.resolvedValues;
           }
-          const currentInstances = outputs.ce_instances;
-          for (let node = 1; node <= base.topology.nodeCount; node++)
-            if (currentInstances[String(node)]?.id !== instances[`__INSTANCE_${node}__`])
-              throw Error('Current Terraform instance identity changed during power binding collection');
-          values = {
-            ...workflow.routing?.resolvedValues,
-            ...discovered.bindings,
-            ...instances,
-            ...bindTerraformIngress(base, outputs),
-            ...(base.intent.routing.profile === 'tgw-static' ? bindTerraformStaticRouting(base, outputs) : {}),
+          const loadPower = async (id, digest) => {
+            if (!id || !digest || !/^[a-f0-9]{64}$/.test(digest) || id !== `aws-ce-power-${digest.slice(0, 24)}`)
+              throw Error('Exact saved power plan ID and digest required');
+            const power = await storage.read(`${id}.json`);
+            verifyAwsWholeSitePowerPlan(base, power);
+            if (power.planId !== id || power.planSha256 !== digest) throw Error('Saved power identity differs');
+            return power;
           };
-        } else {
-          const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, base.planId, base.planSha256);
-          if (!checkpoint || checkpoint.engine !== base.engine || checkpoint.state !== 'complete')
-            throw Error('Exact completed native execution bindings unavailable');
-          values = checkpoint.resolvedValues;
-        }
-        const loadPower = async (id, digest) => {
-          if (!id || !digest || !/^[a-f0-9]{64}$/.test(digest) || id !== `aws-ce-power-${digest.slice(0, 24)}`)
-            throw Error('Exact saved power plan ID and digest required');
-          const power = await storage.read(`${id}.json`);
-          verifyAwsWholeSitePowerPlan(base, power);
-          if (power.planId !== id || power.planSha256 !== digest) throw Error('Saved power identity differs');
-          return power;
-        };
-        let power;
-        if (params.operation === 'prepare-stop') {
-          const current = await collectAwsPowerBindings(base, values, api, runtime, signal);
-          power = buildAwsWholeSitePowerPlan(base, 'stop', current.bindings, randomUUID3());
-          await storage.write(`${power.planId}.json`, power);
-        } else if (params.operation === 'prepare-start') {
-          const stop = await loadPower(params.stopPlanId, params.stopPlanSha256);
-          if (stop.operation !== 'stop') throw Error('Stopped maintenance plan required');
-          const maintenance = await storage.read(`${stop.planId}-maintenance.json`);
-          const bgp = stop.bindings.servicesInventory?.components.find((row) => row.kind === 'bgp');
-          const retained = bgp ? bgp.services.platform : undefined;
-          const current = await collectAwsPowerBindings(base, values, api, runtime, signal, retained);
-          if (
-            current.cloud !== 'stopped' ||
-            current.status !== 'withdrawn' ||
-            canonicalSha256(current.bindings) !== stop.bindingsSha256
-          )
-            throw Error('Current stopped identities or service withdrawal unavailable');
-          power = buildAwsWholeSitePowerPlan(base, 'start', stop.bindings, stop.transitionId, maintenance);
-          const existing = await storage.read(`${power.planId}.json`).catch((error) => {
-            if (error.code !== 'ENOENT') throw error;
-          });
-          if (existing && canonicalSha256(existing) !== canonicalSha256(power)) throw Error('Saved power plan differs');
-          if (!existing) await storage.write(`${power.planId}.json`, power);
-        } else power = await loadPower(params.powerPlanId, params.powerPlanSha256);
-        const driver = createAwsWholeSitePowerDriver(base, power, values, storage, api, runtime, terraform);
-        let result;
-        if (params.operation === 'apply')
-          result = await runAwsWholeSitePower(base, power, power.planSha256, storage, driver, signal);
-        else if (params.operation === 'status')
-          result = await driver.observe(power, power.operation === 'stop' ? 'stopped' : 'restored', signal);
-        else {
-          const artifactId = await ctx.sessionManager.saveArtifact(
-            JSON.stringify({
-              kind: power.kind,
-              engine: power.engine,
+          let power;
+          if (params.operation === 'prepare-stop') {
+            const current = await collectAwsPowerBindings(base, values, api, runtime, signal);
+            power = buildAwsWholeSitePowerPlan(base, 'stop', current.bindings, randomUUID3());
+            await storage.write(`${power.planId}.json`, power);
+          } else if (params.operation === 'prepare-start') {
+            const stop = await loadPower(params.stopPlanId, params.stopPlanSha256);
+            if (stop.operation !== 'stop') throw Error('Stopped maintenance plan required');
+            const maintenance = await storage.read(`${stop.planId}-maintenance.json`);
+            const bgp = stop.bindings.servicesInventory?.components.find((row) => row.kind === 'bgp');
+            const retained = bgp ? bgp.services.platform : undefined;
+            const current = await collectAwsPowerBindings(base, values, api, runtime, signal, retained);
+            if (
+              current.cloud !== 'stopped' ||
+              current.status !== 'withdrawn' ||
+              canonicalSha256(current.bindings) !== stop.bindingsSha256
+            )
+              throw Error('Current stopped identities or service withdrawal unavailable');
+            power = buildAwsWholeSitePowerPlan(base, 'start', stop.bindings, stop.transitionId, maintenance);
+            const existing = await storage.read(`${power.planId}.json`).catch((error) => {
+              if (error.code !== 'ENOENT') throw error;
+            });
+            if (existing && canonicalSha256(existing) !== canonicalSha256(power))
+              throw Error('Saved power plan differs');
+            if (!existing) await storage.write(`${power.planId}.json`, power);
+          } else power = await loadPower(params.powerPlanId, params.powerPlanSha256);
+          const driver = createAwsWholeSitePowerDriver(base, power, values, storage, api, runtime, terraform);
+          let result;
+          if (params.operation === 'apply')
+            result = await runAwsWholeSitePower(base, power, power.planSha256, storage, driver, signal);
+          else if (params.operation === 'status')
+            result = await driver.observe(power, power.operation === 'stop' ? 'stopped' : 'restored', signal);
+          else {
+            const artifactId = await ctx.sessionManager.saveArtifact(
+              JSON.stringify({
+                kind: power.kind,
+                engine: power.engine,
+                operation: power.operation,
+                planId: power.planId,
+                planSha256: power.planSha256,
+                fullCeAcceptance: false,
+              }),
+              'aws-ce-power',
+            );
+            if (!artifactId) throw Error('Power plan reference persistence failed');
+            result = {
               operation: power.operation,
+              engine: power.engine,
               planId: power.planId,
               planSha256: power.planSha256,
+              artifactId,
               fullCeAcceptance: false,
-            }),
-            'aws-ce-power',
-          );
-          if (!artifactId) throw Error('Power plan reference persistence failed');
-          result = {
-            operation: power.operation,
-            engine: power.engine,
-            planId: power.planId,
-            planSha256: power.planSha256,
-            artifactId,
-            fullCeAcceptance: false,
+            };
+          }
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `AWS CE power ${params.operation}: exact owning plan ${power.planId}. Qualification gates remain explicit.`,
+              },
+            ],
+            details: { tool: 'aws_ce_power', power: result },
+            isError: false,
           };
-        }
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `AWS CE power ${params.operation}: exact owning plan ${power.planId}. Qualification gates remain explicit.`,
-            },
-          ],
-          details: { tool: 'aws_ce_power', power: result },
-          isError: false,
         };
+        return base.engine === 'terraform'
+          ? await withAwsTerraformLifecycle(storage, signal, executeActive)
+          : await executeActive();
       } catch (error) {
         signal?.throwIfAborted();
         return {
@@ -25118,6 +25141,7 @@ var init_aws_ce_power = __esm(() => {
   init_terraform_apply();
   init_terraform_foundation();
   init_terraform_identities();
+  init_terraform_lifecycle();
   init_terraform_routing();
   init_terraform_static();
   init_terraform_status();
