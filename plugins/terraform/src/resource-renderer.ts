@@ -26,8 +26,18 @@ export function renderProviderResource(request: Json, resourceSchema: unknown, r
     for (const [key, value] of Object.entries(values)) {
       if (value === undefined) throw new Error(`Unresolved provider input: ${key}`);
       if (value === null) {
+        if (blocks[key]) {
+          if (Number(object(blocks[key]).min_items ?? 0) > 0)
+            throw new Error(`Required provider input is null: ${key}`);
+          // API readback includes null for unselected optional messages. Terraform
+          // represents an absent block by omission, not a synthetic empty block.
+          continue;
+        }
         if (!attributes[key] || object(attributes[key]).required === true)
           throw new Error(`Required provider input is null: ${key}`);
+        const attribute = object(attributes[key]);
+        if (attribute.computed === true && attribute.optional !== true)
+          throw new Error(`Read-only provider input: ${key}`);
         result[key] = null;
         continue;
       }

@@ -16,6 +16,9 @@ const schema = {
       readback: {
         computed: true,
       },
+      optional_note: {
+        optional: true,
+      },
     },
     block_types: {
       aws: {
@@ -61,6 +64,29 @@ test('unknown and read-only provider fields cannot enter a saved F5 configuratio
   const request = { metadata: { name: 'site', namespace: 'system' }, spec: { readback: 'untrusted' } };
   expect(() => renderProviderResource(request, schema)).toThrow('Read-only');
   expect(() => renderProviderResource({ ...request, spec: { unsupported: {} } }, schema)).toThrow('does not expose');
+});
+
+test('null observed optional blocks mean absent blocks without generating admin credentials', () => {
+  const value = renderProviderResource(
+    { metadata: { name: 'site', namespace: 'system' }, spec: { aws: null } },
+    schema,
+  );
+  expect(value).toEqual({ name: 'site', namespace: 'system' });
+  const required = structuredClone(schema);
+  Object.assign(required.block.block_types.aws, { min_items: 1 });
+  expect(() =>
+    renderProviderResource({ metadata: { name: 'site', namespace: 'system' }, spec: { aws: null } }, required),
+  ).toThrow('Required provider input is null');
+});
+
+test('null required, unknown and computed-only attributes remain rejected', () => {
+  const request = { metadata: { name: 'site', namespace: 'system' }, spec: {} };
+  expect(() => renderProviderResource({ ...request, metadata: { name: null, namespace: 'system' } }, schema)).toThrow(
+    'Required',
+  );
+  expect(() => renderProviderResource({ ...request, spec: { unknown: null } }, schema)).toThrow();
+  expect(() => renderProviderResource({ ...request, spec: { readback: null } }, schema)).toThrow('Read-only');
+  expect(renderProviderResource({ ...request, spec: { optional_note: null } }, schema).optional_note).toBeNull();
 });
 
 test('omits only unsupported empty description defaults from nested API readback', () => {

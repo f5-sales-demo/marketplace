@@ -479,8 +479,16 @@ function renderProviderResource(request, resourceSchema, resourceType) {
     for (const [key, value] of Object.entries(values)) {
       if (value === undefined) throw new Error(`Unresolved provider input: ${key}`);
       if (value === null) {
+        if (blocks[key]) {
+          if (Number(object2(blocks[key]).min_items ?? 0) > 0)
+            throw new Error(`Required provider input is null: ${key}`);
+          continue;
+        }
         if (!attributes[key] || object2(attributes[key]).required === true)
           throw new Error(`Required provider input is null: ${key}`);
+        const attribute = object2(attributes[key]);
+        if (attribute.computed === true && attribute.optional !== true)
+          throw new Error(`Read-only provider input: ${key}`);
         result[key] = null;
         continue;
       }
