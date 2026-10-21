@@ -65,7 +65,11 @@ export function qualificationCatalog(root: string) {
       surfaces,
       lifecycle: manifest.lifecycle,
       serviceHosts:
-        name === 'salesforce' ? ['darwin'] : ['xorg', 'zoom', 'kvm'].includes(name) ? ['linux'] : ['darwin', 'linux'],
+        name === 'salesforce'
+          ? ['darwin']
+          : ['xorg', 'zoom', 'kvm', 'ghostty'].includes(name)
+            ? ['linux']
+            : ['darwin', 'linux'],
       requirements: manifest.lifecycle?.requirements ?? [],
     };
   });
