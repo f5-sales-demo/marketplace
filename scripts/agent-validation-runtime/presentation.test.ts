@@ -97,7 +97,7 @@ describe('full marketplace presentation through installed-plugin discovery', () 
                   expect(lines.join('\n')).toContain('false');
                   expect(lines.join('\n')).toContain('null');
                 } else {
-                  expect(Bun.stripANSI(lines.join('\n')))).toContain('unverified');
+                  expect(Bun.stripANSI(lines.join('\n'))).toContain('unverified');
                 }
               }
             }
