@@ -17,6 +17,23 @@ user-invocable: true
 
 # MEDDPICC Deal Update
 
+## Evidence and reporting
+
+Start with the identified deal/file scope, workflow stage, and completion.
+Separate observed evidence, engine results or labelled estimates, assumptions,
+and proposed actions. Keep engine scoring authoritative where this workflow
+runs the engine; preserve this workflow's existing scoring and write protocol.
+For lists and tables preview the first 12 rows, state the remaining count, and
+provide the remaining safe evidence once on expansion. Preserve zero, false, empty strings, unknown values, and literal corrective guidance. Separate
+counts, percentages, monetary amounts with their currencies, and other units.
+Report missing, invalid, partial, or failed inputs explicitly; completion means
+the stated workflow stage completed, not that a deal is qualified or won.
+Give each finding its source and next action. Retain authorized account identity
+when needed in private workflow results; exclude private account values,
+credentials, and raw evidence from Git, public receipts, logs, and telemetry.
+Execute only the reads or writes authorized by the invoked workflow; keep
+proposed actions distinct from completed actions.
+
 Ingest unstructured intelligence from any source and update a live
 MEDDPICC deal file. This is the **primary ongoing interaction** for
 keeping a deal's qualification data current as new information
