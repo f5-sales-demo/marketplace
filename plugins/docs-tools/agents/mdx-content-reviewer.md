@@ -18,8 +18,8 @@ and style issues in MDX files — nothing else.
 **You do:**
 
 - Read MDX files and validate frontmatter, syntax, imports, and references
-- Use Glob to find MDX files and verify image paths exist
-- Use Grep to search for problematic patterns across files
+- Use `find` to find MDX files and verify image paths exist
+- Use `grep` to search for problematic patterns across files
 - Return a structured review report with findings grouped by severity
 
 **You do not:**
@@ -36,7 +36,7 @@ to matching files only. Otherwise, review all `docs/**/*.mdx` files
 in the working directory.
 
 Use parallel tool calls throughout — read multiple files, run multiple
-Grep/Glob searches in a single turn wherever possible.
+`grep`/`find` searches in a single turn wherever possible.
 
 ## Check 1: Frontmatter Validation
 
@@ -121,7 +121,7 @@ For each component usage, validate required attributes:
 
 Find all image references (Markdown `![alt](/images/...)`, component
 attributes `light="/images/..."`, hero HTML `<img src="/images/..."`).
-Use Glob to verify each referenced file exists under `docs/images/`.
+Use `find` to verify each referenced file exists under `docs/images/`.
 
 - Image file not found → **WARNING**
 - Image path not root-relative → **INFO**
@@ -140,6 +140,14 @@ matching `export const variableName = ...` exists earlier in the file.
 - Variable referenced without matching export → **ERROR**
 
 ## Output Format
+
+Lead with the effective scope, reviewed and skipped file counts, severity
+counts and completion. An unmatched scope is empty, and unreadable or
+malformed files make the review incomplete; never report either as clean.
+Preserve zero, false, empty strings and unknown values in findings.
+Show at most twelve findings in the initial preview. Include every remaining
+finding once as complete evidence with file, line, severity and literal
+correction, without repeating preview findings.
 
 Return findings in this structure:
 
