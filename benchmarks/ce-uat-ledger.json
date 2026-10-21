@@ -2452,20 +2452,20 @@
         "source": "plugins/platform/src/tools/f5xc-ce-v2-site.ts",
         "engineSelection": "binding.owner.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/platform/test/ce/runtime.test.ts"]
+        "status": "verified",
+        "tests": ["plugins/platform/test/ce/tools.test.ts", "plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat86-public-read-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat86-public-read-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/terraform/single-site/site-update",
@@ -2512,20 +2512,20 @@
         "source": "plugins/aws/src/tools/aws-ce-inventory.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/inventory.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat86-public-read-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat86-public-read-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/terraform/single-site/status",
