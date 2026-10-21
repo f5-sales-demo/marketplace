@@ -494,6 +494,39 @@ describe('cli migrate', () => {
     expect((await run(['score', deal])).code).toBe(1);
   });
 
+  for (const shell of ['bash', 'zsh']) {
+    test(`legacy migration advice reconstructs exact argv in ${shell} without writes`, async () => {
+      const deal = legacyDeal("review's draft $(printf unexpected); [pilot] — café");
+      const before = fs.readFileSync(deal, 'utf8');
+      const recorder = path.join(scratch, 'record-argv');
+      fs.writeFileSync(recorder, '#!/bin/sh\nprintf \'%s\\0\' "$@"\n', { mode: 0o700 });
+      for (const command of ['validate', 'next', 'score']) {
+        const { code, err } = await run([command, deal]);
+        expect(code).toBe(1);
+        const advice = err.split('\n').find((line) => line.startsWith('Run: '));
+        if (!advice) throw new Error('legacy refusal omitted migration advice');
+        // The recorder treats the complete displayed invocation as arguments, so no migration runs.
+        const proc = Bun.spawn(
+          [shell, ...(shell === 'bash' ? ['--noprofile', '--norc'] : ['-f']), '-c', `'${recorder}' ${advice.slice(5)}`],
+          { stdout: 'pipe', stderr: 'pipe' },
+        );
+        const [out, shellError] = await Promise.all([
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+        ]);
+        expect(await proc.exited, shellError).toBe(0);
+        expect(out.split('\0').slice(0, -1)).toEqual([
+          process.execPath,
+          path.join(engineDir, 'cli.ts'),
+          'migrate',
+          deal,
+          '--apply',
+        ]);
+        expect(fs.readFileSync(deal, 'utf8')).toBe(before);
+      }
+    });
+  }
+
   test('a conflicting deal is refused and never half-applied', async () => {
     const deal = legacyDeal('conflict');
     const parsed = JSON.parse(fs.readFileSync(deal, 'utf8'));
@@ -501,6 +534,10 @@ describe('cli migrate', () => {
     fs.writeFileSync(deal, `${JSON.stringify(parsed, null, 2)}\n`);
     const before = fs.readFileSync(deal, 'utf8');
 
+    const refusal = await run(['validate', deal]);
+    expect(refusal.code).toBe(1);
+    expect(refusal.err).toContain('resolve those by hand first');
+    expect(refusal.err).not.toContain('Run:');
     const { code, out } = await run(['migrate', deal, '--apply']);
     expect(code).toBe(1);
     const report = JSON.parse(out);
