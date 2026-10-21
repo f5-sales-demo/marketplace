@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
+- **`zoom`** v1.3.1 preserves literal lifecycle guidance, reports missing Python and malformed observations safely, shows meeting and camera summaries, and retains complete expandable command evidence (#1603).
 - **`herdr`** v1.3.2 preserves installation evidence and reports degraded runtime status when the server returns malformed or non-object JSON (#1599).
 - **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
 
