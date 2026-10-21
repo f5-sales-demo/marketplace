@@ -10,6 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`brand`** v1.2.1 — resolve shipped review guidance and report safe reference status with explicit incomplete outcomes
 - **`meddpicc`** v7.8.2 quotes every legacy migration argument and identifies the running executable and CLI source path so corrective advice reconstructs exactly in Bash and Zsh (#1775).
 
 - **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.

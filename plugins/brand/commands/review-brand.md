@@ -5,10 +5,10 @@ argument-hint: "[path-or-glob]"
 
 # Review brand compliance
 
-Invoke the `brand-reviewer` skill to audit the current
+Invoke the `skill://brand:reviewer` skill to audit the current
 repository or specified files for F5 brand compliance.
 
 If the user provided a file path or glob pattern as an
 argument (`$ARGUMENTS`), scope the review to those files.
-Otherwise, follow the scoping rules in the brand-reviewer
+Otherwise, follow the scoping rules in the brand:reviewer
 skill.

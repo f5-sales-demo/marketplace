@@ -166,6 +166,17 @@ naming issues.
   "industry-leading", "world-class", "cutting-edge"
   → SUGGESTION
 
+## Completion and evidence
+
+Lead with caller scope, reviewed and unavailable file counts, completion and
+severity counts. Do not treat an empty scope or an unreadable file as a clean
+review. Distinguish unknown checks from passed checks; identify each unperformed
+check and the next action. Preserve zero, false, empty strings and literal
+corrective guidance. Use Path, Line, Severity, Finding and Corrective guidance
+columns where a table helps. Show twelve findings initially and remaining
+findings once on expansion; include complete safe evidence once. Let xcsh own
+framing, themes, symbols and progress. Do not modify files during review.
+
 ## Output format
 
 After running all checks, present findings in this format:
@@ -200,7 +211,7 @@ Z suggestion(s).
 No violations found. ✓  (if clean)
 ```
 
-If all files pass all checks:
+Only when at least one file was reviewed and every requested check completed:
 
 ```markdown
 ## Brand Compliance Review — <repo-name>
