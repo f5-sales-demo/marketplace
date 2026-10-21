@@ -13,6 +13,7 @@ import {
   loadAwsTerraformBrownfieldBinding,
 } from './terraform-brownfield-binding';
 import { applyAwsTerraformConnectStage } from './terraform-connect-stage';
+import { importAwsTerraformDirectRoutes } from './terraform-direct-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { runAwsTerraformInitialReplacement } from './terraform-initial-replacement';
@@ -137,40 +138,31 @@ export async function executeAwsCeTerraformApply(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  let result: Record<string, unknown> = connectStarted
-    ? {
-        planId: plan.planId,
-        planSha256: plan.planSha256,
-        engine: 'terraform',
-        status: 'routing-in-progress',
-        routing: 'unknown',
-        traffic: 'unknown',
-      }
-    : await (async () => {
-        const pending = await runAwsTerraformInitialReplacement(
-          plan,
-          terraform,
-          runtime,
-          storage,
-          api,
-          fetcher,
-          signal,
-        );
-        if (pending.handled && pending.status !== 'registered') return pending;
-        try {
-          return await runAwsTerraformAdmission(
-            plan,
-            terraform,
-            runtime,
-            storage,
-            api,
-            revalidate,
-            process.env,
-            signal,
-          );
-        } catch (error) {
-          if (!(error instanceof Error) || !error.message.includes('coupled VM/site replacement')) throw error;
-          const replacement = await runAwsTerraformInitialReplacement(
+  let directStarted = false;
+  try {
+    await storage.read('terraform-direct-import-source.json');
+    if (
+      plan.intent.vpc.mode !== 'brownfield' ||
+      plan.intent.routing.profile !== 'direct-eni' ||
+      !plan.intent.routes.length
+    )
+      throw new Error('Direct import source belongs to a different deployment profile');
+    directStarted = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  let result: Record<string, unknown> =
+    connectStarted || directStarted
+      ? {
+          planId: plan.planId,
+          planSha256: plan.planSha256,
+          engine: 'terraform',
+          status: 'routing-in-progress',
+          routing: 'unknown',
+          traffic: 'unknown',
+        }
+      : await (async () => {
+          const pending = await runAwsTerraformInitialReplacement(
             plan,
             terraform,
             runtime,
@@ -179,17 +171,40 @@ export async function executeAwsCeTerraformApply(
             fetcher,
             signal,
           );
-          if (!replacement.handled) throw error;
-          if (replacement.status === 'registered')
-            await storage.write('terraform-workflow.json', {
-              schemaVersion: 1,
-              engine: 'terraform',
-              planSha256: plan.planSha256,
-              stage: 'registered',
-            });
-          return replacement;
-        }
-      })();
+          if (pending.handled && pending.status !== 'registered') return pending;
+          try {
+            return await runAwsTerraformAdmission(
+              plan,
+              terraform,
+              runtime,
+              storage,
+              api,
+              revalidate,
+              process.env,
+              signal,
+            );
+          } catch (error) {
+            if (!(error instanceof Error) || !error.message.includes('coupled VM/site replacement')) throw error;
+            const replacement = await runAwsTerraformInitialReplacement(
+              plan,
+              terraform,
+              runtime,
+              storage,
+              api,
+              fetcher,
+              signal,
+            );
+            if (!replacement.handled) throw error;
+            if (replacement.status === 'registered')
+              await storage.write('terraform-workflow.json', {
+                schemaVersion: 1,
+                engine: 'terraform',
+                planSha256: plan.planSha256,
+                stage: 'registered',
+              });
+            return replacement;
+          }
+        })();
   if (
     ['tgw-connect', 'tgw-static'].includes(plan.routing?.profile) &&
     (connectStarted || result.status === 'registered')
@@ -254,6 +269,37 @@ export async function executeAwsCeTerraformApply(
       if (signal?.aborted || !(error instanceof Error) || !error.message.includes('has not converged')) throw error;
       result = { ...result, status: 'pending-routing-convergence', reason: error.message };
     }
+  }
+  if (
+    plan.intent.vpc.mode === 'brownfield' &&
+    plan.intent.routing.profile === 'direct-eni' &&
+    plan.intent.routes.length &&
+    (directStarted || result.status === 'registered')
+  ) {
+    const placement = await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal);
+    const owner = {
+      deploymentId: plan.deploymentName,
+      engine: 'terraform' as const,
+      provider: 'aws' as const,
+      account: plan.accountId,
+      region: plan.region,
+    };
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
+    const outputs = await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], process.env, signal);
+    const discovered = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
+    result = {
+      ...result,
+      ...(await importAwsTerraformDirectRoutes(
+        plan,
+        discovered.bindings,
+        session,
+        storage,
+        api,
+        revalidate,
+        process.env,
+        signal,
+      )),
+    };
   }
   const routingReady = ['tgw-connect', 'tgw-static'].includes(plan.routing?.profile)
     ? result.status === 'pending-route-and-traffic-acceptance'

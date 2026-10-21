@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- CE UAT59 imports original direct routes through the owning AWS Terraform apply stage without changing targets; resumes exact journaled plans and keeps CE activation pending (#1651). Full UAT remains blocked.
+
 - CE UAT58 qualifies brownfield snapshots in real AWS Terraform preflight and retains every immutable network reference during revalidation (#1651). Full UAT remains blocked.
 
 - CE UAT57 carries ownership-qualified brownfield placement through public AWS Terraform admission and resume, rechecking unchanged references before apply (#1651). Full UAT remains blocked.

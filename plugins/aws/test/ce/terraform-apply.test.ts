@@ -107,3 +107,56 @@ test('Terraform service dispatch uses the supported bus and propagates cancellat
     }),
   ).rejects.toThrow('unavailable');
 });
+
+test('public apply resumes a durable direct import before re-entering bootstrap admission', async () => {
+  const f = admissionFixture(false, false, true);
+  Object.assign(f.runtime, { resourceMutation: async () => ({}), reconcileTerraformResources: async () => {} });
+  const { canonicalSha256 } = await import('../../src/ce/canonical');
+  const { planId: _id, planSha256: _sha, ...draft } = f.plan;
+  draft.intent.routes = [{ routeTableId: 'rtb-34567890', destinationCidr: '192.0.2.0/24', node: 1 }];
+  const sha = canonicalSha256(draft);
+  const plan = { ...draft, planSha256: sha, planId: `aws-ce-${sha.slice(0, 24)}` };
+  const { prepareAwsTerraformBrownfieldBinding } = await import('../../src/ce/terraform-brownfield-binding');
+  await prepareAwsTerraformBrownfieldBinding(plan, f.storage, f.api);
+  await f.storage.write('terraform-direct-import-source.json', { intentionallyIncomplete: true });
+  await f.storage.write('terraform-authorization.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    planSha256: sha,
+    mutations: true,
+    f5StateOwner: 'terraform',
+  });
+  const ctx = {
+    cwd: '/tmp',
+    hasUI: false,
+    ui: {
+      confirm: async () => {
+        throw Error('unexpected approval');
+      },
+    },
+    sessionManager: {
+      getSessionId: () => 'direct-resume-fixture',
+      getArtifactsDir: () => null,
+      getArtifactPath: async () => null,
+      saveArtifact: async () => 'receipt',
+    },
+  } as AwsCeToolContext;
+  await saveAwsPlan(ctx.sessionManager, plan, {} as AwsCeObservation);
+  await expect(
+    executeAwsCeTerraformApply(
+      { planId: plan.planId, planSha256: sha },
+      ctx,
+      f.api,
+      { storage: async () => f.storage, runtime: async () => f.runtime } as unknown as CePlatformService,
+      {
+        open: async () => {
+          throw Error('direct route runner opening reached');
+        },
+      },
+      fetch,
+      undefined,
+      async () => ({}) as AwsCeObservation,
+    ),
+  ).rejects.toThrow('direct route runner opening reached');
+  expect(f.bootstrapped).toEqual([]);
+});
