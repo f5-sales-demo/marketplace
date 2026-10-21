@@ -16873,6 +16873,7 @@ async function inventory(base, teardown, evidenceSha256, store) {
       upgradeJournals.add(`${String(source.planId)}${suffix}.json`);
   }
   for (const name of upgradeJournals) preserve.add(name);
+  if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   let rootRunner = false;
   for (const name of (await readdir3(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;

@@ -154,6 +154,7 @@ async function inventory(
       upgradeJournals.add(`${String(source.planId)}${suffix}.json`);
   }
   for (const name of upgradeJournals) preserve.add(name);
+  if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   let rootRunner = false;
   for (const name of (await readdir(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;

@@ -186,7 +186,25 @@ test('retires the exact complete upgrade from an ordinary plan and resumes its r
   await expect(f.run()).rejects.toThrow('retirement interrupted');
   expect(f.counts().plans).toBe(1);
   expect((await f.run()).status).toBe('runner-artifacts-retired');
+  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
+  await expect(f.run()).rejects.toThrow('serial upgrade');
+  await f.store.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
+    engine: 'terraform',
+    status: 'idle',
+    lastPlanId: f.upgrade.planId,
+    lastPlanSha256: f.upgrade.planSha256,
+  });
   expect((await f.run()).status).toBe('runner-artifacts-retired');
+  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
+  await expect(f.run()).rejects.toThrow('serial upgrade');
+  await f.store.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
+    engine: 'terraform',
+    status: 'idle',
+    lastPlanId: f.upgrade.planId,
+    lastPlanSha256: f.upgrade.planSha256,
+  });
   expect(f.counts().plans).toBe(1);
 });
 for (const mode of [
@@ -252,6 +270,15 @@ test('retirement preparation survives response loss after ordinary planning over
   };
   await expect(f.run()).rejects.toThrow('receipt write lost');
   expect((await f.run()).status).toBe('runner-artifacts-retired');
+  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
+  await expect(f.run()).rejects.toThrow('serial upgrade');
+  await f.store.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
+    engine: 'terraform',
+    status: 'idle',
+    lastPlanId: f.upgrade.planId,
+    lastPlanSha256: f.upgrade.planSha256,
+  });
 });
 
 test('stage discovery joins exact source identity and rejects absent or forged stage owners', async () => {
@@ -330,6 +357,17 @@ test('parent retirement validates and preserves the exact retired upgrade proven
   const result = await retireAwsTerraformParentArtifacts(f.base, teardown, 'b'.repeat(64), f.store);
   expect(result.status).toBe('deployment-artifacts-retired');
   expect(await readdir(f.store.directory)).toContain(`${f.upgrade.planId}-stage-retirement.json`);
+  expect((await f.run()).status).toBe('runner-artifacts-retired');
+  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
+  await expect(f.run()).rejects.toThrow('serial upgrade');
+  await f.store.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
+    engine: 'terraform',
+    status: 'idle',
+    lastPlanId: f.upgrade.planId,
+    lastPlanSha256: f.upgrade.planSha256,
+  });
+  expect(f.counts().plans).toBe(1);
   expect((await retireAwsTerraformParentArtifacts(f.base, teardown, 'b'.repeat(64), f.store)).status).toBe(
     'deployment-artifacts-retired',
   );
