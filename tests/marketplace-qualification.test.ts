@@ -632,3 +632,28 @@ test('reviewed guidance ranges bind exact path, source digest and line window', 
     rmSync(root, { recursive: true });
   }
 });
+
+test('inspection reconstructs styled framed prose without crossing structural boundaries', () => {
+  const frame = { id: 'prose', case: 'prose', width: 153, expanded: true, resultIsError: false };
+  const check = (lines: string[], literal: string) =>
+    inspectCapture({ ...frame, lines }, { contains: [literal] }, (line) => Bun.stripANSI(line).length).passed;
+  for (const bar of ['│', '|']) {
+    const first = `${bar} \x1b[39mreadiness is ${bar}`;
+    const second = `${bar} \x1b[39munverified. ${bar}`;
+    expect(check([first, second], 'readiness is unverified.')).toBe(true);
+    expect(check([first, `${bar} \x1b[33munverified. ${bar}`], 'readiness is unverified.')).toBe(false);
+    expect(check([first, `${bar} \x1b[39m ${bar}`, second], 'readiness is unverified.')).toBe(false);
+    expect(check([first, '+--- Output ---+', second], 'readiness is unverified.')).toBe(false);
+    expect(
+      check([first, `${bar} ${bar} \x1b[1mAction\x1b[22m: status ${bar}`, second], 'readiness is unverified.'),
+    ).toBe(false);
+    expect(check([first, `${bar} \x1b[39m"field": "other", ${bar}`, second], 'readiness is unverified.')).toBe(false);
+  }
+  const finding = inspectCapture(
+    { ...frame, lines: ['│ \x1b[39mSYNTHETIC_SECRET_ │', '│ \x1b[39mSENTINEL │'] },
+    { absent: ['SYNTHETIC_SECRET_SENTINEL'] },
+    (line) => Bun.stripANSI(line).length,
+  );
+  expect(finding.failures).toContain('unsafe-evidence');
+  expect(finding.failures).toContain('unexpected-literal:SYNTHETIC_SECRET_SENTINEL');
+});

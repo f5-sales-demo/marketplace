@@ -2,12 +2,19 @@ import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } f
 import { join, resolve } from 'node:path';
 import { assertPrivateCaptureRoot, matrixControls, validateCaptureIdentity } from './marketplace-qualification';
 
-/** Reconstruct only explicitly framed fields and individual cells within one table row. */
+/** Reconstruct framed fields, table cells and contiguous prose with the same terminal style. */
 function wrappedValues(lines: string[]) {
   const values: string[] = [];
   let cells: string[][] = [];
   let field: string[] = [];
   let jsonField = false;
+  let prose: string[] = [];
+  let proseStyle = '';
+  const flushProse = () => {
+    if (prose.length) values.push(prose.join(''), prose.join(' '));
+    prose = [];
+    proseStyle = '';
+  };
   const flushField = () => {
     if (field.length) values.push(field.join(''), field.join(' '));
     field = [];
@@ -33,12 +40,14 @@ function wrappedValues(lines: string[]) {
     const line = Bun.stripANSI(raw);
     // Table rules delimit data rows, including ASCII rules nested in the tool frame.
     if (/[┌├└+][─-]/.test(line)) {
+      flushProse();
       flushCells();
       flushField();
       continue;
     }
     const parts = line.split(/[│|]/);
     if (parts.length >= 6) {
+      flushProse();
       flushField();
       for (let i = 2; i < parts.length - 2; i++) {
         cells[i] ??= [];
@@ -57,6 +66,23 @@ function wrappedValues(lines: string[]) {
       .replace(/^[│|]\s*/, '')
       .trim();
     const jsonLabel = parts.length === 3 ? /^"(?:\\.|[^"\\])+":\s*(.*)$/.exec(body) : null;
+    // Prose continuations must remain in one outer frame and retain their SGR prefix.
+    // Blank rows, fields, JSON, rules and style changes delimit unrelated output.
+    const prefix = raw.split(/[│|]/)[1]?.match(/^(?:\s|\x1b\[[\d;]*m)*/)?.[0] ?? '';
+    const style = prefix.replace(/\s/g, '');
+    if (
+      parts.length === 3 &&
+      body &&
+      style &&
+      !raw.includes('\x1b[1m') &&
+      !jsonField &&
+      !jsonLabel &&
+      !/^[{[\]}"',]/.test(body)
+    ) {
+      if (style !== proseStyle) flushProse();
+      proseStyle = style;
+      prose.push(body);
+    } else flushProse();
     if (jsonLabel) {
       flushField();
       if (!jsonLabel[1] || jsonLabel[1].startsWith('"')) {
@@ -73,6 +99,7 @@ function wrappedValues(lines: string[]) {
     } else if (field.length && parts.length === 4 && body) field.push(body);
     else flushField();
   }
+  flushProse();
   flushCells();
   flushField();
   return values;
