@@ -117,11 +117,38 @@ Raw evidence remains private under
 Across three executed fixtures, the receipt now records 288 tool/result frames
 and 48 separately rendered guidance frames, with no width or semantic failures.
 
+## Ubuntu complete-fixture replay
+
+Verified workstation/user identity and the installed Docs-pipeline 1.2.1
+registry preceded an independent Ubuntu replay using stable xcsh 23.9.5.
+The scenario became ready before prompt submission. Exactly two successful
+admitted calls ran, with zero blocked or extra calls: all 113 numbered guidance
+lines matched the installed file and the exact shipped Bash script executed
+in the reviewed physical fixture directory. The result reported all four
+indicators present, completion complete, sixteen paths split twelve plus four,
+empty warnings and three false execution flags.
+
+All 96 native result/answer frames passed. Each of 48 assistant frames retained
+all paths exactly once, count, empty warnings, false flags and the local-indicator
+boundary. A separate installed guidance matrix added 48 frames. Both capture
+closures and session shutdown were observed before the owned pane returned to
+its Mac shell.
+
+- Ubuntu scenario SHA256:
+  `373d618c332df7e524f9214eaf40e3dc3762e82859e70e7b88312565fa295391`.
+- Ubuntu stable binary SHA256:
+  `be6ea45f40f20d36fcad3b1b9aac4763e75720a137f3a974b3779082ae2d0ac2`.
+- Private root: `docs-pipeline1779-installed-status-ubuntu-20261020`.
+
+This receipt records 480 native frames across the executed Mac fixtures and
+independent Ubuntu complete fixture, including separate guidance capture on
+both hosts. Malformed and empty cases still need Ubuntu replay.
+
 ## Remaining actions
 
 Only `docs-pipeline.command.docs-pipeline-status.capture` is supported by this
-scoped Mac receipt. Repeat the exact fixture on Ubuntu, qualify unavailable
-indicators, and execute full command invocation with
+scoped Mac and Ubuntu receipt. Repeat malformed and empty cases on Ubuntu,
+qualify unavailable indicators, and execute full command invocation with
 complete guidance fidelity. Delegated operator execution needs a session that
 permits subagents. Preview startup remains deferred. Resolve the content-only
 public lifecycle representation before accepting its status gate. Historical
