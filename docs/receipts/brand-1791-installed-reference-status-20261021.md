@@ -92,7 +92,7 @@ empty, malformed, invalid UTF-8, partial, nonfile and symlinked-parent outcomes,
 and the actual shipped review-skill reference. Tracker, lint and privacy results
 are recorded with the delivery PR. No shipped source changed in this receipt.
 
-Only Brand delivery source/checks/merge/artifact/host gates and the installed
+Only Brand delivery checks/merge/artifact/host gates and the installed
 brand-status capture are restored here. Native command and skill invocation,
 content-only lifecycle representation (#5053), review workflows, remaining
 outcome/fidelity/expansion/live acceptance and independent asset/font evidence
@@ -102,5 +102,4 @@ deferred. Capture does not establish executed content compliance.
 Private evidence roots are `brand1791-independent-{mac,ubuntu}-20261021` and
 `brand1791-installed-status-{mac,ubuntu}-20261021`. Prompts, physical paths,
 source payloads, frames and failed diagnostics remain private. Historical
-receipts and invalidation records are preserved. Child #1585 and campaign
-#1579 remain open.
+receipts and invalidation records are preserved. Child #1585 and campaign #1579 remain open.
