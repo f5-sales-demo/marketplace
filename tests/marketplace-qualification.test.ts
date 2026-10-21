@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -24,6 +24,7 @@ test('catalog includes all current surfaces and entrypoints without Salesforce r
     'salesforce.lifecycle.event.tool_execution_end',
   );
   expect(catalog.find((p) => p.name === 'salesforce')?.serviceHosts).toEqual(['darwin']);
+  expect(catalog.find((p) => p.name === 'ghostty')?.serviceHosts).toEqual(['linux']);
 });
 
 test('installed selection rejects ambiguity, missing version and mismatched identity', () => {
@@ -444,7 +445,7 @@ test('shell rules reject invalid environments, digests, timeouts, extra fields a
     { ...rule, args: { ...rule.args, env: null } },
     { ...rule, args: { ...rule.args, timeout: 121 } },
     { ...rule, args: { ...rule.args, timeout: Infinity } },
-    { ...rule, args: { ...rule.args, cwd: '/tmp' } },
+    { ...rule, args: { ...rule.args, cwd: 'relative' } },
     { ...rule, sha256: '0'.repeat(64) },
     { ...rule, section: '' },
     { ...rule, path: '/etc/hosts' },
@@ -454,4 +455,46 @@ test('shell rules reject invalid environments, digests, timeouts, extra fields a
   expect(() =>
     validateScenario({ id: 'inspect', calls: [], guidance: [], shellCalls: [rule, { ...rule, section: 'other' }] }),
   ).toThrow();
+});
+
+test('reviewed shell cwd admits only an exact existing directory and rejects changed or unsafe targets', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qualification-shell-cwd-')));
+  const command = 'true\n';
+  writeFileSync(join(root, 'commands.md'), `## inspect\n\n\`\`\`bash\n${command}\`\`\`\n`);
+  const cwd = join(root, 'work');
+  mkdirSync(cwd);
+  symlinkSync(cwd, join(root, 'link'));
+  const rule = {
+    path: 'commands.md',
+    section: 'inspect',
+    sha256: createHash('sha256').update(command).digest('hex'),
+    args: { command, env: {}, timeout: 20, description: 'Inspect once', cwd },
+  };
+  const reviewed = { id: 'inspect', calls: [], guidance: [], shellCalls: [rule] };
+  try {
+    expect(validateScenario(reviewed)).toEqual(reviewed);
+    expect(guardScenarioTool({ toolName: 'bash', input: rule.args }, reviewed, root)).toBeUndefined();
+    expect(guardScenarioTool({ toolName: 'bash', input: { ...rule.args, cwd: root } }, reviewed, root)).toMatchObject({
+      block: true,
+    });
+    for (const target of [
+      'work',
+      '',
+      '/tmp/../tmp',
+      join(root, 'missing'),
+      join(root, 'commands.md'),
+      join(root, 'link'),
+    ]) {
+      const unsafe = { ...reviewed, shellCalls: [{ ...rule, args: { ...rule.args, cwd: target } }] };
+      expect(guardScenarioTool({ toolName: 'bash', input: unsafe.shellCalls[0].args }, unsafe, root)).toMatchObject({
+        block: true,
+      });
+    }
+    // Filesystem replacement after review must fail closed at dispatch.
+    rmSync(cwd, { recursive: true });
+    symlinkSync(root, cwd);
+    expect(guardScenarioTool({ toolName: 'bash', input: rule.args }, reviewed, root)).toMatchObject({ block: true });
+  } finally {
+    rmSync(root, { recursive: true });
+  }
 });

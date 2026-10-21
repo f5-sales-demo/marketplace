@@ -11,6 +11,11 @@ and this project adheres to
 ## [Unreleased]
 
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
+- **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
+
+- **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
+- **`docs-tools`** v1.3.1 — resolve the shipped reviewer skill, preserve explicit scope, and report incomplete reviews with complete findings
+- **`docs-pipeline`** v1.2.1 recognizes content repositories without local Astro configuration, reports independent readiness indicators and incomplete outcomes, and separates status inspection from preview startup (#1757).
 
 - **`xorg`** v1.3.1 preserves failed controller stderr and literal guidance, checks exact capability versions, reports missing CLI setup, declares shared executable argv and previews twelve desktop rows with domain columns (#1602).
 - **`zoom`** v1.3.1 preserves literal lifecycle guidance, reports missing Python and malformed observations safely, shows meeting and camera summaries, and retains complete expandable command evidence (#1603).

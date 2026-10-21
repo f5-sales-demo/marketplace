@@ -16,16 +16,39 @@ export default function ghosttyIntegration(pi: { integrations: { register(defini
       verification: [{ argv: ['python3', setup, 'verify', PLUGIN_VERSION], timeoutMs: 30000 }],
     },
     async probe() {
-      const r = Bun.spawnSync(['python3', setup, 'status', PLUGIN_VERSION], { stdout: 'pipe' });
+      let r: ReturnType<typeof Bun.spawnSync>;
       try {
-        const value = JSON.parse(new TextDecoder().decode(r.stdout));
-        if (value.state === 'unavailable') return { state: 'unavailable', reason: value.reason, value };
-        return r.exitCode === 0 && value.state === 'ready'
-          ? { state: 'ready', value }
-          : { state: 'setup_required', reason: value.reason ?? 'setup_required', value };
-      } catch {
-        return { state: 'degraded', reason: 'invalid_setup_probe' };
+        r = Bun.spawnSync(['python3', setup, 'status', PLUGIN_VERSION], { stdout: 'pipe' });
+      } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+          return { state: 'setup_required', reason: 'cli_missing' };
+        }
+        throw error;
       }
+      const text = new TextDecoder().decode(r.stdout);
+      let value: unknown;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        return { state: 'degraded', reason: 'invalid_setup_probe', value: text };
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { state: 'degraded', reason: 'invalid_setup_probe', value };
+      }
+      const observation = value as Record<string, unknown>;
+      if (
+        typeof observation.state !== 'string' ||
+        !['ready', 'setup_required', 'unavailable'].includes(observation.state) ||
+        (observation.reason !== undefined && typeof observation.reason !== 'string')
+      ) {
+        return { state: 'degraded', reason: 'invalid_setup_probe', value };
+      }
+      if (observation.state === 'unavailable') {
+        return { state: 'unavailable', reason: observation.reason, value };
+      }
+      return r.exitCode === 0 && observation.state === 'ready'
+        ? { state: 'ready', value }
+        : { state: 'setup_required', reason: observation.reason ?? 'setup_required', value };
     },
   });
 }
