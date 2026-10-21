@@ -120,7 +120,7 @@ async function fixture(mode = 'absent') {
         JSON.stringify({
           schemaVersion: 1,
           status: 'runner-artifacts-retired',
-          manifestSha256: hash(JSON.stringify(manifest)),
+          manifestSha256: canonicalSha256(manifest),
           evidenceSha256: evidence,
           finalPlanSha256: receipt.planSha256,
           planReceiptSha256: hash(JSON.stringify(receipt)),

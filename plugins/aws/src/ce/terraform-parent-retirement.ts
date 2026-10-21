@@ -79,7 +79,7 @@ async function inventory(
       scope.region !== base.region ||
       marker.schemaVersion !== 1 ||
       marker.status !== 'runner-artifacts-retired' ||
-      marker.manifestSha256 !== hash(encoded) ||
+      marker.manifestSha256 !== canonicalSha256(manifest) ||
       marker.evidenceSha256 !== evidenceSha256 ||
       !sha(marker.finalPlanSha256) ||
       !sha(marker.planReceiptSha256) ||

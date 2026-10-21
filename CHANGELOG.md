@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **CE UAT76** matches parent cleanup to the owning Terraform runner canonical manifest digest. Installed UAT75 retired both runners but blocked parent journal cleanup; that failure is retained and canonical receipt regressions cover the repaired join (#1651, #1326).
+
 - **CE UAT75** repairs AWS provider cache validation on macOS with a signed, multi-platform immutable lock for Linux/macOS AMD64/ARM64. Compiler and archive assets bind the new lock digest; UAT74 installed failure remains retained (#1651, #1326).
 
 - **CE UAT74** integrates terminal AWS Terraform teardown with fresh cloud/F5 absence,owning runner retirement and digest-bound parent journal cleanup. Terminal resume preserves reviewed authorization and brownfield placement, rejects unqualified stages and removes site/node-bound bootstrap staging (#1651,#1326).

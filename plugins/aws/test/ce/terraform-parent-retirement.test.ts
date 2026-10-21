@@ -64,7 +64,7 @@ async function fixture() {
       JSON.stringify({
         schemaVersion: 1,
         status: 'runner-artifacts-retired',
-        manifestSha256: hash(encoded),
+        manifestSha256: canonicalSha256(manifest),
         evidenceSha256: 'b'.repeat(64),
         finalPlanSha256: 'c'.repeat(64),
         planReceiptSha256: 'd'.repeat(64),
@@ -93,7 +93,7 @@ test('parent cleanup rejects a foreign stage or backend even with a matching man
       join(f.store.directory, prefix, 'artifact-retirement.json'),
       JSON.stringify({
         ...marker,
-        manifestSha256: hash(JSON.stringify(changed)),
+        manifestSha256: canonicalSha256(changed),
       }),
       { mode: 0o600 },
     );
