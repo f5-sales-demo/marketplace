@@ -2,7 +2,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
-import type { TerraformSession } from '../../../terraform/src/service';
+import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import { type AwsExecApi, execAwsJson } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
@@ -13,6 +13,7 @@ import { type AwsFoundationTeardownPlan, runAwsFoundationTeardown } from './terr
 import { beginAwsTerraformRetirement, withAwsTerraformLifecycle } from './terraform-lifecycle';
 import { type AwsPendingTeardownPlan, runAwsPendingTeardown } from './terraform-pending-teardown';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
+import { finalizeAwsTerraformCleanup, hasAwsTerraformTerminalCleanup } from './terraform-terminal-cleanup';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -267,7 +268,13 @@ export async function verifyAwsTeardownCredentials(base: AwsCePlan, rawApi: AwsE
 }
 /** Concrete production binding: F5 operations stay in platform; cloud mutation uses the owning Terraform session. */
 export async function runAwsTerraformTeardown(...args: Parameters<typeof runAwsTerraformTeardownUnlocked>) {
-  return withAwsTerraformLifecycle(args[6], args[9], () => runAwsTerraformTeardownUnlocked(...args));
+  return withAwsTerraformLifecycle(args[6], args[9], async () => {
+    if (!(await hasAwsTerraformTerminalCleanup(args[6]))) {
+      const result = await runAwsTerraformTeardownUnlocked(...args);
+      if (result.status !== 'ce-retired-supporting-infrastructure-unverified') return result;
+    }
+    return finalizeAwsTerraformCleanup(...args);
+  });
 }
 
 async function runAwsTerraformTeardownUnlocked(
@@ -281,6 +288,7 @@ async function runAwsTerraformTeardownUnlocked(
   api: AwsExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  _terraform?: CeTerraformService,
 ) {
   if (plan.kind === 'aws-ce-terraform-pending-teardown')
     return runAwsPendingTeardown(

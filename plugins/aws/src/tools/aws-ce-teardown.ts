@@ -223,6 +223,7 @@ export function createAwsCeTeardownTool(
                 makeApi(ctx.cwd),
                 process.env,
                 signal,
+                await dependencies.terraform(pi, signal),
               )
             : await dependencies.runNative(
                 plan,

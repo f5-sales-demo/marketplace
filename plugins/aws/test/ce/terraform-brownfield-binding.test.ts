@@ -92,3 +92,14 @@ for (const mode of ['account', 'partition', 'duplicate', 'operational-down', 'mi
     };
     await expect(loadAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api)).rejects.toThrow();
   });
+
+test('terminal brownfield opening keeps fresh reference checks without recreating retired journals', async () => {
+  const f = fixture();
+  await prepareAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api);
+  f.files.delete('terraform-brownfield-placement-opening-observation.json');
+  f.files.set('aws-terraform-terminal-cleanup.json', { schemaVersion: 1 });
+  const before = f.calls();
+  await loadAwsTerraformBrownfieldBinding(f.plan, f.storage, f.api);
+  expect(f.calls()).toBeGreaterThan(before);
+  expect(f.files.has('terraform-brownfield-placement-opening-observation.json')).toBe(false);
+});

@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **CE UAT74** integrates terminal AWS Terraform teardown with fresh cloud/F5 absence,owning runner retirement and digest-bound parent journal cleanup. Terminal resume preserves reviewed authorization and brownfield placement, rejects unqualified stages and removes site/node-bound bootstrap staging (#1651,#1326).
+
 - **CE UAT73** retires the empty provider-owned F5 Terraform stage through its owning service after a refreshed ordinary no-change plan and digest-bound evidence. Durable checkpoints resume cleanup and prohibit later F5 writes or cancellation; live absence and parent deployment cleanup remain required (#1651, #1326).
 
 - **CE UAT72** prevents AWS Terraform cleanup from declaring absence when deployment-tagged resources are malformed, unsupported, foreign, duplicated or incompletely paginated. Supported EC2 ARNs join exact identities for independent absence checks; captured ELB ARNs must match deployment scope (#1651, #1326).

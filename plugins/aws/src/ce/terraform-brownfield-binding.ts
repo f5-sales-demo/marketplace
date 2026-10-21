@@ -160,6 +160,13 @@ export async function loadAwsTerraformBrownfieldBinding(
     throw Error('Persisted brownfield placement original snapshot differs');
   const observation = await observe(plan, binding, api, signal);
   await storage.verify();
-  await storage.write('terraform-brownfield-placement-opening-observation.json', observation);
+  let terminal = false;
+  try {
+    await storage.read('aws-terraform-terminal-cleanup.json');
+    terminal = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (!terminal) await storage.write('terraform-brownfield-placement-opening-observation.json', observation);
   return binding;
 }
