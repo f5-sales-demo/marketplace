@@ -9,10 +9,10 @@
   "cohort": {
     "revision": 87,
     "versions": {
-      "platform": "7.0.0-uat.87",
-      "aws": "3.0.0-uat.87",
-      "azure": "5.0.0-uat.87",
-      "terraform": "3.0.0-uat.87"
+      "platform": "7.0.0-uat.88",
+      "aws": "3.0.0-uat.88",
+      "azure": "5.0.0-uat.88",
+      "terraform": "3.0.0-uat.88"
     },
     "stableBaseVersions": {
       "platform": "6.2.0",
@@ -21,59 +21,80 @@
       "terraform": "2.3.1"
     },
     "runtimePeer": "23.8.0",
-    "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+    "sourceCommit": null,
     "deliverable": false,
-    "archives": [
-      {
-        "plugin": "platform",
-        "version": "7.0.0-uat.87",
-        "filesVerified": 267,
-        "archiveSha256": "4226673c9462167737f0642ee36f9fd552b2d4628fd08cf414e361661368fc19",
-        "archiveBytes": 387569,
-        "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
-        "manifestSha256": "0a15957c52b168b788a8f55a4605674cd8776580d78b7d30f79bf78ea4298331",
-        "packageSha256": "d5d0307fc6b2cd2d546f91c1f9a4012919e5cf91e678b456aec2e9f455bb7672",
-        "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
-        "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+    "archives": [],
+    "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"],
+    "candidateRevision": 88,
+    "historicalCohort": {
+      "revision": 87,
+      "versions": {
+        "platform": "7.0.0-uat.87",
+        "aws": "3.0.0-uat.87",
+        "azure": "5.0.0-uat.87",
+        "terraform": "3.0.0-uat.87"
       },
-      {
-        "plugin": "aws",
-        "version": "3.0.0-uat.87",
-        "filesVerified": 286,
-        "archiveSha256": "2b539c8522ceba09128ad69ffaee526db6a739c3d002ad0e4830dd94cbda4a5e",
-        "archiveBytes": 769099,
-        "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
-        "manifestSha256": "584c354335acf007d68ebcbb9d84705d749fe5e897a45252b414f1aa5371d692",
-        "packageSha256": "382bdb16eb2bc1534c777d621b62da04d9900044046014571a8d0f9a50f03958",
-        "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
-        "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+      "stableBaseVersions": {
+        "platform": "6.2.0",
+        "aws": "2.3.0",
+        "azure": "4.6.0",
+        "terraform": "2.3.1"
       },
-      {
-        "plugin": "azure",
-        "version": "5.0.0-uat.87",
-        "filesVerified": 167,
-        "archiveSha256": "225d55158474213920dc3126e602b2b88c72a00da047088e5c96ed6d9d87202d",
-        "archiveBytes": 435013,
-        "runtimeSha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719",
-        "manifestSha256": "bb6e4e683c091acb00342c8f9e8f3d8008f5992cea601be41a426b4462f99c1d",
-        "packageSha256": "38f1cd72e8cf7124719f31735e6147772ef006fcc7a311505b58361332a49c34",
-        "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
-        "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
-      },
-      {
-        "plugin": "terraform",
-        "version": "3.0.0-uat.87",
-        "filesVerified": 34,
-        "archiveSha256": "b6052a7a30d2b9923cee74a9a89e5a850d9a8159503b88cc992ca61d734b7935",
-        "archiveBytes": 115174,
-        "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
-        "manifestSha256": "150fe9f0572ba5a5f94f22b927111116d7aed7065e022a15211dffe3bb398aa9",
-        "packageSha256": "38ccbaa3b20fc807e6a2178d8f6796eee5bf5787f2c17045c3e66190f2dba31c",
-        "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
-        "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
-      }
-    ],
-    "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"]
+      "runtimePeer": "23.8.0",
+      "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+      "deliverable": false,
+      "archives": [
+        {
+          "plugin": "platform",
+          "version": "7.0.0-uat.87",
+          "filesVerified": 267,
+          "archiveSha256": "4226673c9462167737f0642ee36f9fd552b2d4628fd08cf414e361661368fc19",
+          "archiveBytes": 387569,
+          "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
+          "manifestSha256": "0a15957c52b168b788a8f55a4605674cd8776580d78b7d30f79bf78ea4298331",
+          "packageSha256": "d5d0307fc6b2cd2d546f91c1f9a4012919e5cf91e678b456aec2e9f455bb7672",
+          "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+          "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+        },
+        {
+          "plugin": "aws",
+          "version": "3.0.0-uat.87",
+          "filesVerified": 286,
+          "archiveSha256": "2b539c8522ceba09128ad69ffaee526db6a739c3d002ad0e4830dd94cbda4a5e",
+          "archiveBytes": 769099,
+          "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
+          "manifestSha256": "584c354335acf007d68ebcbb9d84705d749fe5e897a45252b414f1aa5371d692",
+          "packageSha256": "382bdb16eb2bc1534c777d621b62da04d9900044046014571a8d0f9a50f03958",
+          "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+          "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+        },
+        {
+          "plugin": "azure",
+          "version": "5.0.0-uat.87",
+          "filesVerified": 167,
+          "archiveSha256": "225d55158474213920dc3126e602b2b88c72a00da047088e5c96ed6d9d87202d",
+          "archiveBytes": 435013,
+          "runtimeSha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719",
+          "manifestSha256": "bb6e4e683c091acb00342c8f9e8f3d8008f5992cea601be41a426b4462f99c1d",
+          "packageSha256": "38f1cd72e8cf7124719f31735e6147772ef006fcc7a311505b58361332a49c34",
+          "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+          "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+        },
+        {
+          "plugin": "terraform",
+          "version": "3.0.0-uat.87",
+          "filesVerified": 34,
+          "archiveSha256": "b6052a7a30d2b9923cee74a9a89e5a850d9a8159503b88cc992ca61d734b7935",
+          "archiveBytes": 115174,
+          "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
+          "manifestSha256": "150fe9f0572ba5a5f94f22b927111116d7aed7065e022a15211dffe3bb398aa9",
+          "packageSha256": "38ccbaa3b20fc807e6a2178d8f6796eee5bf5787f2c17045c3e66190f2dba31c",
+          "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+          "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+        }
+      ],
+      "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"]
+    }
   },
   "requiredClouds": ["aws", "azure"],
   "requiredEngines": ["native", "terraform"],
@@ -269,14 +290,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/single-site/planning",
@@ -300,14 +336,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/single-site/bootstrap",
@@ -947,14 +998,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/independent-sites/planning",
@@ -978,14 +1044,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/independent-sites/bootstrap",
@@ -1625,14 +1706,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/three-node-ha/planning",
@@ -1656,14 +1752,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/native/three-node-ha/bootstrap",
@@ -2303,14 +2414,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/single-site/planning",
@@ -2334,14 +2460,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/single-site/bootstrap",
@@ -3029,14 +3170,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/independent-sites/planning",
@@ -3060,14 +3216,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/independent-sites/bootstrap",
@@ -3719,14 +3890,29 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/three-node-ha/planning",
@@ -3750,14 +3936,29 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "aws/terraform/three-node-ha/bootstrap",
@@ -4409,14 +4610,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/single-site/planning",
@@ -4440,14 +4656,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/single-site/bootstrap",
@@ -5083,14 +5314,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/independent-sites/planning",
@@ -5114,14 +5360,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/independent-sites/bootstrap",
@@ -5757,14 +6018,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/three-node-ha/planning",
@@ -5788,14 +6064,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/native/three-node-ha/bootstrap",
@@ -6431,14 +6722,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/single-site/planning",
@@ -6462,14 +6768,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/single-site/bootstrap",
@@ -7109,14 +7430,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/independent-sites/planning",
@@ -7140,14 +7476,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-azure-independent-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/independent-sites/bootstrap",
@@ -7787,14 +8138,29 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/three-node-ha/planning",
@@ -7818,14 +8184,29 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 87,
+          "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/three-node-ha/bootstrap",

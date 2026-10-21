@@ -8695,7 +8695,7 @@ async function azureTerraformCurrentDeployment(plan) {
     backendIdentity: `local:${plan.deploymentName}`,
   };
 }
-var AZURE_CE_TERRAFORM_VERSION = '1.16.1',
+var AZURE_CE_TERRAFORM_VERSION = '1.16.5',
   AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0',
   AZURE_CE_TLS_PROVIDER_VERSION = '4.4.0',
   AZURE_CE_AZAPI_PROVIDER_VERSION = '2.12.0',
@@ -9777,7 +9777,7 @@ function configuration(plan, node, includeMutation) {
         };
   return JSON.stringify({
     terraform: {
-      required_version: '= 1.16.1',
+      required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {
         azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION2}` },
       },
@@ -9797,7 +9797,7 @@ async function azureTerraformLifecycleDeployment(plan, node, includeMutation = t
     stage,
     engine: 'terraform',
     scope: { cloud: 'azure', account: plan.subscription.id, region: plan.region },
-    terraformVersion: '1.16.1',
+    terraformVersion: AZURE_CE_TERRAFORM_VERSION,
     configuration: configuration(plan, node, includeMutation),
     providerLock: await readFile4(
       new URL('./assets/plugins/azure/terraform/azapi-provider-lock.hcl', import.meta.url),
@@ -10000,6 +10000,7 @@ var init_terraform_lifecycle = __esm(() => {
   init_artifacts();
   init_canonical();
   init_native_workflow();
+  init_terraform_foundation();
   init_terraform_upgrade();
 });
 
@@ -13269,7 +13270,7 @@ function configuration2(base, failover, phase) {
         };
   return JSON.stringify({
     terraform: {
-      required_version: '= 1.16.1',
+      required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {
         azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION2}` },
       },
@@ -13290,7 +13291,7 @@ async function azureTerraformFailoverDeployment(base, failover, phase = 'stop') 
     stage,
     engine: 'terraform',
     scope: { cloud: 'azure', account: base.subscription.id, region: base.region },
-    terraformVersion: '1.16.1',
+    terraformVersion: AZURE_CE_TERRAFORM_VERSION,
     configuration: text,
     providerLock: await readFile5(
       new URL('./assets/plugins/azure/terraform/azapi-provider-lock.hcl', import.meta.url),
@@ -13410,6 +13411,7 @@ var digest5 = (value) => createHash10('sha256').update(value).digest('hex'),
 var init_terraform_failover = __esm(() => {
   init_canonical();
   init_failover();
+  init_terraform_foundation();
   init_terraform_lifecycle();
 });
 

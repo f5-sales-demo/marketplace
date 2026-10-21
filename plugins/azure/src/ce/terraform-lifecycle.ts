@@ -11,6 +11,7 @@ import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { collectAzureNativeVmState, listAzureNativeVms } from './native-workflow';
 import { collectAzurePlatformHealth } from './platform-health';
+import { AZURE_CE_TERRAFORM_VERSION } from './terraform-foundation';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCeAction, AzureCePlan } from './types';
 
@@ -69,7 +70,7 @@ function configuration(plan: AzureCePlan, node: number, includeMutation: boolean
         };
   return JSON.stringify({
     terraform: {
-      required_version: '= 1.16.1',
+      required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {
         azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION}` },
       },
@@ -94,7 +95,7 @@ export async function azureTerraformLifecycleDeployment(
     stage,
     engine: 'terraform',
     scope: { cloud: 'azure', account: plan.subscription.id, region: plan.region },
-    terraformVersion: '1.16.1',
+    terraformVersion: AZURE_CE_TERRAFORM_VERSION,
     configuration: configuration(plan, node, includeMutation),
     providerLock: await readFile(new URL('../../terraform/azapi-provider-lock.hcl', import.meta.url), 'utf8'),
     backendIdentity: `local:${plan.deploymentName}:stage:${stage}`,

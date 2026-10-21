@@ -23,6 +23,16 @@ function plan(ha = false, termsAccepted = true) {
 }
 const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n';
 
+it('pins foundation and current workspaces to the qualified Terraform runtime', async () => {
+  for (const deployment of [
+    await azureTerraformFoundationDeployment(plan()),
+    await azureTerraformCurrentDeployment(plan()),
+  ]) {
+    expect(deployment.terraformVersion).toBe('1.16.5');
+    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+  }
+});
+
 it('renders stable Azure network staging without starting VMs or generating bootstrap', () => {
   const p = plan();
   const rendered = renderAzureTerraformFoundation(p);

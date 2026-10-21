@@ -21,6 +21,17 @@ afterEach(async () => {
 });
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
+test('pins lifecycle mutations and release to the qualified Terraform runtime', async () => {
+  for (const operation of ['start', 'stop', 'resize'] as const) {
+    const { plan } = lifecyclePlan(operation);
+    for (const includeMutation of [true, false]) {
+      const deployment = await azureTerraformLifecycleDeployment(plan, 1, includeMutation);
+      expect(deployment.terraformVersion).toBe('1.16.5');
+      expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+    }
+  }
+});
+
 function lifecyclePlan(operation: 'start' | 'stop' | 'resize', ha = false) {
   const selected = structuredClone(intent);
   selected.engine = 'terraform';

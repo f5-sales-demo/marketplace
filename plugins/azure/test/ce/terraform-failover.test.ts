@@ -73,6 +73,10 @@ test('renders only the selected Azure VM power action and an empty release confi
   const stop = await azureTerraformFailoverDeployment(f.plan, f.failover, 'stop');
   const start = await azureTerraformFailoverDeployment(f.plan, f.failover, 'start');
   const release = await azureTerraformFailoverDeployment(f.plan, f.failover, 'release');
+  for (const deployment of [stop, start, release]) {
+    expect(deployment.terraformVersion).toBe('1.16.5');
+    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+  }
   expect(JSON.parse(stop.configuration).resource.azapi_resource_action.ce_failover).toMatchObject({
     resource_id: f.failover.vmResourceId,
     action: 'deallocate',

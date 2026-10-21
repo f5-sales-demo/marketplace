@@ -5,6 +5,7 @@ import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from './canonical';
 import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
+import { AZURE_CE_TERRAFORM_VERSION } from './terraform-foundation';
 import { AZURE_CE_AZAPI_PROVIDER_VERSION } from './terraform-lifecycle';
 import type { AzureCePlan } from './types';
 
@@ -37,7 +38,7 @@ function configuration(base: AzureCePlan, failover: AzureCeFailoverPlan, phase: 
         };
   return JSON.stringify({
     terraform: {
-      required_version: '= 1.16.1',
+      required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {
         azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION}` },
       },
@@ -63,7 +64,7 @@ export async function azureTerraformFailoverDeployment(
     stage,
     engine: 'terraform',
     scope: { cloud: 'azure', account: base.subscription.id, region: base.region },
-    terraformVersion: '1.16.1',
+    terraformVersion: AZURE_CE_TERRAFORM_VERSION,
     configuration: text,
     providerLock: await readFile(new URL('../../terraform/azapi-provider-lock.hcl', import.meta.url), 'utf8'),
     backendIdentity: `local:${base.deploymentName}:stage:${stage}`,
