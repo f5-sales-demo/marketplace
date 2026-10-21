@@ -38,6 +38,15 @@ and 629 assertions. Full repository and hermetic plugin suites pass on Ubuntu,
 as do catalog, version-bump, pre-commit, secret and privacy checks. Raw logs
 and the initial minimum-lane harness failure remain private.
 
+CI subsequently rejected the setup module and its tests for exceeding pylint's
+1,000-line module limit. Launcher staging and activation now live in a focused
+`xorgctl_lib.launcher` module, with their four existing behavioral regressions in
+`test_launcher.py`. Setup retains the same callable integration boundary. The
+complete Python suite still passes all 49 tests on Mac; the four changed Python
+files pass Ruff and the repository pylint configuration without relaxing rules.
+The original CI failure remains private evidence. Inventory fingerprints were
+reconciled while retaining historical receipts and open acceptance gates.
+
 ## Remaining acceptance
 
 This source receipt does not establish publication, installed qualification or
