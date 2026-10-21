@@ -16367,6 +16367,19 @@ async function runAwsTerraformTeardown(
   env,
   signal,
 ) {
+  if (plan.kind === 'aws-ce-terraform-foundation-teardown')
+    return runAwsFoundationTeardown(
+      base,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+    );
   base = structuredClone(base);
   plan = structuredClone(plan);
   const bindings = siteBindings(base);
@@ -16420,10 +16433,183 @@ var init_terraform_teardown = __esm(() => {
   init_canonical();
   init_terraform_absence();
   init_terraform_cloud_teardown();
+  init_terraform_foundation_teardown();
+});
+
+// plugins/aws/src/ce/terraform-foundation-teardown.ts
+import { readdir as readdir2 } from 'node:fs/promises';
+
+async function verifyFoundationJournal(base, storage) {
+  verifyAwsCePlan(base);
+  if (
+    base.engine !== 'terraform' ||
+    base.intent.operation !== 'deploy' ||
+    canonicalSha256(storage.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner)
+  )
+    throw new Error('Foundation teardown engine or owner differs');
+  await storage.verify();
+  const auth = await storage.read('terraform-authorization.json');
+  const workflow = await storage.read('terraform-workflow.json');
+  if (
+    auth?.schemaVersion !== 1 ||
+    auth.engine !== 'terraform' ||
+    auth.planSha256 !== base.planSha256 ||
+    auth.mutations !== true ||
+    auth.f5StateOwner !== 'terraform' ||
+    !workflow ||
+    workflow.schemaVersion !== 1 ||
+    workflow.engine !== 'terraform' ||
+    workflow.planSha256 !== base.planSha256 ||
+    !['network-pending', 'registration-pending'].includes(String(workflow.stage))
+  )
+    throw new Error('Foundation teardown requires the exact owning pre-admission journal');
+  const files = await readdir2(storage.directory);
+  if (
+    files.some((file) =>
+      /^(terraform-(admission|site-|registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file),
+    )
+  )
+    throw new Error('Admission or routing has started; explicit platform retirement is required');
+}
+function compile(base, site, ingress) {
+  verifyAwsCePlan(base);
+  if (base.engine !== 'terraform' || !site || !ingress) throw new Error('Foundation teardown contract differs');
+  const draft = {
+    schemaVersion: 1,
+    kind: 'aws-ce-terraform-foundation-teardown',
+    engine: 'terraform',
+    sourcePlanSha256: base.planSha256,
+    drain: {
+      schemaVersion: 1,
+      owner: siteBindings(base)[0].binding.owner,
+      sourcePlanSha256: base.planSha256,
+      siteContractFingerprint: site,
+      ingressContractFingerprint: ingress,
+      sites: [],
+      listeners: [],
+      origins: [],
+    },
+    retirement: [],
+  };
+  const planSha256 = canonicalSha256(draft);
+  return { ...draft, planId: `aws-ce-foundation-teardown-${planSha256.slice(0, 24)}`, planSha256 };
+}
+function requireAbsence(receipt, base, site, ingress) {
+  const at = Date.parse(receipt.observedAt);
+  if (
+    receipt.status !== 'absent' ||
+    canonicalSha256(receipt.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner) ||
+    receipt.siteContractFingerprint !== site ||
+    receipt.ingressContractFingerprint !== ingress ||
+    !Number.isFinite(at) ||
+    at > Date.now() ||
+    Date.now() - at > 60000
+  )
+    throw new Error('Fresh unregistered platform absence is unavailable');
+}
+async function prepareAwsFoundationTeardown(base, runtime, contract, storage, signal) {
+  signal?.throwIfAborted();
+  if (runtime.engine !== 'terraform') throw new Error('Foundation teardown runtime engine differs');
+  await verifyFoundationJournal(base, storage);
+  const plan = compile(base, runtime.contract.fingerprint, contract.fingerprint);
+  requireAbsence(
+    await runtime.unregisteredAbsence(
+      siteBindings(base).map((row) => row.binding),
+      ['default'],
+      contract,
+      signal,
+    ),
+    base,
+    runtime.contract.fingerprint,
+    contract.fingerprint,
+  );
+  await verifyFoundationJournal(base, storage);
+  await storage.write(`${plan.planId}.json`, plan);
+  return plan;
+}
+async function coordinateAwsFoundationTeardown(base, input, authorized, storage, driver, signal) {
+  base = structuredClone(base);
+  const plan = structuredClone(input);
+  const validate = async () => {
+    signal?.throwIfAborted();
+    await verifyFoundationJournal(base, storage);
+    if (
+      driver.engine !== 'terraform' ||
+      authorized !== plan.planSha256 ||
+      canonicalSha256(plan) !==
+        canonicalSha256(compile(base, driver.siteContractFingerprint, driver.ingressContractFingerprint))
+    )
+      throw new Error('Foundation teardown authorization or immutable plan differs');
+  };
+  await validate();
+  requireAbsence(await driver.observe(signal), base, driver.siteContractFingerprint, driver.ingressContractFingerprint);
+  await validate();
+  const cloud = await driver.retireCloud(signal);
+  if (
+    cloud.status !== 'terraform-state-retired' ||
+    cloud.sourcePlanSha256 !== base.planSha256 ||
+    !/^[a-f0-9]{64}$/.test(cloud.finalPlanSha256)
+  )
+    throw new Error('Foundation cloud retirement has no bound no-change receipt');
+  await validate();
+  requireAbsence(await driver.observe(signal), base, driver.siteContractFingerprint, driver.ingressContractFingerprint);
+  const receipt = {
+    status: 'resources-retired-awaiting-inventory',
+    owner: storage.owner,
+    sourcePlanSha256: base.planSha256,
+    planSha256: plan.planSha256,
+    finalPlanSha256: cloud.finalPlanSha256,
+    cloudInventory: 'unknown',
+    observedAt: new Date().toISOString(),
+  };
+  await storage.write('aws-terraform-foundation-teardown-receipt.json', receipt);
+  return receipt;
+}
+async function runAwsFoundationTeardown(base, plan, authorized, runtime, contract, session, storage, api, env, signal) {
+  if (runtime.engine !== 'terraform') throw new Error('Foundation teardown runtime engine differs');
+  await verifyAwsTeardownCredentials(base, api, signal);
+  const retired = await coordinateAwsFoundationTeardown(
+    base,
+    plan,
+    authorized,
+    storage,
+    {
+      engine: 'terraform',
+      siteContractFingerprint: runtime.contract.fingerprint,
+      ingressContractFingerprint: contract.fingerprint,
+      observe: (signal) =>
+        runtime.unregisteredAbsence(
+          siteBindings(base).map((row) => row.binding),
+          ['default'],
+          contract,
+          signal,
+        ),
+      retireCloud: (signal) => runAwsTerraformCloudTeardown(base, session, storage, api, env, signal),
+    },
+    signal,
+  );
+  const inventory = await storage.read('terraform-cloud-teardown-inventory.json');
+  const observation = await collectAwsTerraformAbsence(base, inventory, api, signal);
+  await storage.write('aws-terraform-teardown-cloud-absence.json', observation);
+  return {
+    ...retired,
+    status:
+      observation.status === 'absent-or-retired'
+        ? 'ce-retired-supporting-infrastructure-unverified'
+        : 'pending-cloud-inventory',
+    cloudInventory: observation.status,
+  };
+}
+var init_terraform_foundation_teardown = __esm(() => {
+  init_artifacts();
+  init_canonical();
+  init_terraform_absence();
+  init_terraform_cloud_teardown();
+  init_terraform_teardown();
 });
 
 // plugins/aws/src/ce/terraform-teardown-plan.ts
-import { readdir as readdir2 } from 'node:fs/promises';
+import { readdir as readdir3 } from 'node:fs/promises';
 
 async function optional7(storage, name) {
   try {
@@ -16461,7 +16647,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const ingressFile = (file) => /^ingress-plan-[a-f0-9]{24}\.json$/.test(file);
   const files = async () => {
     await storage.verify();
-    const entries = await readdir2(storage.directory, { withFileTypes: true });
+    const entries = await readdir3(storage.directory, { withFileTypes: true });
     return entries
       .filter((entry) => ingressFile(entry.name) || tokenMatches(entry.name).length)
       .map((entry) => {
@@ -16671,6 +16857,14 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
 }
 async function prepareAwsTerraformTeardown(input, runtime, contract, storage, signal) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
+  const workflow = await optional7(storage, 'terraform-workflow.json');
+  const admission = await optional7(storage, 'terraform-admission.json');
+  if (
+    workflow !== undefined &&
+    admission === undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object22(workflow).stage))
+  )
+    return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
   const plan = compileAwsTerraformTeardown(input, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
@@ -16685,6 +16879,7 @@ var object22 = (value) => {
 var init_terraform_teardown_plan = __esm(() => {
   init_artifacts();
   init_canonical();
+  init_terraform_foundation_teardown();
   init_terraform_teardown();
 });
 

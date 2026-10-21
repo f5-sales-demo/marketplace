@@ -16,6 +16,7 @@ import {
   prepareAwsTerraformBrownfieldBinding,
 } from '../ce/terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
+import type { AwsFoundationTeardownPlan } from '../ce/terraform-foundation-teardown';
 import { type AwsTerraformTeardownPlan, runAwsTerraformTeardown } from '../ce/terraform-teardown';
 import { prepareAwsTerraformTeardown } from '../ce/terraform-teardown-plan';
 import { makeExecApi } from './shared';
@@ -159,6 +160,7 @@ export function createAwsCeTeardownTool(
           throw new Error('Teardown apply requires the exact teardown plan ID and SHA-256');
         const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as
           | AwsTerraformTeardownPlan
+          | AwsFoundationTeardownPlan
           | AwsNativeTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
@@ -200,7 +202,7 @@ export function createAwsCeTeardownTool(
           plan.engine === 'terraform'
             ? await dependencies.run(
                 plan,
-                teardown as AwsTerraformTeardownPlan,
+                teardown as AwsTerraformTeardownPlan | AwsFoundationTeardownPlan,
                 params.teardownPlanSha256,
                 runtime,
                 contract,

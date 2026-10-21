@@ -5,6 +5,7 @@ import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import type { AwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
+import { prepareAwsFoundationTeardown } from './terraform-foundation-teardown';
 import { compileAwsTerraformTeardown } from './terraform-teardown';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
@@ -280,6 +281,14 @@ export async function prepareAwsTerraformTeardown(
   signal?: AbortSignal,
 ) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
+  const workflow = await optional(storage, 'terraform-workflow.json');
+  const admission = await optional(storage, 'terraform-admission.json');
+  if (
+    workflow !== undefined &&
+    admission === undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object(workflow).stage))
+  )
+    return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
   const plan = compileAwsTerraformTeardown(input, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);

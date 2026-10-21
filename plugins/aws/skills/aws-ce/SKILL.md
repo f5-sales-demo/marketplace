@@ -69,7 +69,11 @@ contract for their acceptance scope and public-tool integration status.
    Multi-node power and Terraform direct-route maintenance remain unqualified. Use
    `aws_ce_teardown` for the owning engine: native teardown consumes a separately reviewed fresh
    `aws_ce_plan` teardown plan bound to the original deployment, while Terraform derives its saved
-   destroy plan internally. Both retain authorization and resume from durable evidence; version
+   destroy plan internally. A Terraform workflow interrupted before admission can prepare a distinct
+   foundation teardown only when its original authorization and journal match, and two complete
+   platform reads prove sites, registrations, tokens, and owned service resources absent. Apply
+   rechecks absence before and after cloud retirement. Started admission requires registered or
+   partial-registration retirement evidence; it cannot use foundation teardown. Both retain authorization and resume from durable evidence; version
    completion and cloud deletion do not establish routing, traffic, or independent absence.
 6. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
    only the same AWS plan ID/hash; rediscover and replan for source, AMI, quota, agreement, route,

@@ -10,6 +10,7 @@ import { type AwsCeToolContext, saveAwsPlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import type { AwsNativeTeardownPlan } from '../../src/ce/native-teardown';
 import type { AwsTerraformTeardownPlan } from '../../src/ce/terraform-teardown';
+import { prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
 import { siteBindings } from '../../src/ce/topology';
 import { createAwsCeTeardownTool } from '../../src/tools/aws-ce-teardown';
 import { brownfieldPlacementFixture } from '../ce/terraform-brownfield-fixture';
@@ -29,7 +30,7 @@ const typebox = {
   },
 } as unknown as PluginInterface['typebox'];
 
-for (const mode of ['greenfield', 'brownfield'] as const)
+for (const mode of ['greenfield', 'brownfield', 'foundation'] as const)
   test(`public teardown tool prepares, authorizes once and resumes the exact ${mode} Terraform manifest`, async () => {
     const fixture = brownfieldPlacementFixture();
     const initial = mode === 'brownfield' ? fixture.plan : foundationPlan(),
@@ -74,7 +75,19 @@ for (const mode of ['greenfield', 'brownfield'] as const)
       opens = 0;
     const platform = {
       storage: async () => storage,
-      runtime: async () => ({ engine: 'terraform' }),
+      runtime: async () => ({
+        engine: 'terraform',
+        contract: { fingerprint: 'site-contract' },
+        unregisteredAbsence: async () => ({
+          status: 'absent',
+          owner: binding.owner,
+          siteContractFingerprint: 'site-contract',
+          ingressContractFingerprint: 'ingress-contract',
+          observedAt: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
+          sources: [],
+        }),
+      }),
     } as unknown as CePlatformService;
     const terraform = {
       async open(_owner, deployment, resume) {
@@ -110,6 +123,21 @@ for (const mode of ['greenfield', 'brownfield'] as const)
       },
     } satisfies AwsCeToolContext;
     await saveAwsPlan(ctx.sessionManager, plan, {} as never);
+    if (mode === 'foundation') {
+      await storage.write('terraform-authorization.json', {
+        schemaVersion: 1,
+        engine: 'terraform',
+        planSha256: plan.planSha256,
+        mutations: true,
+        f5StateOwner: 'terraform',
+      });
+      await storage.write('terraform-workflow.json', {
+        schemaVersion: 1,
+        engine: 'terraform',
+        planSha256: plan.planSha256,
+        stage: 'network-pending',
+      });
+    }
     const tool = createAwsCeTeardownTool(
       { typebox } as PluginInterface,
       () => ({
@@ -126,12 +154,19 @@ for (const mode of ['greenfield', 'brownfield'] as const)
         terraform: async () => terraform,
         contract: async () => ({ fingerprint: 'ingress-contract' }) as never,
         async prepare(_plan, _runtime, _contract, target) {
+          if (mode === 'foundation') return prepareAwsTerraformTeardown(_plan, _runtime, _contract, target);
           await target.write(`${teardown.planId}.json`, teardown);
           return teardown;
         },
         async run(_plan, selected, authorized) {
-          expect(selected).toEqual(teardown);
-          expect(authorized).toBe(teardown.planSha256);
+          if (mode === 'foundation') {
+            expect(selected.kind).toBe('aws-ce-terraform-foundation-teardown');
+            expect(selected.retirement).toEqual([]);
+            expect(authorized).toBe(selected.planSha256);
+          } else {
+            expect(selected).toEqual(teardown);
+            expect(authorized).toBe(teardown.planSha256);
+          }
           runs++;
           return {
             status: 'ce-retired-supporting-infrastructure-unverified' as const,

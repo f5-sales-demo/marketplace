@@ -9,6 +9,7 @@ import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
 import { collectAwsTerraformAbsence } from './terraform-absence';
 import { runAwsTerraformCloudTeardown } from './terraform-cloud-teardown';
+import { type AwsFoundationTeardownPlan, runAwsFoundationTeardown } from './terraform-foundation-teardown';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
@@ -264,7 +265,7 @@ export async function verifyAwsTeardownCredentials(base: AwsCePlan, rawApi: AwsE
 /** Concrete production binding: F5 operations stay in platform; cloud mutation uses the owning Terraform session. */
 export async function runAwsTerraformTeardown(
   base: AwsCePlan,
-  plan: AwsTerraformTeardownPlan,
+  plan: AwsTerraformTeardownPlan | AwsFoundationTeardownPlan,
   authorizedPlanSha256: string,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -274,6 +275,19 @@ export async function runAwsTerraformTeardown(
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
 ) {
+  if (plan.kind === 'aws-ce-terraform-foundation-teardown')
+    return runAwsFoundationTeardown(
+      base,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+    );
   base = structuredClone(base);
   plan = structuredClone(plan);
   const bindings = siteBindings(base);
