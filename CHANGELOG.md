@@ -10,7 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`sales-engineer`** v1.2.1 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
+- **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
+- **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
 
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
 - **`docs-tools`** v1.3.1 — resolve the shipped reviewer skill, preserve explicit scope, and report incomplete reviews with complete findings
