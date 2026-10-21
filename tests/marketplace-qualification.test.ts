@@ -670,3 +670,19 @@ test('wrapped prose occurrence checks count mixed wrapped and direct duplicates 
   expect(count([...wrapped, '+---+', ...wrapped], 2)).toBe(true);
   expect(count([...wrapped, '+---+', literal], 1)).toBe(false);
 });
+
+test('assistant paragraph wrapping preserves limitations and counts without crossing blocks', () => {
+  const frame = { id: 'message-wrap', case: 'message-1', width: 76, expanded: false, resultIsError: false };
+  const literal = 'page-wide status only';
+  const wrapped = ['This reports page-wide      ', 'status only; details were not collected.'];
+  const check = (lines: string[], expected: any, candidate = frame) =>
+    inspectCapture({ ...candidate, lines }, expected, (line) => Bun.stripANSI(line).length);
+  expect(check(wrapped, { contains: [literal], occurrences: { [literal]: 1 } }).passed).toBe(true);
+  expect(check([...wrapped, '', ...wrapped], { occurrences: { [literal]: 2 } }).passed).toBe(true);
+  for (const boundary of ['', '- Other finding', '\x1b[1mOther heading\x1b[22m', '+---+', '"field": "other"'])
+    expect(check([wrapped[0], boundary, wrapped[1]], { contains: [literal] }).passed).toBe(false);
+  expect(check(wrapped, { contains: [literal] }, { ...frame, case: 'tool-0-bash' }).passed).toBe(false);
+  const unsafe = check(['SYNTHETIC_SECRET_', 'SENTINEL'], { absent: ['SYNTHETIC_SECRET_SENTINEL'] });
+  expect(unsafe.failures).toContain('unsafe-evidence');
+  expect(unsafe.failures).toContain('unexpected-literal:SYNTHETIC_SECRET_SENTINEL');
+});

@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { assertPrivateCaptureRoot, matrixControls, validateCaptureIdentity } from './marketplace-qualification';
 
 /** Reconstruct framed fields, table cells and contiguous prose with the same terminal style. */
-function wrappedValues(lines: string[]) {
+function wrappedValues(lines: string[], assistantMessage = false) {
   const values: string[] = [];
   let cells: string[][] = [];
   let field: string[] = [];
@@ -63,6 +63,19 @@ function wrappedValues(lines: string[]) {
       continue;
     }
     flushCells();
+    // Native assistant Markdown is unframed. Reconstruct only its paragraph rows;
+    // blocks, list items, headings and structured data retain separate boundaries.
+    if (assistantMessage && parts.length === 1) {
+      const body = line.trim();
+      if (body && !raw.includes('\x1b[1m') && !/^(?:[-*+]\s|\d+[.)]\s|[>#`{[\]}"',])/.test(body)) {
+        if (proseStyle !== 'assistant-paragraph') flushProse();
+        proseStyle = 'assistant-paragraph';
+        prose.push(body);
+        proseRows.push(row);
+      } else flushProse();
+      flushField();
+      continue;
+    }
     // The shared fields renderer uses bold labels. A new label closes the previous field.
     const boldStart = raw.indexOf('\x1b[1m');
     const boldEnd = raw.indexOf('\x1b[22m:', boldStart + 4);
@@ -117,7 +130,7 @@ function wrappedValues(lines: string[]) {
 export function inspectCapture(frame: any, expected: any, visibleWidth: (line: string) => number) {
   const failures: string[] = [];
   const text = Bun.stripANSI(frame.lines.join('\n'));
-  const { values, proseRuns } = wrappedValues(frame.lines);
+  const { values, proseRuns } = wrappedValues(frame.lines, /^message-\d+$/.test(frame.case));
   const proseRows = new Set(proseRuns.flatMap((run) => run.rows));
   const outsideProse = Bun.stripANSI(
     frame.lines.filter((_line: string, row: number) => !proseRows.has(row)).join('\n'),
