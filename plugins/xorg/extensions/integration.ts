@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import manifest from '../.xcsh-plugin/plugin.json';
 import { controllerArgv, type DesktopInput, INSTALLED_XORGCTL } from './commands';
 import { presentTool as enrichTool } from './presentation';
 
@@ -16,7 +17,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.3.1';
+const VERSION = manifest.version;
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync([INSTALLED_XORGCTL, ...(session ? ['--session', session] : []), '--json', ...args]);

@@ -10,7 +10,11 @@ import socket
 import struct
 import subprocess
 
-VERSION = "1.3.1"
+VERSION = json.loads(
+    (
+        pathlib.Path(__file__).resolve().parents[2] / ".xcsh-plugin/plugin.json"
+    ).read_text()
+)["version"]
 ROOT = pathlib.Path(
     os.environ.get("XORGCTL_STATE", pathlib.Path.home() / ".local/state/xorgctl")
 )

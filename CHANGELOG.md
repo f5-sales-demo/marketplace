@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.3.2 stages a durable controller payload before launcher activation, survives plugin cache removal, and derives setup versions from the shipped manifest (#1802).
+
 - **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
 - **`brand`** v1.2.1 — resolve shipped review guidance and report safe reference status with explicit incomplete outcomes
 - **`meddpicc`** v7.8.2 quotes every legacy migration argument and identifies the running executable and CLI source path so corrective advice reconstructs exactly in Bash and Zsh (#1775).
