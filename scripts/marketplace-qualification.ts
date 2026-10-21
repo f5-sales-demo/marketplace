@@ -13,7 +13,7 @@ export interface Scenario {
     path: string;
     section: string;
     sha256: string;
-    args: { command: string; env: Record<string, string>; timeout: number; description?: string };
+    args: { command: string; env: Record<string, string>; timeout: number; description?: string; cwd?: string };
   }[];
 }
 export const pluginOrder = [
@@ -189,7 +189,12 @@ export function validateScenario(value: any): Scenario {
           ['\r', '\n', '\x00'].some((character) => rule.section.includes(character)) ||
           !/^[a-f0-9]{64}$/.test(rule.sha256) ||
           !object(rule.args) ||
-          Object.keys(rule.args).some((key) => !['command', 'env', 'timeout', 'description'].includes(key)) ||
+          Object.keys(rule.args).some((key) => !['command', 'env', 'timeout', 'description', 'cwd'].includes(key)) ||
+          ('cwd' in rule.args &&
+            (typeof rule.args.cwd !== 'string' ||
+              !isAbsolute(rule.args.cwd) ||
+              resolve(rule.args.cwd) !== rule.args.cwd ||
+              rule.args.cwd.includes('\x00'))) ||
           ('description' in rule.args &&
             (typeof rule.args.description !== 'string' ||
               !rule.args.description.trim() ||
@@ -228,6 +233,13 @@ export function validateScenario(value: any): Scenario {
 /** Strict Markdown subset: one named section containing exactly one Bash fence. */
 export function validateScenarioSources(scenario: Scenario, plugin: string) {
   for (const rule of scenario.shellCalls ?? []) {
+    if (rule.args.cwd !== undefined) {
+      const cwd = rule.args.cwd;
+      // The reviewed working directory must still exist without symlink indirection.
+      // Exact args remain bound at dispatch; no cwd normalization widens admission.
+      if (!lstatSync(cwd).isDirectory() || realpathSync(cwd) !== cwd)
+        throw new Error('Reviewed shell working directory is missing, changed or indirect');
+    }
     const source = readFileSync(resolveShippedPath(plugin, rule.path), 'utf8');
     const lines = source.split('\n');
     const blocks: string[] = [];
