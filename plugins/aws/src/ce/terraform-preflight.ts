@@ -5,6 +5,7 @@ import { canonicalSha256, resourceConfiguration } from './canonical';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { captureAwsRevalidationRejection } from './observation-rejection';
 import { scopedAwsApi } from './scoped-exec';
+import { awsTerraformBrownfieldPlacementBaseline } from './terraform-brownfield-binding';
 import { ownedRoutingAdditions, routingAttachmentIds } from './terraform-routing-references';
 import type { AwsCeObservation, AwsCePlan } from './types';
 
@@ -18,8 +19,13 @@ export async function revalidateAwsTerraformPlan(
   signal?: AbortSignal,
 ) {
   verifyAwsCePlan(plan);
-  if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy' || plan.intent.vpc.mode !== 'greenfield')
-    throw new Error('Terraform deployment preflight requires a greenfield owning plan');
+  if (
+    plan.engine !== 'terraform' ||
+    plan.intent.operation !== 'deploy' ||
+    !['greenfield', 'brownfield'].includes(plan.intent.vpc.mode)
+  )
+    throw new Error('Terraform deployment preflight requires a supported owning plan');
+  if (plan.intent.vpc.mode === 'brownfield') awsTerraformBrownfieldPlacementBaseline(plan);
   const api = scopedAwsApi(rawApi, plan.intent.awsProfile, signal);
   const result = await api.exec('aws', [
     'ec2',
@@ -61,7 +67,7 @@ export async function revalidateAwsTerraformPlan(
       requiredEnis: plan.interfaces.length,
       nodeCount: plan.topology.nodeCount,
       instanceTypes: [plan.instance.type],
-      brownfieldResourceIds: terraformRoutingReferences(plan),
+      brownfieldResourceIds: terraformPreflightReferences(plan),
       observedOwnedResourceIds: ids,
       ownedPlanSha256s: [plan.planSha256],
       resourceRegion: plan.region,
@@ -100,7 +106,7 @@ export async function revalidateAwsTerraformPlan(
       baseline,
       current,
       plan.observationFingerprint,
-      terraformRoutingReferences(plan),
+      terraformPreflightReferences(plan),
       'terraform-preflight',
       storage,
     );
@@ -135,7 +141,7 @@ export function assertAwsTerraformPreflight(
     plan.topology.availabilityZones.some((zone) => !types[0].availabilityZones.includes(zone))
   )
     throw new Error('Terraform instance offering no longer supports the planned topology');
-  const references = terraformRoutingReferences(plan);
+  const references = terraformPreflightReferences(plan);
   if (references.length) {
     const select = (observation: AwsCeObservation) =>
       observation.resources.filter((item) => references.includes(item.id));
@@ -158,6 +164,14 @@ export function assertAwsTerraformPreflight(
   }
 }
 
+function terraformPreflightReferences(plan: AwsCePlan): string[] {
+  return [
+    ...new Set([
+      ...terraformRoutingReferences(plan),
+      ...(plan.intent.vpc?.mode === 'brownfield' ? plan.intent.brownfield.resourceIds : []),
+    ]),
+  ].sort();
+}
 function terraformRoutingReferences(plan: AwsCePlan): string[] {
   const routing = plan.intent.routing;
   if (routing?.profile === 'direct-eni') {

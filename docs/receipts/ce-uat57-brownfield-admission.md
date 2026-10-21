@@ -28,7 +28,6 @@ Supported SLI-only control, publisher freshness, six-interface transitions, the 
 producer publication and consumption, independent cleanup and final UAT acceptance remain open.
 Preserve Argo, CE-hosted vK8s and existing Marketplace images/offers. PR1565 remains draft with auto-merge off.
 
-
 ## Remaining public execution dependency
 
 The actual `revalidateAwsTerraformPlan` still rejects brownfield plans before discovery. The public apply

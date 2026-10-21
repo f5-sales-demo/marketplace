@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
-import { assertAwsTerraformPreflight } from '../../src/ce/terraform-preflight';
+import type { CePlatformService } from '../../../platform/src/ce/service';
+import { assertAwsTerraformPreflight, revalidateAwsTerraformPlan } from '../../src/ce/terraform-preflight';
 import type { AwsCeObservation, AwsCePlan } from '../../src/ce/types';
+import { brownfieldPlacementFixture } from './terraform-brownfield-fixture';
 
 function fixture() {
   const image = { id: 'ami-0123456789abcdef0', ssmVersion: 16, allowedByPolicy: true };
@@ -167,4 +169,46 @@ test('preflight retains independently observed direct route tables and rejects d
   expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
   const duplicate = { ...baseline, resources: [baseline.resources[0], baseline.resources[0]] };
   expect(() => assertAwsTerraformPreflight(plan, baseline, duplicate)).toThrow('reference');
+});
+
+test('real brownfield preflight validates snapshots and reaches scoped cloud inventory', async () => {
+  const f = brownfieldPlacementFixture();
+  f.plan = { ...f.plan, region: f.plan.intent.region } as AwsCePlan;
+  const { canonicalSha256 } = await import('../../src/ce/canonical');
+  const { planId: _id, planSha256: _sha, ...draft } = f.plan;
+  const sha = canonicalSha256(draft);
+  f.plan = { ...draft, planSha256: sha, planId: `aws-ce-${sha.slice(0, 24)}` } as AwsCePlan;
+  let calls = 0;
+  await expect(
+    revalidateAwsTerraformPlan(f.plan, f.observation, {} as CePlatformService, {
+      async exec(_command, args) {
+        calls++;
+        expect(args.slice(0, 2)).toEqual(['ec2', 'describe-addresses']);
+        expect(args.slice(-2)).toEqual(['--profile', 'ce-profile']);
+        return { exitCode: 1, stderr: 'unavailable', stdout: '' };
+      },
+    }),
+  ).rejects.toThrow('EIP ownership is unavailable');
+  expect(calls).toBe(1);
+});
+
+test('brownfield preflight retains all six immutable references and rejects missing or changed evidence', () => {
+  const b = brownfieldPlacementFixture();
+  const f = fixture();
+  const plan = { ...f.plan, intent: { ...b.plan.intent, awsProfile: 'approved', routes: [] } } as AwsCePlan;
+  const baseline = {
+    ...f.baseline,
+    resources: b.observation.resources.map((r) => ({ ...r, region: 'ca-west-1' })),
+  } as unknown as AwsCeObservation;
+  expect(() => assertAwsTerraformPreflight(plan, baseline, structuredClone(baseline))).not.toThrow();
+  for (const reference of baseline.resources) {
+    const missing = structuredClone(baseline);
+    missing.resources = missing.resources.filter((r) => r.id !== reference.id);
+    expect(() => assertAwsTerraformPreflight(plan, baseline, missing)).toThrow('reference');
+    const changed = structuredClone(baseline);
+    const row = changed.resources.find((r) => r.id === reference.id);
+    if (!row) throw new Error('fixture reference missing');
+    row.state = {};
+    expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
+  }
 });

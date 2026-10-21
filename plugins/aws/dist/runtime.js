@@ -12379,8 +12379,13 @@ var init_terraform_routing_references = __esm(() => {
 // src/ce/terraform-preflight.ts
 async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetcher = fetch, signal) {
   verifyAwsCePlan(plan);
-  if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy' || plan.intent.vpc.mode !== 'greenfield')
-    throw new Error('Terraform deployment preflight requires a greenfield owning plan');
+  if (
+    plan.engine !== 'terraform' ||
+    plan.intent.operation !== 'deploy' ||
+    !['greenfield', 'brownfield'].includes(plan.intent.vpc.mode)
+  )
+    throw new Error('Terraform deployment preflight requires a supported owning plan');
+  if (plan.intent.vpc.mode === 'brownfield') awsTerraformBrownfieldPlacementBaseline(plan);
   const api = scopedAwsApi(rawApi, plan.intent.awsProfile, signal);
   const result = await api.exec('aws', [
     'ec2',
@@ -12419,7 +12424,7 @@ async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetc
       requiredEnis: plan.interfaces.length,
       nodeCount: plan.topology.nodeCount,
       instanceTypes: [plan.instance.type],
-      brownfieldResourceIds: terraformRoutingReferences(plan),
+      brownfieldResourceIds: terraformPreflightReferences(plan),
       observedOwnedResourceIds: ids,
       ownedPlanSha256s: [plan.planSha256],
       resourceRegion: plan.region,
@@ -12456,7 +12461,7 @@ async function revalidateAwsTerraformPlan(plan, baseline, platform, rawApi, fetc
       baseline,
       current,
       plan.observationFingerprint,
-      terraformRoutingReferences(plan),
+      terraformPreflightReferences(plan),
       'terraform-preflight',
       storage,
     );
@@ -12486,7 +12491,7 @@ function assertAwsTerraformPreflight(plan, baseline, current) {
     plan.topology.availabilityZones.some((zone) => !types[0].availabilityZones.includes(zone))
   )
     throw new Error('Terraform instance offering no longer supports the planned topology');
-  const references = terraformRoutingReferences(plan);
+  const references = terraformPreflightReferences(plan);
   if (references.length) {
     const select = (observation) => observation.resources.filter((item) => references.includes(item.id));
     const before = select(baseline);
@@ -12506,6 +12511,14 @@ function assertAwsTerraformPreflight(plan, baseline, current) {
     )
       throw new Error('Terraform routing reference configuration changed');
   }
+}
+function terraformPreflightReferences(plan) {
+  return [
+    ...new Set([
+      ...terraformRoutingReferences(plan),
+      ...(plan.intent.vpc?.mode === 'brownfield' ? plan.intent.brownfield.resourceIds : []),
+    ]),
+  ].sort();
 }
 function terraformRoutingReferences(plan) {
   const routing = plan.intent.routing;
@@ -12533,6 +12546,7 @@ var init_terraform_preflight = __esm(() => {
   init_canonical();
   init_discovery();
   init_observation_rejection();
+  init_terraform_brownfield_binding();
   init_terraform_routing_references();
 });
 
