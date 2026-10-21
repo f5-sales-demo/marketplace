@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`brand`** v1.2.2 aligns visual backgrounds with guardian restrictions, distinguishes target Mermaid registrations from available packages, and preserves suggestion severity for missing dark screenshot variants (#1795).
+- **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
 - **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
 - **`brand`** v1.2.1 — resolve shipped review guidance and report safe reference status with explicit incomplete outcomes
