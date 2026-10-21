@@ -10,9 +10,16 @@ function wrappedValues(lines: string[]) {
   let jsonField = false;
   let prose: string[] = [];
   let proseStyle = '';
+  let proseRows: number[] = [];
+  const proseRuns: { rows: number[]; values: string[] }[] = [];
   const flushProse = () => {
-    if (prose.length) values.push(prose.join(''), prose.join(' '));
+    if (prose.length) {
+      const variants = [prose.join(''), prose.join(' ')];
+      values.push(...variants);
+      proseRuns.push({ rows: proseRows, values: variants });
+    }
     prose = [];
+    proseRows = [];
     proseStyle = '';
   };
   const flushField = () => {
@@ -36,7 +43,7 @@ function wrappedValues(lines: string[]) {
     for (const cell of cells) if (cell?.length) values.push(cell.join(''), cell.join(' '));
     cells = [];
   };
-  for (const raw of lines) {
+  for (const [row, raw] of lines.entries()) {
     const line = Bun.stripANSI(raw);
     // Table rules delimit data rows, including ASCII rules nested in the tool frame.
     if (/[┌├└+][─-]/.test(line)) {
@@ -68,6 +75,7 @@ function wrappedValues(lines: string[]) {
     const jsonLabel = parts.length === 3 ? /^"(?:\\.|[^"\\])+":\s*(.*)$/.exec(body) : null;
     // Prose continuations must remain in one outer frame and retain their SGR prefix.
     // Blank rows, fields, JSON, rules and style changes delimit unrelated output.
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Match terminal SGR sequences in native capture rows.
     const prefix = raw.split(/[│|]/)[1]?.match(/^(?:\s|\x1b\[[\d;]*m)*/)?.[0] ?? '';
     const style = prefix.replace(/\s/g, '');
     if (
@@ -82,6 +90,7 @@ function wrappedValues(lines: string[]) {
       if (style !== proseStyle) flushProse();
       proseStyle = style;
       prose.push(body);
+      proseRows.push(row);
     } else flushProse();
     if (jsonLabel) {
       flushField();
@@ -102,13 +111,17 @@ function wrappedValues(lines: string[]) {
   flushProse();
   flushCells();
   flushField();
-  return values;
+  return { values, proseRuns };
 }
 
 export function inspectCapture(frame: any, expected: any, visibleWidth: (line: string) => number) {
   const failures: string[] = [];
   const text = Bun.stripANSI(frame.lines.join('\n'));
-  const values = wrappedValues(frame.lines);
+  const { values, proseRuns } = wrappedValues(frame.lines);
+  const proseRows = new Set(proseRuns.flatMap((run) => run.rows));
+  const outsideProse = Bun.stripANSI(
+    frame.lines.filter((_line: string, row: number) => !proseRows.has(row)).join('\n'),
+  );
   if (!frame.lines.length) failures.push('empty-frame');
   if (frame.lines.some((line: string) => visibleWidth(line) > frame.width)) failures.push('overflow');
   if (frame.resultIsError !== Boolean(expected.expectedError)) failures.push('unexpected-outcome');
@@ -127,7 +140,14 @@ export function inspectCapture(frame: any, expected: any, visibleWidth: (line: s
   };
   for (const [literal, count] of Object.entries(occurrences)) {
     if (!literal || !Number.isInteger(count) || (count as number) < 0) throw new Error('Invalid occurrence check');
-    if (text.split(literal).length - 1 !== count) failures.push('unexpected-occurrences:' + literal);
+    const actual =
+      outsideProse.split(literal).length -
+      1 +
+      proseRuns.reduce(
+        (total, run) => total + Math.max(...run.values.map((value) => value.split(literal).length - 1)),
+        0,
+      );
+    if (actual !== count) failures.push('unexpected-occurrences:' + literal);
   }
   if ([text, ...values].some((value) => /SYNTHETIC_SECRET_SENTINEL/.test(value))) failures.push('unsafe-evidence');
   return { id: frame.id, case: frame.case, passed: failures.length === 0, failures };

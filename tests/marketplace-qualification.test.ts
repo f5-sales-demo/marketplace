@@ -657,3 +657,16 @@ test('inspection reconstructs styled framed prose without crossing structural bo
   expect(finding.failures).toContain('unsafe-evidence');
   expect(finding.failures).toContain('unexpected-literal:SYNTHETIC_SECRET_SENTINEL');
 });
+
+test('wrapped prose occurrence checks count mixed wrapped and direct duplicates exactly', () => {
+  const frame = { id: 'prose-once', case: 'prose-once', width: 76, expanded: true, resultIsError: false };
+  const wrapped = ['│ \x1b[39mCorrective guidance remains │', '│ \x1b[39mavailable. │'];
+  const literal = 'Corrective guidance remains available.';
+  const count = (lines: string[], expected: number) =>
+    inspectCapture({ ...frame, lines }, { occurrences: { [literal]: expected } }, (line) => Bun.stripANSI(line).length)
+      .passed;
+  expect(count(wrapped, 1)).toBe(true);
+  expect(count([...wrapped, '+---+', literal], 2)).toBe(true);
+  expect(count([...wrapped, '+---+', ...wrapped], 2)).toBe(true);
+  expect(count([...wrapped, '+---+', literal], 1)).toBe(false);
+});
