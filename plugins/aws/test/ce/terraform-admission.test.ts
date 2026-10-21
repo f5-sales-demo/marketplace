@@ -4,6 +4,28 @@ import schema from '../../../platform/test/fixtures/smsv2-create-schema.json';
 import { admitAwsTerraformSites } from '../../src/ce/terraform-admission';
 import { admissionFixture as fixture } from './terraform-admission-fixture';
 
+it('persists initial admission before a site mutation can fail', async () => {
+  for (const staticAddressing of [false, true]) {
+    const f = fixture(false, staticAddressing);
+    const fail = async () => {
+      const checkpoint = await f.storage.read('terraform-admission.json');
+      expect(checkpoint).toMatchObject({
+        planSha256: f.plan.planSha256,
+        bootstrapByNode: {},
+        launchedAtByNode: {},
+        admittedSites: [],
+      });
+      throw Error('site submission interrupted');
+    };
+    const runtime = { ...f.runtime, reserveSite: fail, ensureSite: fail };
+    await expect(admitAwsTerraformSites(f.plan, f.session, runtime, f.storage, f.api, {})).rejects.toThrow(
+      'site submission interrupted',
+    );
+    expect(f.bootstrapped).toEqual([]);
+    expect([...f.nodes]).toEqual([]);
+  }
+});
+
 it('admits independent sites cumulatively and waits for registration before the next site', async () => {
   const f = fixture();
   expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(

@@ -284,6 +284,14 @@ export async function prepareAwsTerraformTeardown(
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
   const workflow = await optional(storage, 'terraform-workflow.json');
   const admission = await optional(storage, 'terraform-admission.json');
+  const f5State = admission === undefined ? await optional(storage, 'terraform-f5-resources.json') : undefined;
+  if (
+    workflow !== undefined &&
+    admission === undefined &&
+    f5State !== undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object(workflow).stage))
+  )
+    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   if (
     workflow !== undefined &&
     admission === undefined &&

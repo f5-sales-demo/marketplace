@@ -107,6 +107,8 @@ export async function admitAwsTerraformSites(
   )
     throw new Error('Terraform admission checkpoint is not an ordered site prefix');
   const save = () => storage.write('terraform-admission.json', checkpoint);
+  // Record the admission boundary before a site request can succeed and lose its response.
+  await save();
   const readOutputs = async () => {
     try {
       return await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], env, signal);

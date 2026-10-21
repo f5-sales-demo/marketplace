@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -214,6 +214,67 @@ test('public teardown preparation selects the separate pending admission contrac
   const plan = await prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
   expect(plan.kind).toBe('aws-ce-terraform-pending-teardown');
   expect(f.mutations).toHaveLength(0);
+});
+test('public teardown retains missing admission provenance while retiring a recorded logical site', async () => {
+  const f = await fixture();
+  await unlink(join(f.storage.directory, 'terraform-admission.json'));
+  const labels = {
+    'xcsh-ce-deployment': f.binding.owner.deploymentId,
+    'xcsh-ce-engine': 'terraform',
+    'xcsh-ce-provider': 'aws',
+    'xcsh-ce-account': f.binding.owner.account,
+    'xcsh-ce-region': f.binding.owner.region,
+  };
+  const book = (await f.storage.read('terraform-f5-resources.json')) as Record<string, unknown>;
+  await f.storage.write('terraform-f5-resources.json', {
+    ...book,
+    resources: {},
+    pending: {
+      method: 'POST',
+      path: '/api/config/namespaces/system/securemesh_site_v2s',
+      planSha256: f.base.planSha256,
+      submitted: true,
+      receipt: { planSha256: 'a'.repeat(64) },
+      request: { metadata: { name: f.binding.siteName, namespace: 'system', labels }, spec: {} },
+    },
+  });
+  let reconciliations = 0;
+  const runtime = {
+    ...f.runtime,
+    pendingAdmissionInventory: async () => ({ ...(await f.runtime.pendingAdmissionInventory()), resources: [] }),
+    reconcileObservedTerraformResources: async () => {
+      reconciliations++;
+      await f.storage.write('terraform-f5-resources.json', book);
+    },
+  };
+  const plan = await prepareAwsTerraformTeardown(f.base, runtime as never, f.contract as never, f.storage);
+  expect(plan.kind).toBe('aws-ce-terraform-pending-teardown');
+  expect(plan.retirement[0].siteUid).toBe('logical-uid');
+  expect(reconciliations).toBe(1);
+  await expect(f.storage.read('terraform-admission.json')).rejects.toHaveProperty('code', 'ENOENT');
+  expect(f.mutations).toEqual([]);
+  const driver = { ...f.driver, observe: runtime.pendingAdmissionInventory };
+  await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never);
+  await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never);
+  expect(f.mutations).toEqual(['cloud', 'site', 'cloud']);
+  await expect(f.storage.read('terraform-admission.json')).rejects.toHaveProperty('code', 'ENOENT');
+});
+test('missing admission never authorizes token retirement or foreign F5 state', async () => {
+  for (const mode of ['token', 'foreign-owner']) {
+    const f = await fixture();
+    await unlink(join(f.storage.directory, 'terraform-admission.json'));
+    if (mode === 'foreign-owner') {
+      const book = (await f.storage.read('terraform-f5-resources.json')) as Record<string, unknown>;
+      await f.storage.write('terraform-f5-resources.json', {
+        ...book,
+        owner: { ...f.binding.owner, engine: 'native' },
+      });
+    }
+    await expect(
+      prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage),
+    ).rejects.toThrow();
+    expect(f.mutations).toEqual([]);
+  }
 });
 test('pending teardown preserves the single non-HA mutation boundary', async () => {
   const f = await fixture();

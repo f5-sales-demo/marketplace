@@ -13893,6 +13893,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
   )
     throw new Error('Terraform admission checkpoint is not an ordered site prefix');
   const save = () => storage.write('terraform-admission.json', checkpoint);
+  await save();
   const readOutputs = async () => {
     try {
       return await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], env, signal);
@@ -16324,9 +16325,18 @@ async function journal(base, storage, siteFingerprint) {
   await storage.verify();
   const auth = object22(await storage.read('terraform-authorization.json'));
   const workflow = object22(await storage.read('terraform-workflow.json'));
-  const admission = object22(await storage.read('terraform-admission.json'));
-  const bootstrap = object22(admission.bootstrapByNode),
-    launched = object22(admission.launchedAtByNode);
+  let admission = null;
+  try {
+    admission = object22(await storage.read('terraform-admission.json'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    const book = object22(await storage.read('terraform-f5-resources.json'));
+    if (book.schemaVersion !== 1 || canonicalSha256(book.owner) !== canonicalSha256(storage.owner))
+      throw new Error('Pending F5 reconciliation state owner differs');
+    object22(book.resources);
+  }
+  const bootstrap = admission ? object22(admission.bootstrapByNode) : {},
+    launched = admission ? object22(admission.launchedAtByNode) : {};
   const indexes = selected.flatMap(({ site }) => site.nodeIndexes.map(String));
   if (
     auth.schemaVersion !== 1 ||
@@ -16338,11 +16348,12 @@ async function journal(base, storage, siteFingerprint) {
     workflow.engine !== 'terraform' ||
     workflow.planSha256 !== base.planSha256 ||
     !['network-pending', 'registration-pending'].includes(String(workflow.stage)) ||
-    admission.schemaVersion !== 1 ||
-    admission.planSha256 !== base.planSha256 ||
-    !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
-    !Array.isArray(admission.admittedSites) ||
-    admission.admittedSites.length ||
+    (admission !== null &&
+      (admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
+        !Array.isArray(admission.admittedSites) ||
+        admission.admittedSites.length)) ||
     Object.entries(bootstrap).some(([node, value]) => !indexes.includes(node) || !uid(value)) ||
     Object.entries(launched).some(
       ([node, value]) => !indexes.includes(node) || typeof value !== 'string' || !Number.isFinite(Date.parse(value)),
@@ -16562,6 +16573,15 @@ async function prepareAwsPendingTeardown(base, runtime, contract, storage, signa
     contract.fingerprint,
   );
   const retirement = identities(base, receipt);
+  let admissionMissing = false;
+  try {
+    await storage.read('terraform-admission.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    admissionMissing = true;
+  }
+  if (admissionMissing && receipt.resources.length)
+    throw new Error('Missing admission provenance cannot authorize token retirement');
   for (const row of retirement) {
     let checkpoint;
     try {
@@ -18640,6 +18660,14 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
   const workflow = await optional11(storage, 'terraform-workflow.json');
   const admission = await optional11(storage, 'terraform-admission.json');
+  const f5State = admission === undefined ? await optional11(storage, 'terraform-f5-resources.json') : undefined;
+  if (
+    workflow !== undefined &&
+    admission === undefined &&
+    f5State !== undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object26(workflow).stage))
+  )
+    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   if (
     workflow !== undefined &&
     admission === undefined &&

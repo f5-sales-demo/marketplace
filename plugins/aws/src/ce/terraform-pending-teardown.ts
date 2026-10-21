@@ -55,9 +55,20 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
   await storage.verify();
   const auth = object(await storage.read('terraform-authorization.json'));
   const workflow = object(await storage.read('terraform-workflow.json'));
-  const admission = object(await storage.read('terraform-admission.json'));
-  const bootstrap = object(admission.bootstrapByNode),
-    launched = object(admission.launchedAtByNode);
+  let admission: Record<string, unknown> | null = null;
+  try {
+    admission = object(await storage.read('terraform-admission.json'));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    // A first site request historically preceded admission persistence. Retain that
+    // missing provenance; only the original F5 owner journal can qualify recovery.
+    const book = object(await storage.read('terraform-f5-resources.json'));
+    if (book.schemaVersion !== 1 || canonicalSha256(book.owner) !== canonicalSha256(storage.owner))
+      throw new Error('Pending F5 reconciliation state owner differs');
+    object(book.resources);
+  }
+  const bootstrap = admission ? object(admission.bootstrapByNode) : {},
+    launched = admission ? object(admission.launchedAtByNode) : {};
   const indexes = selected.flatMap(({ site }) => site.nodeIndexes.map(String));
   if (
     auth.schemaVersion !== 1 ||
@@ -69,11 +80,12 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
     workflow.engine !== 'terraform' ||
     workflow.planSha256 !== base.planSha256 ||
     !['network-pending', 'registration-pending'].includes(String(workflow.stage)) ||
-    admission.schemaVersion !== 1 ||
-    admission.planSha256 !== base.planSha256 ||
-    !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
-    !Array.isArray(admission.admittedSites) ||
-    admission.admittedSites.length ||
+    (admission !== null &&
+      (admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
+        !Array.isArray(admission.admittedSites) ||
+        admission.admittedSites.length)) ||
     Object.entries(bootstrap).some(([node, value]) => !indexes.includes(node) || !uid(value)) ||
     Object.entries(launched).some(
       ([node, value]) => !indexes.includes(node) || typeof value !== 'string' || !Number.isFinite(Date.parse(value)),
@@ -307,6 +319,15 @@ export async function prepareAwsPendingTeardown(
     contract.fingerprint,
   );
   const retirement = identities(base, receipt);
+  let admissionMissing = false;
+  try {
+    await storage.read('terraform-admission.json');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    admissionMissing = true;
+  }
+  if (admissionMissing && receipt.resources.length)
+    throw new Error('Missing admission provenance cannot authorize token retirement');
   for (const row of retirement) {
     let checkpoint: unknown;
     try {
