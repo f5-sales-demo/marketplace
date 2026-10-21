@@ -1,0 +1,37 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "engineSelection": "shared-read-only-or-active-context",
+  "nodeCount": 3,
+  "profiles": ["independent-sites", "three-node-ha"],
+  "harnessSha256": "8b3c251851a74c262ae1bb70b0dfe98915f8cdaeb6555d28c3f997a039fd5e37",
+  "automated": {
+    "tests": 24,
+    "assertions": 82,
+    "passed": true
+  },
+  "liveMutation": false,
+  "creationQualified": false,
+  "lifecycleQualified": false,
+  "fullCeAcceptance": false,
+  "aws": {
+    "tool": "aws_compute_discover",
+    "regions": 34,
+    "eligibleRegions": 5,
+    "completedAt": "2026-10-21T19:51:58.487Z",
+    "privateResultSha256": "b284ce89d09bcadcd5f46109b3b9ccf7fb00e33699f53a91708d66a489ced2a9",
+    "marketplaceAgreementActive": true,
+    "requiredEnis": 2
+  },
+  "azure": {
+    "tool": "azure_compute_discover",
+    "regions": 63,
+    "eligibleRegions": 48,
+    "completedAt": "2026-10-21T19:52:42.998Z",
+    "privateResultSha256": "4ad793b045c1177c728d629c9bae50b8822a0d59971cf22d6f73d04d72c6651b",
+    "existingImageTermsAccepted": true,
+    "requiredNics": 3
+  }
+}
