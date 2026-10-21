@@ -70,7 +70,9 @@ function refuseLegacyDeal(deal: unknown, dealPath: string): number | null {
     `${dealPath} uses field names this plugin has retired. Their values would be ignored rather than read.\n` +
       (conflicts.length > 0
         ? 'Some fields are set under BOTH names; resolve those by hand first, then migrate.\n'
-        : `Run: cli.ts migrate ${dealPath} --apply\n`),
+        : `Run: ${[process.execPath, import.meta.path, 'migrate', dealPath, '--apply']
+            .map((argument) => `'${argument.replaceAll("'", "'\\''")}'`)
+            .join(' ')}\n`),
   );
   print({ ok: false, legacyFields: changes, resolved, conflicts });
   return 1;
