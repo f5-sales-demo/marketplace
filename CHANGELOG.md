@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`docs-pipeline`** v1.2.1 recognizes content repositories without local Astro configuration, reports independent readiness indicators and incomplete outcomes, and separates status inspection from preview startup (#1757).
+
 - **`herdr`** v1.3.2 preserves installation evidence and reports degraded runtime status when the server returns malformed or non-object JSON (#1599).
 - **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
 
