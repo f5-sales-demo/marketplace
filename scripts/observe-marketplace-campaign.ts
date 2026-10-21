@@ -10,6 +10,7 @@ import {
   qualificationCatalog,
   resolveShippedPath,
   selectInstalledPlugin,
+  validateFixtureRead,
   validateScenario,
   validateScenarioSources,
 } from './marketplace-qualification';
@@ -38,7 +39,7 @@ export default async function observeMarketplaceCampaign(api: any) {
   const activeTools = [
     ...new Set([
       ...scenario.calls.map((call) => call.tool),
-      ...(guidance.length ? ['read'] : []),
+      ...(guidance.length || scenario.fixtureReads?.length ? ['read'] : []),
       ...(scenario.shellCalls?.length ? ['bash'] : []),
     ]),
   ];
@@ -189,6 +190,8 @@ export default async function observeMarketplaceCampaign(api: any) {
   const seenShellStarts = new Set<string>();
   const consumedShellRules = new Set<number>();
   const admittedShellCalls = new Map<string, any>();
+  const admittedFixtureCalls = new Map<string, any>();
+  const consumedFixtureRules = new Set<number>();
   const guidanceArgsMatch = (admitted: any, started: any) => {
     const normalized = { ...started };
     // Published read dispatch represents omitted optional fields as null.
@@ -223,6 +226,20 @@ export default async function observeMarketplaceCampaign(api: any) {
     const start = executions.get(event.toolCallId);
     const admittedShell = admittedShellCalls.get(event.toolCallId);
     admittedShellCalls.delete(event.toolCallId);
+    let admittedFixture = admittedFixtureCalls.get(event.toolCallId);
+    if (admittedFixture) {
+      try {
+        validateFixtureRead(admittedFixture);
+      } catch {
+        record({
+          event: 'fixture_evidence_rejected',
+          toolCallId: event.toolCallId,
+          reason: 'Reviewed file changed during execution',
+        });
+        admittedFixture = undefined;
+      }
+    }
+    admittedFixtureCalls.delete(event.toolCallId);
     let admittedGuidance = admittedGuidanceCalls.get(event.toolCallId);
     if (
       admittedGuidance &&
@@ -257,13 +274,15 @@ export default async function observeMarketplaceCampaign(api: any) {
       start &&
       start.toolName === event.toolName &&
       (tools.has(event.toolName) ||
-        (event.toolName === 'bash' && admittedShell && isDeepStrictEqual(admittedShell, start.args)))
+        (event.toolName === 'bash' && admittedShell && isDeepStrictEqual(admittedShell, start.args)) ||
+        (event.toolName === 'read' && admittedFixture && guidanceArgsMatch(admittedFixture.args, start.args)))
     )
       captures.push({
         id: `tool-${captures.length}-${event.toolName}`,
         tool: event.toolName,
         args: start.args,
         result: { ...event.result, isError: event.isError },
+        ...(admittedFixture ? { fixturePath: admittedFixture.path, fixtureSha256: admittedFixture.sha256 } : {}),
       });
     executions.delete(event.toolCallId);
   });
@@ -286,7 +305,11 @@ export default async function observeMarketplaceCampaign(api: any) {
       mode === 'fixture'
         ? { block: true, reason: 'Fixture qualification cannot execute tools' }
         : guardScenarioTool(event, scenario, plugin);
-    if (!decision && event.toolName === 'read') {
+    if (
+      !decision &&
+      event.toolName === 'read' &&
+      !scenario.fixtureReads?.some((rule) => isDeepStrictEqual(rule.args, event.input))
+    ) {
       try {
         const path = resolveShippedPath(plugin, relative(plugin, event.input.path));
         if (!guidance.includes(path)) decision = { block: true, reason: 'Guidance path changed after admission' };
@@ -302,6 +325,26 @@ export default async function observeMarketplaceCampaign(api: any) {
             args: JSON.parse(JSON.stringify(event.input)),
             path: relative(plugin, event.input.path),
             sha256: createHash('sha256').update(readFileSync(event.input.path)).digest('hex'),
+          });
+        }
+      }
+    }
+    if (!decision && event.toolName === 'read') {
+      const index = scenario.fixtureReads?.findIndex((rule) => isDeepStrictEqual(rule.args, event.input)) ?? -1;
+      if (index >= 0) {
+        if (typeof event.toolCallId !== 'string' || !event.toolCallId || consumedFixtureRules.has(index))
+          decision = {
+            block: true,
+            reason: 'Each reviewed fixture read requires a fresh dispatch and is admitted once.',
+          };
+        else {
+          consumedFixtureRules.add(index);
+          const rule = scenario.fixtureReads![index];
+          admittedFixtureCalls.set(event.toolCallId, {
+            args: JSON.parse(JSON.stringify(event.input)),
+            path: rule.path,
+            root: rule.root,
+            sha256: rule.sha256,
           });
         }
       }
@@ -373,10 +416,11 @@ export default async function observeMarketplaceCampaign(api: any) {
     writeFileSync(
       join(captureRoot, 'cases.json'),
       JSON.stringify(
-        items.map(({ id, tool, guidancePath, guidanceSha256, guidanceSelector }) => ({
+        items.map(({ id, tool, guidancePath, guidanceSha256, guidanceSelector, fixturePath, fixtureSha256 }) => ({
           id,
           tool: tool ?? 'assistant',
           ...(guidancePath ? { guidancePath, guidanceSha256, ...(guidanceSelector ? { guidanceSelector } : {}) } : {}),
+          ...(fixturePath ? { fixturePath, fixtureSha256 } : {}),
         })),
       ),
       { mode: 0o600 },
