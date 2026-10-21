@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`xorg`** v1.3.2 stages a durable controller payload before launcher activation, survives plugin cache removal, and derives setup versions from the shipped manifest (#1802).
+- **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
 - **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
