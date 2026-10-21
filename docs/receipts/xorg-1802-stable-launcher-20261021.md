@@ -1,6 +1,7 @@
 # Xorg #1802 durable launcher repair
 
-Child of #1579 and #1602; source candidate Xorg 1.3.2.
+Child of #1579 and #1602; source candidate Xorg 1.3.2. Behavioral source
+commit: `f6d312d589b95ec484563e9a999b683b4da47617`.
 
 ## Reproduced defect and resulting behavior
 
@@ -31,8 +32,11 @@ assertions. The minimum lane preserves the historical code-section command
 shape; the harness reconstructs the actual displayed text in Bash and Zsh.
 Mac combined presentation/lifecycle/ownership/tracker/inventory passes 80 tests
 and 1,136 assertions. All 22 manifests validate; Ruff, Biome and changed-scope
-privacy pass. Ubuntu and broad verification remain pending. Raw logs and the
-initial minimum-lane harness failure remain private.
+privacy pass. Ubuntu complete Python suite passes 49 tests; combined checks
+pass 80 tests and 1,135 assertions. Both Ubuntu runtime lanes pass 68 tests
+and 629 assertions. Full repository and hermetic plugin suites pass on Ubuntu,
+as do catalog, version-bump, pre-commit, secret and privacy checks. Raw logs
+and the initial minimum-lane harness failure remain private.
 
 ## Remaining acceptance
 
