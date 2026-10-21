@@ -42,6 +42,17 @@ that matching package in the private test environment resolved the import;
 the failed attempt is retained. These are source/component compatibility checks,
 not full installed loader or model execution acceptance.
 
+## Full source validation
+
+The full-loader contract now checks opaque payload preservation through the real
+expanded component; the catalog mapping checks the explicit Zoom warning.
+Other plugin fallback contracts remain unchanged. Mac full-loader validation
+passes 25 tests / 21,799 assertions. The complete Ubuntu plugin suite passes.
+Hermeticity passes 354 tests / 2,394 assertions with no real cloud CLI dependency.
+Pre-commit and changed-scope privacy checks pass. Earlier failures exposing the
+obsolete adapter-only assertions and a corrected test syntax error are retained
+privately. These source results do not establish installed acceptance.
+
 ## Remaining actions
 
 - Merge a green linked 1.3.2 PR, independently verify its immutable tag, downloaded
