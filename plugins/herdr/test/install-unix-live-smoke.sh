@@ -7,9 +7,10 @@ export HOME="$root/home"
 mkdir -p "$HOME"
 
 installer=$(cd "$(dirname "$0")/../scripts" && pwd)/install-unix.sh
-sh "$installer" apply 1.1.2
-sh "$installer" verify 1.1.2
-second=$(sh "$installer" apply 1.1.2)
+plugin_version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$(dirname "$installer")/../.xcsh-plugin/plugin.json")
+sh "$installer" apply "$plugin_version"
+sh "$installer" verify "$plugin_version"
+second=$(sh "$installer" apply "$plugin_version")
 grep -F 'already installed' <<<"$second"
 
 receipt="$HOME/.local/state/xcsh/herdr/setup-receipt.json"
