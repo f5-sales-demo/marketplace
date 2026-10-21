@@ -16,6 +16,8 @@ interface RetirementSource {
   engine: 'terraform';
   sourcePlanSha256: string;
   ownershipSha256: string;
+  initialConfiguration: string;
+  initialConfigurationSha256: string;
   restoredConfiguration: string;
   restoredConfigurationSha256: string;
   relinquishedConfiguration: string;
@@ -110,6 +112,8 @@ export async function retireAwsTerraformDirectRoutes(
       source.engine !== 'terraform' ||
       source.sourcePlanSha256 !== plan.planSha256 ||
       source.ownershipSha256 !== ownership.snapshotSha256 ||
+      typeof source.initialConfiguration !== 'string' ||
+      hash(source.initialConfiguration) !== source.initialConfigurationSha256 ||
       typeof source.restoredConfiguration !== 'string' ||
       typeof source.relinquishedConfiguration !== 'string' ||
       hash(source.restoredConfiguration) !== source.restoredConfigurationSha256 ||
@@ -121,6 +125,15 @@ export async function retireAwsTerraformDirectRoutes(
       checkpoint.sourceSha256 !== canonicalSha256(source)
     )
       throw Error('Direct retirement source or checkpoint differs');
+    const restoration = renderAwsTerraformDirectTransition(
+      plan,
+      ownership,
+      source.initialConfiguration,
+      source.initialPhase,
+      'original',
+    );
+    if (restoration.configuration !== source.restoredConfiguration)
+      throw Error('Direct retirement initial translation differs');
     const removal = renderAwsTerraformDirectTransition(
       plan,
       ownership,
@@ -142,6 +155,29 @@ export async function retireAwsTerraformDirectRoutes(
     phase,
     ...extra,
   });
+  const readOptional = async <T>(name: string): Promise<T | undefined> => {
+    try {
+      return (await storage.read(name)) as T;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      return undefined;
+    }
+  };
+  const readRouteIds = async () => {
+    const identities = (await readResourceIdentities(env, signal)).filter((r) => routeNames.includes(r.address));
+    if (
+      identities.length !== routeNames.length ||
+      new Set(identities.map((r) => r.address)).size !== routeNames.length ||
+      new Set(identities.map((r) => r.id)).size !== routeNames.length ||
+      identities.some((r) => r.type !== 'aws_route' || typeof r.id !== 'string' || !r.id)
+    )
+      throw Error('Direct retirement route state identity differs');
+    return Object.fromEntries(identities.map((r) => [r.address, r.id]));
+  };
+  const verifyRouteIds = async (source: RetirementSource) => {
+    if (canonicalSha256(await readRouteIds()) !== canonicalSha256(source.stateIds))
+      throw Error('Direct retirement route state identity changed');
+  };
   const verifySubmitted = async (
     source: RetirementSource,
     receipt: PlanReceipt,
@@ -193,7 +229,7 @@ export async function retireAwsTerraformDirectRoutes(
     signal?.throwIfAborted();
     if (state === 'applying') await session.reconcileApplyFromEvidence(receipt, canonicalSha256(evidence));
   };
-  const finishRelinquishment = async (source: RetirementSource, saved?: PlanReceipt) => {
+  const finishRelinquishment = async (source: RetirementSource, saved?: PlanReceipt, preparing = false) => {
     const removal = renderAwsTerraformDirectTransition(
       plan,
       ownership,
@@ -202,6 +238,12 @@ export async function retireAwsTerraformDirectRoutes(
       'relinquished',
       source.stateIds,
     );
+    if (preparing) {
+      if (saved && (await session.readPlanApplicationState(saved)) !== 'planned')
+        throw Error('Relinquishment preparation cannot reconcile a submitted plan');
+      await verifyRouteIds(source);
+      await observeAwsTerraformDirectPhase(plan, ownership, 'original', api, signal);
+    }
     let configurationSha256 = await readConfigurationSha256();
     const configuration = await session.readConfiguration(configurationSha256);
     if (configurationSha256 === source.restoredConfigurationSha256 && configuration === source.restoredConfiguration) {
@@ -224,8 +266,10 @@ export async function retireAwsTerraformDirectRoutes(
       throw Error('Direct relinquishment saved plan identity differs');
     if (!saved) await storage.write('terraform-direct-relinquishment-plan.json', forget);
     await storage.verify();
+    await storage.write(marker, checkpointFor(source, 'relinquishment-pending'));
     const application = saved ? await session.readPlanApplicationState(forget) : 'planned';
     if (application === 'planned') {
+      await verifyRouteIds(source);
       await observeAwsTerraformDirectPhase(plan, ownership, 'original', api, signal);
       await session.apply(forget, env, signal);
     } else await verifySubmitted(source, forget, 'relinquishment');
@@ -270,8 +314,43 @@ export async function retireAwsTerraformDirectRoutes(
     const restoredIds = await session.readPlannedResourceIds(refresh, routeNames, env, signal);
     if (canonicalSha256(source.stateIds) !== canonicalSha256(restoredIds))
       throw Error('Direct route state identity changed during restoration');
-    await storage.write(marker, checkpointFor(source, 'relinquishment-pending', { restoration, refresh }));
-    return finishRelinquishment(source);
+    await storage.write(marker, checkpointFor(source, 'relinquishment-preparing', { restoration, refresh }));
+    return finishRelinquishment(source, undefined, true);
+  };
+  const prepareRestoration = async (source: RetirementSource) => {
+    await verifyRouteIds(source);
+    await observeAwsTerraformDirectPhase(plan, ownership, source.initialPhase, api, signal);
+    let currentSha = await readConfigurationSha256();
+    const current = await session.readConfiguration(currentSha);
+    const saved = await readOptional<PlanReceipt>('terraform-direct-restoration-plan.json');
+    if (currentSha === source.initialConfigurationSha256 && current === source.initialConfiguration) {
+      if (saved && currentSha !== source.restoredConfigurationSha256)
+        throw Error('Restoration plan cannot belong to initial configuration');
+      if (current !== source.restoredConfiguration)
+        currentSha = await session.reviseConfiguration(currentSha, source.restoredConfiguration);
+    } else if (currentSha !== source.restoredConfigurationSha256 || current !== source.restoredConfiguration)
+      throw Error('Direct restoration preparation configuration differs');
+    if (currentSha !== source.restoredConfigurationSha256)
+      throw Error('Direct restoration configuration identity differs');
+    const receipt = saved ?? (await session.plan(env, signal));
+    checkReceipt(receipt, currentSha, 'update');
+    if (receipt.relinquishments?.length) throw Error('Restoration cannot relinquish state');
+    if ((await session.readPlanApplicationState(receipt)) !== 'planned')
+      throw Error('Restoration preparation cannot reconcile a submitted plan');
+    checkFields(await session.readPlannedResourceFields(receipt, fields, env, signal), source.initialPhase);
+    checkFields(await session.readProposedResourceFields(receipt, fields, env, signal), 'original');
+    if (
+      canonicalSha256(await session.readPlannedResourceIds(receipt, routeNames, env, signal)) !==
+      canonicalSha256(source.stateIds)
+    )
+      throw Error('Direct retirement planned state identity differs');
+    if (!saved) await storage.write('terraform-direct-restoration-plan.json', receipt);
+    await storage.verify();
+    await storage.write(marker, checkpointFor(source, 'restoration-pending'));
+    await verifyRouteIds(source);
+    await observeAwsTerraformDirectPhase(plan, ownership, source.initialPhase, api, signal);
+    await session.apply(receipt, env, signal);
+    return finishRestoration(source);
   };
   let prior: unknown;
   try {
@@ -283,13 +362,25 @@ export async function retireAwsTerraformDirectRoutes(
     const checkpoint = prior as Record<string, unknown>;
     if (
       !checkpoint ||
-      !['preserved', 'restoration-pending', 'restoration-refresh-pending', 'relinquishment-pending'].includes(
-        String(checkpoint.phase),
-      )
+      ![
+        'preserved',
+        'restoration-preparing',
+        'restoration-pending',
+        'restoration-refresh-pending',
+        'relinquishment-preparing',
+        'relinquishment-pending',
+      ].includes(String(checkpoint.phase))
     )
       throw Error('Existing direct retirement attempt requires evidence reconciliation before replay');
     const source = (await storage.read(sourceFile)) as RetirementSource;
     checkSource(checkpoint, source);
+    if (checkpoint.phase === 'restoration-preparing') return prepareRestoration(source);
+    if (checkpoint.phase === 'relinquishment-preparing')
+      return finishRelinquishment(
+        source,
+        await readOptional<PlanReceipt>('terraform-direct-relinquishment-plan.json'),
+        true,
+      );
     if (checkpoint.phase === 'restoration-refresh-pending') return finishRestoration(source);
     if (checkpoint.phase === 'restoration-pending') {
       const receipt = (await storage.read('terraform-direct-restoration-plan.json')) as PlanReceipt;
@@ -309,6 +400,7 @@ export async function retireAwsTerraformDirectRoutes(
           canonicalSha256(source.stateIds)
         )
           throw Error('Unsubmitted restoration state identity changed');
+        await verifyRouteIds(source);
         await observeAwsTerraformDirectPhase(plan, ownership, source.initialPhase, api, signal);
         await storage.verify();
         await session.apply(receipt, env, signal);
@@ -356,7 +448,26 @@ export async function retireAwsTerraformDirectRoutes(
     return { status: 'direct-routes-preserved' as const, preserved, configurationSha256 };
   }
   signal?.throwIfAborted();
-  let configurationSha256 = await session.readConfigurationSha256();
+  // Source is persisted before the preparation marker. A lost marker write leaves no
+  // revised configuration or submission; validate that orphan before resuming it.
+  const orphan = await readOptional<RetirementSource>(sourceFile);
+  if (orphan !== undefined) {
+    checkSource(checkpointFor(orphan, 'restoration-preparing'), orphan);
+    const currentSha = await readConfigurationSha256();
+    if (
+      currentSha !== orphan.initialConfigurationSha256 ||
+      (await session.readConfiguration(currentSha)) !== orphan.initialConfiguration ||
+      (await readOptional('terraform-direct-restoration-plan.json')) !== undefined ||
+      (await readOptional('terraform-direct-relinquishment-plan.json')) !== undefined
+    )
+      throw Error('Orphan direct retirement source differs from unmodified preparation');
+    await verifyRouteIds(orphan);
+    await observeAwsTerraformDirectPhase(plan, ownership, orphan.initialPhase, api, signal);
+    await storage.verify();
+    await storage.write(marker, checkpointFor(orphan, 'restoration-preparing'));
+    return prepareRestoration(orphan);
+  }
+  const configurationSha256 = await readConfigurationSha256();
   const current = await session.readConfiguration(configurationSha256);
   let phase: 'ce' | 'original' = 'ce';
   let restored: ReturnType<typeof renderAwsTerraformDirectTransition>;
@@ -366,53 +477,33 @@ export async function retireAwsTerraformDirectRoutes(
     phase = 'original';
     restored = renderAwsTerraformDirectTransition(plan, ownership, current, 'original', 'original');
   }
-  await observeAwsTerraformDirectPhase(plan, ownership, phase, api, signal);
-  await storage.write(marker, {
-    schemaVersion: 1,
-    engine: 'terraform',
-    sourcePlanSha256: plan.planSha256,
-    ownershipSha256: ownership.snapshotSha256,
-    originalConfigurationSha256: configurationSha256,
-    phase: 'restoration-pending',
-  });
-  configurationSha256 = await session.reviseConfiguration(configurationSha256, restored.configuration);
-  if (configurationSha256 !== hash(restored.configuration))
-    throw Error('Direct restoration configuration identity differs');
-  const receipt = await session.plan(env, signal);
-  checkReceipt(receipt, configurationSha256, 'update');
-  if (receipt.relinquishments?.length) throw Error('Restoration cannot relinquish state');
-  const priorFields = await session.readPlannedResourceFields(receipt, fields, env, signal);
-  const proposed = await session.readProposedResourceFields(receipt, fields, env, signal);
-  checkFields(priorFields, phase);
-  checkFields(proposed, 'original');
-  const ids = await session.readPlannedResourceIds(receipt, routeNames, env, signal);
-  if (Object.values(ids).some((id) => typeof id !== 'string'))
-    throw Error('Direct retirement prior state identity unresolved');
+  const ids = await readRouteIds();
   const removal = renderAwsTerraformDirectTransition(
     plan,
     ownership,
     restored.configuration,
     'original',
     'relinquished',
-    ids as Record<string, string>,
+    ids,
   );
   const source: RetirementSource = {
     schemaVersion: 1,
     engine: 'terraform',
     sourcePlanSha256: plan.planSha256,
     ownershipSha256: ownership.snapshotSha256,
+    initialConfiguration: current,
+    initialConfigurationSha256: configurationSha256,
     restoredConfiguration: restored.configuration,
     restoredConfigurationSha256: hash(restored.configuration),
     relinquishedConfiguration: removal.configuration,
     relinquishedConfigurationSha256: hash(removal.configuration),
-    stateIds: ids as Record<string, string>,
+    stateIds: ids,
     initialPhase: phase,
   };
-  await storage.write(sourceFile, source);
-  await storage.write('terraform-direct-restoration-plan.json', receipt);
-  await storage.write(marker, checkpointFor(source, 'restoration-pending'));
-  await storage.verify();
   await observeAwsTerraformDirectPhase(plan, ownership, phase, api, signal);
-  await session.apply(receipt, env, signal);
-  return finishRestoration(source);
+  await verifyRouteIds(source);
+  await storage.verify();
+  await storage.write(sourceFile, source);
+  await storage.write(marker, checkpointFor(source, 'restoration-preparing'));
+  return prepareRestoration(source);
 }

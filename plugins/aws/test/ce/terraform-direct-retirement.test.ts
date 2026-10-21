@@ -512,3 +512,210 @@ for (const point of ['refresh-response', 'refresh-identities', 'phase-write'])
     await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
     expect(f.actions()).toBe(2);
   });
+
+for (const phase of ['restoration', 'relinquishment'] as const)
+  for (const point of ['source', 'preparing', 'revision', 'plan', 'receipt', 'pending'] as const) {
+    if (phase === 'relinquishment' && point === 'source') continue;
+    test(`direct retirement resumes ${phase} preparation interruption: ${point}`, async () => {
+      const f = await fixture();
+      const write = f.storage.write;
+      const revise = f.session.reviseConfiguration;
+      const plan = f.session.plan;
+      const forget = f.session.planRelinquishments;
+      if (!forget) throw Error('fixture capability missing');
+      let failed = false,
+        revisions = 0,
+        plans = 0;
+      const fail = () => {
+        failed = true;
+        throw Error('preparation interrupted');
+      };
+      f.storage.write = async (name, value) => {
+        const markerPhase = (value as { phase?: string }).phase;
+        if (
+          !failed &&
+          ((point === 'source' && name === 'terraform-direct-retirement-source.json') ||
+            (point === 'preparing' &&
+              name === 'terraform-direct-retirement.json' &&
+              markerPhase === `${phase}-preparing`) ||
+            (point === 'receipt' && name === `terraform-direct-${phase}-plan.json`) ||
+            (point === 'pending' && name === 'terraform-direct-retirement.json' && markerPhase === `${phase}-pending`))
+        )
+          fail();
+        return write(name, value);
+      };
+      f.session.reviseConfiguration = async (...args) => {
+        const result = await revise(...args);
+        if (++revisions === (phase === 'restoration' ? 1 : 2) && point === 'revision' && !failed) fail();
+        return result;
+      };
+      f.session.plan = async (...args) => {
+        const result = await plan(...args);
+        if (++plans === 1 && phase === 'restoration' && point === 'plan' && !failed) fail();
+        return result;
+      };
+      f.session.planRelinquishments = async (...args) => {
+        const result = await forget(...args);
+        if (phase === 'relinquishment' && point === 'plan' && !failed) fail();
+        return result;
+      };
+      await expect(f.run()).rejects.toThrow('preparation interrupted');
+      expect(f.actions()).toBe(phase === 'restoration' ? 0 : 1);
+      await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
+      expect(f.actions()).toBe(2);
+    });
+  }
+
+for (const phase of ['restoration', 'relinquishment'] as const)
+  for (const mode of [
+    'missing',
+    'duplicate',
+    'foreign-id',
+    'wrong-type',
+    'unavailable',
+    'configuration',
+    'cloud',
+    'source',
+    'submitted',
+  ] as const)
+    test(`direct retirement rejects ${phase} preparation drift: ${mode}`, async () => {
+      const f = await fixture();
+      const write = f.storage.write;
+      let failed = false;
+      f.storage.write = async (name, value) => {
+        if (
+          !failed &&
+          name === 'terraform-direct-retirement.json' &&
+          (value as { phase?: string }).phase === `${phase}-pending`
+        ) {
+          failed = true;
+          throw Error('submission boundary unavailable');
+        }
+        return write(name, value);
+      };
+      await expect(f.run()).rejects.toThrow('submission boundary unavailable');
+      const before = f.actions();
+      let replans = 0;
+      f.session.plan = async () => {
+        replans++;
+        throw Error('unsafe replan');
+      };
+      f.session.planRelinquishments = async () => {
+        replans++;
+        throw Error('unsafe replan');
+      };
+      const identities = f.session.readResourceIdentities;
+      if (!identities) throw Error('fixture capability missing');
+      f.session.readResourceIdentities = async (...args) => {
+        const rows = await identities(...args);
+        if (mode === 'missing') return [];
+        if (mode === 'duplicate') return [...rows, ...rows];
+        if (mode === 'foreign-id') return rows.map((r) => ({ ...r, id: 'foreign' }));
+        if (mode === 'wrong-type') return rows.map((r) => ({ ...r, type: 'aws_instance' }));
+        if (mode === 'unavailable') throw Error('state unavailable');
+        return rows;
+      };
+      if (mode === 'configuration') f.session.readConfiguration = async () => '{}';
+      if (mode === 'cloud')
+        f.api.exec = async () => {
+          throw Error('cloud unavailable');
+        };
+      if (mode === 'source') f.records.set('terraform-direct-retirement-source.json', null);
+      if (mode === 'submitted') f.session.readPlanApplicationState = async () => 'applying';
+      await expect(f.run()).rejects.toThrow();
+      expect(f.actions()).toBe(before);
+      expect(replans).toBe(0);
+    });
+for (const phase of ['restoration', 'relinquishment'] as const)
+  for (const point of ['preparing', 'receipt', 'pending'] as const)
+    test(`direct retirement resumes persisted ${phase} ${point} response loss`, async () => {
+      const f = await fixture();
+      const write = f.storage.write;
+      let failed = false;
+      f.storage.write = async (name, value) => {
+        await write(name, value);
+        if (
+          !failed &&
+          ((point === 'receipt' && name === `terraform-direct-${phase}-plan.json`) ||
+            (point !== 'receipt' &&
+              name === 'terraform-direct-retirement.json' &&
+              (value as { phase?: string }).phase === `${phase}-${point}`))
+        ) {
+          failed = true;
+          throw Error('persisted response lost');
+        }
+      };
+      await expect(f.run()).rejects.toThrow('persisted response lost');
+      if (point !== 'preparing') {
+        const plan = f.session.plan;
+        f.session.plan = async (...args) => {
+          expect(f.actions()).toBeGreaterThan(0);
+          return plan(...args);
+        };
+        f.session.planRelinquishments =
+          phase === 'relinquishment'
+            ? async () => {
+                throw Error('durable forget must not be replaced');
+              }
+            : f.session.planRelinquishments;
+      }
+      await expect(f.run()).resolves.toHaveProperty('status', 'direct-routes-preserved');
+      expect(f.actions()).toBe(2);
+    });
+test('orphan source is preserved and rejects drift before configuration revision', async () => {
+  const f = await fixture();
+  const write = f.storage.write;
+  f.storage.write = async (name, value) => {
+    if (name === 'terraform-direct-retirement.json') throw Error('marker unavailable');
+    return write(name, value);
+  };
+  await expect(f.run()).rejects.toThrow('marker unavailable');
+  expect(f.records.has('terraform-direct-retirement-source.json')).toBe(true);
+  f.session.readConfiguration = async () => '{}';
+  f.session.reviseConfiguration = async () => {
+    throw Error('unsafe revision');
+  };
+  await expect(f.run()).rejects.toThrow('Orphan');
+  expect(f.actions()).toBe(0);
+});
+
+test('missing submission-pending restoration receipt cannot replan or apply', async () => {
+  const f = await fixture();
+  f.session.apply = async () => {
+    throw Error('not submitted');
+  };
+  await expect(f.run()).rejects.toThrow('not submitted');
+  f.records.delete('terraform-direct-restoration-plan.json');
+  f.session.plan = async () => {
+    throw Error('unsafe replan');
+  };
+  await expect(f.run()).rejects.toThrow('missing');
+  expect(f.actions()).toBe(0);
+});
+for (const mode of ['missing', 'duplicate', 'foreign-id', 'wrong-type', 'empty-id', 'unavailable', 'changed'] as const)
+  test(`initial preparation rejects ${mode} state before any revision`, async () => {
+    const f = await fixture();
+    const ids = f.session.readResourceIdentities;
+    if (!ids) throw Error('fixture capability missing');
+    let reads = 0,
+      revisions = 0;
+    f.session.readResourceIdentities = async (...args) => {
+      const rows = await ids(...args);
+      reads++;
+      if (mode === 'missing') return [];
+      if (mode === 'duplicate') return [...rows, ...rows];
+      if (mode === 'foreign-id' || (mode === 'changed' && reads > 1)) return rows.map((r) => ({ ...r, id: 'foreign' }));
+      if (mode === 'empty-id') return rows.map((r) => ({ ...r, id: '' }));
+      if (mode === 'wrong-type') return rows.map((r) => ({ ...r, type: 'aws_instance' }));
+      if (mode === 'unavailable') throw Error('state unavailable');
+      return rows;
+    };
+    f.session.reviseConfiguration = async () => {
+      revisions++;
+      throw Error('unsafe revision');
+    };
+    await expect(f.run()).rejects.toThrow();
+    expect(revisions).toBe(0);
+    expect(f.actions()).toBe(0);
+    expect(f.records.has('terraform-direct-retirement-source.json')).toBe(false);
+  });

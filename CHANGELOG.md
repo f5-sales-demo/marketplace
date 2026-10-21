@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- CE UAT56 persists source-bound restoration and relinquishment preparation before revision, reuses durable exact plans on resume and rejects changed evidence before submission (#1651). Full UAT remains blocked.
+
 - CE UAT52 qualifies durable brownfield placement during AWS Terraform teardown preparation and verifies fresh cloud references before public session opening (#1651). Full UAT remains blocked.
 
 - CE UAT51 restores and relinquishes original direct routes before AWS Terraform cloud destruction, and verifies completed retirement resume against configuration, state and fresh cloud evidence (#1651). Full UAT remains blocked.
