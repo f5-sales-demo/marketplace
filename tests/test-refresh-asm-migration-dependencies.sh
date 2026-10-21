@@ -46,7 +46,8 @@ pass 'no-op path leaves the repository unchanged'
 
 repo=$(new_repo asm-change)
 mkdir -p "$repo/state"
-sed -i 's/5.11.0/5.11.1/' "$repo/plugins/asm-migration/package.json"
+sed 's/5.11.0/5.11.1/' "$repo/plugins/asm-migration/package.json" >"$repo/state/package.json"
+mv "$repo/state/package.json" "$repo/plugins/asm-migration/package.json"
 printf 'updated lock\n' >"$repo/plugins/asm-migration/bun.lock"
 PATH="$repo/bin:$PATH" TEST_STATE="$repo/state" REPO_ROOT="$repo" bash "$repo/scripts/refresh-asm-migration-dependencies.sh"
 
