@@ -74,11 +74,50 @@ checks with injected results, not normal TUI dispatch or live service acceptance
 Each installed entrypoint also registered into the published 23.5.1
 IntegrationRegistry without subprocesses. Four assertions checked registration,
 Xorg/Herdr dependencies, install-plan kind and verification argv. This qualifies
-the minimum registration/setup-plan boundary; full installed minimum-runtime
-loader and service acceptance remain open. Source fixture suites also ran in
+the minimum registration/setup-plan boundary. Source fixture suites also ran in
 separate minimum/stable dependency lanes: each lane passed 67 tests per host
 (619 assertions on Mac and 618 on Ubuntu). These fixture checks do not establish
-full installed minimum-runtime loader acceptance.
+full installed minimum-runtime loader acceptance on their own.
+
+## Published minimum-runtime CLI loader
+
+Each host independently downloaded the stable, non-draft 23.5.1 release binary,
+matched its size and SHA-256 to the release API, and verified `xcsh/23.5.1`.
+The immutable runtime tag resolves to
+`753953842ba2d889b9715000534874e67c152a98`.
+
+| Host | Minimum runtime binary SHA-256 |
+| --- | --- |
+| Mac arm64 | `923cc6f756f9311f20270c6fee4bc48fc29ded6bdcdbb453baba581dec4d1f22` |
+| Ubuntu x64 | `a43926e29b394a315be60550d3b5639ffa4492d3d12b25d8d2b87a75e02b1a9b` |
+
+Downloaded provenance documents also match their release asset digests and the
+binary digests. Ubuntu provenance names the same source commit. Mac strict
+code-signature verification passes with TeamIdentifier `97ZYL78T5F`, hardened
+runtime and a trusted timestamp. Publisher notarization claims are not treated
+as independent notarization acceptance.
+
+Normal `plugin status ghostty --json` initially exits 1 on both minimum binaries:
+the full installed catalog includes four plugins requiring runtime 23.8.0. This
+failure remains private evidence and does not establish Ghostty incompatibility.
+The published runtime supports `PI_CONFIG_DIR` through `getConfigDirName()` in
+`pi-utils/src/dirs.ts`. A task-owned configuration namespace contains only the
+existing installed Ghostty registry entry, pointing to the actual installed
+payload. No plugin payload was copied or changed, and the normal installed
+registry digest is unchanged before and after each invocation.
+
+With that documented configuration, the published 23.5.1 binary executes normal
+`plugin status ghostty --json` successfully on each host, loading the actual
+installed extension through the full CLI loader. Both exit 0 and report
+`setup_required`, `receipt_invalid`, and `xcsh plugin setup ghostty`. All 11
+installed files were rechecked against the independent artifact before loading.
+This qualifies Ghostty's isolated installed minimum-runtime CLI compatibility;
+mixed-catalog compatibility still requires satisfying the other plugins' declared
+runtime requirements. It does not qualify TUI dispatch, setup or service readiness.
+
+Private evidence identifiers are `marketplace-minimum-binary-mac-20261021` and
+`marketplace-minimum-binary-ubuntu-20261021`, including original failures and
+`ghostty-isolated-status` results. Default runtime executables remain unchanged.
 
 Focused source lifecycle/qualification/ownership/tracker/inventory checks passed
 100 tests on each host (1,326 Mac assertions; 1,325 Ubuntu assertions). All 28
@@ -108,6 +147,6 @@ Private evidence identifiers are `ghostty-installed-independent-mac-20261021`
 and `ghostty-installed-independent-ubuntu-20261021`. Raw archives, file audits,
 installed paths, status output and failed prior-version verification stay private.
 Historical source receipts and tracker invalidation records remain preserved.
-Only immutable-artifact and confirmed implementation-merge gates advance;
-host, full compatibility, service, workflow and cleanup gates remain explicitly
+Only immutable-artifact, confirmed implementation-merge and required-check gates
+advance; host, service, workflow and cleanup gates remain explicitly
 open. Issues 1604 and campaign 1579 remain open.
