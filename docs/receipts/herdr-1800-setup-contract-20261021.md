@@ -48,7 +48,7 @@ Raw logs, downloads, release metadata and failed regressions remain private.
 Ubuntu Herdr/lifecycle/tracker/ownership/inventory checks pass: 95 tests and
 1,195 assertions. Ubuntu minimum/stable lanes, temporary-home release smoke,
 pre-commit, catalog, version-bump and privacy checks also pass. Full repository
-and hermetic checks are recorded separately; Windows CI remains a delivery gate.
+and hermetic checks both pass on Ubuntu; Windows CI remains a delivery gate.
 
 ## Remaining acceptance
 
