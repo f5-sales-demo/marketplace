@@ -86,9 +86,47 @@ no acceptance. The canonical `/private/tmp` retry is the qualified run here.
 An initial Salesforce-specific driver rejected the guidance case format before
 inspection; the workflow driver completed the separate current matrix above.
 
+## Additional empty, clean, malformed and long examples
+
+A fresh scenario, `docs-tools-1.3.1-empty-clean-malformed-long-exact-reads`,
+SHA-256 `94e3427c3d488b61d654ec6e19f12dc771290caab142e34b030defbe1a691116`,
+used the same installed payload, runtime and merged observer. Exactly ten
+admitted reads completed: the six guidance files and four private synthetic
+fixtures. There were no extra or blocked calls. Every numbered result matched
+its complete file; all four fixture digests remained unchanged afterward.
+
+| Fixture | Observed result |
+| --- | --- |
+| Empty | One reviewed, zero skipped; one error, one warning, one info; explicitly empty and no clean-success claim. |
+| Clean content | One reviewed, zero skipped; zero errors/warnings/info; scoped content checks complete, repository compliance explicitly unknown. |
+| Malformed YAML | Zero completed reviews, one skipped with partial inspection; one error, one warning, zero info; explicitly incomplete, with exact repair and re-review action. |
+| Long | One reviewed, zero skipped; sixteen errors, zero warnings/info; twelve preview rows plus four remaining rows, without duplication. |
+
+Empty evidence was distinguished from unmatched scope. Malformed parsed values
+remained unknown; the visible `order: 0` was preserved. The clean and long
+reports qualified only file-local content completion and explicitly left
+repository structure unverified. They did not establish overall completion
+or a successful build. For each long finding, location and the literal
+`Case NN: latency &lt; Nms.` correction occurred exactly once in the model
+result. All sixteen corrections survived each of the final message's 48
+native appearances after removing documented table and continuation framing.
+
+Four actual fixture results and the final message produced 240 additional
+native frames across the same matrix; all were individually nonempty and
+within width. No repeat guidance-rendering acceptance is inferred from the
+six new source reads. Capture closure and session shutdown were separately
+verified before the pane returned to its shell.
+
+An earlier four-fixture attempt requested `L1-L3000` instead of the allowed
+empty selector. The guard denied all six guidance calls. The model reported
+its rules unavailable and did not claim clean success; its four admitted
+fixture reads and rejected attempt are preserved privately. That attempt
+does not qualify reviewer execution. A fresh ready-before-prompt session with
+explicit exact arguments produced the admitted ten-read evidence above.
+
 ## Remaining actions
 
-Execute empty, clean, malformed and long fixtures on both supported hosts.
+Execute these fixture cases on Ubuntu and qualify repository-wide evidence.
 Exercise the complete shipped command invocation and skill resolution, rather
 than only interpreting read guidance. Verify full rendered guidance, evidence
 duplication, pagination, expansion and lifecycle edge cases. Agent invocation
