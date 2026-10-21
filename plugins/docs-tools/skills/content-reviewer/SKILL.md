@@ -20,15 +20,26 @@ failures. Report findings grouped by severity: **ERROR** (build-breaking),
 
 ## Scoping
 
-If the repository has recent uncommitted or staged changes, scope the
+Explicit caller scope takes precedence over changed-file selection.
+If the caller supplies paths or a glob, review only those matching files.
+Do not widen an explicit scope to the repository or replace it with changed files.
+If the caller requests a full review, review all `docs/**/*.mdx` files.
+
+When the caller supplies no scope and the repository has uncommitted or staged changes, scope the
 review to changed MDX files only:
 
 ```bash
 git diff --name-only --diff-filter=ACMR HEAD -- 'docs/**/*.mdx'
 ```
 
-If no changes exist or the user requests a full review, check all
+If no changes exist, check all
 `docs/**/*.mdx` files.
+
+If no files match, report zero files reviewed and the unmatched scope.
+Unreadable or malformed files are incomplete review, with a warning and an
+exact next action. Do not report them as clean or silently drop them.
+Report reviewed and skipped file counts separately. Preserve zero, false,
+empty strings and unknown field values when explaining findings.
 
 Use parallel tool calls throughout — read multiple files, run multiple
 Grep/Glob searches in a single turn wherever possible.
@@ -200,6 +211,14 @@ string literals (template literals or quoted strings). Malformed
 exports will cause build failures.
 
 ## Output Format
+
+Lead with repository, effective scope, reviewed and skipped file counts,
+severity counts and completion (complete, empty or incomplete).
+Show at most twelve findings in the initial preview, ordered by severity.
+Include every remaining finding once in a clearly labelled complete-evidence
+section. Give each finding its file, line, severity and literal correction;
+do not repeat preview findings. Preserve the exact corrective guidance.
+An incomplete or empty review must never use the clean-success message.
 
 After running all checks, present findings in this format:
 
