@@ -1650,20 +1650,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/three-node-ha/bootstrap",
@@ -3744,20 +3744,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-aws-ha-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/terraform/three-node-ha/bootstrap",
