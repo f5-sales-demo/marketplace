@@ -11733,7 +11733,12 @@ async function activateAwsTerraformDirectRoutes(
   const up = async () => {
     signal?.throwIfAborted();
     const observed = await observeUp();
-    if (observed.status !== 'observed' || observed.interfaces.length !== 2)
+    if (
+      observed.status !== 'observed' ||
+      observed.interfaces.length !== 2 ||
+      observed.interfaces.some((row) => typeof row.interfaceName !== 'string' || !row.interfaceName.trim()) ||
+      new Set(observed.interfaces.map((row) => row.interfaceName)).size !== observed.interfaces.length
+    )
       throw Error('Direct activation requires complete verified up CE interface evidence');
     for (const [index, i] of ownership.interfaces.entries()) {
       const matches = observed.interfaces.filter(

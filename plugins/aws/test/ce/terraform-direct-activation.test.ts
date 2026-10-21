@@ -193,7 +193,16 @@ for (const mode of ['revision', 'plan', 'apply'])
     expect(await f.run()).toHaveProperty('terraformNoChanges', true);
     expect(f.applies()).toBe(1);
   });
-for (const mode of ['unknown', 'down', 'partial', 'foreign-mac', 'wrong-device', 'duplicate'])
+for (const mode of [
+  'unknown',
+  'down',
+  'partial',
+  'foreign-mac',
+  'wrong-device',
+  'duplicate',
+  'duplicate-name',
+  'blank-name',
+])
   test('activation rejects ' + mode + ' interface evidence before mutation', async () => {
     const f = await fixture();
     const observe = async () => {
@@ -203,6 +212,8 @@ for (const mode of ['unknown', 'down', 'partial', 'foreign-mac', 'wrong-device',
       if (mode === 'foreign-mac') v.interfaces[1].mac = '02:ff:ff:ff:ff:ff';
       if (mode === 'wrong-device') v.interfaces[1].device = 'other';
       if (mode === 'duplicate') v.interfaces[1] = v.interfaces[0];
+      if (mode === 'duplicate-name') v.interfaces[1].interfaceName = v.interfaces[0].interfaceName;
+      if (mode === 'blank-name') v.interfaces[1].interfaceName = ' ';
       return v;
     };
     await expect(
