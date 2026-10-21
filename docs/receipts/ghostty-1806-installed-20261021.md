@@ -82,8 +82,10 @@ full installed minimum-runtime loader acceptance.
 
 Focused source lifecycle/qualification/ownership/tracker/inventory checks passed
 100 tests on each host (1,326 Mac assertions; 1,325 Ubuntu assertions). All 28
-Ghostty Python setup tests passed on each host. Required full plugin, hermetic,
-catalog and changed-file lint/privacy checks must pass before receipt delivery.
+Ghostty Python setup tests passed on each host. Ubuntu's full plugin suite passed;
+its hermetic lane passed 354 tests and 2,394 assertions without real cloud CLIs.
+Final tracker/inventory checks passed 10 tests and 495 assertions on each host.
+Catalog and changed-file lint/privacy checks passed before receipt delivery.
 Original failures are preserved privately.
 
 ## Remaining gates and safe boundaries
