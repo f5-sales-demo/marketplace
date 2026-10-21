@@ -11,6 +11,8 @@ and this project adheres to
 ## [Unreleased]
 
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
+- **`meddpicc`** v7.8.2 quotes every legacy migration argument and identifies the running executable and CLI source path so corrective advice reconstructs exactly in Bash and Zsh (#1775).
+
 - **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.
 - **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
 
