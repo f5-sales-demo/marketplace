@@ -38,6 +38,17 @@ Bash and Zsh, verify the 45 declared palette rows and both font families, and
 check read-only behavior, explicit unknowns and incomplete outcomes. Original
 failures and raw fixtures remain private.
 
+## Source validation
+
+Six executable collector and skill-resolution tests pass. The Brand plugin suite
+passes nine tests with no skips. Minimum 23.5.1, discovery 23.8.0 and stable
+23.9.5 shipped-content checks each pass seven tests / 1,400 assertions. Tracker
+and ownership tests pass. Mac and Ubuntu pre-commit and privacy checks pass.
+The full Ubuntu plugin suite and hermeticity gate pass. These checks establish
+source validation; installed 1.2.1 workflow acceptance remains separate.
+
+Focused delivery issue: #1761. The campaign child #1585 stays open.
+
 ## Remaining gates
 
 Complete focused and full source, compatibility, ownership, catalog, tracker,
