@@ -42,10 +42,14 @@ CI subsequently rejected the setup module and its tests for exceeding pylint's
 1,000-line module limit. Launcher staging and activation now live in a focused
 `xorgctl_lib.launcher` module, with their four existing behavioral regressions in
 `test_launcher.py`. Setup retains the same callable integration boundary. The
-complete Python suite still passes all 49 tests on Mac; the four changed Python
+complete Python suite still passes all 49 tests on both hosts; the four changed Python
 files pass Ruff and the repository pylint configuration without relaxing rules.
 The original CI failure remains private evidence. Inventory fingerprints were
 reconciled while retaining historical receipts and open acceptance gates.
+Final combined checks pass 80 tests per host (1,138 Mac assertions and 1,137
+Ubuntu assertions). Both Mac compatibility lanes pass 68 tests and 632 assertions.
+Ubuntu's full repository and hermetic suites, catalog, version-bump, pre-commit
+and privacy checks pass again after this extraction. Raw repair logs remain private.
 
 ## Remaining acceptance
 
