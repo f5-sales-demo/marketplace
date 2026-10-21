@@ -393,7 +393,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and CLI tools with gated Customer Edge discovery and lifecycle readiness planning",
-      "version": "1.6.1",
+      "version": "1.6.2",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {

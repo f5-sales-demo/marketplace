@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** v1.6.2 retains complete help and failed or opaque evidence once on expansion, preserves automatic fallback for mixed content, and uses stable runtime 23.9.5 for development (#1816).
+
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
