@@ -173,12 +173,49 @@ SSH to its Mac shell.
 The receipt now records 672 native frames across complete, malformed and empty
 fixtures on both hosts, including separate installed guidance matrices.
 
+## Real installed command invocation and layout failure
+
+A fresh Ubuntu session started in a reviewed synthetic repository, with the
+installed plugin supplied through `--plugin-dir` and only read and Bash tools
+enabled. The real `/docs-pipeline:docs-pipeline-status` entrypoint expanded to
+the complete shipped command body in the stored user message. Supplemental
+arguments declared unavailable delegation, authorized the documented fallback
+and supplied the exact reviewed Bash arguments. The installed command read
+returned the exact source as plain text; two admitted successful calls executed
+with no extras or guard rejections.
+
+The collector reported sixteen paths split twelve plus four, complete local
+indicators, empty warnings and three false execution flags. Another 96 native
+result and assistant frames passed width checks. All 48 assistant frames retained
+the sixteen paths exactly once, count, empty warnings, false flags and the
+local-indicator boundary.
+
+Presentation acceptance failed: the assistant selected HTML disclosure markup,
+and the published native renderer printed literal `<details>`, `<summary>` and
+closing tags. All four remaining paths stayed visible in collapsed frames, so
+the default twelve-row preview and native evidence expansion were not qualified.
+The final answer also omitted an explicit unavailable-delegation limitation.
+These failures do not invalidate the preceding scoped collector data captures;
+they prevent broader command acceptance.
+
+- Scenario SHA256:
+  `13ed26a9d8ea4d66e2ea0f992902fc219c47538d07a958aafdaf3ecb07fcb6d7`.
+- Private root: `docs-pipeline1779-installed-invocation-ubuntu-20261020`.
+- Native disclosure prerequisite:
+  <https://github.com/f5-sales-demo/xcsh/issues/5054>.
+- Content-only status prerequisite:
+  <https://github.com/f5-sales-demo/xcsh/issues/5053>.
+
+Capture closure, session shutdown and SSH return to the owned Mac shell were
+verified. Raw failure evidence remains private. The receipt contains 768 native
+frames in total; 96 belong to this invocation with failed presentation acceptance.
+
 ## Remaining actions
 
 Only `docs-pipeline.command.docs-pipeline-status.capture` is supported by this
-scoped Mac and Ubuntu receipt. Qualify unavailable indicators and execute full
-command invocation with
-complete guidance fidelity. Delegated operator execution needs a session that
+scoped Mac and Ubuntu receipt. Qualify unavailable indicators, provide native
+evidence disclosure through xcsh #5054 and replay full invocation with explicit
+delegation limitations and complete guidance fidelity. Delegated operator execution needs a session that
 permits subagents. Preview startup remains deferred. Resolve the content-only
-public lifecycle representation before accepting its status gate. Historical
+public lifecycle representation through xcsh #5053 before accepting its status gate. Historical
 receipts and fingerprints remain preserved; overall plugin acceptance is open.
