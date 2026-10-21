@@ -605,6 +605,56 @@ test('normal finish closes capture and ignores subsequent frame controls', async
   });
 });
 
+test('exact guidance ranges retain their selector and reject contents changed during execution', async () => {
+  for (const variant of ['accepted', 'changed', 'mismatched']) {
+    await harness(
+      'guidance',
+      async ({ handlers, commands, root }) => {
+        const path = join(root, '..', 'plugin', 'guide.md');
+        const input = { path, sel: 'L301-L420', timeout: 120 };
+        const call = { toolName: 'read', toolCallId: 'range', input };
+        expect(handlers.get('tool_call')[0](call)).toBeUndefined();
+        handlers.get('tool_execution_start')[0]({
+          ...call,
+          args: { ...input, ...(variant === 'mismatched' ? { sel: 'L1-L300' } : {}) },
+        });
+        if (variant === 'changed') writeFileSync(path, 'changed');
+        handlers.get('tool_execution_end')[0]({
+          toolName: 'read',
+          toolCallId: 'range',
+          result: { content: [{ type: 'text', text: 'selected evidence' }] },
+          isError: false,
+        });
+        const ctx = { ui: { custom: async () => {} } };
+        if (variant !== 'accepted')
+          await expect(commands.get('marketplace-campaign-guidance-capture').handler('', ctx)).rejects.toThrow(
+            'No actual',
+          );
+        else {
+          await commands.get('marketplace-campaign-guidance-capture').handler('', ctx);
+          const cases = JSON.parse(readFileSync(join(root, 'guidance', 'cases.json'), 'utf8'));
+          expect(cases[0].guidanceSelector).toBe('L301-L420');
+          expect(cases[0].guidancePath).toBe('guide.md');
+        }
+      },
+      (plugin, scenarioPath) => {
+        const source = Array.from({ length: 420 }, (_, i) => `line ${i + 1}`).join('\n');
+        writeFileSync(join(plugin, 'guide.md'), source);
+        const scenario = JSON.parse(readFileSync(scenarioPath, 'utf8'));
+        scenario.guidance = ['guide.md'];
+        scenario.guidanceRanges = [
+          {
+            path: 'guide.md',
+            sha256: createHash('sha256').update(source).digest('hex'),
+            args: { sel: 'L301-L420', timeout: 120 },
+          },
+        ];
+        writeFileSync(scenarioPath, JSON.stringify(scenario));
+      },
+    );
+  }
+});
+
 function prepareFixtureRead(plugin: string, path: string) {
   const root = realpathSync(join(plugin, '..'));
   const file = join(root, 'review.mdx');
