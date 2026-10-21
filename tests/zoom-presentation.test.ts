@@ -1,7 +1,15 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
+import { stripVTControlCharacters } from 'node:util';
 import zoomIntegration, { createZoomCommandHandler } from '../plugins/zoom/extensions/integration';
 import { presentTool } from '../plugins/zoom/extensions/presentation';
+import { visibleWidth } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/pi-tui';
 import { presentation } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/presentation';
+import { ToolExecutionComponent } from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/modes/components/tool-execution';
+import {
+  initTheme,
+  setSymbolPreset,
+  setTheme,
+} from '../scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/modes/theme/theme';
 
 let probe: () => Promise<unknown>;
 zoomIntegration({
@@ -89,7 +97,8 @@ test('domain summaries and expanded evidence preserve unknowns, false, zero and 
       {},
     );
     expect(fallback.expandedEvidence).not.toBe('provided');
-    expect(JSON.stringify(fallback)).toContain('opaque corrective guidance');
+    expect(fallback.sections?.find((s) => s.title === 'Requested Zoom scope')).toBeDefined();
+    expect(fallback.warnings?.join(' ')).toContain('readiness is unverified');
   }
 });
 test('expandable direct command retains complete evidence and executes once', async () => {
@@ -114,4 +123,47 @@ test('lifecycle preserves distinct stderr alongside a valid observation', async 
     response(JSON.stringify({ ready: false }), 'literal additional guidance', 1),
   );
   expect(JSON.stringify(await probe())).toContain('literal additional guidance');
+});
+
+test('opaque observations retain automatic raw evidence once through the real component', async () => {
+  await initTheme(false);
+  const tool = presentTool({ name: 'zoom_meeting', label: 'Zoom meeting' }, presentation);
+  for (const theme of ['xcsh-dark', 'xcsh-light']) {
+    expect((await setTheme(theme, false)).success).toBe(true);
+    for (const preset of ['unicode', 'ascii', 'nerd'] as const) {
+      await setSymbolPreset(preset);
+      for (const details of [undefined, null, {}, { exitCode: '0', hasMore: true }, { exitCode: 0 }]) {
+        const result = {
+          details,
+          content: [
+            { type: 'text', text: 'opaque corrective guidance' },
+            ...(details?.exitCode === 0 ? [{ type: 'audio', mimeType: 'audio/wav' }] : []),
+          ],
+        };
+        const view = tool.presentation.result!(result, { expanded: true, isPartial: false }, { action: 'status' });
+        expect(view.expandedEvidence).not.toBe('provided');
+        const component = new ToolExecutionComponent(
+          'zoom_meeting',
+          { action: 'status' },
+          {},
+          tool as never,
+          { requestRender() {} } as never,
+        );
+        component.updateResult(result, false);
+        try {
+          for (const expanded of [false, true]) {
+            component.setExpanded(expanded);
+            for (const width of [40, 76, 120, 153]) {
+              const lines = component.render(width);
+              for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+              const rendered = stripVTControlCharacters(lines.join('\n'));
+              if (expanded) expect(rendered.match(/opaque corrective guidance/g)).toHaveLength(1);
+            }
+          }
+        } finally {
+          component.stopAnimation();
+        }
+      }
+    }
+  }
 });

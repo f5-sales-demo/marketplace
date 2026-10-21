@@ -7,7 +7,7 @@
     },
     "engine": {
       "name": "@meddpicc/engine",
-      "version": "7.8.1",
+      "version": "7.8.2",
     },
   },
   "packages": {
