@@ -15,6 +15,7 @@ import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
 import { writableSiteMetadata } from './site-labels';
 import {
   collectCePendingAdmissionInventory,
+  collectCePreRegistrationInventory,
   collectCeTeardownInventory,
   collectCeUnregisteredAbsence,
 } from './teardown-inventory';
@@ -461,6 +462,21 @@ export class CeRuntime {
   ) {
     for (const binding of bindings) this.#binding(binding);
     return collectCePendingAdmissionInventory(
+      { request: (path, init, signal) => this.#request(path, init, signal) },
+      bindings,
+      namespaces,
+      { site: this.contract.fingerprint, ingress: contract.fingerprint },
+      signal,
+    );
+  }
+  preRegistrationInventory(
+    bindings: SiteBinding[],
+    namespaces: string[],
+    contract: VerifiedIngressContract,
+    signal?: AbortSignal,
+  ) {
+    for (const binding of bindings) this.#binding(binding);
+    return collectCePreRegistrationInventory(
       { request: (path, init, signal) => this.#request(path, init, signal) },
       bindings,
       namespaces,

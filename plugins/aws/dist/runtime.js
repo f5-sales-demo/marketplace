@@ -16489,11 +16489,12 @@ function identities(base, receipt) {
     const matches = receipt.sites.filter((row) => row.siteName === binding.siteName);
     if (
       matches.length !== 1 ||
-      matches[0].physicalSiteUid !== null ||
+      !(matches[0].physicalSiteUid === null || uid(matches[0].physicalSiteUid)) ||
       !(matches[0].siteUid === null || uid(matches[0].siteUid))
     )
       throw new Error('Pending site identity differs');
     if (matches[0].siteUid !== null) unique(matches[0].siteUid);
+    if (matches[0].physicalSiteUid !== null) unique(matches[0].physicalSiteUid);
     const tokens = receipt.resources
       .filter((row) => row.siteName === binding.siteName)
       .map((row) => {
@@ -16512,7 +16513,12 @@ function identities(base, receipt) {
         return { name: row.name, node: String(row.node), uid: row.uid };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-    return { siteName: binding.siteName, siteUid: matches[0].siteUid, physicalSiteUid: null, tokens };
+    return {
+      siteName: binding.siteName,
+      siteUid: matches[0].siteUid,
+      physicalSiteUid: matches[0].physicalSiteUid,
+      tokens,
+    };
   });
   if (retirement.reduce((n, row) => n + row.tokens.length, 0) !== receipt.resources.length)
     throw new Error('Unexpected pending resource');
@@ -16547,6 +16553,7 @@ function subset(base, planned, receipt, site, ingress) {
     if (
       !target ||
       (row.siteUid !== null && row.siteUid !== target.siteUid) ||
+      (row.physicalSiteUid !== null && row.physicalSiteUid !== target.physicalSiteUid) ||
       row.tokens.some(
         (token) => !target.tokens.some((expected) => canonicalSha256(token) === canonicalSha256(expected)),
       )
@@ -16562,7 +16569,8 @@ async function prepareAwsPendingTeardown(base, runtime, contract, storage, signa
   const before = await journal(base, storage, runtime.contract.fingerprint);
   await reconcilePendingF5Site(base, runtime, storage, signal);
   const receipt = fresh(
-    await runtime.pendingAdmissionInventory(
+    await (runtime.preRegistrationInventory ?? runtime.pendingAdmissionInventory).call(
+      runtime,
       siteBindings(base).map((row) => row.binding),
       ['default'],
       contract,
@@ -16573,6 +16581,8 @@ async function prepareAwsPendingTeardown(base, runtime, contract, storage, signa
     contract.fingerprint,
   );
   const retirement = identities(base, receipt);
+  if (retirement.some((site) => site.physicalSiteUid !== null && site.siteUid === null))
+    throw new Error('Pre-registration physical site has no owning logical identity');
   let admissionMissing = false;
   try {
     await storage.read('terraform-admission.json');
@@ -16606,6 +16616,7 @@ async function coordinateAwsPendingTeardown(base, input, authorized, storage, dr
     signal?.throwIfAborted();
     if (
       driver.engine !== 'terraform' ||
+      (plan.retirement.some((site) => site.physicalSiteUid !== null) && !driver.observeSiteDeletion) ||
       authorized !== plan.planSha256 ||
       (await journal(base, storage, driver.siteContractFingerprint)) !== plan.sourceJournalSha256 ||
       canonicalSha256(plan) !==
@@ -16682,9 +16693,21 @@ async function coordinateAwsPendingTeardown(base, input, authorized, storage, dr
           cloudInventory: 'unknown',
         };
     }
+    if (target.physicalSiteUid !== null) {
+      if (!target.siteUid || !driver.observeSiteDeletion)
+        throw new Error('Pre-registration physical retirement observation is unavailable');
+      const deletion = await driver.observeSiteDeletion(target, signal);
+      if (deletion.status !== 'deleted')
+        return {
+          status: 'pending-platform-retirement',
+          sourcePlanSha256: base.planSha256,
+          planSha256: plan.planSha256,
+          cloudInventory: 'unknown',
+        };
+    }
   }
   current = await observe();
-  if (current.some((site) => site.siteUid !== null || site.tokens.length))
+  if (current.some((site) => site.siteUid !== null || site.physicalSiteUid !== null || site.tokens.length))
     throw new Error('Pending platform retirement has not converged');
   let finalBook;
   try {
@@ -16728,7 +16751,7 @@ async function runAwsPendingTeardown(base, plan, authorized, runtime, contract, 
       siteContractFingerprint: runtime.contract.fingerprint,
       ingressContractFingerprint: contract.fingerprint,
       observe: (signal) =>
-        runtime.pendingAdmissionInventory(
+        runtime.preRegistrationInventory(
           bindings.map((row) => row.binding),
           ['default'],
           contract,
@@ -16739,6 +16762,12 @@ async function runAwsPendingTeardown(base, plan, authorized, runtime, contract, 
       reconcilePlatform: (signal) => runtime.reconcileTerraformResources(storage.owner, signal),
       retireCloud: (signal) => runAwsTerraformCloudTeardown(base, session, storage, api, env, signal),
       deleteSite: (site, signal) => runtime.deleteSiteExact(binding(site), String(site.siteUid), signal),
+      observeSiteDeletion: (site, signal) =>
+        runtime.observeSiteDeletion(
+          binding(site),
+          { siteUid: String(site.siteUid), physicalSiteUid: String(site.physicalSiteUid) },
+          signal,
+        ),
     },
     signal,
   );

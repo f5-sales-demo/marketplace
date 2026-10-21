@@ -15,12 +15,12 @@ import { verifyAwsTeardownCredentials } from './terraform-teardown';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
-type Observation = Awaited<ReturnType<CeRuntime['pendingAdmissionInventory']>>;
+type Observation = Awaited<ReturnType<CeRuntime['preRegistrationInventory']>>;
 type Store = Pick<CeDeploymentStore, 'owner' | 'verify' | 'read' | 'write' | 'directory'>;
 interface Retirement {
   siteName: string;
   siteUid: string | null;
-  physicalSiteUid: null;
+  physicalSiteUid: string | null;
   tokens: Array<{ name: string; node: string; uid: string }>;
 }
 export interface AwsPendingTeardownPlan {
@@ -223,11 +223,12 @@ function identities(base: AwsCePlan, receipt: Extract<Observation, { status: 'ob
     const matches = receipt.sites.filter((row) => row.siteName === binding.siteName);
     if (
       matches.length !== 1 ||
-      matches[0].physicalSiteUid !== null ||
+      !(matches[0].physicalSiteUid === null || uid(matches[0].physicalSiteUid)) ||
       !(matches[0].siteUid === null || uid(matches[0].siteUid))
     )
       throw new Error('Pending site identity differs');
     if (matches[0].siteUid !== null) unique(matches[0].siteUid);
+    if (matches[0].physicalSiteUid !== null) unique(matches[0].physicalSiteUid);
     const tokens = receipt.resources
       .filter((row) => row.siteName === binding.siteName)
       .map((row) => {
@@ -246,7 +247,12 @@ function identities(base: AwsCePlan, receipt: Extract<Observation, { status: 'ob
         return { name: row.name, node: String(row.node), uid: row.uid };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-    return { siteName: binding.siteName, siteUid: matches[0].siteUid, physicalSiteUid: null, tokens };
+    return {
+      siteName: binding.siteName,
+      siteUid: matches[0].siteUid,
+      physicalSiteUid: matches[0].physicalSiteUid,
+      tokens,
+    };
   });
   if (retirement.reduce((n, row) => n + row.tokens.length, 0) !== receipt.resources.length)
     throw new Error('Unexpected pending resource');
@@ -287,6 +293,7 @@ function subset(base: AwsCePlan, planned: Retirement[], receipt: Observation, si
     if (
       !target ||
       (row.siteUid !== null && row.siteUid !== target.siteUid) ||
+      (row.physicalSiteUid !== null && row.physicalSiteUid !== target.physicalSiteUid) ||
       row.tokens.some(
         (token) => !target.tokens.some((expected) => canonicalSha256(token) === canonicalSha256(expected)),
       )
@@ -308,7 +315,8 @@ export async function prepareAwsPendingTeardown(
   const before = await journal(base, storage, runtime.contract.fingerprint);
   await reconcilePendingF5Site(base, runtime, storage, signal);
   const receipt = fresh(
-    await runtime.pendingAdmissionInventory(
+    await (runtime.preRegistrationInventory ?? runtime.pendingAdmissionInventory).call(
+      runtime,
       siteBindings(base).map((row) => row.binding),
       ['default'],
       contract,
@@ -319,6 +327,8 @@ export async function prepareAwsPendingTeardown(
     contract.fingerprint,
   );
   const retirement = identities(base, receipt);
+  if (retirement.some((site) => site.physicalSiteUid !== null && site.siteUid === null))
+    throw new Error('Pre-registration physical site has no owning logical identity');
   let admissionMissing = false;
   try {
     await storage.read('terraform-admission.json');
@@ -356,6 +366,7 @@ interface Driver {
     signal?: AbortSignal,
   ): Promise<{ status: 'terraform-state-retired'; sourcePlanSha256: string; finalPlanSha256: string }>;
   deleteSite(site: Retirement, signal?: AbortSignal): Promise<{ status: 'deleted' | 'pending' }>;
+  observeSiteDeletion?(site: Retirement, signal?: AbortSignal): Promise<{ status: 'deleted' | 'pending' | 'unknown' }>;
 }
 export async function coordinateAwsPendingTeardown(
   base: AwsCePlan,
@@ -371,6 +382,7 @@ export async function coordinateAwsPendingTeardown(
     signal?.throwIfAborted();
     if (
       driver.engine !== 'terraform' ||
+      (plan.retirement.some((site) => site.physicalSiteUid !== null) && !driver.observeSiteDeletion) ||
       authorized !== plan.planSha256 ||
       (await journal(base, storage, driver.siteContractFingerprint)) !== plan.sourceJournalSha256 ||
       canonicalSha256(plan) !==
@@ -449,9 +461,21 @@ export async function coordinateAwsPendingTeardown(
           cloudInventory: 'unknown' as const,
         };
     }
+    if (target.physicalSiteUid !== null) {
+      if (!target.siteUid || !driver.observeSiteDeletion)
+        throw new Error('Pre-registration physical retirement observation is unavailable');
+      const deletion = await driver.observeSiteDeletion(target, signal);
+      if (deletion.status !== 'deleted')
+        return {
+          status: 'pending-platform-retirement' as const,
+          sourcePlanSha256: base.planSha256,
+          planSha256: plan.planSha256,
+          cloudInventory: 'unknown' as const,
+        };
+    }
   }
   current = await observe();
-  if (current.some((site) => site.siteUid !== null || site.tokens.length))
+  if (current.some((site) => site.siteUid !== null || site.physicalSiteUid !== null || site.tokens.length))
     throw new Error('Pending platform retirement has not converged');
   let finalBook: unknown;
   try {
@@ -506,7 +530,7 @@ export async function runAwsPendingTeardown(
       siteContractFingerprint: runtime.contract.fingerprint,
       ingressContractFingerprint: contract.fingerprint,
       observe: (signal) =>
-        runtime.pendingAdmissionInventory(
+        runtime.preRegistrationInventory(
           bindings.map((row) => row.binding),
           ['default'],
           contract,
@@ -517,6 +541,12 @@ export async function runAwsPendingTeardown(
       reconcilePlatform: (signal) => runtime.reconcileTerraformResources(storage.owner, signal),
       retireCloud: (signal) => runAwsTerraformCloudTeardown(base, session, storage, api, env, signal),
       deleteSite: (site, signal) => runtime.deleteSiteExact(binding(site), String(site.siteUid), signal),
+      observeSiteDeletion: (site, signal) =>
+        runtime.observeSiteDeletion(
+          binding(site),
+          { siteUid: String(site.siteUid), physicalSiteUid: String(site.physicalSiteUid) },
+          signal,
+        ),
     },
     signal,
   );

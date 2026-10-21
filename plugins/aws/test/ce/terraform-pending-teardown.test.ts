@@ -215,6 +215,54 @@ test('public teardown preparation selects the separate pending admission contrac
   expect(plan.kind).toBe('aws-ce-terraform-pending-teardown');
   expect(f.mutations).toHaveLength(0);
 });
+test('pre-registration retirement binds physical identity and waits for generated-site deletion on resume', async () => {
+  const f = await fixture();
+  let physical: string | null = 'generated-physical';
+  const observe = async () => ({
+    ...(await f.runtime.pendingAdmissionInventory()),
+    sites: (await f.runtime.pendingAdmissionInventory()).sites.map((site) => ({ ...site, physicalSiteUid: physical })),
+  });
+  const runtime = { ...f.runtime, preRegistrationInventory: observe };
+  const plan = await prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage);
+  expect(plan.retirement[0].physicalSiteUid).toBe('generated-physical');
+  let deletionReads = 0;
+  const driver = {
+    ...f.driver,
+    observe,
+    observeSiteDeletion: async (site: { siteUid: string; physicalSiteUid: string }) => {
+      expect(site.physicalSiteUid).toBe('generated-physical');
+      deletionReads++;
+      return { status: physical === null ? 'deleted' : 'pending' };
+    },
+  };
+  const first = await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never);
+  expect(first.status).toBe('pending-platform-retirement');
+  expect(f.mutations).toEqual(['token', 'cloud', 'site']);
+  physical = null;
+  const second = await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never);
+  expect(second.status).toBe('resources-retired-awaiting-inventory');
+  expect(f.mutations).toEqual(['token', 'cloud', 'site', 'cloud']);
+  expect(deletionReads).toBe(2);
+});
+test('pre-registration replacement or new physical identity rejects before mutations', async () => {
+  const f = await fixture();
+  let physical = 'original-physical';
+  const observe = async () => ({
+    ...(await f.runtime.pendingAdmissionInventory()),
+    sites: (await f.runtime.pendingAdmissionInventory()).sites.map((site) => ({ ...site, physicalSiteUid: physical })),
+  });
+  const runtime = { ...f.runtime, preRegistrationInventory: observe };
+  const plan = await prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage);
+  physical = 'replacement-physical';
+  await expect(
+    coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, {
+      ...f.driver,
+      observe,
+      observeSiteDeletion: async () => ({ status: 'pending' }),
+    } as never),
+  ).rejects.toThrow('substituted');
+  expect(f.mutations).toEqual([]);
+});
 test('public teardown retains missing admission provenance while retiring a recorded logical site', async () => {
   const f = await fixture();
   await unlink(join(f.storage.directory, 'terraform-admission.json'));

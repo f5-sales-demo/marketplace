@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { CeApiError } from '../../src/ce/runtime';
 import {
   collectCePendingAdmissionInventory,
+  collectCePreRegistrationInventory,
   collectCeTeardownInventory,
   collectCeUnregisteredAbsence,
 } from '../../src/ce/teardown-inventory';
@@ -272,6 +273,63 @@ test('pending admission inventory retains exact logical and token identity with 
   });
   expect(absent.status).toBe('observed');
   if (absent.status === 'observed') expect(absent.sites[0].siteUid).toBeNull();
+});
+test('pre-registration inventory records an owned empty generated physical site without claiming registration', async () => {
+  const original = pendingFixture();
+  const port = {
+    request: async (path: string) =>
+      path.includes('/sites/')
+        ? {
+            metadata: { name: 'ce-site', namespace: 'system', labels },
+            system_metadata: { uid: 'generated-physical', creator_class: 'akar' },
+            spec: { main_nodes: [], site_state: 'WAITING_FOR_REGISTRATION', site_type: 'CUSTOMER_EDGE' },
+          }
+        : original.request(path),
+  };
+  const receipt = await collectCePreRegistrationInventory(port, bindings, ['default'], {
+    site: 'site',
+    ingress: 'ingress',
+  });
+  expect(receipt.status).toBe('observed');
+  if (receipt.status === 'observed')
+    expect(receipt.sites).toEqual([{ siteName: 'ce-site', siteUid: 'logical', physicalSiteUid: 'generated-physical' }]);
+  expect(
+    (await collectCePendingAdmissionInventory(port, bindings, ['default'], { site: 'site', ingress: 'ingress' }))
+      .status,
+  ).toBe('unknown');
+});
+test('pre-registration inventory rejects registered, foreign and substituted physical objects', async () => {
+  for (const mode of ['nodes', 'state', 'owner', 'creator', 'duplicate-uid', 'replacement', 'registration']) {
+    const original = pendingFixture(mode === 'registration' ? 'registration' : 'valid');
+    let reads = 0;
+    const port = {
+      request: async (path: string) => {
+        if (!path.includes('/sites/')) return original.request(path);
+        reads++;
+        return {
+          metadata: {
+            name: 'ce-site',
+            namespace: 'system',
+            labels: mode === 'owner' ? { ...labels, 'xcsh-ce-engine': 'native' } : labels,
+          },
+          system_metadata: {
+            uid:
+              mode === 'duplicate-uid' ? 'logical' : mode === 'replacement' && reads > 1 ? 'replacement' : 'physical',
+            creator_class: mode === 'creator' ? 'foreign' : 'akar',
+          },
+          spec: {
+            main_nodes: mode === 'nodes' ? [{ name: 'ce-node' }] : [],
+            site_state: mode === 'state' ? 'ONLINE' : 'WAITING_FOR_REGISTRATION',
+            site_type: 'CUSTOMER_EDGE',
+          },
+        };
+      },
+    };
+    expect(
+      (await collectCePreRegistrationInventory(port, bindings, ['default'], { site: 'site', ingress: 'ingress' }))
+        .status,
+    ).toBe('unknown');
+  }
 });
 test('pending admission never substitutes absence for physical registration, routing or incomplete identity', async () => {
   for (const mode of [

@@ -2073,6 +2073,12 @@ async function collectCeUnregisteredAbsence(port, input, namespaces, contracts, 
   }
 }
 async function collectCePendingAdmissionInventory(port, input, namespaces, contracts, signal) {
+  return collectPendingInventory(port, input, namespaces, contracts, false, signal);
+}
+async function collectCePreRegistrationInventory(port, input, namespaces, contracts, signal) {
+  return collectPendingInventory(port, input, namespaces, contracts, true, signal);
+}
+async function collectPendingInventory(port, input, namespaces, contracts, allowGeneratedPhysical, signal) {
   const bindings = structuredClone(input);
   namespaces = structuredClone(namespaces);
   contracts = structuredClone(contracts);
@@ -2106,14 +2112,31 @@ async function collectCePendingAdmissionInventory(port, input, namespaces, contr
       throw new Error('Incomplete pending admission collection');
     return value.items;
   };
-  const absent = async (path) => {
+  const physicalIdentity = async (path) => {
+    let value;
     try {
-      await read(path);
+      value = await read(path);
     } catch (error) {
-      if (error instanceof CeApiError && error.category === 'not-found') return;
+      if (error instanceof CeApiError && error.category === 'not-found') return null;
       throw error;
     }
-    throw new Error('Physical site is present');
+    if (!allowGeneratedPhysical) throw new Error('Physical site is present');
+    const metadata = object9(value.metadata),
+      system = object9(value.system_metadata),
+      spec = object9(value.spec);
+    owned(metadata.labels);
+    if (
+      metadata.namespace !== 'system' ||
+      path !== `/api/config/namespaces/system/sites/${metadata.name}` ||
+      !text2(system.uid) ||
+      system.creator_class !== 'akar' ||
+      spec.site_type !== 'CUSTOMER_EDGE' ||
+      spec.site_state !== 'WAITING_FOR_REGISTRATION' ||
+      !Array.isArray(spec.main_nodes) ||
+      spec.main_nodes.length
+    )
+      throw new Error('Pre-registration physical identity differs');
+    return system.uid;
   };
   const snapshot = async () => {
     const sites = [];
@@ -2137,8 +2160,12 @@ async function collectCePendingAdmissionInventory(port, input, namespaces, contr
         siteUid = uid;
         uids.add(uid);
       }
-      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid: null });
-      await absent(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      const physicalSiteUid = await physicalIdentity(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      if (physicalSiteUid !== null) {
+        if (uids.has(physicalSiteUid)) throw new Error('Duplicate pre-registration physical UID');
+        uids.add(physicalSiteUid);
+      }
+      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid });
       if (collection(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`)).length)
         throw new Error('Registration is present');
     }
@@ -2687,6 +2714,16 @@ class CeRuntime {
   pendingAdmissionInventory(bindings, namespaces, contract, signal) {
     for (const binding of bindings) this.#binding(binding);
     return collectCePendingAdmissionInventory(
+      { request: (path, init, signal) => this.#request(path, init, signal) },
+      bindings,
+      namespaces,
+      { site: this.contract.fingerprint, ingress: contract.fingerprint },
+      signal,
+    );
+  }
+  preRegistrationInventory(bindings, namespaces, contract, signal) {
+    for (const binding of bindings) this.#binding(binding);
+    return collectCePreRegistrationInventory(
       { request: (path, init, signal) => this.#request(path, init, signal) },
       bindings,
       namespaces,

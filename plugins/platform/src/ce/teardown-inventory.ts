@@ -311,6 +311,26 @@ export async function collectCePendingAdmissionInventory(
   contracts: { site: string; ingress: string },
   signal?: AbortSignal,
 ) {
+  return collectPendingInventory(port, input, namespaces, contracts, false, signal);
+}
+/** Separate pre-registration contract for an owned generated physical site with no nodes. */
+export async function collectCePreRegistrationInventory(
+  port: Port,
+  input: SiteBinding[],
+  namespaces: string[],
+  contracts: { site: string; ingress: string },
+  signal?: AbortSignal,
+) {
+  return collectPendingInventory(port, input, namespaces, contracts, true, signal);
+}
+async function collectPendingInventory(
+  port: Port,
+  input: SiteBinding[],
+  namespaces: string[],
+  contracts: { site: string; ingress: string },
+  allowGeneratedPhysical: boolean,
+  signal?: AbortSignal,
+) {
   const bindings = structuredClone(input);
   namespaces = structuredClone(namespaces);
   contracts = structuredClone(contracts);
@@ -344,17 +364,34 @@ export async function collectCePendingAdmissionInventory(
       throw new Error('Incomplete pending admission collection');
     return value.items;
   };
-  const absent = async (path: string) => {
+  const physicalIdentity = async (path: string): Promise<string | null> => {
+    let value: Json;
     try {
-      await read(path);
+      value = await read(path);
     } catch (error) {
-      if (error instanceof CeApiError && error.category === 'not-found') return;
+      if (error instanceof CeApiError && error.category === 'not-found') return null;
       throw error;
     }
-    throw new Error('Physical site is present');
+    if (!allowGeneratedPhysical) throw new Error('Physical site is present');
+    const metadata = object(value.metadata),
+      system = object(value.system_metadata),
+      spec = object(value.spec);
+    owned(metadata.labels);
+    if (
+      metadata.namespace !== 'system' ||
+      path !== `/api/config/namespaces/system/sites/${metadata.name}` ||
+      !text(system.uid) ||
+      system.creator_class !== 'akar' ||
+      spec.site_type !== 'CUSTOMER_EDGE' ||
+      spec.site_state !== 'WAITING_FOR_REGISTRATION' ||
+      !Array.isArray(spec.main_nodes) ||
+      spec.main_nodes.length
+    )
+      throw new Error('Pre-registration physical identity differs');
+    return system.uid;
   };
   const snapshot = async () => {
-    const sites: Array<{ siteName: string; siteUid: string | null; physicalSiteUid: null }> = [];
+    const sites: Array<{ siteName: string; siteUid: string | null; physicalSiteUid: string | null }> = [];
     const resources: CeTeardownResource[] = [];
     const uids = new Set<string>(),
       names = new Set<string>();
@@ -375,8 +412,12 @@ export async function collectCePendingAdmissionInventory(
         siteUid = uid;
         uids.add(uid);
       }
-      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid: null });
-      await absent(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      const physicalSiteUid = await physicalIdentity(`/api/config/namespaces/system/sites/${binding.siteName}`);
+      if (physicalSiteUid !== null) {
+        if (uids.has(physicalSiteUid)) throw new Error('Duplicate pre-registration physical UID');
+        uids.add(physicalSiteUid);
+      }
+      sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid });
       if (collection(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`)).length)
         throw new Error('Registration is present');
     }
