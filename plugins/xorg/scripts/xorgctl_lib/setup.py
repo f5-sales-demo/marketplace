@@ -8,7 +8,6 @@ import json
 import os
 import pathlib
 import re
-import shlex
 import shutil
 import subprocess
 import tarfile
@@ -16,6 +15,7 @@ import tempfile
 import time
 
 from .common import ROOT, VERSION, Fault, rpc
+from .launcher import install as _install_launcher
 from .media import PIPER_CONFIG_SHA256, PIPER_MODEL_SHA256, PIPER_VERSION
 from .sessions import manage as manage_session
 
@@ -867,19 +867,6 @@ def status(expected_version: str) -> dict[str, object]:
         "checks": checks,
         "missing": missing,
     }
-
-
-def _install_launcher(interpreter: pathlib.Path) -> None:
-    source = pathlib.Path(__file__).resolve().parents[1] / "xorgctl"
-    destination = pathlib.Path.home() / ".local/bin/xorgctl"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(".tmp")
-    temporary.write_text(
-        f"#!/bin/sh\nexec {shlex.quote(str(interpreter))} "
-        f'{shlex.quote(str(source))} "$@"\n'
-    )
-    temporary.chmod(0o755)
-    temporary.replace(destination)
 
 
 def apply(expected_version: str) -> dict[str, object]:
