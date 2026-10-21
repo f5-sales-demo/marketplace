@@ -175,3 +175,11 @@ test('brownfield reference drift during bootstrap rejects before instance apply'
   await expect(f.run()).rejects.toThrow('immutable snapshot drift');
   expect(f.nodes.size).toBe(0);
 });
+
+test('admission cannot recreate a deployment whose retirement has started', async () => {
+  const f = fixture();
+  await f.storage.write('aws-terraform-lifecycle-retirement.json', { status: 'retiring' });
+  await expect(f.run()).rejects.toThrow('retirement');
+  expect(f.opens).toEqual([]);
+  expect(f.bootstrapped).toEqual([]);
+});

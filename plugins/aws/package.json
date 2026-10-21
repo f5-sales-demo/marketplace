@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "3.0.0-uat.66",
+  "version": "3.0.0-uat.67",
   "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
   "main": "dist/runtime.js",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "xcsh": {
     "name": "AWS",
-    "version": "3.0.0-uat.66",
+    "version": "3.0.0-uat.67",
     "extensions": [
       "dist/runtime.js"
     ]

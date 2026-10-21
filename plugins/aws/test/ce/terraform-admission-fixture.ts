@@ -1,4 +1,8 @@
+import { afterEach } from 'bun:test';
 import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { qualifyAwsTerraformBrownfieldPlacement } from '../../src/ce/terraform-brownfield-placement';
@@ -6,6 +10,10 @@ import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation'
 import { brownfieldPlacementFixture } from './terraform-brownfield-fixture';
 import { foundationPlan } from './terraform-fixtures';
 
+const directories: string[] = [];
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export function admissionFixture(ha = false, staticAddressing = false, brownfield = false) {
   const brownfieldFixture = brownfield ? brownfieldPlacementFixture() : undefined;
@@ -100,7 +108,10 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
       applied = true;
     },
   };
+  const directory = mkdtempSync(join(tmpdir(), 'aws-admission-lifecycle-'));
+  directories.push(directory);
   const storage = {
+    directory,
     owner: {
       deploymentId: plan.deploymentName,
       engine: 'terraform' as const,

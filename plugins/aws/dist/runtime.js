@@ -13493,6 +13493,71 @@ var init_terraform_initial_replacement = __esm(() => {
   init_terraform_site_replacement();
 });
 
+// plugins/aws/src/ce/terraform-lifecycle.ts
+import { join as join5 } from 'node:path';
+
+async function optional6(storage, name) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+async function assertAwsTerraformDeploymentActive(storage) {
+  await storage.verify();
+  for (const name of [
+    markerFile,
+    'aws-terraform-teardown-source.json',
+    'terraform-cloud-teardown-source.json',
+    'terraform-cloud-teardown.json',
+    'aws-terraform-foundation-teardown-receipt.json',
+    'aws-terraform-pending-teardown-receipt.json',
+    'aws-terraform-teardown-receipt.json',
+  ])
+    if ((await optional6(storage, name)) !== undefined)
+      throw new Error('AWS Terraform retirement has started; resume teardown instead of deployment');
+}
+async function beginAwsTerraformRetirement(base, plan, storage) {
+  await storage.verify();
+  if (
+    base.engine !== 'terraform' ||
+    plan.sourcePlanSha256 !== base.planSha256 ||
+    !/^[a-f0-9]{64}$/.test(plan.planSha256) ||
+    canonicalSha256(storage.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner)
+  )
+    throw new Error('AWS Terraform retirement owner or source plan differs');
+  const marker = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    status: 'retiring',
+    owner: storage.owner,
+    sourcePlanSha256: base.planSha256,
+    teardownPlanSha256: plan.planSha256,
+    kind: plan.kind,
+  };
+  const existing = await optional6(storage, markerFile);
+  if (existing !== undefined && canonicalSha256(existing) !== canonicalSha256(marker))
+    throw new Error('AWS Terraform retirement belongs to another immutable teardown');
+  if (existing === undefined) await storage.write(markerFile, marker);
+}
+async function withAwsTerraformLifecycle(storage, signal, action) {
+  signal?.throwIfAborted();
+  await storage.verify();
+  const release = await acquireProcessLock(join5(storage.directory, '.aws-terraform-lifecycle-lock'));
+  try {
+    signal?.throwIfAborted();
+    await storage.verify();
+    return await action();
+  } finally {
+    await release();
+  }
+}
+var markerFile = 'aws-terraform-lifecycle-retirement.json';
+var init_terraform_lifecycle = __esm(() => {
+  init_process_lock();
+  init_canonical();
+});
+
 // plugins/aws/src/ce/terraform-routing-references.ts
 function routingAttachmentIds(plan, observation) {
   if (plan.intent.routing.profile !== 'tgw-connect') return [];
@@ -14038,7 +14103,7 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
     account: plan.accountId,
     region: plan.region,
   };
-  await storage.verify();
+  await assertAwsTerraformDeploymentActive(storage);
   let checkpoint;
   let fresh = false;
   try {
@@ -14103,10 +14168,28 @@ var init_terraform_workflow = __esm(() => {
   init_terraform_admission();
   init_terraform_brownfield_binding();
   init_terraform_foundation();
+  init_terraform_lifecycle();
 });
 
 // plugins/aws/src/ce/terraform-apply.ts
-async function executeAwsCeTerraformApply(
+async function executeAwsCeTerraformApply(...args) {
+  const [input, ctx, , platform, , , signal] = args;
+  if (Object.keys(input).some((key) => !['planId', 'planSha256'].includes(key)))
+    throw new Error('Terraform apply accepts only the persisted plan identity');
+  const { plan } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
+  const storage = await platform.storage({
+    deploymentId: plan.deploymentName,
+    engine: 'terraform',
+    provider: 'aws',
+    account: plan.accountId,
+    region: plan.region,
+  });
+  return withAwsTerraformLifecycle(storage, signal, async () => {
+    await assertAwsTerraformDeploymentActive(storage);
+    return executeAwsCeTerraformApplyUnlocked(...args);
+  });
+}
+async function executeAwsCeTerraformApplyUnlocked(
   input,
   ctx,
   api,
@@ -14526,6 +14609,7 @@ var init_terraform_apply = __esm(() => {
   init_terraform_foundation();
   init_terraform_identities();
   init_terraform_initial_replacement();
+  init_terraform_lifecycle();
   init_terraform_preflight();
   init_terraform_routing();
   init_terraform_static();
@@ -15932,7 +16016,7 @@ var init_terraform_direct_retirement = __esm(() => {
 // plugins/aws/src/ce/terraform-cloud-teardown.ts
 import { createHash as createHash14 } from 'node:crypto';
 
-async function optional6(storage, name) {
+async function optional7(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -15967,15 +16051,15 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     throw new Error('Terraform cloud teardown ownership differs');
   signal?.throwIfAborted();
   await storage.verify();
-  let source = await optional6(storage, sourceFile4);
-  let checkpoint = await optional6(storage, checkpointFile);
+  let source = await optional7(storage, sourceFile4);
+  let checkpoint = await optional7(storage, checkpointFile);
   const direct =
     plan.intent.routing.profile === 'direct-eni' &&
     (plan.intent.vpc.mode === 'brownfield' || plan.intent.routes.length > 0);
   if (source === undefined) {
     if (checkpoint !== undefined) throw new Error('Terraform teardown source snapshot is missing');
     if (direct) {
-      const original = await optional6(storage, 'terraform-direct-ownership.json');
+      const original = await optional7(storage, 'terraform-direct-ownership.json');
       if (!original) throw new Error('Direct cloud teardown requires original route ownership');
       await retireAwsTerraformDirectRoutes(plan, original, session, storage, api, env, signal);
     }
@@ -16006,9 +16090,9 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
   )
     throw new Error('Terraform teardown source snapshot is forged or differs');
   if (direct) {
-    const retirement = await optional6(storage, 'terraform-direct-retirement.json');
-    const original = await optional6(storage, 'terraform-direct-ownership.json');
-    const directSource = await optional6(storage, 'terraform-direct-retirement-source.json');
+    const retirement = await optional7(storage, 'terraform-direct-retirement.json');
+    const original = await optional7(storage, 'terraform-direct-ownership.json');
+    const directSource = await optional7(storage, 'terraform-direct-retirement-source.json');
     if (
       !retirement ||
       !original ||
@@ -16073,7 +16157,7 @@ async function runAwsTerraformCloudTeardown(plan, session, storage, api, env, si
     await storage.write('terraform-cloud-teardown-plan.json', receipt);
     await storage.verify();
     const ownership = await verifyAwsTerraformDestroyOwnership(plan, receipt, session, api, env, signal);
-    const originalInventory = await optional6(storage, 'terraform-cloud-teardown-inventory.json');
+    const originalInventory = await optional7(storage, 'terraform-cloud-teardown-inventory.json');
     if (originalInventory === undefined) {
       await storage.write('terraform-cloud-teardown-inventory.json', ownership.inventory);
     } else {
@@ -16480,6 +16564,7 @@ async function coordinateAwsPendingTeardown(base, input, authorized, storage, dr
       driver.ingressContractFingerprint,
     );
   };
+  await beginAwsTerraformRetirement(base, plan, storage);
   let current = await observe();
   for (const target of plan.retirement)
     for (const token of target.tokens) {
@@ -16594,6 +16679,7 @@ var init_terraform_pending_teardown = __esm(() => {
   init_canonical();
   init_terraform_absence();
   init_terraform_cloud_teardown();
+  init_terraform_lifecycle();
   init_terraform_teardown();
 });
 
@@ -16715,6 +16801,7 @@ async function coordinateAwsTerraformTeardown(base, input, authorizedPlanSha256,
   if (saved === undefined) await storage.write('aws-terraform-teardown-source.json', plan);
   else if (!saved || canonicalSha256(saved) !== canonicalSha256(plan))
     throw new Error('Persisted Terraform teardown source differs');
+  await beginAwsTerraformRetirement(base, plan, storage);
   const completed = [];
   const checkpoint = () =>
     storage.write('aws-terraform-teardown-progress.json', {
@@ -16795,7 +16882,10 @@ async function verifyAwsTeardownCredentials(base, rawApi, signal) {
   )
     throw new Error('AWS teardown credential account is missing or differs');
 }
-async function runAwsTerraformTeardown(
+async function runAwsTerraformTeardown(...args) {
+  return withAwsTerraformLifecycle(args[6], args[9], () => runAwsTerraformTeardownUnlocked(...args));
+}
+async function runAwsTerraformTeardownUnlocked(
   base,
   plan,
   authorizedPlanSha256,
@@ -16887,6 +16977,7 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_absence();
   init_terraform_cloud_teardown();
   init_terraform_foundation_teardown();
+  init_terraform_lifecycle();
   init_terraform_pending_teardown();
 });
 
@@ -16998,6 +17089,7 @@ async function coordinateAwsFoundationTeardown(base, input, authorized, storage,
   await validate();
   requireAbsence(await driver.observe(signal), base, driver.siteContractFingerprint, driver.ingressContractFingerprint);
   await validate();
+  await beginAwsTerraformRetirement(base, plan, storage);
   const cloud = await driver.retireCloud(signal);
   if (
     cloud.status !== 'terraform-state-retired' ||
@@ -17059,13 +17151,14 @@ var init_terraform_foundation_teardown = __esm(() => {
   init_canonical();
   init_terraform_absence();
   init_terraform_cloud_teardown();
+  init_terraform_lifecycle();
   init_terraform_teardown();
 });
 
 // plugins/aws/src/ce/terraform-teardown-plan.ts
 import { readdir as readdir4 } from 'node:fs/promises';
 
-async function optional7(storage, name) {
+async function optional8(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -17187,7 +17280,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     (row) => row.kind === 'bgps' || row.kind === 'bgp_routing_policys' || row.kind === 'external_connectors',
   );
   if (base.routing.profile === 'tgw-connect') {
-    const saved = await optional7(storage, `${base.engine}-routing-checkpoint.json`);
+    const saved = await optional8(storage, `${base.engine}-routing-checkpoint.json`);
     if (saved === undefined) {
       if (routing.length) throw new Error('Live routing exists without an owning checkpoint');
     } else {
@@ -17311,8 +17404,8 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
 }
 async function prepareAwsTerraformTeardown(input, runtime, contract, storage, signal) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
-  const workflow = await optional7(storage, 'terraform-workflow.json');
-  const admission = await optional7(storage, 'terraform-admission.json');
+  const workflow = await optional8(storage, 'terraform-workflow.json');
+  const admission = await optional8(storage, 'terraform-admission.json');
   if (
     workflow !== undefined &&
     admission === undefined &&
@@ -17347,7 +17440,7 @@ var init_terraform_teardown_plan = __esm(() => {
 });
 
 // plugins/aws/src/ce/native-teardown.ts
-import { join as join5 } from 'node:path';
+import { join as join6 } from 'node:path';
 
 function compileAwsNativeTeardown(base, cloud, drain, retirement) {
   verifyAwsCePlan(base);
@@ -17458,7 +17551,7 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
     throw new Error('Native teardown preparation requires native ownership');
   const materialName = 'aws-native-teardown-material.json';
   const persisted =
-    (await optional8(storage, materialName)) ?? (await optional8(storage, 'aws-native-teardown-source.json'));
+    (await optional9(storage, materialName)) ?? (await optional9(storage, 'aws-native-teardown-source.json'));
   let material;
   if (persisted === undefined) {
     const collected = await collectAwsTeardownMaterial(base, runtime, contract, storage, signal);
@@ -17473,14 +17566,14 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
       drain: candidate.drain,
       retirement: candidate.retirement,
     };
-    if ((await optional8(storage, materialName)) === undefined) await storage.write(materialName, material);
+    if ((await optional9(storage, materialName)) === undefined) await storage.write(materialName, material);
   }
   const { drain, retirement } = material;
   const plan = compileAwsNativeTeardown(base, cloud, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-async function optional8(storage, key) {
+async function optional9(storage, key) {
   try {
     return await storage.read(key);
   } catch (error) {
@@ -17504,10 +17597,10 @@ async function coordinateAwsNativeTeardown(base, cloud, input, authorizedPlanSha
       throw new Error('Native teardown ownership, authorization, or contract differs');
   };
   await validate();
-  const release = await acquireProcessLock(join5(storage.directory, '.aws-native-teardown-lock'));
+  const release = await acquireProcessLock(join6(storage.directory, '.aws-native-teardown-lock'));
   try {
     const sourceName = `${plan.planId}-source.json`;
-    const saved = await optional8(storage, sourceName);
+    const saved = await optional9(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, plan);
     else if (canonicalSha256(saved) !== canonicalSha256(plan))
       throw new Error('Persisted native teardown source differs');
@@ -17639,7 +17732,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-teardown.ts
-async function optional9(storage, name) {
+async function optional10(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -17747,7 +17840,7 @@ Artifact: artifact://${artifactId}`,
         )
           throw new Error('Persisted AWS CE teardown plan identity differs');
         const authorizationName = `${teardown.planId}-authorization.json`;
-        const authorization = await optional9(storage, authorizationName);
+        const authorization = await optional10(storage, authorizationName);
         if (authorization !== undefined) {
           if (
             !authorization ||
@@ -17927,7 +18020,7 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional10(storage, name) {
+async function optional11(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -17952,11 +18045,11 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional10(storage, sourceName);
+    const saved = await optional11(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
     else if (hash7(saved) !== hash7(upgrade)) throw new Error('Saved native upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional10(storage, checkpointName);
+    let checkpoint = await optional11(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 1,
@@ -17975,7 +18068,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
       !['ready', 'submitted', 'complete'].includes(checkpoint.phase)
     )
       throw new Error('Native upgrade checkpoint differs');
-    let serial = await optional10(storage, 'native-ce-upgrade-serial.json');
+    let serial = await optional11(storage, 'native-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 1, engine: 'native', status: 'idle' };
     if (
       serial.schemaVersion !== 1 ||
@@ -18226,7 +18319,7 @@ function canonical2(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional11(storage, name) {
+async function optional12(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -18279,11 +18372,11 @@ async function runTerraformCeUpgrade(
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional11(storage, sourceName);
+    const saved = await optional12(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
     else if (hash8(saved) !== hash8(upgrade)) throw new Error('Saved Terraform upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional11(storage, checkpointName);
+    let checkpoint = await optional12(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 2,
@@ -18304,7 +18397,7 @@ async function runTerraformCeUpgrade(
       (checkpoint.phase !== 'ready' && !/^[a-f0-9]{64}$/.test(checkpoint.actionPlanSha256 ?? ''))
     )
       throw new Error('Terraform upgrade checkpoint differs');
-    let serial = await optional11(storage, 'terraform-ce-upgrade-serial.json');
+    let serial = await optional12(storage, 'terraform-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 2, engine: 'terraform', status: 'idle' };
     if (
       serial.schemaVersion !== 2 ||
@@ -18584,7 +18677,7 @@ var init_terraform_upgrade = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-upgrade.ts
-async function optional12(storage, name) {
+async function optional13(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -18649,7 +18742,7 @@ function createAwsCeUpgradeTool(pi, dependencies = defaults2) {
                   contract,
                   signal,
                 );
-          const existing = await optional12(storage, `${upgrade.planId}.json`);
+          const existing = await optional13(storage, `${upgrade.planId}.json`);
           if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
           else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
             throw new Error('Persisted AWS CE upgrade plan differs');
@@ -18694,7 +18787,7 @@ Artifact: artifact://${artifactId}`,
         if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
           throw new Error('Persisted AWS CE upgrade plan identity differs');
         const authorizationName = `${upgrade.planId}-authorization.json`;
-        const authorization = await optional12(storage, authorizationName);
+        const authorization = await optional13(storage, authorizationName);
         if (authorization !== undefined) {
           if (
             !authorization ||
@@ -18913,7 +19006,7 @@ function verifyAwsNativeFailover(base, failover) {
   )
     throw new Error('Saved AWS native failover plan changed');
 }
-async function optional13(storage, name) {
+async function optional14(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -18954,11 +19047,11 @@ async function runAwsNativeFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional13(storage, sourceName);
+    const saved = await optional14(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional13(storage, checkpointName);
+    let checkpoint = await optional14(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -19176,7 +19269,7 @@ function verifyAwsTerraformFailover(base, failover) {
   if (canonicalSha256(expected) !== canonicalSha256(failover))
     throw new Error('Saved AWS Terraform failover plan changed');
 }
-async function optional14(storage, name) {
+async function optional15(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -19219,11 +19312,11 @@ async function runAwsTerraformFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional14(storage, sourceName);
+    const saved = await optional15(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional14(storage, checkpointName);
+    let checkpoint = await optional15(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -19420,7 +19513,7 @@ var init_terraform_failover = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-failover.ts
-async function optional15(storage, name) {
+async function optional16(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -19510,7 +19603,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
             );
             const replacement = registration
-              ? await optional15(storage, `${registration.id}-initial-mtu-replacement.json`)
+              ? await optional16(storage, `${registration.id}-initial-mtu-replacement.json`)
               : undefined;
             let instancePlanSha256 = plan.planSha256;
             if (replacement !== undefined) {
@@ -19534,7 +19627,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
             }
             failover = buildAwsNativeFailover(plan, params.nodeIndex, instanceId, instancePlanSha256);
           }
-          const existing = await optional15(storage, `${failover.planId}.json`);
+          const existing = await optional16(storage, `${failover.planId}.json`);
           if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
           else if (canonicalSha256(existing) !== canonicalSha256(failover))
             throw new Error('Persisted AWS CE failover plan differs');
@@ -19577,7 +19670,7 @@ Artifact: artifact://${artifactId}`,
         if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
           throw new Error('Persisted AWS CE failover plan identity differs');
         const authorizationName = `${failover.planId}-authorization.json`;
-        const authorization = await optional15(storage, authorizationName);
+        const authorization = await optional16(storage, authorizationName);
         if (authorization === undefined) {
           if (
             ctx.hasUI &&
@@ -19977,7 +20070,7 @@ function evidencePasses(plan, gate, value, now) {
   if (gate === 'running') return healthy && value.services === 'withdrawn';
   return healthy && value.services === 'active' && value.traffic === 'passing';
 }
-async function optional16(storage, name) {
+async function optional17(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -20006,12 +20099,12 @@ async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, d
         throw new Error('Whole-site start requires the privately retained owning-engine stopped receipt');
     }
     const sourceName = `${plan.planId}.json`;
-    const saved = await optional16(storage, sourceName);
+    const saved = await optional17(storage, sourceName);
     if (saved && canonicalSha256(saved) !== canonicalSha256(plan))
       throw new Error('Saved whole-site power plan differs');
     if (!saved) await storage.write(sourceName, plan);
     const checkpointName = `${plan.planId}-checkpoint.json`;
-    const savedCheckpoint = await optional16(storage, checkpointName);
+    const savedCheckpoint = await optional17(storage, checkpointName);
     const steps = sequence[plan.operation];
     let state = savedCheckpoint ?? {
       schemaVersion: 1,
@@ -20132,7 +20225,7 @@ async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, d
       const attempt = state.attempts.stop;
       if (!attempt) throw new Error('Whole-site stop original attempt is missing');
       const evidenceName = `${plan.planId}-final-stopped-evidence.json`;
-      const captured = (await optional16(storage, evidenceName)) ?? finalEvidence;
+      const captured = (await optional17(storage, evidenceName)) ?? finalEvidence;
       if (
         !evidencePasses(plan, 'stopped', captured, Date.parse(captured.collectedAt)) ||
         Date.parse(captured.collectedAt) > clock() ||
@@ -20141,7 +20234,7 @@ async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, d
         throw new Error('Retained stopped evidence differs from the original power attempt');
       await storage.write(evidenceName, captured);
       const maintenanceName = `${plan.planId}-maintenance.json`;
-      const prior = await optional16(storage, maintenanceName);
+      const prior = await optional17(storage, maintenanceName);
       let maintenance;
       if (prior) {
         buildAwsWholeSitePowerPlan(base, 'start', plan.bindings, plan.transitionId, prior);
@@ -22050,7 +22143,7 @@ var init_whole_site_power_bindings = __esm(() => {
 });
 
 // plugins/aws/src/ce/bgp-power-controller.ts
-async function optional17(storage, name) {
+async function optional18(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -22155,7 +22248,7 @@ async function policy(storage, plan, prep, runtime, submit, signal) {
   const intent = prep.policies[0],
     name = filename(plan, 'withdraw', 'policy-dispatch'),
     expected = { marker: prep.marker, intent, record: policyDispatch(intent) },
-    saved = await optional17(storage, name);
+    saved = await optional18(storage, name);
   if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
     throw Error('Native BGP policy dispatch differs');
   const createPolicy = (
@@ -22176,7 +22269,7 @@ async function policy(storage, plan, prep, runtime, submit, signal) {
   if (canonicalSha256(actualIntent) !== canonicalSha256(intent) || !result.uid || !result.resourceVersion)
     throw Error('Native BGP policy readback differs');
   const receiptName = filename(plan, 'withdraw', 'policy-created'),
-    retained = await optional17(storage, receiptName);
+    retained = await optional18(storage, receiptName);
   if (
     retained &&
     (retained.uid !== result.uid ||
@@ -22253,11 +22346,11 @@ async function assertNoDispatchWithoutPreparation(storage, plan, effect) {
     'outcome',
     ...(effect === 'withdraw' ? ['policy-dispatch', 'policy-created'] : []),
   ])
-    if ((await optional17(storage, filename(plan, effect, suffix))) !== undefined)
+    if ((await optional18(storage, filename(plan, effect, suffix))) !== undefined)
       throw Error('Native BGP submitted attempt preparation missing');
 }
 async function prepare(base, plan, effect, marker, storage, values, api, runtime, signal) {
-  const saved = await optional17(storage, filename(plan, effect, 'preparation'));
+  const saved = await optional18(storage, filename(plan, effect, 'preparation'));
   if (!saved) await assertNoDispatchWithoutPreparation(storage, plan, effect);
   const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
   if (saved) {
@@ -22318,7 +22411,7 @@ async function dispatchAwsOwnedBgpPower(base, plan, authorization, effect, stora
         effect === 'withdraw' ? prep.services.platform[0].revision.bgpSpec : prep.services.platform[0].originalSpec,
       expected = { marker, snapshot, desired, policy: created, record: replacementDispatch(snapshot) },
       name = filename(plan, effect, 'replacement-dispatch'),
-      saved = await optional17(storage, name);
+      saved = await optional18(storage, name);
     if (saved) expected.policy = saved.policy;
     if (
       saved &&
@@ -22383,7 +22476,7 @@ async function reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, 
   try {
     const marker = await context(base, plan, effect, storage);
     if (marker.attempt.originalAttemptAt !== originalAttemptAt) throw Error('Native BGP original attempt differs');
-    const prep = await optional17(storage, filename(plan, effect, 'preparation'));
+    const prep = await optional18(storage, filename(plan, effect, 'preparation'));
     if (!prep) {
       await assertNoDispatchWithoutPreparation(storage, plan, effect);
       return 'not-submitted';
@@ -22391,9 +22484,9 @@ async function reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, 
     validatePreparation(prep, marker);
     const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
     const created = await policy(storage, prior?.stop ?? plan, prior?.prep ?? prep, runtime, false, signal);
-    const dispatch = await optional17(storage, filename(plan, effect, 'replacement-dispatch'));
+    const dispatch = await optional18(storage, filename(plan, effect, 'replacement-dispatch'));
     if (!dispatch) {
-      const submitted = await optional17(storage, filename(prior?.stop ?? plan, 'withdraw', 'policy-dispatch'));
+      const submitted = await optional18(storage, filename(prior?.stop ?? plan, 'withdraw', 'policy-dispatch'));
       return submitted && !created ? 'pending' : 'not-submitted';
     }
     if (!created) throw Error('Native BGP retained policy missing');
@@ -22483,7 +22576,7 @@ async function retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, 
     const record = { ...snapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' },
       expected = { marker, snapshot, record },
       name = filename(plan, 'restore', 'policy-delete-dispatch'),
-      saved = await optional17(storage, name);
+      saved = await optional18(storage, name);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
       throw Error('Native BGP retirement dispatch differs');
     const deletePolicy = (
@@ -22518,7 +22611,7 @@ var init_bgp_power_controller = __esm(() => {
 });
 
 // plugins/aws/src/ce/native-whole-site-power.ts
-async function optional18(storage, name) {
+async function optional19(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -22591,7 +22684,7 @@ async function dispatchAwsNativePowerState(base, plan, authorizedPlanSha256, eff
   const release = await acquireProcessLock(`${storage.directory}/.native-power-dispatch-lock`);
   try {
     const { marker, name } = await context2(base, plan, effect, storage);
-    if ((await optional18(storage, name)) !== undefined)
+    if ((await optional19(storage, name)) !== undefined)
       throw new Error('Native power already submitted; reconcile original attempt');
     const current = await identities2(base, plan, api, runtime, signal);
     if (current.cloud !== (effect === 'stop' ? 'running' : 'stopped'))
@@ -22634,7 +22727,7 @@ async function reconcileAwsNativePowerState(base, plan, effect, originalAttemptA
     const { marker, name } = await context2(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt)
       throw new Error('Native power original attempt differs');
-    const saved = await optional18(storage, name);
+    const saved = await optional19(storage, name);
     if (saved === undefined) return 'not-submitted';
     if (canonicalSha256(saved) !== canonicalSha256(marker)) throw new Error('Native power dispatch marker differs');
     const current = await identities2(base, plan, api, runtime, signal);
@@ -22787,7 +22880,7 @@ var init_terraform_whole_site_power = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-power-controller.ts
-async function optional19(storage, name) {
+async function optional20(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -22919,12 +23012,12 @@ async function dispatchAwsTerraformPowerState(
     const { marker, name } = await context3(base, plan, effect, storage, true);
     const session = await open(base, plan, terraform);
     const prepName = `${plan.planId}-${effect}-terraform-preparation.json`;
-    const existing = await optional19(storage, prepName);
+    const existing = await optional20(storage, prepName);
     let prep;
     if (existing) {
       prep = verifyPreparation(plan, effect, marker, existing);
     } else {
-      if ((await optional19(storage, name)) !== undefined)
+      if ((await optional20(storage, name)) !== undefined)
         throw Error('Terraform power dispatch lacks retained preparation');
       if (!session.readConfigurationSha256) throw Error('Terraform current configuration reader required');
       const before = await session.readConfigurationSha256();
@@ -22993,7 +23086,7 @@ async function dispatchAwsTerraformPowerState(
     );
     if ((await session.readPlanApplicationState(prep.receipt)) !== 'planned')
       throw Error('Terraform power already submitted; reconcile original attempt');
-    const priorMarker = await optional19(storage, name);
+    const priorMarker = await optional20(storage, name);
     if (
       priorMarker !== undefined &&
       canonicalSha256(priorMarker) !== canonicalSha256({ marker, receipt: prep.receipt })
@@ -23021,14 +23114,14 @@ async function reconcileAwsTerraformPowerState(
   try {
     const { marker, name } = await context3(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt) throw Error('Terraform power original attempt differs');
-    const value = await optional19(storage, `${plan.planId}-${effect}-terraform-preparation.json`);
+    const value = await optional20(storage, `${plan.planId}-${effect}-terraform-preparation.json`);
     if (value === undefined) {
-      if ((await optional19(storage, name)) !== undefined) throw Error('Terraform power preparation missing');
+      if ((await optional20(storage, name)) !== undefined) throw Error('Terraform power preparation missing');
       return 'not-submitted';
     }
     const prep = verifyPreparation(plan, effect, marker, value);
     if (!prep.receipt) {
-      if ((await optional19(storage, name)) !== undefined) throw Error('Terraform power receipt missing');
+      if ((await optional20(storage, name)) !== undefined) throw Error('Terraform power receipt missing');
       return 'not-submitted';
     }
     const source = await storage.read(`${plan.planId}-${effect}-terraform-source.json`);
@@ -23040,7 +23133,7 @@ async function reconcileAwsTerraformPowerState(
       throw Error('Terraform power retained source or revision differs');
     const session = await open(base, plan, terraform);
     if (effect === 'release') {
-      const outcome = await optional19(storage, `${plan.planId}-${effect}-terraform-outcome.json`);
+      const outcome = await optional20(storage, `${plan.planId}-${effect}-terraform-outcome.json`);
       if (outcome !== undefined) {
         const v = outcome;
         if (
@@ -23052,14 +23145,14 @@ async function reconcileAwsTerraformPowerState(
         if (canonicalSha256(dispatch) !== canonicalSha256({ marker, receipt: prep.receipt }))
           throw Error('Terraform release dispatch marker differs');
         verifyAppliedIdentities(plan, prep.revision.address, v.fields, true);
-        if ((await optional19(storage, `${plan.planId}-release-terraform-final-preparing.json`)) === undefined) {
+        if ((await optional20(storage, `${plan.planId}-release-terraform-final-preparing.json`)) === undefined) {
           await session.reconcileApplyFromEvidence(prep.receipt, canonicalSha256(outcome));
         }
         return await finishRelease(base, plan, marker, prep, storage, session, api, runtime, signal);
       }
     }
     const journal = await session.readPlanApplicationState(prep.receipt);
-    const saved = await optional19(storage, name);
+    const saved = await optional20(storage, name);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
       throw Error('Terraform power dispatch marker differs');
     if (journal === 'planned') return 'not-submitted';
@@ -23131,13 +23224,13 @@ async function finishRelease(base, plan, marker, prep, storage, session, api, ru
   const current = await identities3(base, plan, api, runtime, signal);
   if (current.cloud !== 'running') return 'pending';
   const preparingName = `${plan.planId}-release-terraform-final-preparing.json`;
-  const preparing = await optional19(storage, preparingName);
+  const preparing = await optional20(storage, preparingName);
   const expectedPreparing = { marker, removalReceipt: prep.receipt };
   if (preparing !== undefined && canonicalSha256(preparing) !== canonicalSha256(expectedPreparing))
     throw Error('Terraform final preparation differs');
   if (preparing === undefined) await storage.write(preparingName, expectedPreparing);
   const name = `${plan.planId}-release-terraform-final-plan.json`;
-  const saved = await optional19(storage, name);
+  const saved = await optional20(storage, name);
   if (saved && canonicalSha256(saved.marker) !== canonicalSha256(marker))
     throw Error('Terraform final no-change marker differs');
   const receipt = saved?.receipt ?? (await session.plan(process.env, signal));
@@ -23352,7 +23445,7 @@ var init_whole_site_power_evidence = __esm(() => {
 });
 
 // plugins/aws/src/ce/direct-route-power-controller.ts
-async function optional20(storage, name) {
+async function optional21(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -23439,7 +23532,7 @@ async function dispatchAwsNativeDirectRoutes(base, plan, authorization, effect, 
     for (const [index, route] of observed.services.routes.entries()) {
       const name = `${plan.planId}-${effect}-native-route-${index}-dispatch.json`;
       const expected = { marker, services: observed.services, route };
-      const saved = await optional20(storage, name);
+      const saved = await optional21(storage, name);
       if (saved !== undefined) {
         if (canonicalSha256(saved) !== canonicalSha256(expected))
           throw Error('Native direct route dispatch marker differs');
@@ -23500,7 +23593,7 @@ async function reconcileAwsNativeDirectRoutes(base, plan, effect, originalAttemp
     let missing = false;
     let submittedPending = false;
     for (const [index, route] of observed.services.routes.entries()) {
-      const saved = await optional20(storage, `${plan.planId}-${effect}-native-route-${index}-dispatch.json`);
+      const saved = await optional21(storage, `${plan.planId}-${effect}-native-route-${index}-dispatch.json`);
       if (saved === undefined) {
         missing = true;
         continue;
@@ -23529,7 +23622,7 @@ var init_direct_route_power_controller = __esm(() => {
 });
 
 // plugins/aws/src/ce/nlb-power-controller.ts
-async function optional21(storage, name) {
+async function optional22(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -23578,7 +23671,7 @@ async function dispatchAwsNativeNlbMembership(base, plan, authorization, effect,
   try {
     const marker = await context5(base, plan, effect, storage);
     const name = `${plan.planId}-${effect}-native-nlb-dispatch.json`;
-    if ((await optional21(storage, name)) !== undefined)
+    if ((await optional22(storage, name)) !== undefined)
       throw Error('Native NLB already submitted; reconcile original attempt');
     const observed = await collectAwsPowerNlbServices(base, values, api, signal);
     if (
@@ -23619,7 +23712,7 @@ async function reconcileAwsNativeNlbMembership(base, plan, effect, originalAttem
   try {
     const marker = await context5(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt) throw Error('NLB original attempt differs');
-    const saved = await optional21(storage, `${plan.planId}-${effect}-native-nlb-dispatch.json`);
+    const saved = await optional22(storage, `${plan.planId}-${effect}-native-nlb-dispatch.json`);
     if (!saved) return 'not-submitted';
     if (
       canonicalSha256(saved.marker) !== canonicalSha256(marker) ||
@@ -23724,7 +23817,7 @@ async function dispatchAwsTerraformNlbMembership(
     const observed = await collectAwsPowerNlbServices(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform NLB service identity differs');
     const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
-    let prep = await optional21(storage, name);
+    let prep = await optional22(storage, name);
     const retained = await retainedWithdrawal(base, plan, storage, effect);
     if (prep) {
       if (
@@ -23736,7 +23829,7 @@ async function dispatchAwsTerraformNlbMembership(
       if (prep.receipt && (await session.readPlanApplicationState(prep.receipt)) !== 'planned')
         throw Error('Terraform NLB already submitted; reconcile original attempt');
     } else {
-      if ((await optional21(storage, dispatchName)) !== undefined)
+      if ((await optional22(storage, dispatchName)) !== undefined)
         throw Error('Terraform NLB submission lacks preparation');
       if (!session.readConfigurationSha256) throw Error('Terraform NLB configuration reader missing');
       const source = await session.readConfiguration(await session.readConfigurationSha256());
@@ -23780,7 +23873,7 @@ async function dispatchAwsTerraformNlbMembership(
     if ((await session.readPlanApplicationState(prep.receipt)) !== 'planned')
       throw Error('Terraform NLB already submitted');
     const expected = { marker, receipt: prep.receipt };
-    const saved = await optional21(storage, dispatchName);
+    const saved = await optional22(storage, dispatchName);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
       throw Error('Terraform NLB dispatch marker differs');
     signal?.throwIfAborted();
@@ -23806,8 +23899,8 @@ async function reconcileAwsTerraformNlbMembership(
   try {
     const marker = await context5(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt) throw Error('Terraform NLB original attempt differs');
-    const prep = await optional21(storage, `${plan.planId}-${effect}-terraform-nlb-preparation.json`);
-    const saved = await optional21(storage, `${plan.planId}-${effect}-terraform-nlb-dispatch.json`);
+    const prep = await optional22(storage, `${plan.planId}-${effect}-terraform-nlb-preparation.json`);
+    const saved = await optional22(storage, `${plan.planId}-${effect}-terraform-nlb-dispatch.json`);
     if (!prep?.receipt) {
       if (saved !== undefined) throw Error('Terraform NLB submission lacks receipt');
       return 'not-submitted';
@@ -23896,7 +23989,7 @@ function serviceRoutes(services) {
     transportAttachmentId: services.transportAttachmentId,
   }));
 }
-async function optional22(storage, name) {
+async function optional23(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -23983,7 +24076,7 @@ async function dispatchAwsNativeStaticTgwRoutes(base, plan, authorization, effec
     for (const [index, route] of serviceRoutes(observed.services).entries()) {
       const name = `${plan.planId}-${effect}-native-static-tgw-${index}-dispatch.json`;
       const expected = { marker, services: observed.services, route };
-      const saved = await optional22(storage, name);
+      const saved = await optional23(storage, name);
       if (saved !== undefined) {
         if (canonicalSha256(saved) !== canonicalSha256(expected))
           throw Error('Native static TGW route dispatch marker differs');
@@ -24046,7 +24139,7 @@ async function reconcileAwsNativeStaticTgwRoutes(base, plan, effect, originalAtt
     let missing = false;
     let submittedPending = false;
     for (const [index, route] of serviceRoutes(observed.services).entries()) {
-      const saved = await optional22(storage, `${plan.planId}-${effect}-native-static-tgw-${index}-dispatch.json`);
+      const saved = await optional23(storage, `${plan.planId}-${effect}-native-static-tgw-${index}-dispatch.json`);
       if (saved === undefined) {
         missing = true;
         continue;
@@ -24219,7 +24312,7 @@ var init_terraform_static_power = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-static-tgw-power-controller.ts
-async function optional23(storage, name) {
+async function optional24(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -24371,7 +24464,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
     const observed = await collectAwsPowerStaticTgwRoutes(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform static TGW service identity differs');
     const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
-    let prep = await optional23(storage, name);
+    let prep = await optional24(storage, name);
     const retained = await retainedWithdrawal2(base, plan, storage, effect);
     if (prep) {
       if (
@@ -24384,7 +24477,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
       if (prep.receipt && (await session.readPlanApplicationState(prep.receipt)) !== 'planned')
         throw Error('Terraform static TGW already submitted; reconcile original attempt');
     } else {
-      if ((await optional23(storage, dispatchName)) !== undefined)
+      if ((await optional24(storage, dispatchName)) !== undefined)
         throw Error('Terraform static TGW submission lacks preparation');
       if (!session.readConfigurationSha256) throw Error('Terraform static TGW configuration reader missing');
       const source = await session.readConfiguration(await session.readConfigurationSha256());
@@ -24428,7 +24521,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
     if ((await session.readPlanApplicationState(prep.receipt)) !== 'planned')
       throw Error('Terraform static TGW already submitted');
     const expected = { marker, receipt: prep.receipt };
-    const saved = await optional23(storage, dispatchName);
+    const saved = await optional24(storage, dispatchName);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
       throw Error('Terraform static TGW dispatch marker differs');
     signal?.throwIfAborted();
@@ -24455,8 +24548,8 @@ async function reconcileAwsTerraformStaticTgwRoutes(
     const marker = await context7(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt)
       throw Error('Terraform static TGW original attempt differs');
-    const prep = await optional23(storage, `${plan.planId}-${effect}-terraform-static-tgw-preparation.json`);
-    const saved = await optional23(storage, `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`);
+    const prep = await optional24(storage, `${plan.planId}-${effect}-terraform-static-tgw-preparation.json`);
+    const saved = await optional24(storage, `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`);
     if (!prep?.receipt) {
       if (saved !== undefined) throw Error('Terraform static TGW submission lacks receipt');
       return 'not-submitted';

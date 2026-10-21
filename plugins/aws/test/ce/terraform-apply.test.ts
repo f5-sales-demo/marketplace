@@ -160,3 +160,53 @@ test('public apply resumes a durable direct import before re-entering bootstrap 
   ).rejects.toThrow('direct route runner opening reached');
   expect(f.bootstrapped).toEqual([]);
 });
+
+for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-cloud-teardown-source.json'])
+  test(`public deployment resume rejects ${marker} before reconciliation or runner opening`, async () => {
+    const f = admissionFixture(false, false, true);
+    let reconciles = 0;
+    Object.assign(f.runtime, {
+      resourceMutation: async () => ({}),
+      reconcileTerraformResources: async () => {
+        reconciles++;
+      },
+      observeOwnedSite: async () => {
+        throw new CeApiError('not-found', 404);
+      },
+    });
+    await f.storage.write(marker, { deliberatelyMalformed: true });
+    const ctx = {
+      cwd: '/tmp',
+      hasUI: false,
+      ui: {
+        confirm: async () => {
+          throw Error('unexpected approval');
+        },
+      },
+      sessionManager: {
+        getSessionId: () => `retired-${marker}`,
+        getArtifactsDir: () => null,
+        getArtifactPath: async () => null,
+        saveArtifact: async () => 'receipt',
+      },
+    } as AwsCeToolContext;
+    await saveAwsPlan(ctx.sessionManager, f.plan, {} as AwsCeObservation);
+    await expect(
+      executeAwsCeTerraformApply(
+        { planId: f.plan.planId, planSha256: f.plan.planSha256 },
+        ctx,
+        f.api,
+        { storage: async () => f.storage, runtime: async () => f.runtime } as unknown as CePlatformService,
+        {
+          open: async () => {
+            throw Error('runner reached');
+          },
+        },
+        fetch,
+        undefined,
+        async () => ({}) as AwsCeObservation,
+      ),
+    ).rejects.toThrow('retirement');
+    expect(reconciles).toBe(0);
+    expect(f.bootstrapped).toEqual([]);
+  });

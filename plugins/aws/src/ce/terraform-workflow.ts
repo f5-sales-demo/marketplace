@@ -8,6 +8,7 @@ import {
   prepareAwsTerraformBrownfieldBinding,
 } from './terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
+import { assertAwsTerraformDeploymentActive } from './terraform-lifecycle';
 import type { AwsCePlan } from './types';
 
 interface WorkflowCheckpoint {
@@ -36,7 +37,7 @@ export async function runAwsTerraformAdmission(
     account: plan.accountId,
     region: plan.region,
   };
-  await storage.verify();
+  await assertAwsTerraformDeploymentActive(storage);
   let checkpoint: WorkflowCheckpoint;
   let fresh = false;
   try {

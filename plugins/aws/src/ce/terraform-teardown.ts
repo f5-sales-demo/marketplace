@@ -10,6 +10,7 @@ import { scopedAwsApi } from './scoped-exec';
 import { collectAwsTerraformAbsence } from './terraform-absence';
 import { runAwsTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { type AwsFoundationTeardownPlan, runAwsFoundationTeardown } from './terraform-foundation-teardown';
+import { beginAwsTerraformRetirement, withAwsTerraformLifecycle } from './terraform-lifecycle';
 import { type AwsPendingTeardownPlan, runAwsPendingTeardown } from './terraform-pending-teardown';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import { siteBindings } from './topology';
@@ -175,6 +176,7 @@ export async function coordinateAwsTerraformTeardown(
   if (saved === undefined) await storage.write('aws-terraform-teardown-source.json', plan);
   else if (!saved || canonicalSha256(saved) !== canonicalSha256(plan))
     throw new Error('Persisted Terraform teardown source differs');
+  await beginAwsTerraformRetirement(base, plan, storage);
   const completed: string[] = [];
   const checkpoint = () =>
     storage.write('aws-terraform-teardown-progress.json', {
@@ -264,7 +266,11 @@ export async function verifyAwsTeardownCredentials(base: AwsCePlan, rawApi: AwsE
     throw new Error('AWS teardown credential account is missing or differs');
 }
 /** Concrete production binding: F5 operations stay in platform; cloud mutation uses the owning Terraform session. */
-export async function runAwsTerraformTeardown(
+export async function runAwsTerraformTeardown(...args: Parameters<typeof runAwsTerraformTeardownUnlocked>) {
+  return withAwsTerraformLifecycle(args[6], args[9], () => runAwsTerraformTeardownUnlocked(...args));
+}
+
+async function runAwsTerraformTeardownUnlocked(
   base: AwsCePlan,
   plan: AwsTerraformTeardownPlan | AwsFoundationTeardownPlan | AwsPendingTeardownPlan,
   authorizedPlanSha256: string,

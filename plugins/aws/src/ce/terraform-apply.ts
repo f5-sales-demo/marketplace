@@ -19,6 +19,7 @@ import { importAwsTerraformDirectRoutes } from './terraform-direct-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { runAwsTerraformInitialReplacement } from './terraform-initial-replacement';
+import { assertAwsTerraformDeploymentActive, withAwsTerraformLifecycle } from './terraform-lifecycle';
 import { revalidateAwsTerraformPlan } from './terraform-preflight';
 import { bindTerraformIngress, configureAwsTerraformRouting } from './terraform-routing';
 import { bindTerraformStaticRouting } from './terraform-static';
@@ -27,7 +28,25 @@ import { siteBindings } from './topology';
 import { collectAwsTrafficProbe } from './traffic-probe';
 import type { AwsCeCheckpoint } from './types';
 
-export async function executeAwsCeTerraformApply(
+export async function executeAwsCeTerraformApply(...args: Parameters<typeof executeAwsCeTerraformApplyUnlocked>) {
+  const [input, ctx, , platform, , , signal] = args;
+  if (Object.keys(input).some((key) => !['planId', 'planSha256'].includes(key)))
+    throw new Error('Terraform apply accepts only the persisted plan identity');
+  const { plan } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
+  const storage = await platform.storage({
+    deploymentId: plan.deploymentName,
+    engine: 'terraform',
+    provider: 'aws',
+    account: plan.accountId,
+    region: plan.region,
+  });
+  return withAwsTerraformLifecycle(storage, signal, async () => {
+    await assertAwsTerraformDeploymentActive(storage);
+    return executeAwsCeTerraformApplyUnlocked(...args);
+  });
+}
+
+async function executeAwsCeTerraformApplyUnlocked(
   input: AwsCeApplyInput,
   ctx: AwsCeToolContext,
   api: AwsExecApi,

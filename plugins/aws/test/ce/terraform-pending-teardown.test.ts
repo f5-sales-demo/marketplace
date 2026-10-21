@@ -414,3 +414,26 @@ test('submitted F5 reconciliation rejects unrelated requests before calling the 
     expect(f.mutations).toHaveLength(0);
   }
 });
+
+test('pending retirement persists its plan binding before token mutation and retains it across interruption', async () => {
+  const f = await fixture();
+  const plan = await prepareAwsPendingTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+  const driver = {
+    ...f.driver,
+    revokeToken: async () => {
+      const marker = await f.storage.read('aws-terraform-lifecycle-retirement.json');
+      expect(marker).toHaveProperty('sourcePlanSha256', f.base.planSha256);
+      expect(marker).toHaveProperty('teardownPlanSha256', plan.planSha256);
+      await f.driver.revokeToken();
+      throw Error('after token interruption');
+    },
+  };
+  await expect(coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never)).rejects.toThrow(
+    'after token interruption',
+  );
+  await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never);
+  expect(await f.storage.read('aws-terraform-lifecycle-retirement.json')).toHaveProperty(
+    'teardownPlanSha256',
+    plan.planSha256,
+  );
+});

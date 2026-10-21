@@ -9,6 +9,7 @@ import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { collectAwsTerraformAbsence } from './terraform-absence';
 import { runAwsTerraformCloudTeardown } from './terraform-cloud-teardown';
+import { beginAwsTerraformRetirement } from './terraform-lifecycle';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import { verifyAwsTeardownCredentials } from './terraform-teardown';
 import { siteBindings } from './topology';
@@ -393,6 +394,7 @@ export async function coordinateAwsPendingTeardown(
       driver.ingressContractFingerprint,
     );
   };
+  await beginAwsTerraformRetirement(base, plan, storage);
   let current = await observe();
   for (const target of plan.retirement)
     for (const token of target.tokens) {
