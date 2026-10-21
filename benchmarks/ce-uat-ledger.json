@@ -294,20 +294,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/single-site/bootstrap",
@@ -2328,20 +2328,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/terraform/single-site/bootstrap",
@@ -4434,20 +4434,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "azure/native/single-site/bootstrap",
@@ -6456,20 +6456,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "azure/terraform/single-site/bootstrap",
