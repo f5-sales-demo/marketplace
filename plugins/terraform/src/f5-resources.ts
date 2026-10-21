@@ -4,7 +4,7 @@ import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
 import { cancelUnsubmittedF5Resource } from './f5-cancellation';
-import { loadXcshProviderLock, XCSH_PROVIDER_VERSION } from './provider-lock';
+import { f5StageDeployment, requireF5StageActive } from './f5-retirement';
 import { renderProviderResource } from './resource-renderer';
 import type { PlanReceipt } from './runner';
 import type { CeTerraformService } from './service';
@@ -63,6 +63,7 @@ export async function executeF5TerraformResource(
   tenantOrigin?: string,
   execution: 'mutate' | 'observe-only' = 'mutate',
 ) {
+  await requireF5StageActive(await platform.storage(owner));
   if (init.method === 'CANCEL_UNSUBMITTED')
     return cancelUnsubmittedF5Resource(platform, terraform, owner, contextName, signal, tenantOrigin);
   if (['RECONCILE', 'RECONCILE_OBSERVED'].includes(init.method ?? '')) {
@@ -127,6 +128,7 @@ export async function executeF5TerraformResource(
   const storage = await platform.storage(owner);
   const release = await acquireProcessLock(join(storage.directory, '.f5-resource-lock'));
   try {
+    await requireF5StageActive(storage);
     let cancellation: unknown;
     try {
       cancellation = await storage.read('terraform-f5-cancellation-pending.json');
@@ -143,13 +145,8 @@ export async function executeF5TerraformResource(
       !/^[0-9a-f]{64}$/.test(auth.planSha256)
     )
       throw new Error('Original Terraform deployment authorization is unavailable');
-    const empty = {
-      terraform: {
-        required_version: '= 1.16.5',
-        required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
-      },
-      provider: { xcsh: {} },
-    };
+    const deployment = await f5StageDeployment(owner);
+    const empty = object(JSON.parse(deployment.configuration));
     let book: Book;
     let existed = true;
     try {
@@ -209,17 +206,6 @@ export async function executeF5TerraformResource(
       object(before.system_metadata).uid !== book.resources[addressName].uid
     )
       throw new Error('F5 view was replaced outside its owning state');
-    const deployment = {
-      schemaVersion: 1 as const,
-      deploymentId: owner.deploymentId,
-      stage: 'f5-resources',
-      engine: 'terraform' as const,
-      scope: { cloud: owner.provider, account: owner.account, region: owner.region },
-      terraformVersion: '1.16.5',
-      configuration: JSON.stringify(empty),
-      providerLock: await loadXcshProviderLock(),
-      backendIdentity: `local:${owner.deploymentId}:stage:f5-resources`,
-    };
     const session = await terraform.open(owner, deployment, existed ? 'current' : false);
     if (!session.readProviderSchemas || !session.readConfigurationSha256 || !session.readResourceIdentities)
       throw new Error('Provider schema verification is unavailable');

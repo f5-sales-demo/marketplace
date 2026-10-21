@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
 import type { ArtifactRetirementReceipt } from './artifact-retirement';
+import { retireF5TerraformStage } from './f5-retirement';
 import {
   type Deployment,
   type PlanReceipt,
@@ -91,12 +92,23 @@ export interface TerraformSession {
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
 export interface CeTerraformService {
+  /** Internal F5 stage cleanup; caller independently qualifies complete external absence. */
+  retireF5Stage?(
+    owner: CeOwner,
+    sourcePlanSha256: string,
+    evidenceSha256: string,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<ArtifactRetirementReceipt>;
   open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
 export function createCeTerraformService(platform: () => Promise<CePlatformService>): CeTerraformService {
-  return {
+  const service: CeTerraformService = {
+    async retireF5Stage(owner, sourcePlanSha256, evidenceSha256, env, signal) {
+      return retireF5TerraformStage(await platform(), service, owner, sourcePlanSha256, evidenceSha256, env, signal);
+    },
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
       deployment = structuredClone(deployment);
@@ -205,6 +217,7 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
       };
     },
   };
+  return service;
 }
 export function registerCeTerraformService(bus: CeEventBus, service: CeTerraformService): () => void {
   return bus.on(TERRAFORM_SERVICE_CHANNEL, (data) => {

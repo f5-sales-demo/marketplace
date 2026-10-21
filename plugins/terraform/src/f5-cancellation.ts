@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
-import { loadXcshProviderLock, XCSH_PROVIDER_VERSION } from './provider-lock';
+import { f5StageDeployment, requireF5StageActive } from './f5-retirement';
 import { renderProviderResource } from './resource-renderer';
 import type { PlanReceipt } from './runner';
 import type { CeTerraformService } from './service';
@@ -48,6 +48,7 @@ export async function cancelUnsubmittedF5Resource(
   const storage = await platform.storage(owner);
   const release = await acquireProcessLock(join(storage.directory, '.f5-resource-lock'));
   try {
+    await requireF5StageActive(storage);
     signal?.throwIfAborted();
     await storage.verify();
     let raw: unknown;
@@ -142,13 +143,8 @@ export async function cancelUnsubmittedF5Resource(
       (pending.method === 'POST' && resources[key])
     )
       throw Error('F5 cancellation target ownership differs');
-    const empty = {
-      terraform: {
-        required_version: '= 1.16.5',
-        required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
-      },
-      provider: { xcsh: {} },
-    };
+    const deployment = await f5StageDeployment(owner);
+    const empty = object(JSON.parse(deployment.configuration));
     const desired: Record<string, Record<string, Json>> = {};
     for (const [name, value] of Object.entries(resources)) {
       const row = object(value);
@@ -166,21 +162,7 @@ export async function cancelUnsubmittedF5Resource(
     const prior = JSON.stringify({ ...empty, ...(Object.keys(desired).length ? { resource: desired } : {}) });
     if (hash(prior) !== book.configurationSha256 || typeof pending.configuration !== 'string')
       throw Error('F5 prior desired configuration integrity differs');
-    const session = await terraform.open(
-      owner,
-      {
-        schemaVersion: 1,
-        deploymentId: owner.deploymentId,
-        stage: 'f5-resources',
-        engine: 'terraform',
-        scope: { cloud: owner.provider, account: owner.account, region: owner.region },
-        terraformVersion: '1.16.5',
-        configuration: JSON.stringify(empty),
-        providerLock: await loadXcshProviderLock(),
-        backendIdentity: `local:${owner.deploymentId}:stage:f5-resources`,
-      },
-      'current',
-    );
+    const session = await terraform.open(owner, deployment, 'current');
     if (
       !session.readProviderSchemas ||
       !session.readResourceIdentities ||
