@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError } from '../src/failure';
 import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
 import actionFixture from './fixtures/site-upgrade-action.json';
@@ -1250,4 +1251,31 @@ test('cancellation recovery permits a bound no-change refresh but rejects late s
     }
     expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
   }
+});
+
+test('interrupted action reconciliation honors the real runner process lock and exact action receipt', async () => {
+  const f = await fixture(
+    { resource_changes: [], output_changes: {}, action_invocations: [actionRow] },
+    {},
+    undefined,
+    () => {
+      throw new Error('lost action response');
+    },
+  );
+  const receipt = await f.runner.planAction(actionIntent, {});
+  await expect(f.runner.apply(receipt, {})).rejects.toThrow('lost action response');
+  expect(await f.runner.readPlanApplicationState(receipt)).toBe('applying');
+  const release = await acquireProcessLock(join(f.root, 'ce-test', '.runner-lock'));
+  try {
+    await expect(
+      f.runner.reconcileApplyFromEvidence(receipt, hash('identity-verified-version-observation')),
+    ).rejects.toThrow('live process');
+    expect(JSON.parse(await readFile(join(f.root, 'ce-test', 'plan-receipt.json'), 'utf8')).state).toBe('applying');
+  } finally {
+    await release();
+  }
+  await f.runner.reconcileApplyFromEvidence(receipt, hash('identity-verified-version-observation'));
+  expect(await f.runner.readPlanApplicationState(receipt)).toBe('applied');
+  await expect(f.runner.apply(receipt, {})).rejects.toThrow();
+  expect(f.calls.filter((call) => call.args[0] === 'apply')).toHaveLength(1);
 });

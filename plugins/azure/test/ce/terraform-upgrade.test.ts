@@ -134,6 +134,9 @@ test('rejects stale plans and resumes exact action completion idempotently', asy
     async apply() {
       applies++;
     },
+    async readPlanApplicationState() {
+      return applies ? ('applied' as const) : ('planned' as const);
+    },
   } as unknown as TerraformSession;
   const terraform = { open: async () => session } as unknown as CeTerraformService;
   const first = await runAzureTerraformUpgrade(

@@ -171,7 +171,39 @@ export async function runTerraformCeUpgrade(
         upgrade.expectation.target.kind === 'software' ? upgrade.expectation.target.version : undefined,
         signal,
       );
-    let transition = assessCeUpgradeTransition(upgrade.expectation, await observe());
+    let observation = await observe();
+    let transition = assessCeUpgradeTransition(upgrade.expectation, observation);
+    let session: TerraformSession | undefined;
+    const completeApplication = async (action: PlanReceipt) => {
+      session ??= await terraform.open(storage.owner, upgrade.deployment, 'current');
+      const state = await session.readPlanApplicationState(action);
+      if (assessCeUpgradeTransition(upgrade.expectation, observation) !== 'versions-complete')
+        throw new Error('Terraform upgrade completion evidence is no longer current');
+      if (state === 'planned') throw new Error('Terraform upgrade action was not submitted');
+      if (state === 'applying') {
+        await session.reconcileApplyFromEvidence(
+          action,
+          hash({
+            owner: storage.owner,
+            sourcePlanSha256: upgrade.sourcePlanSha256,
+            upgradePlanSha256: upgrade.planSha256,
+            action,
+            observation,
+          }),
+        );
+        if ((await session.readPlanApplicationState(action)) !== 'applied')
+          throw new Error('Terraform upgrade application reconciliation did not converge');
+      } else if (state !== 'applied') throw new Error('Terraform upgrade application state is unknown');
+    };
+    const releaseSerial = async () => {
+      await storage.write('terraform-ce-upgrade-serial.json', {
+        schemaVersion: 2,
+        engine: 'terraform',
+        status: 'idle',
+        lastPlanId: upgrade.planId,
+        lastPlanSha256: upgrade.planSha256,
+      });
+    };
     if (checkpoint.phase === 'complete') {
       if (transition !== 'versions-complete') throw new Error('Completed Terraform upgrade version evidence regressed');
       const action = (await storage.read(`${upgrade.planId}-action-plan.json`)) as PlanReceipt;
@@ -191,6 +223,8 @@ export async function runTerraformCeUpgrade(
         receipt.traffic !== 'unknown'
       )
         throw new Error('Completed Terraform upgrade receipt differs');
+      await completeApplication(action);
+      await releaseSerial();
       return receipt;
     }
     if (transition === 'failed') throw new Error('Terraform upgrade failed');
@@ -210,7 +244,6 @@ export async function runTerraformCeUpgrade(
     if (checkpoint.phase === 'ready' && transition !== 'ready')
       throw new Error('Upgrade began outside the authorized Terraform action');
     if (checkpoint.phase === 'ready') {
-      let session: TerraformSession;
       try {
         session = await terraform.open(storage.owner, upgrade.deployment, false);
       } catch (error) {
@@ -221,12 +254,14 @@ export async function runTerraformCeUpgrade(
       validateActionReceipt(upgrade, action);
       await storage.write(`${upgrade.planId}-action-plan.json`, action);
       await storage.verify();
-      transition = assessCeUpgradeTransition(upgrade.expectation, await observe());
+      observation = await observe();
+      transition = assessCeUpgradeTransition(upgrade.expectation, observation);
       if (transition !== 'ready') throw new Error('Terraform upgrade readiness changed before submission');
       checkpoint = { ...checkpoint, phase: 'submitted', actionPlanSha256: action.planSha256 };
       await storage.write(checkpointName, checkpoint);
       await session.apply(action, env, signal);
-      transition = assessCeUpgradeTransition(upgrade.expectation, await observe());
+      observation = await observe();
+      transition = assessCeUpgradeTransition(upgrade.expectation, observation);
     } else {
       const action = (await storage.read(`${upgrade.planId}-action-plan.json`)) as PlanReceipt;
       validateActionReceipt(upgrade, action);
@@ -242,16 +277,11 @@ export async function runTerraformCeUpgrade(
       if (!['ready', 'converging'].includes(transition)) throw new Error('Terraform upgrade convergence is unknown');
       return { status: 'upgrade-converging' as const, planId: upgrade.planId, planSha256: upgrade.planSha256 };
     }
-    checkpoint = { ...checkpoint, phase: 'complete' };
-    await storage.write(checkpointName, checkpoint);
-    serial = {
-      schemaVersion: 2,
-      engine: 'terraform',
-      status: 'idle',
-      lastPlanId: upgrade.planId,
-      lastPlanSha256: upgrade.planSha256,
-    };
-    await storage.write('terraform-ce-upgrade-serial.json', serial);
+    const completedAction = (await storage.read(`${upgrade.planId}-action-plan.json`)) as PlanReceipt;
+    validateActionReceipt(upgrade, completedAction);
+    if (completedAction.planSha256 !== checkpoint.actionPlanSha256)
+      throw new Error('Completed upgrade action plan differs');
+    await completeApplication(completedAction);
     const receipt = {
       status: 'upgrade-complete' as const,
       engine: 'terraform' as const,
@@ -266,6 +296,9 @@ export async function runTerraformCeUpgrade(
       traffic: 'unknown' as const,
     };
     await storage.write(`${upgrade.planId}-receipt.json`, receipt);
+    checkpoint = { ...checkpoint, phase: 'complete' };
+    await storage.write(checkpointName, checkpoint);
+    await releaseSerial();
     return receipt;
   } finally {
     await release();

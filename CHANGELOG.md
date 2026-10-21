@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **CE UAT77** reconciles serial upgrade completion with the exact owning Terraform application journal and fresh version evidence. Completion receipts persist before admission is released; interrupted actions resume without replay, while unsubmitted actions and live runners block completion (#1651, #1326).
+
 - **CE UAT76** matches parent cleanup to the owning Terraform runner canonical manifest digest. Installed UAT75 retired both runners but blocked parent journal cleanup; that failure is retained and canonical receipt regressions cover the repaired join (#1651, #1326).
 
 - **CE UAT75** repairs AWS provider cache validation on macOS with a signed, multi-platform immutable lock for Linux/macOS AMD64/ARM64. Compiler and archive assets bind the new lock digest; UAT74 installed failure remains retained (#1651, #1326).

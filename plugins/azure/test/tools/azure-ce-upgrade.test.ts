@@ -98,6 +98,9 @@ test('public Azure upgrade tool prepares, authorizes and idempotently resumes an
     async apply() {
       applies++;
     },
+    async readPlanApplicationState() {
+      return applies ? ('applied' as const) : ('planned' as const);
+    },
   } as unknown as TerraformSession;
   const terraform = { open: async () => session } as unknown as CeTerraformService;
   const platform = {

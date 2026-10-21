@@ -95,7 +95,10 @@ async function setup(states: Array<'ready' | 'converging' | 'complete' | 'unknow
   let index = 0,
     applies = 0,
     opens = 0,
-    failApply = false;
+    failApply = false,
+    applicationState: 'planned' | 'applying' | 'applied' = 'planned',
+    reconciles = 0,
+    runnerBusy = false;
   const runtime = {
     engine: 'terraform' as const,
     async observeUpgrade() {
@@ -121,7 +124,20 @@ async function setup(states: Array<'ready' | 'converging' | 'complete' | 'unknow
     planAction: async () => receipt(upgrade),
     apply: async () => {
       applies++;
+      applicationState = 'applying';
       if (failApply) throw new Error('lost action response');
+      applicationState = 'applied';
+    },
+    readPlanApplicationState: async () => {
+      if (runnerBusy) throw new Error('Operation lock is held by a live process');
+      return applicationState;
+    },
+    reconcileApplyFromEvidence: async (action: unknown, evidence: string) => {
+      expect(action).toEqual(receipt(upgrade));
+      expect(evidence).toMatch(/^[a-f0-9]{64}$/);
+      if (runnerBusy) throw new Error('Operation lock is held by a live process');
+      reconciles++;
+      applicationState = 'applied';
     },
   } as unknown as TerraformSession;
   const terraform = {
@@ -137,6 +153,13 @@ async function setup(states: Array<'ready' | 'converging' | 'complete' | 'unknow
     terraform,
     storage,
     counts: () => ({ applies, opens }),
+    application: () => ({ state: applicationState, reconciles }),
+    setApplication: (state: typeof applicationState) => {
+      applicationState = state;
+    },
+    setRunnerBusy: (busy: boolean) => {
+      runnerBusy = busy;
+    },
     loseApply: () => {
       failApply = true;
     },
@@ -159,7 +182,7 @@ test('executes one exact saved action and idempotently accepts observed completi
     {},
   );
   expect(result.status).toBe('upgrade-complete');
-  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+  expect(f.counts().applies).toBe(1);
   expect(
     (
       await runAwsTerraformUpgrade(
@@ -174,7 +197,7 @@ test('executes one exact saved action and idempotently accepts observed completi
       )
     ).status,
   ).toBe('upgrade-complete');
-  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+  expect(f.counts().applies).toBe(1);
 });
 
 test('resumes an ambiguous action through platform convergence without replaying it', async () => {
@@ -212,7 +235,7 @@ test('resumes an ambiguous action through platform convergence without replaying
       )
     ).status,
   ).toBe('upgrade-complete');
-  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+  expect(f.counts().applies).toBe(1);
 });
 
 test('keeps submitted publisher lag retryable without replaying the Terraform action', async () => {
@@ -245,7 +268,7 @@ test('keeps submitted publisher lag retryable without replaying the Terraform ac
       )
     ).status,
   ).toBe('upgrade-complete');
-  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+  expect(f.counts().applies).toBe(1);
 });
 
 test('rejects authorization and serial-site conflicts before action planning', async () => {
@@ -285,5 +308,94 @@ test('rejects a forged saved action while reconciling an interrupted submission'
   await expect(
     runAwsTerraformUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.terraform, f.storage, {}),
   ).rejects.toThrow();
-  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+  expect(f.counts().applies).toBe(1);
+});
+
+async function run(f: Awaited<ReturnType<typeof setup>>) {
+  return runAwsTerraformUpgrade(
+    f.plan,
+    f.upgrade,
+    f.upgrade.planSha256,
+    f.runtime,
+    contract,
+    f.terraform,
+    f.storage,
+    {},
+  );
+}
+
+test('completed version evidence reconciles the exact interrupted application before releasing serial admission', async () => {
+  const f = await setup(['ready', 'ready', 'complete']);
+  f.loseApply();
+  await expect(run(f)).rejects.toThrow('lost action response');
+  expect(f.application()).toEqual({ state: 'applying', reconciles: 0 });
+  expect((await run(f)).status).toBe('upgrade-complete');
+  expect(f.application()).toEqual({ state: 'applied', reconciles: 1 });
+  expect(((await f.storage.read('terraform-ce-upgrade-serial.json')) as { status: string }).status).toBe('idle');
+  expect(f.counts().applies).toBe(1);
+});
+
+for (const mode of ['planned', 'live-runner'] as const)
+  test(`version completion cannot release serial admission with ${mode} application`, async () => {
+    const f = await setup(['ready', 'ready', 'complete']);
+    f.loseApply();
+    await expect(run(f)).rejects.toThrow('lost action response');
+    if (mode === 'planned') f.setApplication('planned');
+    else f.setRunnerBusy(true);
+    await expect(run(f)).rejects.toThrow(mode === 'planned' ? 'not submitted' : 'live process');
+    expect(((await f.storage.read(`${f.upgrade.planId}-checkpoint.json`)) as { phase: string }).phase).toBe(
+      'submitted',
+    );
+    expect(((await f.storage.read('terraform-ce-upgrade-serial.json')) as { status: string }).status).toBe('active');
+    expect(f.application().reconciles).toBe(0);
+    expect(f.counts().applies).toBe(1);
+  });
+
+test('unknown observations leave the ambiguous application unreconciled', async () => {
+  const f = await setup(['ready', 'ready', 'unknown']);
+  f.loseApply();
+  await expect(run(f)).rejects.toThrow('lost action response');
+  expect((await run(f)).status).toBe('upgrade-convergence-unknown');
+  expect(f.application()).toEqual({ state: 'applying', reconciles: 0 });
+});
+
+test('completed resume verifies the owning journal instead of trusting the completion checkpoint', async () => {
+  const f = await setup(['ready', 'ready', 'complete']);
+  expect((await run(f)).status).toBe('upgrade-complete');
+  f.setApplication('planned');
+  await expect(run(f)).rejects.toThrow('not submitted');
+  expect(f.counts().applies).toBe(1);
+});
+
+test('completed resume repairs a serial ledger interrupted before its idle write', async () => {
+  const f = await setup(['ready', 'ready', 'complete']);
+  await run(f);
+  await f.storage.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
+    engine: 'terraform',
+    status: 'active',
+    activePlanId: f.upgrade.planId,
+    activePlanSha256: f.upgrade.planSha256,
+  });
+  await run(f);
+  expect(((await f.storage.read('terraform-ce-upgrade-serial.json')) as { status: string }).status).toBe('idle');
+  expect(f.counts().applies).toBe(1);
+});
+
+test('completion receipt interruption remains submitted and resumes without replay', async () => {
+  const f = await setup(['ready', 'ready', 'complete']);
+  const write = f.storage.write.bind(f.storage);
+  let interrupted = false;
+  f.storage.write = async (name, value) => {
+    if (name === `${f.upgrade.planId}-receipt.json` && !interrupted) {
+      interrupted = true;
+      throw new Error('completion receipt interrupted');
+    }
+    return write(name, value);
+  };
+  await expect(run(f)).rejects.toThrow('completion receipt interrupted');
+  expect(((await f.storage.read(`${f.upgrade.planId}-checkpoint.json`)) as { phase: string }).phase).toBe('submitted');
+  expect(((await f.storage.read('terraform-ce-upgrade-serial.json')) as { status: string }).status).toBe('active');
+  expect((await run(f)).status).toBe('upgrade-complete');
+  expect(f.counts().applies).toBe(1);
 });
