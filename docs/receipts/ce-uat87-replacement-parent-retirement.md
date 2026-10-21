@@ -15,3 +15,13 @@ replacement evidence rejects before deletion. Interrupted cleanup admits only re
 All four plugins advance to UAT87. Source validation, archive installation, live cleanup resume and strict independent cleanup require separate receipts. Preserve Argo and the
 single-node AWS mutation guard. The failed 212977 ms versus 45000 ms recovery, supported SLI control/freshness, six-interface transition, complete matrix, producer qualification
 and scanner convergence remain open. PR1565 stays draft with auto-merge disabled; full UAT and normal publication remain pending explicit acceptance.
+
+UAT87 source commit `9d37b0a34cc404cb1c48707dfb116d292b6cffc5` passes 2054 tests/12545 assertions, four compiler checks/builds and asset checks. All754 archived files match.
+Isolated installed public terminal lanes pass on xcsh23.8.0/23.9.3/23.9.5 with source unavailable.
+
+Real archive-installed teardown and repeat return deployment-artifacts-retired. Independent verification passes fourteen exact cloud IDs, logical/physical404,
+registration/token/routing/ingress/interface absence and runner/parent retirement, with retained final root/F5 no-change receipts. Strict empty ownership inventories still fail
+because terminated instance/deleted-volume tags remain. This is partial cleanup evidence, not a cleanup pass.
+
+Initial exact-head CI failed stale tracker fingerprints; failure retained. Ubuntu regeneration and validation use task-local node_modules exclusions. Exact repaired-head CI remains
+pending; plugin assets are unchanged.
