@@ -97,6 +97,46 @@ test('F5 provider rendering uses verified nesting and escapes Terraform interpol
   expect(value.aws).toEqual([{ not_managed: [{ node_list: [{ hostname: 'node' }] }] }]);
   expect(value.labels).toEqual({ description: '$$' + '{literal}' });
 });
+
+test('observed SMSv2 interface flags are excluded only when the installed provider declares them computed-only', () => {
+  const nested = structuredClone(schema);
+  Object.assign(
+    nested.block.block_types.aws.block.block_types.not_managed.block.attributes.node_list.nested_type.attributes,
+    {
+      interface_list: {
+        optional: true,
+        nested_type: {
+          nesting_mode: 'list',
+          attributes: {
+            name: { optional: true },
+            priority: { optional: true },
+            is_primary: { computed: true },
+            is_management: { computed: true },
+          },
+        },
+      },
+    },
+  );
+  const request = {
+    metadata: { name: 'site', namespace: 'system' },
+    spec: {
+      aws: { not_managed: { node_list: [{ hostname: 'node', interface_list: [{ name: 'ens5', priority: 7 }] }] } },
+    },
+  };
+  const observed = structuredClone(request);
+  Object.assign(observed.spec.aws.not_managed.node_list[0].interface_list[0], {
+    is_primary: true,
+    is_management: false,
+  });
+  expect(renderObservedProviderResource(observed, request, nested, 'xcsh_securemesh_site_v2')).toEqual(
+    renderProviderResource(request, nested, 'xcsh_securemesh_site_v2'),
+  );
+  expect(() => renderProviderResource(observed, nested, 'xcsh_securemesh_site_v2')).toThrow('Read-only');
+  observed.spec.aws.not_managed.node_list[0].interface_list[0].priority = 8;
+  expect(renderObservedProviderResource(observed, request, nested, 'xcsh_securemesh_site_v2')).not.toEqual(
+    renderProviderResource(request, nested, 'xcsh_securemesh_site_v2'),
+  );
+});
 test('unknown and read-only provider fields cannot enter a saved F5 configuration', () => {
   const request = { metadata: { name: 'site', namespace: 'system' }, spec: { readback: 'untrusted' } };
   expect(() => renderProviderResource(request, schema)).toThrow('Read-only');

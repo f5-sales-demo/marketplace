@@ -544,6 +544,19 @@ export class CeRuntime {
     this.#binding(binding);
     this.#owned(site, binding);
     const request = this.contract.siteCreateRequest(site);
+    // XC provider 15.12.1 exposes these API readback flags as computed-only.
+    // Preserve them for the native API; Terraform creation cannot set them.
+    if (binding.owner.engine === 'terraform') {
+      const provider = object(object(request.spec)[binding.owner.provider]);
+      const nodes = object(provider.not_managed).node_list;
+      if (Array.isArray(nodes))
+        for (const node of nodes) {
+          const interfaces = object(node).interface_list;
+          if (Array.isArray(interfaces))
+            for (const iface of interfaces)
+              for (const key of ['is_primary', 'is_management']) delete object(iface)[key];
+        }
+    }
     return { ...request, metadata: writableSiteMetadata(object(request.metadata)) };
   }
   async ensureSite(

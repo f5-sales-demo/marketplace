@@ -2783,6 +2783,17 @@ class CeRuntime {
     this.#binding(binding);
     this.#owned(site, binding);
     const request = this.contract.siteCreateRequest(site);
+    if (binding.owner.engine === 'terraform') {
+      const provider = object11(object11(request.spec)[binding.owner.provider]);
+      const nodes = object11(provider.not_managed).node_list;
+      if (Array.isArray(nodes))
+        for (const node of nodes) {
+          const interfaces = object11(node).interface_list;
+          if (Array.isArray(interfaces))
+            for (const iface of interfaces)
+              for (const key of ['is_primary', 'is_management']) delete object11(iface)[key];
+        }
+    }
     return { ...request, metadata: writableSiteMetadata(object11(request.metadata)) };
   }
   async ensureSite(binding, intent, checkpoint, signal) {

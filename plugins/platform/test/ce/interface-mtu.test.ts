@@ -116,6 +116,26 @@ test('owned configuration projection excludes resource versions and keeps writab
   expect(f.posts()).toBe(0);
 });
 
+test('Terraform replacement projection excludes provider-computed interface flags and retains writable identity', () => {
+  const f = fixture();
+  const site = structuredClone(f.site);
+  const terraformBinding = structuredClone(binding);
+  terraformBinding.owner.engine = 'terraform';
+  site.metadata.labels['xcsh-ce-engine'] = 'terraform';
+  const iface = site.spec.aws.not_managed.node_list[0].interface_list[0];
+  Object.assign(iface, { is_primary: true, is_management: false, priority: 7 });
+  const projected = f.runtime.ownedSiteConfiguration(terraformBinding, site) as typeof site;
+  const result = projected.spec.aws.not_managed.node_list[0].interface_list[0];
+  expect(result).not.toHaveProperty('is_primary');
+  expect(result).not.toHaveProperty('is_management');
+  expect(result).toMatchObject({
+    priority: 7,
+    ethernet_interface: iface.ethernet_interface,
+    network_option: iface.network_option,
+  });
+  expect(iface).toHaveProperty('is_primary', true);
+});
+
 test('registered primary MTU differences produce a bound replacement checkpoint without PUT', async () => {
   const f = fixture();
   await expect(f.run()).rejects.toThrow('coupled VM/site replacement');

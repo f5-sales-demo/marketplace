@@ -497,6 +497,37 @@ function renderObservedProviderResource(observed, request, resourceSchema, resou
     )
       delete actualNodes.node_list;
   }
+  const stripInterfaceFlags = (values, schema, path) => {
+    const attributes = schema.attributes === undefined ? {} : object2(schema.attributes);
+    const blocks = schema.block_types === undefined ? {} : object2(schema.block_types);
+    for (const [key, value] of Object.entries(values)) {
+      const attribute = attributes[key] === undefined ? undefined : object2(attributes[key]);
+      if (
+        path.length === 4 &&
+        ['aws', 'azure'].includes(path[0]) &&
+        path.slice(1).join('/') === 'not_managed/node_list/interface_list' &&
+        ['is_primary', 'is_management'].includes(key) &&
+        attribute?.computed === true &&
+        attribute.optional !== true &&
+        attribute.required !== true
+      ) {
+        delete values[key];
+        continue;
+      }
+      if (value === null || value === undefined) continue;
+      const child =
+        attribute?.nested_type !== undefined
+          ? object2(attribute.nested_type)
+          : blocks[key] !== undefined
+            ? object2(object2(blocks[key]).block)
+            : undefined;
+      if (!child) continue;
+      const next = [...path, key];
+      if (Array.isArray(value)) for (const row of value) stripInterfaceFlags(object2(row), child, next);
+      else stripInterfaceFlags(object2(value), child, next);
+    }
+  };
+  stripInterfaceFlags(spec, object2(object2(resourceSchema).block), []);
   return renderProviderResource({ metadata: observed.metadata, spec }, resourceSchema, resourceType);
 }
 function renderProviderResource(request, resourceSchema, resourceType) {

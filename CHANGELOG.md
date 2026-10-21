@@ -8,6 +8,10 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## CE UAT86
+
+- Qualify provider-computed interface readback for Terraform replacement reconciliation; retain strict writable configuration and identity checks.
+
 ## [Unreleased]
 
 - **CE UAT78** retires completed software/OS Terraform action stages through exact source ownership, applied action journals, final ordinary no-change plans and independent terminal absence evidence. Durable preparation and retirement checkpoints preserve interruption recovery; parent cleanup verifies every stage receipt (#1651, #1326).
