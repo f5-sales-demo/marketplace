@@ -141,6 +141,12 @@ class FakeRunner:
 
 
 class ZoomSetupTests(unittest.TestCase):
+    def setUp(self):
+        # FakeRunner models the supported Ubuntu host on every test executor.
+        guard = patch.object(zoom_setup, "require_platform")
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def test_accepted_camera_profile_is_not_desktop_geometry(self):
         unit = zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
         self.assertIn("-video_size 1280x720 -i :91+0,0", unit)
@@ -409,7 +415,7 @@ class ZoomSetupTests(unittest.TestCase):
 
     def test_symlink_confinement_and_owner_only_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
+            root = pathlib.Path(directory).resolve()
             outside = root / "outside"
             outside.mkdir()
             link = root / "link"
@@ -662,7 +668,14 @@ class ZoomSetupTests(unittest.TestCase):
             launcher.write_text("#!/bin/sh\n")
             launcher.chmod(0o700)
             controller = zoom_setup.Controller(FakeRunner(), home)
-            self.assertEqual(controller.xorgctl, str(launcher))
+            self.assertEqual(controller.xorgctl, str(launcher.resolve()))
+
+
+class ZoomPlatformTests(unittest.TestCase):
+    def test_platform_guard_rejects_unsupported_hosts(self):
+        for system, machine in (("Darwin", "arm64"), ("Linux", "aarch64")):
+            with self.assertRaisesRegex(zoom_setup.SetupError, "requires_ubuntu_amd64"):
+                zoom_setup.require_platform(system=system, machine=machine)
 
 
 if __name__ == "__main__":

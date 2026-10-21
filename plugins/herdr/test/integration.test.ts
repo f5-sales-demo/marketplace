@@ -12,8 +12,8 @@ import {
 } from '../extensions/integration';
 
 const sha = '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394';
-const binaryPath = '/home/test/.local/bin/herdr';
-const receiptPath = '/home/test/.local/state/xcsh/herdr/setup-receipt.json';
+const binaryPath = '/home/example/.local/bin/herdr';
+const receiptPath = '/home/example/.local/state/xcsh/herdr/setup-receipt.json';
 const receipt: HerdrReceipt = {
   schema_version: 1,
   plugin_version: PLUGIN_VERSION,
@@ -43,7 +43,7 @@ function dependencies(overrides: Partial<ProbeDependencies> = {}): ProbeDependen
   return {
     platform: 'linux',
     arch: 'x64',
-    homeDir: '/home/test',
+    homeDir: '/home/example',
     env: { PATH: '/usr/bin' },
     exists: (path) => path === binaryPath || path === receiptPath,
     readText: () => JSON.stringify(receipt),
@@ -153,7 +153,7 @@ describe('Herdr installation, context, and runtime probes', () => {
         runtime: { state: 'unpaired' },
       },
     });
-    expect(env.PATH?.split(':')[0]).toBe('/home/test/.local/bin');
+    expect(env.PATH?.split(':')[0]).toBe('/home/example/.local/bin');
   });
 
   it('distinguishes tampered, stale-receipt, and self-updated installations', () => {
@@ -254,12 +254,43 @@ describe('Herdr installation, context, and runtime probes', () => {
       value: { runtime: { state: 'missing_capability', missingCapabilities: ['xcsh_semantic_tracking'] } },
     });
   });
+
+  it('preserves installation evidence when status returns malformed or non-object JSON', () => {
+    for (const stdout of ['null', '[]', 'false', '0', '"synthetic status"', '{']) {
+      const result = probeHerdr(
+        dependencies({
+          env: {
+            PATH: '/usr/bin',
+            HERDR_ENV: '1',
+            HERDR_SESSION: 'synthetic-session',
+            HERDR_PANE_ID: 'w1:p2',
+            HERDR_SOCKET_PATH: '/tmp/synthetic-herdr.sock',
+            HERDR_CONTEXT_CAPABILITY: 'synthetic-private-capability',
+          },
+          spawn: (argv) =>
+            argv.includes('status')
+              ? { exitCode: 0, stdout, stderr: '' }
+              : { exitCode: 0, stdout: 'herdr 0.19.2\n', stderr: '' },
+        }),
+      );
+      expect(result).toMatchObject({
+        state: 'degraded',
+        reason: 'invalid_response',
+        value: {
+          installation: { state: 'ready' },
+          context: { state: 'managed' },
+          runtime: { state: 'invalid_status' },
+        },
+      });
+      expect(JSON.stringify(result)).not.toContain('synthetic-private-capability');
+    }
+  });
 });
 
 describe('PATH reconciliation', () => {
   it('prepends one normalized install entry and preserves unrelated entries', () => {
-    expect(reconcilePath('/usr/bin:/home/test/.local/bin:/opt/bin', '/home/test/.local/bin', ':')).toEqual({
-      value: '/home/test/.local/bin:/usr/bin:/opt/bin',
+    expect(reconcilePath('/usr/bin:/home/example/.local/bin:/opt/bin', '/home/example/.local/bin', ':')).toEqual({
+      value: '/home/example/.local/bin:/usr/bin:/opt/bin',
       changed: true,
       visibleBefore: true,
     });
