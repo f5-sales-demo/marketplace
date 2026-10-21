@@ -27,17 +27,7 @@ export interface CeTeardownResource {
 interface Port {
   request(path: string, init?: RequestInit, signal?: AbortSignal): Promise<Json>;
 }
-/** Read-only inventory for registered deployments. Never return specs, annotations, or enrollment content. */
-export async function collectCeTeardownInventory(
-  port: Port,
-  input: SiteBinding[],
-  namespaces: string[],
-  contracts: { site: string; ingress: string },
-  signal?: AbortSignal,
-) {
-  const bindings = structuredClone(input);
-  namespaces = structuredClone(namespaces);
-  contracts = structuredClone(contracts);
+function validateScope(bindings: SiteBinding[], namespaces: string[], contracts: { site: string; ingress: string }) {
   const owner = bindings?.[0]?.owner;
   if (
     !owner ||
@@ -78,6 +68,20 @@ export async function collectCeTeardownInventory(
       nodes.set(node, binding.siteName);
     }
   }
+  return { owner, labels, nodes };
+}
+/** Read-only inventory for registered deployments. Never return specs, annotations, or enrollment content. */
+export async function collectCeTeardownInventory(
+  port: Port,
+  input: SiteBinding[],
+  namespaces: string[],
+  contracts: { site: string; ingress: string },
+  signal?: AbortSignal,
+) {
+  const bindings = structuredClone(input);
+  namespaces = structuredClone(namespaces);
+  contracts = structuredClone(contracts);
+  const { owner, labels, nodes } = validateScope(bindings, namespaces, contracts);
   signal?.throwIfAborted();
   const sources: string[] = [];
   const base = {
@@ -214,6 +218,85 @@ export async function collectCeTeardownInventory(
       ...base,
       status: 'unknown' as const,
       reason: error instanceof CeApiError ? error.category : 'ownership-or-collection-incomplete',
+      sources,
+      observedAt: new Date().toISOString(),
+    };
+  }
+}
+
+/** Separate pre-registration evidence. Absence never supplies a fabricated registered identity.
+ * Any object at an expected site locator, or any selected platform resource, blocks this path.
+ */
+export async function collectCeUnregisteredAbsence(
+  port: Port,
+  input: SiteBinding[],
+  namespaces: string[],
+  contracts: { site: string; ingress: string },
+  signal?: AbortSignal,
+) {
+  const bindings = structuredClone(input);
+  namespaces = structuredClone(namespaces);
+  contracts = structuredClone(contracts);
+  const { owner } = validateScope(bindings, namespaces, contracts);
+  signal?.throwIfAborted();
+  const sources: string[] = [];
+  const base = {
+    owner,
+    siteContractFingerprint: contracts.site,
+    ingressContractFingerprint: contracts.ingress,
+    startedAt: new Date().toISOString(),
+  };
+  const read = async (path: string) => {
+    signal?.throwIfAborted();
+    sources.push(path);
+    return object(await port.request(path, {}, signal));
+  };
+  const empty = (value: Json) => {
+    if (
+      !Array.isArray(value.items) ||
+      value.items.length ||
+      (value.errors !== undefined && (!Array.isArray(value.errors) || value.errors.length)) ||
+      Object.keys(value).some((key) => !['items', 'errors'].includes(key))
+    )
+      throw new Error('Unregistered collection is present or incomplete');
+  };
+  try {
+    // Recheck the entire scope: a registration or resource appearing during collection blocks cleanup.
+    for (let pass = 0; pass < 2; pass++) {
+      for (const binding of bindings) {
+        for (const kind of ['securemesh_site_v2s', 'sites']) {
+          try {
+            await read(`/api/config/namespaces/system/${kind}/${binding.siteName}`);
+          } catch (error) {
+            if (error instanceof CeApiError && error.category === 'not-found') continue;
+            throw error;
+          }
+          throw new Error('Site is present; registered retirement identity is required');
+        }
+        empty(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`));
+      }
+      const collections = [
+        { prefix: 'register', namespace: 'system', kind: 'tokens' },
+        ...['bgps', 'bgp_routing_policys', 'external_connectors'].map((kind) => ({
+          prefix: 'config',
+          namespace: 'system',
+          kind,
+        })),
+        ...namespaces.flatMap((namespace) =>
+          ['http_loadbalancers', 'origin_pools'].map((kind) => ({ prefix: 'config', namespace, kind })),
+        ),
+      ];
+      const query = new URLSearchParams({ label_filter: `xcsh-ce-deployment=${owner.deploymentId}` });
+      for (const { prefix, namespace, kind } of collections)
+        empty(await read(`/api/${prefix}/namespaces/${namespace}/${kind}?${query}`));
+    }
+    return { ...base, status: 'absent' as const, sources, observedAt: new Date().toISOString() };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return {
+      ...base,
+      status: 'unknown' as const,
+      reason: error instanceof CeApiError ? error.category : 'presence-or-collection-incomplete',
       sources,
       observedAt: new Date().toISOString(),
     };

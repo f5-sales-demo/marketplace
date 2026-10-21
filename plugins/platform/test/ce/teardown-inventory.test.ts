@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { collectCeTeardownInventory } from '../../src/ce/teardown-inventory';
+import { CeApiError } from '../../src/ce/runtime';
+import { collectCeTeardownInventory, collectCeUnregisteredAbsence } from '../../src/ce/teardown-inventory';
 
 const owner = {
   deploymentId: 'ce-test',
@@ -132,5 +133,75 @@ test('validates owner, node and namespace scope and cancellation before requests
   ).rejects.toThrow('scope');
   await expect(
     collectCeTeardownInventory(api, bindings, ['default'], { site: 'site', ingress: 'ingress' }, AbortSignal.abort()),
+  ).rejects.toThrow();
+});
+
+function absentFixture(mode = 'absent') {
+  let siteReads = 0;
+  return {
+    async request(path: string) {
+      if (path.includes('?') || path.includes('/registrations_by_site/')) {
+        if (mode === 'partial') return { items: [], nextToken: 'more' };
+        if (mode === 'errors') return { items: [], errors: [{}] };
+        if (mode === 'malformed') return { items: null };
+        if (mode === 'resource') return { items: [{ name: 'unexpected' }] };
+        return { items: [], errors: [] };
+      }
+      siteReads++;
+      if (mode === 'authorization') throw new CeApiError('authorization', 403);
+      if (mode === 'service') throw new CeApiError('transient', 503);
+      if (mode === 'plain-404') throw new Error('404 not found');
+      if (mode === 'site' || (mode === 'appeared' && siteReads > 2)) return {};
+      throw new CeApiError('not-found', 404);
+    },
+  };
+}
+test('proves unregistered platform absence with two complete reads without manufactured UIDs', async () => {
+  const receipt = await collectCeUnregisteredAbsence(absentFixture(), bindings, ['default'], {
+    site: 'site-contract',
+    ingress: 'ingress-contract',
+  });
+  expect(receipt.status).toBe('absent');
+  expect(receipt.sources.filter((path) => path.includes('/registrations_by_site/'))).toHaveLength(2);
+  expect(receipt.sources.filter((path) => path.includes('/securemesh_site_v2s/'))).toHaveLength(2);
+  expect(JSON.stringify(receipt)).not.toContain('siteUid');
+});
+test('unregistered absence rejects presence, changing identities, incomplete collections and service failures', async () => {
+  for (const mode of [
+    'partial',
+    'errors',
+    'malformed',
+    'resource',
+    'authorization',
+    'service',
+    'plain-404',
+    'site',
+    'appeared',
+  ]) {
+    const receipt = await collectCeUnregisteredAbsence(absentFixture(mode), bindings, ['default'], {
+      site: 'site-contract',
+      ingress: 'ingress-contract',
+    });
+    expect(receipt.status).toBe('unknown');
+  }
+});
+test('unregistered absence validates scope and cancellation before contacting the API', async () => {
+  await expect(
+    collectCeUnregisteredAbsence(absentFixture(), bindings, ['../escape'], {
+      site: 'site',
+      ingress: 'ingress',
+    }),
+  ).rejects.toThrow('scope');
+  await expect(
+    collectCeUnregisteredAbsence(
+      absentFixture(),
+      bindings,
+      ['default'],
+      {
+        site: 'site',
+        ingress: 'ingress',
+      },
+      AbortSignal.abort(),
+    ),
   ).rejects.toThrow();
 });

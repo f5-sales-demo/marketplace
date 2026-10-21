@@ -60,7 +60,7 @@
     },
     {
       "name": "docs-pipeline",
-      "description": "Documentation pipeline architecture \u2014 config ownership, release dispatch chain, content authoring, managed files, local preview",
+      "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
       "version": "1.2.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline",
       "license": "Apache-2.0",
@@ -143,7 +143,7 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "7.0.0-uat.61",
+      "version": "7.0.0-uat.62",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
@@ -204,7 +204,7 @@
     },
     {
       "name": "firecrawl",
-      "description": "Local self-hosted firecrawl web scraping \u2014 scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
+      "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
       "version": "1.4.2",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
@@ -270,7 +270,7 @@
     },
     {
       "name": "cloudstatus",
-      "description": "Live cloud status and Internet network intelligence for xcsh \u2014 current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
+      "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
       "version": "1.9.2",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
@@ -312,7 +312,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "5.0.0-uat.61",
+      "version": "5.0.0-uat.62",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "license": "Apache-2.0",
       "author": {
@@ -337,7 +337,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "3.0.0-uat.61",
+      "version": "3.0.0-uat.62",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
@@ -526,7 +526,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "3.0.0-uat.61",
+      "version": "3.0.0-uat.62",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {

@@ -13,7 +13,7 @@ import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } 
 import { parseRegistrationObservation, registrationInstanceBindings } from './registration-observation';
 import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
 import { writableSiteMetadata } from './site-labels';
-import { collectCeTeardownInventory } from './teardown-inventory';
+import { collectCeTeardownInventory, collectCeUnregisteredAbsence } from './teardown-inventory';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
 import {
   parseSiteUpgradeState,
@@ -427,6 +427,21 @@ export class CeRuntime {
   ) {
     for (const binding of bindings) this.#binding(binding);
     return collectCeTeardownInventory(
+      { request: (path, init, signal) => this.#request(path, init, signal) },
+      bindings,
+      namespaces,
+      { site: this.contract.fingerprint, ingress: contract.fingerprint },
+      signal,
+    );
+  }
+  unregisteredAbsence(
+    bindings: SiteBinding[],
+    namespaces: string[],
+    contract: VerifiedIngressContract,
+    signal?: AbortSignal,
+  ) {
+    for (const binding of bindings) this.#binding(binding);
+    return collectCeUnregisteredAbsence(
       { request: (path, init, signal) => this.#request(path, init, signal) },
       bindings,
       namespaces,
