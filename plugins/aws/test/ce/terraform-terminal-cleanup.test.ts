@@ -220,6 +220,30 @@ test('terminal finalizer qualifies fresh absence then retires owning runner and 
   const repeated = await run();
   expect(repeated).toEqual(result);
   expect(f.counts().plans).toBe(1);
+  expect(f.counts().retirements).toBe(1);
+});
+test('completed parent resume verifies current absence and recorded inventory without reopening retired runners', async () => {
+  const f = await fixture();
+  const run = () =>
+    finalizeAwsTerraformCleanup(
+      f.base,
+      f.teardown,
+      f.teardown.planSha256,
+      f.runtime as never,
+      f.contract as never,
+      f.session as never,
+      f.store,
+      f.api,
+      {},
+    );
+  await run();
+  f.session.retireArtifacts = async () => {
+    throw Error('retired runner must remain closed');
+  };
+  expect((await run()).status).toBe('deployment-artifacts-retired');
+  const marker = (await f.store.read('aws-terraform-parent-artifact-retirement.json')) as Record<string, unknown>;
+  await f.store.write('aws-terraform-parent-artifact-retirement.json', { ...marker, evidenceSha256: '0'.repeat(64) });
+  await expect(run()).rejects.toThrow('checkpoint differs');
 });
 test('terminal cleanup interruption resumes immutable plan without normal teardown journals or replanning', async () => {
   const f = await fixture('interrupt');

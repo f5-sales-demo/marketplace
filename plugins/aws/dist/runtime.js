@@ -17853,6 +17853,14 @@ async function finalizeAwsTerraformCleanup(
     receipt.backendIdentity !== `local:${base.deploymentName}`
   )
     throw Error('Terminal cleanup checkpoint differs');
+  const parent = await optional10(store, 'aws-terraform-parent-artifact-retirement.json');
+  if (parent !== undefined && object25(parent).status === 'deployment-artifacts-retired') {
+    return {
+      ...(await retireAwsTerraformParentArtifacts(base, teardown, String(bound.evidenceSha256), store, signal)),
+      cloudInventory: 'absent-or-retired',
+      platformInventory: 'absent',
+    };
+  }
   for (const upgrade of upgrades) {
     if (!terraform || !upgradeContract) throw Error('Owning upgrade stage retirement service unavailable');
     await retireAwsTerraformUpgradeStage(
