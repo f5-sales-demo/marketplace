@@ -63,3 +63,13 @@ Raw captures, fixture results and failed attempts remain private under
 `sales-engineer1764-*-mac.log`. Discovery stays at 23.8.0. Preserve Salesforce
 qualification and deprecated Devcontainer retirement. Neither child #1583 nor
 campaign #1579 is complete from these checks.
+
+## CI repair follow-up
+
+CI run `39527332684` rejected missing Python type narrowing, lint conventions and formatting in the
+standalone regression runner. The repair retains unittest assertions, documents exact-source
+subprocess execution, adds checked regex narrowing, and passes Ruff lint/format, mypy, and all three
+collector regressions. Repository commit automation advanced the final candidate to `sales-
+engineer/1.2.2`; the earlier source and installed baseline evidence remains historical. Tracker
+fingerprints were regenerated after the final automated bump, without promoting installed or
+executed acceptance. Raw failure logs remain private.
