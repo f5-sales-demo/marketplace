@@ -35,6 +35,37 @@ independently downloaded immutable runtime artifacts:
 Discovery remains 23.8.0; minimum compatibility remains 23.5.1. No published
 plugin payload, development dependency or installed default runtime was changed.
 
+## Published minimum-runtime CLI loader
+
+The independently downloaded 23.5.1 binaries were rechecked against their
+recorded SHA-256 before invocation. Immutable runtime source is
+`753953842ba2d889b9715000534874e67c152a98`.
+
+| Host | Minimum runtime binary SHA-256 |
+| --- | --- |
+| Mac arm64 | `923cc6f756f9311f20270c6fee4bc48fc29ded6bdcdbb453baba581dec4d1f22` |
+| Ubuntu x64 | `a43926e29b394a315be60550d3b5639ffa4492d3d12b25d8d2b87a75e02b1a9b` |
+
+The published runtime's documented `PI_CONFIG_DIR` configuration selected a
+task-owned namespace containing only the existing user-scope KVM registry entry,
+pointing to the actual installed 3.2.1 payload. All 32 files matched each host's
+independent artifact digests before loading. The normal installed registry digest
+was unchanged after invocation; no payload was copied or edited.
+
+Both real binaries executed `plugin status kvm --json` through the normal CLI
+loader and exited zero, preserving `kvm`, `unavailable`, `dependency_missing`
+and an absent next action. This qualifies isolated installed minimum-runtime CLI
+loading. The full mixed catalog includes plugins requiring 23.8.0; isolation
+does not qualify those plugins or full mixed-catalog compatibility. No Platform
+dependency readiness, supported-host service, TUI dispatch or setup acceptance
+is established by this unavailable snapshot.
+
+Private evidence identifiers are
+`marketplace-minimum-binary-mac-20261021/kvm-isolated-status` and
+`marketplace-minimum-binary-ubuntu-20261021/kvm-isolated-status`. Binary
+provenance verification and the preserved mixed-catalog loader failure are
+documented in [the minimum-runtime receipt](https://github.com/f5-sales-demo/marketplace/blob/4c02e46e72312e2aeb80e3dec82cc43248192dac/docs/receipts/ghostty-1806-installed-20261021.md#published-minimum-runtime-cli-loader).
+
 ## Supported CLI and rejected TUI result
 
 Both hosts executed the real scoped binary with `plugin status kvm` and
