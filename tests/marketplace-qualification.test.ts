@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -12,6 +12,7 @@ import {
   selectInstalledPlugin,
   validateCaptureIdentity,
   validateScenario,
+  validateScenarioSources,
 } from '../scripts/marketplace-qualification';
 
 test('catalog includes all current surfaces and entrypoints without Salesforce retirement history', () => {
@@ -455,6 +456,74 @@ test('shell rules reject invalid environments, digests, timeouts, extra fields a
   expect(() =>
     validateScenario({ id: 'inspect', calls: [], guidance: [], shellCalls: [rule, { ...rule, section: 'other' }] }),
   ).toThrow();
+});
+
+test('private fixture reads bind physical paths, content digest and exact full-file arguments', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'private-fixture-')));
+  const file = join(root, 'review.mdx');
+  try {
+    writeFileSync(file, 'synthetic review\n');
+    const rule = {
+      root,
+      path: file,
+      sha256: createHash('sha256').update('synthetic review\n').digest('hex'),
+      args: { path: file, sel: '' as const, timeout: 120 },
+    };
+    const reviewed = { id: 'fixture-review', calls: [], guidance: [], fixtureReads: [rule] };
+    expect(validateScenario(reviewed)).toEqual(reviewed);
+    validateScenarioSources(reviewed, '/unused-installation');
+    expect(guardScenarioTool({ toolName: 'read', input: rule.args }, reviewed, '/unused-installation')).toBeUndefined();
+    for (const input of [
+      { path: file },
+      { ...rule.args, timeout: 20 },
+      { ...rule.args, sel: '1:5' },
+      { ...rule.args, extra: true },
+      { ...rule.args, path: join(root, 'other.mdx') },
+    ])
+      expect(guardScenarioTool({ toolName: 'read', input }, reviewed, '/unused-installation')).toMatchObject({
+        block: true,
+      });
+    writeFileSync(file, 'changed\n');
+    expect(() => validateScenarioSources(reviewed, '/unused-installation')).toThrow('fixture');
+    expect(guardScenarioTool({ toolName: 'read', input: rule.args }, reviewed, '/unused-installation')).toMatchObject({
+      block: true,
+    });
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
+test('private fixture admission rejects broad declarations, symlinks and nonprivate roots', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'private-fixture-')));
+  const file = join(root, 'review.mdx');
+  try {
+    writeFileSync(file, 'synthetic');
+    const rule = {
+      root,
+      path: file,
+      sha256: createHash('sha256').update('synthetic').digest('hex'),
+      args: { path: file, sel: '' as const, timeout: 120 },
+    };
+    const reviewed = { id: 'fixture-review', calls: [], guidance: [], fixtureReads: [rule] };
+    for (const fixtureReads of [
+      [],
+      [rule, rule],
+      [{ ...rule, root: 'relative' }],
+      [{ ...rule, path: join(root, '..', 'outside') }],
+      [{ ...rule, sha256: 'bad' }],
+      [{ ...rule, args: { ...rule.args, sel: '1:5' } }],
+      [{ ...rule, args: { ...rule.args, timeout: 121 } }],
+      [{ ...rule, args: { ...rule.args, path: join(root, 'other') } }],
+    ])
+      expect(() => validateScenario({ ...reviewed, fixtureReads })).toThrow();
+    symlinkSync(file, join(root, 'indirect'));
+    const linked = { ...rule, path: join(root, 'indirect'), args: { ...rule.args, path: join(root, 'indirect') } };
+    expect(() => validateScenarioSources({ ...reviewed, fixtureReads: [linked] }, '/unused')).toThrow('fixture');
+    chmodSync(root, 0o755);
+    expect(() => validateScenarioSources(reviewed, '/unused')).toThrow('fixture');
+  } finally {
+    rmSync(root, { recursive: true });
+  }
 });
 
 test('reviewed shell cwd admits only an exact existing directory and rejects changed or unsafe targets', () => {
