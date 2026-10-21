@@ -37,7 +37,7 @@ on Ubuntu. Native downloaded binaries report `herdr 0.19.4` on both hosts.
 - `bun test plugins/herdr`: 21 pass, zero fail, 89 assertions.
 - Herdr plus integration lifecycle and tracker: 92 pass, zero fail.
 - Herdr plus lifecycle on minimum runtime 23.5.1 and stable runtime 23.9.5:
-  83 pass, zero fail, 690 assertions in each lane.
+  83 pass, zero fail in each lane (690 assertions on Mac, 689 on Ubuntu).
 - Canonical discovery remains runtime 23.8.0. Inventory, tracker and ownership:
   12 pass, zero fail; all 22 plugin manifests validate.
 - Mac Unix release smoke installs and verifies in a temporary home, then repeats
@@ -45,7 +45,10 @@ on Ubuntu. Native downloaded binaries report `herdr 0.19.4` on both hosts.
 - Biome, ShellCheck, shell formatting and changed-scope privacy checks pass.
 
 Raw logs, downloads, release metadata and failed regressions remain private.
-Ubuntu source checks and Windows CI are separate delivery checks.
+Ubuntu Herdr/lifecycle/tracker/ownership/inventory checks pass: 95 tests and
+1,195 assertions. Ubuntu minimum/stable lanes, temporary-home release smoke,
+pre-commit, catalog, version-bump and privacy checks also pass. Full repository
+and hermetic checks are recorded separately; Windows CI remains a delivery gate.
 
 ## Remaining acceptance
 
