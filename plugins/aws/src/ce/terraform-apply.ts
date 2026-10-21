@@ -13,6 +13,8 @@ import {
   loadAwsTerraformBrownfieldBinding,
 } from './terraform-brownfield-binding';
 import { applyAwsTerraformConnectStage } from './terraform-connect-stage';
+import { activateAwsTerraformDirectRoutes } from './terraform-direct-activation';
+import type { AwsTerraformDirectOwnership } from './terraform-direct-ownership';
 import { importAwsTerraformDirectRoutes } from './terraform-direct-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
@@ -287,9 +289,15 @@ export async function executeAwsCeTerraformApply(
     const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
     const outputs = await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], process.env, signal);
     const discovered = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
-    result = {
-      ...result,
-      ...(await importAwsTerraformDirectRoutes(
+    let activationStarted = false;
+    try {
+      await storage.read('terraform-direct-activation-source.json');
+      activationStarted = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (!activationStarted)
+      await importAwsTerraformDirectRoutes(
         plan,
         {
           ...discovered.bindings,
@@ -301,12 +309,38 @@ export async function executeAwsCeTerraformApply(
         revalidate,
         process.env,
         signal,
+      );
+    const ownership = (await storage.read('terraform-direct-ownership.json')) as AwsTerraformDirectOwnership;
+    const { binding } = siteBindings(plan)[0];
+    result = {
+      ...result,
+      ...(await activateAwsTerraformDirectRoutes(
+        plan,
+        ownership,
+        session,
+        storage,
+        api,
+        () =>
+          runtime.observeAwsInterfaces(
+            binding,
+            plan.interfaces.map((_i, index) => ({
+              node: `${plan.deploymentName}-1`,
+              role: index === 0 ? ('slo' as const) : ('sli' as const),
+              mac: discovered.bindings[`__ENI_1_${index}_MAC__`],
+            })),
+            signal,
+          ),
+        revalidate,
+        process.env,
+        signal,
       )),
     };
   }
   const routingReady = ['tgw-connect', 'tgw-static'].includes(plan.routing?.profile)
     ? result.status === 'pending-route-and-traffic-acceptance'
-    : result.status === 'registered';
+    : plan.intent.vpc.mode === 'brownfield' && plan.intent.routing.profile === 'direct-eni' && plan.intent.routes.length
+      ? result.status === 'pending-route-and-traffic-acceptance'
+      : result.status === 'registered';
   if (plan.intent.ingress?.mode === 'nlb' && routingReady) {
     const owner = {
       deploymentId: plan.deploymentName,

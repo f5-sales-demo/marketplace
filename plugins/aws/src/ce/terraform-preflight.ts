@@ -6,6 +6,7 @@ import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { captureAwsRevalidationRejection } from './observation-rejection';
 import { scopedAwsApi } from './scoped-exec';
 import { awsTerraformBrownfieldPlacementBaseline } from './terraform-brownfield-binding';
+import { normalizeAwsTerraformDirectPreflight } from './terraform-direct-activation';
 import { ownedRoutingAdditions, routingAttachmentIds } from './terraform-routing-references';
 import type { AwsCeObservation, AwsCePlan } from './types';
 
@@ -87,7 +88,23 @@ export async function revalidateAwsTerraformPlan(
       })),
     );
   try {
-    assertAwsTerraformPreflight(plan, baseline, current);
+    const checked =
+      plan.intent.vpc.mode === 'brownfield' && plan.intent.routing.profile === 'direct-eni' && plan.intent.routes.length
+        ? await normalizeAwsTerraformDirectPreflight(
+            plan,
+            current,
+            await platform.storage({
+              deploymentId: plan.deploymentName,
+              engine: 'terraform',
+              provider: 'aws',
+              account: plan.accountId,
+              region: plan.region,
+            }),
+            rawApi,
+            signal,
+          )
+        : current;
+    assertAwsTerraformPreflight(plan, baseline, checked);
   } catch {
     let storage: Awaited<ReturnType<CePlatformService['storage']>> | undefined;
     try {
