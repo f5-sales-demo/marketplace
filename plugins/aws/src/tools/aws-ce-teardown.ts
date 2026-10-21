@@ -17,6 +17,7 @@ import {
 } from '../ce/terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
 import type { AwsFoundationTeardownPlan } from '../ce/terraform-foundation-teardown';
+import type { AwsPendingTeardownPlan } from '../ce/terraform-pending-teardown';
 import { type AwsTerraformTeardownPlan, runAwsTerraformTeardown } from '../ce/terraform-teardown';
 import { prepareAwsTerraformTeardown } from '../ce/terraform-teardown-plan';
 import { makeExecApi } from './shared';
@@ -161,6 +162,7 @@ export function createAwsCeTeardownTool(
         const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as
           | AwsTerraformTeardownPlan
           | AwsFoundationTeardownPlan
+          | AwsPendingTeardownPlan
           | AwsNativeTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
@@ -202,7 +204,7 @@ export function createAwsCeTeardownTool(
           plan.engine === 'terraform'
             ? await dependencies.run(
                 plan,
-                teardown as AwsTerraformTeardownPlan | AwsFoundationTeardownPlan,
+                teardown as AwsTerraformTeardownPlan | AwsFoundationTeardownPlan | AwsPendingTeardownPlan,
                 params.teardownPlanSha256,
                 runtime,
                 contract,

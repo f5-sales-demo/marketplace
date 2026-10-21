@@ -6,6 +6,7 @@ import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import type { AwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { prepareAwsFoundationTeardown } from './terraform-foundation-teardown';
+import { prepareAwsPendingTeardown } from './terraform-pending-teardown';
 import { compileAwsTerraformTeardown } from './terraform-teardown';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
@@ -289,6 +290,14 @@ export async function prepareAwsTerraformTeardown(
     ['network-pending', 'registration-pending'].includes(String(object(workflow).stage))
   )
     return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
+  if (
+    workflow !== undefined &&
+    admission !== undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object(workflow).stage)) &&
+    Array.isArray(object(admission).admittedSites) &&
+    (object(admission).admittedSites as unknown[]).length === 0
+  )
+    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
   const plan = compileAwsTerraformTeardown(input, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);

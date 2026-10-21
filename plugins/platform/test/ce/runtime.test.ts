@@ -1940,3 +1940,34 @@ test('pending admission runtime validates scope and performs only read-only comp
   expect(receipt.ingressContractFingerprint).toBe(ingress.fingerprint);
   expect(requests).toHaveLength(18);
 });
+
+for (const mode of ['valid', 'foreign-uid', 'absent', 'lost-response'] as const)
+  test(`exact bootstrap revocation ${mode} retains UID and owner checks`, async () => {
+    let present = mode !== 'absent',
+      deletes = 0;
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++;
+        present = false;
+        if (mode === 'lost-response') throw new Error('response lost');
+        return json({});
+      }
+      return present
+        ? json({
+            metadata: {
+              name: 'ce-token',
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-ce-node': binding.nodes[0] },
+            },
+            system_metadata: { uid: mode === 'foreign-uid' ? 'different-token' : 'token-uid' },
+            spec: { site_name: binding.siteName },
+          })
+        : json({}, 404);
+    });
+    if (mode === 'foreign-uid')
+      await expect(
+        runtime.deleteBootstrapTokenExact(binding, binding.nodes[0], 'ce-token', 'token-uid'),
+      ).rejects.toThrow('ownership');
+    else await runtime.deleteBootstrapTokenExact(binding, binding.nodes[0], 'ce-token', 'token-uid');
+    expect(deletes).toBe(['valid', 'lost-response'].includes(mode) ? 1 : 0);
+  });

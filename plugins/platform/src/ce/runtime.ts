@@ -2023,11 +2023,30 @@ export class CeRuntime {
       spec.content,
     );
   }
+  async deleteBootstrapTokenExact(
+    binding: SiteBinding,
+    node: string,
+    tokenName: string,
+    expectedUid: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (typeof expectedUid !== 'string' || !expectedUid.trim()) throw new Error('Exact token UID required');
+    return this.#deleteBootstrapToken(binding, node, tokenName, signal, expectedUid);
+  }
   async deleteBootstrapToken(
     binding: SiteBinding,
     node: string,
     tokenName: string,
     signal?: AbortSignal,
+  ): Promise<void> {
+    return this.#deleteBootstrapToken(binding, node, tokenName, signal);
+  }
+  async #deleteBootstrapToken(
+    binding: SiteBinding,
+    node: string,
+    tokenName: string,
+    signal?: AbortSignal,
+    expectedUid?: string,
   ): Promise<void> {
     this.#binding(binding, true);
     if (!binding.nodes.includes(node) || !safeName.test(tokenName)) throw new Error('Bootstrap identity mismatch');
@@ -2041,6 +2060,7 @@ export class CeRuntime {
     }
     const metadata = object(token.metadata);
     if (
+      (expectedUid !== undefined && object(token.system_metadata).uid !== expectedUid) ||
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
       object(token.spec).site_name !== binding.siteName ||

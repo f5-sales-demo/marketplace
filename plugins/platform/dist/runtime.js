@@ -4006,7 +4006,14 @@ class CeRuntime {
       spec.content,
     );
   }
+  async deleteBootstrapTokenExact(binding, node, tokenName, expectedUid, signal) {
+    if (typeof expectedUid !== 'string' || !expectedUid.trim()) throw new Error('Exact token UID required');
+    return this.#deleteBootstrapToken(binding, node, tokenName, signal, expectedUid);
+  }
   async deleteBootstrapToken(binding, node, tokenName, signal) {
+    return this.#deleteBootstrapToken(binding, node, tokenName, signal);
+  }
+  async #deleteBootstrapToken(binding, node, tokenName, signal, expectedUid) {
     this.#binding(binding, true);
     if (!binding.nodes.includes(node) || !safeName.test(tokenName)) throw new Error('Bootstrap identity mismatch');
     const path = `/api/register/namespaces/system/tokens/${tokenName}`;
@@ -4019,6 +4026,7 @@ class CeRuntime {
     }
     const metadata = object11(token.metadata);
     if (
+      (expectedUid !== undefined && object11(token.system_metadata).uid !== expectedUid) ||
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
       object11(token.spec).site_name !== binding.siteName ||

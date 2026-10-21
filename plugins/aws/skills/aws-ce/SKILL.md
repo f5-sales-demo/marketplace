@@ -72,8 +72,8 @@ contract for their acceptance scope and public-tool integration status.
    destroy plan internally. A Terraform workflow interrupted before admission can prepare a distinct
    foundation teardown only when its original authorization and journal match, and two complete
    platform reads prove sites, registrations, tokens, and owned service resources absent. Apply
-   rechecks absence before and after cloud retirement. Started admission requires registered or
-   partial-registration retirement evidence; it cannot use foundation teardown. Both retain authorization and resume from durable evidence; version
+   rechecks absence before and after cloud retirement. Started admission uses the separate pending-admission contract below when physical
+   registration is absent; registered and partial registration retain their own retirement requirements. Both retain authorization and resume from durable evidence; version
    completion and cloud deletion do not establish routing, traffic, or independent absence.
 6. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
    only the same AWS plan ID/hash; rediscover and replan for source, AMI, quota, agreement, route,
@@ -88,3 +88,22 @@ legacy site type.
 For headless execution use only `XCSH_CE_HEADLESS_MUTATIONS=1` and
 `XCSH_CE_ALLOW_DESTROY=1` for their respective operations. AWS Marketplace initial legal
 acceptance is console-only and always requires rediscovery and replanning.
+
+### Interrupted Terraform admission retirement
+
+`aws_ce_teardown` selects a separate pending-admission contract when the owning
+Terraform workflow is pre-registration and its admission journal has no admitted
+sites. This path is restricted to a single non-HA site. It requires two complete,
+stable reads proving no physical site, registration, routing or ingress resources,
+with exact owned logical-site and deterministic node-bound token identities.
+
+Prepare persists an immutable plan bound to the original authorization, admission
+journal and any site checkpoint. Apply revokes tokens with exact UID checks,
+retires cloud resources through the existing Terraform ownership guard and saved
+destroy plan, then deletes the exact logical UID through Terraform-owned F5 state
+execution. Already-removed planned identities can be resumed. New or substituted
+identities, advanced admission or unavailable evidence block further mutation.
+Only an exact pending F5 delete can be reconciled during resume. A pending F5 create
+or update requires separate interruption reconciliation. Physical or partial
+registration requires its own retirement contract. Source or synthetic receipts do not qualify live interruption/recovery,
+sensitive staging retirement, or full CE acceptance.

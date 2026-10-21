@@ -16157,6 +16157,400 @@ var init_terraform_cloud_teardown = __esm(() => {
   init_terraform_direct_transition();
 });
 
+// plugins/aws/src/ce/terraform-pending-teardown.ts
+import { readdir as readdir2 } from 'node:fs/promises';
+
+async function journal(base, storage, siteFingerprint) {
+  verifyAwsCePlan(base);
+  const selected = siteBindings(base);
+  if (
+    base.engine !== 'terraform' ||
+    base.intent.topology.nodeCount !== 1 ||
+    selected.length !== 1 ||
+    selected[0].binding.nodes.length !== 1 ||
+    base.intent.operation !== 'deploy' ||
+    canonicalSha256(storage.owner) !== canonicalSha256(selected[0].binding.owner)
+  )
+    throw new Error('Pending retirement requires the owning Terraform deployment');
+  await storage.verify();
+  const auth = object22(await storage.read('terraform-authorization.json'));
+  const workflow = object22(await storage.read('terraform-workflow.json'));
+  const admission = object22(await storage.read('terraform-admission.json'));
+  const bootstrap = object22(admission.bootstrapByNode),
+    launched = object22(admission.launchedAtByNode);
+  const indexes = selected.flatMap(({ site }) => site.nodeIndexes.map(String));
+  if (
+    auth.schemaVersion !== 1 ||
+    auth.engine !== 'terraform' ||
+    auth.planSha256 !== base.planSha256 ||
+    auth.mutations !== true ||
+    auth.f5StateOwner !== 'terraform' ||
+    workflow.schemaVersion !== 1 ||
+    workflow.engine !== 'terraform' ||
+    workflow.planSha256 !== base.planSha256 ||
+    !['network-pending', 'registration-pending'].includes(String(workflow.stage)) ||
+    admission.schemaVersion !== 1 ||
+    admission.planSha256 !== base.planSha256 ||
+    !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
+    !Array.isArray(admission.admittedSites) ||
+    admission.admittedSites.length ||
+    Object.entries(bootstrap).some(([node, value]) => !indexes.includes(node) || !uid(value)) ||
+    Object.entries(launched).some(
+      ([node, value]) => !indexes.includes(node) || typeof value !== 'string' || !Number.isFinite(Date.parse(value)),
+    )
+  )
+    throw new Error('Pending retirement admission journal differs or registration has advanced');
+  const files = await readdir2(storage.directory);
+  if (files.some((file) => /^(terraform-(registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file)))
+    throw new Error('Post-admission retirement contract is required');
+  const siteRecords = [];
+  for (const { binding } of selected) {
+    let value;
+    try {
+      value = await storage.read(`terraform-site-${binding.siteName}.json`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (value !== undefined) {
+      const row = object22(value);
+      if (
+        row.siteName !== binding.siteName ||
+        !uid(row.uid) ||
+        row.contractFingerprint !== siteFingerprint ||
+        canonicalSha256(row.owner) !== canonicalSha256(binding.owner)
+      )
+        throw new Error('Pending site checkpoint differs');
+      siteRecords.push(row);
+    }
+  }
+  return canonicalSha256({ auth, workflow, admission, siteRecords });
+}
+async function verifyF5State(base, storage, planned) {
+  let value;
+  try {
+    value = await storage.read('terraform-f5-resources.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (value === undefined) {
+    if (planned.some((site) => site.siteUid !== null))
+      throw new Error('Pending logical site has no owning Terraform state');
+    return;
+  }
+  const book = object22(value),
+    resources = object22(book.resources);
+  if (book.schemaVersion !== 1 || canonicalSha256(book.owner) !== canonicalSha256(storage.owner))
+    throw new Error('Pending F5 Terraform state owner differs');
+  for (const item of Object.values(resources)) {
+    const row = object22(item),
+      site = planned.find((site) => row.path === `/api/config/namespaces/system/securemesh_site_v2s/${site.siteName}`);
+    if (!site || row.type !== 'xcsh_securemesh_site_v2' || !uid(row.uid) || row.uid !== site.siteUid)
+      throw new Error('Pending F5 state resource differs from the selected logical UID');
+  }
+  if (book.pending !== undefined) {
+    const pending = object22(book.pending);
+    if (
+      pending.method !== 'DELETE' ||
+      pending.planSha256 !== base.planSha256 ||
+      !planned.some((site) => pending.path === `/api/config/namespaces/system/securemesh_site_v2s/${site.siteName}`)
+    )
+      throw new Error('Pending F5 creation or update requires separate interruption reconciliation');
+  }
+}
+function fresh(receipt, base, site, ingress) {
+  const at = Date.parse(receipt.observedAt);
+  if (
+    receipt.status !== 'observed' ||
+    canonicalSha256(receipt.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner) ||
+    receipt.siteContractFingerprint !== site ||
+    receipt.ingressContractFingerprint !== ingress ||
+    !Number.isFinite(at) ||
+    at > Date.now() ||
+    Date.now() - at > 60000
+  )
+    throw new Error('Fresh pending admission inventory is unavailable');
+  return receipt;
+}
+function identities(base, receipt) {
+  const selected = siteBindings(base),
+    seen = new Set();
+  if (receipt.sites.length !== selected.length) throw new Error('Pending site inventory is incomplete');
+  const unique = (value) => {
+    if (seen.has(value)) throw new Error('Duplicate pending identity');
+    seen.add(value);
+  };
+  const retirement = selected.map(({ binding, site }) => {
+    const matches = receipt.sites.filter((row) => row.siteName === binding.siteName);
+    if (
+      matches.length !== 1 ||
+      matches[0].physicalSiteUid !== null ||
+      !(matches[0].siteUid === null || uid(matches[0].siteUid))
+    )
+      throw new Error('Pending site identity differs');
+    if (matches[0].siteUid !== null) unique(matches[0].siteUid);
+    const tokens = receipt.resources
+      .filter((row) => row.siteName === binding.siteName)
+      .map((row) => {
+        const nodeIndex = binding.nodes.indexOf(String(row.node));
+        const expected = `${base.deploymentName.slice(0, 40)}-${site.nodeIndexes[nodeIndex]}-${base.planSha256.slice(0, 12)}`;
+        if (
+          row.kind !== 'tokens' ||
+          row.namespace !== 'system' ||
+          nodeIndex < 0 ||
+          row.name !== expected ||
+          !uid(row.uid)
+        )
+          throw new Error('Pending token is outside the original admission plan');
+        unique(row.uid);
+        unique(`token:${row.name}`);
+        return { name: row.name, node: String(row.node), uid: row.uid };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { siteName: binding.siteName, siteUid: matches[0].siteUid, physicalSiteUid: null, tokens };
+  });
+  if (retirement.reduce((n, row) => n + row.tokens.length, 0) !== receipt.resources.length)
+    throw new Error('Unexpected pending resource');
+  return retirement.sort((a, b) => a.siteName.localeCompare(b.siteName));
+}
+function compile(base, journalSha, site, ingress, retirement) {
+  const draft = {
+    schemaVersion: 1,
+    kind: 'aws-ce-terraform-pending-teardown',
+    engine: 'terraform',
+    sourcePlanSha256: base.planSha256,
+    sourceJournalSha256: journalSha,
+    drain: {
+      schemaVersion: 1,
+      owner: siteBindings(base)[0].binding.owner,
+      sourcePlanSha256: base.planSha256,
+      siteContractFingerprint: site,
+      ingressContractFingerprint: ingress,
+      sites: [],
+      listeners: [],
+      origins: [],
+    },
+    retirement,
+  };
+  const planSha256 = canonicalSha256(draft);
+  return { ...draft, planId: `aws-ce-pending-teardown-${planSha256.slice(0, 24)}`, planSha256 };
+}
+function subset(base, planned, receipt, site, ingress) {
+  const actual = identities(base, fresh(receipt, base, site, ingress));
+  for (const row of actual) {
+    const target = planned.find((target) => target.siteName === row.siteName);
+    if (
+      !target ||
+      (row.siteUid !== null && row.siteUid !== target.siteUid) ||
+      row.tokens.some(
+        (token) => !target.tokens.some((expected) => canonicalSha256(token) === canonicalSha256(expected)),
+      )
+    )
+      throw new Error('Pending identity was substituted after preparation');
+  }
+  return actual;
+}
+async function prepareAwsPendingTeardown(base, runtime, contract, storage, signal) {
+  base = structuredClone(base);
+  signal?.throwIfAborted();
+  if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
+  const before = await journal(base, storage, runtime.contract.fingerprint);
+  const receipt = fresh(
+    await runtime.pendingAdmissionInventory(
+      siteBindings(base).map((row) => row.binding),
+      ['default'],
+      contract,
+      signal,
+    ),
+    base,
+    runtime.contract.fingerprint,
+    contract.fingerprint,
+  );
+  const retirement = identities(base, receipt);
+  for (const row of retirement) {
+    let checkpoint;
+    try {
+      checkpoint = await storage.read(`terraform-site-${row.siteName}.json`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (checkpoint !== undefined && row.siteUid !== null && object22(checkpoint).uid !== row.siteUid)
+      throw new Error('Pending live site UID differs from its checkpoint');
+  }
+  await verifyF5State(base, storage, retirement);
+  if (before !== (await journal(base, storage, runtime.contract.fingerprint)))
+    throw new Error('Pending admission journal changed during preparation');
+  const plan = compile(base, before, runtime.contract.fingerprint, contract.fingerprint, retirement);
+  await storage.write(`${plan.planId}.json`, plan);
+  return plan;
+}
+async function coordinateAwsPendingTeardown(base, input, authorized, storage, driver, signal) {
+  base = structuredClone(base);
+  const plan = structuredClone(input);
+  const validate = async () => {
+    signal?.throwIfAborted();
+    if (
+      driver.engine !== 'terraform' ||
+      authorized !== plan.planSha256 ||
+      (await journal(base, storage, driver.siteContractFingerprint)) !== plan.sourceJournalSha256 ||
+      canonicalSha256(plan) !==
+        canonicalSha256(
+          compile(
+            base,
+            plan.sourceJournalSha256,
+            driver.siteContractFingerprint,
+            driver.ingressContractFingerprint,
+            plan.retirement,
+          ),
+        )
+    )
+      throw new Error('Pending teardown authorization, plan or journal differs');
+    await verifyF5State(base, storage, plan.retirement);
+    identities(base, {
+      status: 'observed',
+      owner: plan.drain.owner,
+      siteContractFingerprint: driver.siteContractFingerprint,
+      ingressContractFingerprint: driver.ingressContractFingerprint,
+      startedAt: '',
+      observedAt: '',
+      sources: [],
+      sites: plan.retirement.map(({ siteName, siteUid, physicalSiteUid }) => ({ siteName, siteUid, physicalSiteUid })),
+      resources: plan.retirement.flatMap((site) =>
+        site.tokens.map((token) => ({
+          ...token,
+          kind: 'tokens',
+          namespace: 'system',
+          siteName: site.siteName,
+        })),
+      ),
+    });
+  };
+  const observe = async () => {
+    await validate();
+    return subset(
+      base,
+      plan.retirement,
+      await driver.observe(signal),
+      driver.siteContractFingerprint,
+      driver.ingressContractFingerprint,
+    );
+  };
+  let current = await observe();
+  for (const target of plan.retirement)
+    for (const token of target.tokens) {
+      current = await observe();
+      if (current.some((site) => site.tokens.some((row) => row.name === token.name)))
+        await driver.revokeToken(target, token, signal);
+    }
+  current = await observe();
+  if (current.some((site) => site.tokens.length)) throw new Error('Pending bootstrap revocation is still converging');
+  const cloud = await driver.retireCloud(signal);
+  if (
+    cloud.status !== 'terraform-state-retired' ||
+    cloud.sourcePlanSha256 !== base.planSha256 ||
+    !/^[a-f0-9]{64}$/.test(cloud.finalPlanSha256)
+  )
+    throw new Error('Pending cloud retirement lacks the bound no-change receipt');
+  await observe();
+  await driver.reconcilePlatform(signal);
+  for (const target of plan.retirement) {
+    current = await observe();
+    if (current.some((site) => site.siteName === target.siteName && site.siteUid !== null)) {
+      const result = await driver.deleteSite(target, signal);
+      if (result.status !== 'deleted')
+        return {
+          status: 'pending-platform-retirement',
+          sourcePlanSha256: base.planSha256,
+          planSha256: plan.planSha256,
+          cloudInventory: 'unknown',
+        };
+    }
+  }
+  current = await observe();
+  if (current.some((site) => site.siteUid !== null || site.tokens.length))
+    throw new Error('Pending platform retirement has not converged');
+  let finalBook;
+  try {
+    finalBook = await storage.read('terraform-f5-resources.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (finalBook !== undefined) {
+    const book = object22(finalBook);
+    if (Object.keys(object22(book.resources)).length || book.pending !== undefined)
+      throw new Error('F5 Terraform state retirement remains incomplete');
+  }
+  const receipt = {
+    status: 'resources-retired-awaiting-inventory',
+    owner: storage.owner,
+    sourcePlanSha256: base.planSha256,
+    planSha256: plan.planSha256,
+    finalPlanSha256: cloud.finalPlanSha256,
+    cloudInventory: 'unknown',
+    observedAt: new Date().toISOString(),
+  };
+  await storage.write('aws-terraform-pending-teardown-receipt.json', receipt);
+  return receipt;
+}
+async function runAwsPendingTeardown(base, plan, authorized, runtime, contract, session, storage, api, env, signal) {
+  if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
+  await verifyAwsTeardownCredentials(base, api, signal);
+  const bindings = siteBindings(base),
+    binding = (site) => {
+      const found = bindings.find((row) => row.binding.siteName === site.siteName);
+      if (!found) throw new Error('Pending site is outside deployment');
+      return found.binding;
+    };
+  const retired = await coordinateAwsPendingTeardown(
+    base,
+    plan,
+    authorized,
+    storage,
+    {
+      engine: 'terraform',
+      siteContractFingerprint: runtime.contract.fingerprint,
+      ingressContractFingerprint: contract.fingerprint,
+      observe: (signal) =>
+        runtime.pendingAdmissionInventory(
+          bindings.map((row) => row.binding),
+          ['default'],
+          contract,
+          signal,
+        ),
+      revokeToken: (site, token, signal) =>
+        runtime.deleteBootstrapTokenExact(binding(site), token.node, token.name, token.uid, signal),
+      reconcilePlatform: (signal) => runtime.reconcileTerraformResources(storage.owner, signal),
+      retireCloud: (signal) => runAwsTerraformCloudTeardown(base, session, storage, api, env, signal),
+      deleteSite: (site, signal) => runtime.deleteSiteExact(binding(site), String(site.siteUid), signal),
+    },
+    signal,
+  );
+  if (retired.status !== 'resources-retired-awaiting-inventory') return retired;
+  const inventory = await storage.read('terraform-cloud-teardown-inventory.json');
+  const observation = await collectAwsTerraformAbsence(base, inventory, api, signal);
+  await storage.write('aws-terraform-teardown-cloud-absence.json', observation);
+  return {
+    ...retired,
+    status:
+      observation.status === 'absent-or-retired'
+        ? 'ce-retired-supporting-infrastructure-unverified'
+        : 'pending-cloud-inventory',
+    cloudInventory: observation.status,
+  };
+}
+var object22 = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Malformed pending admission journal');
+    return value;
+  },
+  uid = (value) => typeof value === 'string' && !!value.trim();
+var init_terraform_pending_teardown = __esm(() => {
+  init_artifacts();
+  init_canonical();
+  init_terraform_absence();
+  init_terraform_cloud_teardown();
+  init_terraform_teardown();
+});
+
 // plugins/aws/src/ce/terraform-teardown.ts
 function compileAwsTerraformTeardown(base, drain, retirement) {
   verifyAwsCePlan(base);
@@ -16196,9 +16590,9 @@ function compileAwsTerraformTeardown(base, drain, retirement) {
       target = retired[0];
     if (
       canonicalSha256(planned.binding) !== canonicalSha256(binding) ||
-      !uid(planned.siteUid) ||
+      !uid2(planned.siteUid) ||
       target.siteUid !== planned.siteUid ||
-      !uid(target.physicalSiteUid)
+      !uid2(target.physicalSiteUid)
     )
       throw new Error('Terraform teardown site identity differs');
     unique(`uid:${target.siteUid}`);
@@ -16223,7 +16617,7 @@ function compileAwsTerraformTeardown(base, drain, retirement) {
     )
       throw new Error('Terraform teardown routing inventory is incomplete');
     for (const resource of planned.routing) {
-      if (!uid(resource.uid)) throw new Error('Routing UID missing');
+      if (!uid2(resource.uid)) throw new Error('Routing UID missing');
       unique(`uid:${resource.uid}`);
     }
     if (
@@ -16367,6 +16761,19 @@ async function runAwsTerraformTeardown(
   env,
   signal,
 ) {
+  if (plan.kind === 'aws-ce-terraform-pending-teardown')
+    return runAwsPendingTeardown(
+      base,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+    );
   if (plan.kind === 'aws-ce-terraform-foundation-teardown')
     return runAwsFoundationTeardown(
       base,
@@ -16426,7 +16833,7 @@ async function runAwsTerraformTeardown(
   };
 }
 var name3 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value),
-  uid = (value) => typeof value === 'string' && !!value.trim();
+  uid2 = (value) => typeof value === 'string' && !!value.trim();
 var init_terraform_teardown = __esm(() => {
   init_exec();
   init_artifacts();
@@ -16434,10 +16841,11 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_absence();
   init_terraform_cloud_teardown();
   init_terraform_foundation_teardown();
+  init_terraform_pending_teardown();
 });
 
 // plugins/aws/src/ce/terraform-foundation-teardown.ts
-import { readdir as readdir2 } from 'node:fs/promises';
+import { readdir as readdir3 } from 'node:fs/promises';
 
 async function verifyFoundationJournal(base, storage) {
   verifyAwsCePlan(base);
@@ -16463,7 +16871,7 @@ async function verifyFoundationJournal(base, storage) {
     !['network-pending', 'registration-pending'].includes(String(workflow.stage))
   )
     throw new Error('Foundation teardown requires the exact owning pre-admission journal');
-  const files = await readdir2(storage.directory);
+  const files = await readdir3(storage.directory);
   if (
     files.some((file) =>
       /^(terraform-(admission|site-|registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file),
@@ -16471,7 +16879,7 @@ async function verifyFoundationJournal(base, storage) {
   )
     throw new Error('Admission or routing has started; explicit platform retirement is required');
 }
-function compile(base, site, ingress) {
+function compile2(base, site, ingress) {
   verifyAwsCePlan(base);
   if (base.engine !== 'terraform' || !site || !ingress) throw new Error('Foundation teardown contract differs');
   const draft = {
@@ -16511,7 +16919,7 @@ async function prepareAwsFoundationTeardown(base, runtime, contract, storage, si
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw new Error('Foundation teardown runtime engine differs');
   await verifyFoundationJournal(base, storage);
-  const plan = compile(base, runtime.contract.fingerprint, contract.fingerprint);
+  const plan = compile2(base, runtime.contract.fingerprint, contract.fingerprint);
   requireAbsence(
     await runtime.unregisteredAbsence(
       siteBindings(base).map((row) => row.binding),
@@ -16537,7 +16945,7 @@ async function coordinateAwsFoundationTeardown(base, input, authorized, storage,
       driver.engine !== 'terraform' ||
       authorized !== plan.planSha256 ||
       canonicalSha256(plan) !==
-        canonicalSha256(compile(base, driver.siteContractFingerprint, driver.ingressContractFingerprint))
+        canonicalSha256(compile2(base, driver.siteContractFingerprint, driver.ingressContractFingerprint))
     )
       throw new Error('Foundation teardown authorization or immutable plan differs');
   };
@@ -16609,7 +17017,7 @@ var init_terraform_foundation_teardown = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-teardown-plan.ts
-import { readdir as readdir3 } from 'node:fs/promises';
+import { readdir as readdir4 } from 'node:fs/promises';
 
 async function optional7(storage, name) {
   try {
@@ -16647,7 +17055,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const ingressFile = (file) => /^ingress-plan-[a-f0-9]{24}\.json$/.test(file);
   const files = async () => {
     await storage.verify();
-    const entries = await readdir3(storage.directory, { withFileTypes: true });
+    const entries = await readdir4(storage.directory, { withFileTypes: true });
     return entries
       .filter((entry) => ingressFile(entry.name) || tokenMatches(entry.name).length)
       .map((entry) => {
@@ -16659,11 +17067,11 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const before = await files(),
     namespaces = new Set(['default']);
   for (const file of before.filter(ingressFile)) {
-    const value = object22(await storage.read(file));
-    const namespace = object22(object22(value.request).metadata).namespace;
+    const value = object23(await storage.read(file));
+    const namespace = object23(object23(value.request).metadata).namespace;
     if (!safeName(namespace)) throw new Error('Stored listener namespace is invalid');
     namespaces.add(namespace);
-    const originNamespace = object22(object22(object22(value.material).intent).originPool).namespace;
+    const originNamespace = object23(object23(object23(value.material).intent).originPool).namespace;
     if (!safeName(originNamespace)) throw new Error('Stored origin namespace is invalid');
     namespaces.add(originNamespace);
   }
@@ -16737,7 +17145,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     if (saved === undefined) {
       if (routing.length) throw new Error('Live routing exists without an owning checkpoint');
     } else {
-      const checkpoint = object22(saved);
+      const checkpoint = object23(saved);
       let values;
       if (base.engine === 'terraform') {
         if (
@@ -16747,7 +17155,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
           checkpoint.planSha256 !== base.planSha256
         )
           throw new Error('Routing checkpoint source differs');
-        values = object22(checkpoint.resolvedValues);
+        values = object23(checkpoint.resolvedValues);
       } else {
         const native = checkpoint;
         const version = Number(checkpoint.schemaVersion);
@@ -16785,7 +17193,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     const matches = tokenMatches(file);
     if (!matches.length) continue;
     if (matches.length !== 1) throw new Error('Ambiguous historical enrollment filename');
-    const record = object22(await storage.read(file));
+    const record = object23(await storage.read(file));
     const { tokenName, siteName, node } = record;
     if (
       !safeName(tokenName) ||
@@ -16862,15 +17270,23 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
   if (
     workflow !== undefined &&
     admission === undefined &&
-    ['network-pending', 'registration-pending'].includes(String(object22(workflow).stage))
+    ['network-pending', 'registration-pending'].includes(String(object23(workflow).stage))
   )
     return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
+  if (
+    workflow !== undefined &&
+    admission !== undefined &&
+    ['network-pending', 'registration-pending'].includes(String(object23(workflow).stage)) &&
+    Array.isArray(object23(admission).admittedSites) &&
+    object23(admission).admittedSites.length === 0
+  )
+    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
   const plan = compileAwsTerraformTeardown(input, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-var object22 = (value) => {
+var object23 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed teardown source record');
     return value;
@@ -16880,6 +17296,7 @@ var init_terraform_teardown_plan = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_foundation_teardown();
+  init_terraform_pending_teardown();
   init_terraform_teardown();
 });
 
@@ -18598,17 +19015,17 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
     sha256Hex(configuration) !== expectedConfigurationSha256
   )
     throw new Error('Terraform failover engine, instance or configuration binding differs');
-  const original = object23(JSON.parse(configuration));
-  const provider = object23(object23(original.provider).aws);
+  const original = object24(JSON.parse(configuration));
+  const provider = object24(object24(original.provider).aws);
   if (
     provider.region !== base.region ||
     canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId])
   )
     throw new Error('Terraform failover provider scope differs');
-  const resources = object23(original.resource);
+  const resources = object24(original.resource);
   if (resources.aws_ec2_instance_state !== undefined) throw new Error('An instance power control is already present');
-  const instance = object23(object23(resources.aws_instance)[`node_${nodeIndex}`]);
-  const tags = object23(instance.tags);
+  const instance = object24(object24(resources.aws_instance)[`node_${nodeIndex}`]);
+  const tags = object24(instance.tags);
   if (
     tags['xcsh-execution-engine'] !== 'terraform' ||
     tags['xcsh-managed-by'] !== 'aws-ce' ||
@@ -18624,12 +19041,12 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
   )
     throw new Error('Terraform failover instance ownership or identity differs');
   const retainedAddresses = Object.entries(resources).flatMap(([type, values]) =>
-    Object.keys(object23(values)).map((name) => ({ address: `${type}.${name}`, type })),
+    Object.keys(object24(values)).map((name) => ({ address: `${type}.${name}`, type })),
   );
   const controlAddress = 'aws_ec2_instance_state.ce_failover';
   const power = (state) => {
     const result = structuredClone(original);
-    object23(result.resource).aws_ec2_instance_state = {
+    object24(result.resource).aws_ec2_instance_state = {
       ce_failover: { instance_id: instanceId, state, force: false },
     };
     return JSON.stringify(result);
@@ -18946,7 +19363,7 @@ async function runAwsTerraformFailover(
     await release();
   }
 }
-var object23 = (value) => {
+var object24 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover configuration');
   return value;
 };
@@ -19005,7 +19422,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
           if (plan.engine === 'terraform') {
             const terraform = await dependencies.terraform(pi, signal);
             const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
-            const marker = object24(await storage.read('terraform-connect-stage.json'));
+            const marker = object25(await storage.read('terraform-connect-stage.json'));
             if (
               marker.schemaVersion !== 1 ||
               marker.engine !== 'terraform' ||
@@ -19016,8 +19433,8 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               throw new Error('Terraform Connect deployment has not completed');
             const configuration = await session.readConfiguration(marker.configurationSha256);
             const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
-            const instances = object24(outputs.ce_instances);
-            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object24(value) }));
+            const instances = object25(outputs.ce_instances);
+            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object25(value) }));
             if (
               identities.length !== plan.intent.topology.nodeCount ||
               new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
@@ -19029,7 +19446,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               )
             )
               throw new Error('Terraform instance output is incomplete');
-            const selected = object24(instances[String(params.nodeIndex)]);
+            const selected = object25(instances[String(params.nodeIndex)]);
             if (typeof selected.id !== 'string') throw new Error('Selected Terraform instance identity is unavailable');
             failover = buildAwsTerraformFailover(
               plan,
@@ -19051,9 +19468,9 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               : undefined;
             let instancePlanSha256 = plan.planSha256;
             if (replacement !== undefined) {
-              const envelope = object24(replacement);
-              const child = object24(envelope.plan);
-              const binding = object24(child.binding);
+              const envelope = object25(replacement);
+              const child = object25(envelope.plan);
+              const binding = object25(child.binding);
               const { planId, planSha256, ...draft } = child;
               const expectedSite = siteForNode(plan.intent, params.nodeIndex);
               if (
@@ -19223,7 +19640,7 @@ Node ${failover.nodeIndex}`,
   };
 }
 var defaults3,
-  object24 = (value) => {
+  object25 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover identity');
     return value;
   };
@@ -19788,7 +20205,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode !== 0) throw new Error('Power identity observation unavailable');
-    const value = object25(JSON.parse(result.stdout));
+    const value = object26(JSON.parse(result.stdout));
     if (['NextToken', 'NextMarker', 'nextToken'].some((key) => value[key] !== undefined))
       throw new Error('Partial power identity response');
     return value;
@@ -19821,7 +20238,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
       'ves-io-site-name': node.siteName,
     };
     tags3(instance.Tags, ownerTags);
-    const state = object25(instance.State).Name;
+    const state = object26(instance.State).Name;
     if (!['running', 'stopped', 'pending', 'stopping'].includes(String(state)))
       throw new Error('Power instance lifecycle state is unavailable');
     states.push(String(state));
@@ -19834,7 +20251,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
       const attachments = attached.filter((row) => row.NetworkInterfaceId === id);
       if (rows.length !== 1 || attachments.length !== 1) throw new Error('Power ENI identity is duplicated or missing');
       const eni = rows[0],
-        attachment = object25(eni.Attachment),
+        attachment = object26(eni.Attachment),
         embedded = attachments[0];
       tags3(eni.TagSet, { ...ownerTags, 'xcsh-interface-index': String(item.index) });
       if (
@@ -19842,7 +20259,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
         eni.Status !== 'in-use' ||
         attachment.InstanceId !== instanceId ||
         attachment.DeviceIndex !== item.index ||
-        object25(embedded.Attachment).DeviceIndex !== item.index ||
+        object26(embedded.Attachment).DeviceIndex !== item.index ||
         String(eni.MacAddress).toLowerCase() !== mac ||
         String(embedded.MacAddress).toLowerCase() !== mac
       )
@@ -19911,14 +20328,14 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
     canSatisfyInterfaceMutationGate: false,
   };
 }
-var object25 = (value) => {
+var object26 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed power identity evidence');
     return value;
   },
   array = (value) => {
     if (!Array.isArray(value)) throw new Error('Missing power identity collection');
-    return value.map(object25);
+    return value.map(object26);
   };
 var init_whole_site_power_identities = __esm(() => {
   init_artifacts();
@@ -19928,7 +20345,7 @@ var init_whole_site_power_identities = __esm(() => {
 import { createHash as createHash17 } from 'node:crypto';
 import { isIP as isIP12 } from 'node:net';
 
-function object26(value) {
+function object27(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed BGP maintenance policy');
   return value;
 }
@@ -19979,7 +20396,7 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
   };
   validate('bgp_routing_policy', policy.spec);
   const original =
-    effect === 'withdraw' ? structuredClone(object26(snapshot)) : structuredClone(object26(retained?.originalBgpSpec));
+    effect === 'withdraw' ? structuredClone(object27(snapshot)) : structuredClone(object27(retained?.originalBgpSpec));
   if (
     effect === 'restore' &&
     (retained?.schemaVersion !== 1 ||
@@ -19993,14 +20410,14 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
   )
     throw Error('BGP restoration requires exact retained withdrawal');
   if (!['withdraw', 'restore'].includes(effect)) throw Error('BGP maintenance effect differs');
-  const where = object26(object26(original.where).site);
+  const where = object27(object27(original.where).site);
   const refs = where.ref;
   if (
     where.network_type !== 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' ||
     !Array.isArray(refs) ||
     refs.length !== 1 ||
-    object26(refs[0]).name !== siteName ||
-    object26(refs[0]).namespace !== 'system' ||
+    object27(refs[0]).name !== siteName ||
+    object27(refs[0]).namespace !== 'system' ||
     !Array.isArray(original.peers) ||
     !original.peers.length
   )
@@ -20008,9 +20425,9 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
   const peerNames = new Set(),
     addresses = new Set();
   for (const peerValue of original.peers) {
-    const peer = object26(peerValue),
-      external = object26(peer.external),
-      metadata = object26(peer.metadata);
+    const peer = object27(peerValue),
+      external = object27(peer.external),
+      metadata = object27(peer.metadata);
     if (
       Object.hasOwn(peer, 'routing_policies') ||
       Object.hasOwn(peer, 'disable') ||
@@ -20053,13 +20470,13 @@ var init_bgp_power_policy = () => {};
 // plugins/aws/src/ce/whole-site-power-connect.ts
 import { isIP as isIP13 } from 'node:net';
 
-function object27(v) {
+function object28(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');
   return v;
 }
 function rows8(v) {
   if (!Array.isArray(v)) throw Error('Incomplete Connect service evidence');
-  return v.map(object27);
+  return v.map(object28);
 }
 function exactly(v) {
   const all = rows8(v);
@@ -20188,7 +20605,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
     signal?.throwIfAborted();
     const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (r.exitCode) throw Error('Connect service observation unavailable');
-    const result = object27(JSON.parse(r.stdout));
+    const result = object28(JSON.parse(r.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(result, k)))
       throw Error('Partial Connect service evidence');
     return result;
@@ -20231,7 +20648,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
     !transportSubnets.length ||
     new Set(transportSubnets).size !== transportSubnets.length ||
     transportSubnets.some((s) => typeof s !== 'string' || !/^subnet-[a-f0-9]{8,17}$/.test(s)) ||
-    !['enable', 'disable'].includes(String(object27(transportObject.Options).ApplianceModeSupport))
+    !['enable', 'disable'].includes(String(object28(transportObject.Options).ApplianceModeSupport))
   )
     throw Error('Connect retained transport differs');
   const attachmentBindings = [];
@@ -20251,7 +20668,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
       connect.TransitGatewayId !== gateway ||
       connect.TransportTransitGatewayAttachmentId !== transport ||
       connect.State !== 'available' ||
-      object27(connect.Options).Protocol !== 'gre' ||
+      object28(connect.Options).Protocol !== 'gre' ||
       generic.TransitGatewayAttachmentId !== id ||
       generic.TransitGatewayId !== gateway ||
       generic.ResourceOwnerId !== base.accountId ||
@@ -20294,12 +20711,12 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
       nic.PrivateIpAddress !== selected.peerAddress ||
       nic.MacAddress !== selected.mac ||
       nic.Status !== 'in-use' ||
-      object27(nic.Attachment).InstanceId !== selected.instance ||
-      object27(nic.Attachment).DeviceIndex !== selected.interfaceIndex ||
+      object28(nic.Attachment).InstanceId !== selected.instance ||
+      object28(nic.Attachment).DeviceIndex !== selected.interfaceIndex ||
       !/^subnet-[a-f0-9]{8,17}$/.test(String(nic.SubnetId))
     )
       throw Error('Connect peer and physical interface binding differs');
-    const config = object27(peer.ConnectPeerConfiguration),
+    const config = object28(peer.ConnectPeerConfiguration),
       cidrs = config.InsideCidrBlocks;
     if (
       config.Protocol !== 'gre' ||
@@ -20455,7 +20872,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
     vpcId: vpc,
     transportAttachmentId: transport,
     transportSubnets: [...transportSubnets].sort(),
-    applianceMode: object27(transportObject.Options).ApplianceModeSupport,
+    applianceMode: object28(transportObject.Options).ApplianceModeSupport,
     attachments: attachmentBindings,
     peers: peerBindings,
     tables,
@@ -20486,13 +20903,13 @@ var init_whole_site_power_connect = __esm(() => {
 });
 
 // plugins/aws/src/ce/whole-site-power-bgp-services.ts
-function object28(v) {
+function object29(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed BGP service binding');
   return v;
 }
 function rows9(v) {
   if (!Array.isArray(v)) throw Error('Incomplete BGP service binding');
-  return v.map(object28);
+  return v.map(object29);
 }
 async function collectAwsPowerBgpServices(base, values, api, runtime, signal, retained) {
   const cloud = await collectAwsPowerConnectRoutes(base, values, api, signal);
@@ -20527,7 +20944,7 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
     )
       throw Error('Retained BGP object or site identity differs');
     const original = prior?.originalSpec ?? snapshot.spec;
-    if (object28(original.bgp_parameters).asn !== base.intent.routing.customerAsn)
+    if (object29(original.bgp_parameters).asn !== base.intent.routing.customerAsn)
       throw Error('BGP local ASN differs from owning plan');
     const revision = buildAwsBgpPowerPolicyRevision(
       original,
@@ -20571,8 +20988,8 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
         connector.contractFingerprint !== snapshot.contractFingerprint
       )
         throw Error('BGP connector generated identity differs');
-      const ref = object28(connector.spec.ce_site_reference),
-        gre = object28(object28(connector.spec.gre).gre_parameters),
+      const ref = object29(connector.spec.ce_site_reference),
+        gre = object29(object29(connector.spec.gre).gre_parameters),
         endpoints = rows9(gre.tunnel_eps);
       const node = `${base.deploymentName}-${peer.node}`,
         devices = hardware.interfaces.filter(
@@ -20588,7 +21005,7 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
         endpoints[0].interface !== devices[0].device ||
         endpoints[0].local_tunnel_ip !== `${peer.ceEndpoint}/29` ||
         !peer.awsEndpoints.some((ip) => endpoints[0].remote_tunnel_ip === `${ip}/29`) ||
-        object28(gre.peer_ip_address).addr !== peer.awsGreAddress ||
+        object29(gre.peer_ip_address).addr !== peer.awsGreAddress ||
         !Object.hasOwn(gre, 'site_local_inside_network')
       )
         throw Error('BGP connector physical node/device/MAC/tunnel join differs');
@@ -20602,8 +21019,8 @@ async function collectAwsPowerBgpServices(base, values, api, runtime, signal, re
       sessions.some(
         (s) =>
           peers.filter((p) => {
-            const e = object28(p.external),
-              ref = object28(e.interface);
+            const e = object29(p.external),
+              ref = object29(e.interface);
             return (
               e.address === s.peerAddress &&
               e.asn === base.intent.routing.transitGatewayAsn &&
@@ -20708,13 +21125,13 @@ var init_whole_site_power_bgp_services = __esm(() => {
 // plugins/aws/src/ce/whole-site-power-routes.ts
 import { isIP as isIP14 } from 'node:net';
 
-function object29(value) {
+function object30(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed direct route evidence');
   return value;
 }
 function rows10(value) {
   if (!Array.isArray(value)) throw Error('Incomplete direct route evidence');
-  return value.map(object29);
+  return value.map(object30);
 }
 function network4(cidr) {
   const parts = cidr.split('/'),
@@ -20774,7 +21191,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode) throw Error('Direct route service unavailable');
-    const data = object29(JSON.parse(result.stdout));
+    const data = object30(JSON.parse(result.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(data, k)))
       throw Error('Partial direct route evidence');
     return data;
@@ -20789,8 +21206,8 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
     enis[0].NetworkInterfaceId !== slo ||
     enis[0].OwnerId !== base.accountId ||
     !/^subnet-[a-f0-9]{8,17}$/.test(String(enis[0].SubnetId)) ||
-    object29(enis[0].Attachment).InstanceId !== instance ||
-    object29(enis[0].Attachment).DeviceIndex !== 0
+    object30(enis[0].Attachment).InstanceId !== instance ||
+    object30(enis[0].Attachment).DeviceIndex !== 0
   )
     throw Error('Direct route SLO identity differs');
   const ids = [...new Set(routes.map((r) => r.routeTableId))];
@@ -20815,7 +21232,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
           a.Main === true ||
           a.SubnetId === enis[0].SubnetId ||
           !/^subnet-[a-f0-9]{8,17}$/.test(String(a.SubnetId)) ||
-          object29(a.AssociationState).State !== 'associated',
+          object30(a.AssociationState).State !== 'associated',
       ) ||
       new Set(associations.map((a) => a.SubnetId)).size !== associations.length
     )
@@ -20908,13 +21325,13 @@ var init_whole_site_power_routes = __esm(() => {
 import { createHash as createHash18 } from 'node:crypto';
 import { isIP as isIP15 } from 'node:net';
 
-function object30(v) {
+function object31(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed NLB service evidence');
   return v;
 }
 function list3(v) {
   if (!Array.isArray(v)) throw Error('Incomplete NLB service evidence');
-  return v.map(object30);
+  return v.map(object31);
 }
 function exactly2(v) {
   const rows = list3(v);
@@ -20944,7 +21361,7 @@ async function collectAwsPowerNlbServices(base, values, raw, signal) {
   const read = async (args) => {
     const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (r.exitCode) throw Error('NLB service unavailable');
-    const v = object30(JSON.parse(r.stdout));
+    const v = object31(JSON.parse(r.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(v, k)))
       throw Error('Partial NLB service evidence');
     return v;
@@ -20978,7 +21395,7 @@ async function collectAwsPowerNlbServices(base, values, raw, signal) {
     loadBalancer.Type !== 'network' ||
     loadBalancer.Scheme !== 'internal' ||
     loadBalancer.VpcId !== ingress.loadBalancer.vpcId ||
-    object30(loadBalancer.State).Code !== 'active'
+    object31(loadBalancer.State).Code !== 'active'
   )
     throw Error('NLB retained load balancer differs');
   const zones = list3(loadBalancer.AvailabilityZones);
@@ -21024,8 +21441,8 @@ async function collectAwsPowerNlbServices(base, values, raw, signal) {
   let status = 'withdrawn';
   if (membership.length) {
     const row = membership[0];
-    if (canonicalSha256(object30(row.Target)) !== canonicalSha256(target)) throw Error('Foreign NLB target membership');
-    const health = object30(row.TargetHealth);
+    if (canonicalSha256(object31(row.Target)) !== canonicalSha256(target)) throw Error('Foreign NLB target membership');
+    const health = object31(row.TargetHealth);
     if (
       !['healthy', 'initial', 'unhealthy', 'unused', 'draining', 'unavailable', 'unhealthy.draining'].includes(
         String(health.State),
@@ -21068,11 +21485,11 @@ function reviseAwsTerraformNlbMembership(base, services, configuration, effect, 
     !['withdraw', 'restore'].includes(effect)
   )
     throw Error('Terraform NLB membership ownership differs');
-  const before = object30(JSON.parse(configuration));
+  const before = object31(JSON.parse(configuration));
   const after = structuredClone(before);
-  const terraform = object30(after.terraform);
-  const aws = object30(object30(terraform.required_providers).aws);
-  const provider = object30(object30(after.provider).aws);
+  const terraform = object31(after.terraform);
+  const aws = object31(object31(terraform.required_providers).aws);
+  const provider = object31(object31(after.provider).aws);
   if (
     terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
     aws.source !== 'hashicorp/aws' ||
@@ -21083,12 +21500,12 @@ function reviseAwsTerraformNlbMembership(base, services, configuration, effect, 
     terraform.cloud
   )
     throw Error('Terraform NLB provider scope differs');
-  const resources = object30(after.resource);
+  const resources = object31(after.resource);
   let attachment;
   if (effect === 'withdraw') {
-    const attachments = object30(resources.aws_lb_target_group_attachment);
+    const attachments = object31(resources.aws_lb_target_group_attachment);
     if (Object.keys(attachments).join(',') !== 'node_1') throw Error('Terraform NLB attachment cardinality differs');
-    attachment = object30(attachments.node_1);
+    attachment = object31(attachments.node_1);
     if (
       attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
       attachment.target_id !== services.target.Id ||
@@ -21108,7 +21525,7 @@ function reviseAwsTerraformNlbMembership(base, services, configuration, effect, 
       resources.aws_lb_target_group_attachment !== undefined
     )
       throw Error('Terraform NLB restoration requires exact retained withdrawal');
-    attachment = object30(retained.attachment);
+    attachment = object31(retained.attachment);
     if (
       attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
       attachment.target_id !== services.target.Id ||
@@ -21192,13 +21609,13 @@ var init_whole_site_power_services = __esm(() => {
 // plugins/aws/src/ce/whole-site-power-tgw.ts
 import { isIP as isIP16 } from 'node:net';
 
-function object31(value) {
+function object32(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed static TGW evidence');
   return value;
 }
 function rows11(value) {
   if (!Array.isArray(value)) throw Error('Incomplete static TGW evidence');
-  return value.map(object31);
+  return value.map(object32);
 }
 function exactly3(value) {
   const items = rows11(value);
@@ -21245,7 +21662,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode) throw Error('Static TGW service unavailable');
-    const data = object31(JSON.parse(result.stdout));
+    const data = object32(JSON.parse(result.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(data, k)))
       throw Error('Partial static TGW evidence');
     return data;
@@ -21279,7 +21696,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
     transport.VpcId !== vpc ||
     transport.VpcOwnerId !== base.accountId ||
     transport.State !== 'available' ||
-    object31(transport.Options).ApplianceModeSupport !== 'enable'
+    object32(transport.Options).ApplianceModeSupport !== 'enable'
   )
     throw Error('Static TGW retained transport differs');
   const transportSubnets = transport.SubnetIds;
@@ -21329,8 +21746,8 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       nic.OwnerId !== base.accountId ||
       nic.VpcId !== vpc ||
       !transportSubnets.includes(nic.SubnetId) ||
-      object31(nic.Attachment).InstanceId !== instance ||
-      object31(nic.Attachment).DeviceIndex !== 1
+      object32(nic.Attachment).InstanceId !== instance ||
+      object32(nic.Attachment).DeviceIndex !== 1
     )
       throw Error('Static TGW SLI transport identity differs');
     const local = exactly3((await read(['ec2', 'describe-route-tables', '--route-table-ids', rt])).RouteTables);
@@ -21343,7 +21760,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       localAssociations.length !== 1 ||
       localAssociations[0].SubnetId !== nic.SubnetId ||
       localAssociations[0].Main === true ||
-      object31(localAssociations[0].AssociationState).State !== 'associated'
+      object32(localAssociations[0].AssociationState).State !== 'associated'
     )
       throw Error('Static TGW appliance table association differs');
     const localRoutes = rows11(local.Routes);
@@ -22106,7 +22523,7 @@ async function context2(base, plan, effect, storage) {
   };
   return { marker, name: `${plan.planId}-${effect}-native-dispatch.json` };
 }
-async function identities(base, plan, api, runtime, signal) {
+async function identities2(base, plan, api, runtime, signal) {
   const resolved = {};
   for (const node of plan.bindings.nodes) {
     resolved[`__INSTANCE_${node.nodeIndex}__`] = node.instanceId;
@@ -22130,7 +22547,7 @@ async function dispatchAwsNativePowerState(base, plan, authorizedPlanSha256, eff
     const { marker, name } = await context2(base, plan, effect, storage);
     if ((await optional18(storage, name)) !== undefined)
       throw new Error('Native power already submitted; reconcile original attempt');
-    const current = await identities(base, plan, api, runtime, signal);
+    const current = await identities2(base, plan, api, runtime, signal);
     if (current.cloud !== (effect === 'stop' ? 'running' : 'stopped'))
       throw new Error('Native power prerequisite cloud state is unavailable');
     signal?.throwIfAborted();
@@ -22174,7 +22591,7 @@ async function reconcileAwsNativePowerState(base, plan, effect, originalAttemptA
     const saved = await optional18(storage, name);
     if (saved === undefined) return 'not-submitted';
     if (canonicalSha256(saved) !== canonicalSha256(marker)) throw new Error('Native power dispatch marker differs');
-    const current = await identities(base, plan, api, runtime, signal);
+    const current = await identities2(base, plan, api, runtime, signal);
     if (current.cloud === (effect === 'stop' ? 'stopped' : 'running')) return 'completed';
     return 'pending';
   } finally {
@@ -22204,12 +22621,12 @@ function scope2(base, plan, effect) {
 }
 function reviseAwsTerraformPowerConfiguration(base, plan, configuration, effect) {
   scope2(base, plan, effect);
-  const before = object32(JSON.parse(configuration));
+  const before = object33(JSON.parse(configuration));
   const after = structuredClone(before);
-  const terraform = object32(after.terraform);
-  const providers = object32(terraform.required_providers);
-  const awsRequired = object32(providers.aws);
-  const provider = object32(object32(after.provider).aws);
+  const terraform = object33(after.terraform);
+  const providers = object33(terraform.required_providers);
+  const awsRequired = object33(providers.aws);
+  const provider = object33(object33(after.provider).aws);
   if (
     terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
     awsRequired.source !== 'hashicorp/aws' ||
@@ -22220,13 +22637,13 @@ function reviseAwsTerraformPowerConfiguration(base, plan, configuration, effect)
     terraform.cloud
   )
     throw Error('Terraform power provider, account, region or backend differs');
-  const resources = object32(after.resource);
+  const resources = object33(after.resource);
   const node = plan.bindings.nodes[0];
-  const vms = object32(resources.aws_instance);
+  const vms = object33(resources.aws_instance);
   if (Object.keys(vms).length !== 1 || !vms[`node_${node.nodeIndex}`])
     throw Error('Terraform power selected VM cardinality differs');
-  const vm = object32(vms[`node_${node.nodeIndex}`]);
-  const tags = object32(vm.tags);
+  const vm = object33(vms[`node_${node.nodeIndex}`]);
+  const tags = object33(vm.tags);
   const expected = {
     'xcsh-deployment-id': base.deploymentName,
     'xcsh-execution-engine': 'terraform',
@@ -22238,11 +22655,11 @@ function reviseAwsTerraformPowerConfiguration(base, plan, configuration, effect)
   const key = `ce_power_${node.nodeIndex}`;
   const address = `aws_ec2_instance_state.${key}`;
   const controls =
-    resources.aws_ec2_instance_state === undefined ? undefined : object32(resources.aws_ec2_instance_state);
+    resources.aws_ec2_instance_state === undefined ? undefined : object33(resources.aws_ec2_instance_state);
   let prior;
   if (controls) {
     if (Object.keys(controls).length !== 1 || !controls[key]) throw Error('Foreign Terraform power control');
-    prior = object32(controls[key]);
+    prior = object33(controls[key]);
     if (
       prior.instance_id !== node.instanceId ||
       prior.force !== false ||
@@ -22303,7 +22720,7 @@ function validateAwsTerraformPowerReceipt(base, plan, effect, revision, receipt,
     if (Object.keys(fields).length !== 1 || fields[revision.address] !== null)
       throw Error('Terraform power removal projection differs');
   } else {
-    const value = object32(fields[revision.address]);
+    const value = object33(fields[revision.address]);
     if (
       Object.keys(fields).length !== 1 ||
       value.instance_id !== revision.instanceId ||
@@ -22313,7 +22730,7 @@ function validateAwsTerraformPowerReceipt(base, plan, effect, revision, receipt,
       throw Error('Terraform power planned identity/state unresolved or differs');
   }
 }
-var object32 = (v) => {
+var object33 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Terraform power configuration');
     return v;
   },
@@ -22398,7 +22815,7 @@ async function context3(base, plan, effect, storage, requireFresh = false) {
   };
   return { marker, name: `${plan.planId}-${effect}-terraform-dispatch.json` };
 }
-async function identities2(base, plan, api, runtime, signal) {
+async function identities3(base, plan, api, runtime, signal) {
   const resolved = {};
   for (const node of plan.bindings.nodes) {
     resolved[`__INSTANCE_${node.nodeIndex}__`] = node.instanceId;
@@ -22480,7 +22897,7 @@ async function dispatchAwsTerraformPowerState(
       throw Error('Terraform power retained source or revision differs');
     if (prep.receipt && (await session.readPlanApplicationState(prep.receipt)) !== 'planned')
       throw Error('Terraform power already submitted; reconcile original attempt');
-    const current = await identities2(base, plan, api, runtime, signal);
+    const current = await identities3(base, plan, api, runtime, signal);
     if (current.cloud !== (effect === 'start' ? 'stopped' : 'running'))
       throw Error('Terraform power prerequisite cloud state unavailable');
     if (!session.readConfigurationSha256) throw Error('Terraform current configuration reader required');
@@ -22609,7 +23026,7 @@ async function reconcileAwsTerraformPowerState(
       prep.receipt,
       await projection(session, prep.receipt, prep.revision.address, signal),
     );
-    const current = await identities2(base, plan, api, runtime, signal);
+    const current = await identities3(base, plan, api, runtime, signal);
     const node = plan.bindings.nodes[0];
     const selections = {
       [prep.revision.address]: ['id', 'instance_id', 'state', 'force'],
@@ -22665,7 +23082,7 @@ function verifyAppliedIdentities(plan, address, fields, removal) {
     throw Error('Terraform applied power identity differs');
 }
 async function finishRelease(base, plan, marker, prep, storage, session, api, runtime, signal) {
-  const current = await identities2(base, plan, api, runtime, signal);
+  const current = await identities3(base, plan, api, runtime, signal);
   if (current.cloud !== 'running') return 'pending';
   const preparingName = `${plan.planId}-release-terraform-final-preparing.json`;
   const preparing = await optional19(storage, preparingName);
@@ -23614,7 +24031,7 @@ var init_static_tgw_power_controller = __esm(() => {
 // plugins/aws/src/ce/terraform-static-power.ts
 import { createHash as createHash20 } from 'node:crypto';
 
-function object33(value) {
+function object34(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error('Malformed Terraform static service configuration');
   return value;
@@ -23639,7 +24056,7 @@ function expectedRoutes(base, services, routes) {
   if (Object.keys(routes).length !== base.intent.routing.destinationCidrs.length)
     throw Error('Terraform static service route cardinality differs');
   for (const [index, destination] of base.intent.routing.destinationCidrs.entries()) {
-    const route = object33(routes[`static_${index}`]);
+    const route = object34(routes[`static_${index}`]);
     if (
       canonicalSha256(route) !==
       canonicalSha256({
@@ -23653,10 +24070,10 @@ function expectedRoutes(base, services, routes) {
 }
 function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, effect, retained) {
   scope3(base, services);
-  const after = object33(JSON.parse(configuration));
-  const terraform = object33(after.terraform),
-    aws = object33(object33(terraform.required_providers).aws),
-    provider = object33(object33(after.provider).aws);
+  const after = object34(JSON.parse(configuration));
+  const terraform = object34(after.terraform),
+    aws = object34(object34(terraform.required_providers).aws),
+    provider = object34(object34(after.provider).aws);
   if (
     terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
     aws.source !== 'hashicorp/aws' ||
@@ -23667,10 +24084,10 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
     terraform.cloud
   )
     throw Error('Terraform static service provider differs');
-  const resources = object33(after.resource);
+  const resources = object34(after.resource);
   let routes;
   if (effect === 'withdraw') {
-    routes = object33(resources.aws_ec2_transit_gateway_route);
+    routes = object34(resources.aws_ec2_transit_gateway_route);
     expectedRoutes(base, services, routes);
     delete resources.aws_ec2_transit_gateway_route;
   } else if (effect === 'restore') {
@@ -23681,7 +24098,7 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
       resources.aws_ec2_transit_gateway_route !== undefined
     )
       throw Error('Terraform static restoration requires retained withdrawal');
-    routes = object33(retained.routes);
+    routes = object34(retained.routes);
     expectedRoutes(base, services, routes);
     resources.aws_ec2_transit_gateway_route = structuredClone(routes);
   } else throw Error('Terraform static service effect differs');
@@ -24920,14 +25337,14 @@ async function verifyDiagnosticManagedNode(api, instanceId, region) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('SSM managed-node prerequisites are unavailable');
-  const response = object34(JSON.parse(result.stdout));
+  const response = object35(JSON.parse(result.stdout));
   if (
     Object.hasOwn(response, 'NextToken') ||
     !Array.isArray(response.InstanceInformationList) ||
     response.InstanceInformationList.length !== 1
   )
     throw new Error('SSM managed-node observation is incomplete');
-  const node = object34(response.InstanceInformationList[0]);
+  const node = object35(response.InstanceInformationList[0]);
   const pingTime =
     typeof node.LastPingDateTime === 'number'
       ? node.LastPingDateTime * 1000
@@ -24958,15 +25375,15 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('Diagnostic instance ownership is unavailable');
-  const data = object34(JSON.parse(result.stdout));
+  const data = object35(JSON.parse(result.stdout));
   if (data.NextToken || !Array.isArray(data.Reservations) || data.Reservations.length !== 1)
     throw new Error('Diagnostic instance response is incomplete');
-  const reservation = object34(data.Reservations[0]);
+  const reservation = object35(data.Reservations[0]);
   const instances = reservation.Instances;
   if (reservation.OwnerId !== plan.accountId || !Array.isArray(instances) || instances.length !== 1)
     throw new Error('Diagnostic instance account is unverified');
-  const instance = object34(instances[0]);
-  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object34) : [];
+  const instance = object35(instances[0]);
+  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object35) : [];
   const expected = {
     'xcsh-managed-by': 'aws-ce',
     'xcsh-deployment-id': plan.deploymentName,
@@ -24975,7 +25392,7 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
   };
   if (
     instance.InstanceId !== instanceId ||
-    object34(instance.State).Name !== 'running' ||
+    object35(instance.State).Name !== 'running' ||
     Object.entries(expected).some(
       ([key, value]) =>
         tags.filter((tag) => tag.Key === key).length !== 1 || tags.find((tag) => tag.Key === key)?.Value !== value,
@@ -25015,7 +25432,7 @@ async function observeDiagnosticInvocation(
     } else {
       let invocation;
       try {
-        invocation = object34(JSON.parse(result.stdout));
+        invocation = object35(JSON.parse(result.stdout));
       } catch {
         return { ...base, status: 'unknown', reason: 'invocation-response-malformed' };
       }
@@ -25041,7 +25458,7 @@ async function observeDiagnosticInvocation(
   }
   return { ...base, status: 'unknown', reason: 'invocation-not-converged' };
 }
-var object34 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var object35 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_diagnostic_invocation = () => {};
 
 // plugins/aws/src/ce/flow-log-evidence.ts
