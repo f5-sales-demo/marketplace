@@ -5,7 +5,7 @@
     {
       "sourcePath": "plugins/aws/terraform/provider-lock.hcl",
       "runtimePath": "assets/plugins/aws/terraform/provider-lock.hcl",
-      "sha256": "c4fbed57d353b4b7ee92bcdd16be57a9674dc3e70b41332ab0b866db7e7a9ede"
+      "sha256": "b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843"
     },
     {
       "sourcePath": "plugins/terraform/locks/xcsh-provider.hcl",

@@ -3410,7 +3410,7 @@ function assertAwsDeploymentCompilerOperation(intent) {
 }
 var AWS_CE_TERRAFORM_VERSION = '1.16.5',
   AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0',
-  AWS_CE_PROVIDER_LOCK_SHA256 = 'c4fbed57d353b4b7ee92bcdd16be57a9674dc3e70b41332ab0b866db7e7a9ede';
+  AWS_CE_PROVIDER_LOCK_SHA256 = 'b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843';
 
 // plugins/aws/src/ce/ingress-settings.ts
 function nlbSettings(intent) {
