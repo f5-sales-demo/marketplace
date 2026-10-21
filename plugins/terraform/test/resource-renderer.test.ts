@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { renderProviderResource } from '../src/resource-renderer';
+import { renderObservedProviderResource, renderProviderResource } from '../src/resource-renderer';
 
 const schema = {
   block: {
@@ -49,6 +49,43 @@ const schema = {
     },
   },
 };
+test('site readback projection removes only qualified status and unrequested empty defaults', () => {
+  const request = { metadata: { name: 'site', namespace: 'system' }, spec: { aws: { not_managed: {} } } };
+  const observed = {
+    metadata: request.metadata,
+    spec: {
+      aws: { not_managed: { node_list: [] } },
+      site_state: 'WAITING_FOR_REGISTRATION',
+      site_errors: [],
+      operating_system_version: '',
+      volterra_software_version: '',
+      segment_vrf: [],
+      tunnel_dead_timeout: 0,
+      tunnel_type: 'SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL',
+      software_settings: { os: { default_os_version: {} }, sw: { default_sw_version: {} }, waf_signatures: null },
+    },
+  };
+  expect(renderObservedProviderResource(observed, request, schema, 'xcsh_securemesh_site_v2')).toEqual(
+    renderProviderResource(request, schema, 'xcsh_securemesh_site_v2'),
+  );
+  for (const extra of [
+    { tunnel_type: 'SITE_TO_SITE_TUNNEL_SSL' },
+    { tunnel_dead_timeout: 10000 },
+    { segment_vrf: [{ name: 'foreign' }] },
+    { software_settings: { os: { operating_system_version: 'explicit' } } },
+    { unexpected_policy: {} },
+  ])
+    expect(() =>
+      renderObservedProviderResource(
+        { ...observed, spec: { ...observed.spec, ...extra } },
+        request,
+        schema,
+        'xcsh_securemesh_site_v2',
+      ),
+    ).toThrow();
+  expect(() => renderProviderResource(observed, schema, 'xcsh_securemesh_site_v2')).toThrow();
+  expect(() => renderObservedProviderResource(observed, request, schema, 'xcsh_bgp')).toThrow();
+});
 test('F5 provider rendering uses verified nesting and escapes Terraform interpolation', () => {
   const value = renderProviderResource(
     {

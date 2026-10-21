@@ -5,7 +5,7 @@ import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
 import { cancelUnsubmittedF5Resource } from './f5-cancellation';
 import { f5StageDeployment, requireF5StageActive } from './f5-retirement';
-import { renderProviderResource } from './resource-renderer';
+import { renderObservedProviderResource, renderProviderResource } from './resource-renderer';
 import type { PlanReceipt } from './runner';
 import type { CeTerraformService } from './service';
 
@@ -249,7 +249,12 @@ export async function executeF5TerraformResource(
     // Compare the full writable provider projection; subset matching can retain an unwanted BGP policy.
     const specMatches = (value: Json): boolean =>
       canonical(
-        renderProviderResource({ metadata: object(request).metadata, spec: object(value.spec) }, resourceSchema, type),
+        renderObservedProviderResource(
+          { metadata: object(request).metadata, spec: object(value.spec) },
+          object(request),
+          resourceSchema,
+          type,
+        ),
       ) === canonical(next[addressName].values);
     const requestSha256 = hash({ owner, path, method, request });
     if (book.pending && book.pending.planSha256 !== auth.planSha256)

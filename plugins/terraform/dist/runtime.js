@@ -469,6 +469,36 @@ function literal(value) {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, literal(item)]));
   return value;
 }
+function renderObservedProviderResource(observed, request, resourceSchema, resourceType) {
+  if (resourceType !== 'xcsh_securemesh_site_v2') return renderProviderResource(observed, resourceSchema, resourceType);
+  const spec = structuredClone(object2(observed.spec)),
+    desired = object2(request.spec);
+  for (const key of ['site_state', 'site_errors', 'operating_system_version', 'volterra_software_version'])
+    delete spec[key];
+  const omitDefault = (key, value) => {
+    if (!Object.hasOwn(desired, key) && JSON.stringify(spec[key]) === JSON.stringify(value)) delete spec[key];
+  };
+  omitDefault('segment_vrf', []);
+  omitDefault('tunnel_dead_timeout', 0);
+  omitDefault('tunnel_type', 'SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL');
+  omitDefault('software_settings', {
+    os: { default_os_version: {} },
+    sw: { default_sw_version: {} },
+    waf_signatures: null,
+  });
+  for (const provider of ['aws', 'azure']) {
+    if (!spec[provider] || !desired[provider]) continue;
+    const actualNodes = object2(object2(spec[provider]).not_managed),
+      desiredNodes = object2(object2(desired[provider]).not_managed);
+    if (
+      !Object.hasOwn(desiredNodes, 'node_list') &&
+      Array.isArray(actualNodes.node_list) &&
+      !actualNodes.node_list.length
+    )
+      delete actualNodes.node_list;
+  }
+  return renderProviderResource({ metadata: observed.metadata, spec }, resourceSchema, resourceType);
+}
 function renderProviderResource(request, resourceSchema, resourceType) {
   const metadata = object2(request.metadata),
     spec = object2(request.spec);
@@ -1051,8 +1081,9 @@ async function executeF5TerraformResource(
     const configuration = JSON.stringify({ ...empty, ...(Object.keys(resource).length ? { resource } : {}) });
     const specMatches = (value) =>
       canonical2(
-        renderProviderResource(
+        renderObservedProviderResource(
           { metadata: object4(request).metadata, spec: object4(value.spec) },
+          object4(request),
           resourceSchema,
           type,
         ),

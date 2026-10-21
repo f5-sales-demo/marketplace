@@ -15,6 +15,47 @@ function literal(value: unknown): unknown {
   return value;
 }
 
+/** Readback-only projection for the qualified SMSv2 reservation defaults.
+ * Nondefault writable values still enter the full comparison or fail closed.
+ */
+export function renderObservedProviderResource(
+  observed: Json,
+  request: Json,
+  resourceSchema: unknown,
+  resourceType: string,
+): Json {
+  if (resourceType !== 'xcsh_securemesh_site_v2') return renderProviderResource(observed, resourceSchema, resourceType);
+  const spec = structuredClone(object(observed.spec)),
+    desired = object(request.spec);
+  for (const key of ['site_state', 'site_errors', 'operating_system_version', 'volterra_software_version'])
+    delete spec[key];
+  const omitDefault = (key: string, value: unknown) => {
+    if (!Object.hasOwn(desired, key) && JSON.stringify(spec[key]) === JSON.stringify(value)) delete spec[key];
+  };
+  omitDefault('segment_vrf', []);
+  omitDefault('tunnel_dead_timeout', 0);
+  omitDefault('tunnel_type', 'SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL');
+  // The pinned provider preserves configured software settings; it does not read
+  // them back. Only the exact unrequested server default is qualified here.
+  omitDefault('software_settings', {
+    os: { default_os_version: {} },
+    sw: { default_sw_version: {} },
+    waf_signatures: null,
+  });
+  for (const provider of ['aws', 'azure']) {
+    if (!spec[provider] || !desired[provider]) continue;
+    const actualNodes = object(object(spec[provider]).not_managed),
+      desiredNodes = object(object(desired[provider]).not_managed);
+    if (
+      !Object.hasOwn(desiredNodes, 'node_list') &&
+      Array.isArray(actualNodes.node_list) &&
+      !actualNodes.node_list.length
+    )
+      delete actualNodes.node_list;
+  }
+  return renderProviderResource({ metadata: observed.metadata, spec }, resourceSchema, resourceType);
+}
+
 /** Translate a validated F5 request using the exact installed provider schema, never guessed block shapes. */
 export function renderProviderResource(request: Json, resourceSchema: unknown, resourceType?: string): Json {
   const metadata = object(request.metadata),
