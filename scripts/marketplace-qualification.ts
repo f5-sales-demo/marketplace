@@ -7,6 +7,12 @@ export interface Scenario {
   id: string;
   calls: { tool: string; args: Record<string, unknown> }[];
   guidance: string[];
+  fixtureReads?: {
+    root: string;
+    path: string;
+    sha256: string;
+    args: { path: string; sel?: ''; timeout?: number };
+  }[];
   guidanceOptions?: { sel?: ''; timeout?: number }[];
   commands?: { name: string; args: string }[];
   shellCalls?: {
@@ -112,7 +118,7 @@ export function validateScenario(value: any): Scenario {
     !/^[\w.-]+$/.test(value.id) ||
     !Array.isArray(value.calls) ||
     !Array.isArray(value.guidance) ||
-    (!value.calls.length && !value.guidance.length && !value.shellCalls?.length)
+    (!value.calls.length && !value.guidance.length && !value.shellCalls?.length && !value.fixtureReads?.length)
   )
     throw new Error('Scenario requires a safe ID and explicit calls or guidance');
   for (const call of value.calls) {
@@ -136,6 +142,48 @@ export function validateScenario(value: any): Scenario {
     )
   )
     throw new Error('Scenario guidance must be shipped relative paths');
+  if (value.fixtureReads !== undefined) {
+    const rules = value.fixtureReads;
+    if (
+      !Array.isArray(rules) ||
+      !rules.length ||
+      rules.some((rule: any) => {
+        if (
+          !rule ||
+          typeof rule !== 'object' ||
+          Array.isArray(rule) ||
+          Object.keys(rule).some((key) => !['root', 'path', 'sha256', 'args'].includes(key))
+        )
+          return true;
+        for (const key of ['root', 'path']) {
+          const path = rule[key];
+          if (typeof path !== 'string' || !isAbsolute(path) || resolve(path) !== path || path.includes('\x00'))
+            return true;
+        }
+        const rel = relative(rule.root, rule.path);
+        if (
+          !rel ||
+          rel === '..' ||
+          rel.startsWith(`..${sep}`) ||
+          isAbsolute(rel) ||
+          !/^[a-f0-9]{64}$/.test(rule.sha256)
+        )
+          return true;
+        const args = rule.args;
+        return (
+          !args ||
+          typeof args !== 'object' ||
+          Array.isArray(args) ||
+          args.path !== rule.path ||
+          Object.keys(args).some((key) => !['path', 'sel', 'timeout'].includes(key)) ||
+          ('sel' in args && args.sel !== '') ||
+          ('timeout' in args && (!Number.isFinite(args.timeout) || args.timeout <= 0 || args.timeout > 120))
+        );
+      }) ||
+      rules.some((rule: any, index: number) => rules.slice(0, index).some((prior: any) => prior.path === rule.path))
+    )
+      throw new Error('Scenario fixture reads require distinct exact private paths, digests and full-file arguments');
+  }
   if (value.guidanceOptions !== undefined) {
     const options = value.guidanceOptions;
     if (
@@ -225,8 +273,32 @@ export function validateScenario(value: any): Scenario {
   return value;
 }
 
+/** Recheck the reviewed synthetic file at admission; never follow indirect paths. */
+export function validateFixtureRead(rule: NonNullable<Scenario['fixtureReads']>[number]) {
+  try {
+    assertPrivateCaptureRoot(rule.root);
+    if (realpathSync(rule.root) !== rule.root) throw new Error('Indirect root');
+    const rel = relative(rule.root, rule.path);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error('Outside root');
+    const parts = rel.split(sep);
+    for (let index = 1; index <= parts.length; index++) {
+      const metadata = lstatSync(join(rule.root, ...parts.slice(0, index)));
+      if (metadata.isSymbolicLink() || (index < parts.length ? !metadata.isDirectory() : !metadata.isFile()))
+        throw new Error('Indirect or nonregular path');
+    }
+    if (
+      realpathSync(rule.path) !== rule.path ||
+      createHash('sha256').update(readFileSync(rule.path)).digest('hex') !== rule.sha256
+    )
+      throw new Error('Changed contents');
+  } catch {
+    throw new Error('Reviewed fixture path, privacy or contents changed');
+  }
+}
+
 /** Strict Markdown subset: one named section containing exactly one Bash fence. */
 export function validateScenarioSources(scenario: Scenario, plugin: string) {
+  for (const rule of scenario.fixtureReads ?? []) validateFixtureRead(rule);
   for (const rule of scenario.shellCalls ?? []) {
     const source = readFileSync(resolveShippedPath(plugin, rule.path), 'utf8');
     const lines = source.split('\n');
@@ -288,6 +360,17 @@ export function guardScenarioTool(event: any, scenario: Scenario, plugin: string
       block: true,
       reason: 'Acceptance permits only exact reviewed shipped shell scripts and arguments.',
     };
+  }
+  if (event.toolName === 'read') {
+    const rule = scenario.fixtureReads?.find((rule) => isDeepStrictEqual(rule.args, input));
+    if (rule) {
+      try {
+        validateFixtureRead(rule);
+        return;
+      } catch {
+        return { block: true, reason: 'Reviewed fixture path, privacy or contents changed.' };
+      }
+    }
   }
   const allowed =
     event.toolName === 'read'
