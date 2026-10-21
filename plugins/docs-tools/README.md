@@ -1,6 +1,6 @@
 # docs-tools
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.1-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
 MDX content validation and review tools for f5-sales-demo
@@ -26,7 +26,9 @@ Or add to `.claude/settings.json`:
 
 ## Skills
 
-### mdx-content-reviewer
+### content-reviewer
+
+Canonical invocation: `skill://docs-tools:content-reviewer`.
 
 Automatically reviews MDX files for common errors that cause
 Astro/Starlight build failures:
