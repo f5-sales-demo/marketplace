@@ -5,6 +5,7 @@ import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contra
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { type AwsSiteReplacementPlan, compileAwsSiteReplacement, runAwsSiteReplacement } from './site-replacement';
+import { loadAwsTerraformBrownfieldBinding } from './terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { createTerraformAwsSiteReplacementDriver } from './terraform-site-replacement';
 import { siteBindings } from './topology';
@@ -46,7 +47,15 @@ export async function runAwsTerraformInitialReplacement(
     if (runtime.engine !== 'terraform') throw new Error('Initial replacement runtime ownership differs');
     handled = true;
     const contract = await loadContract();
-    const session = await terraform.open(binding.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const placement =
+      base.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(base, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(
+      binding.owner,
+      await awsTerraformFoundationDeployment(base, {}, placement),
+      'current',
+    );
     if (!frozen) {
       let record = object(preparation);
       if (record.planId !== base.planId || record.planSha256 !== base.planSha256)

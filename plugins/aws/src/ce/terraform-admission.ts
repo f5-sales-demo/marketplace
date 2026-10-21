@@ -6,6 +6,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
+import { loadAwsTerraformBrownfieldBinding } from './terraform-brownfield-binding';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { siteBindings } from './topology';
@@ -52,14 +53,22 @@ export async function admitAwsTerraformSites(
     | 'observeAwsRegisteredConfiguration'
     | 'ensureAwsInterfaceMtu'
   >,
-  storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
+  storage: Pick<CeDeploymentStore, 'owner' | 'read' | 'write' | 'verify'>,
   api: AwsExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
   haSerialDelayMs = 180_000,
 ) {
   verifyAwsCePlan(plan);
-  const initial = renderAwsTerraformFoundation(plan);
+  const placement =
+    plan.intent.vpc.mode === 'brownfield'
+      ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+      : undefined;
+  const verifyPlacement = async () => {
+    await storage.verify();
+    if (placement) await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal);
+  };
+  const initial = renderAwsTerraformFoundation(plan, {}, placement);
   if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('Terraform admission requires supported SLO/SLI mapping');
   validateAwsCeAddressing(plan.intent);
@@ -105,13 +114,14 @@ export async function admitAwsTerraformSites(
       if (!(error instanceof Error) || !error.message.includes('applied or converged current configuration'))
         throw error;
       const receipt = await session.plan(env, signal);
-      const desiredHash = hash(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode));
+      const desiredHash = hash(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode, placement));
       if (
         ![checkpoint.configurationSha256, desiredHash].includes(receipt.configurationSha256) ||
         receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
       )
         throw new Error('Interrupted Terraform admission requires lifecycle reconciliation');
       await storage.write('terraform-admission-plan.json', receipt);
+      await verifyPlacement();
       await session.apply(receipt, env, signal);
       checkpoint.configurationSha256 = receipt.configurationSha256;
       await save();
@@ -181,7 +191,7 @@ export async function admitAwsTerraformSites(
           });
           await save();
         }
-        const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
+        const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode, placement);
         const nextHash = hash(configuration);
         if (checkpoint.configurationSha256 !== nextHash) {
           try {
@@ -204,7 +214,10 @@ export async function admitAwsTerraformSites(
             'Terraform admission would alter or replace an existing resource; reconcile the reviewed lifecycle plan',
           );
         await storage.write('terraform-admission-plan.json', receipt);
-        if (!receipt.noChanges) await session.apply(receipt, env, signal);
+        if (!receipt.noChanges) {
+          await verifyPlacement();
+          await session.apply(receipt, env, signal);
+        }
         checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();
         await save();
       }

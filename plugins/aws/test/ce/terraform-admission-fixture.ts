@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { qualifyAwsTerraformBrownfieldPlacement } from '../../src/ce/terraform-brownfield-placement';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
+import { brownfieldPlacementFixture } from './terraform-brownfield-fixture';
 import { foundationPlan } from './terraform-fixtures';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-export function admissionFixture(ha = false, staticAddressing = false) {
-  const base = foundationPlan(ha);
+export function admissionFixture(ha = false, staticAddressing = false, brownfield = false) {
+  const brownfieldFixture = brownfield ? brownfieldPlacementFixture() : undefined;
+  const base = brownfieldFixture?.plan ?? foundationPlan(ha);
   if (staticAddressing) {
     for (const item of base.intent.interfaces)
       item.addressing = {
@@ -23,7 +26,11 @@ export function admissionFixture(ha = false, staticAddressing = false) {
   };
   const planSha256 = canonicalSha256(full);
   const plan = { ...full, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
-  let configuration = renderAwsTerraformFoundation(plan);
+  let configuration = renderAwsTerraformFoundation(
+    plan,
+    {},
+    brownfieldFixture ? qualifyAwsTerraformBrownfieldPlacement(plan, brownfieldFixture.observation) : undefined,
+  );
   let applied = true;
   let failApply = false;
   const nodes = new Set<number>();
@@ -34,7 +41,7 @@ export function admissionFixture(ha = false, staticAddressing = false) {
   const outputs = () => ({
     ce_vpc_id: 'vpc-12345678',
     ce_interfaces: Object.fromEntries(
-      [1, 2, 3].flatMap((node) =>
+      Array.from({ length: plan.intent.topology.nodeCount }, (_, i) => i + 1).flatMap((node) =>
         [0, 1].map((index) => [
           `${node}:${index}`,
           {
@@ -43,7 +50,9 @@ export function admissionFixture(ha = false, staticAddressing = false) {
             role: index ? 'sli' : 'slo',
             site_name: siteNameFor(node),
             id: `eni-${String(node * 10 + index).padStart(8, '0')}`,
-            subnet_id: `subnet-${String(node * 10 + index).padStart(8, '0')}`,
+            subnet_id: brownfieldFixture
+              ? plan.intent.interfaces[index].subnets[0].subnetId
+              : `subnet-${String(node * 10 + index).padStart(8, '0')}`,
             mac: `00:11:22:33:0${node}:0${index}`,
             private_ip: staticAddressing ? `10.0.${index * 3 + node}.20` : `10.0.${node * 2 + index}.4`,
           },
@@ -92,6 +101,13 @@ export function admissionFixture(ha = false, staticAddressing = false) {
     },
   };
   const storage = {
+    owner: {
+      deploymentId: plan.deploymentName,
+      engine: 'terraform' as const,
+      provider: 'aws' as const,
+      account: plan.accountId,
+      region: plan.region,
+    },
     async verify() {},
     async read(name: string) {
       if (!records.has(name)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
@@ -103,12 +119,18 @@ export function admissionFixture(ha = false, staticAddressing = false) {
   };
   const api = {
     async exec(_command: string, args: string[]) {
+      if (brownfieldFixture && args[0] === 'ec2' && args[1] !== 'describe-network-interfaces') {
+        const id = args[args.findIndex((a) => a.endsWith('-ids')) + 1];
+        const row = brownfieldFixture.observation.resources.find((r) => r.id === id);
+        if (!row) throw new Error('unexpected brownfield reference');
+        return { exitCode: 0, stderr: '', stdout: JSON.stringify(row.state) };
+      }
       return {
         exitCode: 0,
         stderr: '',
         stdout: JSON.stringify(
           args[0] === 'sts'
-            ? { Account: plan.accountId }
+            ? { Account: plan.accountId, Arn: `arn:aws:iam::${plan.accountId}:role/example-role` }
             : {
                 NetworkInterfaces: Object.values(outputs().ce_interfaces).map((item) => ({
                   NetworkInterfaceId: item.id,
@@ -163,6 +185,7 @@ export function admissionFixture(ha = false, staticAddressing = false) {
   };
   return {
     plan,
+    brownfieldObservation: brownfieldFixture?.observation,
     session,
     storage,
     api,

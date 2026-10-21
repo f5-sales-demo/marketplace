@@ -31,6 +31,11 @@ function original(plan: AwsCePlan): Observation {
     })),
   };
 }
+/** Validates immutable plan snapshots for translation only; fresh cloud qualification remains required. */
+export function awsTerraformBrownfieldPlacementBaseline(plan: AwsCePlan) {
+  verifyAwsCePlan(plan);
+  return qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
+}
 async function observe(
   plan: AwsCePlan,
   binding: AwsTerraformBrownfieldPlacement,
@@ -124,7 +129,7 @@ export async function prepareAwsTerraformBrownfieldBinding(
 ) {
   await scope(plan, storage);
   signal?.throwIfAborted();
-  const baseline = qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
+  const baseline = awsTerraformBrownfieldPlacementBaseline(plan);
   let prior: unknown;
   try {
     prior = await storage.read(file);
@@ -150,7 +155,7 @@ export async function loadAwsTerraformBrownfieldBinding(
   signal?.throwIfAborted();
   const binding = (await storage.read(file)) as AwsTerraformBrownfieldPlacement;
   assertAwsTerraformBrownfieldPlacement(plan, binding);
-  const baseline = qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
+  const baseline = awsTerraformBrownfieldPlacementBaseline(plan);
   if (canonicalSha256(binding) !== canonicalSha256(baseline))
     throw Error('Persisted brownfield placement original snapshot differs');
   const observation = await observe(plan, binding, api, signal);

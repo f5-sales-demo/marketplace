@@ -10235,9 +10235,6 @@ var init_apply = __esm(() => {
   init_types2();
 });
 
-// ../terraform/src/literal.ts
-var terraformLiteral = (value) => value.replaceAll('${', () => '$${').replaceAll('%{', () => '%%{');
-
 // src/ce/terraform-brownfield-placement.ts
 function placementPlan(plan) {
   verifyAwsCePlan(plan);
@@ -10436,6 +10433,149 @@ var init_terraform_brownfield_placement = __esm(() => {
   init_canonical();
   init_interface_addressing();
 });
+
+// src/ce/terraform-brownfield-binding.ts
+function original(plan) {
+  return {
+    identity: {
+      accountId: plan.intent.accountId,
+      partition: plan.intent.partition,
+      awsProfile: plan.intent.awsProfile,
+      arn: '',
+    },
+    resources: plan.rollback.resources.map((r) => ({
+      id: r.id,
+      region: plan.intent.region,
+      exists: true,
+      owned: false,
+      tags: {},
+      state: structuredClone(r.before),
+    })),
+  };
+}
+function awsTerraformBrownfieldPlacementBaseline(plan) {
+  verifyAwsCePlan(plan);
+  return qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
+}
+async function observe(plan, binding, raw, signal) {
+  const api = scopedAwsApi(raw, plan.intent.awsProfile, signal);
+  const read = async (args) => {
+    const result = await api.exec('aws', [...args, '--region', plan.intent.region, '--output', 'json']);
+    if (result.exitCode) throw Error('Brownfield placement cloud observation unavailable');
+    const value = JSON.parse(result.stdout);
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw Error('Malformed brownfield placement cloud observation');
+    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(value, k)))
+      throw Error('Partial brownfield placement cloud observation');
+    return value;
+  };
+  const identity = await read(['sts', 'get-caller-identity']);
+  if (
+    identity.Account !== plan.intent.accountId ||
+    typeof identity.Arn !== 'string' ||
+    !identity.Arn.startsWith(`arn:${plan.intent.partition}:`) ||
+    identity.Arn.split(':')[4] !== plan.intent.accountId
+  )
+    throw Error('Brownfield placement cloud account or partition differs');
+  const take = async () => {
+    const resources = [];
+    for (const id of binding.referenceIds) {
+      const command = id.startsWith('vpc-')
+        ? 'describe-vpcs'
+        : id.startsWith('subnet-')
+          ? 'describe-subnets'
+          : id.startsWith('rtb-')
+            ? 'describe-route-tables'
+            : 'describe-internet-gateways';
+      const selector = id.startsWith('vpc-')
+        ? '--vpc-ids'
+        : id.startsWith('subnet-')
+          ? '--subnet-ids'
+          : id.startsWith('rtb-')
+            ? '--route-table-ids'
+            : '--internet-gateway-ids';
+      resources.push({
+        id,
+        region: plan.intent.region,
+        exists: true,
+        owned: false,
+        tags: {},
+        state: await read(['ec2', command, selector, id]),
+      });
+    }
+    return {
+      identity: {
+        accountId: plan.intent.accountId,
+        partition: plan.intent.partition,
+        awsProfile: plan.intent.awsProfile,
+        arn: identity.Arn,
+      },
+      resources,
+    };
+  };
+  const first = await take(),
+    second = await take();
+  if (canonicalSha256(first) !== canonicalSha256(second))
+    throw Error('Brownfield placement changed during observation');
+  const qualified = qualifyAwsTerraformBrownfieldPlacement(plan, second);
+  if (canonicalSha256(qualified) !== canonicalSha256(binding))
+    throw Error('Brownfield placement observed binding differs');
+  return { binding: qualified, evidenceSha256: canonicalSha256(second), observedAt: new Date().toISOString() };
+}
+async function scope(plan, storage) {
+  verifyAwsCePlan(plan);
+  const owner = storage.owner;
+  if (
+    plan.engine !== 'terraform' ||
+    owner.engine !== 'terraform' ||
+    owner.provider !== 'aws' ||
+    owner.account !== plan.intent.accountId ||
+    owner.region !== plan.intent.region ||
+    owner.deploymentId !== plan.intent.deploymentName
+  )
+    throw Error('Brownfield placement durable owner differs');
+  await storage.verify();
+}
+async function prepareAwsTerraformBrownfieldBinding(plan, storage, api, signal) {
+  await scope(plan, storage);
+  signal?.throwIfAborted();
+  const baseline = awsTerraformBrownfieldPlacementBaseline(plan);
+  let prior;
+  try {
+    prior = await storage.read(file);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (prior !== undefined && canonicalSha256(prior) !== canonicalSha256(baseline))
+    throw Error('Persisted brownfield placement differs');
+  const observation = await observe(plan, baseline, api, signal);
+  await storage.verify();
+  if (prior === undefined) await storage.write(file, baseline);
+  await storage.write('terraform-brownfield-placement-preparation-observation.json', observation);
+  return baseline;
+}
+async function loadAwsTerraformBrownfieldBinding(plan, storage, api, signal) {
+  await scope(plan, storage);
+  signal?.throwIfAborted();
+  const binding = await storage.read(file);
+  assertAwsTerraformBrownfieldPlacement(plan, binding);
+  const baseline = awsTerraformBrownfieldPlacementBaseline(plan);
+  if (canonicalSha256(binding) !== canonicalSha256(baseline))
+    throw Error('Persisted brownfield placement original snapshot differs');
+  const observation = await observe(plan, binding, api, signal);
+  await storage.verify();
+  await storage.write('terraform-brownfield-placement-opening-observation.json', observation);
+  return binding;
+}
+var file = 'terraform-brownfield-placement.json';
+var init_terraform_brownfield_binding = __esm(() => {
+  init_artifacts();
+  init_canonical();
+  init_terraform_brownfield_placement();
+});
+
+// ../terraform/src/literal.ts
+var terraformLiteral = (value) => value.replaceAll('${', () => '$${').replaceAll('%{', () => '%%{');
 
 // src/ce/terraform-foundation.ts
 import { createHash as createHash4 } from 'node:crypto';
@@ -12038,7 +12178,15 @@ async function runAwsTerraformInitialReplacement(
     if (runtime.engine !== 'terraform') throw new Error('Initial replacement runtime ownership differs');
     handled = true;
     const contract = await loadContract();
-    const session = await terraform.open(binding.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const placement =
+      base.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(base, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(
+      binding.owner,
+      await awsTerraformFoundationDeployment(base, {}, placement),
+      'current',
+    );
     if (!frozen) {
       let record = object16(preparation);
       if (record.planId !== base.planId || record.planSha256 !== base.planSha256)
@@ -12139,6 +12287,7 @@ var init_terraform_initial_replacement = __esm(() => {
   init_replacement_versions();
   init_upgrade_contract();
   init_site_replacement();
+  init_terraform_brownfield_binding();
   init_terraform_foundation();
   init_terraform_site_replacement();
 });
@@ -12392,7 +12541,15 @@ import { createHash as createHash8 } from 'node:crypto';
 
 async function admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal, haSerialDelayMs = 180000) {
   verifyAwsCePlan(plan);
-  const initial = renderAwsTerraformFoundation(plan);
+  const placement =
+    plan.intent.vpc.mode === 'brownfield'
+      ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+      : undefined;
+  const verifyPlacement = async () => {
+    await storage.verify();
+    if (placement) await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal);
+  };
+  const initial = renderAwsTerraformFoundation(plan, {}, placement);
   if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('Terraform admission requires supported SLO/SLI mapping');
   validateAwsCeAddressing(plan.intent);
@@ -12438,13 +12595,14 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
       if (!(error instanceof Error) || !error.message.includes('applied or converged current configuration'))
         throw error;
       const receipt = await session.plan(env, signal);
-      const desiredHash = hash3(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode));
+      const desiredHash = hash3(renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode, placement));
       if (
         ![checkpoint.configurationSha256, desiredHash].includes(receipt.configurationSha256) ||
         receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
       )
         throw new Error('Interrupted Terraform admission requires lifecycle reconciliation');
       await storage.write('terraform-admission-plan.json', receipt);
+      await verifyPlacement();
       await session.apply(receipt, env, signal);
       checkpoint.configurationSha256 = receipt.configurationSha256;
       await save();
@@ -12513,7 +12671,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
           });
           await save();
         }
-        const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
+        const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode, placement);
         const nextHash = hash3(configuration);
         if (checkpoint.configurationSha256 !== nextHash) {
           try {
@@ -12535,7 +12693,10 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
             'Terraform admission would alter or replace an existing resource; reconcile the reviewed lifecycle plan',
           );
         await storage.write('terraform-admission-plan.json', receipt);
-        if (!receipt.noChanges) await session.apply(receipt, env, signal);
+        if (!receipt.noChanges) {
+          await verifyPlacement();
+          await session.apply(receipt, env, signal);
+        }
         checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();
         await save();
       }
@@ -12629,6 +12790,7 @@ var hash3 = (value) => createHash8('sha256').update(value).digest('hex'),
 var init_terraform_admission = __esm(() => {
   init_artifacts();
   init_interface_addressing();
+  init_terraform_brownfield_binding();
   init_terraform_foundation();
   init_terraform_identities();
   init_types2();
@@ -12637,7 +12799,6 @@ var init_terraform_admission = __esm(() => {
 // src/ce/terraform-workflow.ts
 async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, revalidate, env, signal) {
   verifyAwsCePlan(plan);
-  const deployment = await awsTerraformFoundationDeployment(plan);
   const owner = {
     deploymentId: plan.deploymentName,
     engine: 'terraform',
@@ -12647,12 +12808,13 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
   };
   await storage.verify();
   let checkpoint;
+  let fresh = false;
   try {
     checkpoint = await storage.read('terraform-workflow.json');
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     checkpoint = { schemaVersion: 1, engine: 'terraform', planSha256: plan.planSha256, stage: 'network-pending' };
-    await storage.write('terraform-workflow.json', checkpoint);
+    fresh = true;
   }
   if (
     checkpoint.schemaVersion !== 1 ||
@@ -12662,6 +12824,21 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
   )
     throw new Error('Terraform workflow checkpoint differs from the owning plan');
   signal?.throwIfAborted();
+  const placement =
+    plan.intent.vpc.mode === 'brownfield'
+      ? await (fresh ? prepareAwsTerraformBrownfieldBinding : loadAwsTerraformBrownfieldBinding)(
+          plan,
+          storage,
+          api,
+          signal,
+        )
+      : undefined;
+  const deployment = await awsTerraformFoundationDeployment(plan, {}, placement);
+  if (fresh) await storage.write('terraform-workflow.json', checkpoint);
+  const verifyCurrent = async () => {
+    await revalidate();
+    if (placement) await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal);
+  };
   let session;
   if (checkpoint.stage === 'network-pending') {
     try {
@@ -12670,7 +12847,7 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
       if (error.code !== 'EEXIST') throw error;
       session = await terraform.open(owner, deployment, 'current');
     }
-    await revalidate();
+    await verifyCurrent();
     const receipt = await session.plan(env, signal);
     if (
       receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
@@ -12678,12 +12855,12 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
       throw new Error('Terraform foundation would mutate existing resources; lifecycle reconciliation required');
     await storage.write('terraform-foundation-plan.json', receipt);
     await storage.verify();
-    await revalidate();
+    await verifyCurrent();
     await session.apply(receipt, env, signal);
     checkpoint.stage = 'registration-pending';
     await storage.write('terraform-workflow.json', checkpoint);
   } else session = await terraform.open(owner, deployment, 'current');
-  await revalidate();
+  await verifyCurrent();
   const admission = await admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal);
   checkpoint.stage = admission.status === 'registered' ? 'registered' : 'registration-pending';
   await storage.write('terraform-workflow.json', checkpoint);
@@ -12692,6 +12869,7 @@ async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, 
 var init_terraform_workflow = __esm(() => {
   init_artifacts();
   init_terraform_admission();
+  init_terraform_brownfield_binding();
   init_terraform_foundation();
 });
 
@@ -12709,7 +12887,11 @@ async function executeAwsCeTerraformApply(
   if (Object.keys(input).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Terraform apply accepts only the persisted plan identity');
   const { plan, observation } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
-  await awsTerraformFoundationDeployment(plan);
+  await awsTerraformFoundationDeployment(
+    plan,
+    {},
+    plan.intent.vpc.mode === 'brownfield' ? awsTerraformBrownfieldPlacementBaseline(plan) : undefined,
+  );
   const runtime = await platform.runtime('terraform', plan.intent.platformContext);
   if (typeof runtime.resourceMutation !== 'function')
     throw new Error('Terraform F5 resource-state service is required before deployment');
@@ -12872,7 +13054,11 @@ ${plan.planSha256}`,
       account: plan.accountId,
       region: plan.region,
     };
-    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+    const placement =
+      plan.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
     await applyAwsTerraformConnectStage(plan, current, session, storage, revalidate, process.env, signal);
     try {
       let bgp;
@@ -12933,7 +13119,11 @@ ${plan.planSha256}`,
       account: plan.accountId,
       region: plan.region,
     };
-    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+    const placement =
+      plan.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
     const outputs = await session.readOutputs(
       ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_ingress'],
       process.env,
@@ -13017,6 +13207,7 @@ var init_terraform_apply = __esm(() => {
   init_artifacts();
   init_network_health();
   init_platform_ingress();
+  init_terraform_brownfield_binding();
   init_terraform_connect_stage();
   init_terraform_foundation();
   init_terraform_identities();
@@ -15840,142 +16031,6 @@ var init_native_teardown = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_teardown_plan();
-});
-
-// src/ce/terraform-brownfield-binding.ts
-function original(plan) {
-  return {
-    identity: {
-      accountId: plan.intent.accountId,
-      partition: plan.intent.partition,
-      awsProfile: plan.intent.awsProfile,
-      arn: '',
-    },
-    resources: plan.rollback.resources.map((r) => ({
-      id: r.id,
-      region: plan.intent.region,
-      exists: true,
-      owned: false,
-      tags: {},
-      state: structuredClone(r.before),
-    })),
-  };
-}
-async function observe(plan, binding, raw, signal) {
-  const api = scopedAwsApi(raw, plan.intent.awsProfile, signal);
-  const read = async (args) => {
-    const result = await api.exec('aws', [...args, '--region', plan.intent.region, '--output', 'json']);
-    if (result.exitCode) throw Error('Brownfield placement cloud observation unavailable');
-    const value = JSON.parse(result.stdout);
-    if (!value || typeof value !== 'object' || Array.isArray(value))
-      throw Error('Malformed brownfield placement cloud observation');
-    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(value, k)))
-      throw Error('Partial brownfield placement cloud observation');
-    return value;
-  };
-  const identity = await read(['sts', 'get-caller-identity']);
-  if (
-    identity.Account !== plan.intent.accountId ||
-    typeof identity.Arn !== 'string' ||
-    !identity.Arn.startsWith(`arn:${plan.intent.partition}:`) ||
-    identity.Arn.split(':')[4] !== plan.intent.accountId
-  )
-    throw Error('Brownfield placement cloud account or partition differs');
-  const take = async () => {
-    const resources = [];
-    for (const id of binding.referenceIds) {
-      const command = id.startsWith('vpc-')
-        ? 'describe-vpcs'
-        : id.startsWith('subnet-')
-          ? 'describe-subnets'
-          : id.startsWith('rtb-')
-            ? 'describe-route-tables'
-            : 'describe-internet-gateways';
-      const selector = id.startsWith('vpc-')
-        ? '--vpc-ids'
-        : id.startsWith('subnet-')
-          ? '--subnet-ids'
-          : id.startsWith('rtb-')
-            ? '--route-table-ids'
-            : '--internet-gateway-ids';
-      resources.push({
-        id,
-        region: plan.intent.region,
-        exists: true,
-        owned: false,
-        tags: {},
-        state: await read(['ec2', command, selector, id]),
-      });
-    }
-    return {
-      identity: {
-        accountId: plan.intent.accountId,
-        partition: plan.intent.partition,
-        awsProfile: plan.intent.awsProfile,
-        arn: identity.Arn,
-      },
-      resources,
-    };
-  };
-  const first = await take(),
-    second = await take();
-  if (canonicalSha256(first) !== canonicalSha256(second))
-    throw Error('Brownfield placement changed during observation');
-  const qualified = qualifyAwsTerraformBrownfieldPlacement(plan, second);
-  if (canonicalSha256(qualified) !== canonicalSha256(binding))
-    throw Error('Brownfield placement observed binding differs');
-  return { binding: qualified, evidenceSha256: canonicalSha256(second), observedAt: new Date().toISOString() };
-}
-async function scope(plan, storage) {
-  verifyAwsCePlan(plan);
-  const owner = storage.owner;
-  if (
-    plan.engine !== 'terraform' ||
-    owner.engine !== 'terraform' ||
-    owner.provider !== 'aws' ||
-    owner.account !== plan.intent.accountId ||
-    owner.region !== plan.intent.region ||
-    owner.deploymentId !== plan.intent.deploymentName
-  )
-    throw Error('Brownfield placement durable owner differs');
-  await storage.verify();
-}
-async function prepareAwsTerraformBrownfieldBinding(plan, storage, api, signal) {
-  await scope(plan, storage);
-  signal?.throwIfAborted();
-  const baseline = qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
-  let prior;
-  try {
-    prior = await storage.read(file);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-  if (prior !== undefined && canonicalSha256(prior) !== canonicalSha256(baseline))
-    throw Error('Persisted brownfield placement differs');
-  const observation = await observe(plan, baseline, api, signal);
-  await storage.verify();
-  if (prior === undefined) await storage.write(file, baseline);
-  await storage.write('terraform-brownfield-placement-preparation-observation.json', observation);
-  return baseline;
-}
-async function loadAwsTerraformBrownfieldBinding(plan, storage, api, signal) {
-  await scope(plan, storage);
-  signal?.throwIfAborted();
-  const binding = await storage.read(file);
-  assertAwsTerraformBrownfieldPlacement(plan, binding);
-  const baseline = qualifyAwsTerraformBrownfieldPlacement(plan, original(plan));
-  if (canonicalSha256(binding) !== canonicalSha256(baseline))
-    throw Error('Persisted brownfield placement original snapshot differs');
-  const observation = await observe(plan, binding, api, signal);
-  await storage.verify();
-  await storage.write('terraform-brownfield-placement-opening-observation.json', observation);
-  return binding;
-}
-var file = 'terraform-brownfield-placement.json';
-var init_terraform_brownfield_binding = __esm(() => {
-  init_artifacts();
-  init_canonical();
-  init_terraform_brownfield_placement();
 });
 
 // src/tools/aws-ce-teardown.ts

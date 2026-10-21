@@ -8,6 +8,10 @@ import { type AwsCeToolContext, loadAwsPlan } from './artifacts';
 import { collectAwsNetworkHealth } from './network-health';
 import { ensureAwsPlatformIngress } from './platform-ingress';
 import { scopedAwsApi } from './scoped-exec';
+import {
+  awsTerraformBrownfieldPlacementBaseline,
+  loadAwsTerraformBrownfieldBinding,
+} from './terraform-brownfield-binding';
 import { applyAwsTerraformConnectStage } from './terraform-connect-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
@@ -34,7 +38,11 @@ export async function executeAwsCeTerraformApply(
     throw new Error('Terraform apply accepts only the persisted plan identity');
   const { plan, observation } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
   // Validate translation before authorization or creation of any workspace.
-  await awsTerraformFoundationDeployment(plan);
+  await awsTerraformFoundationDeployment(
+    plan,
+    {},
+    plan.intent.vpc.mode === 'brownfield' ? awsTerraformBrownfieldPlacementBaseline(plan) : undefined,
+  );
   const runtime = await platform.runtime('terraform', plan.intent.platformContext);
   if (typeof runtime.resourceMutation !== 'function')
     throw new Error('Terraform F5 resource-state service is required before deployment');
@@ -193,7 +201,11 @@ export async function executeAwsCeTerraformApply(
       account: plan.accountId,
       region: plan.region,
     };
-    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+    const placement =
+      plan.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
     await applyAwsTerraformConnectStage(plan, current, session, storage, revalidate, process.env, signal);
     try {
       let bgp: Record<string, unknown> | undefined;
@@ -254,7 +266,11 @@ export async function executeAwsCeTerraformApply(
       account: plan.accountId,
       region: plan.region,
     };
-    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+    const placement =
+      plan.intent.vpc.mode === 'brownfield'
+        ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
+        : undefined;
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan, {}, placement), 'current');
     const outputs = await session.readOutputs(
       ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_ingress'],
       process.env,
