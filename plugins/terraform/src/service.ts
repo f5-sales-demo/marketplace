@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
+import type { ArtifactRetirementReceipt } from './artifact-retirement';
 import {
   type Deployment,
   type PlanReceipt,
@@ -12,6 +13,13 @@ import {
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Terminal runner-only cleanup after separate cloud/F5 absence qualification. */
+  retireArtifacts?(
+    receipt: PlanReceipt,
+    evidenceSha256: string,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<ArtifactRetirementReceipt>;
   readProviderSchemas?(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<Record<string, unknown>>;
   readResourceIdentities?(
     env: Record<string, string | undefined>,
@@ -114,6 +122,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async retireArtifacts(receipt, evidenceSha256, env, signal) {
+          await checkOwner();
+          return runner.retireArtifacts(receipt, evidenceSha256, env, signal);
+        },
         async readProviderSchemas(env, signal) {
           await checkOwner();
           return runner.readProviderSchemas(env, signal);

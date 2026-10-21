@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **CE UAT71** adds terminal Terraform runner artifact retirement after exact empty-state and refreshed no-change-plan verification. Digest-bound interruption recovery preserves provenance and permanently rejects later execution; cloud/F5 absence and public teardown integration remain separate qualification gates (#1651, #1326).
+
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 

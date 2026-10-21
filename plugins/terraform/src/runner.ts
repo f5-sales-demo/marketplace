@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
+import { hasArtifactRetirement, retirePrivateArtifacts } from './artifact-retirement';
 import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
 
 export interface Invocation {
@@ -696,6 +697,20 @@ export class TerraformRunner {
       throw new Error('Terraform deployment ownership is invalid');
     this.#directory = directory;
     this.#manifest = manifest;
+    if (await hasArtifactRetirement(directory)) {
+      if (!expected) throw Error('Retired Terraform resume requires exact ownership identity');
+      const { configuration, providerLock, ...identity } = expected;
+      if (
+        canonical(manifest) !==
+        canonical({
+          ...identity,
+          configurationSha256: configurationMode === 'current' ? manifest.configurationSha256 : digest(configuration),
+          providerLockSha256: digest(providerLock),
+        })
+      )
+        throw Error('Retired Terraform deployment identity differs');
+      return; // Only digest-bound retirement may run; all execution paths retain the permanent barrier.
+    }
     await this.#exclusive(() => this.#recoverRevision());
     const recoveredManifest = this.#state().manifest;
     if (expected) {
@@ -756,7 +771,7 @@ export class TerraformRunner {
     if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
     return result.stdout;
   }
-  async #exclusive<T>(operation: () => Promise<T>): Promise<T> {
+  async #exclusive<T>(operation: () => Promise<T>, retirement = false): Promise<T> {
     if (this.#busy) throw new Error('Terraform deployment operation is already running');
     if (!this.#directory) throw new Error('Prepare or resume the deployment first');
     this.#busy = true;
@@ -764,11 +779,110 @@ export class TerraformRunner {
     let release: (() => Promise<void>) | undefined;
     try {
       release = await acquireProcessLock(lock);
+      if (!retirement && (await hasArtifactRetirement(this.#directory)))
+        throw Error('Terraform artifacts are retired; execution is permanently disabled');
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
+  }
+  /** Internal terminal cleanup. The cloud adapter must bind independently verified cloud/F5 absence.
+   * Runner proof covers the current empty local state and the exact refreshed no-change plan only.
+   */
+  async retireArtifacts(
+    receipt: PlanReceipt,
+    evidenceSha256: string,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ) {
+    receipt = structuredClone(receipt);
+    env = { ...env };
+    await privateDirectory(this.#state().directory);
+    return this.#exclusive(async () => {
+      signal?.throwIfAborted();
+      const { directory, manifest } = this.#state();
+      await privateDirectory(directory);
+      const persisted = decode((await privateRead(join(directory, 'deployment.json'))).toString());
+      if (canonical(persisted) !== canonical(manifest) || !/^[a-f0-9]{64}$/.test(evidenceSha256))
+        throw Error('Terraform artifact retirement owner or external evidence differs');
+      if (!(await hasArtifactRetirement(directory))) {
+        await this.#verifyInputs();
+        const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+        if (
+          journal.state !== 'planned' ||
+          canonical(journal.receipt) !== canonical(receipt) ||
+          receipt.schemaVersion !== 1 ||
+          receipt.engine !== 'terraform' ||
+          !receipt.noChanges ||
+          receipt.deploymentId !== manifest.deploymentId ||
+          receipt.backendIdentity !== manifest.backendIdentity ||
+          receipt.configurationSha256 !== manifest.configurationSha256 ||
+          receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+          receipt.changes.length ||
+          receipt.operation ||
+          receipt.actionInvocations ||
+          receipt.imports ||
+          receipt.relinquishments ||
+          receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan')))
+        )
+          throw Error('Terraform artifact retirement requires the exact final empty no-change plan');
+        const emptyValues = (values: Json) => {
+          if (Object.keys(object(values.outputs ?? {})).length) throw Error('Terraform retirement outputs remain');
+          const walk = (module: Json) => {
+            if (
+              !Array.isArray(module.resources ?? []) ||
+              !Array.isArray(module.child_modules ?? []) ||
+              (module.resources as unknown[] | undefined)?.length
+            )
+              throw Error('Terraform retirement state is incomplete or resources remain');
+            for (const child of (module.child_modules ?? []) as unknown[]) walk(object(child));
+          };
+          walk(object(values.root_module ?? {}));
+        };
+        const version = decode(await this.#run(['version', '-json'], env, signal));
+        if (version.terraform_version !== manifest.terraformVersion) throw Error('Terraform version changed');
+        const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+        if (
+          typeof plan.format_version !== 'string' ||
+          !/^1\.\d+$/.test(plan.format_version) ||
+          plan.terraform_version !== manifest.terraformVersion ||
+          plan.errored !== false ||
+          plan.complete !== true ||
+          typeof plan[planApplicationFlag] !== 'boolean' ||
+          !Array.isArray(plan.resource_changes ?? []) ||
+          (plan.resource_changes as unknown[] | undefined)?.length ||
+          Object.keys(object(plan.output_changes ?? {})).length ||
+          inspectActionInvocations(plan).length ||
+          inspectImports(plan).length ||
+          inspectRelinquishments(plan).length
+        )
+          throw Error('Terraform final retirement plan is incomplete or contains changes');
+        emptyValues(object(plan.planned_values));
+        const state = decode(await this.#run(['show', '-json'], env, signal));
+        if (
+          typeof state.format_version !== 'string' ||
+          !/^1\.\d+$/.test(state.format_version) ||
+          (state.terraform_version !== undefined && state.terraform_version !== manifest.terraformVersion)
+        )
+          throw Error('Terraform retirement state is malformed');
+        emptyValues(object(state.values ?? {}));
+        await this.#verifyInputs();
+        if (
+          receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))) ||
+          canonical(journal) !== canonical(decode((await privateRead(join(directory, 'plan-receipt.json'))).toString()))
+        )
+          throw Error('Terraform retirement saved evidence changed');
+      }
+      return retirePrivateArtifacts(
+        directory,
+        digest(canonical(manifest)),
+        evidenceSha256,
+        receipt.planSha256,
+        digest(canonical(receipt)),
+        signal,
+      );
+    }, true);
   }
   /** Preserve even an interrupted attempt before Terraform can overwrite its binary plan. */
   async #archivePlanAttempt(): Promise<void> {
