@@ -10,6 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.
 - CE UAT59 imports original direct routes through the owning AWS Terraform apply stage without changing targets; resumes exact journaled plans and keeps CE activation pending (#1651). Full UAT remains blocked.
 
 - CE UAT58 qualifies brownfield snapshots in real AWS Terraform preflight and retains every immutable network reference during revalidation (#1651). Full UAT remains blocked.

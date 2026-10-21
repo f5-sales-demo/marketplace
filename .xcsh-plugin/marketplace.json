@@ -180,8 +180,8 @@
     },
     {
       "name": "osint-framework",
-      "description": "OSINT Framework tool catalog and investigation skills \u2014 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
-      "version": "1.2.0",
+      "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
+      "version": "1.2.1",
       "author": {
         "name": "f5-sales-demo"
       },
