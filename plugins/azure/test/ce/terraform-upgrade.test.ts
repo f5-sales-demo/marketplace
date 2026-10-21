@@ -90,6 +90,14 @@ test('prepares exact Azure software and OS actions for one-node and three-node s
       });
       const suffix = kind === 'software' ? 'sw' : 'os';
       expect(upgrade.action.address).toBe(`action.xcsh_site_upgrade_${suffix}.ce`);
+      const providerConfig = {
+        site: plan.siteName,
+        [kind === 'software' ? 'software_version' : 'os_version']: upgrade.expectation.target.version,
+      };
+      expect(JSON.parse(upgrade.deployment.configuration).action).toEqual({
+        [`xcsh_site_upgrade_${suffix}`]: { ce: { config: providerConfig } },
+      });
+      expect(upgrade.action.configValuesSha256).toBe(canonicalSha256(providerConfig));
       await verifyAzureTerraformUpgrade(plan, upgrade, contract);
     }
   }

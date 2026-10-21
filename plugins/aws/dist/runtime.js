@@ -17330,12 +17330,13 @@ async function build(base, expectation, contract) {
     throw new Error('Terraform upgrade scope, owning engine or contract differs');
   const { kind, version } = expectation.target;
   const request = contract.build({ siteName: selected.site.name, kind, version });
-  const values = { name: selected.site.name, namespace: 'system', version, force: false };
+  const requestValues = { name: selected.site.name, namespace: 'system', version, force: false };
+  const actionValues = { site: selected.site.name, [kind === 'software' ? 'software_version' : 'os_version']: version };
   const suffix = kind === 'software' ? 'sw' : 'os';
   if (
     request.method !== 'POST' ||
     request.path !== `/api/config/namespaces/system/sites/${selected.site.name}/upgrade_${suffix}` ||
-    canonicalSha256(request.body) !== canonicalSha256(values)
+    canonicalSha256(request.body) !== canonicalSha256(requestValues)
   )
     throw new Error('Terraform upgrade wire request differs from the verified action');
   const providerLock = await loadXcshProviderLock();
@@ -17357,7 +17358,7 @@ async function build(base, expectation, contract) {
         required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
       },
       provider: { xcsh: {} },
-      action: { [type]: { ce: { config: values } } },
+      action: { [type]: { ce: { config: actionValues } } },
     }),
   };
   const draft = {
@@ -17370,7 +17371,7 @@ async function build(base, expectation, contract) {
       address: `action.${type}.ce`,
       type,
       providerName: 'registry.terraform.io/f5-sales-demo/xcsh',
-      configValuesSha256: canonicalSha256(values),
+      configValuesSha256: canonicalSha256(actionValues),
     },
   };
   const planSha256 = canonicalSha256(draft);

@@ -80,14 +80,13 @@ test('prepares exact software and OS actions with isolated workspaces and effect
         [type]: {
           ce: {
             config: {
-              name: ha ? 'site' : 'site-1',
-              namespace: 'system',
-              version: upgrade.expectation.target.version,
-              force: false,
+              site: ha ? 'site' : 'site-1',
+              [kind === 'software' ? 'software_version' : 'os_version']: upgrade.expectation.target.version,
             },
           },
         },
       });
+      expect(upgrade.action.configValuesSha256).toBe(canonicalSha256(config.action[type].ce.config));
       expect(config.resource).toBeUndefined();
       expect(config.output).toBeUndefined();
       expect(config.provider).toEqual({ xcsh: {} });

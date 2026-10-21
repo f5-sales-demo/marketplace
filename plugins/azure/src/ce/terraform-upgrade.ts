@@ -60,12 +60,13 @@ async function build(
     throw new Error('Azure Terraform upgrade identities, scope or effective versions are incomplete');
   const { kind, version } = expectation.target;
   const request = contract.build({ siteName: base.siteName, kind, version });
-  const values = { name: base.siteName, namespace: 'system', version, force: false };
+  const requestValues = { name: base.siteName, namespace: 'system', version, force: false };
+  const actionValues = { site: base.siteName, [kind === 'software' ? 'software_version' : 'os_version']: version };
   const suffix = kind === 'software' ? 'sw' : 'os';
   if (
     request.method !== 'POST' ||
     request.path !== `/api/config/namespaces/system/sites/${base.siteName}/upgrade_${suffix}` ||
-    canonicalSha256(request.body) !== canonicalSha256(values)
+    canonicalSha256(request.body) !== canonicalSha256(requestValues)
   )
     throw new Error('Azure Terraform upgrade wire request differs from the verified action');
   const providerLock = await loadXcshProviderLock();
@@ -87,7 +88,7 @@ async function build(
         required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
       },
       provider: { xcsh: {} },
-      action: { [type]: { ce: { config: values } } },
+      action: { [type]: { ce: { config: actionValues } } },
     }),
   };
   const draft = {
@@ -100,7 +101,7 @@ async function build(
       address: `action.${type}.ce`,
       type,
       providerName: 'registry.terraform.io/f5-sales-demo/xcsh',
-      configValuesSha256: canonicalSha256(values),
+      configValuesSha256: canonicalSha256(actionValues),
     },
   };
   const planSha256 = canonicalSha256(draft);
