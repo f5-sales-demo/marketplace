@@ -7,6 +7,7 @@ export interface Scenario {
   id: string;
   calls: { tool: string; args: Record<string, unknown> }[];
   guidance: string[];
+  guidanceRanges?: { path: string; sha256: string; args: { sel: string; timeout?: number } }[];
   guidanceOptions?: { sel?: ''; timeout?: number }[];
   commands?: { name: string; args: string }[];
   shellCalls?: {
@@ -136,6 +137,41 @@ export function validateScenario(value: any): Scenario {
     )
   )
     throw new Error('Scenario guidance must be shipped relative paths');
+  if (value.guidanceRanges !== undefined) {
+    const rules = value.guidanceRanges;
+    if (
+      !Array.isArray(rules) ||
+      !rules.length ||
+      rules.some(
+        (rule: any) =>
+          !rule ||
+          typeof rule !== 'object' ||
+          Array.isArray(rule) ||
+          Object.keys(rule).some((key) => !['path', 'sha256', 'args'].includes(key)) ||
+          typeof rule.path !== 'string' ||
+          !value.guidance.includes(rule.path) ||
+          typeof rule.sha256 !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(rule.sha256) ||
+          !rule.args ||
+          typeof rule.args !== 'object' ||
+          Array.isArray(rule.args) ||
+          Object.keys(rule.args).some((key) => !['sel', 'timeout'].includes(key)) ||
+          typeof rule.args.sel !== 'string' ||
+          !/^L[1-9][0-9]*-L[1-9][0-9]*$/.test(rule.args.sel) ||
+          ('timeout' in rule.args &&
+            (!Number.isFinite(rule.args.timeout) || rule.args.timeout <= 0 || rule.args.timeout > 120)),
+      ) ||
+      rules.some((rule: any, index: number) =>
+        rules.slice(0, index).some((previous: any) => isDeepStrictEqual(previous, rule)),
+      )
+    )
+      throw new Error('Scenario guidance ranges require exact shipped paths, digests and bounded line windows');
+    for (const rule of rules) {
+      const [start, end] = rule.args.sel.match(/[0-9]+/g)!.map(Number);
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end < start || end - start >= 300)
+        throw new Error('Scenario guidance range exceeds a 300-line window');
+    }
+  }
   if (value.guidanceOptions !== undefined) {
     const options = value.guidanceOptions;
     if (
@@ -232,6 +268,12 @@ export function validateScenario(value: any): Scenario {
 
 /** Strict Markdown subset: one named section containing exactly one Bash fence. */
 export function validateScenarioSources(scenario: Scenario, plugin: string) {
+  for (const rule of scenario.guidanceRanges ?? []) {
+    const source = readFileSync(resolveShippedPath(plugin, rule.path), 'utf8');
+    const end = Number(rule.args.sel.match(/[0-9]+/g)![1]);
+    if (createHash('sha256').update(source).digest('hex') !== rule.sha256 || end > source.split('\n').length)
+      throw new Error('Reviewed guidance source or line coverage changed');
+  }
   for (const rule of scenario.shellCalls ?? []) {
     if (rule.args.cwd !== undefined) {
       const cwd = rule.args.cwd;
@@ -300,6 +342,20 @@ export function guardScenarioTool(event: any, scenario: Scenario, plugin: string
       block: true,
       reason: 'Acceptance permits only exact reviewed shipped shell scripts and arguments.',
     };
+  }
+  if (
+    event.toolName === 'read' &&
+    scenario.guidanceRanges?.some((rule) =>
+      isDeepStrictEqual(input, { path: resolve(plugin, rule.path), ...rule.args }),
+    )
+  ) {
+    try {
+      validateScenario(scenario);
+      validateScenarioSources(scenario, plugin);
+      return;
+    } catch {
+      return { block: true, reason: 'Reviewed guidance range source changed' };
+    }
   }
   const allowed =
     event.toolName === 'read'

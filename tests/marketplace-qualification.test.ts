@@ -12,6 +12,7 @@ import {
   selectInstalledPlugin,
   validateCaptureIdentity,
   validateScenario,
+  validateScenarioSources,
 } from '../scripts/marketplace-qualification';
 
 test('catalog includes all current surfaces and entrypoints without Salesforce retirement history', () => {
@@ -494,6 +495,71 @@ test('reviewed shell cwd admits only an exact existing directory and rejects cha
     rmSync(cwd, { recursive: true });
     symlinkSync(root, cwd);
     expect(guardScenarioTool({ toolName: 'bash', input: rule.args }, reviewed, root)).toMatchObject({ block: true });
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
+test('reviewed guidance ranges bind exact path, source digest and line window', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'guidance-range-')));
+  try {
+    const source = Array.from({ length: 420 }, (_, i) => `line ${i + 1}`).join('\n');
+    writeFileSync(join(root, 'long.md'), source);
+    const rule = {
+      path: 'long.md',
+      sha256: createHash('sha256').update(source).digest('hex'),
+      args: { sel: 'L301-L420', timeout: 120 },
+    };
+    const reviewed = { id: 'long-guide', calls: [], guidance: ['long.md'], guidanceRanges: [rule] };
+    expect(validateScenario(reviewed)).toEqual(reviewed);
+    expect(() => validateScenarioSources(reviewed, root)).not.toThrow();
+    expect(
+      guardScenarioTool({ toolName: 'read', input: { path: join(root, 'long.md'), ...rule.args } }, reviewed, root),
+    ).toBeUndefined();
+    for (const sel of ['L1-L300', 'L301', '', 'raw', 'L301-L421'])
+      expect(
+        guardScenarioTool(
+          { toolName: 'read', input: { path: join(root, 'long.md'), ...rule.args, sel } },
+          reviewed,
+          root,
+        ),
+      ).toMatchObject({ block: true });
+    for (const invalid of [
+      { ...rule, path: 'other.md' },
+      { ...rule, sha256: 123 },
+      { ...rule, sha256: rule.sha256.toUpperCase() },
+      { ...rule, args: { sel: 123 } },
+      ...['L0-L1', 'L301-L300', 'L1-L301', 'L9007199254740992-L9007199254740992'].map((sel) => ({
+        ...rule,
+        args: { sel },
+      })),
+      ...[0, -1, 121, '120'].map((timeout) => ({ ...rule, args: { sel: rule.args.sel, timeout } })),
+      { ...rule, args: { ...rule.args, extra: true } },
+    ])
+      expect(() => validateScenario({ ...reviewed, guidanceRanges: [invalid] })).toThrow();
+    expect(() =>
+      validateScenario({
+        ...reviewed,
+        guidanceRanges: [rule, { args: { timeout: 120, sel: rule.args.sel }, sha256: rule.sha256, path: rule.path }],
+      }),
+    ).toThrow();
+    expect(() =>
+      validateScenarioSources({ ...reviewed, guidanceRanges: [{ ...rule, args: { sel: 'L301-L421' } }] }, root),
+    ).toThrow('coverage changed');
+    expect(() =>
+      validateScenario({ ...reviewed, guidanceRanges: [{ ...rule, args: { sel: 'L1-L300' } }] }),
+    ).not.toThrow();
+    symlinkSync(import.meta.path, join(root, 'link.md'));
+    expect(() =>
+      validateScenarioSources(
+        { ...reviewed, guidance: ['link.md'], guidanceRanges: [{ ...rule, path: 'link.md' }] },
+        root,
+      ),
+    ).toThrow();
+    writeFileSync(join(root, 'long.md'), `${source}\nchanged`);
+    expect(
+      guardScenarioTool({ toolName: 'read', input: { path: join(root, 'long.md'), ...rule.args } }, reviewed, root),
+    ).toMatchObject({ block: true });
   } finally {
     rmSync(root, { recursive: true });
   }

@@ -223,7 +223,20 @@ export default async function observeMarketplaceCampaign(api: any) {
     const start = executions.get(event.toolCallId);
     const admittedShell = admittedShellCalls.get(event.toolCallId);
     admittedShellCalls.delete(event.toolCallId);
-    const admittedGuidance = admittedGuidanceCalls.get(event.toolCallId);
+    let admittedGuidance = admittedGuidanceCalls.get(event.toolCallId);
+    if (
+      admittedGuidance &&
+      scenario.guidanceRanges?.some(
+        (rule) => rule.path === admittedGuidance.path && rule.args.sel === admittedGuidance.args.sel,
+      )
+    ) {
+      try {
+        validateScenarioSources(scenario, plugin);
+      } catch {
+        record({ event: 'guidance_evidence_rejected', toolCallId: event.toolCallId });
+        admittedGuidance = undefined;
+      }
+    }
     admittedGuidanceCalls.delete(event.toolCallId);
     if (
       start?.toolName === 'read' &&
@@ -238,6 +251,7 @@ export default async function observeMarketplaceCampaign(api: any) {
         result: { ...event.result, isError: event.isError },
         guidancePath: admittedGuidance.path,
         guidanceSha256: admittedGuidance.sha256,
+        guidanceSelector: start.args.sel || undefined,
       });
     if (
       start &&
@@ -359,10 +373,10 @@ export default async function observeMarketplaceCampaign(api: any) {
     writeFileSync(
       join(captureRoot, 'cases.json'),
       JSON.stringify(
-        items.map(({ id, tool, guidancePath, guidanceSha256 }) => ({
+        items.map(({ id, tool, guidancePath, guidanceSha256, guidanceSelector }) => ({
           id,
           tool: tool ?? 'assistant',
-          ...(guidancePath ? { guidancePath, guidanceSha256 } : {}),
+          ...(guidancePath ? { guidancePath, guidanceSha256, ...(guidanceSelector ? { guidanceSelector } : {}) } : {}),
         })),
       ),
       { mode: 0o600 },
