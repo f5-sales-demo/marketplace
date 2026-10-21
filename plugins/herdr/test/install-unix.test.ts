@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import manifest from '../.xcsh-plugin/plugin.json';
 
 const installer = join(import.meta.dir, '..', 'scripts', 'install-unix.sh');
 const roots: string[] = [];
@@ -16,13 +17,13 @@ function fixture(checksum = '') {
   const home = join(root, 'home');
   const packagePath = join(root, 'herdr-package');
   mkdirSync(home, { recursive: true });
-  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.19.2\\n"\n', { mode: 0o755 });
+  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.19.4\\n"\n', { mode: 0o755 });
   const actual = new Bun.CryptoHasher('sha256').update(readFileSync(packagePath)).digest('hex');
   return { root, home, packagePath, actual, checksum: checksum || actual };
 }
 
 function run(f: ReturnType<typeof fixture>, extra: Record<string, string> = {}) {
-  return Bun.spawnSync(['sh', installer, 'apply', '1.1.5'], {
+  return Bun.spawnSync(['sh', installer, 'apply', manifest.version], {
     env: {
       ...process.env,
       HOME: f.home,
@@ -50,14 +51,14 @@ describe('Unix Herdr setup', () => {
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     expect(receipt).toMatchObject({
       schema_version: 1,
-      plugin_version: '1.1.5',
-      herdr_version: '0.19.2',
+      plugin_version: manifest.version,
+      herdr_version: '0.19.4',
       protocol: 27,
       target: 'linux-x86_64',
       sha256: f.actual,
       installed_path: binary,
     });
-    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-x86_64');
+    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-linux-x86_64');
     const before = statSync(binary).ino;
     const second = run(f);
     expect(second.exitCode).toBe(0);
@@ -77,15 +78,15 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(unrelated, 'utf8')).toBe('keep');
   });
 
-  it('embeds the immutable 0.19.2 release and every supported checksum', () => {
+  it('embeds the immutable 0.19.4 release and every supported checksum', () => {
     const source = readFileSync(installer, 'utf8');
-    expect(source).toContain('PINNED_VERSION=0.19.2');
+    expect(source).toContain('PINNED_VERSION=0.19.4');
     expect(source).not.toContain('releases/latest');
     for (const checksum of [
-      '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394',
-      'dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c',
-      '36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a',
-      'f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a',
+      '19620e7fc6f37347e1478cc0533b629984f1bee966ac896cb5f434447ed0067c',
+      '55415378f850025820cb7ab5728a1b2721246879a9ce7e6431be956a0a38e05c',
+      '692659892053794169bcc81deb52a94a778fe20cb38b96b4305b89da244edde2',
+      '34ca05f2187127eae2e6285c0181b727c4ec42eae73d0047c8570fe056db928b',
     ])
       expect(source).toContain(checksum);
   });
@@ -102,7 +103,7 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(binary, 'utf8')).toContain('0.17.0');
     const recovered = run(f);
     expect(recovered.exitCode).toBe(0);
-    expect(readFileSync(binary, 'utf8')).toContain('0.19.2');
+    expect(readFileSync(binary, 'utf8')).toContain('0.19.4');
   });
 
   it('normalizes unsupported targets and records Ubuntu bootstrap intent', () => {
