@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
+
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
 - **`docs-tools`** v1.3.1 — resolve the shipped reviewer skill, preserve explicit scope, and report incomplete reviews with complete findings
 - **`docs-pipeline`** v1.2.1 recognizes content repositories without local Astro configuration, reports independent readiness indicators and incomplete outcomes, and separates status inspection from preview startup (#1757).
