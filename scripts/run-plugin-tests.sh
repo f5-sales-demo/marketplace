@@ -47,7 +47,7 @@ bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-obse
 bun test scripts/ce-uat-public-mappings.test.ts scripts/ce-uat-readiness.test.ts scripts/ce-runtime-assets.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
-bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {
+bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/ghostty-probe.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {
   echo "FATAL: marketplace integration lifecycle tests failed" >&2
   exit 1
 }
