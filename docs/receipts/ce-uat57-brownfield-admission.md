@@ -27,3 +27,11 @@ Readiness remains false: 288 required rows / 300 blockers. Recovery remains fail
 Supported SLI-only control, publisher freshness, six-interface transitions, the complete live matrix, qualified
 producer publication and consumption, independent cleanup and final UAT acceptance remain open.
 Preserve Argo, CE-hosted vK8s and existing Marketplace images/offers. PR1565 remains draft with auto-merge off.
+
+
+## Remaining public execution dependency
+
+The actual `revalidateAwsTerraformPlan` still rejects brownfield plans before discovery. The public apply
+regression injects its preflight, so it proves translation/admission logic only. Installed public brownfield
+apply and live deployment remain blocked until the real preflight observes all immutable brownfield references.
+No live acceptance is inferred from the passing source regression.
