@@ -94,11 +94,34 @@ runs remain private and do not qualify results. The successful retry supplied
 the exact reviewed argument object, including the trailing newline. Raw evidence
 is retained under `docs-pipeline1779-installed-malformed-exact-argv-mac-20261020`.
 
+## Empty content indicators
+
+A third executed fixture contained an empty docs directory and no entrypoint,
+workflow or governance. Exactly two admitted successful calls ran with no extras:
+the installed command read and exact shipped Bash collector. The script exited
+zero while reporting completion incomplete, content present, the other three
+checks missing and contentCount zero. Both contentPreview and remainingContent
+were empty arrays; buildExecuted, configurationValidated and previewStarted
+remained false.
+
+The final answer preserved zero, both empty arrays, all false flags and the three
+complete warnings, including governance enrollment through docs-control. It
+limited conclusions to local indicators and did not infer a clean repository.
+Another 96 native frames passed, and each of the 48 assistant frames retained
+zero, empty arrays, false flags and full corrective guidance. Capture closure and
+session shutdown were observed. Scenario SHA256:
+`f471cf8525138353670da94e66c37ace8688b27430ef5726dcdbb197251d6b84`.
+Raw evidence remains private under
+`docs-pipeline1779-installed-empty-mac-20261020`.
+
+Across three executed fixtures, the receipt now records 288 tool/result frames
+and 48 separately rendered guidance frames, with no width or semantic failures.
+
 ## Remaining actions
 
 Only `docs-pipeline.command.docs-pipeline-status.capture` is supported by this
-scoped Mac receipt. Repeat the exact fixture on Ubuntu, qualify empty and
-unavailable indicators, and execute full command invocation with
+scoped Mac receipt. Repeat the exact fixture on Ubuntu, qualify unavailable
+indicators, and execute full command invocation with
 complete guidance fidelity. Delegated operator execution needs a session that
 permits subagents. Preview startup remains deferred. Resolve the content-only
 public lifecycle representation before accepting its status gate. Historical
