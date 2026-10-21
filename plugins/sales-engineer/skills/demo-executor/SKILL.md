@@ -8,6 +8,20 @@ description: >-
   from docs/demo/.
 ---
 
+## Evidence and reporting
+
+Keep the caller's repository, target and requested stage explicit. If required
+workspace guidance is missing or unreadable, report incomplete evidence and its
+exact path; do not substitute a default product, environment or readiness claim.
+Lead reports with scope, completion, observed findings, warnings and next action.
+Separate observations, assumptions, proposed actions and unverified conclusions.
+Preserve zero, false, empty strings and unknown values. Show at most twelve
+findings initially, then include remaining evidence once with sources and literal
+corrective guidance. Redact credentials and sensitive variable values in every
+message, table and command example; report variable names and resolution state.
+A status request does not authorize Prepare, Teardown, deployment or service
+startup. Retain each workflow's existing authorization and mutation guards.
+
 **Canonical skill URI**: `skill://sales-engineer:demo-executor`
 
 # API-Driven Demo Execution
