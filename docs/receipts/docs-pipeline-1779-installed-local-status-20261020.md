@@ -2,7 +2,7 @@
 
 ## Scope and provenance
 
-The installed Docs-pipeline 1.2.1 command was exercised on the MacBook with
+The installed Docs-pipeline 1.2.1 command was exercised on Mac and Ubuntu with
 stable xcsh 23.9.5, through the normal read and Bash dispatch and published
 ToolExecutionComponent and AssistantMessageComponent. This is a scoped local
 collector result; it does not establish full command invocation, delegation,
@@ -142,13 +142,42 @@ its Mac shell.
 
 This receipt records 480 native frames across the executed Mac fixtures and
 independent Ubuntu complete fixture, including separate guidance capture on
-both hosts. Malformed and empty cases still need Ubuntu replay.
+both hosts.
+
+## Ubuntu malformed and empty replay
+
+Independent Ubuntu fixtures repeated both remaining outcomes through exact
+installed guidance reads and shipped Bash collectors. Each admitted exactly two
+successful calls with no blocked or extra calls. All 113 numbered guidance lines
+matched the installed command, including the trailing empty line. The malformed
+fixture reported one content path, missing entrypoint and workflow, malformed
+governance and incomplete completion. The empty fixture reported zero paths,
+empty preview and remaining arrays, missing entrypoint, workflow and governance,
+and incomplete completion. Both retained three false execution flags.
+
+Each outcome passed 96 native result and assistant frames. Every assistant frame
+retained the observed count and arrays, all false flags, all three complete
+corrective warnings and the local-indicator boundary. Neither successful script
+execution nor synthetic indicator presence was represented as repository,
+configuration, publication or service acceptance. Capture closure and session
+shutdown were verified for each replay, with the owned pane returning through
+SSH to its Mac shell.
+
+- Malformed Ubuntu scenario SHA256:
+  `bf414283800241fc0d8ae81a24ad462c19bb51dbc9ae66c8948f3bda6b5ae49e`.
+- Empty Ubuntu scenario SHA256:
+  `93c43719012570cc8b901a269ba2152bb0948764aec9334e1b86272195584a79`.
+- Private roots: `docs-pipeline1779-installed-malformed-ubuntu-20261020` and
+  `docs-pipeline1779-installed-empty-ubuntu-20261020`.
+
+The receipt now records 672 native frames across complete, malformed and empty
+fixtures on both hosts, including separate installed guidance matrices.
 
 ## Remaining actions
 
 Only `docs-pipeline.command.docs-pipeline-status.capture` is supported by this
-scoped Mac and Ubuntu receipt. Repeat malformed and empty cases on Ubuntu,
-qualify unavailable indicators, and execute full command invocation with
+scoped Mac and Ubuntu receipt. Qualify unavailable indicators and execute full
+command invocation with
 complete guidance fidelity. Delegated operator execution needs a session that
 permits subagents. Preview startup remains deferred. Resolve the content-only
 public lifecycle representation before accepting its status gate. Historical
