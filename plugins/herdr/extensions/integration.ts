@@ -2,44 +2,45 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
+import manifest from '../.xcsh-plugin/plugin.json';
 
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
 }
 
-export const PLUGIN_VERSION = '1.1.4';
+export const PLUGIN_VERSION = manifest.version;
 export const MINIMUM_PROTOCOL = 27;
 export const REQUIRED_RUNTIME_CAPABILITIES = [
   'health_check',
   'worker_context_handoff',
   'xcsh_semantic_tracking',
 ] as const;
-export const PINNED_VERSION = '0.19.2';
+export const PINNED_VERSION = '0.19.4';
 export const PINNED_RELEASES: Record<string, { protocol: number; url: string; sha256: string }> = {
   'linux-x86_64': {
     protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-x86_64',
-    sha256: '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394',
+    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-linux-x86_64',
+    sha256: '19620e7fc6f37347e1478cc0533b629984f1bee966ac896cb5f434447ed0067c',
   },
   'linux-aarch64': {
     protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-aarch64',
-    sha256: 'dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c',
+    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-linux-aarch64',
+    sha256: '55415378f850025820cb7ab5728a1b2721246879a9ce7e6431be956a0a38e05c',
   },
   'macos-x86_64': {
     protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-macos-x86_64',
-    sha256: '36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a',
+    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-macos-x86_64',
+    sha256: '692659892053794169bcc81deb52a94a778fe20cb38b96b4305b89da244edde2',
   },
   'macos-aarch64': {
     protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-macos-aarch64',
-    sha256: 'f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a',
+    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-macos-aarch64',
+    sha256: '34ca05f2187127eae2e6285c0181b727c4ec42eae73d0047c8570fe056db928b',
   },
   'windows-x86_64': {
     protocol: 27,
-    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-windows-x86_64.zip',
-    sha256: 'b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b',
+    url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.4/herdr-windows-x86_64.zip',
+    sha256: 'b2d064a0bb726eada8bec81bed7554a55a230c1e4e785138f641012cdc6ecbfe',
   },
 };
 const UNIX_SETUP = resolve(import.meta.dir, '..', 'scripts', 'install-unix.sh');
