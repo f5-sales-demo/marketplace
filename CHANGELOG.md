@@ -11,6 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
+- **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
 - **`brand`** v1.2.1 — resolve shipped review guidance and report safe reference status with explicit incomplete outcomes
 - **`meddpicc`** v7.8.2 quotes every legacy migration argument and identifies the running executable and CLI source path so corrective advice reconstructs exactly in Bash and Zsh (#1775).
 
