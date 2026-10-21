@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **CE UAT78** retires completed software/OS Terraform action stages through exact source ownership, applied action journals, final ordinary no-change plans and independent terminal absence evidence. Durable preparation and retirement checkpoints preserve interruption recovery; parent cleanup verifies every stage receipt (#1651, #1326).
+
 - **CE UAT77** reconciles serial upgrade completion with the exact owning Terraform application journal and fresh version evidence. Completion receipts persist before admission is released; interrupted actions resume without replay, while unsubmitted actions and live runners block completion (#1651, #1326).
 
 - **CE UAT76** matches parent cleanup to the owning Terraform runner canonical manifest digest. Installed UAT75 retired both runners but blocked parent journal cleanup; that failure is retained and canonical receipt regressions cover the repaired join (#1651, #1326).

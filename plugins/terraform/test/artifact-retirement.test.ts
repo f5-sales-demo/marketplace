@@ -84,7 +84,7 @@ for (const [label, plan, state] of [
     'mutating plan',
     {
       resource_changes: [{ address: 'terraform_data.ce', type: 'terraform_data', change: { actions: ['create'] } }],
-      applyable: true,
+      applyable: true, // codespell:ignore applyable
     },
     {},
   ], // codespell:ignore applyable

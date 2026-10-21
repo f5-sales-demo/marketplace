@@ -333,3 +333,25 @@ test('terminal cleanup refuses F5 bookkeeping without its owning stage before ch
   expect(f.counts().retirements).toBe(0);
   await expect(f.store.read('aws-terraform-terminal-cleanup.json')).rejects.toThrow();
 });
+
+test('an upgrade-shaped directory alone remains unqualified and cannot retire the root', async () => {
+  const f = await fixture();
+  await mkdir(join(f.store.directory, `terraform-stages/upgrade-software-${'a'.repeat(24)}`), {
+    recursive: true,
+    mode: 0o700,
+  });
+  await expect(
+    finalizeAwsTerraformCleanup(
+      f.base,
+      f.teardown,
+      f.teardown.planSha256,
+      f.runtime as never,
+      f.contract as never,
+      f.session as never,
+      f.store,
+      f.api,
+      {},
+    ),
+  ).rejects.toThrow();
+  expect(f.counts().retirements).toBe(0);
+});

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
@@ -11,6 +12,7 @@ import { canonicalSha256 } from './canonical';
 import { collectAwsTerraformAbsence } from './terraform-absence';
 import { retireAwsTerraformParentArtifacts } from './terraform-parent-retirement';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
+import { qualifiedAwsTerraformUpgradeStages, retireAwsTerraformUpgradeStage } from './terraform-upgrade-retirement';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -58,7 +60,8 @@ async function stageInventory(store: CeDeploymentStore) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw error;
   }
-  if (names.some((name) => name !== 'f5-resources')) throw Error('Unqualified Terraform stage blocks terminal cleanup');
+  if (names.some((name) => name !== 'f5-resources' && !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(name)))
+    throw Error('Unqualified Terraform stage blocks terminal cleanup');
   return names.sort();
 }
 /** Public teardown terminal boundary. Fresh read-only external evidence is independent of local runner proofs. */
@@ -119,7 +122,20 @@ export async function finalizeAwsTerraformCleanup(
   const book = await optional(store, 'terraform-f5-resources.json');
   if ((book !== undefined) !== stages.includes('f5-resources'))
     throw Error('F5 bookkeeping and owning stage inventory differ');
-  if (stages.length && !terraform?.retireF5Stage) throw Error('Owning stage retirement service unavailable');
+  if (stages.includes('f5-resources') && !terraform?.retireF5Stage)
+    throw Error('Owning stage retirement service unavailable');
+  const upgradeStages = stages.filter((stage) => stage !== 'f5-resources');
+  if (upgradeStages.length) {
+    const names = (await readdir(store.directory)).filter((name) => /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name));
+    const sources = await Promise.all(names.map((name) => store.read(name)));
+    if (upgradeStages.some((stage) => !sources.some((source) => object(object(source).deployment).stage === stage)))
+      throw Error('Unqualified Terraform stage blocks terminal cleanup');
+  }
+  const upgradeContract = upgradeStages.length ? await VerifiedUpgradeContract.release(fetch, signal) : undefined;
+  const upgrades = upgradeContract
+    ? await qualifiedAwsTerraformUpgradeStages(base, store, stages, upgradeContract)
+    : [];
+  if (upgrades.length && !terraform) throw Error('Owning upgrade stage retirement service unavailable');
   const fresh = async () => {
     signal?.throwIfAborted();
     const start = Date.now();
@@ -218,7 +234,21 @@ export async function finalizeAwsTerraformCleanup(
     receipt.backendIdentity !== `local:${base.deploymentName}`
   )
     throw Error('Terminal cleanup checkpoint differs');
-  if (stages.length) {
+  for (const upgrade of upgrades) {
+    if (!terraform || !upgradeContract) throw Error('Owning upgrade stage retirement service unavailable');
+    await retireAwsTerraformUpgradeStage(
+      base,
+      upgrade,
+      upgradeContract,
+      terraform,
+      store,
+      String(bound.evidenceSha256),
+      env,
+      signal,
+    );
+    await fresh();
+  }
+  if (stages.includes('f5-resources')) {
     if (!terraform?.retireF5Stage) throw Error('Owning stage retirement service unavailable');
     await terraform.retireF5Stage(store.owner, base.planSha256, String(bound.evidenceSha256), env, signal);
     await fresh();

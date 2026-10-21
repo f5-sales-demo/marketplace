@@ -57,8 +57,7 @@ async function inventory(
   const items: Item[] = [];
   const add = async (path: string, preserve: boolean) =>
     items.push({ path, preserve, sha256: hash(await file(join(store.directory, path))) });
-  const runner = async (prefix: string) => {
-    const stage = prefix === base.deploymentName ? undefined : 'f5-resources';
+  const runner = async (prefix: string, stage?: string, upgrade?: Record<string, unknown>) => {
     const path = join(store.directory, prefix);
     await directory(path);
     const names = (await readdir(path)).sort();
@@ -87,6 +86,28 @@ async function inventory(
       marker.inventorySha256 !== hash(JSON.stringify(marker.artifacts))
     )
       throw Error('Runner retirement provenance differs');
+    if (upgrade) {
+      const deployment = object(upgrade.deployment),
+        retirement = object(await store.read(`${String(upgrade.planId)}-stage-retirement.json`)),
+        final = object(retirement.receipt);
+      if (
+        retirement.schemaVersion !== 1 ||
+        retirement.status !== 'retired' ||
+        canonicalSha256(retirement.owner) !== canonicalSha256(store.owner) ||
+        retirement.sourcePlanSha256 !== base.planSha256 ||
+        retirement.upgradePlanSha256 !== upgrade.planSha256 ||
+        retirement.deploymentSha256 !== canonicalSha256(deployment) ||
+        retirement.evidenceSha256 !== evidenceSha256 ||
+        retirement.receiptSha256 !== canonicalSha256(final) ||
+        manifest.configurationSha256 !== hash(String(deployment.configuration)) ||
+        manifest.providerLockSha256 !== hash(String(deployment.providerLock)) ||
+        marker.finalPlanSha256 !== final.planSha256 ||
+        marker.planReceiptSha256 !== canonicalSha256(final) ||
+        final.noChanges !== true ||
+        final.backendIdentity !== manifest.backendIdentity
+      )
+        throw Error('Upgrade runner retirement provenance differs');
+    }
     for (const name of names) await add(`${prefix}/${name}`, true);
   };
   const preserve = new Set([
@@ -107,6 +128,32 @@ async function inventory(
     'platform-drain-progress.json',
     'platform-drain-receipt.json',
   ]);
+  const upgrades = new Map<string, Record<string, unknown>>();
+  const upgradeJournals = new Set<string>();
+  for (const name of (await readdir(store.directory)).filter((name) =>
+    /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
+  )) {
+    const source = object(await store.read(name)),
+      deployment = object(source.deployment);
+    if (
+      source.schemaVersion !== 2 ||
+      source.engine !== 'terraform' ||
+      source.kind !== 'aws-ce-terraform-upgrade' ||
+      source.sourcePlanSha256 !== base.planSha256 ||
+      name !== `${String(source.planId)}.json` ||
+      !sha(source.planSha256) ||
+      typeof deployment.stage !== 'string' ||
+      !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(deployment.stage) ||
+      upgrades.has(deployment.stage)
+    )
+      throw Error('Upgrade parent source identity differs');
+    const { planId: _id, planSha256: _sha, ...draft } = source;
+    if (canonicalSha256(draft) !== source.planSha256) throw Error('Upgrade parent source digest differs');
+    upgrades.set(deployment.stage, source);
+    for (const suffix of ['', '-authorization', '-checkpoint', '-action-plan', '-receipt', '-stage-retirement'])
+      upgradeJournals.add(`${String(source.planId)}${suffix}.json`);
+  }
+  for (const name of upgradeJournals) preserve.add(name);
   let rootRunner = false;
   for (const name of (await readdir(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;
@@ -118,12 +165,13 @@ async function inventory(
     if (name === 'terraform-stages') {
       await directory(join(store.directory, name));
       for (const stage of (await readdir(join(store.directory, name))).sort()) {
-        if (stage !== 'f5-resources') throw Error('Unqualified Terraform stage blocks parent retirement');
+        if (stage !== 'f5-resources' && !upgrades.has(stage))
+          throw Error('Unqualified Terraform stage blocks parent retirement');
         const stagePath = join(store.directory, name, stage);
         await directory(stagePath);
         if (JSON.stringify(await readdir(stagePath)) !== JSON.stringify([base.deploymentName]))
           throw Error('Stage deployment inventory differs');
-        await runner(`${name}/${stage}/${base.deploymentName}`);
+        await runner(`${name}/${stage}/${base.deploymentName}`, stage, upgrades.get(stage));
       }
       continue;
     }
