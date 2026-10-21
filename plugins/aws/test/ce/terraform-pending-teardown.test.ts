@@ -479,3 +479,30 @@ for (const method of ['POST', 'PUT'])
     expect(calls).toBe(1);
     expect(f.mutations).toHaveLength(0);
   });
+
+test('rejected pending retirement cannot persist a terminal deployment marker', async () => {
+  for (const reason of ['authorization', 'unknown', 'replacement', 'journal']) {
+    const f = await fixture();
+    const plan = await prepareAwsPendingTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+    if (reason === 'unknown') f.change('unknown');
+    if (reason === 'replacement') f.replace();
+    if (reason === 'journal')
+      await f.storage.write('terraform-workflow.json', {
+        schemaVersion: 1,
+        engine: 'terraform',
+        planSha256: f.base.planSha256,
+        stage: 'network-pending',
+      });
+    await expect(
+      coordinateAwsPendingTeardown(
+        f.base,
+        plan,
+        reason === 'authorization' ? 'f'.repeat(64) : plan.planSha256,
+        f.storage,
+        f.driver as never,
+      ),
+    ).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+    await expect(f.storage.read('aws-terraform-lifecycle-retirement.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  }
+});

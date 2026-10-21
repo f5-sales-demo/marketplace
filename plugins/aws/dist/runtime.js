@@ -16566,6 +16566,7 @@ async function coordinateAwsPendingTeardown(base, input, authorized, storage, dr
       driver.ingressContractFingerprint,
     );
   };
+  await observe();
   await beginAwsTerraformRetirement(base, plan, storage);
   let current = await observe();
   for (const target of plan.retirement)

@@ -395,6 +395,8 @@ export async function coordinateAwsPendingTeardown(
       driver.ingressContractFingerprint,
     );
   };
+  // Reject invalid authorization, changed journals and unknown/substituted live identities before persisting retirement.
+  await observe();
   await beginAwsTerraformRetirement(base, plan, storage);
   let current = await observe();
   for (const target of plan.retirement)
