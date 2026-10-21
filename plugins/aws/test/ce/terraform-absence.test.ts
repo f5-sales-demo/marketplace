@@ -3,8 +3,17 @@ import { canonicalSha256 } from '../../src/ce/canonical';
 import { collectAwsTerraformAbsence } from '../../src/ce/terraform-absence';
 import { foundationPlan } from './terraform-fixtures';
 
-function fixture(mode = 'absent') {
+function absencePlan() {
   const plan = foundationPlan();
+  plan.intent.partition = 'aws';
+  const { planId: _id, planSha256: _sha, ...material } = plan;
+  plan.planSha256 = canonicalSha256(material);
+  plan.planId = `aws-ce-${plan.planSha256.slice(0, 24)}`;
+  return plan;
+}
+
+function fixture(mode = 'absent') {
+  const plan = absencePlan();
   const material = {
     schemaVersion: 1 as const,
     engine: 'terraform' as const,
@@ -101,8 +110,163 @@ test('absence collector rejects forged inventory and cancellation without issuin
   expect(f.calls).toEqual([]);
 });
 
+test('captured ELB ARN scope must match deployment before any AWS request', async () => {
+  for (const scope of ['aws:us-west-1:123456789012', 'aws:us-east-1:999999999999', 'aws-cn:us-east-1:123456789012']) {
+    const f = fixture();
+    const [partition, region, account] = scope.split(':');
+    const { sha256: _sha, ...material } = f.inventory;
+    material.resources = [
+      { type: 'aws_lb', id: `arn:${partition}:elasticloadbalancing:${region}:${account}:loadbalancer/net/ce/abcdef12` },
+    ];
+    material.tgwEdges = [];
+    const inventory = { ...material, sha256: canonicalSha256(material) };
+    await expect(collectAwsTerraformAbsence(f.plan, inventory, f.api)).rejects.toThrow();
+    expect(f.calls).toEqual([]);
+  }
+});
+
+test('tagging API EC2 identities require exact scoped ownership and independent absence reads', async () => {
+  for (const mode of ['captured', 'absent', 'retained']) {
+    const f = fixture();
+    const id = mode === 'captured' ? 'vol-12345678' : 'vol-87654321';
+    const exec = f.api.exec.bind(f.api);
+    f.api.exec = async (command, args) => {
+      if (args[1] === 'get-resources')
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            ResourceTagMappingList: [
+              {
+                ResourceARN: `arn:${f.plan.intent.partition}:ec2:${f.plan.intent.region}:${f.plan.intent.accountId}:volume/${id}`,
+                Tags: ownershipTags(f.plan),
+              },
+            ],
+            PaginationToken: '',
+          }),
+        };
+      if (args[1] === 'describe-volumes') {
+        const input = JSON.parse(args[args.indexOf('--cli-input-json') + 1]);
+        expect(input.Filters[0].Values).toContain(id);
+        f.calls.push(args[1]);
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            Volumes: mode === 'retained' ? [{ VolumeId: id, State: 'available' }] : [],
+          }),
+        };
+      }
+      return exec(command, args);
+    };
+    const receipt = await collectAwsTerraformAbsence(f.plan, f.inventory, f.api);
+    expect(receipt.status).toBe(mode === 'retained' ? 'pending' : 'absent-or-retired');
+    expect(f.calls).toContain('describe-volumes');
+    if (mode === 'retained') expect(receipt.remaining).toContain(id);
+  }
+});
+
+function ownershipTags(plan: ReturnType<typeof foundationPlan>) {
+  return [
+    { Key: 'xcsh-managed-by', Value: 'aws-ce' },
+    { Key: 'xcsh-execution-engine', Value: 'terraform' },
+    { Key: 'xcsh-deployment-id', Value: plan.intent.deploymentName },
+    { Key: 'xcsh-plan-sha256', Value: plan.planSha256 },
+  ];
+}
+
+test('tagging API cannot hide malformed, unsupported, foreign or duplicate resources', async () => {
+  const f = fixture();
+  const prefix = `arn:${f.plan.intent.partition}:ec2:${f.plan.intent.region}:${f.plan.intent.accountId}`;
+  const good = { ResourceARN: `${prefix}:volume/vol-12345678`, Tags: ownershipTags(f.plan) };
+  const invalid = [
+    [{}],
+    [{ ...good, ResourceARN: 42 }],
+    [{ ...good, ResourceARN: 'not-an-arn' }],
+    [{ ...good, ResourceARN: `arn:aws:s3:::leftover-bucket` }],
+    [{ ...good, ResourceARN: `${prefix}:snapshot/snap-12345678` }],
+    [{ ...good, ResourceARN: `${prefix}:subnet/vol-12345678` }],
+    [{ ...good, ResourceARN: good.ResourceARN.replace(`:${f.plan.intent.region}:`, ':us-west-1:') }],
+    [{ ...good, ResourceARN: good.ResourceARN.replace(f.plan.intent.accountId, '999999999999') }],
+    [{ ...good, ResourceARN: good.ResourceARN.replace('arn:aws:', 'arn:aws-cn:') }],
+    [{ ...good, Tags: undefined }],
+    [{ ...good, Tags: good.Tags.slice(1) }],
+    [{ ...good, Tags: [...good.Tags, good.Tags[0]] }],
+    [
+      {
+        ...good,
+        Tags: good.Tags.map((row) => (row.Key === 'xcsh-plan-sha256' ? { ...row, Value: 'b'.repeat(64) } : row)),
+      },
+    ],
+    [good, good],
+  ];
+  const exec = f.api.exec.bind(f.api);
+  for (const mappings of invalid) {
+    f.api.exec = async (command, args) =>
+      args[1] === 'get-resources'
+        ? { exitCode: 0, stderr: '', stdout: JSON.stringify({ ResourceTagMappingList: mappings, PaginationToken: '' }) }
+        : exec(command, args);
+    expect((await collectAwsTerraformAbsence(f.plan, f.inventory, f.api)).status).toBe('unknown');
+  }
+});
+
+test('tagging API joins captured attachment ARNs without substituting their qualified resource type', async () => {
+  const f = fixture();
+  const exec = f.api.exec.bind(f.api);
+  f.api.exec = async (command, args) =>
+    args[1] === 'get-resources'
+      ? {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            ResourceTagMappingList: [
+              {
+                ResourceARN: `arn:aws:ec2:${f.plan.intent.region}:${f.plan.intent.accountId}:transit-gateway-attachment/tgw-attach-12345678`,
+                Tags: ownershipTags(f.plan),
+              },
+            ],
+            PaginationToken: '',
+          }),
+        }
+      : exec(command, args);
+  const receipt = await collectAwsTerraformAbsence(f.plan, f.inventory, f.api);
+  expect(receipt.status).toBe('absent-or-retired');
+  expect(receipt.resourceCount).toBe(f.inventory.resources.length);
+  expect(f.calls).toContain('describe-transit-gateway-connects');
+  expect(f.calls).not.toContain('describe-transit-gateway-attachments');
+});
+
+test('tagging API rejects repeated ARNs across pages and unsupported continuation fields', async () => {
+  for (const mode of ['duplicate-pages', 'NextToken', 'NextMarker', 'nextToken', 'Marker']) {
+    const f = fixture();
+    const exec = f.api.exec.bind(f.api);
+    f.api.exec = async (command, args) => {
+      if (args[1] !== 'get-resources') return exec(command, args);
+      const input = JSON.parse(args[args.indexOf('--cli-input-json') + 1]);
+      return {
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify({
+          ResourceTagMappingList:
+            mode === 'duplicate-pages'
+              ? [
+                  {
+                    ResourceARN: `arn:aws:ec2:${f.plan.intent.region}:${f.plan.intent.accountId}:volume/vol-12345678`,
+                    Tags: ownershipTags(f.plan),
+                  },
+                ]
+              : [],
+          PaginationToken: mode === 'duplicate-pages' && !input.PaginationToken ? 'second' : '',
+          ...(mode === 'duplicate-pages' ? {} : { [mode]: 'unprocessed' }),
+        }),
+      };
+    };
+    expect((await collectAwsTerraformAbsence(f.plan, f.inventory, f.api)).status).toBe('unknown');
+  }
+});
+
 test('absence collector recognizes deleted and retained NLB ARNs separately', async () => {
-  const plan = foundationPlan();
+  const plan = absencePlan();
   const prefix = `arn:aws:elasticloadbalancing:${plan.intent.region}:${plan.intent.accountId}`;
   const resources = [
     { type: 'aws_lb', id: `${prefix}:loadbalancer/net/ce/abcdef12` },

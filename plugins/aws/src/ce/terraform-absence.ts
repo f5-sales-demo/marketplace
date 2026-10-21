@@ -98,6 +98,20 @@ const validId = (type: string, id: unknown) =>
   typeof id === 'string' &&
   ((Object.hasOwn(types, type) && new RegExp(`^${types[type][4]}-[a-f0-9]{8,21}$`).test(id)) ||
     (Object.hasOwn(elbTypes, type) && elbTypes[type][3].test(id)));
+const ec2ArnTypes: Record<string, string> = {
+  vpc: 'aws_vpc',
+  subnet: 'aws_subnet',
+  instance: 'aws_instance',
+  'network-interface': 'aws_network_interface',
+  'security-group': 'aws_security_group',
+  'route-table': 'aws_route_table',
+  'internet-gateway': 'aws_internet_gateway',
+  'elastic-ip': 'aws_eip',
+  volume: 'aws_ebs_volume',
+  'transit-gateway-attachment': 'aws_ec2_transit_gateway_attachment',
+  'transit-gateway-connect-peer': 'aws_ec2_transit_gateway_connect_peer',
+  'transit-gateway-route-table': 'aws_ec2_transit_gateway_route_table',
+};
 /** Fresh cloud evidence for captured identities AND unexpected deployment-tagged resources.
  * Absence of a route table, subnet, or allocation proves its owned child route/association cannot remain.
  * Externally referenced TGW table edges are checked separately, including table absence.
@@ -132,7 +146,14 @@ export async function collectAwsTerraformAbsence(
     throw new Error('Invalid AWS retirement inventory binding');
   const ids = new Set<string>();
   for (const resource of inventory.resources) {
-    if (!validId(resource.type, resource.id) || ids.has(resource.id))
+    if (
+      !validId(resource.type, resource.id) ||
+      ids.has(resource.id) ||
+      (Object.hasOwn(elbTypes, resource.type) &&
+        !resource.id.startsWith(
+          `arn:${plan.intent.partition}:elasticloadbalancing:${inventory.region}:${inventory.accountId}:`,
+        ))
+    )
       throw new Error('Invalid or duplicate retired resource identity');
     ids.add(resource.id);
   }
@@ -232,17 +253,30 @@ export async function collectAwsTerraformAbsence(
       resources.push({ type, id: tag.ResourceId });
       ids.add(tag.ResourceId);
     }
-    const taggingTokens = new Set<string>();
+    const taggingTokens = new Set<string>(),
+      taggedArns = new Set<string>();
     let taggingToken: string | undefined;
     do {
       const response = await request('resourcegroupstaggingapi', 'get-resources', {
         TagFilters: [{ Key: 'xcsh-deployment-id', Values: [inventory.deploymentId] }],
         ...(taggingToken ? { PaginationToken: taggingToken } : {}),
       });
+      if (['NextToken', 'NextMarker', 'nextToken', 'Marker'].some((key) => response[key] !== undefined))
+        throw new Error('Unsupported tagged resource pagination');
       const mappings = rows(response.ResourceTagMappingList);
       for (const mapping of mappings) {
-        if (typeof mapping.ResourceARN !== 'string' || !mapping.ResourceARN.includes(':elasticloadbalancing:'))
-          continue;
+        const arn = mapping.ResourceARN;
+        if (typeof arn !== 'string' || taggedArns.has(arn) || taggedArns.size >= 10000)
+          throw new Error('Malformed, duplicate or excessive tagged resource evidence');
+        taggedArns.add(arn);
+        const match = /^arn:([^:]+):([^:]+):([^:]+):(\d{12}):(.+)$/.exec(arn);
+        if (
+          !match ||
+          match[1] !== plan.intent.partition ||
+          match[3] !== inventory.region ||
+          match[4] !== inventory.accountId
+        )
+          throw new Error('Tagged resource scope differs from deployment');
         const mappingTags = rows(mapping.Tags);
         const tag = (key: string) => mappingTags.filter((row) => row.Key === key);
         if (
@@ -255,12 +289,35 @@ export async function collectAwsTerraformAbsence(
           tag('xcsh-plan-sha256').length !== 1 ||
           tag('xcsh-plan-sha256')[0].Value !== plan.planSha256
         )
-          throw new Error('Foreign or ambiguous tagged NLB resource');
-        if (ids.has(mapping.ResourceARN)) continue;
-        const type = Object.keys(elbTypes).find((candidate) => validId(candidate, mapping.ResourceARN));
-        if (!type) throw new Error('Unsupported tagged NLB resource requires absence evidence');
-        resources.push({ type, id: mapping.ResourceARN });
-        ids.add(mapping.ResourceARN);
+          throw new Error('Foreign or ambiguous tagged resource');
+        let type: string | undefined,
+          id = arn;
+        if (match[2] === 'elasticloadbalancing')
+          type = Object.keys(elbTypes).find((candidate) => validId(candidate, arn));
+        else if (match[2] === 'ec2') {
+          const resource = /^([^/]+)\/([^/]+)$/.exec(match[5]);
+          if (resource && Object.hasOwn(ec2ArnTypes, resource[1])) {
+            type = ec2ArnTypes[resource[1]];
+            id = resource[2];
+            if (!validId(type, id)) type = undefined;
+          }
+        }
+        if (!type) throw new Error('Unsupported tagged resource requires absence evidence');
+        const existing = resources.find((row) => row.id === id);
+        if (existing) {
+          // AWS uses the attachment ARN for both VPC and Connect attachments.
+          if (
+            existing.type !== type &&
+            !(
+              type === 'aws_ec2_transit_gateway_attachment' &&
+              ['aws_ec2_transit_gateway_vpc_attachment', 'aws_ec2_transit_gateway_connect'].includes(existing.type)
+            )
+          )
+            throw new Error('Tagged resource type differs from captured identity');
+          continue;
+        }
+        resources.push({ type, id });
+        ids.add(id);
       }
       if (
         response.PaginationToken === undefined ||
@@ -274,7 +331,7 @@ export async function collectAwsTerraformAbsence(
           taggingTokens.has(response.PaginationToken) ||
           taggingTokens.size >= 1000
         )
-          throw new Error('Incomplete tagged NLB pagination');
+          throw new Error('Incomplete tagged resource pagination');
         taggingToken = response.PaginationToken;
         taggingTokens.add(taggingToken);
       }
