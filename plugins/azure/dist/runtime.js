@@ -6195,7 +6195,7 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.0.9' || object2(receipt.assets)['openapi.json'] !== digest)
+  if (receipt.commit !== commit || receipt.version !== '12.2.0' || object2(receipt.assets)['openapi.json'] !== digest)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
     ? release.assets.map(object2).filter((asset) => asset.name === 'openapi.json')
@@ -6213,9 +6213,9 @@ async function verifyPublishedCeApi(fetcher, signal) {
 }
 var CeContractFailure,
   repository = 'f5-sales-demo/api-specs-enriched',
-  tag = 'v12.0.9',
-  commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc',
-  digest = 'sha256:8a3ea9bce1bab8aa228c10e0d646e693bcfb9c36562ad4efefef3c5b74062753',
+  tag = 'v12.2.0',
+  commit = '5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f',
+  digest = 'sha256:f599b99d0824aa52599896dcfc1dad9dca69a94396acc64eedca837c17517cd9',
   assetUrl,
   CE_API_RELEASE,
   verifiedSchemas;

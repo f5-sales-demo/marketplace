@@ -40,11 +40,11 @@ function parse(bytes: Uint8Array): Json {
   }
 }
 const publishedAssets = Object.freeze({
-  'smsv2-contract.json': 'sha256:2dd4d33693c9e228bfb304d7558a2f50ca9cc0146407f8fb9b5f0ca7d7c56f3c',
-  'smsv2-contract-manifest.json': 'sha256:3adcfb6462a887a0f65198ed392c742fbc2ab9ba9df1cac33f36e5fe54fd6662',
-  'smsv2-evidence-receipt.json': 'sha256:e9bd60f46acd2a003010cbf20d0581af364cce0486f8a7eefc9eb85562ab0bff',
+  'smsv2-contract.json': 'sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08',
+  'smsv2-contract-manifest.json': 'sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453',
+  'smsv2-evidence-receipt.json': 'sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932',
 });
-const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.0.9';
+const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.2.0';
 
 export class VerifiedCeContract {
   readonly publication: 'published-release';
@@ -91,7 +91,7 @@ export class VerifiedCeContract {
       manifest.schema_version !== 1 ||
       release.commit !== CE_API_RELEASE.commit ||
       contract.contract_id !== 'f5xc-smsv2-api/v1' ||
-      contract.version !== '7.0.0' ||
+      contract.version !== '7.1.0' ||
       evidence.contract_id !== contract.contract_id ||
       bindings['smsv2-contract.json'] !== publishedAssets['smsv2-contract.json'] ||
       bindings['smsv2-evidence-receipt.json'] !== publishedAssets['smsv2-evidence-receipt.json']
@@ -109,7 +109,7 @@ export class VerifiedCeContract {
         ...parseKvmImageResolution(api),
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v12.0.9',
+          tag: 'v12.2.0',
           commit: CE_API_RELEASE.commit,
           asset: 'openapi.json',
           sha256: CE_API_RELEASE.fingerprint,

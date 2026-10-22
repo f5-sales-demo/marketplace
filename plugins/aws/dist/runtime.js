@@ -2695,7 +2695,7 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.0.9' || object2(receipt.assets)['openapi.json'] !== digest)
+  if (receipt.commit !== commit || receipt.version !== '12.2.0' || object2(receipt.assets)['openapi.json'] !== digest)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
     ? release.assets.map(object2).filter((asset) => asset.name === 'openapi.json')
@@ -2713,9 +2713,9 @@ async function verifyPublishedCeApi(fetcher, signal) {
 }
 var CeContractFailure,
   repository = 'f5-sales-demo/api-specs-enriched',
-  tag = 'v12.0.9',
-  commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc',
-  digest = 'sha256:8a3ea9bce1bab8aa228c10e0d646e693bcfb9c36562ad4efefef3c5b74062753',
+  tag = 'v12.2.0',
+  commit = '5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f',
+  digest = 'sha256:f599b99d0824aa52599896dcfc1dad9dca69a94396acc64eedca837c17517cd9',
   assetUrl,
   CE_API_RELEASE,
   verifiedSchemas;
@@ -2744,8 +2744,10 @@ var init_release_contract = __esm(() => {
   TAG_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/${RELEASE_TAG}`;
   REQUIRED_ASSETS = new Set([
     'api-catalog.json',
+    'enrichment-coverage.json',
+    'upstream-contract-changes.json',
     'concurrency_contracts.json',
-    'f5xc-api-specs-v12.0.9.zip',
+    'f5xc-api-specs-v12.2.0.zip',
     'index.json',
     'minimal-export-defaults.json',
     'openapi.json',
@@ -3115,9 +3117,9 @@ var init_verified_contract = __esm(() => {
   init_wire_schema();
   init_wire_site();
   publishedAssets = Object.freeze({
-    'smsv2-contract.json': 'sha256:2dd4d33693c9e228bfb304d7558a2f50ca9cc0146407f8fb9b5f0ca7d7c56f3c',
-    'smsv2-contract-manifest.json': 'sha256:3adcfb6462a887a0f65198ed392c742fbc2ab9ba9df1cac33f36e5fe54fd6662',
-    'smsv2-evidence-receipt.json': 'sha256:e9bd60f46acd2a003010cbf20d0581af364cce0486f8a7eefc9eb85562ab0bff',
+    'smsv2-contract.json': 'sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08',
+    'smsv2-contract-manifest.json': 'sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453',
+    'smsv2-evidence-receipt.json': 'sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932',
   });
 });
 

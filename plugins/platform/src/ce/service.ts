@@ -145,7 +145,7 @@ export function createCePlatformService(
       const capabilities = aws.capabilities as Record<string, unknown>;
       const azureRouteServerEbgpMultihop = artifact.azureRouteServerEbgpMultihop();
       return {
-        contractIdentity: 'f5xc-smsv2-api/v1@12.0.9',
+        contractIdentity: 'f5xc-smsv2-api/v1@12.2.0',
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],

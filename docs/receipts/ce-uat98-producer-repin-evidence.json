@@ -1,0 +1,18 @@
+{
+  "candidateRevision": 98,
+  "producerRelease": {
+    "tag": "v12.2.0",
+    "commit": "5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f"
+  },
+  "contractVersion": "7.1.0",
+  "freshOwnedProducerQualificationBeforeRepin": true,
+  "healthMappingValidated": true,
+  "publishedHealthStatesVerified": true,
+  "sourceTestsPassed": 2140,
+  "assertions": 12838,
+  "liveSourceReleaseResolversPassed": true,
+  "installedConsumptionQualified": false,
+  "interfaceFreshnessQualified": false,
+  "fullCeAcceptance": false,
+  "cleanupPending": true
+}

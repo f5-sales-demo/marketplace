@@ -357,7 +357,18 @@ test('HTTP errors and malformed responses never expose server bodies', async () 
   await expect(runtime.observeSite(binding)).rejects.toThrow('malformed');
 });
 
-for (const health of [undefined, null, [], 'invalid', {}, { path: '/wrong' }]) {
+for (const health of [
+  undefined,
+  null,
+  [],
+  'invalid',
+  {},
+  { path: '/wrong' },
+  ...['method', 'operation_id', 'response_schema', 'authority', 'semantics'].map((field) => ({
+    ...contract.providers.aws.runtime.health,
+    [field]: 'invalid',
+  })),
+]) {
   test(`unavailable provider health mapping ${JSON.stringify(health)} returns unknown without a request`, async () => {
     const fixtureContract = structuredClone(contract);
     Object.assign(fixtureContract.providers.azure.runtime, { health });
@@ -405,6 +416,27 @@ test('site-global health never fabricates per-node HA health or accepts foreign 
     expect(JSON.stringify(observed)).not.toContain('SENSITIVE_BOOTSTRAP');
   }
 });
+test('published health states keep non-provisioned responses degraded and reject unpublished states', async () => {
+  let state = 'PROVISIONED';
+  const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url) =>
+    String(url).includes('securemesh_site_v2s')
+      ? json({ metadata: { name: 'ce-one', namespace: 'system', labels }, system_metadata: { uid: 'site-uuid' } })
+      : json({ hostname: 'node-one', state }),
+  );
+  for (const value of ['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'FAILED', 'RESETTING']) {
+    state = value;
+    expect(await runtime.observeHealth(binding)).toMatchObject({
+      status: 'degraded',
+      state: value,
+      nodeHealth: 'unknown',
+    });
+  }
+  for (const value of ['INITIALIZING', 'DEGRADED', 'NOT_PROVISIONED']) {
+    state = value;
+    expect(await runtime.observeHealth(binding)).toMatchObject({ status: 'unknown' });
+  }
+});
+
 test('registration health needs exact site/node/instance correlation and complete observations', async () => {
   const contract = fixture();
   const item = {

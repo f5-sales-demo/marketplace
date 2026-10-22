@@ -2140,7 +2140,12 @@ export class CeRuntime {
       !healthContract ||
       typeof healthContract !== 'object' ||
       Array.isArray(healthContract) ||
-      object(healthContract).path !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health'
+      object(healthContract).path !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' ||
+      object(healthContract).method !== 'GET' ||
+      object(healthContract).operation_id !== 'ves.io.schema.operate.debug.CustomPublicAPI.HealthPublic' ||
+      object(healthContract).response_schema !== 'debugHealthResponse' ||
+      object(healthContract).authority !== 'f5xc' ||
+      object(healthContract).semantics !== 'observational_read_only'
     )
       return { ...base, status: 'unknown', reason: 'provider-health-contract-unavailable' };
     try {
@@ -2160,7 +2165,9 @@ export class CeRuntime {
       if (
         matches.length !== 1 ||
         typeof health.state !== 'string' ||
-        !['PROVISIONED', 'PROVISIONING', 'INITIALIZING', 'FAILED', 'DEGRADED', 'NOT_PROVISIONED'].includes(health.state)
+        !['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
+          health.state,
+        )
       )
         return { ...base, status: 'unknown', reason: 'health-identity-or-state-missing' };
       return {

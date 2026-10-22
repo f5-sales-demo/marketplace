@@ -2,13 +2,15 @@ import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { resolveSmsv2ReleaseContract } from '../../src/ce/release-contract';
 
-const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v12.0.9';
-const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v12.0.9';
-const commit = 'e04c5d45f7a4e103e2dc84bf52b767182b4de3bc';
+const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v12.2.0';
+const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v12.2.0';
+const commit = '5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f';
 const names = [
   'api-catalog.json',
+  'enrichment-coverage.json',
+  'upstream-contract-changes.json',
   'concurrency_contracts.json',
-  'f5xc-api-specs-v12.0.9.zip',
+  'f5xc-api-specs-v12.2.0.zip',
   'index.json',
   'minimal-export-defaults.json',
   'openapi.json',
@@ -97,7 +99,7 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
   const encoder = new TextEncoder();
   const contract = {
     contract_id: 'f5xc-smsv2-api/v1',
-    version: '7.0.0',
+    version: '7.1.0',
     api: {
       namespace: 'system',
       operations: ['create', 'read', 'replace', 'delete'],
@@ -142,8 +144,8 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
     JSON.stringify({
       schema_version: 1,
       contract_id: 'f5xc-smsv2-api/v1',
-      contract_version: '7.0.0',
-      release: { tag: 'v12.0.9', commit: options.wrongCommit ? '0'.repeat(40) : commit },
+      contract_version: '7.1.0',
+      release: { tag: 'v12.2.0', commit: options.wrongCommit ? '0'.repeat(40) : commit },
       assets: {
         'smsv2-contract.json': digest(contractBytes),
         'smsv2-evidence-receipt.json': digest(evidenceBytes),
@@ -164,11 +166,11 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
   }));
   const publicationAssets = Object.fromEntries(metadata.map((item) => [item.name, item.digest]));
   const release = {
-    tag_name: 'v12.0.9',
+    tag_name: 'v12.2.0',
     draft: options.draft ?? false,
     prerelease: false,
     immutable: true,
-    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '12.0.9' })} -->`,
+    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '12.2.0' })} -->`,
     assets: options.malformed ? metadata.slice(1) : metadata,
   };
   const fetcher = (async (input: RequestInfo | URL) => {
@@ -220,7 +222,7 @@ describe('verified SMSv2 AWS release resolver', () => {
         ],
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v12.0.9',
+          tag: 'v12.2.0',
           commit,
           asset: 'openapi.json',
           sha256: openapiDigest,
