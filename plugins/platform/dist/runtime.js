@@ -2852,7 +2852,7 @@ class CeRuntime {
     const after = await this.observeOwnedSite(binding, signal);
     if (object11(after.system_metadata).uid !== expected.uid || !subset(after.spec, replacement.spec))
       throw new Error('Replacement configuration has not converged');
-    await this.recordBinding?.(binding, expected.uid, []);
+    await this.recordBinding?.(binding, expected.uid);
     await checkpoint({ phase: 'replace-observed', uid: expected.uid, resourceVersion: after.resource_version });
   }
   async prepareAwsSiteReplacement(binding, instances, expected, signal) {

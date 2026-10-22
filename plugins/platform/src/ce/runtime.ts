@@ -626,7 +626,7 @@ export class CeRuntime {
     const after = await this.observeOwnedSite(binding, signal);
     if (object(after.system_metadata).uid !== expected.uid || !subset(after.spec, replacement.spec))
       throw new Error('Replacement configuration has not converged');
-    await this.recordBinding?.(binding, expected.uid, []);
+    await this.recordBinding?.(binding, expected.uid);
     await checkpoint({ phase: 'replace-observed', uid: expected.uid, resourceVersion: after.resource_version });
   }
   /** Explicit owned-site replacement, including sites whose interfaces already match the plan. */

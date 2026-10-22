@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { VerifiedIngressContract } from '../../src/ce/ingress-contract';
 import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
+import { type CeStoredSiteBinding, createCePlatformService } from '../../src/ce/service';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
 import routingSchema from '../fixtures/aws-routing-schema.json';
@@ -2071,3 +2075,57 @@ test('unsubmitted F5 cancellation uses the typed Terraform owner service', async
   await expect(runtime.cancelUnsubmittedTerraformResources(binding.owner)).rejects.toThrow('unavailable');
   expect(calls).toHaveLength(1);
 });
+
+for (const identity of ['same', 'foreign-site', 'foreign-contract', 'foreign-tenant'] as const) {
+  test(`public replacement retains interface observer bindings only for trusted identity (${identity})`, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ce-site-update-binding-'));
+    const published = fixture();
+    const expected = [{ node: 'node-one', mac: '02:00:00:00:00:01', device: 'ens5', role: 'slo' as const }];
+    let site: Record<string, unknown> = {
+      metadata: { name: binding.siteName, namespace: 'system', labels },
+      system_metadata: { uid: 'public-site-uid' },
+      resource_version: 'version-one',
+      spec: published.buildSite(intent),
+    };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url, init) => {
+      if (init?.method === 'PUT') {
+        const request = JSON.parse(String(init.body));
+        site = { ...site, resource_version: 'version-two', spec: request.spec };
+      }
+      return json(site);
+    }) as typeof fetch;
+    try {
+      const service = createCePlatformService(
+        {
+          XCSH_API_URL: 'https://tenant.example.test',
+          XCSH_API_TOKEN: 'fixture-token',
+          XCSH_CE_DEPLOYMENTS_DIR: directory,
+        },
+        async () => published,
+      );
+      const storage = await service.storage(binding.owner);
+      await storage.write('site-binding-ce-one.json', {
+        schemaVersion: 1,
+        tenantOrigin: identity === 'foreign-tenant' ? 'https://foreign.example.test' : 'https://tenant.example.test',
+        contractFingerprint: identity === 'foreign-contract' ? 'sha256:foreign' : published.fingerprint,
+        siteUid: identity === 'foreign-site' ? 'foreign-site-uid' : 'public-site-uid',
+        binding,
+        expectedInterfaces: expected,
+      });
+      const runtime = await service.runtime('native');
+      await runtime.replaceSite(
+        binding,
+        intent,
+        { uid: 'public-site-uid', resourceVersion: 'version-one' },
+        async () => {},
+      );
+      const after = (await storage.read('site-binding-ce-one.json')) as CeStoredSiteBinding;
+      expect(after.expectedInterfaces).toEqual(identity === 'same' ? expected : []);
+      expect(after.siteUid).toBe('public-site-uid');
+    } finally {
+      globalThis.fetch = previousFetch;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
