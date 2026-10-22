@@ -104,7 +104,7 @@
       "coverage": {
         "activityLookbackDays": 89,
         "complete": true,
-        "resourceGraphPages": 1
+        "azureGraphPages": 1
       },
       "artifactPersisted": true,
       "responseSha256": "dd45512121a34c4c2e419dd1913b8095638e89d4f2b3428776a32e8219605891"
