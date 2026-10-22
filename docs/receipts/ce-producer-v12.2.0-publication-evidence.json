@@ -28,5 +28,11 @@
   "azureHealthScope": "site global representative node only",
   "originalCeSampleFreshnessQualified": false,
   "sixInterfaceTransitionQualified": false,
-  "fullCeAcceptance": false
+  "fullCeAcceptance": false,
+  "downloadedOpenapiDigestVerified": true,
+  "publishedEndpointSchemaStateEnumMappingVerified": true,
+  "openapiSha256": "f599b99d0824aa52599896dcfc1dad9dca69a94396acc64eedca837c17517cd9",
+  "zipSha256": "8f5083fa677cbe5efd0e1e09523c317eda0b0027b53e115af639ba1434aafee0",
+  "githubImmutableReleaseVerified": true,
+  "publicationReceiptCommitAndAssetDigestsVerified": true
 }
