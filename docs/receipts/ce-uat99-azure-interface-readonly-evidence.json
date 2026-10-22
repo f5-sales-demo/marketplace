@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-22T08:08:21.787Z",
+  "candidateRevision": 99,
+  "sourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+  "installedPublicTool": "f5xc_ce_v2_status",
+  "status": "observed",
+  "interfaceCount": 3,
+  "distinctMacDeviceRoleBindings": true,
+  "allReportedLinksUp": true,
+  "roles": [
+    "slo",
+    "data",
+    "sli"
+  ],
+  "reportedMtus": [
+    0,
+    0,
+    0
+  ],
+  "ceSampleAge": "unknown",
+  "freshnessQualification": "pending-1930",
+  "canSatisfyMutationGate": false,
+  "sliTransitionQualified": false,
+  "fullCeAcceptance": false
+}
