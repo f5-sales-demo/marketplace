@@ -1140,6 +1140,7 @@ export class TerraformRunner {
     names: string[],
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
+    allowMissing = false,
   ): Promise<Record<string, unknown>> {
     names = [...names];
     if (
@@ -1164,6 +1165,7 @@ export class TerraformRunner {
       const outputs = decode(await this.#run(['output', '-json'], env, signal));
       const selected: Record<string, unknown> = {};
       for (const name of names) {
+        if (allowMissing && !Object.hasOwn(outputs, name)) continue;
         const output = object(outputs[name]);
         if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
           throw new Error('Requested Terraform output is unavailable, malformed or sensitive');

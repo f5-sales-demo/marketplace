@@ -111,7 +111,7 @@ export async function reconcileAzurePendingVm(
     if (!identities.some((r) => r.type === 'tls_private_key')) delete resources.tls_private_key;
     if (config.output) {
       const names = Object.keys(object(config.output));
-      const values = await session.readOutputs(names, env, signal);
+      const values = await session.readOutputs(names, env, signal, true);
       const output: Record<string, unknown> = {};
       for (const name of names) if (Object.hasOwn(values, name)) output[name] = { value: values[name] };
       if (Object.keys(output).length) config.output = output;

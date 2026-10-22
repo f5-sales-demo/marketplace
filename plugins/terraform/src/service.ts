@@ -54,6 +54,7 @@ export interface TerraformSession {
     names: string[],
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
+    allowMissing?: boolean,
   ): Promise<Record<string, unknown>>;
   reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
   /** Owner-scoped no-apply rollback, requiring runner proof that the selected plan is unsubmitted. */
@@ -166,9 +167,9 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
           await checkOwner();
           return runner.readConfiguration(expectedSha256);
         },
-        async readOutputs(names, env, signal) {
+        async readOutputs(names, env, signal, allowMissing) {
           await checkOwner();
-          return runner.readOutputs(names, env, signal);
+          return runner.readOutputs(names, env, signal, allowMissing);
         },
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();

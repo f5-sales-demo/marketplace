@@ -528,6 +528,10 @@ test('selects only explicitly requested non-sensitive outputs after current appl
   expect(await runner.readOutputs(['ce_interfaces'], {})).toEqual({ ce_interfaces: { eni: 'eni-12345678' } });
   await expect(runner.readOutputs(['bootstrap'], {})).rejects.toThrow('sensitive');
   await expect(runner.readOutputs(['missing'], {})).rejects.toThrow();
+  expect(await runner.readOutputs(['missing', 'ce_interfaces'], {}, undefined, true)).toEqual({
+    ce_interfaces: { eni: 'eni-12345678' },
+  });
+  await expect(runner.readOutputs(['bootstrap'], {}, undefined, true)).rejects.toThrow('sensitive');
   await expect(runner.readOutputs(['ce_interfaces', 'ce_interfaces'], {})).rejects.toThrow('unique');
   await runner.reviseConfiguration(
     receipt.configurationSha256,

@@ -2417,7 +2417,7 @@ class TerraformRunner {
       });
     }
   }
-  async readOutputs(names, env, signal) {
+  async readOutputs(names, env, signal, allowMissing = false) {
     names = [...names];
     if (
       !names.length ||
@@ -2441,6 +2441,7 @@ class TerraformRunner {
       const outputs = decode(await this.#run(['output', '-json'], env, signal));
       const selected = {};
       for (const name of names) {
+        if (allowMissing && !Object.hasOwn(outputs, name)) continue;
         const output = object5(outputs[name]);
         if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
           throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
@@ -2769,9 +2770,9 @@ function createCeTerraformService(platform) {
           await checkOwner();
           return runner.readConfiguration(expectedSha256);
         },
-        async readOutputs(names, env, signal) {
+        async readOutputs(names, env, signal, allowMissing) {
           await checkOwner();
-          return runner.readOutputs(names, env, signal);
+          return runner.readOutputs(names, env, signal, allowMissing);
         },
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
