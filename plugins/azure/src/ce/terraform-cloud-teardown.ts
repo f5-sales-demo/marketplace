@@ -8,6 +8,7 @@ import {
   observeAzureTerraformDestroyBoundary,
   verifyAzureTerraformDestroyOwnership,
 } from './terraform-destroy-ownership';
+import { reconcileAzurePendingVm } from './terraform-pending-import';
 import type { AzureCePlan } from './types';
 
 async function optional(storage: CeDeploymentStore, name: string): Promise<unknown> {
@@ -25,6 +26,7 @@ export async function runAzureTerraformCloudTeardown(
   api: AzExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  pendingAdmission = false,
 ) {
   verifyAzureCePlan(plan);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
@@ -32,6 +34,14 @@ export async function runAzureTerraformCloudTeardown(
   await storage.verify();
   const name = 'azure-terraform-cloud-destroy-plan.json';
   let receipt = (await optional(storage, name)) as PlanReceipt | undefined;
+  if (pendingAdmission) {
+    if (receipt && (await session.readPlanApplicationState(receipt)) === 'applying') {
+      const boundary = await observeAzureTerraformDestroyBoundary(plan, api, signal);
+      await storage.write('azure-terraform-cloud-destroy-reconciliation.json', boundary);
+      await session.reconcileApplyFromEvidence(receipt, canonicalSha256(boundary));
+    }
+    if (await reconcileAzurePendingVm(plan, session, storage, api, env, signal)) receipt = undefined;
+  }
   if (!receipt) {
     receipt = await session.planDestroy(env, signal);
     await verifyAzureTerraformDestroyOwnership(plan, receipt, session, api, env, signal);

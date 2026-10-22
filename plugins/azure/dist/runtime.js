@@ -13866,6 +13866,181 @@ var init_terraform_destroy_ownership = __esm(() => {
   localTypes = new Set(['tls_private_key']);
 });
 
+// plugins/azure/src/ce/terraform-pending-import.ts
+import { createHash as createHash11 } from 'node:crypto';
+
+async function reconcileAzurePendingVm(base, session, storage, api, env, signal) {
+  if (!session.readResourceIdentities || !session.readConfigurationSha256 || !session.planImports)
+    throw Error('Pending Azure VM owning import service unavailable');
+  const id = `/subscriptions/${base.subscription.id}/resourceGroups/${base.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${base.deploymentName}-1`;
+  const address = 'azurerm_linux_virtual_machine.node_1';
+  const observe = async () => {
+    if ((await observeAzureTerraformDestroyBoundary(base, api, signal)).status !== 'owned') return;
+    const r = await api.exec(
+      'az',
+      ['vm', 'show', '--ids', id, '--subscription', base.subscription.id, '--output', 'json'],
+      signal ? { signal } : undefined,
+    );
+    if (r.exitCode !== 0) {
+      if (/ResourceNotFound|ResourceGroupNotFound/.test(r.stderr)) return;
+      throw Error('Pending Azure VM observation unavailable');
+    }
+    const vm = object16(JSON.parse(r.stdout)),
+      tags = object16(vm.tags);
+    const expected = base.nics
+      .map((n) => n.index)
+      .map(
+        (i) =>
+          `${id.split('/providers/')[0]}/providers/Microsoft.Network/networkInterfaces/${base.deploymentName}-1-nic${i}`,
+      );
+    const nics = object16(vm.networkProfile).networkInterfaces;
+    if (
+      vm.id !== id ||
+      vm.name !== `${base.deploymentName}-1` ||
+      vm.location !== base.region ||
+      vm.provisioningState !== 'Failed' ||
+      typeof vm.vmId !== 'string' ||
+      !vm.vmId ||
+      object16(vm.hardwareProfile).vmSize !== base.vm.size ||
+      tags['xcsh-managed-by'] !== 'azure-ce' ||
+      tags['xcsh-execution-engine'] !== 'terraform' ||
+      tags['xcsh-deployment-id'] !== base.deploymentName ||
+      tags['xcsh-plan-sha256'] !== base.planSha256 ||
+      tags['xcsh-node-index'] !== '1' ||
+      tags['ves-io-site-name'] !== base.siteName ||
+      !Array.isArray(nics) ||
+      nics.length !== base.nics.length ||
+      canonicalSha256(nics.map((n) => object16(n).id).sort()) !==
+        canonicalSha256(expected.slice(0, base.nics.length).sort())
+    )
+      throw Error('Pending Azure VM is foreign, replaced or no longer failed');
+    return vm;
+  };
+  let saved;
+  try {
+    saved = object16(await storage.read(journalName));
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+  const identities = await session.readResourceIdentities(env, signal);
+  const existing = identities.filter((r) => r.address === address);
+  if (existing.length && (existing.length !== 1 || existing[0].id !== id))
+    throw Error('Pending VM state identity differs');
+  if (existing.length && !saved) return false;
+  const vm = await observe();
+  if (!vm) {
+    if (saved && saved.status !== 'imported') throw Error('Pending VM disappeared before import reconciliation');
+    return;
+  }
+  if (!saved) {
+    const configurationSha256 = await session.readConfigurationSha256();
+    const originalConfiguration = await session.readConfiguration(configurationSha256);
+    const config = object16(JSON.parse(originalConfiguration)),
+      resources = object16(config.resource);
+    const desired = object16(object16(resources.azurerm_linux_virtual_machine).node_1);
+    const keys = object16(object16(object16(vm.osProfile).linuxConfiguration).ssh).publicKeys;
+    if (!Array.isArray(keys) || keys.length !== 1 || typeof object16(keys[0]).keyData !== 'string')
+      throw Error('Pending VM public bootstrap identity unavailable');
+    desired.admin_ssh_key = [{ username: object16(vm.osProfile).adminUsername, public_key: object16(keys[0]).keyData }];
+    desired.lifecycle = { ignore_changes: 'all' };
+    if (!identities.some((r) => r.type === 'tls_private_key')) delete resources.tls_private_key;
+    if (config.output) {
+      const names = Object.keys(object16(config.output));
+      const values = await session.readOutputs(names, env, signal);
+      const output = {};
+      for (const name of names) if (Object.hasOwn(values, name)) output[name] = { value: values[name] };
+      if (Object.keys(output).length) config.output = output;
+      else delete config.output;
+    }
+    config.import = [{ to: address, id }];
+    const importedConfiguration = JSON.stringify(config);
+    saved = {
+      schemaVersion: 1,
+      sourcePlanSha256: base.planSha256,
+      vmId: String(vm.vmId),
+      id,
+      address,
+      originalConfiguration,
+      configurationSha256,
+      importedConfiguration,
+      importedConfigurationSha256: hash4(importedConfiguration),
+    };
+    await storage.write(journalName, saved);
+  }
+  if (
+    saved.schemaVersion !== 1 ||
+    saved.sourcePlanSha256 !== base.planSha256 ||
+    saved.id !== id ||
+    saved.address !== address ||
+    saved.vmId !== vm.vmId ||
+    typeof saved.originalConfiguration !== 'string' ||
+    typeof saved.importedConfiguration !== 'string' ||
+    hash4(saved.originalConfiguration) !== saved.configurationSha256 ||
+    hash4(saved.importedConfiguration) !== saved.importedConfigurationSha256
+  )
+    throw Error('Pending Azure VM import journal differs');
+  let receipt = saved.receipt;
+  const current = await session.readConfigurationSha256();
+  if (current === saved.configurationSha256) {
+    if (existing.length) {
+      saved.status = 'imported';
+      await storage.write(journalName, saved);
+      return true;
+    }
+    await session.reviseConfiguration(current, saved.importedConfiguration);
+  } else if (current !== saved.importedConfigurationSha256)
+    throw Error('Pending import executor configuration differs');
+  const intents = [
+    {
+      address,
+      type: 'azurerm_linux_virtual_machine',
+      providerName: 'registry.terraform.io/hashicorp/azurerm',
+      idSha256: hash4(id),
+    },
+  ];
+  receipt ??= await session.planImports(intents, env, signal);
+  if (
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== saved.importedConfigurationSha256 ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.relinquishments?.length ||
+    canonicalSha256(receipt.imports) !== canonicalSha256(intents) ||
+    receipt.changes.some((c) => c.actions.join(',') !== 'no-op')
+  )
+    throw Error('Pending VM import plan is mutating or foreign');
+  saved.receipt = receipt;
+  await storage.write(journalName, saved);
+  if (canonicalSha256(await observe()) !== canonicalSha256(vm))
+    throw Error('Pending VM changed before import submission');
+  const state = await session.readPlanApplicationState(receipt);
+  if (state === 'planned') await session.apply(receipt, env, signal);
+  const projected = await session.readResourceIdentities(env, signal);
+  if (
+    projected.filter((r) => r.address === address && r.id === id).length !== 1 ||
+    canonicalSha256(await observe()) !== canonicalSha256(vm)
+  )
+    throw Error('Pending VM import outcome unavailable');
+  if ((await session.readPlanApplicationState(receipt)) === 'applying')
+    await session.reconcileApplyFromEvidence(receipt, canonicalSha256({ projected, vm }));
+  await session.reviseConfiguration(saved.importedConfigurationSha256, saved.originalConfiguration);
+  saved.status = 'imported';
+  await storage.write(journalName, saved);
+  return true;
+}
+var hash4 = (s) => createHash11('sha256').update(s).digest('hex'),
+  object16 = (v) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed pending Azure VM identity');
+    return v;
+  },
+  journalName = 'azure-terraform-pending-vm-import.json';
+var init_terraform_pending_import = __esm(() => {
+  init_canonical();
+  init_terraform_destroy_ownership();
+});
+
 // plugins/azure/src/ce/terraform-cloud-teardown.ts
 async function optional9(storage, name) {
   try {
@@ -13874,13 +14049,21 @@ async function optional9(storage, name) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-async function runAzureTerraformCloudTeardown(plan, session, storage, api, env, signal) {
+async function runAzureTerraformCloudTeardown(plan, session, storage, api, env, signal, pendingAdmission = false) {
   verifyAzureCePlan(plan);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Azure Terraform teardown requires the original Terraform deployment plan');
   await storage.verify();
   const name = 'azure-terraform-cloud-destroy-plan.json';
   let receipt = await optional9(storage, name);
+  if (pendingAdmission) {
+    if (receipt && (await session.readPlanApplicationState(receipt)) === 'applying') {
+      const boundary = await observeAzureTerraformDestroyBoundary(plan, api, signal);
+      await storage.write('azure-terraform-cloud-destroy-reconciliation.json', boundary);
+      await session.reconcileApplyFromEvidence(receipt, canonicalSha256(boundary));
+    }
+    if (await reconcileAzurePendingVm(plan, session, storage, api, env, signal)) receipt = undefined;
+  }
   if (!receipt) {
     receipt = await session.planDestroy(env, signal);
     await verifyAzureTerraformDestroyOwnership(plan, receipt, session, api, env, signal);
@@ -13922,10 +14105,11 @@ var init_terraform_cloud_teardown = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_destroy_ownership();
+  init_terraform_pending_import();
 });
 
 // plugins/azure/src/ce/terraform-foundation-teardown.ts
-import { createHash as createHash11 } from 'node:crypto';
+import { createHash as createHash12 } from 'node:crypto';
 import { lstat as lstat2, readdir as readdir2, readFile as readFile6, realpath } from 'node:fs/promises';
 import { join as join5 } from 'node:path';
 
@@ -13958,7 +14142,7 @@ async function privateManifest(store, name) {
   const stat = await lstat2(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== process.getuid?.() || stat.mode & 63)
     throw Error('Azure foundation manifest ownership differs');
-  return object16(JSON.parse(await readFile6(file, 'utf8')));
+  return object17(JSON.parse(await readFile6(file, 'utf8')));
 }
 async function journal(base, store, reservedSite) {
   verifyAzureCePlan(base);
@@ -13969,8 +14153,8 @@ async function journal(base, store, reservedSite) {
     canonicalSha256(store.owner) !== canonicalSha256(azureUpgradeBinding(base).owner)
   )
     throw Error('Azure foundation retirement requires the original owning deployment');
-  const authorization = object16(await store.read(`terraform-authorization-${base.planSha256}.json`));
-  const workflow = object16(await store.read('terraform-workflow.json'));
+  const authorization = object17(await store.read(`terraform-authorization-${base.planSha256}.json`));
+  const workflow = object17(await store.read('terraform-workflow.json'));
   if (
     authorization.schemaVersion !== 1 ||
     authorization.engine !== 'terraform' ||
@@ -13981,14 +14165,14 @@ async function journal(base, store, reservedSite) {
     workflow.planSha256 !== base.planSha256 ||
     workflow.stage !== 'network-pending' ||
     !sha(workflow.configurationSha256) ||
-    Object.keys(object16(workflow.bootstrapByNode)).length ||
-    Object.keys(object16(workflow.launchedAtByNode)).length
+    Object.keys(object17(workflow.bootstrapByNode)).length ||
+    Object.keys(object17(workflow.launchedAtByNode)).length
   )
     throw Error('Azure foundation retirement requires exact pre-admission authorization and journal');
   if (reservedSite) {
     const binding = azureUpgradeBinding(base);
-    const site = object16(await store.read('terraform-site.json'));
-    const saved = object16(await store.read(`site-binding-${base.siteName}.json`));
+    const site = object17(await store.read('terraform-site.json'));
+    const saved = object17(await store.read(`site-binding-${base.siteName}.json`));
     const origin = new URL(String(saved.tenantOrigin));
     if (
       site.siteName !== base.siteName ||
@@ -14115,7 +14299,7 @@ async function prepareAzureFoundationTeardown(base, runtime, contract, store, si
   const savedSite = await optional10(store, 'terraform-site.json');
   let reservedSite;
   if (savedSite !== undefined) {
-    const value = object16(savedSite);
+    const value = object17(savedSite);
     if (
       typeof value.uid !== 'string' ||
       !value.uid.trim() ||
@@ -14174,7 +14358,7 @@ async function prepareAzureFoundationTeardown(base, runtime, contract, store, si
 async function azureFoundationTeardownDeployment(base, plan) {
   const value = await deployment(base, plan.source.terraformVersion);
   if (
-    hash4(value.configuration) !== plan.source.configurationSha256 ||
+    hash5(value.configuration) !== plan.source.configurationSha256 ||
     canonicalSha256(manifest(value)) !== plan.source.manifestSha256
   )
     throw Error('Azure foundation teardown source deployment differs');
@@ -14211,8 +14395,8 @@ async function runAzureFoundationTeardown(
     !final.relinquishments &&
     final.deploymentId === base.deploymentName &&
     final.backendIdentity === `local:${base.deploymentName}` &&
-    final.configurationSha256 === hash4(empty) &&
-    final.providerLockSha256 === hash4(sourceDeployment.providerLock) &&
+    final.configurationSha256 === hash5(empty) &&
+    final.providerLockSha256 === hash5(sourceDeployment.providerLock) &&
     sha(final.planSha256);
   if (
     checkpoint &&
@@ -14230,7 +14414,7 @@ async function runAzureFoundationTeardown(
     await journal(base, store, input.reservedSite);
     if (
       input.reservedSite &&
-      object16(await store.read('terraform-site.json')).contractFingerprint !== runtime.contract.fingerprint
+      object17(await store.read('terraform-site.json')).contractFingerprint !== runtime.contract.fingerprint
     )
       throw Error('Reserved Azure site contract changed');
     if (
@@ -14350,7 +14534,7 @@ async function runAzureFoundationTeardown(
   await fresh(true);
   if (!checkpoint.finalPlan || !checkpoint.artifacts || !sha(checkpoint.retirementEvidenceSha256))
     throw Error('Azure foundation terminal receipt is incomplete');
-  const artifacts = object16(checkpoint.artifacts);
+  const artifacts = object17(checkpoint.artifacts);
   if (
     artifacts.status !== 'runner-artifacts-retired' ||
     artifacts.manifestSha256 !== canonicalSha256(manifest({ ...sourceDeployment, configuration: empty })) ||
@@ -14373,9 +14557,9 @@ async function runAzureFoundationTeardown(
   await store.write(receiptName, receipt);
   return receipt;
 }
-var hash4 = (v) => createHash11('sha256').update(v).digest('hex'),
+var hash5 = (v) => createHash12('sha256').update(v).digest('hex'),
   sha = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
-  object16 = (v) => {
+  object17 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Azure foundation retirement evidence');
     return v;
   },
@@ -14383,8 +14567,8 @@ var hash4 = (v) => createHash11('sha256').update(v).digest('hex'),
   receiptName = 'azure-terraform-foundation-teardown-receipt.json',
   manifest = ({ configuration, providerLock, ...identity }) => ({
     ...identity,
-    configurationSha256: hash4(configuration),
-    providerLockSha256: hash4(providerLock),
+    configurationSha256: hash5(configuration),
+    providerLockSha256: hash5(providerLock),
   }),
   emptyConfiguration = (value) => {
     const config = JSON.parse(value.configuration);
@@ -14401,7 +14585,7 @@ var init_terraform_foundation_teardown = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-pending-admission.ts
-import { createHash as createHash12 } from 'node:crypto';
+import { createHash as createHash13 } from 'node:crypto';
 import { lstat as lstat3, readdir as readdir3, readFile as readFile7, realpath as realpath2 } from 'node:fs/promises';
 import { join as join6 } from 'node:path';
 
@@ -14416,9 +14600,9 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     canonicalSha256(storage.owner) !== canonicalSha256(binding.owner)
   )
     throw Error('Azure pending admission owner or profile differs');
-  const auth = object17(await storage.read(`terraform-authorization-${base.planSha256}.json`));
-  const workflow = object17(await storage.read('terraform-workflow.json'));
-  const bootstrap = object17(workflow.bootstrapByNode);
+  const auth = object18(await storage.read(`terraform-authorization-${base.planSha256}.json`));
+  const workflow = object18(await storage.read('terraform-workflow.json'));
+  const bootstrap = object18(workflow.bootstrapByNode);
   if (
     auth.schemaVersion !== 1 ||
     auth.engine !== 'terraform' ||
@@ -14428,16 +14612,16 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     workflow.engine !== 'terraform' ||
     workflow.planSha256 !== base.planSha256 ||
     workflow.stage !== 'network-pending' ||
-    Object.keys(object17(workflow.launchedAtByNode)).length ||
+    Object.keys(object18(workflow.launchedAtByNode)).length ||
     Object.keys(bootstrap).length !== 1 ||
     typeof bootstrap['1'] !== 'string'
   )
     throw Error('Azure failed-admission journal differs or launch has completed');
   const deployment = await azureTerraformFoundationDeployment(base, { 1: bootstrap['1'] });
-  if (workflow.configurationSha256 !== hash5(deployment.configuration))
+  if (workflow.configurationSha256 !== hash6(deployment.configuration))
     throw Error('Azure pending admission configuration differs');
-  const site = object17(await storage.read('terraform-site.json'));
-  const saved = object17(await storage.read(`site-binding-${base.siteName}.json`));
+  const site = object18(await storage.read('terraform-site.json'));
+  const saved = object18(await storage.read(`site-binding-${base.siteName}.json`));
   if (
     site.siteName !== base.siteName ||
     typeof site.uid !== 'string' ||
@@ -14463,7 +14647,7 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
   )
     throw Error('Azure pending tenant origin differs');
   const tokenName = `${base.deploymentName.slice(0, 40)}-1-${base.planSha256.slice(0, 12)}`;
-  const token = object17(await storage.read(`${tokenName}.json`));
+  const token = object18(await storage.read(`${tokenName}.json`));
   if (
     token.tokenName !== tokenName ||
     token.siteName !== base.siteName ||
@@ -14472,14 +14656,14 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     !token.jwt
   )
     throw Error('Azure pending enrollment provenance differs');
-  const admission = object17(await storage.read('terraform-admission-plan-node-1.json'));
+  const admission = object18(await storage.read('terraform-admission-plan-node-1.json'));
   if (
     admission.schemaVersion !== 1 ||
     admission.engine !== 'terraform' ||
     admission.deploymentId !== base.deploymentName ||
     admission.backendIdentity !== deployment.backendIdentity ||
     admission.configurationSha256 !== workflow.configurationSha256 ||
-    admission.providerLockSha256 !== hash5(deployment.providerLock) ||
+    admission.providerLockSha256 !== hash6(deployment.providerLock) ||
     typeof admission.planSha256 !== 'string' ||
     !/^[a-f0-9]{64}$/.test(admission.planSha256)
   )
@@ -14507,8 +14691,8 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     const { configuration, providerLock, ...identity } = deployment;
     const expected = {
       ...identity,
-      configurationSha256: hash5(configuration),
-      providerLockSha256: hash5(providerLock),
+      configurationSha256: hash6(configuration),
+      providerLockSha256: hash6(providerLock),
     };
     if (canonicalSha256(JSON.parse(await readFile7(file, 'utf8'))) !== canonicalSha256(expected))
       throw Error('Azure pending frozen executor differs');
@@ -14555,8 +14739,8 @@ async function observeAzurePendingAdmission(base, runtime, contract, storage, si
     throw Error('Azure pending admission inventory is incomplete');
   return { value, journal };
 }
-var hash5 = (value) => createHash12('sha256').update(value).digest('hex'),
-  object17 = (value) => {
+var hash6 = (value) => createHash13('sha256').update(value).digest('hex'),
+  object18 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Invalid Azure pending admission journal');
     return value;
@@ -14569,7 +14753,7 @@ var init_terraform_pending_admission = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash13, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash14, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod as chmod2,
   lstat as lstat4,
@@ -14673,7 +14857,7 @@ async function retireBootstrapToken(binding, evidenceSha256, signal) {
     if (metadata.retirement || metadata.consumed)
       throw Error('Bootstrap secret reappeared after consumption or retirement');
     const bytes = await secureFile('token');
-    if (createHash13('sha256').update(bytes).digest('hex') !== binding.digest)
+    if (createHash14('sha256').update(bytes).digest('hex') !== binding.digest)
       throw Error('Bootstrap retirement token digest differs');
     signal?.throwIfAborted();
     if (!metadata.retirementPending) await persist({ ...metadata, retirementPending: receipt });
@@ -14688,7 +14872,7 @@ async function retireBootstrapToken(binding, evidenceSha256, signal) {
 var init_token_store = () => {};
 
 // plugins/azure/src/ce/terraform-parent-retirement.ts
-import { createHash as createHash14 } from 'node:crypto';
+import { createHash as createHash15 } from 'node:crypto';
 import {
   lstat as lstat5,
   readdir as readdir5,
@@ -14711,9 +14895,9 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent retirement owner or source differs');
   signal?.throwIfAborted();
   await store.verify();
-  const lifecycle = object18(await store.read('azure-terraform-lifecycle-retirement.json')),
-    authorization = object18(await store.read(`${teardown.planId}-authorization.json`)),
-    terminal = object18(await store.read('azure-terraform-terminal-cleanup.json'));
+  const lifecycle = object19(await store.read('azure-terraform-lifecycle-retirement.json')),
+    authorization = object19(await store.read(`${teardown.planId}-authorization.json`)),
+    terminal = object19(await store.read('azure-terraform-terminal-cleanup.json'));
   if (
     lifecycle.sourcePlanSha256 !== base.planSha256 ||
     lifecycle.teardownPlanSha256 !== teardown.planSha256 ||
@@ -14757,23 +14941,23 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     { configuration, providerLock, ...rest } = deployment;
   const expectedManifest = {
     ...rest,
-    configurationSha256: hash6(configuration),
-    providerLockSha256: hash6(providerLock),
+    configurationSha256: hash7(configuration),
+    providerLockSha256: hash7(providerLock),
   };
   const upgrades = new Map();
   const upgradeJournals = new Set();
   for (const name of (await readdir5(store.directory)).filter((name) =>
     /^azure-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
   )) {
-    const source = object18(await store.read(name)),
-      deployment = object18(source.deployment);
+    const source = object19(await store.read(name)),
+      deployment = object19(source.deployment);
     const { planId, planSha256, ...draft } = source;
     if (
       source.schemaVersion !== 2 ||
       source.engine !== 'terraform' ||
       source.kind !== 'azure-ce-terraform-upgrade' ||
       source.sourcePlanSha256 !== base.planSha256 ||
-      canonicalSha256(object18(source.expectation).binding) !== canonicalSha256(binding) ||
+      canonicalSha256(object19(source.expectation).binding) !== canonicalSha256(binding) ||
       !sha2(planSha256) ||
       canonicalSha256(draft) !== planSha256 ||
       planId !== `azure-ce-upgrade-${planSha256.slice(0, 24)}` ||
@@ -14788,7 +14972,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
       upgradeJournals.add(`${planId}${suffix}.json`);
   }
   if (upgrades.size) {
-    const serial = object18(await store.read('terraform-ce-upgrade-serial.json'));
+    const serial = object19(await store.read('terraform-ce-upgrade-serial.json'));
     const last = [...upgrades.values()].find((row) => row.planId === serial.lastPlanId);
     if (
       serial.schemaVersion !== 2 ||
@@ -14820,6 +15004,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     'azure-terraform-cloud-destroy-plan.json',
     'azure-terraform-cloud-destroy-final.json',
     'azure-terraform-cloud-destroy-reconciliation.json',
+    'azure-terraform-pending-vm-import.json',
     'platform-drain-source.json',
     'platform-drain-progress.json',
     'platform-drain-receipt.json',
@@ -14832,7 +15017,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
   );
   let saved;
   try {
-    saved = object18(await store.read(markerName));
+    saved = object19(await store.read(markerName));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
@@ -14841,7 +15026,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     const items = [];
     let runner = false;
     const add = async (path, keep) =>
-      items.push({ path, preserve: keep, sha256: hash6(await file(join8(store.directory, path))) });
+      items.push({ path, preserve: keep, sha256: hash7(await file(join8(store.directory, path))) });
     for (const name of (await readdir5(store.directory)).sort()) {
       if (name === markerName || name === '.azure-terraform-lifecycle-lock') continue;
       if (name === base.deploymentName) {
@@ -14853,10 +15038,10 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           JSON.stringify(['artifact-retirement.json', 'deployment.json'])
         )
           throw Error('Azure runner has unretired artifacts');
-        const manifest = object18(JSON.parse((await file(join8(path, 'deployment.json'))).toString())),
-          marker = object18(JSON.parse((await file(join8(path, 'artifact-retirement.json'))).toString()));
-        const receipt = object18(terminal.artifacts),
-          final = object18(terminal.final);
+        const manifest = object19(JSON.parse((await file(join8(path, 'deployment.json'))).toString())),
+          marker = object19(JSON.parse((await file(join8(path, 'artifact-retirement.json'))).toString()));
+        const receipt = object19(terminal.artifacts),
+          final = object19(terminal.final);
         if (
           canonicalSha256(manifest) !== canonicalSha256(expectedManifest) ||
           marker.schemaVersion !== 1 ||
@@ -14869,7 +15054,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           receipt.evidenceSha256 !== evidenceSha256 ||
           receipt.inventorySha256 !== marker.inventorySha256 ||
           !Array.isArray(marker.artifacts) ||
-          marker.inventorySha256 !== hash6(JSON.stringify(marker.artifacts))
+          marker.inventorySha256 !== hash7(JSON.stringify(marker.artifacts))
         )
           throw Error('Azure runner retirement provenance differs');
         for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${name}/${entry}`, true);
@@ -14893,20 +15078,20 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
             JSON.stringify(['artifact-retirement.json', 'deployment.json'])
           )
             throw Error('Azure stage has unretired artifacts');
-          const deployment = object18(upgrade.deployment),
+          const deployment = object19(upgrade.deployment),
             { configuration, providerLock, ...identity } = deployment;
-          const manifest = object18(JSON.parse((await file(join8(path, 'deployment.json'))).toString()));
-          const marker = object18(JSON.parse((await file(join8(path, 'artifact-retirement.json'))).toString()));
-          const retirement = object18(await store.read(`${upgrade.planId}-stage-retirement.json`));
-          const final = object18(retirement.receipt);
+          const manifest = object19(JSON.parse((await file(join8(path, 'deployment.json'))).toString()));
+          const marker = object19(JSON.parse((await file(join8(path, 'artifact-retirement.json'))).toString()));
+          const retirement = object19(await store.read(`${upgrade.planId}-stage-retirement.json`));
+          const final = object19(retirement.receipt);
           if (
             typeof configuration !== 'string' ||
             typeof providerLock !== 'string' ||
             canonicalSha256(manifest) !==
               canonicalSha256({
                 ...identity,
-                configurationSha256: hash6(configuration),
-                providerLockSha256: hash6(providerLock),
+                configurationSha256: hash7(configuration),
+                providerLockSha256: hash7(providerLock),
               }) ||
             retirement.schemaVersion !== 1 ||
             retirement.status !== 'retired' ||
@@ -14927,7 +15112,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
             marker.finalPlanSha256 !== final.planSha256 ||
             marker.planReceiptSha256 !== canonicalSha256(final) ||
             !Array.isArray(marker.artifacts) ||
-            marker.inventorySha256 !== hash6(JSON.stringify(marker.artifacts))
+            marker.inventorySha256 !== hash7(JSON.stringify(marker.artifacts))
           )
             throw Error('Azure upgrade runner retirement provenance differs');
           for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${prefix}/${entry}`, true);
@@ -14944,7 +15129,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
       )
         throw Error('Unknown Azure parent artifact blocks retirement');
       if (name === 'azure-terraform-cloud-destroy-reconciliation.json') {
-        const value = object18(await store.read(name));
+        const value = object19(await store.read(name));
         const observedAt = typeof value.observedAt === 'string' ? Date.parse(value.observedAt) : NaN;
         if (
           !['absent', 'owned'].includes(String(value.status)) ||
@@ -14957,7 +15142,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           throw Error('Azure destroy reconciliation provenance differs');
       }
       if (tokens.has(name) && !recorded?.has(name)) {
-        const value = object18(await store.read(name)),
+        const value = object19(await store.read(name)),
           token = tokens.get(name);
         if (
           !token ||
@@ -14969,8 +15154,8 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           throw Error('Azure parent token identity differs');
       }
       if (checkout) {
-        const value = object18(await store.read(name)),
-          checkoutBinding = object18(value.checkout);
+        const value = object19(await store.read(name)),
+          checkoutBinding = object19(value.checkout);
         if (
           value.schemaVersion !== 1 ||
           canonicalSha256(value.owner) !== canonicalSha256(binding.owner) ||
@@ -14983,8 +15168,8 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
         )
           throw Error('Azure bootstrap checkout provenance differs');
         if (!recorded?.has(name)) {
-          const token = object18(await store.read(`${String(value.tokenName)}.json`));
-          if (typeof token.jwt !== 'string' || hash6(token.jwt) !== checkoutBinding.digest)
+          const token = object19(await store.read(`${String(value.tokenName)}.json`));
+          if (typeof token.jwt !== 'string' || hash7(token.jwt) !== checkoutBinding.digest)
             throw Error('Azure checkout upstream token differs');
         }
       }
@@ -15020,7 +15205,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent checkpoint differs');
   const expected = new Map();
   for (const row of saved.artifacts) {
-    const item = object18(row);
+    const item = object19(row);
     if (
       typeof item.path !== 'string' ||
       item.path.split('/').some((part) => !part || part === '.' || part === '..') ||
@@ -15040,14 +15225,14 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent inventory changed');
   for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
     signal?.throwIfAborted();
-    const value = object18(await store.read(item.path));
+    const value = object19(await store.read(item.path));
     await retireBootstrapToken(value.checkout, evidenceSha256, signal);
   }
   for (const item of current.filter((item) => !item.preserve)) {
     signal?.throwIfAborted();
     await directory(store.directory);
     await store.verify();
-    if (hash6(await file(join8(store.directory, item.path))) !== item.sha256)
+    if (hash7(await file(join8(store.directory, item.path))) !== item.sha256)
       throw Error('Azure parent artifact changed before deletion');
     signal?.throwIfAborted();
     await unlink2(join8(store.directory, item.path));
@@ -15065,9 +15250,9 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
   };
 }
 var markerName = 'azure-terraform-parent-artifact-retirement.json',
-  hash6 = (value) => createHash14('sha256').update(value).digest('hex'),
+  hash7 = (value) => createHash15('sha256').update(value).digest('hex'),
   sha2 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  object18 = (value) => {
+  object19 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed Azure parent retirement');
     return value;
   };
@@ -15079,7 +15264,7 @@ var init_terraform_parent_retirement = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-upgrade-retirement.ts
-import { createHash as createHash15 } from 'node:crypto';
+import { createHash as createHash16 } from 'node:crypto';
 import { join as join9 } from 'node:path';
 
 async function optional11(store, name) {
@@ -15104,7 +15289,7 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
       await store.verify();
       if (canonicalSha256(await store.read(`${upgrade.planId}.json`)) !== canonicalSha256(upgrade))
         throw Error('Upgrade retirement source differs');
-      const serial = object19(await store.read('terraform-ce-upgrade-serial.json'));
+      const serial = object20(await store.read('terraform-ce-upgrade-serial.json'));
       if (
         serial.schemaVersion !== 2 ||
         serial.engine !== 'terraform' ||
@@ -15120,10 +15305,10 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
       const last = await store.read(`${serial.lastPlanId}.json`);
       await verifyAzureTerraformUpgrade(base, last, contract);
       if (last.planSha256 !== serial.lastPlanSha256) throw Error('Serial Azure upgrade digest differs');
-      const auth = object19(await store.read(`${upgrade.planId}-authorization.json`)),
-        checkpoint = object19(await store.read(`${upgrade.planId}-checkpoint.json`)),
-        action = object19(await store.read(`${upgrade.planId}-action-plan.json`)),
-        receipt = object19(await store.read(`${upgrade.planId}-receipt.json`));
+      const auth = object20(await store.read(`${upgrade.planId}-authorization.json`)),
+        checkpoint = object20(await store.read(`${upgrade.planId}-checkpoint.json`)),
+        action = object20(await store.read(`${upgrade.planId}-action-plan.json`)),
+        receipt = object20(await store.read(`${upgrade.planId}-receipt.json`));
       if (
         auth.schemaVersion !== 2 ||
         auth.engine !== 'terraform' ||
@@ -15174,7 +15359,7 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
       return action;
     };
     const validateFinal = (v) => {
-      const r = object19(v);
+      const r = object20(v);
       if (
         r.schemaVersion !== 1 ||
         r.engine !== 'terraform' ||
@@ -15195,7 +15380,7 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
       return r;
     };
     const validateCheckpoint = (v) => {
-      const c = object19(v);
+      const c = object20(v);
       if (
         c.schemaVersion !== 1 ||
         !['preparing', 'retiring', 'retired'].includes(String(c.status)) ||
@@ -15232,7 +15417,7 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
       };
       await store.write(checkpointName, checkpoint);
     }
-    if (object19(checkpoint).status === 'preparing') {
+    if (object20(checkpoint).status === 'preparing') {
       const receipt = validateFinal(await session.plan(env, signal));
       await validate();
       checkpoint = {
@@ -15281,8 +15466,8 @@ async function qualifiedAzureTerraformUpgradeStages(base, store, stages, contrac
     throw Error('Unqualified Terraform stage blocks terminal cleanup');
   return upgrades.sort((a, b) => String(a.deployment.stage).localeCompare(String(b.deployment.stage)));
 }
-var sha256Hex2 = (value) => createHash15('sha256').update(value).digest('hex'),
-  object19 = (v) => {
+var sha256Hex2 = (value) => createHash16('sha256').update(value).digest('hex'),
+  object20 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed upgrade retirement evidence');
     return v;
   },
@@ -15294,7 +15479,7 @@ var init_terraform_upgrade_retirement = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-terminal-cleanup.ts
-import { createHash as createHash16 } from 'node:crypto';
+import { createHash as createHash17 } from 'node:crypto';
 import { lstat as lstat6, readdir as readdir6, realpath as realpath5 } from 'node:fs/promises';
 import { join as join10 } from 'node:path';
 
@@ -15323,8 +15508,8 @@ async function finalizeAzureTerraformRunnerCleanup(
   const deployment = await azureTerraformCurrentDeployment(base);
   const identity = (({ configuration, providerLock, ...rest }) => ({
     ...rest,
-    configurationSha256: hash7(configuration),
-    providerLockSha256: hash7(providerLock),
+    configurationSha256: hash8(configuration),
+    providerLockSha256: hash8(providerLock),
   }))(deployment);
   const namespaces = new Set(['default']);
   for (const value of [
@@ -15420,7 +15605,7 @@ async function finalizeAzureTerraformRunnerCleanup(
       throw Error('Azure owning runner cleanup unavailable');
     const configurationSha256 = await session.readConfigurationSha256();
     if (!sha4(configurationSha256)) throw Error('Azure current configuration is unresolved');
-    const configuration = object20(JSON.parse(await session.readConfiguration(configurationSha256)));
+    const configuration = object21(JSON.parse(await session.readConfiguration(configurationSha256)));
     const renderedEmpty = JSON.stringify({ terraform: configuration.terraform, provider: configuration.provider });
     if (canonicalSha256(JSON.parse(renderedEmpty)) !== canonicalSha256(JSON.parse(deployment.configuration)))
       throw Error('Azure empty configuration provider or execution identity differs');
@@ -15447,7 +15632,7 @@ async function finalizeAzureTerraformRunnerCleanup(
       teardownPlanSha256: teardown.planSha256,
       configurationSha256,
       emptyConfiguration,
-      emptyConfigurationSha256: hash7(emptyConfiguration),
+      emptyConfigurationSha256: hash8(emptyConfiguration),
       destroy,
       evidence,
       evidenceSha256: canonicalSha256(evidence),
@@ -15471,7 +15656,7 @@ async function finalizeAzureTerraformRunnerCleanup(
         evidence: checkpoint.evidence,
       }) ||
     typeof checkpoint.emptyConfiguration !== 'string' ||
-    checkpoint.emptyConfigurationSha256 !== hash7(checkpoint.emptyConfiguration) ||
+    checkpoint.emptyConfigurationSha256 !== hash8(checkpoint.emptyConfiguration) ||
     checkpoint.emptyConfigurationSha256 !== identity.configurationSha256 ||
     !['cancelling', 'planning', 'retiring', 'retired'].includes(checkpoint.phase) ||
     (['retiring', 'retired'].includes(checkpoint.phase) &&
@@ -15574,9 +15759,9 @@ async function finalizeAzureTerraformRunnerCleanup(
   };
 }
 var name = 'azure-terraform-terminal-cleanup.json',
-  hash7 = (value) => createHash16('sha256').update(value).digest('hex'),
+  hash8 = (value) => createHash17('sha256').update(value).digest('hex'),
   sha4 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  object20 = (value) => {
+  object21 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed Azure terminal cleanup');
     return value;
   };
@@ -15645,9 +15830,9 @@ async function collectAzureTeardownMaterial(base, runtime, contract, storage, si
   const namespaces = new Set(['default']);
   for (const entry of ingressFiles) {
     if (!entry.isFile()) throw new Error('Azure teardown ingress artifact is not a regular file');
-    const saved = object21(await storage.read(entry.name));
-    const namespace = object21(object21(saved.request).metadata).namespace;
-    const originNamespace = object21(object21(object21(saved.material).intent).originPool).namespace;
+    const saved = object22(await storage.read(entry.name));
+    const namespace = object22(object22(saved.request).metadata).namespace;
+    const originNamespace = object22(object22(object22(saved.material).intent).originPool).namespace;
     if (!safeName(namespace) || !safeName(originNamespace)) throw new Error('Azure teardown namespace is invalid');
     namespaces.add(namespace);
     namespaces.add(originNamespace);
@@ -15736,7 +15921,7 @@ async function collectAzureTeardownMaterial(base, runtime, contract, storage, si
       const prefix = prefixes.find((candidate) => entry.name.startsWith(candidate));
       if (!prefix || !/^[a-f0-9]{12}\.json$/.test(entry.name.slice(prefix.length))) continue;
       if (!entry.isFile()) throw new Error('Azure teardown enrollment artifact is not a regular file');
-      const record = object21(await storage.read(entry.name));
+      const record = object22(await storage.read(entry.name));
       if (record.tokenName !== entry.name.slice(0, -5) || record.siteName !== binding.siteName || record.node !== node)
         throw new Error('Azure teardown historical enrollment identity differs');
       tokenRows.set(String(record.tokenName), { node, name: String(record.tokenName) });
@@ -15788,8 +15973,8 @@ async function prepareAzureTerraformTeardown(base, runtime, contract, storage, s
   }
   if (
     workflow !== undefined &&
-    object21(workflow).stage === 'network-pending' &&
-    Object.keys(object21(object21(workflow).bootstrapByNode)).length === 0
+    object22(workflow).stage === 'network-pending' &&
+    Object.keys(object22(object22(workflow).bootstrapByNode)).length === 0
   )
     return prepareAzureFoundationTeardown(base, runtime, contract, storage, signal);
   const { drain, retirement, pendingAdmissionJournalSha256 } = await collectAzureTeardownMaterial(
@@ -15887,8 +16072,8 @@ async function runAzureTerraformTeardown(
     if (error.code !== 'ENOENT') throw error;
   }
   if (completed !== undefined) {
-    const receipt = object21(completed),
-      final = object21(await storage.read('azure-terraform-cloud-destroy-final.json'));
+    const receipt = object22(completed),
+      final = object22(await storage.read('azure-terraform-cloud-destroy-final.json'));
     if (
       receipt.status !== 'retired' ||
       receipt.sourcePlanSha256 !== base.planSha256 ||
@@ -15919,7 +16104,15 @@ async function runAzureTerraformTeardown(
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' };
   await validate();
-  const cloud = await runAzureTerraformCloudTeardown(base, session, storage, api, env, signal);
+  const cloud = await runAzureTerraformCloudTeardown(
+    base,
+    session,
+    storage,
+    api,
+    env,
+    signal,
+    !!input.pendingAdmissionJournalSha256,
+  );
   for (const site of input.retirement) {
     await validate();
     const current = await runtime.observeSiteDeletion(azureUpgradeBinding(base), site, signal);
@@ -15962,7 +16155,7 @@ async function runAzureTerraformTeardown(
     terraform,
   );
 }
-var object21 = (value) => {
+var object22 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed Azure teardown material');
     return value;

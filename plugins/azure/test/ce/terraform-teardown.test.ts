@@ -209,6 +209,21 @@ for (const pending of [false, true])
         noChanges: true,
       };
       const session = {
+        async readResourceIdentities() {
+          return [
+            {
+              address: 'azurerm_linux_virtual_machine.node_1',
+              type: 'azurerm_linux_virtual_machine',
+              id: `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${plan.deploymentName}-1`,
+            },
+          ];
+        },
+        async planImports() {
+          throw Error('unexpected import');
+        },
+        async readPlanApplicationState() {
+          return 'applied';
+        },
         async readConfigurationSha256() {
           return changed.configurationSha256;
         },

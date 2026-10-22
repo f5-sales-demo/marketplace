@@ -400,7 +400,15 @@ export async function runAzureTerraformTeardown(
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' as const };
   await validate();
-  const cloud = await runAzureTerraformCloudTeardown(base, session, storage, api, env, signal);
+  const cloud = await runAzureTerraformCloudTeardown(
+    base,
+    session,
+    storage,
+    api,
+    env,
+    signal,
+    !!input.pendingAdmissionJournalSha256,
+  );
   for (const site of input.retirement) {
     await validate();
     const current = await runtime.observeSiteDeletion(azureUpgradeBinding(base), site, signal);

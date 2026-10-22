@@ -157,6 +157,7 @@ export async function retireAzureTerraformParentArtifacts(
     'azure-terraform-cloud-destroy-plan.json',
     'azure-terraform-cloud-destroy-final.json',
     'azure-terraform-cloud-destroy-reconciliation.json',
+    'azure-terraform-pending-vm-import.json',
     'platform-drain-source.json',
     'platform-drain-progress.json',
     'platform-drain-receipt.json',
