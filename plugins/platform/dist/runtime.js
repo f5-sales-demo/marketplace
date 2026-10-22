@@ -4118,10 +4118,12 @@ class CeRuntime {
       observedAt: new Date().toISOString(),
     };
     const profile = this.contract.provider(binding.owner.provider);
+    const healthContract = profile.runtime && object11(profile.runtime).health;
     if (
-      !profile.runtime ||
-      object11(object11(profile.runtime).health).path !==
-        '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health'
+      !healthContract ||
+      typeof healthContract !== 'object' ||
+      Array.isArray(healthContract) ||
+      object11(healthContract).path !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health'
     )
       return { ...base, status: 'unknown', reason: 'provider-health-contract-unavailable' };
     try {

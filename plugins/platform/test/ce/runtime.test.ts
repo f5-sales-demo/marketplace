@@ -357,6 +357,30 @@ test('HTTP errors and malformed responses never expose server bodies', async () 
   await expect(runtime.observeSite(binding)).rejects.toThrow('malformed');
 });
 
+for (const health of [undefined, null, [], 'invalid', {}, { path: '/wrong' }]) {
+  test(`unavailable provider health mapping ${JSON.stringify(health)} returns unknown without a request`, async () => {
+    const fixtureContract = structuredClone(contract);
+    Object.assign(fixtureContract.providers.azure.runtime, { health });
+    let requests = 0;
+    const runtime = new CeRuntime(
+      fixture(false, fixtureContract),
+      'native',
+      'https://tenant.test',
+      'test-credential',
+      async () => {
+        requests++;
+        return json({});
+      },
+    );
+    const azureBinding: SiteBinding = { ...binding, owner: { ...binding.owner, provider: 'azure' } };
+    expect(await runtime.observeHealth(azureBinding)).toMatchObject({
+      status: 'unknown',
+      reason: 'provider-health-contract-unavailable',
+    });
+    expect(requests).toBe(0);
+  });
+}
+
 test('site-global health never fabricates per-node HA health or accepts foreign identities', async () => {
   const contract = fixture();
   let response: unknown = { hostname: 'node-one.example', state: 'PROVISIONED' };
