@@ -2249,13 +2249,14 @@ function compileActions(
       mutates: false,
       destructive: false,
     });
-  add({
-    phase: 'verify',
-    kind: 'traffic-gate',
-    description: 'Verify end-to-end traffic',
-    mutates: false,
-    destructive: false,
-  });
+  if (nlbIngress)
+    add({
+      phase: 'verify',
+      kind: 'traffic-gate',
+      description: 'Verify end-to-end traffic',
+      mutates: false,
+      destructive: false,
+    });
   return actions;
 }
 
@@ -2387,6 +2388,8 @@ export function compileAwsCePlan(
     intent.topology.nodeCount === 1 && ['resize', 'replace-node', 'update-network'].includes(intent.operation)
       ? ['Single-node lifecycle work is disruptive and requires a maintenance window.']
       : [];
+  if (intent.operation === 'deploy' && !awsCeNlbIngress(intent))
+    warnings.push('No ingress probe is configured; traffic qualification remains unknown.');
   const billableResources = [
     { type: 'ec2-instance', count: intent.topology.nodeCount },
     { type: 'gp3-volume', count: intent.topology.nodeCount },

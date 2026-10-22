@@ -24,6 +24,13 @@ association. Changes to a failed appliance's next hop require a fresh reviewed c
 and measured recovery. NLB ingress targets an explicit CE application service and remains
 independent of the routing profile.
 
+A Mesh-only installation with no ingress probe retains registration and global-site provisioning
+checks. It does not run an end-to-end traffic check or establish node health. Native apply reports
+installation separately and leaves traffic qualification unknown. Configured NLB ingress keeps
+its listener, target-health and end-to-end probe gates. A completed checkpoint records the earlier
+probe outcome; use fresh observations for current traffic health. Every UAT traffic and return-path
+requirement remains separate and must pass before release.
+
 SSM probes require a running, ownership-verified Linux EC2 managed node with an online agent
 and a recent ping. An instance profile or an explicitly configured Default Host Management
 Configuration may provide its permissions. The agent and outbound SSM service path must already

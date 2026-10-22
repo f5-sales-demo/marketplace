@@ -23,6 +23,15 @@ const capabilities: AwsCeF5Capabilities = {
 };
 const ownerPlanSha256 = 'a'.repeat(64);
 
+it('plans Mesh-only installation independently from unconfigured traffic qualification', () => {
+  const plan = compileAwsCePlan(intent(), observation());
+  expect(plan.actions.some((action) => action.kind === 'registration-gate')).toBe(true);
+  expect(plan.actions.some((action) => action.kind === 'health-gate')).toBe(true);
+  expect(plan.actions.some((action) => action.kind === 'traffic-gate')).toBe(false);
+  expect(plan.warnings).toContain('No ingress probe is configured; traffic qualification remains unknown.');
+  verifyAwsCePlan(plan);
+});
+
 it('routes whole-site power to exact saved-plan workflow for both engines', () => {
   for (const engine of ['native', 'terraform'] as const)
     for (const operation of ['start', 'stop'] as const)
@@ -872,6 +881,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     for (const route of greRoutes) expect(route.args).toContain('172.31.240.0/24');
     const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
     expect(actions).toHaveLength(6);
+    expect(plan.actions.filter((action) => action.kind === 'traffic-gate')).toHaveLength(1);
+    expect(plan.actions.some((action) => action.kind === 'f5-ingress-configure')).toBe(true);
+    expect(plan.actions.some((action) => action.kind === 'nlb-gate')).toBe(true);
     const nlb = plan.actions.find((action) => action.kind === 'nlb-create');
     expect(nlb?.args).toContain('internal');
     expect(nlb?.args?.filter((arg) => arg === 'elbv2')).toHaveLength(1);

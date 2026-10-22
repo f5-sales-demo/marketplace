@@ -3,6 +3,7 @@ import type { PluginInterface } from '../aws/types';
 import type { AwsCeApplyInput } from '../ce/apply';
 import { executeAwsCeApply } from '../ce/apply';
 import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
+import { nativeAwsApplyQualification } from '../ce/native-apply-qualification';
 import { AwsCeRevalidationError } from '../ce/observation-rejection';
 import { awsPlatformService } from '../ce/platform';
 import { awsTerraformService, executeAwsCeTerraformApply } from '../ce/terraform-apply';
@@ -56,14 +57,21 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
           fetch,
           signal,
         );
+        const qualification = nativeAwsApplyQualification(plan, checkpoint);
         return {
           content: [
             {
               type: 'text' as const,
-              text: `AWS CE ${plan.deploymentName}: ${checkpoint.state}; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed.`,
+              text: `AWS CE ${plan.deploymentName}: ${qualification.installation.status} installation; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed. Global site health does not establish node health. ${plan.intent.ingress?.mode === 'nlb' ? 'Traffic probe completion is recorded in the checkpoint; current traffic requires a fresh observation.' : 'No ingress probe is configured; traffic qualification remains unknown.'}`,
             },
           ],
-          details: { tool: 'aws_ce_apply', planId: plan.planId, planSha256: plan.planSha256, checkpoint },
+          details: {
+            tool: 'aws_ce_apply',
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+            checkpoint,
+            qualification,
+          },
         };
       } catch (error) {
         return {

@@ -5865,13 +5865,14 @@ function compileActions(intent, observation, restorationById) {
       mutates: false,
       destructive: false,
     });
-  add({
-    phase: 'verify',
-    kind: 'traffic-gate',
-    description: 'Verify end-to-end traffic',
-    mutates: false,
-    destructive: false,
-  });
+  if (nlbIngress)
+    add({
+      phase: 'verify',
+      kind: 'traffic-gate',
+      description: 'Verify end-to-end traffic',
+      mutates: false,
+      destructive: false,
+    });
   return actions;
 }
 function compileAwsCePlan(input, observation, restorationState = []) {
@@ -5996,6 +5997,8 @@ function compileAwsCePlan(input, observation, restorationState = []) {
     intent.topology.nodeCount === 1 && ['resize', 'replace-node', 'update-network'].includes(intent.operation)
       ? ['Single-node lifecycle work is disruptive and requires a maintenance window.']
       : [];
+  if (intent.operation === 'deploy' && !awsCeNlbIngress(intent))
+    warnings.push('No ingress probe is configured; traffic qualification remains unknown.');
   const billableResources = [
     { type: 'ec2-instance', count: intent.topology.nodeCount },
     { type: 'gp3-volume', count: intent.topology.nodeCount },
@@ -10236,6 +10239,42 @@ var init_apply = __esm(() => {
   init_traffic_probe();
   init_types2();
 });
+
+// plugins/aws/src/ce/native-apply-qualification.ts
+function nativeAwsApplyQualification(plan, checkpoint) {
+  const bound =
+    plan.engine === 'native' &&
+    checkpoint.engine === 'native' &&
+    checkpoint.planId === plan.planId &&
+    checkpoint.planSha256 === plan.planSha256;
+  const ordered =
+    bound &&
+    checkpoint.completedActionIds.length <= plan.actions.length &&
+    checkpoint.completedActionIds.every((id, index) => id === plan.actions[index].id);
+  const complete =
+    ordered && checkpoint.state === 'complete' && checkpoint.completedActionIds.length === plan.actions.length;
+  const trafficGates = plan.actions.filter((action) => action.kind === 'traffic-gate');
+  const trafficGateCompleted =
+    ordered &&
+    plan.intent.ingress?.mode === 'nlb' &&
+    trafficGates.length === 1 &&
+    checkpoint.completedActionIds.includes(trafficGates[0].id);
+  return {
+    installation: { status: complete ? 'complete' : 'incomplete' },
+    healthScope: 'site-global-only',
+    nodeHealth: 'unknown',
+    traffic: {
+      status: 'unknown',
+      gateCompleted: trafficGateCompleted,
+      reason:
+        plan.intent.ingress?.mode !== 'nlb'
+          ? 'no-ingress-probe-configured'
+          : trafficGateCompleted
+            ? 'checkpointed-probe-is-not-current-live-evidence'
+            : 'traffic-gate-not-complete',
+    },
+  };
+}
 
 // plugins/aws/src/ce/terraform-brownfield-placement.ts
 function placementPlan(plan) {
@@ -14671,14 +14710,21 @@ function createAwsCeApplyTool(pi, makeApi = makeExecApi) {
           fetch,
           signal,
         );
+        const qualification = nativeAwsApplyQualification(plan, checkpoint);
         return {
           content: [
             {
               type: 'text',
-              text: `AWS CE ${plan.deploymentName}: ${checkpoint.state}; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed.`,
+              text: `AWS CE ${plan.deploymentName}: ${qualification.installation.status} installation; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed. Global site health does not establish node health. ${plan.intent.ingress?.mode === 'nlb' ? 'Traffic probe completion is recorded in the checkpoint; current traffic requires a fresh observation.' : 'No ingress probe is configured; traffic qualification remains unknown.'}`,
             },
           ],
-          details: { tool: 'aws_ce_apply', planId: plan.planId, planSha256: plan.planSha256, checkpoint },
+          details: {
+            tool: 'aws_ce_apply',
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+            checkpoint,
+            qualification,
+          },
         };
       } catch (error) {
         return {
