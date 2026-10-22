@@ -28,6 +28,8 @@ afterEach(async () => {
 
 for (const fault of [
   'none',
+  'retained-complete',
+  'foreign-complete',
   'after-cancel',
   'planning',
   'retirement',
@@ -246,9 +248,32 @@ for (const fault of [
         return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
       },
     };
+    if (['retained-complete', 'foreign-complete'].includes(fault)) {
+      groupExists = false;
+      await storage.write('azure-terraform-cloud-destroy-final.json', {
+        ...changed,
+        planSha256: 'f'.repeat(64),
+        changes: [],
+        noChanges: true,
+      });
+      await storage.write('azure-terraform-teardown-receipt.json', {
+        status: 'retired',
+        sourcePlanSha256: plan.planSha256,
+        teardownPlanSha256: fault === 'foreign-complete' ? '1'.repeat(64) : teardown.planSha256,
+        finalPlanSha256: 'f'.repeat(64),
+        cloud: 'absent',
+        sites: 'deleted',
+        observedAt: new Date().toISOString(),
+      });
+      runtime.drainPlatform = async () => {
+        throw Error('completed teardown must not replay platform drain');
+      };
+    }
     const run = () =>
       runAzureTerraformTeardown(plan, teardown, teardown.planSha256, runtime, contract, session, storage, api, {});
-    if (['foreign-platform', 'stale-platform', 'changing-plan', 'wrong-retirement'].includes(fault)) {
+    if (
+      ['foreign-complete', 'foreign-platform', 'stale-platform', 'changing-plan', 'wrong-retirement'].includes(fault)
+    ) {
       await expect(run()).rejects.toThrow();
       if (fault !== 'wrong-retirement') expect(order).not.toContain('runner-retirement');
       return;
@@ -262,7 +287,7 @@ for (const fault of [
       expect(order).toEqual(before);
       return;
     }
-    if (fault !== 'none') await expect(run()).rejects.toThrow('interrupted');
+    if (!['none', 'retained-complete'].includes(fault)) await expect(run()).rejects.toThrow('interrupted');
     expect(await run()).toMatchObject({
       status: 'deployment-artifacts-retired',
       cloud: 'absent',
@@ -272,6 +297,10 @@ for (const fault of [
     const beforeResume = [...order];
     expect(await run()).toMatchObject({ status: 'deployment-artifacts-retired', completeCleanup: false });
     expect(order).toEqual(beforeResume);
+    if (fault === 'retained-complete') {
+      expect(order).toEqual(['cancel', 'refresh', 'runner-retirement']);
+      return;
+    }
     expect(order.filter((value) => value === 'cloud')).toHaveLength(1);
     expect(order.filter((value) => value === 'token')).toHaveLength(1);
     expect(order.filter((value) => value === 'site')).toHaveLength(1);

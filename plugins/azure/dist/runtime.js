@@ -15258,6 +15258,31 @@ async function runAzureTerraformTeardown(
   await beginAzureTerraformRetirement(base, input, storage);
   if (await hasAzureTerraformTerminalCleanup(storage))
     return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
+  let completed;
+  try {
+    completed = await storage.read('azure-terraform-teardown-receipt.json');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (completed !== undefined) {
+    const receipt = object19(completed),
+      final = object19(await storage.read('azure-terraform-cloud-destroy-final.json'));
+    if (
+      receipt.status !== 'retired' ||
+      receipt.sourcePlanSha256 !== base.planSha256 ||
+      receipt.teardownPlanSha256 !== input.planSha256 ||
+      receipt.cloud !== 'absent' ||
+      receipt.sites !== 'deleted' ||
+      receipt.finalPlanSha256 !== final.planSha256 ||
+      !/^[a-f0-9]{64}$/.test(String(final.planSha256)) ||
+      final.operation !== 'destroy' ||
+      final.noChanges !== true ||
+      !Array.isArray(final.changes) ||
+      final.changes.length
+    )
+      throw Error('Azure completed teardown receipt differs');
+    return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
+  }
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' };
   await validate();
