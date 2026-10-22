@@ -527,6 +527,11 @@
           }
         }
       }
+    },
+    "liveInstallationAttempt103": {
+      "status": "failed-20-of-21-checkpointed",
+      "receipt": "docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json",
+      "fullProvisioningAcceptance": false
     }
   },
   "requiredClouds": ["aws", "azure"],
@@ -897,12 +902,12 @@
         "tests": ["plugins/platform/test/ce/tools.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "headless-api-verified-interactive-pending",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "headless-checkout-revocation-and-retirement-verified-interactive-pending",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
       "status": "unverified"
     },
@@ -1418,20 +1423,24 @@
         "source": "plugins/aws/src/tools/aws-ce-teardown.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
+        "status": "verified",
+        "tests": [
+          "plugins/aws/test/ce/native-teardown.test.ts",
+          "plugins/aws/test/ce/planner.test.ts",
+          "plugins/aws/test/ce/terraform-teardown-plan.test.ts"
+        ]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalEvidence": [
         {
           "candidateRevision": 102,
@@ -1509,25 +1518,29 @@
       "profile": "single-site",
       "feature": "final-no-change",
       "publicInterface": {
-        "tool": "aws_ce_apply",
+        "tool": "aws_ce_plan",
         "parameters": {},
-        "source": "plugins/aws/src/tools/aws-ce-apply.ts",
+        "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
+        "status": "verified",
+        "tests": [
+          "plugins/aws/test/ce/native-teardown.test.ts",
+          "plugins/aws/test/ce/planner.test.ts",
+          "plugins/aws/test/ce/terraform-teardown-plan.test.ts"
+        ]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalEvidence": [
         {
           "candidateRevision": 102,
