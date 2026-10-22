@@ -75,7 +75,7 @@ async function fixture() {
   const store = await CeDeploymentStore.open(root, binding.owner);
   await store.write(`${upgrade.planId}.json`, upgrade);
   await store.write(`${upgrade.planId}-authorization.json`, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     engine: 'terraform',
     sourcePlanSha256: base.planSha256,
     upgradePlanSha256: upgrade.planSha256,
@@ -208,6 +208,7 @@ for (const mode of [
   'foreign-serial',
   'submitted',
   'authorization',
+  'obsolete-authorization',
   'action',
   'stage',
   'applying',
@@ -238,6 +239,10 @@ for (const mode of [
       await f.store.write(`${id}-checkpoint.json`, { ...c, phase: 'submitted' });
     }
     if (mode === 'authorization') await f.store.write(`${id}-authorization.json`, { mutations: false });
+    if (mode === 'obsolete-authorization') {
+      const authorization = (await f.store.read(`${id}-authorization.json`)) as Record<string, unknown>;
+      await f.store.write(`${id}-authorization.json`, { ...authorization, schemaVersion: 1 });
+    }
     if (mode === 'action') {
       const c = (await f.store.read(`${id}-action-plan.json`)) as Record<string, unknown>;
       await f.store.write(`${id}-action-plan.json`, { ...c, backendIdentity: 'foreign' });
@@ -253,7 +258,18 @@ for (const mode of [
       });
     await expect(f.run()).rejects.toThrow();
     expect(f.counts().retires).toBe(0);
-    if (['active', 'foreign-serial', 'submitted', 'authorization', 'action', 'stage', 'checkpoint'].includes(mode))
+    if (
+      [
+        'active',
+        'foreign-serial',
+        'submitted',
+        'authorization',
+        'obsolete-authorization',
+        'action',
+        'stage',
+        'checkpoint',
+      ].includes(mode)
+    )
       expect(f.counts().opens).toBe(0);
   });
 

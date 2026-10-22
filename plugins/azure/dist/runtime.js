@@ -14957,7 +14957,7 @@ async function retireAzureTerraformUpgradeStage(base, input, contract, terraform
         action = object18(await store.read(`${upgrade.planId}-action-plan.json`)),
         receipt = object18(await store.read(`${upgrade.planId}-receipt.json`));
       if (
-        auth.schemaVersion !== 1 ||
+        auth.schemaVersion !== 2 ||
         auth.engine !== 'terraform' ||
         auth.sourcePlanSha256 !== base.planSha256 ||
         auth.upgradePlanSha256 !== upgrade.planSha256 ||

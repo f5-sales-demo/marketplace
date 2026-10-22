@@ -7,13 +7,6 @@
     "draftPullRequest": 1327
   },
   "cohort": {
-    "revision": 96,
-    "versions": {
-      "platform": "7.0.0-uat.96",
-      "aws": "3.0.0-uat.96",
-      "azure": "5.0.0-uat.96",
-      "terraform": "3.0.0-uat.96"
-    },
     "stableBaseVersions": {
       "platform": "6.2.0",
       "aws": "2.3.0",
@@ -21,18 +14,18 @@
       "terraform": "2.3.1"
     },
     "runtimePeer": "23.8.0",
+    "testedRuntimeVersions": ["23.8.0", "23.9.5", "23.9.3"],
+    "revision": 101,
+    "versions": {
+      "platform": "7.0.0-uat.101",
+      "aws": "3.0.0-uat.101",
+      "azure": "5.0.0-uat.101",
+      "terraform": "3.0.0-uat.101"
+    },
     "sourceCommit": null,
     "deliverable": false,
     "archives": [],
-    "testedRuntimeVersions": ["23.8.0", "23.9.5", "23.9.3"],
     "historicalCohort": {
-      "revision": 90,
-      "versions": {
-        "platform": "7.0.0-uat.90",
-        "aws": "3.0.0-uat.90",
-        "azure": "5.0.0-uat.90",
-        "terraform": "3.0.0-uat.90"
-      },
       "stableBaseVersions": {
         "platform": "6.2.0",
         "aws": "2.3.0",
@@ -40,66 +33,73 @@
         "terraform": "2.3.1"
       },
       "runtimePeer": "23.8.0",
-      "sourceCommit": "455bb429737bd0d70bea9c3a52696abdfd80375d",
+      "testedRuntimeVersions": ["23.8.0", "23.9.5", "23.9.3"],
+      "revision": 100,
+      "versions": {
+        "platform": "7.0.0-uat.100",
+        "aws": "3.0.0-uat.100",
+        "azure": "5.0.0-uat.100",
+        "terraform": "3.0.0-uat.100"
+      },
+      "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
       "deliverable": false,
       "archives": [
         {
           "plugin": "platform",
-          "version": "7.0.0-uat.90",
+          "version": "7.0.0-uat.100",
           "filesVerified": 267,
-          "archiveSha256": "f34cb5d750615fc64f0241bd0398699fe4ef0bc6625027a550b627187fc5dc8c",
-          "archiveBytes": 387577,
-          "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
-          "manifestSha256": "f9a09a5370aa3d4804f76fc15951c4a6f02b6c7f58437876fa21d87533b74522",
-          "packageSha256": "4c5060ebcff80d667015a82e4fa48eebdf6c2f680c354f1bf505b31741972809",
+          "archiveSha256": "75e074cd33690a1e7b7e794a1ab594631f6cd8ce66ba89bea06546cb43d031ba",
+          "archiveBytes": 390925,
+          "runtimeSha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8",
+          "manifestSha256": "e90179d206b312d5e771d7911d1361c00ccec57f892fc931caf6bd55652bbb85",
+          "packageSha256": "5c8bcd250155d21aed318c06dbadb55dfa598114b2424921a81f25cf0c3da675",
           "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
           "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
         },
         {
           "plugin": "aws",
-          "version": "3.0.0-uat.90",
+          "version": "3.0.0-uat.100",
           "filesVerified": 286,
-          "archiveSha256": "a62abc3b8e0ce555c228c6580fc167e8ede555ec1a4fc0eb9664d01b43e5e3a0",
-          "archiveBytes": 769087,
-          "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
-          "manifestSha256": "5125a309cce13c091d462984cee081efee9d659f5f608a3d362c0b22c37bdcc8",
-          "packageSha256": "8437241e2acb4297e9f82189e92831185769022223cb9a30fbca36ba03075c6c",
+          "archiveSha256": "6f51bb3b1565e2f448bdf420baf6e15fda33b995789f41f19566d04160adc6a9",
+          "archiveBytes": 771172,
+          "runtimeSha256": "8057d507087209ff3434d8afc7542da21be71fa76cf628c4ee96a2d7874e325c",
+          "manifestSha256": "089997ae2473b621a4e3a4fc25cef83d3b01536539c4ee13547f35c8fbce5b6b",
+          "packageSha256": "6125018bb8af19ef9be742c8c22cc0c92d86b9a046d9c713b6f89be33e002fe9",
           "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
           "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
         },
         {
           "plugin": "azure",
-          "version": "5.0.0-uat.90",
-          "filesVerified": 170,
-          "archiveSha256": "71c5ebd8f5b06f28dbb7e1306efe4eaf74867e8ff74b8213a0410be4a6bcd372",
-          "archiveBytes": 447140,
-          "runtimeSha256": "403c08c0d1c51e95e89a88a1fc9816de527d89658a4a35670830e1f056574368",
-          "manifestSha256": "bc23a59adb0dafe21ca48fae8d102e02d8a950c7ecb694224ee1f68f59bf8ab0",
-          "packageSha256": "71567ac167b79d09313626ddb5046dd00b98a6edb8d1d1aba5e539fc6bf5ec19",
+          "version": "5.0.0-uat.100",
+          "filesVerified": 176,
+          "archiveSha256": "4a5473a88538fd5dffc7eb91b5d4e4f77411f02f9c776ce5558fc0a26f800801",
+          "archiveBytes": 473006,
+          "runtimeSha256": "b320e69dbacf63589c873c474ca2a117f6941df87ddb0097d0e10b294c7b38d9",
+          "manifestSha256": "9bd6e01886661242183ebc536577facb9853182b6daa2730b0bdaa9d11cdd7cd",
+          "packageSha256": "c60aab54667d76640d44039ca8649051bad2e27bf8227098fe9e54ada54dc324",
           "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
           "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
         },
         {
           "plugin": "terraform",
-          "version": "3.0.0-uat.90",
+          "version": "3.0.0-uat.100",
           "filesVerified": 34,
-          "archiveSha256": "261d0faf167004db370638c4277b594576ef2f8600121707e0ac81586a1b8c00",
-          "archiveBytes": 115175,
-          "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
-          "manifestSha256": "eee85be67cedf2d77dd8f31c2b239a264d2a77686116d6437acd021f164f8d0d",
-          "packageSha256": "bd39205a579a722aadfda1826d143cfe4b2a741645fbea8f85860e79bef45e05",
+          "archiveSha256": "9950e863302d742dc2f233246b124334710e5a22473018fe8a3fbce7d7087034",
+          "archiveBytes": 115196,
+          "runtimeSha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6",
+          "manifestSha256": "fde0e24f737033eb1e7e0941477dfca97b47b2fc5ebae9eda214c5d85f1b2686",
+          "packageSha256": "b1329607b8cf869ea72459f7a1c04b6cb263490f36ebb2c001825ba8fbfa928d",
           "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
           "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
         }
       ],
-      "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"],
       "historicalCohort": {
-        "revision": 89,
+        "revision": 96,
         "versions": {
-          "platform": "7.0.0-uat.89",
-          "aws": "3.0.0-uat.89",
-          "azure": "5.0.0-uat.89",
-          "terraform": "3.0.0-uat.89"
+          "platform": "7.0.0-uat.96",
+          "aws": "3.0.0-uat.96",
+          "azure": "5.0.0-uat.96",
+          "terraform": "3.0.0-uat.96"
         },
         "stableBaseVersions": {
           "platform": "6.2.0",
@@ -111,14 +111,14 @@
         "sourceCommit": null,
         "deliverable": false,
         "archives": [],
-        "testedRuntimeVersions": [],
+        "testedRuntimeVersions": ["23.8.0", "23.9.5", "23.9.3"],
         "historicalCohort": {
-          "revision": 88,
+          "revision": 90,
           "versions": {
-            "platform": "7.0.0-uat.88",
-            "aws": "3.0.0-uat.88",
-            "azure": "5.0.0-uat.88",
-            "terraform": "3.0.0-uat.88"
+            "platform": "7.0.0-uat.90",
+            "aws": "3.0.0-uat.90",
+            "azure": "5.0.0-uat.90",
+            "terraform": "3.0.0-uat.90"
           },
           "stableBaseVersions": {
             "platform": "6.2.0",
@@ -127,66 +127,66 @@
             "terraform": "2.3.1"
           },
           "runtimePeer": "23.8.0",
-          "sourceCommit": "6d8dff8b136e2bbff5cb52f899fd9740caf43e64",
+          "sourceCommit": "455bb429737bd0d70bea9c3a52696abdfd80375d",
           "deliverable": false,
           "archives": [
             {
               "plugin": "platform",
-              "version": "7.0.0-uat.88",
+              "version": "7.0.0-uat.90",
               "filesVerified": 267,
-              "archiveSha256": "6a26a1f4bd290e39ec5f8524d9399a025f107a96bea200d390b42371d82d9ed8",
-              "archiveBytes": 387567,
+              "archiveSha256": "f34cb5d750615fc64f0241bd0398699fe4ef0bc6625027a550b627187fc5dc8c",
+              "archiveBytes": 387577,
               "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
-              "manifestSha256": "c6a1876c93de9c00e827f49c90663196609ef7f1d4f36bfcb975009503837f61",
-              "packageSha256": "d346049687ca4664900107a21e2eea22dedbaf8e8a109d081932e289677f3c40",
+              "manifestSha256": "f9a09a5370aa3d4804f76fc15951c4a6f02b6c7f58437876fa21d87533b74522",
+              "packageSha256": "4c5060ebcff80d667015a82e4fa48eebdf6c2f680c354f1bf505b31741972809",
               "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
               "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
             },
             {
               "plugin": "aws",
-              "version": "3.0.0-uat.88",
+              "version": "3.0.0-uat.90",
               "filesVerified": 286,
-              "archiveSha256": "8e3e35287e6dd393c3f4036251b0d7f9b2095b5eb3399bc0ea98b96f5ab4c843",
-              "archiveBytes": 769061,
+              "archiveSha256": "a62abc3b8e0ce555c228c6580fc167e8ede555ec1a4fc0eb9664d01b43e5e3a0",
+              "archiveBytes": 769087,
               "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
-              "manifestSha256": "505b8ab7a4a1bdc29be800f9110b229af986318a2476c85070821a0527e1f17a",
-              "packageSha256": "a8d6168a40ec01c610332a5f617f7c45d3b4bea936817cf95b6d5a237fecea2d",
+              "manifestSha256": "5125a309cce13c091d462984cee081efee9d659f5f608a3d362c0b22c37bdcc8",
+              "packageSha256": "8437241e2acb4297e9f82189e92831185769022223cb9a30fbca36ba03075c6c",
               "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
               "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
             },
             {
               "plugin": "azure",
-              "version": "5.0.0-uat.88",
-              "filesVerified": 167,
-              "archiveSha256": "6c97f78ad57ab632c3b15af62a940908230bd4c1d09521caf228128a211eb250",
-              "archiveBytes": 435183,
-              "runtimeSha256": "ebe151f088c7dbc3dde34e2323e6bf5ba047c81de4ab71fb9d160d6ec6d9609e",
-              "manifestSha256": "ea8e38715f980097613d709946274519a1d0cd03bd8538436f958b74f1d38ba3",
-              "packageSha256": "220a6829ebd76a211845b1be2fb3031c8517265ddd76c57ad04a65d9b423b949",
+              "version": "5.0.0-uat.90",
+              "filesVerified": 170,
+              "archiveSha256": "71c5ebd8f5b06f28dbb7e1306efe4eaf74867e8ff74b8213a0410be4a6bcd372",
+              "archiveBytes": 447140,
+              "runtimeSha256": "403c08c0d1c51e95e89a88a1fc9816de527d89658a4a35670830e1f056574368",
+              "manifestSha256": "bc23a59adb0dafe21ca48fae8d102e02d8a950c7ecb694224ee1f68f59bf8ab0",
+              "packageSha256": "71567ac167b79d09313626ddb5046dd00b98a6edb8d1d1aba5e539fc6bf5ec19",
               "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
               "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
             },
             {
               "plugin": "terraform",
-              "version": "3.0.0-uat.88",
+              "version": "3.0.0-uat.90",
               "filesVerified": 34,
-              "archiveSha256": "baf63bea60115b30ad4d6783954241adc19288d6c582625a2940012b615bd5d9",
-              "archiveBytes": 115173,
+              "archiveSha256": "261d0faf167004db370638c4277b594576ef2f8600121707e0ac81586a1b8c00",
+              "archiveBytes": 115175,
               "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
-              "manifestSha256": "7b3d790a15dcca7e4f50838b98ea2028da1dd4a0712f7e3d5a695a91049dafeb",
-              "packageSha256": "adc3437f2d6e5fa944d2247a703d24d8965ce7c013d894fdbaa45f790a8b7a2e",
+              "manifestSha256": "eee85be67cedf2d77dd8f31c2b239a264d2a77686116d6437acd021f164f8d0d",
+              "packageSha256": "bd39205a579a722aadfda1826d143cfe4b2a741645fbea8f85860e79bef45e05",
               "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
               "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
             }
           ],
           "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"],
           "historicalCohort": {
-            "revision": 87,
+            "revision": 89,
             "versions": {
-              "platform": "7.0.0-uat.87",
-              "aws": "3.0.0-uat.87",
-              "azure": "5.0.0-uat.87",
-              "terraform": "3.0.0-uat.87"
+              "platform": "7.0.0-uat.89",
+              "aws": "3.0.0-uat.89",
+              "azure": "5.0.0-uat.89",
+              "terraform": "3.0.0-uat.89"
             },
             "stableBaseVersions": {
               "platform": "6.2.0",
@@ -195,59 +195,148 @@
               "terraform": "2.3.1"
             },
             "runtimePeer": "23.8.0",
-            "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+            "sourceCommit": null,
             "deliverable": false,
-            "archives": [
-              {
-                "plugin": "platform",
-                "version": "7.0.0-uat.87",
-                "filesVerified": 267,
-                "archiveSha256": "4226673c9462167737f0642ee36f9fd552b2d4628fd08cf414e361661368fc19",
-                "archiveBytes": 387569,
-                "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
-                "manifestSha256": "0a15957c52b168b788a8f55a4605674cd8776580d78b7d30f79bf78ea4298331",
-                "packageSha256": "d5d0307fc6b2cd2d546f91c1f9a4012919e5cf91e678b456aec2e9f455bb7672",
-                "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
-                "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+            "archives": [],
+            "testedRuntimeVersions": [],
+            "historicalCohort": {
+              "revision": 88,
+              "versions": {
+                "platform": "7.0.0-uat.88",
+                "aws": "3.0.0-uat.88",
+                "azure": "5.0.0-uat.88",
+                "terraform": "3.0.0-uat.88"
               },
-              {
-                "plugin": "aws",
-                "version": "3.0.0-uat.87",
-                "filesVerified": 286,
-                "archiveSha256": "2b539c8522ceba09128ad69ffaee526db6a739c3d002ad0e4830dd94cbda4a5e",
-                "archiveBytes": 769099,
-                "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
-                "manifestSha256": "584c354335acf007d68ebcbb9d84705d749fe5e897a45252b414f1aa5371d692",
-                "packageSha256": "382bdb16eb2bc1534c777d621b62da04d9900044046014571a8d0f9a50f03958",
-                "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
-                "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+              "stableBaseVersions": {
+                "platform": "6.2.0",
+                "aws": "2.3.0",
+                "azure": "4.6.0",
+                "terraform": "2.3.1"
               },
-              {
-                "plugin": "azure",
-                "version": "5.0.0-uat.87",
-                "filesVerified": 167,
-                "archiveSha256": "225d55158474213920dc3126e602b2b88c72a00da047088e5c96ed6d9d87202d",
-                "archiveBytes": 435013,
-                "runtimeSha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719",
-                "manifestSha256": "bb6e4e683c091acb00342c8f9e8f3d8008f5992cea601be41a426b4462f99c1d",
-                "packageSha256": "38f1cd72e8cf7124719f31735e6147772ef006fcc7a311505b58361332a49c34",
-                "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
-                "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
-              },
-              {
-                "plugin": "terraform",
-                "version": "3.0.0-uat.87",
-                "filesVerified": 34,
-                "archiveSha256": "b6052a7a30d2b9923cee74a9a89e5a850d9a8159503b88cc992ca61d734b7935",
-                "archiveBytes": 115174,
-                "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
-                "manifestSha256": "150fe9f0572ba5a5f94f22b927111116d7aed7065e022a15211dffe3bb398aa9",
-                "packageSha256": "38ccbaa3b20fc807e6a2178d8f6796eee5bf5787f2c17045c3e66190f2dba31c",
-                "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
-                "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+              "runtimePeer": "23.8.0",
+              "sourceCommit": "6d8dff8b136e2bbff5cb52f899fd9740caf43e64",
+              "deliverable": false,
+              "archives": [
+                {
+                  "plugin": "platform",
+                  "version": "7.0.0-uat.88",
+                  "filesVerified": 267,
+                  "archiveSha256": "6a26a1f4bd290e39ec5f8524d9399a025f107a96bea200d390b42371d82d9ed8",
+                  "archiveBytes": 387567,
+                  "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
+                  "manifestSha256": "c6a1876c93de9c00e827f49c90663196609ef7f1d4f36bfcb975009503837f61",
+                  "packageSha256": "d346049687ca4664900107a21e2eea22dedbaf8e8a109d081932e289677f3c40",
+                  "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+                  "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+                },
+                {
+                  "plugin": "aws",
+                  "version": "3.0.0-uat.88",
+                  "filesVerified": 286,
+                  "archiveSha256": "8e3e35287e6dd393c3f4036251b0d7f9b2095b5eb3399bc0ea98b96f5ab4c843",
+                  "archiveBytes": 769061,
+                  "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
+                  "manifestSha256": "505b8ab7a4a1bdc29be800f9110b229af986318a2476c85070821a0527e1f17a",
+                  "packageSha256": "a8d6168a40ec01c610332a5f617f7c45d3b4bea936817cf95b6d5a237fecea2d",
+                  "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+                  "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+                },
+                {
+                  "plugin": "azure",
+                  "version": "5.0.0-uat.88",
+                  "filesVerified": 167,
+                  "archiveSha256": "6c97f78ad57ab632c3b15af62a940908230bd4c1d09521caf228128a211eb250",
+                  "archiveBytes": 435183,
+                  "runtimeSha256": "ebe151f088c7dbc3dde34e2323e6bf5ba047c81de4ab71fb9d160d6ec6d9609e",
+                  "manifestSha256": "ea8e38715f980097613d709946274519a1d0cd03bd8538436f958b74f1d38ba3",
+                  "packageSha256": "220a6829ebd76a211845b1be2fb3031c8517265ddd76c57ad04a65d9b423b949",
+                  "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+                  "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+                },
+                {
+                  "plugin": "terraform",
+                  "version": "3.0.0-uat.88",
+                  "filesVerified": 34,
+                  "archiveSha256": "baf63bea60115b30ad4d6783954241adc19288d6c582625a2940012b615bd5d9",
+                  "archiveBytes": 115173,
+                  "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
+                  "manifestSha256": "7b3d790a15dcca7e4f50838b98ea2028da1dd4a0712f7e3d5a695a91049dafeb",
+                  "packageSha256": "adc3437f2d6e5fa944d2247a703d24d8965ce7c013d894fdbaa45f790a8b7a2e",
+                  "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+                  "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+                }
+              ],
+              "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"],
+              "historicalCohort": {
+                "revision": 87,
+                "versions": {
+                  "platform": "7.0.0-uat.87",
+                  "aws": "3.0.0-uat.87",
+                  "azure": "5.0.0-uat.87",
+                  "terraform": "3.0.0-uat.87"
+                },
+                "stableBaseVersions": {
+                  "platform": "6.2.0",
+                  "aws": "2.3.0",
+                  "azure": "4.6.0",
+                  "terraform": "2.3.1"
+                },
+                "runtimePeer": "23.8.0",
+                "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+                "deliverable": false,
+                "archives": [
+                  {
+                    "plugin": "platform",
+                    "version": "7.0.0-uat.87",
+                    "filesVerified": 267,
+                    "archiveSha256": "4226673c9462167737f0642ee36f9fd552b2d4628fd08cf414e361661368fc19",
+                    "archiveBytes": 387569,
+                    "runtimeSha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2",
+                    "manifestSha256": "0a15957c52b168b788a8f55a4605674cd8776580d78b7d30f79bf78ea4298331",
+                    "packageSha256": "d5d0307fc6b2cd2d546f91c1f9a4012919e5cf91e678b456aec2e9f455bb7672",
+                    "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+                    "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+                  },
+                  {
+                    "plugin": "aws",
+                    "version": "3.0.0-uat.87",
+                    "filesVerified": 286,
+                    "archiveSha256": "2b539c8522ceba09128ad69ffaee526db6a739c3d002ad0e4830dd94cbda4a5e",
+                    "archiveBytes": 769099,
+                    "runtimeSha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4",
+                    "manifestSha256": "584c354335acf007d68ebcbb9d84705d749fe5e897a45252b414f1aa5371d692",
+                    "packageSha256": "382bdb16eb2bc1534c777d621b62da04d9900044046014571a8d0f9a50f03958",
+                    "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+                    "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+                  },
+                  {
+                    "plugin": "azure",
+                    "version": "5.0.0-uat.87",
+                    "filesVerified": 167,
+                    "archiveSha256": "225d55158474213920dc3126e602b2b88c72a00da047088e5c96ed6d9d87202d",
+                    "archiveBytes": 435013,
+                    "runtimeSha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719",
+                    "manifestSha256": "bb6e4e683c091acb00342c8f9e8f3d8008f5992cea601be41a426b4462f99c1d",
+                    "packageSha256": "38f1cd72e8cf7124719f31735e6147772ef006fcc7a311505b58361332a49c34",
+                    "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+                    "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+                  },
+                  {
+                    "plugin": "terraform",
+                    "version": "3.0.0-uat.87",
+                    "filesVerified": 34,
+                    "archiveSha256": "b6052a7a30d2b9923cee74a9a89e5a850d9a8159503b88cc992ca61d734b7935",
+                    "archiveBytes": 115174,
+                    "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
+                    "manifestSha256": "150fe9f0572ba5a5f94f22b927111116d7aed7065e022a15211dffe3bb398aa9",
+                    "packageSha256": "38ccbaa3b20fc807e6a2178d8f6796eee5bf5787f2c17045c3e66190f2dba31c",
+                    "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+                    "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+                  }
+                ],
+                "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"]
               }
-            ],
-            "testedRuntimeVersions": ["23.8.0", "23.9.3", "23.9.5"]
+            }
           }
         }
       }
@@ -468,6 +557,19 @@
             "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
           },
           "status": "verified"
+        },
+        {
+          "candidateRevision": 100,
+          "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "status": "verified"
         }
       ]
     },
@@ -512,6 +614,19 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "candidateRevision": 100,
+          "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -1155,14 +1270,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1174,6 +1289,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -1201,14 +1330,14 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1220,6 +1349,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -1863,14 +2006,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1882,6 +2025,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -2592,6 +2749,19 @@
             "receipts": ["docs/receipts/ce-uat87-public-discovery-evidence.json"]
           },
           "status": "verified"
+        },
+        {
+          "candidateRevision": 100,
+          "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "status": "verified"
         }
       ]
     },
@@ -2636,6 +2806,19 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "candidateRevision": 100,
+          "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat100-aws-single-site-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -3327,14 +3510,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3346,6 +3529,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -3373,14 +3570,14 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3392,6 +3589,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-broader-public-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -4047,14 +4258,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4066,6 +4277,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat87-three-node-public-discovery-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
           },
           "status": "verified"
         }
@@ -6879,14 +7104,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6911,6 +7136,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat88-azure-discovery-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
           },
           "status": "verified"
         }
@@ -6956,14 +7195,14 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified",
+      "status": "unverified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6988,6 +7227,20 @@
           "live": {
             "status": "verified",
             "receipts": ["docs/receipts/ce-uat88-azure-discovery-planning-evidence.json"]
+          },
+          "status": "verified"
+        },
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
           },
           "status": "verified"
         }
@@ -7061,14 +7314,30 @@
         ]
       },
       "installed": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified",
-        "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
-      "status": "verified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "recordedUnderCohortRevision": 96,
+          "evidenceCandidateRevisions": [91],
+          "evidenceSourceCommits": ["c25d01b0ae4bb828e2afec9152e579ea6178e397"],
+          "installed": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
+          },
+          "live": {
+            "status": "verified",
+            "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
+          },
+          "status": "verified"
+        }
+      ]
     },
     {
       "id": "azure/terraform/single-site/site-create",
@@ -7383,7 +7652,22 @@
         "status": "not-qualified-current-candidate",
         "receipts": []
       },
-      "status": "unverified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 99,
+          "sourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+          "installed": {
+            "status": "public-version-transition-verified",
+            "receipts": ["docs/receipts/ce-uat99-azure-serial-upgrades-evidence.json"]
+          },
+          "live": {
+            "status": "versions-and-global-registration-verified-node-routing-traffic-unknown",
+            "receipts": ["docs/receipts/ce-uat99-azure-serial-upgrades-evidence.json"]
+          },
+          "status": "partial-operational-acceptance-pending"
+        }
+      ]
     },
     {
       "id": "azure/terraform/single-site/os-upgrade",
@@ -7410,7 +7694,22 @@
         "status": "not-qualified-current-candidate",
         "receipts": []
       },
-      "status": "unverified"
+      "status": "unverified",
+      "historicalQualifications": [
+        {
+          "candidateRevision": 99,
+          "sourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+          "installed": {
+            "status": "public-version-transition-verified",
+            "receipts": ["docs/receipts/ce-uat99-azure-serial-upgrades-evidence.json"]
+          },
+          "live": {
+            "status": "versions-and-global-registration-verified-node-routing-traffic-unknown",
+            "receipts": ["docs/receipts/ce-uat99-azure-serial-upgrades-evidence.json"]
+          },
+          "status": "partial-operational-acceptance-pending"
+        }
+      ]
     },
     {
       "id": "azure/terraform/single-site/failover",
@@ -7546,12 +7845,12 @@
         "tests": ["plugins/azure/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
-        "status": "verified-terminal-retained-fixture-only",
-        "receipts": ["docs/receipts/ce-uat95-azure91-cleanup-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "live": {
-        "status": "verified-terminal-retained-fixture-only",
-        "receipts": ["docs/receipts/ce-uat95-azure91-cleanup-evidence.json"]
+        "status": "not-qualified-current-candidate",
+        "receipts": []
       },
       "status": "unverified",
       "qualificationBoundary": "Exact installed95 terminal cleanup of retained91 deployment passed; fresh95 full coordinated deployment/teardown profile remains required."
