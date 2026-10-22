@@ -9,6 +9,12 @@ import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { runAzureTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
+import {
+  type AzureFoundationTeardownPlan,
+  prepareAzureFoundationTeardown,
+  runAzureFoundationTeardown,
+} from './terraform-foundation-teardown';
+import { beginAzureTerraformRetirement } from './terraform-retirement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -208,8 +214,20 @@ export async function prepareAzureTerraformTeardown(
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
-): Promise<AzureTerraformTeardownPlan> {
+): Promise<AzureTerraformTeardownPlan | AzureFoundationTeardownPlan> {
   if (base.engine !== 'terraform') throw new Error('Azure Terraform teardown requires Terraform ownership');
+  let workflow: unknown;
+  try {
+    workflow = await storage.read('terraform-workflow.json');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (
+    workflow !== undefined &&
+    object(workflow).stage === 'network-pending' &&
+    Object.keys(object(object(workflow).bootstrapByNode)).length === 0
+  )
+    return prepareAzureFoundationTeardown(base, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAzureTeardownMaterial(base, runtime, contract, storage, signal);
   const plan = compileAzureTerraformTeardown(base, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
@@ -218,7 +236,7 @@ export async function prepareAzureTerraformTeardown(
 
 export async function runAzureTerraformTeardown(
   base: AzureCePlan,
-  input: AzureTerraformTeardownPlan,
+  input: AzureTerraformTeardownPlan | AzureFoundationTeardownPlan,
   authorizedPlanSha256: string,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -228,6 +246,19 @@ export async function runAzureTerraformTeardown(
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
 ) {
+  if (input.kind === 'azure-ce-terraform-foundation-teardown')
+    return runAzureFoundationTeardown(
+      base,
+      input,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+    );
   const expected = compileAzureTerraformTeardown(base, input.drain, input.retirement);
   const validate = async () => {
     signal?.throwIfAborted();
@@ -243,6 +274,7 @@ export async function runAzureTerraformTeardown(
       throw new Error('Azure Terraform teardown authorization, ownership or contract differs');
   };
   await validate();
+  await beginAzureTerraformRetirement(base, input, storage);
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' as const };
   await validate();

@@ -131,7 +131,8 @@ export async function verifyAzureTerraformDestroyOwnership(
   )
     throw new Error('Exact owning Azure Terraform destroy plan with supported resource types required');
   const boundary = await observeAzureTerraformDestroyBoundary(plan, api, signal);
-  if (boundary.status !== 'owned') throw new Error('Azure Terraform teardown resource group is absent');
+  if (boundary.status !== 'owned' && (!receipt.noChanges || receipt.changes.length))
+    throw new Error('Azure Terraform teardown resource group is absent');
   const groupId = boundary.resourceGroupId;
   const selections = receipt.changes.length
     ? Object.fromEntries(

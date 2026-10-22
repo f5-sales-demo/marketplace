@@ -1,4 +1,6 @@
+import { join } from 'node:path';
 import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
@@ -14,6 +16,10 @@ import {
 } from '../ce/native-teardown';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import { azureTerraformCurrentDeployment } from '../ce/terraform-foundation';
+import {
+  type AzureFoundationTeardownPlan,
+  azureFoundationTeardownDeployment,
+} from '../ce/terraform-foundation-teardown';
 import {
   type AzureTerraformTeardownPlan,
   prepareAzureTerraformTeardown,
@@ -85,6 +91,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
+      let release: (() => Promise<void>) | undefined;
       try {
         const allowed =
           params.operation === 'prepare'
@@ -97,6 +104,8 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           throw new Error('Azure CE teardown requires the original deployment plan');
         const platform = await dependencies.platform(pi, signal);
         const storage = await platform.storage(azureUpgradeBinding(plan).owner);
+        if (plan.engine === 'terraform')
+          release = await acquireProcessLock(join(storage.directory, '.azure-terraform-lifecycle-lock'));
         const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {
@@ -147,7 +156,8 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           throw new Error('Azure CE teardown apply requires the exact teardown plan identity');
         const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as
           | AzureTerraformTeardownPlan
-          | AzureNativeTeardownPlan;
+          | AzureNativeTeardownPlan
+          | AzureFoundationTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
           !safeHexEqual(teardown.planSha256, params.teardownPlanSha256) ||
@@ -190,13 +200,15 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           plan.engine === 'terraform'
             ? await dependencies.run(
                 plan,
-                teardown as AzureTerraformTeardownPlan,
+                teardown as AzureTerraformTeardownPlan | AzureFoundationTeardownPlan,
                 params.teardownPlanSha256,
                 runtime,
                 contract,
                 await (await dependencies.terraform(pi, signal)).open(
                   azureUpgradeBinding(plan).owner,
-                  await azureTerraformCurrentDeployment(plan),
+                  teardown.kind === 'azure-ce-terraform-foundation-teardown'
+                    ? await azureFoundationTeardownDeployment(plan, teardown)
+                    : await azureTerraformCurrentDeployment(plan),
                   'current',
                 ),
                 storage,
@@ -270,6 +282,8 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           isError: true,
           details: { tool: 'azure_ce_teardown', operation: params.operation },
         };
+      } finally {
+        await release?.();
       }
     },
   };
