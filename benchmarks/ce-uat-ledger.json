@@ -926,14 +926,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1026,14 +1026,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1950,14 +1950,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -2025,14 +2025,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -2718,14 +2718,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -2793,14 +2793,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3472,14 +3472,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3559,14 +3559,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4331,14 +4331,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4406,14 +4406,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5109,14 +5109,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5184,14 +5184,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5873,14 +5873,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5934,14 +5934,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6607,14 +6607,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6668,14 +6668,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -7341,14 +7341,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -7402,14 +7402,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -8075,14 +8075,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -8179,14 +8179,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9034,14 +9034,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9095,14 +9095,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9772,14 +9772,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9833,14 +9833,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
