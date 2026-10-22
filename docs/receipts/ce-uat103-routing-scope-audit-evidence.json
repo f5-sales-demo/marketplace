@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-22T13:10:31.344345+00:00",
+  "sourceCommit": "74eb2261bd080900b158b1d09a8829928ef10269",
+  "kind": "source-executable-routing-scope-audit",
+  "cloudWrites": false,
+  "candidateRevision": 103,
+  "sourceImports": true,
+  "installedQualification": false,
+  "liveQualification": false,
+  "releaseReady": false,
+  "cases": [
+    {
+      "case": "owned-greenfield",
+      "outcome": "rendered",
+      "peers": 6
+    },
+    {
+      "case": "existing-transport",
+      "outcome": "rejected",
+      "reason": "Terraform brownfield transport and route restoration require explicit lifecycle translation"
+    },
+    {
+      "case": "explicit-routes",
+      "outcome": "rejected",
+      "reason": "Terraform brownfield transport and route restoration require explicit lifecycle translation"
+    }
+  ],
+  "automated": {
+    "testsPassed": 32,
+    "assertions": 82,
+    "files": 3
+  },
+  "boundaries": [
+    "Brownfield foundation requires single-node Terraform direct routing and rejects Connect before workspace authorization/creation.",
+    "Greenfield Connect with an existing transport attachment or explicit routes reaches a conditional renderer rejection; restoration translation is not implemented there.",
+    "Published AWS three-node HA contract remains a separate mutation gate.",
+    "Six rendered synthetic peers do not qualify installed routing, live BGP, traffic, or HA."
+  ]
+}
