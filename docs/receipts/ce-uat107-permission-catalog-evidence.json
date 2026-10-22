@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-22T21:23:02.883611+00:00",
+  "candidateRevision": 107,
+  "consumerSourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "consumerProducerPin": "v12.2.0",
+  "investigatedProducerRelease": "v12.2.2",
+  "problem": "Qualify endpoint permissions without interpreting role names or an administrator read as least-privilege acceptance.",
+  "catalogCalls": [
+    {
+      "kind": "expanded-elements",
+      "path": "/api/web/namespaces/system/api_group_elements?report_fields=get_spec",
+      "operationId": "ves.io.schema.api_group_element.API.List",
+      "httpStatus": 200,
+      "responseSha256": "sha256:6e560080762abe80104f5c3d46bc2dec34f41d88b0fa44b48d20cdaccb926fb5",
+      "schemaValidated": false,
+      "schemaErrorCount": 26358,
+      "topLevelKeys": ["items", "errors"],
+      "itemCount": 2789,
+      "nonNullGetSpecCount": 2789,
+      "schemaErrorPaths": {
+        "items.*.owner_view": 5578,
+        "items.*.system_metadata.deletion_timestamp": 5578,
+        "items.*.system_metadata.initializers": 5578,
+        "items.*.system_metadata.modification_timestamp": 4046,
+        "items.*.system_metadata.owner_view": 5578
+      }
+    },
+    {
+      "kind": "expanded-groups",
+      "path": "/api/web/namespaces/system/api_groups?report_fields=get_spec",
+      "operationId": "ves.io.schema.api_group.API.List",
+      "httpStatus": 200,
+      "responseSha256": "sha256:5a5d4ddb3c1c8809298c777ee5b147c26232995c5ba8ac1fc374598089b2aefa",
+      "schemaValidated": false,
+      "schemaErrorCount": 1788,
+      "topLevelKeys": ["items", "errors"],
+      "itemCount": 223,
+      "nonNullGetSpecCount": 223,
+      "schemaErrorPaths": {
+        "items.*.owner_view": 446,
+        "items.*.system_metadata.deletion_timestamp": 446,
+        "items.*.system_metadata.initializers": 446,
+        "items.*.system_metadata.owner_view": 446,
+        "items.*.system_metadata.modification_timestamp": 4
+      }
+    },
+    {
+      "kind": "custom-roles",
+      "path": "/api/web/custom/namespaces/system/roles",
+      "operationId": "ves.io.schema.role.CustomAPI.CustomList",
+      "httpStatus": 200,
+      "responseSha256": "sha256:b92ef4d59842e9f66e449952b36581686848009baf1854b9d7e5b8e3d9d9a50f",
+      "schemaValidated": true,
+      "schemaErrorCount": 0,
+      "topLevelKeys": ["items"],
+      "itemCount": 103,
+      "nonNullGetSpecCount": 103,
+      "schemaErrorPaths": {}
+    },
+    {
+      "kind": "shared-element-get",
+      "path": "/api/web/namespaces/shared/api_group_elements/ves-io-schema-network-interface-api-list-0",
+      "operationId": "ves.io.schema.api_group_element.API.Get",
+      "httpStatus": 404,
+      "responseSha256": "sha256:3cb7927909f01b3e5af700609efd704161770aae1fd185b0fe1381066b2b64b4"
+    }
+  ],
+  "projectedPayloadValidation": {
+    "apiGroupElements": 2789,
+    "apiGroups": 223,
+    "schemaErrors": 0,
+    "fullEnvelopesValidated": false
+  },
+  "identityJoinRegression": {
+    "groups": [
+      {
+        "name": "f5xc-core-platform-services-basic-monitor",
+        "covers": ["health-get"],
+        "unresolvedReferences": 33,
+        "catalogCoverage": "unknown"
+      },
+      {
+        "name": "f5xc-securemesh-standard-monitor",
+        "covers": ["interface-get", "interface-list"],
+        "unresolvedReferences": 19,
+        "catalogCoverage": "unknown"
+      },
+      {
+        "name": "f5xc-site-management-standard-monitor",
+        "covers": ["configuration-get", "health-get"],
+        "unresolvedReferences": 0,
+        "catalogCoverage": "unknown"
+      },
+      {
+        "name": "ves-io-general-write",
+        "covers": ["health-get"],
+        "unresolvedReferences": 0,
+        "catalogCoverage": "unknown"
+      },
+      {
+        "name": "ves-io-infrastructure-read",
+        "covers": ["configuration-get", "health-get"],
+        "unresolvedReferences": 23,
+        "catalogCoverage": "unknown"
+      },
+      {
+        "name": "ves-io-network-read",
+        "covers": ["interface-get", "interface-list"],
+        "unresolvedReferences": 2,
+        "catalogCoverage": "unknown"
+      }
+    ],
+    "roles": [
+      {
+        "name": "f5xc-waap-user",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-waap-admin",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-distributed-apps-user",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-multi-cloud-network-connect-admin",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-distributed-apps-monitor",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-waap-monitor",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-multi-cloud-network-connect-user",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-multi-cloud-network-connect-monitor",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      },
+      {
+        "name": "f5xc-distributed-apps-admin",
+        "matchingGroups": [
+          "f5xc-securemesh-standard-monitor",
+          "f5xc-site-management-standard-monitor",
+          "f5xc-core-platform-services-basic-monitor"
+        ],
+        "candidateOnly": true
+      }
+    ],
+    "rejectedRoles": [
+      {
+        "name": "ves-io-power-developer-role",
+        "reason": "duplicate-role-group",
+        "effectiveAccess": "unknown"
+      },
+      {
+        "name": "ves-io-monitor-role",
+        "reason": "duplicate-role-group",
+        "effectiveAccess": "unknown"
+      },
+      {
+        "name": "ves-io-admin-role",
+        "reason": "duplicate-role-group",
+        "effectiveAccess": "unknown"
+      }
+    ],
+    "fullEnvelopeSchemaValidated": false,
+    "effectivePrincipalAccessQualified": false,
+    "leastPrivilegeQualified": false,
+    "observedAt": "2026-10-22T21:23:02.883611+00:00",
+    "controlledTestsPassed": 12,
+    "exactCapturedCatalogReplay": true,
+    "originalCollectionFailuresRetained": true,
+    "credentialsCreated": false,
+    "assignmentsChanged": false,
+    "fullCeAcceptance": false,
+    "sourceDigests": {
+      "permission_catalog.py": "sha256:50e83506ddb1dcd05e3c1dac962643e07e037f7b6ad52454b8d478efd7bb5d2e",
+      "test_permission_catalog.py": "sha256:39de0a9d22f2adaa28b82e735f633aac67647a23ee554ef47b30dac443c0de6d"
+    }
+  },
+  "acceptance": {
+    "roleMappingQualified": false,
+    "leastPrivilegeQualified": false,
+    "limitedPrincipalTested": false,
+    "credentialsCreated": false,
+    "assignmentsChanged": false,
+    "fullCeAcceptance": false,
+    "releaseReady": false
+  },
+  "remainingDependencies": [
+    "Response-only schema qualification for observed null metadata fields",
+    "Resolve missing group-element references and retain duplicate roles as unknown",
+    "Effective scoped principal access and denied excess permissions on exact owned fixture"
+  ]
+}
