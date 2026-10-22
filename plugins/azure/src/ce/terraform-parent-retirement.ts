@@ -203,6 +203,11 @@ export async function retireAzureTerraformParentArtifacts(
           name !== `bootstrap-checkout-${String(checkoutBinding.reference).split('/').at(-1)}.json`
         )
           throw Error('Azure bootstrap checkout provenance differs');
+        if (!recorded?.has(name)) {
+          const token = object(await store.read(`${String(value.tokenName)}.json`));
+          if (typeof token.jwt !== 'string' || hash(token.jwt) !== checkoutBinding.digest)
+            throw Error('Azure checkout upstream token differs');
+        }
       }
       await add(name, preserve.has(name) || checkout);
     }

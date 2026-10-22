@@ -4,6 +4,7 @@ import { link, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { storeBootstrapToken } from '../../../platform/src/ce/token-store';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
 import { retireAwsTerraformParentArtifacts } from '../../src/ce/terraform-parent-retirement';
@@ -324,4 +325,40 @@ test('completed replacement cleanup resumes after its checkpoint was removed', a
   expect((await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).status).toBe(
     'deployment-artifacts-retired',
   );
+});
+
+test('AWS parent retirement retires the exact platform-issued checkout', async () => {
+  const f = await fixture(),
+    binding = siteBindings(f.base)[0].binding;
+  await f.store.write('checkout-token.json', {
+    tokenName: 'checkout-token',
+    siteName: binding.siteName,
+    node: binding.nodes[0],
+    jwt: 'SYNTHETIC_CHECKOUT',
+  });
+  const stored = await storeBootstrapToken({
+    sessionId: 'fixture-session',
+    token: 'SYNTHETIC_CHECKOUT',
+    expiresInSeconds: 60,
+    root: join(f.root, 'checkout'),
+    onPrepared: async (checkout) => {
+      await f.store.write(`bootstrap-checkout-${checkout.reference.split('/').at(-1)}.json`, {
+        schemaVersion: 1,
+        owner: binding.owner,
+        binding,
+        siteUid: 'site-uid',
+        contractFingerprint: 'fingerprint',
+        tokenName: 'checkout-token',
+        node: binding.nodes[0],
+        checkout,
+      });
+    },
+  });
+  await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store);
+  await expect(
+    readFile(join(f.root, 'checkout', 'fixture-session', stored.reference.split('/').at(-1) ?? '', 'token')),
+  ).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).toMatchObject({
+    status: 'deployment-artifacts-retired',
+  });
 });

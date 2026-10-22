@@ -16799,42 +16799,167 @@ var init_terraform_pending_teardown = __esm(() => {
   init_terraform_teardown();
 });
 
+// plugins/platform/src/ce/token-store.ts
+import { createHash as createHash15, randomUUID as randomUUID3 } from 'node:crypto';
+import {
+  chmod as chmod2,
+  lstat as lstat2,
+  mkdir as mkdir3,
+  readdir as readdir3,
+  readFile as readFile4,
+  realpath,
+  rename as rename2,
+  unlink,
+  writeFile as writeFile4,
+} from 'node:fs/promises';
+import { isAbsolute, join as join6, resolve, sep } from 'node:path';
+
+function assertWithin(root, target) {
+  const base = resolve(root);
+  const candidate = resolve(target);
+  if (candidate !== base && !candidate.startsWith(`${base}${sep}`))
+    throw new Error('Bootstrap path escapes the secure root');
+}
+async function retireBootstrapToken(binding, evidenceSha256, signal) {
+  signal?.throwIfAborted();
+  const match = /^f5xc-ce:\/\/([a-zA-Z0-9._-]{1,128})\/([a-zA-Z0-9._-]{1,128})$/.exec(binding.reference);
+  if (
+    !match ||
+    binding.schemaVersion !== 1 ||
+    !isAbsolute(binding.root) ||
+    resolve(binding.root) !== binding.root ||
+    !/^[a-f0-9]{64}$/.test(binding.digest) ||
+    !/^[a-f0-9]{64}$/.test(evidenceSha256) ||
+    binding.uid !== (process.getuid?.() ?? null) ||
+    !Number.isFinite(Date.parse(binding.expiresAt))
+  )
+    throw Error('Bootstrap retirement binding differs');
+  const [, session, id] = match;
+  const directory = join6(binding.root, session, id);
+  for (const path of [binding.root, join6(binding.root, session), directory]) {
+    assertWithin(binding.root, path);
+    const stat = await lstat2(path);
+    if (
+      !stat.isDirectory() ||
+      stat.isSymbolicLink() ||
+      stat.uid !== binding.uid ||
+      (stat.mode & 511) !== 448 ||
+      (await realpath(path)) !== path
+    )
+      throw Error('Bootstrap retirement directory differs');
+  }
+  const secureFile = async (name) => {
+    const path = join6(directory, name),
+      stat = await lstat2(path);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.nlink !== 1 ||
+      stat.uid !== binding.uid ||
+      (stat.mode & 511) !== 384
+    )
+      throw Error('Bootstrap retirement file differs');
+    return readFile4(path);
+  };
+  const names = await readdir3(directory);
+  if (names.some((name) => !['metadata.json', 'token'].includes(name)))
+    throw Error('Bootstrap checkout has in-flight or unknown artifacts');
+  const metadata = JSON.parse((await secureFile('metadata.json')).toString());
+  if (
+    metadata.version !== 1 ||
+    metadata.session !== session ||
+    metadata.id !== id ||
+    metadata.uid !== binding.uid ||
+    metadata.digest !== binding.digest ||
+    metadata.expiresAt !== binding.expiresAt ||
+    typeof metadata.consumed !== 'boolean'
+  )
+    throw Error('Bootstrap retirement metadata differs');
+  const receipt = {
+    schemaVersion: 1,
+    status: 'bootstrap-secret-retired',
+    reference: binding.reference,
+    digest: binding.digest,
+    evidenceSha256,
+  };
+  if (metadata.checkoutReady !== true) throw Error('Bootstrap checkout issuance is incomplete');
+  if (metadata.retirementPending && JSON.stringify(metadata.retirementPending) !== JSON.stringify(receipt))
+    throw Error('Bootstrap pending retirement evidence differs');
+  if (metadata.retirement && JSON.stringify(metadata.retirement) !== JSON.stringify(receipt))
+    throw Error('Bootstrap retirement evidence differs');
+  const persist = async (value) => {
+    const temporary = join6(directory, `metadata-${randomUUID3()}.tmp`);
+    try {
+      await writeFile4(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
+      await rename2(temporary, join6(directory, 'metadata.json'));
+    } finally {
+      await unlink(temporary).catch((error) => {
+        if (error.code !== 'ENOENT') throw error;
+      });
+    }
+  };
+  if (!names.includes('token') && !metadata.consumed && !metadata.retirementPending)
+    throw Error('Unconsumed bootstrap token is missing');
+  if (names.includes('token')) {
+    if (metadata.retirement || metadata.consumed)
+      throw Error('Bootstrap secret reappeared after consumption or retirement');
+    const bytes = await secureFile('token');
+    if (createHash15('sha256').update(bytes).digest('hex') !== binding.digest)
+      throw Error('Bootstrap retirement token digest differs');
+    signal?.throwIfAborted();
+    if (!metadata.retirementPending) await persist({ ...metadata, retirementPending: receipt });
+    signal?.throwIfAborted();
+    await unlink(join6(directory, 'token'));
+  }
+  signal?.throwIfAborted();
+  if (!metadata.retirement)
+    await persist({ ...metadata, consumed: true, retirementPending: receipt, retirement: receipt });
+  return receipt;
+}
+var init_token_store = () => {};
+
 // plugins/aws/src/ce/terraform-parent-retirement.ts
-import { createHash as createHash15 } from 'node:crypto';
-import { lstat as lstat2, readdir as readdir3, readFile as readFile4, realpath, unlink } from 'node:fs/promises';
-import { join as join6 } from 'node:path';
+import { createHash as createHash16 } from 'node:crypto';
+import {
+  lstat as lstat3,
+  readdir as readdir4,
+  readFile as readFile5,
+  realpath as realpath2,
+  unlink as unlink2,
+} from 'node:fs/promises';
+import { join as join7 } from 'node:path';
 
 async function directory(path) {
-  const stat = await lstat2(path);
+  const stat = await lstat3(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath(path)) !== path
+    (await realpath2(path)) !== path
   )
     throw Error('Parent retirement directory ownership differs');
 }
 async function file2(path) {
-  const stat = await lstat2(path);
+  const stat = await lstat3(path);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== process.getuid?.() || stat.mode & 63)
     throw Error('Parent retirement file ownership differs');
-  return readFile4(path);
+  return readFile5(path);
 }
 async function inventory(base, teardown, evidenceSha256, store, recorded) {
   await directory(store.directory);
   const items = [];
   const add = async (path, preserve) =>
-    items.push({ path, preserve, sha256: hash7(await file2(join6(store.directory, path))) });
+    items.push({ path, preserve, sha256: hash7(await file2(join7(store.directory, path))) });
   const runner = async (prefix, stage, upgrade) => {
-    const path = join6(store.directory, prefix);
+    const path = join7(store.directory, prefix);
     await directory(path);
-    const names = (await readdir3(path)).sort();
+    const names = (await readdir4(path)).sort();
     if (JSON.stringify(names) !== JSON.stringify(['artifact-retirement.json', 'deployment.json']))
       throw Error('Runner has unretired artifacts');
-    const encoded = await file2(join6(path, 'deployment.json')),
+    const encoded = await file2(join7(path, 'deployment.json')),
       manifest = object23(JSON.parse(encoded.toString())),
       scope = object23(manifest.scope);
-    const marker = object23(JSON.parse((await file2(join6(path, 'artifact-retirement.json'))).toString()));
+    const marker = object23(JSON.parse((await file2(join7(path, 'artifact-retirement.json'))).toString()));
     if (
       manifest.schemaVersion !== 1 ||
       manifest.engine !== 'terraform' ||
@@ -16898,7 +17023,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   ]);
   const upgrades = new Map();
   const upgradeJournals = new Set();
-  for (const name of (await readdir3(store.directory)).filter((name) =>
+  for (const name of (await readdir4(store.directory)).filter((name) =>
     /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
   )) {
     const source = object23(await store.read(name)),
@@ -16934,7 +17059,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   }
   for (const { binding } of siteBindings(base)) {
     const frozenName = `terraform-initial-replacement-${binding.siteName}.json`;
-    if (!(await readdir3(store.directory)).includes(frozenName)) continue;
+    if (!(await readdir4(store.directory)).includes(frozenName)) continue;
     if (recorded?.has(frozenName)) continue;
     const frozen = object23(await store.read(frozenName)),
       plan = object23(frozen.plan),
@@ -17001,7 +17126,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   for (const name of upgradeJournals) preserve.add(name);
   if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   let rootRunner = false;
-  for (const name of (await readdir3(store.directory)).sort()) {
+  for (const name of (await readdir4(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;
     if (name === base.deploymentName) {
       await runner(name);
@@ -17009,16 +17134,50 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       continue;
     }
     if (name === 'terraform-stages') {
-      await directory(join6(store.directory, name));
-      for (const stage of (await readdir3(join6(store.directory, name))).sort()) {
+      await directory(join7(store.directory, name));
+      for (const stage of (await readdir4(join7(store.directory, name))).sort()) {
         if (stage !== 'f5-resources' && !upgrades.has(stage))
           throw Error('Unqualified Terraform stage blocks parent retirement');
-        const stagePath = join6(store.directory, name, stage);
+        const stagePath = join7(store.directory, name, stage);
         await directory(stagePath);
-        if (JSON.stringify(await readdir3(stagePath)) !== JSON.stringify([base.deploymentName]))
+        if (JSON.stringify(await readdir4(stagePath)) !== JSON.stringify([base.deploymentName]))
           throw Error('Stage deployment inventory differs');
         await runner(`${name}/${stage}/${base.deploymentName}`, stage, upgrades.get(stage));
       }
+      continue;
+    }
+    if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {
+      const value = object23(await store.read(name)),
+        checkout = object23(value.checkout);
+      const match = siteBindings(base).find(
+        ({ binding }) => canonicalSha256(value.binding) === canonicalSha256(binding),
+      );
+      if (
+        value.schemaVersion !== 1 ||
+        !match ||
+        canonicalSha256(value.owner) !== canonicalSha256(match.binding.owner) ||
+        !match.binding.nodes.includes(String(value.node)) ||
+        typeof value.siteUid !== 'string' ||
+        !value.siteUid ||
+        typeof value.contractFingerprint !== 'string' ||
+        !value.contractFingerprint ||
+        typeof value.tokenName !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,62}$/.test(value.tokenName) ||
+        name !== `bootstrap-checkout-${String(checkout.reference).split('/').at(-1)}.json`
+      )
+        throw Error('AWS checkout provenance differs');
+      if (!recorded?.has(name)) {
+        const token = object23(await store.read(`${String(value.tokenName)}.json`));
+        if (
+          token.tokenName !== value.tokenName ||
+          token.siteName !== match.binding.siteName ||
+          token.node !== value.node ||
+          typeof token.jwt !== 'string' ||
+          hash7(token.jwt) !== checkout.digest
+        )
+          throw Error('AWS checkout upstream token differs');
+      }
+      await add(name, true);
       continue;
     }
     if (
@@ -17029,7 +17188,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
         name,
       )
     ) {
-      const value = object23(JSON.parse((await file2(join6(store.directory, name))).toString()));
+      const value = object23(JSON.parse((await file2(join7(store.directory, name))).toString()));
       const binding = siteBindings(base).find(
         ({ binding }) => value.siteName === binding.siteName && binding.nodes.includes(String(value.node)),
       );
@@ -17130,14 +17289,19 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     (marker.status === 'deployment-artifacts-retired' && current.some((item) => !item.preserve))
   )
     throw Error('Parent retirement inventory changed');
+  for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
+    signal?.throwIfAborted();
+    const value = object23(await store.read(item.path));
+    await retireBootstrapToken(value.checkout, evidenceSha256, signal);
+  }
   for (const item of current.filter((item) => !item.preserve)) {
     signal?.throwIfAborted();
     await directory(store.directory);
     await store.verify();
-    if (hash7(await file2(join6(store.directory, item.path))) !== item.sha256)
+    if (hash7(await file2(join7(store.directory, item.path))) !== item.sha256)
       throw Error('Parent retirement artifact changed before removal');
     signal?.throwIfAborted();
-    await unlink(join6(store.directory, item.path));
+    await unlink2(join7(store.directory, item.path));
   }
   signal?.throwIfAborted();
   await store.write(markerName, { ...marker, status: 'deployment-artifacts-retired' });
@@ -17152,7 +17316,7 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
   };
 }
 var markerName = 'aws-terraform-parent-artifact-retirement.json',
-  hash7 = (value) => createHash15('sha256').update(value).digest('hex'),
+  hash7 = (value) => createHash16('sha256').update(value).digest('hex'),
   sha = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   object23 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -17160,12 +17324,13 @@ var markerName = 'aws-terraform-parent-artifact-retirement.json',
     return value;
   };
 var init_terraform_parent_retirement = __esm(() => {
+  init_token_store();
   init_artifacts();
   init_canonical();
 });
 
 // plugins/terraform/src/ce-upgrade.ts
-import { createHash as createHash16, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
+import { createHash as createHash17, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -17420,7 +17585,7 @@ async function runTerraformCeUpgrade(
     await release();
   }
 }
-var digest4 = (value) => createHash16('sha256').update(value).digest('hex'),
+var digest4 = (value) => createHash17('sha256').update(value).digest('hex'),
   hash8 = (value) => digest4(canonical(value)),
   sameHash = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
@@ -17569,7 +17734,7 @@ var init_terraform_upgrade = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-upgrade-retirement.ts
-import { join as join7 } from 'node:path';
+import { join as join8 } from 'node:path';
 
 async function optional9(store, name) {
   try {
@@ -17585,7 +17750,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
   await verifyAwsTerraformUpgrade(base, upgrade, contract);
   if (!sha2(evidenceSha256) || canonicalSha256(store.owner) !== canonicalSha256(upgrade.expectation.binding.owner))
     throw Error('Upgrade retirement owner or external absence differs');
-  const release = await acquireProcessLock(join7(store.directory, '.upgrade-lock'));
+  const release = await acquireProcessLock(join8(store.directory, '.upgrade-lock'));
   try {
     const checkpointName = `${upgrade.planId}-stage-retirement.json`;
     const validate = async () => {
@@ -17777,8 +17942,8 @@ var init_terraform_upgrade_retirement = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-terminal-cleanup.ts
-import { lstat as lstat3, readdir as readdir4, realpath as realpath2 } from 'node:fs/promises';
-import { join as join8 } from 'node:path';
+import { lstat as lstat4, readdir as readdir5, realpath as realpath3 } from 'node:fs/promises';
+import { join as join9 } from 'node:path';
 
 async function optional10(store, name) {
   try {
@@ -17791,18 +17956,18 @@ async function hasAwsTerraformTerminalCleanup(store) {
   return (await optional10(store, checkpointName)) !== undefined;
 }
 async function stageInventory(store) {
-  const path = join8(store.directory, 'terraform-stages');
+  const path = join9(store.directory, 'terraform-stages');
   let names;
   try {
-    const stat = await lstat3(path);
+    const stat = await lstat4(path);
     if (
       !stat.isDirectory() ||
       stat.isSymbolicLink() ||
       stat.uid !== process.getuid?.() ||
-      (await realpath2(path)) !== path
+      (await realpath3(path)) !== path
     )
       throw Error('Terminal stage directory ownership differs');
-    names = await readdir4(path);
+    names = await readdir5(path);
   } catch (error) {
     if (error.code === 'ENOENT') return [];
     throw error;
@@ -17872,7 +18037,7 @@ async function finalizeAwsTerraformCleanup(
     throw Error('Owning stage retirement service unavailable');
   const upgradeStages = stages.filter((stage) => stage !== 'f5-resources');
   if (upgradeStages.length) {
-    const names = (await readdir4(store.directory)).filter((name) => /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name));
+    const names = (await readdir5(store.directory)).filter((name) => /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name));
     const sources = await Promise.all(names.map((name) => store.read(name)));
     if (upgradeStages.some((stage) => !sources.some((source) => object25(object25(source).deployment).stage === stage)))
       throw Error('Unqualified Terraform stage blocks terminal cleanup');
@@ -18343,7 +18508,7 @@ var init_terraform_teardown = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-foundation-teardown.ts
-import { readdir as readdir5 } from 'node:fs/promises';
+import { readdir as readdir6 } from 'node:fs/promises';
 
 async function verifyFoundationJournal(base, storage) {
   verifyAwsCePlan(base);
@@ -18369,7 +18534,7 @@ async function verifyFoundationJournal(base, storage) {
     !['network-pending', 'registration-pending'].includes(String(workflow.stage))
   )
     throw new Error('Foundation teardown requires the exact owning pre-admission journal');
-  const files = await readdir5(storage.directory);
+  const files = await readdir6(storage.directory);
   if (
     files.some((file) =>
       /^(terraform-(admission|site-|registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file),
@@ -18517,7 +18682,7 @@ var init_terraform_foundation_teardown = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-teardown-plan.ts
-import { readdir as readdir6 } from 'node:fs/promises';
+import { readdir as readdir7 } from 'node:fs/promises';
 
 async function optional11(storage, name) {
   try {
@@ -18555,7 +18720,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const ingressFile = (file) => /^ingress-plan-[a-f0-9]{24}\.json$/.test(file);
   const files = async () => {
     await storage.verify();
-    const entries = await readdir6(storage.directory, { withFileTypes: true });
+    const entries = await readdir7(storage.directory, { withFileTypes: true });
     return entries
       .filter((entry) => ingressFile(entry.name) || tokenMatches(entry.name).length)
       .map((entry) => {
@@ -18809,7 +18974,7 @@ var init_terraform_teardown_plan = __esm(() => {
 });
 
 // plugins/aws/src/ce/native-teardown.ts
-import { join as join9 } from 'node:path';
+import { join as join10 } from 'node:path';
 
 function compileAwsNativeTeardown(base, cloud, drain, retirement) {
   verifyAwsCePlan(base);
@@ -18966,7 +19131,7 @@ async function coordinateAwsNativeTeardown(base, cloud, input, authorizedPlanSha
       throw new Error('Native teardown ownership, authorization, or contract differs');
   };
   await validate();
-  const release = await acquireProcessLock(join9(storage.directory, '.aws-native-teardown-lock'));
+  const release = await acquireProcessLock(join10(storage.directory, '.aws-native-teardown-lock'));
   try {
     const sourceName = `${plan.planId}-source.json`;
     const saved = await optional12(storage, sourceName);
@@ -19378,7 +19543,7 @@ var init_aws_ce_teardown = __esm(() => {
 });
 
 // plugins/platform/src/ce/native-upgrade.ts
-import { createHash as createHash17, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
+import { createHash as createHash18, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
 function canonical2(value) {
   if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
@@ -19587,7 +19752,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     await release();
   }
 }
-var hash9 = (value) => createHash17('sha256').update(canonical2(value)).digest('hex'),
+var hash9 = (value) => createHash18('sha256').update(canonical2(value)).digest('hex'),
   sameHash2 = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -21497,7 +21662,7 @@ var init_whole_site_power_identities = __esm(() => {
 });
 
 // plugins/platform/src/ce/bgp-power-policy.ts
-import { createHash as createHash18 } from 'node:crypto';
+import { createHash as createHash19 } from 'node:crypto';
 import { isIP as isIP12 } from 'node:net';
 
 function object30(value) {
@@ -21619,7 +21784,7 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
     operationalEvidence: 'unknown',
   };
 }
-var hash10 = (value) => createHash18('sha256').update(canonical3(value)).digest('hex');
+var hash10 = (value) => createHash19('sha256').update(canonical3(value)).digest('hex');
 var init_bgp_power_policy = () => {};
 
 // plugins/aws/src/ce/whole-site-power-connect.ts
@@ -22477,7 +22642,7 @@ var init_whole_site_power_routes = __esm(() => {
 });
 
 // plugins/aws/src/ce/whole-site-power-services.ts
-import { createHash as createHash19 } from 'node:crypto';
+import { createHash as createHash20 } from 'node:crypto';
 import { isIP as isIP15 } from 'node:net';
 
 function object34(v) {
@@ -22755,7 +22920,7 @@ function validateAwsTerraformNlbMembershipReceipt(base, services, revision, rece
   if (absent !== null || canonicalSha256(present) !== canonicalSha256(owned))
     throw Error('Terraform NLB membership resolved identity differs');
 }
-var hash11 = (v) => createHash19('sha256').update(v).digest('hex');
+var hash11 = (v) => createHash20('sha256').update(v).digest('hex');
 var init_whole_site_power_services = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -23761,7 +23926,7 @@ var init_native_whole_site_power = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-whole-site-power.ts
-import { createHash as createHash20 } from 'node:crypto';
+import { createHash as createHash21 } from 'node:crypto';
 
 function scope2(base, plan, effect) {
   verifyAwsWholeSitePowerPlan(base, plan);
@@ -23889,7 +24054,7 @@ var object36 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Terraform power configuration');
     return v;
   },
-  digest5 = (s) => createHash20('sha256').update(s).digest('hex');
+  digest5 = (s) => createHash21('sha256').update(s).digest('hex');
 var init_terraform_whole_site_power = __esm(() => {
   init_canonical();
   init_whole_site_power();
@@ -25184,7 +25349,7 @@ var init_static_tgw_power_controller = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-static-power.ts
-import { createHash as createHash21 } from 'node:crypto';
+import { createHash as createHash22 } from 'node:crypto';
 
 function object37(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -25321,7 +25486,7 @@ function validateAwsTerraformStaticServiceReceipt(base, services, revision, rece
       throw Error('Terraform static service resolved identity differs');
   }
 }
-var hash12 = (value) => createHash21('sha256').update(value).digest('hex');
+var hash12 = (value) => createHash22('sha256').update(value).digest('hex');
 var init_terraform_static_power = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -25947,7 +26112,7 @@ var init_whole_site_power_driver = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-power.ts
-import { randomUUID as randomUUID3 } from 'node:crypto';
+import { randomUUID as randomUUID4 } from 'node:crypto';
 
 function createAwsCePowerTool(pi, dependencies = defaults4) {
   const { Type } = pi.typebox;
@@ -26055,7 +26220,7 @@ function createAwsCePowerTool(pi, dependencies = defaults4) {
           let power;
           if (params.operation === 'prepare-stop') {
             const current = await collectAwsPowerBindings(base, values, api, runtime, signal);
-            power = buildAwsWholeSitePowerPlan(base, 'stop', current.bindings, randomUUID3());
+            power = buildAwsWholeSitePowerPlan(base, 'stop', current.bindings, randomUUID4());
             await storage.write(`${power.planId}.json`, power);
           } else if (params.operation === 'prepare-start') {
             const stop = await loadPower(params.stopPlanId, params.stopPlanSha256);

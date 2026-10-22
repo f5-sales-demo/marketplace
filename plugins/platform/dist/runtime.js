@@ -6174,7 +6174,17 @@ var init_f5xc_ce_v2_site = __esm(() => {
 
 // plugins/platform/src/ce/token-store.ts
 import { createHash as createHash8, randomUUID as randomUUID3 } from 'node:crypto';
-import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
+import {
+  chmod as chmod2,
+  lstat as lstat3,
+  mkdir as mkdir3,
+  readdir as readdir2,
+  readFile as readFile4,
+  realpath as realpath2,
+  rename as rename3,
+  unlink,
+  writeFile as writeFile3,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute2, join as join5, resolve, sep } from 'node:path';
 
@@ -6214,9 +6224,21 @@ async function storeBootstrapToken(input) {
     digest,
     expiresAt,
     consumed: false,
+    checkoutReady: false,
   };
-  await writeFile3(join5(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
   await writeFile3(join5(itemDir, 'metadata.json'), JSON.stringify(metadata), { mode: 384, flag: 'wx' });
+  await input.onPrepared?.({
+    schemaVersion: 1,
+    reference: `f5xc-ce://${input.sessionId}/${id}`,
+    root,
+    digest,
+    expiresAt,
+    uid: metadata.uid,
+  });
+  await writeFile3(join5(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
+  await writeFile3(join5(itemDir, 'metadata.json'), JSON.stringify({ ...metadata, checkoutReady: true }), {
+    mode: 384,
+  });
   return { reference: `f5xc-ce://${input.sessionId}/${id}`, expiresAt };
 }
 var SAFE_ID;
@@ -6226,6 +6248,7 @@ var init_token_store = __esm(() => {
 
 // plugins/platform/src/tools/f5xc-ce-v2-bootstrap.ts
 import { randomUUID as randomUUID4 } from 'node:crypto';
+import { join as join6 } from 'node:path';
 
 function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformService(), root = defaultBootstrapRoot()) {
   const { Type } = pi.typebox;
@@ -6242,6 +6265,7 @@ function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformSer
       platformContext: Type.Optional(Type.String()),
     }),
     async execute(_id, params, signal, _update, ctx) {
+      let release;
       try {
         assertSafeName(params.siteName, 'siteName');
         assertSafeName(params.nodeName, 'nodeName');
@@ -6256,7 +6280,7 @@ function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformSer
           throw new PublicCeError('Headless bootstrap requires XCSH_CE_HEADLESS_MUTATIONS=1');
         const service = makeService(ctx);
         const known = await service.siteBinding?.(params.siteName, params.platformContext);
-        if (!known || !known.binding.nodes.includes(params.nodeName))
+        if (!known?.binding.nodes.includes(params.nodeName))
           throw new PublicCeError('A trusted deployment and node binding is required');
         const runtime = await service.runtime(known.binding.owner.engine, params.platformContext);
         if (runtime.contract.fingerprint !== known.contractFingerprint)
@@ -6267,6 +6291,19 @@ function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformSer
         if (ctx.hasUI && !(await ctx.ui.confirm('Checkout CE bootstrap', `${params.siteName}/${params.nodeName}`)))
           throw new PublicCeError('Bootstrap checkout was not approved');
         const store = await service.storage(known.binding.owner);
+        if (known.binding.owner.engine === 'terraform')
+          release = await acquireProcessLock(
+            join6(store.directory, `.${known.binding.owner.provider}-terraform-lifecycle-lock`),
+          );
+        for (const marker of ['azure-terraform-lifecycle-retirement.json', 'aws-terraform-lifecycle-retirement.json']) {
+          try {
+            await store.read(marker);
+          } catch (error) {
+            if (error.code === 'ENOENT') continue;
+            throw error;
+          }
+          throw new PublicCeError('Deployment retirement has started; bootstrap checkout is unavailable');
+        }
         const tokenName = `${params.siteName.slice(0, 40)}-bt-${randomUUID4().slice(0, 8)}`;
         let jwt;
         await runtime.bootstrap(
@@ -6287,6 +6324,18 @@ function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformSer
           token: jwt,
           expiresInSeconds: lifetime,
           root,
+          onPrepared: async (checkout) => {
+            await store.write(`bootstrap-checkout-${checkout.reference.split('/').at(-1)}.json`, {
+              schemaVersion: 1,
+              owner: known.binding.owner,
+              binding: known.binding,
+              siteUid: known.siteUid,
+              contractFingerprint: known.contractFingerprint,
+              tokenName,
+              node: params.nodeName,
+              checkout,
+            });
+          },
         });
         return {
           content: [
@@ -6310,11 +6359,14 @@ Expires: ${stored.expiresAt}`,
           isError: true,
           details: { tool: 'f5xc_ce_v2_bootstrap' },
         };
+      } finally {
+        await release?.();
       }
     },
   };
 }
 var init_f5xc_ce_v2_bootstrap = __esm(() => {
+  init_process_lock();
   init_security();
   init_service();
   init_token_store();

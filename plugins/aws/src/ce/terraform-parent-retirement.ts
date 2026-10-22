@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readdir, readFile, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { siteBindings } from './topology';
@@ -256,6 +257,40 @@ async function inventory(
       }
       continue;
     }
+    if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {
+      const value = object(await store.read(name)),
+        checkout = object(value.checkout);
+      const match = siteBindings(base).find(
+        ({ binding }) => canonicalSha256(value.binding) === canonicalSha256(binding),
+      );
+      if (
+        value.schemaVersion !== 1 ||
+        !match ||
+        canonicalSha256(value.owner) !== canonicalSha256(match.binding.owner) ||
+        !match.binding.nodes.includes(String(value.node)) ||
+        typeof value.siteUid !== 'string' ||
+        !value.siteUid ||
+        typeof value.contractFingerprint !== 'string' ||
+        !value.contractFingerprint ||
+        typeof value.tokenName !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,62}$/.test(value.tokenName) ||
+        name !== `bootstrap-checkout-${String(checkout.reference).split('/').at(-1)}.json`
+      )
+        throw Error('AWS checkout provenance differs');
+      if (!recorded?.has(name)) {
+        const token = object(await store.read(`${String(value.tokenName)}.json`));
+        if (
+          token.tokenName !== value.tokenName ||
+          token.siteName !== match.binding.siteName ||
+          token.node !== value.node ||
+          typeof token.jwt !== 'string' ||
+          hash(token.jwt) !== checkout.digest
+        )
+          throw Error('AWS checkout upstream token differs');
+      }
+      await add(name, true);
+      continue;
+    }
     if (
       !preserve.has(name) &&
       !drainJournals.has(name) &&
@@ -372,6 +407,11 @@ export async function retireAwsTerraformParentArtifacts(
     (marker.status === 'deployment-artifacts-retired' && current.some((item) => !item.preserve))
   )
     throw Error('Parent retirement inventory changed');
+  for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
+    signal?.throwIfAborted();
+    const value = object(await store.read(item.path));
+    await retireBootstrapToken(value.checkout as unknown as BootstrapCheckoutBinding, evidenceSha256, signal);
+  }
   for (const item of current.filter((item) => !item.preserve)) {
     signal?.throwIfAborted();
     await directory(store.directory);
