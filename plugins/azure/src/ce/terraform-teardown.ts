@@ -14,6 +14,7 @@ import {
   prepareAzureFoundationTeardown,
   runAzureFoundationTeardown,
 } from './terraform-foundation-teardown';
+import { azurePendingAdmissionJournal, observeAzurePendingAdmission } from './terraform-pending-admission';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
 import { finalizeAzureTerraformRunnerCleanup, hasAzureTerraformTerminalCleanup } from './terraform-terminal-cleanup';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -30,7 +31,7 @@ export interface AzureTeardownRetirement {
   siteName: string;
   siteUid: string;
   physicalSiteUid: string;
-  tokens: Array<{ node: string; name: string }>;
+  tokens: Array<{ node: string; name: string; uid?: string }>;
 }
 export interface AzureTerraformTeardownPlan {
   schemaVersion: 1;
@@ -41,17 +42,20 @@ export interface AzureTerraformTeardownPlan {
   retirement: AzureTeardownRetirement[];
   planId: string;
   planSha256: string;
+  pendingAdmissionJournalSha256?: string;
 }
 
 export function compileAzureTerraformTeardown(
   base: AzureCePlan,
   drain: CePlatformDrainPlan,
   retirement: AzureTeardownRetirement[],
+  pendingAdmissionJournalSha256?: string,
 ) {
   verifyAzureCePlan(base);
   const binding = azureUpgradeBinding(base);
   if (
     base.engine !== 'terraform' ||
+    (pendingAdmissionJournalSha256 !== undefined && !/^[a-f0-9]{64}$/.test(pendingAdmissionJournalSha256)) ||
     drain.schemaVersion !== 1 ||
     drain.sourcePlanSha256 !== base.planSha256 ||
     canonicalSha256(drain.owner) !== canonicalSha256(binding.owner) ||
@@ -66,7 +70,12 @@ export function compileAzureTerraformTeardown(
     throw new Error('Azure Terraform teardown source or site inventory differs');
   const identities = new Set<string>();
   for (const token of retirement[0].tokens) {
-    if (!binding.nodes.includes(token.node) || !safeName(token.name) || identities.has(token.name))
+    if (
+      !binding.nodes.includes(token.node) ||
+      !safeName(token.name) ||
+      identities.has(token.name) ||
+      (pendingAdmissionJournalSha256 !== undefined && (typeof token.uid !== 'string' || !token.uid.trim()))
+    )
       throw new Error('Azure Terraform teardown token identity differs');
     identities.add(token.name);
   }
@@ -77,6 +86,7 @@ export function compileAzureTerraformTeardown(
     sourcePlanSha256: base.planSha256,
     drain: structuredClone(drain),
     retirement: structuredClone(retirement),
+    ...(pendingAdmissionJournalSha256 ? { pendingAdmissionJournalSha256 } : {}),
   };
   const planSha256 = canonicalSha256(draft);
   return { ...draft, planId: `azure-ce-teardown-${planSha256.slice(0, 24)}`, planSha256 };
@@ -89,7 +99,11 @@ export async function collectAzureTeardownMaterial(
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
-): Promise<{ drain: CePlatformDrainPlan; retirement: AzureTeardownRetirement[] }> {
+): Promise<{
+  drain: CePlatformDrainPlan;
+  retirement: AzureTeardownRetirement[];
+  pendingAdmissionJournalSha256?: string;
+}> {
   verifyAzureCePlan(base);
   const binding = azureUpgradeBinding(base);
   if (runtime.engine !== base.engine || canonicalSha256(storage.owner) !== canonicalSha256(binding.owner))
@@ -107,8 +121,33 @@ export async function collectAzureTeardownMaterial(
     namespaces.add(namespace);
     namespaces.add(originNamespace);
   }
+  let pendingAdmissionJournalSha256: string | undefined;
   const observe = async () => {
-    const value = await runtime.teardownInventory([binding], [...namespaces].sort(), contract, signal);
+    let value = pendingAdmissionJournalSha256
+      ? undefined
+      : await runtime.teardownInventory([binding], [...namespaces].sort(), contract, signal);
+    if (pendingAdmissionJournalSha256 || (value?.status === 'unknown' && base.engine === 'terraform')) {
+      const pending = await observeAzurePendingAdmission(base, runtime, contract, storage, signal);
+      if (
+        pending.value.sites[0].siteUid !== pending.journal.siteUid ||
+        !pending.value.sites[0].physicalSiteUid ||
+        pending.value.resources.length !== 1
+      )
+        throw Error('Azure pending teardown exact site or enrollment identity differs');
+      await azurePendingAdmissionJournal(base, storage, runtime.contract.fingerprint, true);
+      if (pendingAdmissionJournalSha256 && pendingAdmissionJournalSha256 !== pending.journal.sha256)
+        throw Error('Azure pending admission changed during preparation');
+      pendingAdmissionJournalSha256 = pending.journal.sha256;
+      value = {
+        ...pending.value,
+        sites: pending.value.sites.map((row) => ({
+          ...row,
+          siteUid: String(row.siteUid),
+          physicalSiteUid: String(row.physicalSiteUid),
+        })),
+      };
+    }
+    if (!value) throw Error('Azure teardown inventory is unavailable');
     const observedAt = Date.parse(value.observedAt);
     if (
       value.status !== 'observed' ||
@@ -160,7 +199,7 @@ export async function collectAzureTeardownMaterial(
       name: row.name,
       uid: row.uid,
     }));
-  const tokenRows = new Map<string, { node: string; name: string }>();
+  const tokenRows = new Map<string, { node: string; name: string; uid?: string }>();
   for (const [index, node] of binding.nodes.entries()) {
     const prefixes = [
       `${base.deploymentName.slice(0, 40)}-${index + 1}-`,
@@ -180,7 +219,11 @@ export async function collectAzureTeardownMaterial(
     if (!row.node) throw new Error('Azure teardown token node identity is unavailable');
     const existing = tokenRows.get(row.name);
     if (existing && existing.node !== row.node) throw new Error('Azure teardown enrollment identities conflict');
-    tokenRows.set(row.name, { node: row.node, name: row.name });
+    tokenRows.set(row.name, {
+      node: row.node,
+      name: row.name,
+      ...(pendingAdmissionJournalSha256 ? { uid: row.uid } : {}),
+    });
   }
   const drain: CePlatformDrainPlan = {
     schemaVersion: 1,
@@ -206,7 +249,7 @@ export async function collectAzureTeardownMaterial(
     canonicalSha256({ sites: after.sites, resources: after.resources })
   )
     throw new Error('Azure teardown source changed during preparation');
-  return { drain, retirement };
+  return { drain, retirement, ...(pendingAdmissionJournalSha256 ? { pendingAdmissionJournalSha256 } : {}) };
 }
 
 export async function prepareAzureTerraformTeardown(
@@ -229,8 +272,14 @@ export async function prepareAzureTerraformTeardown(
     Object.keys(object(object(workflow).bootstrapByNode)).length === 0
   )
     return prepareAzureFoundationTeardown(base, runtime, contract, storage, signal);
-  const { drain, retirement } = await collectAzureTeardownMaterial(base, runtime, contract, storage, signal);
-  const plan = compileAzureTerraformTeardown(base, drain, retirement);
+  const { drain, retirement, pendingAdmissionJournalSha256 } = await collectAzureTeardownMaterial(
+    base,
+    runtime,
+    contract,
+    storage,
+    signal,
+  );
+  const plan = compileAzureTerraformTeardown(base, drain, retirement, pendingAdmissionJournalSha256);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
@@ -261,7 +310,12 @@ export async function runAzureTerraformTeardown(
       env,
       signal,
     );
-  const expected = compileAzureTerraformTeardown(base, input.drain, input.retirement);
+  const expected = compileAzureTerraformTeardown(
+    base,
+    input.drain,
+    input.retirement,
+    input.pendingAdmissionJournalSha256,
+  );
   const validate = async () => {
     signal?.throwIfAborted();
     await storage.verify();
@@ -274,6 +328,23 @@ export async function runAzureTerraformTeardown(
       canonicalSha256(storage.owner) !== canonicalSha256(input.drain.owner)
     )
       throw new Error('Azure Terraform teardown authorization, ownership or contract differs');
+    if (input.pendingAdmissionJournalSha256 && !(await hasAzureTerraformTerminalCleanup(storage))) {
+      const pending = await observeAzurePendingAdmission(base, runtime, contract, storage, signal);
+      const original = input.retirement[0],
+        site = pending.value.sites[0];
+      if (
+        pending.journal.sha256 !== input.pendingAdmissionJournalSha256 ||
+        (site.siteUid !== null && site.siteUid !== original.siteUid) ||
+        (site.physicalSiteUid !== null && site.physicalSiteUid !== original.physicalSiteUid) ||
+        pending.value.resources.some(
+          (row) =>
+            !original.tokens.some(
+              (token) => token.name === row.name && token.node === row.node && token.uid === row.uid,
+            ),
+        )
+      )
+        throw Error('Azure pending teardown journal or site identity changed');
+    }
   };
   await validate();
   await beginAzureTerraformRetirement(base, input, storage);
@@ -336,7 +407,10 @@ export async function runAzureTerraformTeardown(
     if (!['pending', 'deleted'].includes(current.status)) throw new Error('Azure site retirement evidence is unknown');
     for (const token of site.tokens) {
       await validate();
-      await runtime.deleteBootstrapToken(azureUpgradeBinding(base), token.node, token.name, signal);
+      if (input.pendingAdmissionJournalSha256) {
+        if (!token.uid) throw Error('Azure pending token UID is unavailable');
+        await runtime.deleteBootstrapTokenExact(azureUpgradeBinding(base), token.node, token.name, token.uid, signal);
+      } else await runtime.deleteBootstrapToken(azureUpgradeBinding(base), token.node, token.name, signal);
     }
     await validate();
     await runtime.deleteSiteExact(azureUpgradeBinding(base), site.siteUid, signal);
