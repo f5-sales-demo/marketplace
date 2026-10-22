@@ -6928,12 +6928,12 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
       },
       "status": "verified",
       "historicalQualifications": [
@@ -7005,12 +7005,12 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-discovery-planning-evidence.json"]
       },
       "status": "verified",
       "historicalQualifications": [
