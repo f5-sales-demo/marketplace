@@ -22,9 +22,58 @@
       "azure": "5.0.0-uat.104",
       "terraform": "3.0.0-uat.104"
     },
-    "sourceCommit": null,
+    "sourceCommit": "32c028a6e04b0566601ddfdfdee1f371e4a7e450",
     "deliverable": false,
-    "archives": [],
+    "archives": [
+      {
+        "plugin": "platform",
+        "version": "7.0.0-uat.104",
+        "archiveSha256": "8c4de1143cf593626a386b838fb0b73c069821f7820b6b7b33627ea22ec177d4",
+        "archiveBytes": 391402,
+        "filesVerified": 267,
+        "runtimeSha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356",
+        "manifestSha256": "b4f5fb4af71b40e87d431b53ce465aced5d187eb6b93a2ee6a0bce1073d46f8c",
+        "packageSha256": "5a3b2579c3d9ea09bf638fc829a277db5009da7d4854c8af0034c63c65688820",
+        "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+        "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+      },
+      {
+        "plugin": "aws",
+        "version": "3.0.0-uat.104",
+        "archiveSha256": "0b468fc2d650181237f1896606f7a265c8c3ff4df213e7cb0aab8caae4ac414e",
+        "archiveBytes": 774369,
+        "filesVerified": 288,
+        "runtimeSha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef",
+        "manifestSha256": "43314aa55976037d17dfa3e5ad71ba512ce56569494dbd727f0b8b3002033a88",
+        "packageSha256": "e29e75e10763082cf10f61b5a1710f7a808c2a5be0bd4f1e30e5745683b5506a",
+        "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+        "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+      },
+      {
+        "plugin": "azure",
+        "version": "5.0.0-uat.104",
+        "archiveSha256": "9e37c178887dcce3756dc64956099a069532e931f57e130bcb462eb7fd05b414",
+        "archiveBytes": 473050,
+        "filesVerified": 176,
+        "runtimeSha256": "43a3eef242dfaf0b8ddeb49de0c93fa3faedf0c60b6ac6aadeec63572391f295",
+        "manifestSha256": "ab99f1451b662616f2d9d278999285c7d8da654c35a8a97364713f25f7b85d0a",
+        "packageSha256": "e235ade76b6bdeb64bb8415a594adffde2a48f4bc281eb18ec03a62949338dd6",
+        "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+        "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+      },
+      {
+        "plugin": "terraform",
+        "version": "3.0.0-uat.104",
+        "archiveSha256": "4e19b066c73e65e3e47ce474a27bec190a797f5b12d89a77a1cf2970baa75c0c",
+        "archiveBytes": 115193,
+        "filesVerified": 34,
+        "runtimeSha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6",
+        "manifestSha256": "e16ed4b3358f95f47bc5c500c546fc20e9cf611fdeeabced51653c42d3ac135c",
+        "packageSha256": "49601b5acfa3eaf018324e39699830366c3b288ce3ba73e505b8eea50070395e",
+        "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+        "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+      }
+    ],
     "historicalCohort": {
       "stableBaseVersions": {
         "platform": "6.2.0",
@@ -1170,8 +1219,8 @@
         "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "controlled-public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat104-installed-site-update-bindings-evidence.json"]
       },
       "live": {
         "status": "not-qualified-current-candidate",
@@ -1224,8 +1273,8 @@
         "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "controlled-public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat104-installed-site-update-bindings-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -5980,8 +6029,8 @@
         "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "controlled-public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat104-installed-site-update-bindings-evidence.json"]
       },
       "live": {
         "status": "not-qualified-current-candidate",
@@ -6034,8 +6083,8 @@
         "tests": ["plugins/azure/test/ce/apply.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "controlled-public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat104-installed-site-update-bindings-evidence.json"]
       },
       "live": {
         "status": "not-qualified-current-candidate",
