@@ -7,16 +7,8 @@
   "interfaceCount": 3,
   "distinctMacDeviceRoleBindings": true,
   "allReportedLinksUp": true,
-  "roles": [
-    "slo",
-    "data",
-    "sli"
-  ],
-  "reportedMtus": [
-    0,
-    0,
-    0
-  ],
+  "roles": ["slo", "data", "sli"],
+  "reportedMtus": [0, 0, 0],
   "ceSampleAge": "unknown",
   "freshnessQualification": "pending-1930",
   "canSatisfyMutationGate": false,
