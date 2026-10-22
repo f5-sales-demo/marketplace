@@ -7099,20 +7099,25 @@
         "source": "plugins/azure/src/tools/azure-ce-apply.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "verified",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/azure/test/ce/apply.test.ts"]
+        "status": "verified",
+        "tests": [
+          "plugins/azure/test/ce/terraform-workflow.test.ts",
+          "plugins/platform/test/ce/registration-devices.test.ts",
+          "plugins/platform/test/ce/runtime.test.ts",
+          "plugins/platform/test/ce/tools.test.ts"
+        ]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-azure-registration-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "azure/terraform/single-site/site-create",
