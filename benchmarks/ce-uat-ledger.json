@@ -10554,7 +10554,8 @@
     {
       "id": "producer-publication",
       "status": "blocked",
-      "requirement": "Qualified additive interface contract; child issue, review/CI, immutable assets, fresh published-asset qualification before consumer repin"
+      "requirement": "Qualified additive interface contract; child issue, review/CI, immutable assets, fresh published-asset qualification before consumer repin",
+      "supplementalEvidence": ["docs/receipts/ce-uat107-producer-publication-next-fixture-evidence.json"]
     },
     {
       "id": "installed-cohort",
