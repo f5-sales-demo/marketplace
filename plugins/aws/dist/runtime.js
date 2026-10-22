@@ -9753,6 +9753,51 @@ async function assertGate(action, runtime, plan, checkpoint, persist, storage, i
   }
   return replacementMutation ? { mutated: true, pending: false } : undefined;
 }
+function completeAwsGuestDevices(plan) {
+  return (
+    plan.interfaces.length > 0 &&
+    plan.interfaces.every(
+      (item) => typeof item.guestDevice === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(item.guestDevice),
+    ) &&
+    new Set(plan.interfaces.map((item) => item.guestDevice)).size === plan.interfaces.length
+  );
+}
+function awsNativePrebootSiteRequired(plan, siteNodeCount) {
+  return (
+    siteNodeCount === 3 ||
+    plan.interfaces.some((item) => item.addressing.mode === 'static') ||
+    completeAwsGuestDevices(plan)
+  );
+}
+function buildAwsNativePrebootSiteIntent(plan, nodeIndexes, resolvedValues) {
+  if (!completeAwsGuestDevices(plan))
+    throw new Error('Complete, distinct AWS guest device identities are required before site configuration');
+  const macs = new Set();
+  return {
+    schemaVersion: 2,
+    provider: 'aws',
+    haMode: nodeIndexes.length === 3 ? 'three-node' : 'one-node',
+    nodes: nodeIndexes.map((node) => ({
+      hostname: `${plan.deploymentName}-${node}`,
+      interfaces: plan.interfaces.map((item) => {
+        const mac = resolvedValues[`__ENI_${node}_${item.index}_MAC__`];
+        if (!mac || !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac) || macs.has(mac))
+          throw new Error('Captured AWS ENI MAC is missing, malformed or duplicated');
+        macs.add(mac);
+        return {
+          name: item.role,
+          mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+          ethernet_interface: { device: item.guestDevice, mac },
+          network_option: item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
+          ...(awsCeStaticIp(plan.intent, node, item.index)
+            ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
+            : { dhcp_client: {} }),
+        };
+      }),
+    })),
+    settings: {},
+  };
+}
 async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, signal) {
   if (
     Object.hasOwn(input, 'f5Capabilities') ||
@@ -10003,7 +10048,7 @@ ${plan.planSha256}`,
             checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
             await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
           };
-          if (site.nodeIndexes.length === 3 || plan.interfaces.some((item) => item.addressing.mode === 'static')) {
+          if (awsNativePrebootSiteRequired(plan, site.nodeIndexes.length)) {
             const position = site.nodeIndexes.indexOf(action.node);
             const previous = site.nodeIndexes[position - 1];
             if (previous !== undefined) {
@@ -10014,28 +10059,7 @@ ${plan.planSha256}`,
             }
             await runtime.ensureSite(
               binding,
-              {
-                schemaVersion: 2,
-                provider: 'aws',
-                haMode: site.nodeIndexes.length === 3 ? 'three-node' : 'one-node',
-                nodes: site.nodeIndexes.map((node) => ({
-                  hostname: `${plan.deploymentName}-${node}`,
-                  interfaces: plan.interfaces.map((item) => ({
-                    name: item.role,
-                    mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
-                    ethernet_interface: {
-                      device: item.guestDevice,
-                      mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
-                    },
-                    network_option:
-                      item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
-                    ...(awsCeStaticIp(plan.intent, node, item.index)
-                      ? { static_ip: awsCeStaticIp(plan.intent, node, item.index) }
-                      : { dhcp_client: {} }),
-                  })),
-                })),
-                settings: {},
-              },
+              buildAwsNativePrebootSiteIntent(plan, site.nodeIndexes, checkpoint.resolvedValues),
               siteCheckpoint,
               signal,
             );

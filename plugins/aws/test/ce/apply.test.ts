@@ -4,6 +4,8 @@ import {
   assertAwsApplyAllowed,
   assertAwsObservationFresh,
   assertAwsResumeObservationFresh,
+  awsNativePrebootSiteRequired,
+  buildAwsNativePrebootSiteIntent,
   executableAwsActionArgs,
   isAwsBrownfieldRestoreConverged,
   observedInstanceTypeNames,
@@ -553,5 +555,69 @@ describe('execution-region revalidation', () => {
       plan.observationScope = { kind: 'execution-region-v1', region: 'us-east-2' };
       expect(() => verifyAwsCePlan(plan)).toThrow('execution-region scope');
     });
+  }
+});
+
+it('preconfigures single-node DHCP when every guest interface identity is explicit and distinct', () => {
+  const plan = compileAwsCePlan(intent, observation);
+  plan.interfaces[0].guestDevice = 'ens5';
+  plan.interfaces.push({ ...structuredClone(plan.interfaces[0]), index: 1, role: 'sli', guestDevice: 'ens6' });
+  expect(awsNativePrebootSiteRequired(plan, 1)).toBe(true);
+  delete plan.interfaces[1].guestDevice;
+  expect(awsNativePrebootSiteRequired(plan, 1)).toBe(false);
+  plan.interfaces[1].guestDevice = 'ens5';
+  expect(awsNativePrebootSiteRequired(plan, 1)).toBe(false);
+  delete plan.interfaces[0].guestDevice;
+  delete plan.interfaces[1].guestDevice;
+  expect(awsNativePrebootSiteRequired(plan, 1)).toBe(false);
+  expect(awsNativePrebootSiteRequired(plan, 3)).toBe(true);
+  plan.interfaces[0].addressing.mode = 'static';
+  expect(awsNativePrebootSiteRequired(plan, 1)).toBe(true);
+});
+
+it('binds preboot DHCP configuration to captured MACs, explicit devices and MTU before launch', () => {
+  const plan = compileAwsCePlan(intent, observation);
+  plan.interfaces[0].guestDevice = 'ens5';
+  plan.interfaces.push({
+    ...structuredClone(plan.interfaces[0]),
+    index: 1,
+    role: 'sli',
+    guestDevice: 'ens6',
+    mtu: 1450,
+  });
+  const captured = { __ENI_1_0_MAC__: '02:00:00:00:00:01', __ENI_1_1_MAC__: '02:00:00:00:00:02' };
+  const site = buildAwsNativePrebootSiteIntent(plan, [1], captured);
+  expect(site.haMode).toBe('one-node');
+  expect(site.nodes).toEqual([
+    {
+      hostname: 'ce-demo-1',
+      interfaces: [
+        {
+          name: 'slo',
+          mtu: 1500,
+          ethernet_interface: { device: 'ens5', mac: captured.__ENI_1_0_MAC__ },
+          network_option: { site_local_network: {} },
+          dhcp_client: {},
+        },
+        {
+          name: 'sli',
+          mtu: 1450,
+          ethernet_interface: { device: 'ens6', mac: captured.__ENI_1_1_MAC__ },
+          network_option: { site_local_inside_network: {} },
+          dhcp_client: {},
+        },
+      ],
+    },
+  ]);
+  for (const missing of [
+    {},
+    { ...captured, __ENI_1_1_MAC__: '__MAC__' },
+    { ...captured, __ENI_1_1_MAC__: captured.__ENI_1_0_MAC__ },
+  ])
+    expect(() => buildAwsNativePrebootSiteIntent(plan, [1], missing)).toThrow(/MAC/);
+  for (const device of ['__DEVICE__', 'ens 6', '', 'ens5']) {
+    plan.interfaces[1].guestDevice = device;
+    expect(awsNativePrebootSiteRequired(plan, 1)).toBe(false);
+    expect(() => buildAwsNativePrebootSiteIntent(plan, [1], captured)).toThrow(/device/);
   }
 });
