@@ -1204,14 +1204,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1250,14 +1250,14 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1912,14 +1912,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3376,14 +3376,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3422,14 +3422,14 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4096,14 +4096,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat91-aws-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
