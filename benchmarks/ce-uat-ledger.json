@@ -532,6 +532,20 @@
       "status": "failed-20-of-21-checkpointed",
       "receipt": "docs/receipts/ce-uat103-aws-native-live-cleanup-evidence.json",
       "fullProvisioningAcceptance": false
+    },
+    "installedCompatibility103": {
+      "status": "three-terminal-lanes-six-synthetic-upgrade-cases-verified",
+      "runtimeVersions": ["23.8.0", "23.9.3", "23.9.5"],
+      "currentRegistryVersion": "23.9.5",
+      "receipts": [
+        "docs/receipts/ce-uat103-installed-aws-terminal-evidence.json",
+        "docs/receipts/ce-uat103-installed-aws-upgrades-evidence.json"
+      ],
+      "liveUpgradeQualified": false
+    },
+    "revalidationRejection103": {
+      "status": "pre-mutation-rejection-and-no-started-absence-verified",
+      "receipt": "docs/receipts/ce-uat103-revalidation-rejection-evidence.json"
     }
   },
   "requiredClouds": ["aws", "azure"],
@@ -722,20 +736,18 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat103-aws-native-readonly-evidence.json"],
-        "qualification": "exact archived runtimes through installed CLI 23.9.3 public tools"
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat103-aws-native-readonly-evidence.json"],
-        "qualification": "current owned read-only cloud discovery/planning; no cloud mutation"
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "status": "verified",
       "historicalQualifications": [
@@ -811,20 +823,18 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat103-aws-native-readonly-evidence.json"],
-        "qualification": "exact archived runtimes through installed CLI 23.9.3 public tools"
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat103-aws-native-readonly-evidence.json"],
-        "qualification": "current owned read-only cloud discovery/planning; no cloud mutation"
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "status": "verified",
       "historicalQualifications": [
@@ -1569,20 +1579,20 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1629,20 +1639,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -2305,20 +2315,20 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -2365,20 +2375,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3027,20 +3037,20 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3099,20 +3109,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3835,20 +3845,20 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -3895,20 +3905,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4583,20 +4593,20 @@
         "source": "plugins/aws/src/tools/aws-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/discovery.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -4643,20 +4653,20 @@
         "source": "plugins/aws/src/tools/aws-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/aws/test/ce/planner.test.ts"]
+        "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5317,20 +5327,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5363,20 +5373,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6021,20 +6031,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6067,20 +6077,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6725,20 +6735,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6771,20 +6781,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -7429,20 +7439,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -7520,20 +7530,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -8318,20 +8328,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -8364,20 +8374,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9026,20 +9036,20 @@
         "source": "plugins/azure/src/tools/azure-compute-discover.ts",
         "engineSelection": "shared-read-only-or-active-context"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/discovery.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -9072,20 +9082,20 @@
         "source": "plugins/azure/src/tools/azure-ce-plan.ts",
         "engineSelection": "intent.engine"
       },
-      "implementation": "verified",
+      "implementation": "present",
       "automated": {
         "status": "verified",
-        "tests": ["plugins/azure/test/ce/planner.test.ts"]
+        "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-installed-readonly-matrix-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
