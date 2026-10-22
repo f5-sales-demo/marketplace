@@ -821,14 +821,14 @@
         "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "public-bounded-attempt-failed",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "online-node-initial-upgrade-and-mtu-convergence-incomplete",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
-      "status": "unverified"
+      "status": "failed"
     },
     {
       "id": "aws/native/single-site/site-create",
@@ -1306,14 +1306,14 @@
         "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "independent-exact-cleanup-and-native-final-no-change-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/single-site/independent-absence",
@@ -1387,14 +1387,14 @@
         "tests": ["plugins/aws/test/ce/terraform-teardown.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "independent-exact-cleanup-and-native-final-no-change-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-live-cleanup-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/independent-sites/discovery",
