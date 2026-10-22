@@ -40,6 +40,7 @@ export interface AzureFoundationTeardownPlan {
   source: { terraformVersion: string; configurationSha256: string; manifestSha256: string };
   drain: CePlatformDrainPlan;
   retirement: [];
+  reservedSite?: { siteUid: string; physicalSiteUid: string | null };
   planId: string;
   planSha256: string;
 }
@@ -83,7 +84,11 @@ async function privateManifest(store: CeDeploymentStore, name: string) {
     throw Error('Azure foundation manifest ownership differs');
   return object(JSON.parse(await readFile(file, 'utf8')));
 }
-async function journal(base: AzureCePlan, store: CeDeploymentStore) {
+async function journal(
+  base: AzureCePlan,
+  store: CeDeploymentStore,
+  reservedSite?: AzureFoundationTeardownPlan['reservedSite'],
+) {
   verifyAzureCePlan(base);
   await store.verify();
   if (
@@ -108,6 +113,30 @@ async function journal(base: AzureCePlan, store: CeDeploymentStore) {
     Object.keys(object(workflow.launchedAtByNode)).length
   )
     throw Error('Azure foundation retirement requires exact pre-admission authorization and journal');
+  if (reservedSite) {
+    const binding = azureUpgradeBinding(base);
+    const site = object(await store.read('terraform-site.json'));
+    const saved = object(await store.read(`site-binding-${base.siteName}.json`));
+    const origin = new URL(String(saved.tenantOrigin));
+    if (
+      site.siteName !== base.siteName ||
+      site.uid !== reservedSite.siteUid ||
+      canonicalSha256(site.owner) !== canonicalSha256(binding.owner) ||
+      site.contractFingerprint !== saved.contractFingerprint ||
+      saved.schemaVersion !== 1 ||
+      saved.siteUid !== reservedSite.siteUid ||
+      canonicalSha256(saved.binding) !== canonicalSha256(binding) ||
+      !Array.isArray(saved.expectedInterfaces) ||
+      saved.expectedInterfaces.length ||
+      origin.protocol !== 'https:' ||
+      origin.username ||
+      origin.password ||
+      origin.search ||
+      origin.hash ||
+      origin.pathname !== '/'
+    )
+      throw Error('Reserved Azure site provenance differs');
+  }
   const allowed = new Set([
     'owner.json',
     base.deploymentName,
@@ -122,6 +151,10 @@ async function journal(base: AzureCePlan, store: CeDeploymentStore) {
     receiptName,
   ]);
   for (const entry of await readdir(store.directory, { withFileTypes: true })) {
+    if (reservedSite && ['terraform-site.json', `site-binding-${base.siteName}.json`].includes(entry.name)) {
+      if (!entry.isFile()) throw Error('Reserved Azure site artifact type differs');
+      continue;
+    }
     if (allowed.has(entry.name)) {
       if (entry.name !== base.deploymentName && !entry.isFile()) throw Error('Azure retirement journal type differs');
       continue;
@@ -152,7 +185,45 @@ function requireAbsence(
     throw Error('Fresh unregistered Azure platform absence is unavailable');
   return value;
 }
-function compile(base: AzureCePlan, source: AzureFoundationTeardownPlan['source'], site: string, ingress: string) {
+function requireReservedObservation(
+  value: Awaited<ReturnType<CeRuntime['preRegistrationInventory']>>,
+  base: AzureCePlan,
+  runtime: CeRuntime,
+  contract: VerifiedIngressContract,
+  expected: NonNullable<AzureFoundationTeardownPlan['reservedSite']>,
+  exact: boolean,
+) {
+  const at = Date.parse(value.observedAt);
+  if (value.status !== 'observed') throw Error('Fresh reserved Azure site inventory unavailable');
+  const site = value.sites?.[0];
+  if (
+    canonicalSha256(value.owner) !== canonicalSha256(azureUpgradeBinding(base).owner) ||
+    value.siteContractFingerprint !== runtime.contract.fingerprint ||
+    value.ingressContractFingerprint !== contract.fingerprint ||
+    !Number.isFinite(at) ||
+    at > Date.now() ||
+    Date.now() - at > 60_000 ||
+    !Array.isArray(value.resources) ||
+    value.resources.length ||
+    !Array.isArray(value.sites) ||
+    value.sites.length !== 1 ||
+    !site ||
+    site.siteName !== base.siteName ||
+    (site.siteUid !== expected.siteUid && (exact || site.siteUid !== null)) ||
+    (site.physicalSiteUid !== expected.physicalSiteUid && (exact || site.physicalSiteUid !== null)) ||
+    (expected.physicalSiteUid !== null &&
+      (typeof expected.physicalSiteUid !== 'string' || !expected.physicalSiteUid.trim()))
+  )
+    throw Error('Fresh reserved Azure site inventory differs or enrollment has started');
+  return value;
+}
+function compile(
+  base: AzureCePlan,
+  source: AzureFoundationTeardownPlan['source'],
+  site: string,
+  ingress: string,
+  reservedSite?: AzureFoundationTeardownPlan['reservedSite'],
+) {
   verifyAzureCePlan(base);
   if (
     base.engine !== 'terraform' ||
@@ -179,6 +250,7 @@ function compile(base: AzureCePlan, source: AzureFoundationTeardownPlan['source'
       origins: [],
     },
     retirement: [] as [],
+    ...(reservedSite ? { reservedSite: structuredClone(reservedSite) } : {}),
   };
   const planSha256 = canonicalSha256(draft);
   return { ...draft, planId: `azure-ce-foundation-teardown-${planSha256.slice(0, 24)}`, planSha256 };
@@ -192,7 +264,27 @@ export async function prepareAzureFoundationTeardown(
 ): Promise<AzureFoundationTeardownPlan> {
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw Error('Azure foundation teardown runtime engine differs');
-  const workflow = await journal(base, store);
+  const savedSite = await optional(store, 'terraform-site.json');
+  let reservedSite: AzureFoundationTeardownPlan['reservedSite'];
+  if (savedSite !== undefined) {
+    const value = object(savedSite);
+    if (
+      typeof value.uid !== 'string' ||
+      !value.uid.trim() ||
+      value.contractFingerprint !== runtime.contract.fingerprint
+    )
+      throw Error('Reserved Azure site checkpoint differs; admission provenance required');
+    const observation = await runtime.preRegistrationInventory(
+      [azureUpgradeBinding(base)],
+      ['default'],
+      contract,
+      signal,
+    );
+    if (observation.status !== 'observed') throw Error('Fresh reserved Azure site inventory unavailable');
+    reservedSite = { siteUid: value.uid, physicalSiteUid: observation.sites?.[0]?.physicalSiteUid ?? null };
+    requireReservedObservation(observation, base, runtime, contract, reservedSite, true);
+  }
+  const workflow = await journal(base, store, reservedSite);
   const actual = await privateManifest(store, base.deploymentName);
   const expected = manifest(await deployment(base, String(actual.terraformVersion)));
   if (
@@ -205,17 +297,27 @@ export async function prepareAzureFoundationTeardown(
     configurationSha256: expected.configurationSha256,
     manifestSha256: canonicalSha256(expected),
   };
-  const plan = compile(base, source, runtime.contract.fingerprint, contract.fingerprint);
+  const plan = compile(base, source, runtime.contract.fingerprint, contract.fingerprint, reservedSite);
   for (let i = 0; i < 2; i++) {
     signal?.throwIfAborted();
-    requireAbsence(
-      await runtime.unregisteredAbsence([azureUpgradeBinding(base)], ['default'], contract, signal),
-      base,
-      runtime,
-      contract,
-    );
+    if (reservedSite)
+      requireReservedObservation(
+        await runtime.preRegistrationInventory([azureUpgradeBinding(base)], ['default'], contract, signal),
+        base,
+        runtime,
+        contract,
+        reservedSite,
+        true,
+      );
+    else
+      requireAbsence(
+        await runtime.unregisteredAbsence([azureUpgradeBinding(base)], ['default'], contract, signal),
+        base,
+        runtime,
+        contract,
+      );
   }
-  await journal(base, store);
+  await journal(base, store, reservedSite);
   if (canonicalSha256(await privateManifest(store, base.deploymentName)) !== source.manifestSha256)
     throw Error('Azure foundation source changed during preparation');
   await store.write(`${plan.planId}.json`, plan);
@@ -288,12 +390,19 @@ export async function runAzureFoundationTeardown(
     throw Error('Azure foundation teardown checkpoint differs');
   const validate = async () => {
     signal?.throwIfAborted();
-    await journal(base, store);
+    await journal(base, store, input.reservedSite);
+    if (
+      input.reservedSite &&
+      object(await store.read('terraform-site.json')).contractFingerprint !== runtime.contract.fingerprint
+    )
+      throw Error('Reserved Azure site contract changed');
     if (
       runtime.engine !== 'terraform' ||
       authorized !== input.planSha256 ||
       canonicalSha256(input) !==
-        canonicalSha256(compile(base, input.source, runtime.contract.fingerprint, contract.fingerprint)) ||
+        canonicalSha256(
+          compile(base, input.source, runtime.contract.fingerprint, contract.fingerprint, input.reservedSite),
+        ) ||
       canonicalSha256(await store.read(`${input.planId}.json`)) !== canonicalSha256(input)
     )
       throw Error('Azure foundation teardown immutable authorization or contract differs');
@@ -321,6 +430,28 @@ export async function runAzureFoundationTeardown(
     return { platform, cloud };
   };
   await validate();
+  if (input.reservedSite && (!checkpoint || checkpoint.phase === 'cloud-pending')) {
+    requireReservedObservation(
+      await runtime.preRegistrationInventory([azureUpgradeBinding(base)], ['default'], contract, signal),
+      base,
+      runtime,
+      contract,
+      input.reservedSite,
+      false,
+    );
+    await beginAzureTerraformRetirement(base, input, store);
+    await validate();
+    requireReservedObservation(
+      await runtime.preRegistrationInventory([azureUpgradeBinding(base)], ['default'], contract, signal),
+      base,
+      runtime,
+      contract,
+      input.reservedSite,
+      false,
+    );
+    const deletion = await runtime.deleteSiteExact(azureUpgradeBinding(base), input.reservedSite.siteUid, signal);
+    if (deletion.status !== 'deleted') return { status: 'pending-reserved-site-retirement' as const };
+  }
   await fresh(checkpoint !== undefined && checkpoint.phase !== 'cloud-pending');
   await beginAzureTerraformRetirement(base, input, store);
   if (!checkpoint) {

@@ -454,3 +454,113 @@ test('public apply rejects retirement before cloud discovery and shares the tear
     await release();
   }
 });
+
+async function reservedFixture() {
+  const f = await fixture();
+  const binding = azureUpgradeBinding(f.plan);
+  const siteUid = 'owned-reserved-site';
+  const physicalSiteUid = 'generated-empty-site';
+  await f.store.write('terraform-site.json', {
+    siteName: binding.siteName,
+    uid: siteUid,
+    owner: binding.owner,
+    contractFingerprint: f.runtime.contract.fingerprint,
+  });
+  await f.store.write(`site-binding-${binding.siteName}.json`, {
+    schemaVersion: 1,
+    tenantOrigin: 'https://example.test',
+    contractFingerprint: f.runtime.contract.fingerprint,
+    siteUid,
+    binding,
+    expectedInterfaces: [],
+  });
+  let deleted = false;
+  f.runtime.preRegistrationInventory = async () => ({
+    status: 'observed',
+    owner: binding.owner,
+    siteContractFingerprint: f.runtime.contract.fingerprint,
+    ingressContractFingerprint: contract.fingerprint,
+    sites: [
+      {
+        siteName: binding.siteName,
+        siteUid: deleted ? null : siteUid,
+        physicalSiteUid: deleted ? null : physicalSiteUid,
+      },
+    ],
+    resources: [],
+    sources: [],
+    startedAt: new Date().toISOString(),
+    observedAt: new Date().toISOString(),
+  });
+  f.runtime.deleteSiteExact = async (_binding, uid) => {
+    expect(uid).toBe(siteUid);
+    deleted = true;
+    return { status: 'deleted' } as never;
+  };
+  return { ...f, siteUid, physicalSiteUid };
+}
+test('prepares a separate exact reserved-site foundation retirement with no enrollment', async () => {
+  const f = await reservedFixture();
+  const teardown = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
+  expect(teardown.kind).toBe('azure-ce-terraform-foundation-teardown');
+  expect(teardown).toMatchObject({ reservedSite: { siteUid: f.siteUid, physicalSiteUid: f.physicalSiteUid } });
+});
+for (const [label, change] of [
+  ['foreign logical UID', { sites: [{ siteName: 'ce-demo', siteUid: 'foreign', physicalSiteUid: null }] }],
+  ['issued token', { resources: [{ kind: 'tokens', name: 'unexpected' }] }],
+  ['unknown', { status: 'unknown' }],
+  ['stale', { observedAt: '2020-01-01T00:00:00Z' }],
+] as const)
+  test(`reserved-site retirement rejects ${label}`, async () => {
+    const f = await reservedFixture();
+    const observe = f.runtime.preRegistrationInventory.bind(f.runtime);
+    f.runtime.preRegistrationInventory = async (...args) => ({ ...(await observe(...args)), ...change }) as never;
+    await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+  });
+
+test('reserved-site deletion precedes cloud retirement and supports interruption resume', async () => {
+  const f = await reservedFixture();
+  const plan = (await prepareAzureTerraformTeardown(
+    f.plan,
+    f.runtime,
+    contract,
+    f.store,
+  )) as AzureFoundationTeardownPlan;
+  let retiredSite = false;
+  const deletion = f.runtime.deleteSiteExact.bind(f.runtime);
+  f.runtime.deleteSiteExact = async (...args) => {
+    retiredSite = true;
+    return deletion(...args);
+  };
+  f.runtime.unregisteredAbsence = async () => {
+    expect(retiredSite).toBe(true);
+    throw Error('test interruption after reserved site retirement');
+  };
+  await expect(
+    runAzureFoundationTeardown(
+      f.plan,
+      plan,
+      plan.planSha256,
+      f.runtime,
+      contract,
+      {} as TerraformSession,
+      f.store,
+      f.api,
+      {},
+    ),
+  ).rejects.toThrow('test interruption');
+  expect(retiredSite).toBe(true);
+  await expect(
+    runAzureFoundationTeardown(
+      f.plan,
+      plan,
+      plan.planSha256,
+      f.runtime,
+      contract,
+      {} as TerraformSession,
+      f.store,
+      f.api,
+      {},
+    ),
+  ).rejects.toThrow('test interruption');
+});
