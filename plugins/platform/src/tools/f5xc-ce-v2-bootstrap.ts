@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+import { acquireProcessLock } from '../ce/process-lock';
 import { assertSafeName, PublicCeError, publicFailure } from '../ce/security';
 import { type CePlatformService, createCePlatformService } from '../ce/service';
 import { defaultBootstrapRoot, storeBootstrapToken } from '../ce/token-store';
@@ -35,6 +37,7 @@ export function createF5xcCeV2BootstrapTool(
       _update: unknown,
       ctx: PlatformToolContext,
     ) {
+      let release: (() => Promise<void>) | undefined;
       try {
         assertSafeName(params.siteName, 'siteName');
         assertSafeName(params.nodeName, 'nodeName');
@@ -49,7 +52,7 @@ export function createF5xcCeV2BootstrapTool(
           throw new PublicCeError('Headless bootstrap requires XCSH_CE_HEADLESS_MUTATIONS=1');
         const service = makeService(ctx);
         const known = await service.siteBinding?.(params.siteName, params.platformContext);
-        if (!known || !known.binding.nodes.includes(params.nodeName))
+        if (!known?.binding.nodes.includes(params.nodeName))
           throw new PublicCeError('A trusted deployment and node binding is required');
         const runtime = await service.runtime(known.binding.owner.engine, params.platformContext);
         if (runtime.contract.fingerprint !== known.contractFingerprint)
@@ -60,6 +63,19 @@ export function createF5xcCeV2BootstrapTool(
         if (ctx.hasUI && !(await ctx.ui.confirm('Checkout CE bootstrap', `${params.siteName}/${params.nodeName}`)))
           throw new PublicCeError('Bootstrap checkout was not approved');
         const store = await service.storage(known.binding.owner);
+        if (known.binding.owner.engine === 'terraform')
+          release = await acquireProcessLock(
+            join(store.directory, `.${known.binding.owner.provider}-terraform-lifecycle-lock`),
+          );
+        for (const marker of ['azure-terraform-lifecycle-retirement.json', 'aws-terraform-lifecycle-retirement.json']) {
+          try {
+            await store.read(marker);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+            throw error;
+          }
+          throw new PublicCeError('Deployment retirement has started; bootstrap checkout is unavailable');
+        }
         const tokenName = `${params.siteName.slice(0, 40)}-bt-${randomUUID().slice(0, 8)}`;
         let jwt: string | undefined;
         await runtime.bootstrap(
@@ -80,6 +96,18 @@ export function createF5xcCeV2BootstrapTool(
           token: jwt,
           expiresInSeconds: lifetime,
           root,
+          onPrepared: async (checkout) => {
+            await store.write(`bootstrap-checkout-${checkout.reference.split('/').at(-1)}.json`, {
+              schemaVersion: 1,
+              owner: known.binding.owner,
+              binding: known.binding,
+              siteUid: known.siteUid,
+              contractFingerprint: known.contractFingerprint,
+              tokenName,
+              node: params.nodeName,
+              checkout,
+            });
+          },
         });
         return {
           content: [
@@ -99,6 +127,8 @@ export function createF5xcCeV2BootstrapTool(
           isError: true,
           details: { tool: 'f5xc_ce_v2_bootstrap' },
         };
+      } finally {
+        await release?.();
       }
     },
   };

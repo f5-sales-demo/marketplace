@@ -122,6 +122,9 @@ function fixture() {
       return runtime;
     },
     storage: async () => ({
+      read: async (): Promise<unknown> => {
+        throw Object.assign(Error('missing'), { code: 'ENOENT' });
+      },
       write: async (_name: string, value: unknown) => {
         privateRecords.push(value);
       },
@@ -217,7 +220,17 @@ for (const hasUI of [true, false])
     expect(result.isError).toBeUndefined();
     expect('reference' in result.details ? result.details.reference : undefined).toMatch(/^f5xc-ce:\/\/session-a\//);
     expect(JSON.stringify(result)).not.toContain(f.jwt);
-    expect(f.privateRecords).toEqual([{ jwt: f.jwt }]);
+    expect(f.privateRecords[0]).toEqual({ jwt: f.jwt });
+    expect(f.privateRecords).toHaveLength(2);
+    expect(f.privateRecords[1]).toMatchObject({
+      schemaVersion: 1,
+      owner: binding.owner,
+      binding,
+      node: 'node-one',
+      siteUid: 'owned-site-uid',
+      checkout: { reference: 'reference' in result.details ? result.details.reference : undefined },
+    });
+    expect(JSON.stringify(f.privateRecords[1])).not.toContain(f.jwt);
     expect(f.calls).toContain('bootstrap');
   });
 test('rejects foreign bootstrap nodes and invalid expiry before issuing a token', async () => {
@@ -322,4 +335,24 @@ test('does not report a partial HA binding set as a complete public status obser
   );
   expect(result.details.status).toBe('unknown');
   expect(result.details.interfaces).toEqual([]);
+});
+
+test('public bootstrap rejects a retired deployment before token issuance', async () => {
+  const f = fixture();
+  f.rawService.storage = async () => ({
+    read: async () => ({ schemaVersion: 1 }),
+    write: async () => {
+      throw Error('unexpected write');
+    },
+  });
+  const tool = createF5xcCeV2BootstrapTool(pi, () => f.service);
+  const result = await tool.execute(
+    'id',
+    { namespace: 'system', siteName: binding.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
+    undefined,
+    undefined,
+    context(),
+  );
+  expect(result.isError).toBe(true);
+  expect(f.calls).not.toContain('bootstrap');
 });

@@ -15,6 +15,7 @@ import {
   runAzureFoundationTeardown,
 } from './terraform-foundation-teardown';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
+import { finalizeAzureTerraformRunnerCleanup, hasAzureTerraformTerminalCleanup } from './terraform-terminal-cleanup';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -275,6 +276,8 @@ export async function runAzureTerraformTeardown(
   };
   await validate();
   await beginAzureTerraformRetirement(base, input, storage);
+  if (await hasAzureTerraformTerminalCleanup(storage))
+    return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' as const };
   await validate();
@@ -305,5 +308,5 @@ export async function runAzureTerraformTeardown(
     observedAt: new Date().toISOString(),
   };
   await storage.write('azure-terraform-teardown-receipt.json', receipt);
-  return receipt;
+  return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
 }
