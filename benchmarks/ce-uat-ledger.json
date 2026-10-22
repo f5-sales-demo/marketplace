@@ -654,14 +654,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "read-only-cloud-discovery-planning-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -726,14 +726,14 @@
         "tests": ["plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "public-tool-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-readonly-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "read-only-cloud-discovery-planning-verified",
+        "receipts": ["docs/receipts/ce-uat102-aws-native-readonly-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
