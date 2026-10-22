@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "sanitized": true,
+  "producerAssetVersion": "v12.2.2",
+  "consumerPinChanged": false,
+  "archivesComparedFiles": 768,
+  "qualification": {
+    "status": "failed",
+    "publicApplyExitCode": 0,
+    "ownedRegistrationObserved": true,
+    "physicalSiteObserved": true,
+    "lastVerifiedHealthState": "PROVISIONING",
+    "siteProvisionedAccepted": false,
+    "failure": "Exact published health schema rejected os_info.gpu:null with two type errors",
+    "publicUpdateAndProducerReadSkipped": true,
+    "freshPublishedQualificationPassed": false
+  },
+  "cleanup": {
+    "observedAt": "2026-10-22T21:41:34.017401+00:00",
+    "installedPublicTeardownPassed": true,
+    "exactCloudIdsAbsent": 13,
+    "resourceGroupAbsent": true,
+    "ownedAzureTagInventoryEmpty": true,
+    "logicalPhysicalSitesAbsent": true,
+    "registrationsEmpty": true,
+    "exactTokensAbsent": true,
+    "tokensRoutingIngressEmpty": true,
+    "matchingInterfaceObjectsAbsent": true,
+    "capturedInterfaceObjectCount": 0,
+    "capturedOwnedNicMacsAbsent": 3,
+    "interfaceProvisioningQualified": false,
+    "independentPreRetirementStateWitness": true,
+    "owningFinalDestroyNoChanges": true,
+    "preservedOrdinaryRefreshPlanProvenanceVerified": true,
+    "emptyStateIndependentlyObservedBeforeRetirement": true,
+    "newPostRetirementPlanRun": false,
+    "runnerArtifactsRetired": true,
+    "parentSensitiveArtifactsRetired": true
+  },
+  "externalRetirement": {
+    "observedAt": "2026-10-22T21:41:35.835043+00:00",
+    "independentCleanupPassed": true,
+    "remainingJwtPrivateKeyOrContextCredentialMatches": 0,
+    "sharedContextPreserved": true,
+    "installedArchivesPreserved": true,
+    "fullCleanupAcceptance": true
+  },
+  "completeCurrentProfileQualified": false,
+  "fullCeAcceptance": false
+}

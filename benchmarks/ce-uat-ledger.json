@@ -8850,7 +8850,7 @@
         "receipts": []
       },
       "status": "unverified",
-      "qualificationBoundary": "Installed107 exact cleanup of failed103 admission passed; fresh107 complete deployment and teardown profile remains required.",
+      "qualificationBoundary": "Fresh107 failed provisioning-schema fixture cleanup passes. Complete PROVISIONED deployment and teardown profile remains unqualified.",
       "supplementalQualification": {
         "candidateRevision": 107,
         "fixtureCreationRevision": 103,
@@ -8867,6 +8867,17 @@
           "sourceCommit": "e443d485566cf03d80ac7880ff9460d744139bbf",
           "receipt": "docs/receipts/ce-uat101-azure-installed-cleanup-evidence.json",
           "scope": "Exact installed101 cleanup of fixture created and serially upgraded with99; includes repaired upgrade-stage retirement, three CLI repetitions and independent cloud/API/state/staging absence",
+          "fixtureCleanupAcceptance": true,
+          "completeCurrentProfileQualified": false
+        }
+      ],
+      "additionalSupplementalQualifications": [
+        {
+          "candidateRevision": 107,
+          "fixtureCreationRevision": 107,
+          "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+          "receipt": "docs/receipts/ce-uat107-azure-retry-schema-failure-cleanup-evidence.json",
+          "scope": "Exact installed107 cleanup of fresh107 provisioning-schema failure; full ownership absence, independent empty state, ordinary refresh/no-change and sensitive retirement",
           "fixtureCleanupAcceptance": true,
           "completeCurrentProfileQualified": false
         }
@@ -8955,7 +8966,7 @@
         "fixtureCleanupAcceptance": true,
         "completeCurrentProfileQualified": false
       },
-      "qualificationBoundary": "Installed107 exact cleanup of failed103 admission passed; fresh107 complete deployment and teardown profile remains required.",
+      "qualificationBoundary": "Fresh107 failed provisioning-schema fixture cleanup passes. Complete PROVISIONED deployment and teardown profile remains unqualified.",
       "historicalSupplementalQualifications": [
         {
           "candidateRevision": 101,
@@ -8963,6 +8974,17 @@
           "sourceCommit": "e443d485566cf03d80ac7880ff9460d744139bbf",
           "receipt": "docs/receipts/ce-uat101-azure-installed-cleanup-evidence.json",
           "scope": "Exact installed101 cleanup of fixture created and serially upgraded with99; includes repaired upgrade-stage retirement, three CLI repetitions and independent cloud/API/state/staging absence",
+          "fixtureCleanupAcceptance": true,
+          "completeCurrentProfileQualified": false
+        }
+      ],
+      "additionalSupplementalQualifications": [
+        {
+          "candidateRevision": 107,
+          "fixtureCreationRevision": 107,
+          "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+          "receipt": "docs/receipts/ce-uat107-azure-retry-schema-failure-cleanup-evidence.json",
+          "scope": "Exact installed107 cleanup of fresh107 provisioning-schema failure; full ownership absence, independent empty state, ordinary refresh/no-change and sensitive retirement",
           "fixtureCleanupAcceptance": true,
           "completeCurrentProfileQualified": false
         }
