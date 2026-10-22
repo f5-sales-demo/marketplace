@@ -37,10 +37,10 @@ fi
 
 LATEST="$WORK/latest-development"
 copy_runtime_state "$LATEST"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.5"' \
   "$LATEST/plugins/aws/package.json" >"$LATEST/package.tmp"
 mv "$LATEST/package.tmp" "$LATEST/plugins/aws/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.5\.1/@f5-sales-demo\/xcsh@23.9.3/g; s/@f5-sales-demo\/pi-utils@23\.5\.1/@f5-sales-demo\/pi-utils@23.9.3/g' \
+sed -E 's|@f5-sales-demo/xcsh@23\.[0-9]+\.[0-9]+|@f5-sales-demo/xcsh@23.9.5|g; s|@f5-sales-demo/pi-utils@23\.[0-9]+\.[0-9]+|@f5-sales-demo/pi-utils@23.9.5|g' \
   "$LATEST/plugins/aws/bun.lock" >"$LATEST/lock.tmp"
 mv "$LATEST/lock.tmp" "$LATEST/plugins/aws/bun.lock"
 if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
