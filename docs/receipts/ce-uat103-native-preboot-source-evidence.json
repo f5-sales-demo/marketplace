@@ -34,5 +34,19 @@
     "Complete native/Terraform AWS/Azure matrix",
     "Producer immutable publication and live installed consumption",
     "Human UAT acceptance"
-  ]
+  ],
+  "exactSourceCi": {
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "allApplicableGreen": true,
+    "checks": 22,
+    "observedAt": "2026-10-22T10:38:26.831977+00:00",
+    "isDraft": true,
+    "autoMerge": false
+  },
+  "retainedCiFailure": {
+    "sourceCommit": "2e6468221346a7b667a38cef6b3f678ac44e3b7f",
+    "run": "https://github.com/f5-sales-demo/marketplace/actions/runs/39763190177",
+    "reason": "generated catalog formatting",
+    "repair": "catalog formatting only; all four plugin trees identical"
+  }
 }
