@@ -69,6 +69,7 @@ const format = Bun.spawn(
     'check',
     '--write',
     '--linter-enabled=false',
+    '--vcs-enabled=false',
     output,
     resolve(root, 'dist/runtime-assets.json'),
   ],
