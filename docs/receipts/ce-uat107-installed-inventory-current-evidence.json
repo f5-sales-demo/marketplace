@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "observedAt": "2026-10-22T23:41:59.172Z",
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "cliVersion": "23.9.3",
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "aws_ce_inventory",
+      "startedAt": "2026-10-22T23:41:37.332Z",
+      "completedAt": "2026-10-22T23:41:39.599Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_inventory",
+      "startedAt": "2026-10-22T23:41:39.599Z",
+      "completedAt": "2026-10-22T23:41:59.172Z",
+      "isError": false
+    }
+  ],
+  "results": [
+    {
+      "tool": "aws_ce_inventory",
+      "artifactPersisted": true,
+      "available": true
+    },
+    {
+      "tool": "azure_ce_inventory",
+      "artifactPersisted": true,
+      "available": true
+    }
+  ],
+  "cloudMutationPerformed": false,
+  "platformRegistrationAndHealthQualified": false,
+  "fullCeAcceptance": false,
+  "installedArchiveDigestsReverified": true,
+  "archiveDigests": [
+    {
+      "plugin": "platform",
+      "version": "7.0.0-uat.107",
+      "archiveSha256": "743198e44ef9ef887a7522a24ff5bfc37df6f3f1a60f9a2f9c17da7af2718104",
+      "runtimeSha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356"
+    },
+    {
+      "plugin": "aws",
+      "version": "3.0.0-uat.107",
+      "archiveSha256": "d2207c1e386bd65b0a9e9271af5c12fd70e07b89d386fbe0143bee0c4eb4ca1a",
+      "runtimeSha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+    },
+    {
+      "plugin": "azure",
+      "version": "5.0.0-uat.107",
+      "archiveSha256": "af8b6071c0f793eab09eaf83e84aab0e925ad8d534b3ee8204791a9f58191137",
+      "runtimeSha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115"
+    },
+    {
+      "plugin": "terraform",
+      "version": "3.0.0-uat.107",
+      "archiveSha256": "d31aa97bfdc15b13b59811f7503adca390c69d0cd3cc168fc20f07ac3b27a8ee",
+      "runtimeSha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6"
+    }
+  ],
+  "inventoryResults": [
+    {
+      "cloud": "aws",
+      "tool": "aws_ce_inventory",
+      "scope": "expected AWS account; us-east-2; sso profile",
+      "counts": {
+        "instances": 0,
+        "interfaces": 0
+      },
+      "completeness": "complete-for-requested-regions",
+      "artifactPersisted": true,
+      "responseSha256": "e0efebe1dc55b138cd83b09863a7c6af86ba8d30c5c619e3582d6f026be448f1"
+    },
+    {
+      "cloud": "azure",
+      "tool": "azure_ce_inventory",
+      "scope": "expected Azure subscription",
+      "counts": {
+        "azureNodes": 4,
+        "logicalDeployments": 8,
+        "platformSites": 0
+      },
+      "coverage": {
+        "activityLookbackDays": 89,
+        "complete": true,
+        "resourceGraphPages": 1
+      },
+      "artifactPersisted": true,
+      "responseSha256": "dd45512121a34c4c2e419dd1913b8095638e89d4f2b3428776a32e8219605891"
+    }
+  ],
+  "lifecycleProfilesQualified": false,
+  "engineOwnershipMutationQualified": false,
+  "fullProducer1930Acceptance": false,
+  "releaseReady": false
+}

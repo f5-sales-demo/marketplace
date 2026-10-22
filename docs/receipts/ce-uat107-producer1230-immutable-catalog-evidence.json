@@ -77,7 +77,7 @@
   "duplicateRolesRejected": 3,
   "effectivePrincipalQualified": false,
   "credentialsOrAssignmentsChanged": false,
-  "owningDocumentationCompletionPending": true,
+  "owningDocumentationCompletionPending": false,
   "freshCePublishedAssetQualificationPending": true,
   "installedConsumerProducerPin": "v12.2.0",
   "consumerRepinned": false,
