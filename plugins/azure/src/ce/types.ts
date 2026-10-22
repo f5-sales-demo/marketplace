@@ -1,3 +1,4 @@
+import type { InitialSiteVersions } from '../../../platform/src/ce/initial-versions';
 export const AZURE_CE_SCHEMA_VERSION = 3 as const;
 export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
@@ -94,6 +95,7 @@ export interface AzureCeIntent {
   routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
   ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
+  initialVersions?: InitialSiteVersions;
   image: { publisher: string; offer: string; plan: string };
   vm: { size: string; zones?: string[] };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };

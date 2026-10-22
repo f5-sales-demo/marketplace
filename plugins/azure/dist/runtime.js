@@ -4175,6 +4175,22 @@ var init_azure_compute_discover = __esm(() => {
   init_shared();
 });
 
+// plugins/platform/src/ce/initial-versions.ts
+function initialSoftwareSettings(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => !['software', 'os'].includes(key)) ||
+    typeof value.software !== 'string' ||
+    !/^crt-\d{8}-\d{4}$/.test(value.software) ||
+    typeof value.os !== 'string' ||
+    !/^\d+\.\d{4}\.\d+$/.test(value.os)
+  )
+    throw new Error('Initial software and OS versions must be an explicit version pair');
+  return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
+}
+
 // plugins/azure/src/ce/planner.ts
 import { isIP } from 'node:net';
 
@@ -4219,6 +4235,7 @@ function validateResourceId(id, subscriptionId) {
     fail(`resource ID is in a different subscription: ${id}`);
 }
 function normalizeIntent(input) {
+  if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
   if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
   if (input.engine !== undefined && !['native', 'terraform'].includes(input.engine))
@@ -4369,6 +4386,7 @@ function normalizeIntent(input) {
   }
   return {
     ...input,
+    ...(input.initialVersions ? { initialVersions: structuredClone(input.initialVersions) } : {}),
     engine: input.engine ?? 'native',
     subscriptionId: input.subscriptionId.toLowerCase(),
     deploymentName: validateName('deploymentName', input.deploymentName),
@@ -6014,6 +6032,7 @@ function createAzureCePlanTool(pi) {
             destinationPorts: Type.Array(Type.String()),
           }),
         ),
+        initialVersions: Type.Optional(Type.Object({ software: Type.String(), os: Type.String() })),
         image: Type.Object({ publisher: Type.String(), offer: Type.String(), plan: Type.String() }),
         vm: Type.Object({ size: Type.String(), zones: Type.Optional(Type.Array(Type.String())) }),
         brownfield: Type.Object({
@@ -7599,22 +7618,6 @@ var init_route_server_health = __esm(() => {
   init_interface_address();
 });
 
-// plugins/platform/src/ce/initial-versions.ts
-function initialSoftwareSettings(value) {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    Object.keys(value).some((key) => !['software', 'os'].includes(key)) ||
-    typeof value.software !== 'string' ||
-    !/^crt-\d{8}-\d{4}$/.test(value.software) ||
-    typeof value.os !== 'string' ||
-    !/^\d+\.\d{4}\.\d+$/.test(value.os)
-  )
-    throw new Error('Initial software and OS versions must be an explicit version pair');
-  return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
-}
-
 // plugins/platform/src/ce/upgrade-evidence.ts
 function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
@@ -8708,6 +8711,7 @@ var init_terraform_foundation = __esm(() => {
 // plugins/azure/src/ce/terraform-upgrade.ts
 function azureUpgradeBinding(plan) {
   verifyAzureCePlan(plan);
+  if (plan.intent.initialVersions !== undefined) initialSoftwareSettings(plan.intent.initialVersions);
   return {
     owner: {
       deploymentId: plan.deploymentName,
@@ -8716,6 +8720,7 @@ function azureUpgradeBinding(plan) {
       account: plan.subscription.id,
       region: plan.region,
     },
+    ...(plan.intent.initialVersions ? { initialVersions: structuredClone(plan.intent.initialVersions) } : {}),
     siteName: plan.siteName,
     nodes: Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`),
   };

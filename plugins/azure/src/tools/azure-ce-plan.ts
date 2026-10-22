@@ -102,6 +102,7 @@ export function createAzureCePlanTool(pi: PluginInterface) {
             destinationPorts: Type.Array(Type.String()),
           }),
         ),
+        initialVersions: Type.Optional(Type.Object({ software: Type.String(), os: Type.String() })),
         image: Type.Object({ publisher: Type.String(), offer: Type.String(), plan: Type.String() }),
         vm: Type.Object({ size: Type.String(), zones: Type.Optional(Type.Array(Type.String())) }),
         brownfield: Type.Object({

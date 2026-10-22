@@ -34,6 +34,12 @@ The `azure-ce` skill coordinates authentication, discovery, recommendation,
 approval, Secure Mesh Site v2 creation, one-use bootstrap checkout, virtual
 machine launch, registration gates, routing activation, and verification.
 
+An optional `initialVersions` pair in `azure_ce_plan` selects the software and
+OS versions when creating a site. Specify both `software` (for example,
+`crt-20260201-0178`) and `os` (for example, `9.2026.14`). The plan validates and
+freezes the pair for native and Terraform site creation. Later changes use
+`azure_ce_upgrade` and its observed effective versions.
+
 ## Mandatory research gate
 
 Natural-language requests such as “F5 edge appliance,” “XC CE,” and “Secure Mesh

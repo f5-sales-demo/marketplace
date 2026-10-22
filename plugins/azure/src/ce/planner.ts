@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
 import type {
   AzureCeAction,
@@ -64,6 +65,7 @@ function validateResourceId(id: string, subscriptionId: string): void {
 }
 
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
+  if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
   if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
   if (input.engine !== undefined && !['native', 'terraform'].includes(input.engine))
@@ -220,6 +222,7 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
 
   return {
     ...input,
+    ...(input.initialVersions ? { initialVersions: structuredClone(input.initialVersions) } : {}),
     engine: input.engine ?? 'native',
     subscriptionId: input.subscriptionId.toLowerCase(),
     deploymentName: validateName('deploymentName', input.deploymentName),

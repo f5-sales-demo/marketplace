@@ -24,6 +24,7 @@ export interface AzureTerraformUpgrade extends TerraformCeUpgradePlan {
 
 export function azureUpgradeBinding(plan: AzureCePlan): SiteBinding {
   verifyAzureCePlan(plan);
+  if (plan.intent.initialVersions !== undefined) initialSoftwareSettings(plan.intent.initialVersions);
   return {
     owner: {
       deploymentId: plan.deploymentName,
@@ -32,6 +33,7 @@ export function azureUpgradeBinding(plan: AzureCePlan): SiteBinding {
       account: plan.subscription.id,
       region: plan.region,
     },
+    ...(plan.intent.initialVersions ? { initialVersions: structuredClone(plan.intent.initialVersions) } : {}),
     siteName: plan.siteName,
     nodes: Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`),
   };
