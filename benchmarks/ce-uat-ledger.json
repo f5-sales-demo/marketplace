@@ -6859,14 +6859,14 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat90-azure-discovery-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat90-azure-discovery-planning-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6918,14 +6918,14 @@
         "tests": ["plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat90-azure-discovery-planning-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat90-azure-discovery-planning-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
