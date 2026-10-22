@@ -73,6 +73,35 @@ export function ceUatReadiness(value: unknown) {
     const api = object(row.publicInterface);
     if (typeof api.tool !== 'string' || typeof api.source !== 'string')
       throw Error('Missing public CE interface mapping');
+    if (
+      ['aws/native/single-site/interruption-resume', 'aws/terraform/single-site/interruption-resume'].includes(row.id)
+    ) {
+      if (
+        !Array.isArray(row.additionalPublicInterfaces) ||
+        row.additionalPublicInterfaces.filter((entry) => object(entry).tool === 'aws_ce_power').length !== 1
+      )
+        throw Error('Required whole-site power qualification mapping missing or duplicate');
+    }
+    if (row.additionalPublicInterfaces !== undefined) {
+      if (!Array.isArray(row.additionalPublicInterfaces)) throw Error('Malformed additional public CE interfaces');
+      for (const rawInterface of row.additionalPublicInterfaces) {
+        const additional = object(rawInterface);
+        const automated = object(additional.automated),
+          installed = object(additional.installed),
+          live = object(additional.live);
+        if (typeof additional.tool !== 'string' || typeof additional.source !== 'string')
+          throw Error('Missing additional public CE interface mapping');
+        if (
+          additional.status !== 'verified' ||
+          automated.status !== 'verified' ||
+          installed.status !== 'verified' ||
+          live.status !== 'verified' ||
+          !strings(installed.receipts).length ||
+          !strings(live.receipts).length
+        )
+          blockers.push(`${row.id}:public:${additional.tool}`);
+      }
+    }
     const automated = object(row.automated);
     strings(automated.tests);
     const installed = object(row.installed),

@@ -634,6 +634,14 @@
     },
     {
       "plugin": "aws",
+      "tool": "aws_ce_power",
+      "source": "plugins/aws/src/tools/aws-ce-power.ts",
+      "schemaSource": "plugins/aws/src/tools/aws-ce-power.ts",
+      "operations": ["prepare-stop", "prepare-start", "apply", "status"],
+      "qualificationScope": "Single-node whole-site maintenance; source regression only, installed/live stop/start remains pending"
+    },
+    {
+      "plugin": "aws",
       "tool": "aws_ce_status",
       "source": "plugins/aws/src/tools/aws-ce-status.ts",
       "schemaSource": "plugins/aws/src/tools/aws-ce-status.ts"
@@ -1395,7 +1403,28 @@
         "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "status": "verified",
-      "qualificationScope": "Original20minute cancellation then same immutable plan complete within unchanged40minute installation deadline; no45000ms restoration claim"
+      "qualificationScope": "Original20minute cancellation then same immutable plan complete within unchanged40minute installation deadline; no45000ms restoration claim",
+      "additionalPublicInterfaces": [
+        {
+          "tool": "aws_ce_power",
+          "source": "plugins/aws/src/tools/aws-ce-power.ts",
+          "operations": ["prepare-stop", "prepare-start", "apply", "status"],
+          "automated": {
+            "status": "verified",
+            "tests": ["plugins/aws/test/tools/aws-ce-power.test.ts", "plugins/aws/test/ce/whole-site-power.test.ts"]
+          },
+          "installed": {
+            "status": "unverified",
+            "receipts": []
+          },
+          "live": {
+            "status": "unverified",
+            "receipts": []
+          },
+          "status": "unverified",
+          "qualificationScope": "Whole-site stop/start is separate from deployment apply cancellation/resume; missing freshness/traffic remains pending"
+        }
+      ]
     },
     {
       "id": "aws/native/single-site/wrong-engine-rejection",
@@ -3693,7 +3722,28 @@
         "status": "not-qualified-current-candidate",
         "receipts": []
       },
-      "status": "unverified"
+      "status": "unverified",
+      "additionalPublicInterfaces": [
+        {
+          "tool": "aws_ce_power",
+          "source": "plugins/aws/src/tools/aws-ce-power.ts",
+          "operations": ["prepare-stop", "prepare-start", "apply", "status"],
+          "automated": {
+            "status": "verified",
+            "tests": ["plugins/aws/test/tools/aws-ce-power.test.ts", "plugins/aws/test/ce/whole-site-power.test.ts"]
+          },
+          "installed": {
+            "status": "unverified",
+            "receipts": []
+          },
+          "live": {
+            "status": "unverified",
+            "receipts": []
+          },
+          "status": "unverified",
+          "qualificationScope": "Whole-site stop/start is separate from deployment apply cancellation/resume; missing freshness/traffic remains pending"
+        }
+      ]
     },
     {
       "id": "aws/terraform/single-site/wrong-engine-rejection",
@@ -9776,7 +9826,7 @@
     {
       "id": "live-matrix",
       "status": "blocked",
-      "requirement": "All required profiles/features on both clouds and engines, installed cohort and independent cleanup"
+      "requirement": "All required profiles/features on both clouds and engines, installed cohort and independent cleanup; advertised aws_ce_power stop/start requires separate installed/live evidence"
     },
     {
       "id": "producer-publication",

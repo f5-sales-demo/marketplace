@@ -31,3 +31,28 @@ test('a claimed pass cannot override missing installed, live, immutable, or huma
   candidate.releaseReady = true;
   expect(() => ceUatReadiness(candidate)).toThrow(/contradicts/);
 });
+
+test('installation resume cannot qualify an advertised whole-site power workflow', () => {
+  const result = ceUatReadiness(ledger);
+  expect(result.blockers).toContain('aws/native/single-site/interruption-resume:public:aws_ce_power');
+  expect(result.blockers).toContain('aws/terraform/single-site/interruption-resume:public:aws_ce_power');
+  const candidate = structuredClone(ledger);
+  const row = candidate.rows.find((entry) => entry.id === 'aws/native/single-site/interruption-resume');
+  if (!row?.additionalPublicInterfaces) throw Error('Power qualification mapping missing');
+  const power = row.additionalPublicInterfaces[0];
+  power.status = 'verified';
+  expect(ceUatReadiness(candidate).blockers).toContain(
+    'aws/native/single-site/interruption-resume:public:aws_ce_power',
+  );
+});
+
+test('whole-site power coverage cannot be removed or duplicated to claim readiness', () => {
+  for (const duplicate of [false, true]) {
+    const candidate = structuredClone(ledger);
+    const row = candidate.rows.find((entry) => entry.id === 'aws/native/single-site/interruption-resume');
+    if (!row?.additionalPublicInterfaces) throw Error('Power qualification mapping missing');
+    if (duplicate) row.additionalPublicInterfaces.push(row.additionalPublicInterfaces[0]);
+    else delete row.additionalPublicInterfaces;
+    expect(() => ceUatReadiness(candidate)).toThrow('power qualification mapping');
+  }
+});

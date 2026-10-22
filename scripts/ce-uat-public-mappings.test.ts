@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import ledger from '../benchmarks/ce-uat-ledger.json';
 import { type TSchema, Type } from '../plugins/aws/node_modules/@sinclair/typebox';
+import { assertCePublicInventory, registeredCePublicInterfaces } from './ce-uat-public-inventory';
 
 // Ledger parameters are partial execution constraints, not complete executable requests.
 function assertConstraints(parameters: Record<string, unknown>, schema: TSchema, path = '') {
@@ -39,4 +40,28 @@ test('rejects invented top-level and nested engine parameters', () => {
   expect(() =>
     assertConstraints({ intent: { engine: 'native' } }, { properties: { intent: { properties: {} } } }),
   ).toThrow('intent.engine');
+});
+
+test('ledger inventories every actually registered CE public tool', async () => {
+  const registered = await registeredCePublicInterfaces();
+  expect(registered.some((entry) => entry.tool === 'aws_ce_power')).toBe(true);
+  assertCePublicInventory(ledger.publicInterfaces, registered);
+});
+test('public inventory rejects omission, duplicate entries and mismatched factory sources', async () => {
+  const registered = await registeredCePublicInterfaces();
+  const power = registered.find((entry) => entry.tool === 'aws_ce_power');
+  if (!power) throw Error('Registered power tool missing');
+  expect(() =>
+    assertCePublicInventory(
+      registered.filter((entry) => entry.tool !== power.tool),
+      registered,
+    ),
+  ).toThrow('Missing');
+  expect(() => assertCePublicInventory([...registered, power], registered)).toThrow('Duplicate');
+  expect(() =>
+    assertCePublicInventory(
+      registered.map((entry) => (entry.tool === power.tool ? { ...entry, source: 'wrong.ts' } : entry)),
+      registered,
+    ),
+  ).toThrow('mapping differs');
 });
