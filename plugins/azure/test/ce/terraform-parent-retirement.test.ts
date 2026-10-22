@@ -17,7 +17,18 @@ const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
-for (const fault of ['none', 'unknown', 'foreign-runner', 'changed-artifact', 'interrupted'] as const) {
+for (const fault of [
+  'none',
+  'unknown',
+  'foreign-runner',
+  'changed-artifact',
+  'interrupted',
+  'reconciliation',
+  'foreign-reconciliation',
+  'malformed-reconciliation',
+  'owned-reconciliation',
+  'foreign-owned-reconciliation',
+] as const) {
   test(`Azure parent retirement ${fault}`, async () => {
     const base = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation),
       binding = azureUpgradeBinding(base);
@@ -95,9 +106,25 @@ for (const fault of ['none', 'unknown', 'foreign-runner', 'changed-artifact', 'i
         });
       },
     });
+    if (fault.includes('reconciliation')) {
+      await store.write('azure-terraform-cloud-destroy-reconciliation.json', {
+        status: fault.includes('owned-reconciliation') ? 'owned' : 'absent',
+        ownerPlanSha256: fault === 'foreign-owned-reconciliation' ? 'd'.repeat(64) : base.planSha256,
+        resourceGroupId: `/subscriptions/${base.subscription.id}/resourceGroups/${fault === 'foreign-reconciliation' ? 'foreign-group' : base.intent.resourceGroup}`,
+        observedAt: fault === 'malformed-reconciliation' ? 'invalid' : new Date().toISOString(),
+      });
+    }
     if (fault === 'unknown') await store.write('foreign.json', { jwt: 'unowned' });
     const run = (signal?: AbortSignal) => retireAzureTerraformParentArtifacts(base, teardown, evidence, store, signal);
-    if (['unknown', 'foreign-runner'].includes(fault)) {
+    if (
+      [
+        'unknown',
+        'foreign-runner',
+        'foreign-reconciliation',
+        'malformed-reconciliation',
+        'foreign-owned-reconciliation',
+      ].includes(fault)
+    ) {
       await expect(run()).rejects.toThrow();
       expect(await store.read('terraform-workflow.json')).toBeDefined();
       return;
@@ -121,6 +148,7 @@ for (const fault of ['none', 'unknown', 'foreign-runner', 'changed-artifact', 'i
     expect(receipt.status).toBe('deployment-artifacts-retired');
     expect(await readdir(store.directory)).not.toContain('terraform-workflow.json');
     expect(await readdir(store.directory)).not.toContain('token-one.json');
+    expect(await readdir(store.directory)).not.toContain('azure-terraform-cloud-destroy-reconciliation.json');
     expect(await run()).toEqual(receipt);
   });
 }

@@ -113,6 +113,7 @@ export async function retireAzureTerraformParentArtifacts(
     'terraform-site.json',
     'azure-terraform-cloud-destroy-plan.json',
     'azure-terraform-cloud-destroy-final.json',
+    'azure-terraform-cloud-destroy-reconciliation.json',
     'platform-drain-source.json',
     'platform-drain-progress.json',
     'platform-drain-receipt.json',
@@ -177,6 +178,20 @@ export async function retireAzureTerraformParentArtifacts(
         !/^terraform-(?:authorization-[a-f0-9]{64}|admission-plan-node-[1-3])\.json$/.test(name)
       )
         throw Error('Unknown Azure parent artifact blocks retirement');
+      if (name === 'azure-terraform-cloud-destroy-reconciliation.json') {
+        // Historical reconciliation is staging only; terminal cleanup separately requires fresh absence.
+        const value = object(await store.read(name));
+        const observedAt = typeof value.observedAt === 'string' ? Date.parse(value.observedAt) : NaN;
+        if (
+          !['absent', 'owned'].includes(String(value.status)) ||
+          (value.status === 'owned' && value.ownerPlanSha256 !== base.planSha256) ||
+          value.resourceGroupId !==
+            `/subscriptions/${base.subscription.id}/resourceGroups/${base.intent.resourceGroup}` ||
+          !Number.isFinite(observedAt) ||
+          observedAt > Date.now()
+        )
+          throw Error('Azure destroy reconciliation provenance differs');
+      }
       if (tokens.has(name) && !recorded?.has(name)) {
         const value = object(await store.read(name)),
           token = tokens.get(name);

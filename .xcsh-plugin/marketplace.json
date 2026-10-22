@@ -143,7 +143,7 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "7.0.0-uat.94",
+      "version": "7.0.0-uat.95",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
@@ -312,7 +312,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "5.0.0-uat.94",
+      "version": "5.0.0-uat.95",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "license": "Apache-2.0",
       "author": {
@@ -337,7 +337,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration and deterministic F5 Secure Mesh Site v2 Customer Edge discovery, planning, lifecycle, and diagnostics",
-      "version": "3.0.0-uat.94",
+      "version": "3.0.0-uat.95",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "license": "Apache-2.0",
       "author": {
@@ -526,7 +526,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "3.0.0-uat.94",
+      "version": "3.0.0-uat.95",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {
