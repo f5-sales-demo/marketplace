@@ -933,20 +933,20 @@
         "source": "plugins/aws/src/tools/aws-ce-apply.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
-      "status": "unverified",
+      "status": "verified",
       "historicalEvidence": [
         {
           "candidateRevision": 102,
@@ -1009,25 +1009,26 @@
             "owner": {
               "engine": "native"
             }
-          }
+          },
+          "action": "read"
         },
         "source": "plugins/platform/src/tools/f5xc-ce-v2-site.ts",
         "engineSelection": "binding.owner.engine"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/platform/test/ce/runtime.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/single-site/site-update",
@@ -1101,20 +1102,21 @@
         "source": "plugins/aws/src/tools/aws-ce-status.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/status.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified",
+      "qualificationScope": "Verified global PROVISIONED status and ONLINE registration; node health, traffic and interface sample freshness remain unknown"
     },
     {
       "id": "aws/native/single-site/diagnosis",
@@ -1134,12 +1136,12 @@
         "tests": ["plugins/aws/test/ce/network-health.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "passive-verified-active-pending",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "passive-diagnostics-and-public-node-readbacks-verified-active-pending",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "status": "unverified"
     },
@@ -1379,20 +1381,21 @@
         "source": "plugins/aws/src/tools/aws-ce-apply.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
+        "status": "verified",
         "tests": ["plugins/aws/test/ce/apply.test.ts", "plugins/aws/test/ce/terraform-apply.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified",
+      "qualificationScope": "Original20minute cancellation then same immutable plan complete within unchanged40minute installation deadline; no45000ms restoration claim"
     },
     {
       "id": "aws/native/single-site/wrong-engine-rejection",
@@ -1474,25 +1477,27 @@
       "profile": "single-site",
       "feature": "independent-absence",
       "publicInterface": {
-        "tool": "aws_ce_apply",
-        "parameters": {},
-        "source": "plugins/aws/src/tools/aws-ce-apply.ts",
+        "tool": "aws_ce_teardown",
+        "parameters": {
+          "operation": "apply"
+        },
+        "source": "plugins/aws/src/tools/aws-ce-teardown.ts",
         "engineSelection": "persisted-plan"
       },
-      "implementation": "present-unqualified",
+      "implementation": "present",
       "automated": {
-        "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
+        "status": "verified",
+        "tests": ["plugins/aws/test/ce/delete-recovery.test.ts", "plugins/aws/test/ce/native-teardown.test.ts"]
       },
       "installed": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
       "live": {
-        "status": "not-qualified-current-candidate",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat103-aws-native-installed-lifecycle-evidence.json"]
       },
-      "status": "unverified"
+      "status": "verified"
     },
     {
       "id": "aws/native/single-site/empty-state",
@@ -2229,15 +2234,17 @@
       "profile": "independent-sites",
       "feature": "independent-absence",
       "publicInterface": {
-        "tool": "aws_ce_apply",
-        "parameters": {},
-        "source": "plugins/aws/src/tools/aws-ce-apply.ts",
+        "tool": "aws_ce_teardown",
+        "parameters": {
+          "operation": "apply"
+        },
+        "source": "plugins/aws/src/tools/aws-ce-teardown.ts",
         "engineSelection": "persisted-plan"
       },
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
+        "tests": ["plugins/aws/test/ce/delete-recovery.test.ts", "plugins/aws/test/ce/native-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified-current-candidate",
@@ -2951,15 +2958,17 @@
       "profile": "three-node-ha",
       "feature": "independent-absence",
       "publicInterface": {
-        "tool": "aws_ce_apply",
-        "parameters": {},
-        "source": "plugins/aws/src/tools/aws-ce-apply.ts",
+        "tool": "aws_ce_teardown",
+        "parameters": {
+          "operation": "apply"
+        },
+        "source": "plugins/aws/src/tools/aws-ce-teardown.ts",
         "engineSelection": "persisted-plan"
       },
       "implementation": "present-unqualified",
       "automated": {
         "status": "suite-passed-feature-mapping-needs-review",
-        "tests": ["plugins/aws/test/ce/terraform-absence.test.ts"]
+        "tests": ["plugins/aws/test/ce/delete-recovery.test.ts", "plugins/aws/test/ce/native-teardown.test.ts"]
       },
       "installed": {
         "status": "not-qualified-current-candidate",

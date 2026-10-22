@@ -1,0 +1,492 @@
+{
+  "schemaVersion": 1,
+  "scope": "UAT103 AWS native single-site bounded installation, read-only qualification and independent cleanup",
+  "observedAt": "2026-10-22T12:07:24.477254+00:00",
+  "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+  "pluginContentsChanged": false,
+  "installation": {
+    "schemaVersion": 1,
+    "observedAt": "2026-10-22T11:56:29.722463+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "cliVersion": "23.9.3",
+    "engine": "native",
+    "profile": "single-site",
+    "exactInstalledRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "43a3eef242dfaf0b8ddeb49de0c93fa3faedf0c60b6ac6aadeec63572391f295"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6"
+      }
+    ],
+    "originalPlanSha256": "d33a24d16118a5bf179cd5a8c31484eb1e8eac67846ac4fd1c00badefd36b534",
+    "completedActions": 21,
+    "plannedActions": 21,
+    "checkpointState": "complete",
+    "installation": {
+      "status": "complete"
+    },
+    "firstTwentyMinuteFailurePreserved": true,
+    "firstFailureReceiptDigests": ["f066d76f3bde9fffe2a6f25410f08ea2b5f84148e13e588804647606c5ac2750"],
+    "serialResume": {
+      "samePlan": true,
+      "originalDeadlineUnchanged": true,
+      "maximumInstallationSeconds": 2400,
+      "observedInstallationSeconds": 1618.04178
+    },
+    "registration": {
+      "nodeCount": 1,
+      "state": "ONLINE",
+      "status": "healthy",
+      "cloudInstanceAndPlanCheckpointIdentityVerified": true
+    },
+    "globalHealth": {
+      "state": "PROVISIONED",
+      "status": "healthy",
+      "scope": "site-global-only",
+      "nodeHealth": "unknown",
+      "deploymentOwnerVerified": true
+    },
+    "publicSiteRead": {
+      "exactUidVerified": true,
+      "resourceVersionReturned": true
+    },
+    "interfaceRead": {
+      "status": "observed",
+      "count": 2,
+      "ceSampleAge": "unknown",
+      "canSatisfyMutationGate": false
+    },
+    "traffic": {
+      "status": "unknown",
+      "gateCompleted": false,
+      "reason": "no-ingress-probe-configured"
+    },
+    "qualifiedFeatures": ["registration", "site-read", "status", "interruption-resume"],
+    "privateSourceDigests": {
+      "receipts/apply-aws_ce_apply.private.json": "6ff19ebcb714d45d38cb7a3aa68f854c253d1251a698425b956493ebf335fc43",
+      "receipts/status-aws_ce_status.private.json": "fe78e921b3765eefa3635ad368305c6c6a6aa499b32d16c0a544315597d58eee",
+      "receipts/site-read-f5xc_ce_v2_site.private.json": "53d5f9d52e48b92fdf53482bb4f1ce5fc15ac9d4aa78f2c2706c6a520eba8394",
+      "receipts/interfaces-f5xc_ce_v2_status.private.json": "9950ed9553f50f61d6df2fec229813e55efea48e326acdb93e0ab57ba7c0733e"
+    },
+    "cleanupAcceptance": false,
+    "sliTransitionAcceptance": false,
+    "recovery45000msAcceptance": false,
+    "fullCeAcceptance": false
+  },
+  "readOnlyDataPlaneJoins": {
+    "observedAt": "2026-10-22T11:52:27.733678+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "apiResponseSha256": "f7a8c21f161c01afa6e968e3bd37e0d4df6f7e3233cb38bd9e68084f3cce441e",
+    "cloudInventorySha256": "8f6db434bf85774091357110791bf59c0e4b1eba8007d743574cb879778ab1d9",
+    "physicalVifMacCloudDeviceRoleJoins": [
+      {
+        "device": "ens5",
+        "role": "slo",
+        "vifNamespaceRows": 1,
+        "evifNamespaceRows": 1,
+        "namespaceAliasSemantics": "unqualified",
+        "driver": "net_ena",
+        "cloudDeviceIndex": 0,
+        "macCloudJoinVerified": true,
+        "sameOwnedInstanceVerified": true,
+        "mtu": 1500,
+        "counters": {
+          "RX": {
+            "packets": 17847,
+            "bytes": 15630535,
+            "errors": 0
+          },
+          "TX": {
+            "packets": 14476,
+            "bytes": 5730864,
+            "errors": 0
+          }
+        },
+        "operationalLinkState": "unknown",
+        "sampleAge": "unknown"
+      },
+      {
+        "device": "ens6",
+        "role": "sli",
+        "vifNamespaceRows": 1,
+        "evifNamespaceRows": 0,
+        "namespaceAliasSemantics": "no-evif-alias-in-output",
+        "driver": "net_ena",
+        "cloudDeviceIndex": 1,
+        "macCloudJoinVerified": true,
+        "sameOwnedInstanceVerified": true,
+        "mtu": 1500,
+        "counters": {
+          "RX": {
+            "packets": 7,
+            "bytes": 1390,
+            "errors": 0
+          },
+          "TX": {
+            "packets": 15,
+            "bytes": 1574,
+            "errors": 0
+          }
+        },
+        "operationalLinkState": "unknown",
+        "sampleAge": "unknown"
+      }
+    ],
+    "distinctCloudBoundMacs": 2,
+    "vifNamespaceSelection": "vif and evif retained separately; alias semantics unqualified",
+    "packetMovementProven": false,
+    "supportedSliControlQualified": false,
+    "sampleFreshnessQualified": false,
+    "fullCeAcceptance": false
+  },
+  "initialJoinVerifierFailure": {
+    "observedAt": "2026-10-22T11:52:27.734484+00:00",
+    "initialVerifierFailed": true,
+    "reason": "Required one device representation; SLO has vif and evif rows",
+    "correctedVerifier": "Namespace-specific identities retained separately and both checked against same owned MAC",
+    "vendorAliasSemanticsQualified": false,
+    "fullCeAcceptance": false
+  },
+  "nodeCommandDiagnostics": {
+    "observedAt": "2026-10-22T11:48:37.933583+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "publicApiSchema": "retained-v12.1.3-debugExecRequest",
+    "ownershipPlanVerified": true,
+    "readOnlyCommands": [
+      {
+        "mode": "exec",
+        "command": ["ip-link-set", "--help"],
+        "startedAt": "2026-10-22T11:48:29.560111+00:00",
+        "completedAt": "2026-10-22T11:48:30.552911+00:00",
+        "httpStatus": 200,
+        "returnCode": 0,
+        "outputPresent": true,
+        "responseSha256": "4e1d6beb3bdde322032f026da30fd319e80270c81257a56c962df8e1824fb86c",
+        "responseBytes": 71,
+        "privateReceipt": "node-readonly103-1792669709560106258-0.private.json",
+        "commandEvidence": "command-reported-cannot-find-device-despite-return-code-zero",
+        "failureInOutput": true
+      },
+      {
+        "mode": "exec",
+        "command": ["systemctl-status-vpm"],
+        "startedAt": "2026-10-22T11:48:30.552931+00:00",
+        "completedAt": "2026-10-22T11:48:31.436144+00:00",
+        "httpStatus": 400,
+        "returnCode": null,
+        "outputPresent": false,
+        "responseSha256": "0e578349e41e17f59e83d7ab56380b8c6bc265d325779e7d04f04bb2a08f565f",
+        "responseBytes": 78,
+        "privateReceipt": "node-readonly103-1792669709560106258-1.private.json",
+        "commandEvidence": "unavailable-or-rejected"
+      },
+      {
+        "mode": "exec",
+        "command": ["systemctl", "list-units", "--all", "--no-pager"],
+        "startedAt": "2026-10-22T11:48:31.436161+00:00",
+        "completedAt": "2026-10-22T11:48:32.190676+00:00",
+        "httpStatus": 400,
+        "returnCode": null,
+        "outputPresent": false,
+        "responseSha256": "0e578349e41e17f59e83d7ab56380b8c6bc265d325779e7d04f04bb2a08f565f",
+        "responseBytes": 78,
+        "privateReceipt": "node-readonly103-1792669709560106258-2.private.json",
+        "commandEvidence": "unavailable-or-rejected"
+      },
+      {
+        "mode": "exec-user",
+        "command": ["vif", "--help"],
+        "startedAt": "2026-10-22T11:48:32.190693+00:00",
+        "completedAt": "2026-10-22T11:48:37.933561+00:00",
+        "httpStatus": 200,
+        "returnCode": 0,
+        "outputPresent": true,
+        "responseSha256": "25f5fa42cb15570a11ff262fd58ee4299732dbd730623d2523feb6a2f955dce7",
+        "responseBytes": 1630,
+        "privateReceipt": "node-readonly103-1792669709560106258-3.private.json",
+        "commandEvidence": "vif-usage-returned-no-up-down-control-advertised"
+      }
+    ],
+    "interfaceControlApplied": false,
+    "supportedSliControlQualified": false,
+    "originalCeSampleFreshnessQualified": false,
+    "fullCeAcceptance": false,
+    "helpFlagInterpretation": "ip-link-set treated --help as nonexistent device; no real interface selected; do not repeat"
+  },
+  "nodeObserverRequests": {
+    "observedAt": "2026-10-22T11:49:49.968148+00:00",
+    "candidateRevision": 103,
+    "requests": [
+      {
+        "label": "services",
+        "startedAt": "2026-10-22T11:49:46.869760+00:00",
+        "completedAt": "2026-10-22T11:49:47.627085+00:00",
+        "httpStatus": 200,
+        "returnCode": null,
+        "outputBytes": null,
+        "sha256": "b6aaf8b27f47f8f4479f32eb002522350f2268f1ce676f5928df808a4642bb94",
+        "privateReceipt": "node-observer103-1792669786869753917-services.private.json",
+        "validatedObservation": false
+      },
+      {
+        "label": "ip-link-show",
+        "startedAt": "2026-10-22T11:49:47.627104+00:00",
+        "completedAt": "2026-10-22T11:49:48.418355+00:00",
+        "httpStatus": 400,
+        "returnCode": null,
+        "outputBytes": null,
+        "sha256": "0e578349e41e17f59e83d7ab56380b8c6bc265d325779e7d04f04bb2a08f565f",
+        "privateReceipt": "node-observer103-1792669786869753917-ip-link-show.private.json",
+        "validatedObservation": false
+      },
+      {
+        "label": "vif-list",
+        "startedAt": "2026-10-22T11:49:48.418377+00:00",
+        "completedAt": "2026-10-22T11:49:49.532867+00:00",
+        "httpStatus": 200,
+        "returnCode": 0,
+        "outputBytes": 18697,
+        "sha256": "f7a8c21f161c01afa6e968e3bd37e0d4df6f7e3233cb38bd9e68084f3cce441e",
+        "privateReceipt": "node-observer103-1792669786869753917-vif-list.private.json",
+        "validatedObservation": false
+      },
+      {
+        "label": "vpm-journal",
+        "startedAt": "2026-10-22T11:49:49.532930+00:00",
+        "completedAt": "2026-10-22T11:49:49.968133+00:00",
+        "httpStatus": 400,
+        "returnCode": null,
+        "outputBytes": null,
+        "sha256": "0e578349e41e17f59e83d7ab56380b8c6bc265d325779e7d04f04bb2a08f565f",
+        "privateReceipt": "node-observer103-1792669786869753917-vpm-journal.private.json",
+        "validatedObservation": false
+      }
+    ],
+    "readOnlyIntent": true,
+    "sliControlQualified": false,
+    "freshnessQualified": false,
+    "fullCeAcceptance": false
+  },
+  "vpmLogAvailability": {
+    "startedAt": "2026-10-22T11:51:08.113184+00:00",
+    "completedAt": "2026-10-22T11:51:09.038569+00:00",
+    "httpStatus": 200,
+    "logPresent": true,
+    "logBytes": 26362,
+    "responseSha256": "45388f79ce00ca1f9e4dfe45ccfe49e64ddde6c5d2b45982afe44aea2d34186f",
+    "privateReceipt": "vpm-log103-1792669869038434522.private.json",
+    "serviceIdentityQualified": false,
+    "serviceFreshnessQualified": false,
+    "fullCeAcceptance": false
+  },
+  "precedingEvidenceHeadCi": {
+    "observedAt": "2026-10-22T11:49:11.388744+00:00",
+    "repository": "f5-sales-demo/marketplace",
+    "head": "8ff7c5d2211d700ebe68eb5e1b58e4627fc1194c",
+    "pr": 1565,
+    "draft": true,
+    "autoMerge": false,
+    "allApplicableChecksGreen": true,
+    "checks": [
+      {
+        "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+        "status": "COMPLETED",
+        "conclusion": "SKIPPED",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544/job/119800208610"
+      },
+      {
+        "name": "Check linked issues",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593294/job/119800205189"
+      },
+      {
+        "name": "Validate plugin manifests",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593268/job/119800204854"
+      },
+      {
+        "name": "Workflow security audit",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593137/job/119800204240"
+      },
+      {
+        "name": "Audit workflows (zizmor)",
+        "status": "COMPLETED",
+        "conclusion": "SKIPPED",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593137/job/119800206970"
+      },
+      {
+        "name": "lint / Trust Docker-capable job",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544/job/119800207161"
+      },
+      {
+        "name": "Run plugin test suites",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593268/job/119800205264"
+      },
+      {
+        "name": "Check published versions are tagged",
+        "status": "COMPLETED",
+        "conclusion": "SKIPPED",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593268/job/119800207018"
+      },
+      {
+        "name": "lint / Shell Unit Tests",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544/job/119800207783"
+      },
+      {
+        "name": "lint / Lint Code Base",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544/job/119801807367"
+      },
+      {
+        "name": "lint",
+        "status": "COMPLETED",
+        "conclusion": "SKIPPED",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544/job/119800209208"
+      },
+      {
+        "name": "--> Linted: BASH",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: CHECKOV",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: GITLEAKS",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: JSCPD",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: MARKDOWN",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: NATURAL_LANGUAGE",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: SHELL_SHFMT",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: SPELL_CODESPELL",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: TERRAGRUNT",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      },
+      {
+        "name": "--> Linted: TRIVY",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/39771593544"
+      }
+    ]
+  },
+  "cleanupAcceptance": true,
+  "publicSiteCreateAndUpdateQualified": false,
+  "activeDiagnosisQualified": false,
+  "interfaceFreshnessAndTransitionQualified": false,
+  "historicalAwsTerraformRecovery": {
+    "measuredMilliseconds": 212977,
+    "maximumMilliseconds": 45000,
+    "acceptance": "failed"
+  },
+  "fullCeAcceptance": false,
+  "uatReleaseReady": false,
+  "cleanup": {
+    "independent": {
+      "observedAt": "2026-10-22T12:03:58.732904+00:00",
+      "candidateRevision": 103,
+      "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+      "exactCloudIds": 11,
+      "rootVolumesAbsent": 1,
+      "tokensAbsent": 1,
+      "interfaceBaselines": 2,
+      "freshOwnershipInventoryEmpty": true,
+      "logicalPhysicalSitesAbsent": true,
+      "nativeFinalPlanNoChanges": true,
+      "finalPlanSha256": "e6d3474564ce53a3efdb4471295736ad8e97295ed41579a324254b349fe4ceff",
+      "terraformState": "not-applicable-native",
+      "sensitiveStagingRetired": true,
+      "fullCleanupAcceptance": true,
+      "fullCeAcceptance": false,
+      "sensitiveRetirementReceipt": "sensitive-retirement103-safe.json"
+    },
+    "postSupervisor": {
+      "exitCodes": [0, 0],
+      "observedAt": "2026-10-22T12:03:58.743633+00:00",
+      "fullCeAcceptance": false
+    },
+    "sensitiveRetirement": {
+      "observedAt": "2026-10-22T12:04:05.764349+00:00",
+      "sensitiveFilesRetired": 1,
+      "sensitiveBytesRetired": 758,
+      "inventorySha256": "5c87df0959d19b7f561ce746b9397ec09f182a6afa8af63f7b384e091e6b80d8",
+      "remainingJwtOrPrivateKeyMatches": 0,
+      "sharedContextUntouched": true,
+      "cloudKeysCreated": false,
+      "fullCeAcceptance": false
+    },
+    "retirementCompletion": {
+      "status": "retirement-complete",
+      "retirementExitCode": 0,
+      "fullCleanupAcceptance": true,
+      "fullCeAcceptance": false,
+      "observedAt": "2026-10-22T12:04:05.768495+00:00"
+    }
+  }
+}
