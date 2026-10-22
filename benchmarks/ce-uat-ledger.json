@@ -21,9 +21,58 @@
       "terraform": "2.3.1"
     },
     "runtimePeer": "23.8.0",
-    "sourceCommit": null,
+    "sourceCommit": "f161d88bcbd44baa572e2b5094f30df30466a77f",
     "deliverable": false,
-    "archives": [],
+    "archives": [
+      {
+        "plugin": "platform",
+        "version": "7.0.0-uat.93",
+        "filesVerified": 267,
+        "archiveSha256": "79a81ddd45b3bebbca209ff5adb9e98b64f33ea0d732ff53cfe0602be6a02530",
+        "archiveBytes": 390210,
+        "runtimeSha256": "f5c9119c27e11aa8387f748a8ea09342782b23862e49b541a88ba511e8d2d69f",
+        "manifestSha256": "73db01faedab369eb4ab2deb03cfc4bf9e890bd39aa4ec85e121a7a52e310adf",
+        "packageSha256": "f0a88387f9a87f1347413433aeff5caade2ec6bab9269b2301336b9a0b47d76e",
+        "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+        "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+      },
+      {
+        "plugin": "aws",
+        "version": "3.0.0-uat.93",
+        "filesVerified": 286,
+        "archiveSha256": "7bdb0d1ca4dc766e017ba71cd6060c0734c44ac74fa44c6ea70ab87b75f0ca98",
+        "archiveBytes": 771161,
+        "runtimeSha256": "b394a61388a99355578cd3a9fcc6c4849d4dc65725dbf8fd587f865198aecf81",
+        "manifestSha256": "53e760b9592cd9e7775bd9d68aae372a6823f0108b8c802d6d93916f3073d936",
+        "packageSha256": "17098bb6a453994cfb7a9d968fe2fb62303c57bb1b7dacdb85d2202042457dc5",
+        "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+        "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+      },
+      {
+        "plugin": "azure",
+        "version": "5.0.0-uat.93",
+        "filesVerified": 173,
+        "archiveSha256": "366741e56e68b03825f03f603a8b1c71695904cf99f9953f1396726ea3eb7ca1",
+        "archiveBytes": 462004,
+        "runtimeSha256": "72547ffe0147eceda625063843891bbb930509ea7d9edd19cd92660390490887",
+        "manifestSha256": "95f30067c80735459f6495a254dca6dfbb4cc7d2acdc34fd6479b93198d9ca7d",
+        "packageSha256": "f814a917836dc262de73a4166d188c0d36f10904a2a9477481bd22df0d1b0d16",
+        "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+        "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+      },
+      {
+        "plugin": "terraform",
+        "version": "3.0.0-uat.93",
+        "filesVerified": 34,
+        "archiveSha256": "6ed164e30954f61199bb6c442d45ca9f456800c0504ca63408cb7336f4a04336",
+        "archiveBytes": 115173,
+        "runtimeSha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc",
+        "manifestSha256": "b46cd0d0b140f3e892256c610704508b84e6e90dee594fd9e04a66eaa6dc79d7",
+        "packageSha256": "c4bbb9c0147163ce9721766ce6223871036c874e285648811b5f107b3a1759c8",
+        "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+        "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+      }
+    ],
     "testedRuntimeVersions": ["23.8.0", "23.9.5", "23.9.3"],
     "historicalCohort": {
       "revision": 90,
