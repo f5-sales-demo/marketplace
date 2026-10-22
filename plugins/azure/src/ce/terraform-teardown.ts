@@ -3,7 +3,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
-import type { TerraformSession } from '../../../terraform/src/service';
+import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
@@ -246,6 +246,7 @@ export async function runAzureTerraformTeardown(
   api: AzExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  terraform?: CeTerraformService,
 ) {
   if (input.kind === 'azure-ce-terraform-foundation-teardown')
     return runAzureFoundationTeardown(
@@ -277,7 +278,18 @@ export async function runAzureTerraformTeardown(
   await validate();
   await beginAzureTerraformRetirement(base, input, storage);
   if (await hasAzureTerraformTerminalCleanup(storage))
-    return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
+    return finalizeAzureTerraformRunnerCleanup(
+      base,
+      input,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+      terraform,
+    );
   let completed: unknown;
   try {
     completed = await storage.read('azure-terraform-teardown-receipt.json');
@@ -301,7 +313,18 @@ export async function runAzureTerraformTeardown(
       final.changes.length
     )
       throw Error('Azure completed teardown receipt differs');
-    return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
+    return finalizeAzureTerraformRunnerCleanup(
+      base,
+      input,
+      runtime,
+      contract,
+      session,
+      storage,
+      api,
+      env,
+      signal,
+      terraform,
+    );
   }
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
   if (drained.status !== 'platform-drained') return { status: 'pending-platform-drain' as const };
@@ -333,5 +356,16 @@ export async function runAzureTerraformTeardown(
     observedAt: new Date().toISOString(),
   };
   await storage.write('azure-terraform-teardown-receipt.json', receipt);
-  return finalizeAzureTerraformRunnerCleanup(base, input, runtime, contract, session, storage, api, env, signal);
+  return finalizeAzureTerraformRunnerCleanup(
+    base,
+    input,
+    runtime,
+    contract,
+    session,
+    storage,
+    api,
+    env,
+    signal,
+    terraform,
+  );
 }

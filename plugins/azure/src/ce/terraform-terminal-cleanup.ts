@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
+import { lstat, readdir, realpath } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { ArtifactRetirementReceipt } from '../../../terraform/src/artifact-retirement';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import type { TerraformSession } from '../../../terraform/src/service';
+import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
@@ -12,6 +15,7 @@ import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import { retireAzureTerraformParentArtifacts } from './terraform-parent-retirement';
 import type { AzureTerraformTeardownPlan } from './terraform-teardown';
 import { azureUpgradeBinding } from './terraform-upgrade';
+import { qualifiedAzureTerraformUpgradeStages, retireAzureTerraformUpgradeStage } from './terraform-upgrade-retirement';
 import type { AzureCePlan } from './types';
 
 const name = 'azure-terraform-terminal-cleanup.json';
@@ -57,6 +61,7 @@ export async function finalizeAzureTerraformRunnerCleanup(
   api: AzExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  terraform?: CeTerraformService,
 ) {
   const binding = azureUpgradeBinding(base);
   const deployment = await azureTerraformCurrentDeployment(base);
@@ -109,6 +114,28 @@ export async function finalizeAzureTerraformRunnerCleanup(
     if (cloud.status !== 'absent') throw Error('Fresh Azure cloud absence unavailable');
     return { platform, cloud };
   };
+  let stages: string[] = [];
+  const stagesRoot = join(store.directory, 'terraform-stages');
+  try {
+    const stat = await lstat(stagesRoot);
+    if (
+      !stat.isDirectory() ||
+      stat.isSymbolicLink() ||
+      stat.uid !== process.getuid?.() ||
+      (await realpath(stagesRoot)) !== stagesRoot
+    )
+      throw Error('Azure upgrade stage directory ownership differs');
+    stages = (await readdir(stagesRoot)).sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (stages.some((stage) => !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(stage)))
+    throw Error('Unqualified Azure stage blocks terminal cleanup');
+  if (stages.length && !terraform) throw Error('Owning Azure upgrade retirement service unavailable');
+  const upgradeContract = stages.length ? await VerifiedUpgradeContract.release(fetch, signal) : undefined;
+  const upgrades = upgradeContract
+    ? await qualifiedAzureTerraformUpgradeStages(base, store, stages, upgradeContract)
+    : [];
   let checkpoint: Checkpoint | undefined;
   try {
     checkpoint = (await store.read(name)) as Checkpoint;
@@ -257,6 +284,21 @@ export async function finalizeAzureTerraformRunnerCleanup(
   )
     throw Error('Azure terminal retirement evidence differs');
   if (!checkpoint.retirementEvidenceSha256) throw Error('Azure parent retirement evidence missing');
+  for (const upgrade of upgrades) {
+    await fresh();
+    if (!terraform || !upgradeContract) throw Error('Owning Azure upgrade retirement service unavailable');
+    await retireAzureTerraformUpgradeStage(
+      base,
+      upgrade,
+      upgradeContract,
+      terraform,
+      store,
+      checkpoint.retirementEvidenceSha256,
+      env,
+      signal,
+    );
+    await fresh();
+  }
   const parent = await retireAzureTerraformParentArtifacts(
     base,
     teardown,

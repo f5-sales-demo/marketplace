@@ -196,6 +196,11 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
         ) {
           throw new Error('Persisted Azure CE teardown authorization differs');
         }
+        const terraformService = plan.engine === 'terraform' ? await dependencies.terraform(pi, signal) : undefined;
+        const requireTerraform = () => {
+          if (!terraformService) throw new Error('Terraform teardown requires its owning service');
+          return terraformService;
+        };
         const result =
           plan.engine === 'terraform'
             ? await dependencies.run(
@@ -204,7 +209,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                 params.teardownPlanSha256,
                 runtime,
                 contract,
-                await (await dependencies.terraform(pi, signal)).open(
+                await requireTerraform().open(
                   azureUpgradeBinding(plan).owner,
                   teardown.kind === 'azure-ce-terraform-foundation-teardown'
                     ? await azureFoundationTeardownDeployment(plan, teardown)
@@ -215,6 +220,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                 dependencies.makeApi(ctx.cwd),
                 process.env,
                 signal,
+                terraformService,
               )
             : await dependencies.runNative(
                 plan,

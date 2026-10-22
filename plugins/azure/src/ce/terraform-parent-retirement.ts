@@ -97,6 +97,47 @@ export async function retireAzureTerraformParentArtifacts(
     configurationSha256: hash(configuration),
     providerLockSha256: hash(providerLock),
   };
+  const upgrades = new Map<string, Record<string, unknown>>();
+  const upgradeJournals = new Set<string>();
+  for (const name of (await readdir(store.directory)).filter((name) =>
+    /^azure-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
+  )) {
+    const source = object(await store.read(name)),
+      deployment = object(source.deployment);
+    const { planId, planSha256, ...draft } = source;
+    if (
+      source.schemaVersion !== 2 ||
+      source.engine !== 'terraform' ||
+      source.kind !== 'azure-ce-terraform-upgrade' ||
+      source.sourcePlanSha256 !== base.planSha256 ||
+      canonicalSha256(object(source.expectation).binding) !== canonicalSha256(binding) ||
+      !sha(planSha256) ||
+      canonicalSha256(draft) !== planSha256 ||
+      planId !== `azure-ce-upgrade-${planSha256.slice(0, 24)}` ||
+      name !== `${planId}.json` ||
+      typeof deployment.stage !== 'string' ||
+      !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(deployment.stage) ||
+      upgrades.has(deployment.stage)
+    )
+      throw Error('Azure upgrade source provenance differs');
+    upgrades.set(deployment.stage, source);
+    for (const suffix of ['', '-authorization', '-checkpoint', '-action-plan', '-receipt', '-stage-retirement'])
+      upgradeJournals.add(`${planId}${suffix}.json`);
+  }
+  if (upgrades.size) {
+    const serial = object(await store.read('terraform-ce-upgrade-serial.json'));
+    const last = [...upgrades.values()].find((row) => row.planId === serial.lastPlanId);
+    if (
+      serial.schemaVersion !== 2 ||
+      serial.engine !== 'terraform' ||
+      serial.status !== 'idle' ||
+      serial.activePlanId !== undefined ||
+      serial.activePlanSha256 !== undefined ||
+      !last ||
+      last.planSha256 !== serial.lastPlanSha256
+    )
+      throw Error('Azure serial upgrade provenance differs');
+  }
   const preserve = new Set([
     'owner.json',
     'azure-terraform-lifecycle-retirement.json',
@@ -105,6 +146,8 @@ export async function retireAzureTerraformParentArtifacts(
     `${teardown.planId}.json`,
     `${teardown.planId}-authorization.json`,
   ]);
+  for (const name of upgradeJournals) preserve.add(name);
+  if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   const allowed = new Set([
     'terraform-workflow.json',
     'terraform-registration-configuration.json',
@@ -167,6 +210,65 @@ export async function retireAzureTerraformParentArtifacts(
         )
           throw Error('Azure runner retirement provenance differs');
         for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${name}/${entry}`, true);
+        continue;
+      }
+      if (name === 'terraform-stages') {
+        const stagesRoot = join(store.directory, name);
+        await directory(stagesRoot);
+        for (const stage of (await readdir(stagesRoot)).sort()) {
+          const upgrade = upgrades.get(stage);
+          if (!upgrade) throw Error('Unqualified Azure stage blocks parent retirement');
+          const stagePath = join(stagesRoot, stage);
+          await directory(stagePath);
+          if (JSON.stringify((await readdir(stagePath)).sort()) !== JSON.stringify([base.deploymentName]))
+            throw Error('Azure stage owner differs');
+          const prefix = `${name}/${stage}/${base.deploymentName}`;
+          const path = join(store.directory, prefix);
+          await directory(path);
+          if (
+            JSON.stringify((await readdir(path)).sort()) !==
+            JSON.stringify(['artifact-retirement.json', 'deployment.json'])
+          )
+            throw Error('Azure stage has unretired artifacts');
+          const deployment = object(upgrade.deployment),
+            { configuration, providerLock, ...identity } = deployment;
+          const manifest = object(JSON.parse((await file(join(path, 'deployment.json'))).toString()));
+          const marker = object(JSON.parse((await file(join(path, 'artifact-retirement.json'))).toString()));
+          const retirement = object(await store.read(`${upgrade.planId}-stage-retirement.json`));
+          const final = object(retirement.receipt);
+          if (
+            typeof configuration !== 'string' ||
+            typeof providerLock !== 'string' ||
+            canonicalSha256(manifest) !==
+              canonicalSha256({
+                ...identity,
+                configurationSha256: hash(configuration),
+                providerLockSha256: hash(providerLock),
+              }) ||
+            retirement.schemaVersion !== 1 ||
+            retirement.status !== 'retired' ||
+            canonicalSha256(retirement.owner) !== canonicalSha256(binding.owner) ||
+            retirement.sourcePlanSha256 !== base.planSha256 ||
+            retirement.upgradePlanSha256 !== upgrade.planSha256 ||
+            retirement.deploymentSha256 !== canonicalSha256(deployment) ||
+            retirement.evidenceSha256 !== evidenceSha256 ||
+            retirement.receiptSha256 !== canonicalSha256(final) ||
+            final.noChanges !== true ||
+            final.backendIdentity !== manifest.backendIdentity ||
+            final.configurationSha256 !== manifest.configurationSha256 ||
+            final.providerLockSha256 !== manifest.providerLockSha256 ||
+            marker.schemaVersion !== 1 ||
+            marker.status !== 'runner-artifacts-retired' ||
+            marker.manifestSha256 !== canonicalSha256(manifest) ||
+            marker.evidenceSha256 !== evidenceSha256 ||
+            marker.finalPlanSha256 !== final.planSha256 ||
+            marker.planReceiptSha256 !== canonicalSha256(final) ||
+            !Array.isArray(marker.artifacts) ||
+            marker.inventorySha256 !== hash(JSON.stringify(marker.artifacts))
+          )
+            throw Error('Azure upgrade runner retirement provenance differs');
+          for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${prefix}/${entry}`, true);
+        }
         continue;
       }
       const checkout = /^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name);
