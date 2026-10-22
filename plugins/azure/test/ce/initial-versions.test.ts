@@ -17,7 +17,7 @@ describe('Azure create-time version binding', () => {
       expect((plan.intent as AzureCeIntent & { initialVersions: typeof versions }).initialVersions).toEqual(versions);
       const binding = azureUpgradeBinding(plan);
       expect(binding.initialVersions).toEqual(versions);
-      if (!binding.initialVersions) throw new Error("Missing initial version binding");
+      if (!binding.initialVersions) throw new Error('Missing initial version binding');
       binding.initialVersions.os = '9.2026.20';
       expect(azureUpgradeBinding(plan).initialVersions).toEqual(versions);
       expect(plan.planSha256).not.toBe(compileAzureCePlan({ ...intent, engine }, observation).planSha256);
