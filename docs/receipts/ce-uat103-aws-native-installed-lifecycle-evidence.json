@@ -89,7 +89,6 @@
     "observedAt": "2026-10-22T11:52:27.733678+00:00",
     "candidateRevision": 103,
     "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
-    "apiResponseSha256": "f7a8c21f161c01afa6e968e3bd37e0d4df6f7e3233cb38bd9e68084f3cce441e",
     "cloudInventorySha256": "8f6db434bf85774091357110791bf59c0e4b1eba8007d743574cb879778ab1d9",
     "physicalVifMacCloudDeviceRoleJoins": [
       {
@@ -150,7 +149,8 @@
     "packetMovementProven": false,
     "supportedSliControlQualified": false,
     "sampleFreshnessQualified": false,
-    "fullCeAcceptance": false
+    "fullCeAcceptance": false,
+    "responseSha256": "f7a8c21f161c01afa6e968e3bd37e0d4df6f7e3233cb38bd9e68084f3cce441e"
   },
   "initialJoinVerifierFailure": {
     "observedAt": "2026-10-22T11:52:27.734484+00:00",
