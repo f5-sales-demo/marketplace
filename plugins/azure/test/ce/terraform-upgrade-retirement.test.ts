@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import { buildSiteUpgradeRequest } from '../../../platform/src/ce/wire-upgrade';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import { canonicalSha256 } from '../../src/ce/canonical';
 
 const sha256Hex = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -363,6 +364,15 @@ test('Azure parent preserves exact retired upgrade provenance and rejects change
       artifacts: [],
       inventorySha256: sha256Hex('[]'),
     };
+    Object.assign(
+      marker,
+      independentRetirementFixture({
+        manifestSha256: marker.manifestSha256,
+        evidenceSha256: evidence,
+        finalPlanSha256: finalPlan,
+        planReceiptSha256,
+      }),
+    );
     await writeFile(join(path, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
     await writeFile(join(path, 'artifact-retirement.json'), JSON.stringify(marker), { mode: 0o600 });
     return marker;
@@ -371,7 +381,7 @@ test('Azure parent preserves exact retired upgrade provenance and rejects change
     rootDeployment,
     join(f.store.directory, f.base.deploymentName),
     'c'.repeat(64),
-    'd'.repeat(64),
+    canonicalSha256({ planSha256: 'c'.repeat(64) }),
   );
   const stagePath = join(
     f.store.directory,

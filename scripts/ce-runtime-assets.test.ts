@@ -7,7 +7,7 @@ import { verifyCeRuntimeAssets } from './check-ce-runtime-assets';
 test('every built plugin owns and hashes its runtime lock assets', async () => {
   for (const plugin of ['platform', 'aws', 'azure', 'terraform']) {
     const result = await verifyCeRuntimeAssets(resolve(import.meta.dir, '../plugins', plugin));
-    expect(result.assets).toBe(plugin === 'platform' ? 0 : plugin === 'azure' ? 3 : plugin === 'aws' ? 2 : 1);
+    expect(result.assets).toBe(plugin === 'platform' ? 0 : plugin === 'azure' ? 5 : plugin === 'aws' ? 4 : 3);
   }
 });
 test('rejects a flattened bundle that attempts to load another plugin or source checkout', async () => {

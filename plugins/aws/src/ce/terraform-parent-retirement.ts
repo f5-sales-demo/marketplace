@@ -3,6 +3,7 @@ import { lstat, readdir, readFile, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
+import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { qualifyAwsTerraformPowerArtifacts } from './terraform-power-retirement';
@@ -101,6 +102,16 @@ async function inventory(
       marker.inventorySha256 !== hash(JSON.stringify(marker.artifacts))
     )
       throw Error('Runner retirement provenance differs');
+    verifyRetainedCleanup(
+      marker.independentCleanup,
+      {
+        manifestSha256: canonicalSha256(manifest),
+        evidenceSha256,
+        finalPlanSha256: String(marker.finalPlanSha256),
+        planReceiptSha256: String(marker.planReceiptSha256),
+      },
+      marker.independentCleanupSha256,
+    );
     if (upgrade) {
       const deployment = object(upgrade.deployment),
         retirement = object(await store.read(`${String(upgrade.planId)}-stage-retirement.json`)),

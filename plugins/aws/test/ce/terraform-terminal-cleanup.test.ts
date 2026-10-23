@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
 import { finalizeAwsTerraformCleanup } from '../../src/ce/terraform-terminal-cleanup';
@@ -126,6 +127,12 @@ async function fixture(mode = 'absent') {
           planReceiptSha256: hash(JSON.stringify(receipt)),
           inventorySha256: hash('[]'),
           artifacts: [],
+          ...independentRetirementFixture({
+            manifestSha256: canonicalSha256(manifest),
+            evidenceSha256: evidence,
+            finalPlanSha256: receipt.planSha256,
+            planReceiptSha256: hash(JSON.stringify(receipt)),
+          }),
         }),
         { mode: 0o600 },
       );

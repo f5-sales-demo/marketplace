@@ -3,17 +3,34 @@ import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from '
 import { isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { hasArtifactRetirement, retirePrivateArtifacts } from './artifact-retirement';
+import {
+  type ExecutableIdentity,
+  encode,
+  executableIdentity,
+  type IndependentCleanupEvidence,
+  inputDigests,
+} from './cleanup-verifier-worker';
 import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
+import {
+  type CleanupVerifier,
+  cleanupRequest,
+  executeIndependentCleanup,
+  validateIndependentCleanup,
+} from './independent-cleanup';
 
 export interface Invocation {
   cwd: string;
   args: string[];
   env: Record<string, string | undefined>;
   signal?: AbortSignal;
+  expectedExecutable?: ExecutableIdentity;
 }
-type Executor = (
-  request: Invocation,
-) => Promise<{ code: number; stdout: string; failureCategory?: TerraformFailureCategory }>;
+type Executor = (request: Invocation) => Promise<{
+  code: number;
+  stdout: string;
+  failureCategory?: TerraformFailureCategory;
+  executable?: ExecutableIdentity;
+}>;
 export interface Deployment {
   schemaVersion: 1;
   deploymentId: string;
@@ -312,9 +329,14 @@ export function terraformExecutor(
   },
   retainFailure = false,
 ): Executor {
-  return async ({ cwd, args, env, signal }) => {
+  return async ({ cwd, args, env, signal, expectedExecutable }) => {
     signal?.throwIfAborted();
-    const child = Bun.spawn(['/bin/sh', '-c', 'umask 077; exec "$@"', 'ce-terraform', 'terraform', ...args], {
+    const selected = Bun.which('terraform', { PATH: env.PATH ?? process.env.PATH ?? '/usr/bin:/bin' });
+    if (!selected) throw Error('Terraform executable is unavailable');
+    const executable = await executableIdentity(selected);
+    if (expectedExecutable && encode(executable) !== encode(expectedExecutable))
+      throw Error('Terraform executable differs before execution');
+    const child = Bun.spawn(['/bin/sh', '-c', 'umask 077; exec "$@"', 'ce-terraform', executable.path, ...args], {
       cwd,
       env,
       stdin: 'ignore',
@@ -393,7 +415,9 @@ export function terraformExecutor(
           stderr,
         });
       }
-      return code === 0 ? { code, stdout } : { code, stdout: '', failureCategory };
+      if (encode(await executableIdentity(executable.path)) !== encode(executable))
+        throw Error('Terraform executable changed during execution');
+      return code === 0 ? { code, stdout, executable } : { code, stdout: '', failureCategory };
     } catch {
       stop('Terraform process failed');
       await child.exited;
@@ -414,9 +438,11 @@ export class TerraformRunner {
   #directory?: string;
   #manifest?: Manifest;
   #busy = false;
+  #executorIdentity?: ExecutableIdentity;
   constructor(
     readonly root: string,
     readonly execute: Executor = executeTerraform,
+    readonly independentVerifier: CleanupVerifier = executeIndependentCleanup,
   ) {
     if (!isAbsolute(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
   }
@@ -729,6 +755,22 @@ export class TerraformRunner {
     this.#directory = directory;
     this.#manifest = recoveredManifest;
     await this.#verifyInputs();
+    try {
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      if (journal.execution !== undefined) {
+        const executable = object(object(journal.execution).terraform);
+        if (
+          typeof executable.path !== 'string' ||
+          !isAbsolute(executable.path) ||
+          typeof executable.sha256 !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(executable.sha256)
+        )
+          throw Error('Terraform saved executor identity is malformed');
+        this.#executorIdentity = { path: executable.path, sha256: executable.sha256 };
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
   }
   #state(): { directory: string; manifest: Manifest } {
     if (!this.#directory || !this.#manifest) throw new Error('Prepare or resume the deployment first');
@@ -767,8 +809,19 @@ export class TerraformRunner {
   }
   async #run(args: string[], env: Record<string, string | undefined>, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted();
-    const result = await this.execute({ cwd: this.#state().directory, args, env: this.#environment(env), signal });
+    const result = await this.execute({
+      cwd: this.#state().directory,
+      args,
+      env: this.#environment(env),
+      signal,
+      expectedExecutable: this.#executorIdentity,
+    });
     if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
+    if (result.executable) {
+      if (this.#executorIdentity && encode(this.#executorIdentity) !== encode(result.executable))
+        throw Error('Terraform executable changed during the owning session');
+      this.#executorIdentity = result.executable;
+    }
     return result.stdout;
   }
   async #exclusive<T>(operation: () => Promise<T>, retirement = false): Promise<T> {
@@ -806,6 +859,7 @@ export class TerraformRunner {
       const persisted = decode((await privateRead(join(directory, 'deployment.json'))).toString());
       if (canonical(persisted) !== canonical(manifest) || !/^[a-f0-9]{64}$/.test(evidenceSha256))
         throw Error('Terraform artifact retirement owner or external evidence differs');
+      let independentCleanup: IndependentCleanupEvidence | undefined;
       if (!(await hasArtifactRetirement(directory))) {
         await this.#verifyInputs();
         const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
@@ -873,6 +927,30 @@ export class TerraformRunner {
           canonical(journal) !== canonical(decode((await privateRead(join(directory, 'plan-receipt.json'))).toString()))
         )
           throw Error('Terraform retirement saved evidence changed');
+        const execution = object(journal.execution);
+        if (
+          !execution.terraform ||
+          !this.#executorIdentity ||
+          encode(execution.terraform) !== encode(this.#executorIdentity)
+        )
+          throw Error('Independent cleanup owning executor provenance unavailable');
+        const request = await cleanupRequest(directory, {
+          manifestSha256: digest(canonical(manifest)),
+          evidenceSha256,
+          finalPlanSha256: receipt.planSha256,
+          planReceiptSha256: digest(canonical(receipt)),
+          terraform: this.#executorIdentity,
+        });
+        independentCleanup = validateIndependentCleanup(
+          await this.independentVerifier(request, this.#environment(env), signal),
+          request,
+        );
+        if (independentCleanup.terraformVersion !== manifest.terraformVersion)
+          throw Error('Independent cleanup version differs');
+        await this.#verifyInputs();
+        if (encode(await inputDigests(directory)) !== encode(request.inputs))
+          throw Error('Independent cleanup original inputs changed before retirement');
+        signal?.throwIfAborted();
       }
       return retirePrivateArtifacts(
         directory,
@@ -881,6 +959,7 @@ export class TerraformRunner {
         receipt.planSha256,
         digest(canonical(receipt)),
         signal,
+        independentCleanup,
       );
     }, true);
   }
@@ -1098,7 +1177,27 @@ export class TerraformRunner {
         ...(relinquished.length ? { relinquishments: relinquished } : {}),
         ...(destroy ? { operation: 'destroy' as const } : {}),
       };
-      await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
+      await persist(join(this.#state().directory, 'plan-receipt.json'), {
+        state: 'planned',
+        receipt,
+        ...(this.#executorIdentity
+          ? {
+              execution: {
+                terraform: this.#executorIdentity,
+                planArgs: [
+                  'plan',
+                  '-input=false',
+                  '-lock=true',
+                  '-lock-timeout=60s',
+                  '-refresh=true',
+                  '-out=saved.tfplan',
+                  ...(action ? [`-invoke=${action.address}`] : []),
+                  ...(destroy ? ['-destroy'] : []),
+                ],
+              },
+            }
+          : {}),
+      });
       return receipt;
     });
   }

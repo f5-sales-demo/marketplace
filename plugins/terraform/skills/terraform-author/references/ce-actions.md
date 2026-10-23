@@ -42,3 +42,17 @@ provider credentials: inspect them locally and export only a sanitized finding.
 The executor omits environment variables and returns only a fixed error category.
 Successful commands do not create diagnostic files. Retain failed plans and state
 alongside diagnostics when reconciling a partial apply.
+
+Terminal CE cleanup checks cloud and platform absence before retiring private inputs.
+While holding the owning runner lock, a separate process inspects the original local
+state and saved ordinary no-change plan, then runs another ordinary refresh-enabled
+plan without applying it. The checks bind the owner, backend, configuration, provider
+lock, original saved plan, Terraform executable, verifier assets, and process identity.
+An absent local state file is recorded explicitly; a present file must be complete
+and empty. Missing, changed, stale, or foreign evidence prevents retirement.
+
+The verifier has a five-minute deadline and terminates its owned process group on
+cancellation or failure. Retirement retains sanitized execution hashes and removes
+state, plans, keys, diagnostics, and sensitive staging. Interrupted removal resumes
+from that exact receipt with resource execution permanently disabled. External cloud,
+platform, and token absence still require independent current observations.

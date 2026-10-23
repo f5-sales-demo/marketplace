@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, readdir, readFile, readlink, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { encode, type IndependentCleanupEvidence } from './cleanup-verifier-worker';
+import { verifyRetainedCleanup } from './independent-cleanup';
 
 const markerName = 'artifact-retirement.json';
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -19,6 +21,8 @@ interface Marker {
   planReceiptSha256: string;
   artifacts: Artifact[];
   inventorySha256: string;
+  independentCleanup: IndependentCleanupEvidence;
+  independentCleanupSha256: string;
 }
 export interface ArtifactRetirementReceipt {
   status: 'runner-artifacts-retired';
@@ -27,6 +31,7 @@ export interface ArtifactRetirementReceipt {
   finalPlanSha256: string;
   inventorySha256: string;
   retiredArtifacts: number;
+  independentCleanupSha256: string;
 }
 async function item(directory: string, path: string): Promise<Artifact> {
   const full = join(directory, path),
@@ -82,6 +87,7 @@ export async function retirePrivateArtifacts(
   finalPlanSha256: string,
   planReceiptSha256: string,
   signal?: AbortSignal,
+  independentCleanup?: IndependentCleanupEvidence,
 ): Promise<ArtifactRetirementReceipt> {
   signal?.throwIfAborted();
   if (![manifestSha256, evidenceSha256, finalPlanSha256, planReceiptSha256].every(sha))
@@ -124,6 +130,7 @@ export async function retirePrivateArtifacts(
       seen.add(artifact.path);
     }
   } else {
+    if (!independentCleanup) throw Error('Independent original Terraform cleanup evidence is required');
     const artifacts = await inventory(directory);
     marker = {
       schemaVersion: 1,
@@ -134,10 +141,17 @@ export async function retirePrivateArtifacts(
       planReceiptSha256,
       artifacts,
       inventorySha256: hash(JSON.stringify(artifacts)),
+      independentCleanup,
+      independentCleanupSha256: hash(encode(independentCleanup)),
     };
     signal?.throwIfAborted();
     await writeMarker(directory, marker); // Permanent execution barrier precedes the first removal.
   }
+  verifyRetainedCleanup(
+    marker.independentCleanup,
+    { manifestSha256, evidenceSha256, finalPlanSha256, planReceiptSha256 },
+    marker.independentCleanupSha256,
+  );
   const remaining = await inventory(directory),
     expected = new Map(marker.artifacts.map((row) => [row.path, row]));
   if (
@@ -164,5 +178,6 @@ export async function retirePrivateArtifacts(
     finalPlanSha256,
     inventorySha256: marker.inventorySha256,
     retiredArtifacts: marker.artifacts.length,
+    independentCleanupSha256: marker.independentCleanupSha256,
   };
 }

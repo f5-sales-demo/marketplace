@@ -3,6 +3,7 @@ import { lstat, readdir, readFile, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
+import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
 import { canonicalSha256 } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -203,6 +204,8 @@ export async function retireAzureTerraformParentArtifacts(
           marker.manifestSha256 !== canonicalSha256(manifest) ||
           marker.evidenceSha256 !== evidenceSha256 ||
           marker.finalPlanSha256 !== final.planSha256 ||
+          marker.planReceiptSha256 !== canonicalSha256(final) ||
+          receipt.independentCleanupSha256 !== marker.independentCleanupSha256 ||
           receipt.finalPlanSha256 !== final.planSha256 ||
           receipt.manifestSha256 !== marker.manifestSha256 ||
           receipt.evidenceSha256 !== evidenceSha256 ||
@@ -211,6 +214,16 @@ export async function retireAzureTerraformParentArtifacts(
           marker.inventorySha256 !== hash(JSON.stringify(marker.artifacts))
         )
           throw Error('Azure runner retirement provenance differs');
+        verifyRetainedCleanup(
+          marker.independentCleanup,
+          {
+            manifestSha256: canonicalSha256(manifest),
+            evidenceSha256,
+            finalPlanSha256: String(final.planSha256),
+            planReceiptSha256: canonicalSha256(final),
+          },
+          marker.independentCleanupSha256,
+        );
         for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${name}/${entry}`, true);
         continue;
       }
@@ -269,6 +282,16 @@ export async function retireAzureTerraformParentArtifacts(
             marker.inventorySha256 !== hash(JSON.stringify(marker.artifacts))
           )
             throw Error('Azure upgrade runner retirement provenance differs');
+          verifyRetainedCleanup(
+            marker.independentCleanup,
+            {
+              manifestSha256: canonicalSha256(manifest),
+              evidenceSha256,
+              finalPlanSha256: String(final.planSha256),
+              planReceiptSha256: canonicalSha256(final),
+            },
+            marker.independentCleanupSha256,
+          );
           for (const entry of ['artifact-retirement.json', 'deployment.json']) await add(`${prefix}/${entry}`, true);
         }
         continue;

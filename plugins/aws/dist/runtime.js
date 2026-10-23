@@ -17004,6 +17004,81 @@ async function retireBootstrapToken(binding, evidenceSha256, signal) {
 }
 var init_token_store = () => {};
 
+// plugins/terraform/src/cleanup-verifier-worker.ts
+import { createHash as createHash16 } from 'node:crypto';
+
+var hash7 = (value) => createHash16('sha256').update(value).digest('hex'),
+  encode = (value) => {
+    if (Array.isArray(value)) return `[${value.map(encode).join(',')}]`;
+    if (value !== null && typeof value === 'object')
+      return `{${Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => `${JSON.stringify(key)}:${encode(item)}`)
+        .join(',')}}`;
+    return JSON.stringify(value);
+  };
+var init_cleanup_verifier_worker = () => {};
+
+// plugins/terraform/src/independent-cleanup.ts
+function verifyRetainedCleanup(value, bindings, expectedSha256) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw Error('Independent cleanup retirement evidence is missing');
+  const evidence = value;
+  if (
+    Object.keys(evidence).sort().join(',') !== evidenceKeys ||
+    evidence.schemaVersion !== 1 ||
+    evidence.status !== 'independently-verified' ||
+    !sha(expectedSha256) ||
+    hash7(encode(evidence)) !== expectedSha256 ||
+    Object.entries(bindings).some(([key, expected]) => evidence[key] !== expected) ||
+    ![
+      evidence.nonce,
+      evidence.requestSha256,
+      evidence.inputInventorySha256,
+      evidence.terraformExecutableSha256,
+      evidence.terraformExecutablePathSha256,
+      evidence.interpreterSha256,
+      evidence.workerSha256,
+      evidence.stateJsonSha256,
+      evidence.originalPlanJsonSha256,
+      evidence.refreshedPlanSha256,
+      evidence.refreshedPlanJsonSha256,
+    ].every(sha) ||
+    !Number.isFinite(Date.parse(evidence.startedAt)) ||
+    !Number.isFinite(Date.parse(evidence.completedAt)) ||
+    Date.parse(evidence.completedAt) < Date.parse(evidence.startedAt) ||
+    !Number.isSafeInteger(evidence.parentPid) ||
+    evidence.parentPid <= 0 ||
+    !Number.isSafeInteger(evidence.executorPid) ||
+    evidence.executorPid <= 0 ||
+    evidence.executorPid === evidence.parentPid ||
+    !/^\d+\.\d+\.\d+$/.test(evidence.terraformVersion) ||
+    encode(evidence.commands) !==
+      encode([
+        ['version', '-json'],
+        ['show', '-json', 'saved.tfplan'],
+        ['show', '-json'],
+        [
+          'plan',
+          '-input=false',
+          '-lock=true',
+          '-lock-timeout=60s',
+          '-refresh=true',
+          `-out=independent-cleanup-${evidence.nonce}.tfplan`,
+        ],
+        ['show', '-json', `independent-cleanup-${evidence.nonce}.tfplan`],
+      ])
+  )
+    throw Error('Independent cleanup retirement provenance differs');
+  return evidence;
+}
+var sha = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+  evidenceKeys =
+    'commands,completedAt,evidenceSha256,executorPid,finalPlanSha256,inputInventorySha256,interpreterSha256,manifestSha256,nonce,originalPlanJsonSha256,parentPid,planReceiptSha256,refreshedPlanJsonSha256,refreshedPlanSha256,requestSha256,schemaVersion,startedAt,stateJsonSha256,status,terraformExecutablePathSha256,terraformExecutableSha256,terraformVersion,workerSha256';
+var init_independent_cleanup = __esm(() => {
+  init_cleanup_verifier_worker();
+});
+
 // plugins/aws/src/ce/whole-site-power-service-binding.ts
 function requested(base) {
   const kinds = [];
@@ -17072,7 +17147,7 @@ function validateBindings(base, bindings) {
   if (
     bindings.sourcePlanSha256 !== base.planSha256 ||
     canonicalSha256(bindings.owner) !== canonicalSha256(owner) ||
-    !sha.test(bindings.servicesSha256) ||
+    !sha2.test(bindings.servicesSha256) ||
     bindings.nodes.length !== expected.length ||
     new Set(bindings.nodes.map((node) => node.instanceId)).size !== expected.length
   )
@@ -17125,8 +17200,8 @@ function buildAwsWholeSitePowerPlan(base, operation, bindings, transitionId, mai
       maintenance.sourcePlanSha256 !== base.planSha256 ||
       maintenance.transitionId !== transitionId ||
       maintenance.bindingsSha256 !== bindingsSha256 ||
-      !sha.test(maintenance.stopPlanSha256) ||
-      !sha.test(maintenance.stoppedEvidenceSha256) ||
+      !sha2.test(maintenance.stopPlanSha256) ||
+      !sha2.test(maintenance.stoppedEvidenceSha256) ||
       canonicalSha256(body) !== receiptSha256 ||
       !Number.isFinite(Date.parse(maintenance.originalAttemptAt)) ||
       !Number.isFinite(Date.parse(maintenance.observedAt)) ||
@@ -17400,13 +17475,13 @@ async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, d
     await release();
   }
 }
-var sha, sequence, effects;
+var sha2, sequence, effects;
 var init_whole_site_power = __esm(() => {
   init_process_lock();
   init_artifacts();
   init_canonical();
   init_whole_site_power_service_binding();
-  sha = /^[a-f0-9]{64}$/;
+  sha2 = /^[a-f0-9]{64}$/;
   sequence = {
     stop: ['ready-to-stop', 'withdraw', 'withdrawn', 'stop', 'stopped'],
     start: ['ready-to-start', 'start', 'running', 'restore', 'restored', 'release'],
@@ -17415,7 +17490,7 @@ var init_whole_site_power = __esm(() => {
 });
 
 // plugins/platform/src/ce/bgp-power-policy.ts
-import { createHash as createHash16 } from 'node:crypto';
+import { createHash as createHash17 } from 'node:crypto';
 import { isIP as isIP12 } from 'node:net';
 
 function object23(value) {
@@ -17476,9 +17551,9 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
       retained.effect !== 'withdraw' ||
       retained.siteName !== siteName ||
       canonical(retained.prefixes) !== canonical(normalized) ||
-      hash7(original) !== retained.originalSha256 ||
-      hash7(snapshot) !== retained.withdrawnSha256 ||
-      hash7(retained.bgpSpec) !== retained.withdrawnSha256 ||
+      hash8(original) !== retained.originalSha256 ||
+      hash8(snapshot) !== retained.withdrawnSha256 ||
+      hash8(retained.bgpSpec) !== retained.withdrawnSha256 ||
       canonical(retained.policy) !== canonical(policy))
   )
     throw Error('BGP restoration requires exact retained withdrawal');
@@ -17532,12 +17607,12 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
     policy,
     originalBgpSpec: originalSpec,
     bgpSpec: effect === 'withdraw' ? withdrawn : structuredClone(originalSpec),
-    originalSha256: hash7(original),
-    withdrawnSha256: hash7(withdrawn),
+    originalSha256: hash8(original),
+    withdrawnSha256: hash8(withdrawn),
     operationalEvidence: 'unknown',
   };
 }
-var hash7 = (value) => createHash16('sha256').update(canonical(value)).digest('hex');
+var hash8 = (value) => createHash17('sha256').update(canonical(value)).digest('hex');
 var init_bgp_power_policy = () => {};
 
 // plugins/aws/src/ce/whole-site-power-connect.ts
@@ -18664,7 +18739,7 @@ var init_bgp_power_controller = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-direct-power.ts
-import { createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash18 } from 'node:crypto';
 
 function object26(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -18741,7 +18816,7 @@ function reviseAwsTerraformDirectServiceRoutes(base, services, configuration, ef
     effect === 'restore' &&
     (retained?.effect !== 'withdraw' ||
       retained.servicesSha256 !== canonicalSha256(services) ||
-      hash8(retained.configuration) !== retained.afterSha256 ||
+      hash9(retained.configuration) !== retained.afterSha256 ||
       canonicalSha256(retained.routes) !== canonicalSha256(routes))
   )
     throw Error('Terraform direct restoration requires retained withdrawal');
@@ -18761,8 +18836,8 @@ function reviseAwsTerraformDirectServiceRoutes(base, services, configuration, ef
   const result = JSON.stringify(next);
   return {
     configuration: result,
-    beforeSha256: hash8(configuration),
-    afterSha256: hash8(result),
+    beforeSha256: hash9(configuration),
+    afterSha256: hash9(result),
     servicesSha256: canonicalSha256(services),
     effect,
     routes,
@@ -18773,7 +18848,7 @@ function validateAwsTerraformDirectServiceReceipt(base, services, revision, rece
   if (
     canonicalSha256(revision.routes) !== canonicalSha256(routes) ||
     revision.servicesSha256 !== canonicalSha256(services) ||
-    hash8(revision.configuration) !== revision.afterSha256 ||
+    hash9(revision.configuration) !== revision.afterSha256 ||
     !['withdraw', 'restore'].includes(revision.effect) ||
     receipt.schemaVersion !== 1 ||
     receipt.engine !== 'terraform' ||
@@ -18815,14 +18890,14 @@ function validateAwsTerraformDirectServiceReceipt(base, services, revision, rece
       throw Error('Terraform direct service resolved identity differs');
   }
 }
-var hash8 = (value) => createHash17('sha256').update(value).digest('hex');
+var hash9 = (value) => createHash18('sha256').update(value).digest('hex');
 var init_terraform_direct_power = __esm(() => {
   init_artifacts();
   init_canonical();
 });
 
 // plugins/aws/src/ce/terraform-static-power.ts
-import { createHash as createHash18 } from 'node:crypto';
+import { createHash as createHash19 } from 'node:crypto';
 
 function object27(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -18887,7 +18962,7 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
     if (
       retained?.effect !== 'withdraw' ||
       retained.servicesSha256 !== canonicalSha256(services) ||
-      hash9(retained.configuration) !== retained.afterSha256 ||
+      hash10(retained.configuration) !== retained.afterSha256 ||
       resources.aws_ec2_transit_gateway_route !== undefined
     )
       throw Error('Terraform static restoration requires retained withdrawal');
@@ -18898,8 +18973,8 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
   const next = JSON.stringify(after);
   return {
     configuration: next,
-    beforeSha256: hash9(configuration),
-    afterSha256: hash9(next),
+    beforeSha256: hash10(configuration),
+    afterSha256: hash10(next),
     servicesSha256: canonicalSha256(services),
     effect,
     routes: structuredClone(routes),
@@ -18910,7 +18985,7 @@ function validateAwsTerraformStaticServiceReceipt(base, services, revision, rece
   expectedRoutes2(base, services, revision.routes);
   if (
     revision.servicesSha256 !== canonicalSha256(services) ||
-    revision.afterSha256 !== hash9(revision.configuration) ||
+    revision.afterSha256 !== hash10(revision.configuration) ||
     !['withdraw', 'restore'].includes(revision.effect) ||
     receipt.schemaVersion !== 1 ||
     receipt.engine !== 'terraform' ||
@@ -18959,14 +19034,14 @@ function validateAwsTerraformStaticServiceReceipt(base, services, revision, rece
       throw Error('Terraform static service resolved identity differs');
   }
 }
-var hash9 = (value) => createHash18('sha256').update(value).digest('hex');
+var hash10 = (value) => createHash19('sha256').update(value).digest('hex');
 var init_terraform_static_power = __esm(() => {
   init_artifacts();
   init_canonical();
 });
 
 // plugins/aws/src/ce/terraform-whole-site-power.ts
-import { createHash as createHash19 } from 'node:crypto';
+import { createHash as createHash20 } from 'node:crypto';
 
 function scope3(base, plan, effect) {
   verifyAwsWholeSitePowerPlan(base, plan);
@@ -19094,14 +19169,14 @@ var object28 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Terraform power configuration');
     return v;
   },
-  digest4 = (s) => createHash19('sha256').update(s).digest('hex');
+  digest4 = (s) => createHash20('sha256').update(s).digest('hex');
 var init_terraform_whole_site_power = __esm(() => {
   init_canonical();
   init_whole_site_power();
 });
 
 // plugins/aws/src/ce/whole-site-power-services.ts
-import { createHash as createHash20 } from 'node:crypto';
+import { createHash as createHash21 } from 'node:crypto';
 import { isIP as isIP14 } from 'node:net';
 
 function object29(v) {
@@ -19300,7 +19375,7 @@ function reviseAwsTerraformNlbMembership(base, services, configuration, effect, 
       retained?.effect !== 'withdraw' ||
       retained.servicesSha256 !== canonicalSha256(services) ||
       retained.address !== 'aws_lb_target_group_attachment.node_1' ||
-      hash10(retained.configuration) !== retained.afterSha256 ||
+      hash11(retained.configuration) !== retained.afterSha256 ||
       resources.aws_lb_target_group_attachment !== undefined
     )
       throw Error('Terraform NLB restoration requires exact retained withdrawal');
@@ -19319,8 +19394,8 @@ function reviseAwsTerraformNlbMembership(base, services, configuration, effect, 
   const next = JSON.stringify(after);
   return {
     configuration: next,
-    beforeSha256: hash10(configuration),
-    afterSha256: hash10(next),
+    beforeSha256: hash11(configuration),
+    afterSha256: hash11(next),
     servicesSha256: canonicalSha256(services),
     address: 'aws_lb_target_group_attachment.node_1',
     effect,
@@ -19337,7 +19412,7 @@ function validateAwsTerraformNlbMembershipReceipt(base, services, revision, rece
     revision.servicesSha256 !== canonicalSha256(services) ||
     revision.address !== 'aws_lb_target_group_attachment.node_1' ||
     !['withdraw', 'restore'].includes(revision.effect) ||
-    revision.afterSha256 !== hash10(revision.configuration) ||
+    revision.afterSha256 !== hash11(revision.configuration) ||
     receipt.schemaVersion !== 1 ||
     receipt.engine !== 'terraform' ||
     receipt.deploymentId !== base.deploymentName ||
@@ -19379,7 +19454,7 @@ function validateAwsTerraformNlbMembershipReceipt(base, services, revision, rece
   if (absent !== null || canonicalSha256(present) !== canonicalSha256(owned))
     throw Error('Terraform NLB membership resolved identity differs');
 }
-var hash10 = (v) => createHash20('sha256').update(v).digest('hex');
+var hash11 = (v) => createHash21('sha256').update(v).digest('hex');
 var init_whole_site_power_services = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -19741,7 +19816,7 @@ async function qualifyAwsTerraformPowerArtifacts(base, store, names, recorded) {
             r.backendIdentity !== `local:${base.deploymentName}` ||
             r.configurationSha256 !== revision.afterSha256 ||
             r.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-            !sha2(r.planSha256) ||
+            !sha3(r.planSha256) ||
             r.operation ||
             r.actionInvocations?.length
           )
@@ -19861,7 +19936,7 @@ async function qualifyAwsTerraformPowerArtifacts(base, store, names, recorded) {
             r.backendIdentity !== `local:${base.deploymentName}` ||
             r.configurationSha256 !== revision.afterSha256 ||
             r.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-            !sha2(r.planSha256) ||
+            !sha3(r.planSha256) ||
             r.operation ||
             r.actionInvocations?.length ||
             !Array.isArray(r.changes) ||
@@ -19895,7 +19970,7 @@ var object30 = (v) => {
   sequences,
   effects2,
   timestamp = (v) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= Date.now(),
-  sha2 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+  sha3 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_power_retirement = __esm(() => {
   init_bgp_power_controller();
   init_canonical();
@@ -19913,7 +19988,7 @@ var init_terraform_power_retirement = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-parent-retirement.ts
-import { createHash as createHash21 } from 'node:crypto';
+import { createHash as createHash22 } from 'node:crypto';
 import {
   lstat as lstat3,
   readdir as readdir4,
@@ -19949,7 +20024,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   const add = async (path, preserve) => {
     const absolute = join7(store.directory, path),
       before = await lstat3(absolute);
-    const sha256 = hash11(await file2(absolute)),
+    const sha256 = hash12(await file2(absolute)),
       after = await lstat3(absolute);
     if (before.ino !== after.ino || before.dev !== after.dev) throw Error('Parent retirement inode changed');
     items.push({ path, preserve, sha256, inode: after.ino, device: after.dev });
@@ -19977,12 +20052,22 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       marker.status !== 'runner-artifacts-retired' ||
       marker.manifestSha256 !== canonicalSha256(manifest) ||
       marker.evidenceSha256 !== evidenceSha256 ||
-      !sha3(marker.finalPlanSha256) ||
-      !sha3(marker.planReceiptSha256) ||
+      !sha4(marker.finalPlanSha256) ||
+      !sha4(marker.planReceiptSha256) ||
       !Array.isArray(marker.artifacts) ||
-      marker.inventorySha256 !== hash11(JSON.stringify(marker.artifacts))
+      marker.inventorySha256 !== hash12(JSON.stringify(marker.artifacts))
     )
       throw Error('Runner retirement provenance differs');
+    verifyRetainedCleanup(
+      marker.independentCleanup,
+      {
+        manifestSha256: canonicalSha256(manifest),
+        evidenceSha256,
+        finalPlanSha256: String(marker.finalPlanSha256),
+        planReceiptSha256: String(marker.planReceiptSha256),
+      },
+      marker.independentCleanupSha256,
+    );
     if (upgrade) {
       const deployment = object31(upgrade.deployment),
         retirement = object31(await store.read(`${String(upgrade.planId)}-stage-retirement.json`)),
@@ -19996,8 +20081,8 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
         retirement.deploymentSha256 !== canonicalSha256(deployment) ||
         retirement.evidenceSha256 !== evidenceSha256 ||
         retirement.receiptSha256 !== canonicalSha256(final) ||
-        manifest.configurationSha256 !== hash11(String(deployment.configuration)) ||
-        manifest.providerLockSha256 !== hash11(String(deployment.providerLock)) ||
+        manifest.configurationSha256 !== hash12(String(deployment.configuration)) ||
+        manifest.providerLockSha256 !== hash12(String(deployment.providerLock)) ||
         marker.finalPlanSha256 !== final.planSha256 ||
         marker.planReceiptSha256 !== canonicalSha256(final) ||
         final.noChanges !== true ||
@@ -20038,7 +20123,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       source.kind !== 'aws-ce-terraform-upgrade' ||
       source.sourcePlanSha256 !== base.planSha256 ||
       name !== `${String(source.planId)}.json` ||
-      !sha3(source.planSha256) ||
+      !sha4(source.planSha256) ||
       typeof deployment.stage !== 'string' ||
       !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(deployment.stage) ||
       upgrades.has(deployment.stage)
@@ -20077,13 +20162,13 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       bootstrapSha256 = object31(checkpoint.bootstrapSha256);
     if (
       frozen.sourcePlanSha256 !== base.planSha256 ||
-      !sha3(frozen.configurationSha256) ||
+      !sha4(frozen.configurationSha256) ||
       plan.schemaVersion !== 2 ||
       plan.kind !== 'aws-ce-site-replacement' ||
       plan.engine !== 'terraform' ||
       plan.sourcePlanSha256 !== base.planSha256 ||
       canonicalSha256(plan.binding) !== canonicalSha256(binding) ||
-      !sha3(plan.planSha256) ||
+      !sha4(plan.planSha256) ||
       canonicalSha256(draft) !== plan.planSha256 ||
       plan.planId !== `aws-ce-replace-${String(plan.planSha256).slice(0, 24)}` ||
       versions.schemaVersion !== 1 ||
@@ -20099,7 +20184,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       checkpoint.siteUid === preparation.uid ||
       typeof checkpoint.physicalSiteUid !== 'string' ||
       !checkpoint.physicalSiteUid ||
-      !sha3(checkpoint.quiesceConfigurationSha256) ||
+      !sha4(checkpoint.quiesceConfigurationSha256) ||
       checkpoint.versionAdmissionSha256 !== canonicalSha256(versions) ||
       Object.keys(instances).length !== binding.nodes.length ||
       new Set(Object.values(instances)).size !== binding.nodes.length ||
@@ -20178,7 +20263,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
           token.siteName !== match.binding.siteName ||
           token.node !== value.node ||
           typeof token.jwt !== 'string' ||
-          hash11(token.jwt) !== checkout.digest
+          hash12(token.jwt) !== checkout.digest
         )
           throw Error('AWS checkout upstream token differs');
       }
@@ -20220,8 +20305,8 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
   if (
     base.engine !== 'terraform' ||
     teardown.sourcePlanSha256 !== base.planSha256 ||
-    !sha3(teardown.planSha256) ||
-    !sha3(evidenceSha256) ||
+    !sha4(teardown.planSha256) ||
+    !sha4(evidenceSha256) ||
     !/^[a-z][a-z0-9-]{0,100}$/.test(teardown.planId) ||
     canonicalSha256(store.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner)
   )
@@ -20281,7 +20366,7 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     if (
       typeof item.path !== 'string' ||
       item.path.split('/').some((p) => !p || p === '.' || p === '..') ||
-      !sha3(item.sha256) ||
+      !sha4(item.sha256) ||
       typeof item.preserve !== 'boolean' ||
       !Number.isSafeInteger(item.inode) ||
       !Number.isSafeInteger(item.device) ||
@@ -20308,7 +20393,7 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     await store.verify();
     const absolute = join7(store.directory, item.path),
       stat = await lstat3(absolute);
-    if (hash11(await file2(absolute)) !== item.sha256 || stat.ino !== item.inode || stat.dev !== item.device)
+    if (hash12(await file2(absolute)) !== item.sha256 || stat.ino !== item.inode || stat.dev !== item.device)
       throw Error('Parent retirement artifact changed before removal');
     signal?.throwIfAborted();
     await unlink2(join7(store.directory, item.path));
@@ -20326,8 +20411,8 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
   };
 }
 var markerName = 'aws-terraform-parent-artifact-retirement.json',
-  hash11 = (value) => createHash21('sha256').update(value).digest('hex'),
-  sha3 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+  hash12 = (value) => createHash22('sha256').update(value).digest('hex'),
+  sha4 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   object31 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Malformed parent retirement evidence');
@@ -20335,13 +20420,14 @@ var markerName = 'aws-terraform-parent-artifact-retirement.json',
   };
 var init_terraform_parent_retirement = __esm(() => {
   init_token_store();
+  init_independent_cleanup();
   init_artifacts();
   init_canonical();
   init_terraform_power_retirement();
 });
 
 // plugins/terraform/src/ce-upgrade.ts
-import { createHash as createHash22, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
+import { createHash as createHash23, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
 function canonical2(value) {
   if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
@@ -20373,7 +20459,7 @@ function validateActionReceipt(upgrade, receipt) {
     receipt.noChanges ||
     receipt.changes.length ||
     receipt.actionInvocations?.length !== 1 ||
-    hash12(receipt.actionInvocations[0]) !== hash12(upgrade.action) ||
+    hash13(receipt.actionInvocations[0]) !== hash13(upgrade.action) ||
     !/^[a-f0-9]{64}$/.test(receipt.planSha256)
   )
     throw new Error('Terraform upgrade saved action plan differs');
@@ -20398,7 +20484,7 @@ async function runTerraformCeUpgrade(
   if (
     runtime.engine !== 'terraform' ||
     storage.owner.engine !== 'terraform' ||
-    hash12(storage.owner) !== hash12(upgrade.expectation.binding.owner)
+    hash13(storage.owner) !== hash13(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning Terraform engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -20408,7 +20494,7 @@ async function runTerraformCeUpgrade(
     const sourceName = `${upgrade.planId}.json`;
     const saved = await optional10(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash12(saved) !== hash12(upgrade)) throw new Error('Saved Terraform upgrade source differs');
+    else if (hash13(saved) !== hash13(upgrade)) throw new Error('Saved Terraform upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
     let checkpoint = await optional10(storage, checkpointName);
     if (checkpoint === undefined) {
@@ -20475,7 +20561,7 @@ async function runTerraformCeUpgrade(
       if (state === 'applying') {
         await session.reconcileApplyFromEvidence(
           action,
-          hash12({
+          hash13({
             owner: storage.owner,
             sourcePlanSha256: upgrade.sourcePlanSha256,
             upgradePlanSha256: upgrade.planSha256,
@@ -20508,7 +20594,7 @@ async function runTerraformCeUpgrade(
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash12(receipt.target) !== hash12(upgrade.expectation.target) ||
+        hash13(receipt.target) !== hash13(upgrade.expectation.target) ||
         receipt.actionPlanSha256 !== checkpoint.actionPlanSha256 ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
@@ -20596,8 +20682,8 @@ async function runTerraformCeUpgrade(
     await release();
   }
 }
-var digest5 = (value) => createHash22('sha256').update(value).digest('hex'),
-  hash12 = (value) => digest5(canonical2(value)),
+var digest5 = (value) => createHash23('sha256').update(value).digest('hex'),
+  hash13 = (value) => digest5(canonical2(value)),
   sameHash = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -20759,7 +20845,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
   base = structuredClone(base);
   env = { ...env };
   await verifyAwsTerraformUpgrade(base, upgrade, contract);
-  if (!sha4(evidenceSha256) || canonicalSha256(store.owner) !== canonicalSha256(upgrade.expectation.binding.owner))
+  if (!sha5(evidenceSha256) || canonicalSha256(store.owner) !== canonicalSha256(upgrade.expectation.binding.owner))
     throw Error('Upgrade retirement owner or external absence differs');
   const release = await acquireProcessLock(join8(store.directory, '.upgrade-lock'));
   try {
@@ -20777,7 +20863,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         serial.activePlanId !== undefined ||
         serial.activePlanSha256 !== undefined ||
         typeof serial.lastPlanId !== 'string' ||
-        !sha4(serial.lastPlanSha256)
+        !sha5(serial.lastPlanSha256)
       )
         throw Error('Active or malformed serial upgrade blocks retirement');
       const auth = object32(await store.read(`${upgrade.planId}-authorization.json`)),
@@ -20795,7 +20881,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         checkpoint.sourcePlanSha256 !== base.planSha256 ||
         checkpoint.upgradePlanSha256 !== upgrade.planSha256 ||
         checkpoint.phase !== 'complete' ||
-        !sha4(checkpoint.actionPlanSha256)
+        !sha5(checkpoint.actionPlanSha256)
       )
         throw Error('Upgrade retirement authorization or completion differs');
       if (
@@ -20845,7 +20931,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         r.noChanges !== true ||
         !Array.isArray(r.changes) ||
         r.changes.length ||
-        !sha4(r.planSha256) ||
+        !sha5(r.planSha256) ||
         r.operation ||
         r.actionInvocations ||
         r.imports ||
@@ -20945,7 +21031,7 @@ var object32 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed upgrade retirement evidence');
     return v;
   },
-  sha4 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+  sha5 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_upgrade_retirement = __esm(() => {
   init_process_lock();
   init_canonical();
@@ -22567,7 +22653,7 @@ var init_aws_ce_teardown = __esm(() => {
 });
 
 // plugins/platform/src/ce/native-upgrade.ts
-import { createHash as createHash23, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
+import { createHash as createHash24, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
 function canonical3(value) {
   if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
@@ -22596,7 +22682,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
   if (
     runtime.engine !== 'native' ||
     storage.owner.engine !== 'native' ||
-    hash13(storage.owner) !== hash13(upgrade.expectation.binding.owner)
+    hash14(storage.owner) !== hash14(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning native engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -22606,7 +22692,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     const sourceName = `${upgrade.planId}.json`;
     const saved = await optional16(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash13(saved) !== hash13(upgrade)) throw new Error('Saved native upgrade source differs');
+    else if (hash14(saved) !== hash14(upgrade)) throw new Error('Saved native upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
     let checkpoint = await optional16(storage, checkpointName);
     if (checkpoint === undefined) {
@@ -22669,7 +22755,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash13(receipt.target) !== hash13(upgrade.expectation.target) ||
+        hash14(receipt.target) !== hash14(upgrade.expectation.target) ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
         receipt.traffic !== 'unknown'
@@ -22776,7 +22862,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     await release();
   }
 }
-var hash13 = (value) => createHash23('sha256').update(canonical3(value)).digest('hex'),
+var hash14 = (value) => createHash24('sha256').update(canonical3(value)).digest('hex'),
   sameHash2 = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&

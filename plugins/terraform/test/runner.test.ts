@@ -291,7 +291,7 @@ test('executor gives apply operations a dedicated cloud-convergence deadline', a
     killAfterMs: 20,
   });
   await expect(executor({ cwd: root, args: ['plan'], env: { PATH: root } })).rejects.toThrow('deadline');
-  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toEqual({
+  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toMatchObject({
     code: 0,
     stdout: 'success',
   });
@@ -330,7 +330,10 @@ test('failed command diagnostics remain private, unique and absent from exported
     expect(content).not.toContain('ENV_SECRET');
   }
   await writeFile(executable, '#!/bin/sh\nprintf "success"\n');
-  expect(await executor({ cwd: root, args: ['version'], env: { PATH: root } })).toEqual({ code: 0, stdout: 'success' });
+  expect(await executor({ cwd: root, args: ['version'], env: { PATH: root } })).toMatchObject({
+    code: 0,
+    stdout: 'success',
+  });
   expect(await readdir(directory)).toEqual(names);
   await rm(directory, { recursive: true });
   const outside = await mkdtemp(join(tmpdir(), 'ce-tf-diagnostics-outside-'));
@@ -373,7 +376,7 @@ test('failed executors expose only fixed categories and discard potentially sens
     expect(error.message).not.toContain('PRIVATE_BOOTSTRAP');
   }
   await writeFile(executable, '#!/bin/sh\nprintf "InsufficientInstanceCapacity" >&2\nprintf "ok"\n');
-  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toEqual({ code: 0, stdout: 'ok' });
+  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toMatchObject({ code: 0, stdout: 'ok' });
   await writeFile(
     executable,
     '#!/bin/sh\nprintf \'{"diagnostics":[{"severity":"error","summary":"Unsupported argument","detail":"PRIVATE_BOOTSTRAP"}]}\'\nexit 1\n',
@@ -1282,4 +1285,19 @@ test('interrupted action reconciliation honors the real runner process lock and 
   expect(await f.runner.readPlanApplicationState(receipt)).toBe('applied');
   await expect(f.runner.apply(receipt, {})).rejects.toThrow();
   expect(f.calls.filter((call) => call.args[0] === 'apply')).toHaveLength(1);
+});
+
+test('executor rejects a changed exact binary before launching any command', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-executable-pin-'));
+  directories.push(root);
+  const path = join(root, 'terraform');
+  await writeFile(path, '#!/bin/sh\nprintf "original"\n', { mode: 0o700 });
+  const { executableIdentity } = await import('../src/cleanup-verifier-worker');
+  const expectedExecutable = await executableIdentity(path);
+  await writeFile(path, '#!/bin/sh\nprintf "CHANGED" > invoked\n');
+  const executor = terraformExecutor();
+  await expect(executor({ cwd: root, args: ['apply'], env: { PATH: root }, expectedExecutable })).rejects.toThrow(
+    'before execution',
+  );
+  await expect(readFile(join(root, 'invoked'))).rejects.toThrow();
 });

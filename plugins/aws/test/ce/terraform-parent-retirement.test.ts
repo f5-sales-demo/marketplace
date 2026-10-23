@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { storeBootstrapToken } from '../../../platform/src/ce/token-store';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import {
   dispatchAwsTerraformBgpPower,
   reconcileAwsTerraformBgpPower,
@@ -85,6 +86,12 @@ async function fixture(single = false, supplied?: ReturnType<typeof foundationPl
       backendIdentity: `local:${base.deploymentName}${directory.includes('/terraform-stages/') ? ':stage:f5-resources' : ''}`,
       scope: { cloud: 'aws', account: base.accountId, region: base.region },
     };
+    const independent = independentRetirementFixture({
+      manifestSha256: canonicalSha256(manifest),
+      evidenceSha256: 'b'.repeat(64),
+      finalPlanSha256: 'c'.repeat(64),
+      planReceiptSha256: 'd'.repeat(64),
+    });
     const encoded = JSON.stringify(manifest);
     await writeFile(join(directory, 'deployment.json'), encoded, { mode: 0o600 });
     await writeFile(
@@ -98,6 +105,7 @@ async function fixture(single = false, supplied?: ReturnType<typeof foundationPl
         planReceiptSha256: 'd'.repeat(64),
         inventorySha256: hash('[]'),
         artifacts: [],
+        ...independent,
       }),
       { mode: 0o600 },
     );
@@ -439,7 +447,7 @@ test('terminal parent retirement rejects foreign, orphan, malformed and unexpect
     const f = await fixture();
     const plan = await preparedPower(f);
     if (mode === 'owner') {
-      plan.bindings.owner.account = 'foreign';
+      plan.bindings.owner.account = 'example-foreign-account';
       await f.store.write(`${plan.planId}.json`, plan);
     }
     if (mode === 'digest') {
@@ -1206,7 +1214,7 @@ for (const mode of ['node', 'mac', 'cloud', 'duplicate-plan', 'final-receipt'] a
     const value = (await f.store.read(path)) as any;
     if (mode === 'node') value.fields['aws_instance.node_1'].id = 'i-fffffffffffffffff';
     if (mode === 'mac') value.fields['aws_network_interface.node_1_nic_0'].mac_address = 'ff:ff:ff:ff:ff:ff';
-    if (mode === 'cloud') value.cloud.owner.account = 'foreign';
+    if (mode === 'cloud') value.cloud.owner.account = 'example-foreign-account';
     if (mode === 'duplicate-plan')
       value.receipt.changes = [0, 1].map(() => ({ address: 'aws_instance.node_1', actions: ['no-op'] }));
     if (mode === 'final-receipt') value.receipt.planSha256 = 'e'.repeat(64);
@@ -1308,3 +1316,14 @@ for (const mode of ['applied', 'status', 'services', 'time'] as const)
     await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
     expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
   });
+
+test('parent retirement rejects missing independent original execution evidence', async () => {
+  const f = await fixture(),
+    path = join(f.store.directory, f.base.deploymentName, 'artifact-retirement.json');
+  const marker = JSON.parse(await readFile(path, 'utf8'));
+  delete marker.independentCleanup;
+  await writeFile(path, JSON.stringify(marker), { mode: 0o600 });
+  await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow(
+    'Independent',
+  );
+});

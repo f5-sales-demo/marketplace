@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import { buildSiteUpgradeRequest } from '../../../platform/src/ce/wire-upgrade';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import { canonicalSha256, sha256Hex } from '../../src/ce/canonical';
 import { retireAwsTerraformParentArtifacts } from '../../src/ce/terraform-parent-retirement';
 import { prepareAwsTerraformUpgrade } from '../../src/ce/terraform-upgrade';
@@ -350,6 +351,15 @@ test('parent retirement validates and preserves the exact retired upgrade proven
       artifacts: [],
       inventorySha256: sha256Hex('[]'),
     };
+    Object.assign(
+      marker,
+      independentRetirementFixture({
+        manifestSha256: marker.manifestSha256,
+        evidenceSha256: marker.evidenceSha256,
+        finalPlanSha256: String(marker.finalPlanSha256),
+        planReceiptSha256: marker.planReceiptSha256,
+      }),
+    );
     await writeFile(join(path, 'artifact-retirement.json'), JSON.stringify(marker), { mode: 0o600 });
   };
   await make();

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { storeBootstrapToken } from '../../../platform/src/ce/token-store';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { azureTerraformCurrentDeployment } from '../../src/ce/terraform-foundation';
@@ -19,6 +20,7 @@ afterEach(async () => {
 });
 for (const fault of [
   'none',
+  'missing-independent',
   'unknown',
   'public-update',
   'public-update-prepared',
@@ -71,9 +73,20 @@ for (const fault of [
       manifestSha256: fault === 'foreign-runner' ? 'd'.repeat(64) : canonicalSha256(manifest),
       evidenceSha256: evidence,
       finalPlanSha256: finalPlan,
+      planReceiptSha256: canonicalSha256({ planSha256: finalPlan }),
       artifacts: [],
       inventorySha256: hash('[]'),
     };
+    if (fault !== 'missing-independent')
+      Object.assign(
+        marker,
+        independentRetirementFixture({
+          manifestSha256: marker.manifestSha256,
+          evidenceSha256: evidence,
+          finalPlanSha256: finalPlan,
+          planReceiptSha256: marker.planReceiptSha256,
+        }),
+      );
     const runner = join(store.directory, base.deploymentName);
     await mkdir(runner, { mode: 0o700 });
     await writeFile(join(runner, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
@@ -139,6 +152,7 @@ for (const fault of [
     if (
       [
         'unknown',
+        'missing-independent',
         'foreign-public-update',
         'malformed-public-update',
         'foreign-public-update-plan',

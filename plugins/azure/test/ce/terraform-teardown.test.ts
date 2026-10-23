@@ -8,6 +8,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
+import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import type { AzExecApi } from '../../src/az/exec';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import {
@@ -258,6 +259,12 @@ for (const pending of [false, true])
             configurationSha256: hash(configuration),
             providerLockSha256: hash(providerLock),
           };
+          const independent = independentRetirementFixture({
+            manifestSha256: canonicalSha256(manifest),
+            evidenceSha256,
+            finalPlanSha256: receipt.planSha256,
+            planReceiptSha256: canonicalSha256(receipt),
+          });
           const runnerDirectory = join(storage.directory, plan.deploymentName);
           await mkdir(runnerDirectory, { mode: 0o700, recursive: true });
           await writeFile(join(runnerDirectory, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
@@ -270,6 +277,8 @@ for (const pending of [false, true])
               evidenceSha256,
               finalPlanSha256: receipt.planSha256,
               artifacts: [],
+              planReceiptSha256: canonicalSha256(receipt),
+              ...independent,
               inventorySha256: hash('[]'),
             }),
             { mode: 0o600 },
@@ -285,6 +294,7 @@ for (const pending of [false, true])
             finalPlanSha256: receipt.planSha256,
             inventorySha256: hash('[]'),
             retiredArtifacts: 4,
+            independentCleanupSha256: independent.independentCleanupSha256,
           };
         },
         async planDestroy() {
