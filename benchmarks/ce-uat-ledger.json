@@ -10775,6 +10775,10 @@
         {
           "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
           "result": "Read-only discovery/planning matrix and all eight exact archive installations verified; complete live feature matrix remains pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat108-continuation-failure-cleanup-evidence.json",
+          "result": "PROVISIONED within original deadline; continuation timed out with zero expected bindings, qualification failed; exact installed teardown and independent cleanup passed"
         }
       ]
     },
@@ -10782,7 +10786,13 @@
       "id": "producer-publication",
       "status": "blocked",
       "requirement": "Qualified additive interface contract; child issue, review/CI, immutable assets, fresh published-asset qualification before consumer repin",
-      "supplementalEvidence": ["docs/receipts/ce-uat107-producer-publication-next-fixture-evidence.json"]
+      "supplementalEvidence": [
+        "docs/receipts/ce-uat107-producer-publication-next-fixture-evidence.json",
+        {
+          "receipt": "docs/receipts/ce-uat108-continuation-failure-cleanup-evidence.json",
+          "result": "PROVISIONED within original deadline; continuation timed out with zero expected bindings, qualification failed; exact installed teardown and independent cleanup passed"
+        }
+      ]
     },
     {
       "id": "installed-cohort",
@@ -10796,6 +10806,10 @@
         {
           "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
           "result": "Read-only discovery/planning matrix and all eight exact archive installations verified; complete live feature matrix remains pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat108-continuation-failure-cleanup-evidence.json",
+          "result": "PROVISIONED within original deadline; continuation timed out with zero expected bindings, qualification failed; exact installed teardown and independent cleanup passed"
         }
       ]
     },
