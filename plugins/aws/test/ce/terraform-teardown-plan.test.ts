@@ -6,6 +6,7 @@ import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
 import { collectAwsTeardownMaterial, prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
 import { siteBindings } from '../../src/ce/topology';
 import { foundationPlan } from './terraform-fixtures';
@@ -214,6 +215,61 @@ test('accepts an interrupted native deployment with no routing checkpoint only w
 test('rejects incomplete, changed and uncorrelated teardown inventory before publishing a plan', async () => {
   for (const mode of ['unknown', 'wrong-routing', 'wrong-listener', 'foreign-token', 'drift']) {
     const f = await fixture(mode);
+    await expect(prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage)).rejects.toThrow();
+  }
+});
+
+test('interrupted registered teardown preparation retains its original immutable plan after admission disappears', async () => {
+  const f = await fixture();
+  const original = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
+  await beginAwsTerraformRetirement(f.base, original, f.storage);
+  await f.storage.write('terraform-workflow.json', { stage: 'registration-pending' });
+  await f.storage.write('terraform-f5-resources.json', { resources: {} });
+  f.runtime.teardownInventory = async () => {
+    throw Error('Live inventory must not select a new retirement contract');
+  };
+  expect(await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage)).toEqual(original);
+});
+
+test('retirement preparation rejects changed immutable plan bytes and unavailable original plan', async () => {
+  for (const missing of [false, true]) {
+    const f = await fixture();
+    const original = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
+    await beginAwsTerraformRetirement(f.base, original, f.storage);
+    if (missing) await rm(join(f.storage.directory, `${original.planId}.json`));
+    else await f.storage.write(`${original.planId}.json`, { ...original, retirement: [] });
+    await expect(prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage)).rejects.toThrow();
+  }
+});
+
+test('retirement preparation rejects foreign, malformed and obsolete lifecycle bindings', async () => {
+  for (const change of [
+    { owner: {} },
+    { sourcePlanSha256: 'b'.repeat(64) },
+    { teardownPlanSha256: 'bad' },
+    { engine: 'native' },
+    { schemaVersion: 2 },
+    { status: 'complete' },
+    { kind: 'unknown' },
+    { extra: true },
+  ]) {
+    const f = await fixture();
+    const original = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
+    await beginAwsTerraformRetirement(f.base, original, f.storage);
+    const marker = (await f.storage.read('aws-terraform-lifecycle-retirement.json')) as Record<string, unknown>;
+    await f.storage.write('aws-terraform-lifecycle-retirement.json', { ...marker, ...change });
+    await expect(prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage)).rejects.toThrow();
+  }
+});
+
+test('retirement preparation rejects foreign runtime and changed producer contracts', async () => {
+  for (const change of ['engine', 'site-contract', 'ingress-contract']) {
+    const f = await fixture();
+    const original = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
+    await beginAwsTerraformRetirement(f.base, original, f.storage);
+    if (change === 'engine') Object.assign(f.runtime, { engine: 'native' });
+    else if (change === 'site-contract') Object.assign(f.runtime.contract, { fingerprint: 'foreign' });
+    else Object.assign(f.contract, { fingerprint: 'foreign' });
     await expect(prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage)).rejects.toThrow();
   }
 });

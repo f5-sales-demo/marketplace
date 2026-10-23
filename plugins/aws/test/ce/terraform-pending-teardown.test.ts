@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
 import { coordinateAwsPendingTeardown, prepareAwsPendingTeardown } from '../../src/ce/terraform-pending-teardown';
 import { prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
 import { siteBindings } from '../../src/ce/topology';
@@ -745,4 +746,14 @@ test('launch completion without an approval journal preserves independently veri
   expect(plan.kind).toBe('aws-ce-terraform-teardown');
   expect(plan.retirement[0].physicalSiteUid).toBe('physical-uid');
   expect(f.mutations).toHaveLength(0);
+});
+
+test('public preparation resumes the exact pending contract after admission disappears', async () => {
+  const f = await fixture();
+  const original = await prepareAwsPendingTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+  await beginAwsTerraformRetirement(f.base, original, f.storage);
+  await unlink(join(f.storage.directory, 'terraform-admission.json'));
+  expect(await prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage)).toEqual(
+    original,
+  );
 });

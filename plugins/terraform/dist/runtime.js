@@ -1,6 +1,6 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-// ../platform/src/ce/process-lock.ts
+// plugins/platform/src/ce/process-lock.ts
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -169,7 +169,7 @@ async function acquireProcessLock(path) {
   throw new Error('Operation lock could not be acquired');
 }
 
-// ../platform/src/ce/site-labels.ts
+// plugins/platform/src/ce/site-labels.ts
 var discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
 function writableSiteLabels(labels) {
   return Object.fromEntries(
@@ -179,10 +179,10 @@ function writableSiteLabels(labels) {
   );
 }
 
-// ../platform/src/ce/runtime.ts
+// plugins/platform/src/ce/runtime.ts
 var CE_API_ERROR_BRAND = Symbol.for('xcsh.ce.api-error.v1');
 
-// ../platform/src/ce/verified-api-release.ts
+// plugins/platform/src/ce/verified-api-release.ts
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v12.3.0';
 var commit = '7f61de00a1048a801c4be6bea9c462803fd1e3ae';
@@ -191,7 +191,7 @@ var assetUrl = `https://github.com/${repository}/releases/download/${tag}/openap
 var CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
 var verifiedSchemas = new WeakMap();
 
-// ../platform/src/ce/release-contract.ts
+// plugins/platform/src/ce/release-contract.ts
 var RELEASE_TAG = CE_API_RELEASE.tag;
 var RELEASE_COMMIT = CE_API_RELEASE.commit;
 var OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
@@ -213,7 +213,7 @@ var REQUIRED_ASSETS = new Set([
   'upstream-contract-removals.json',
 ]);
 
-// ../platform/src/ce/wire-schema.ts
+// plugins/platform/src/ce/wire-schema.ts
 var keywords = new Set([
   'type',
   'enum',
@@ -234,17 +234,17 @@ var keywords = new Set([
   'nullable',
 ]);
 
-// ../platform/src/ce/verified-contract.ts
+// plugins/platform/src/ce/verified-contract.ts
 var publishedAssets = Object.freeze({
   'smsv2-contract.json': 'sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08',
   'smsv2-contract-manifest.json': 'sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af',
   'smsv2-evidence-receipt.json': 'sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932',
 });
 
-// ../platform/src/ce/service.ts
+// plugins/platform/src/ce/service.ts
 var CE_TERRAFORM_RESOURCE_CHANNEL = 'xcsh:ce-terraform:v1:resource-mutation';
 
-// extensions/integration.ts
+// plugins/terraform/extensions/integration.ts
 function terraformInstallArgv(platform = process.platform) {
   if (platform === 'darwin') return ['brew', 'install', 'terraform'];
   if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
@@ -282,10 +282,10 @@ function terraformIntegration(pi) {
   });
 }
 
-// src/f5-resources.ts
-// src/f5-cancellation.ts
-// src/f5-retirement.ts
-// src/provider-lock.ts
+// plugins/terraform/src/f5-resources.ts
+// plugins/terraform/src/f5-cancellation.ts
+// plugins/terraform/src/f5-retirement.ts
+// plugins/terraform/src/provider-lock.ts
 import {
   createHash,
   createHash as createHash2,
@@ -304,7 +304,7 @@ async function loadXcshProviderLock() {
   return value;
 }
 
-// src/f5-retirement.ts
+// plugins/terraform/src/f5-retirement.ts
 var hash = (value) => createHash2('sha256').update(value).digest('hex');
 var sha = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 var object = (value) => {
@@ -455,10 +455,10 @@ async function retireF5TerraformStage(platform, terraform, owner, sourcePlanSha2
   }
 }
 
-// src/literal.ts
+// plugins/terraform/src/literal.ts
 var terraformLiteral = (value) => value.replaceAll('${', () => '$${').replaceAll('%{', () => '%%{');
 
-// src/resource-renderer.ts
+// plugins/terraform/src/resource-renderer.ts
 function object2(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Provider resource schema is malformed');
@@ -607,7 +607,7 @@ function renderProviderResource(request, resourceSchema, resourceType) {
   );
 }
 
-// src/f5-cancellation.ts
+// plugins/terraform/src/f5-cancellation.ts
 var object3 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed F5 cancellation evidence');
   return value;
@@ -900,7 +900,7 @@ async function cancelUnsubmittedF5Resource(platform, terraform, owner, contextNa
   }
 }
 
-// src/f5-resources.ts
+// plugins/terraform/src/f5-resources.ts
 var object4 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed F5 Terraform resource evidence');
@@ -1214,9 +1214,9 @@ async function executeF5TerraformResource(
   }
 }
 
-// src/runner.ts
-// src/artifact-retirement.ts
-// src/cleanup-verifier-worker.ts
+// plugins/terraform/src/runner.ts
+// plugins/terraform/src/artifact-retirement.ts
+// plugins/terraform/src/cleanup-verifier-worker.ts
 import {
   createHash as createHash5,
   createHash as createHash6,
@@ -1245,7 +1245,7 @@ import {
   writeFile as writeFile3,
   writeFile as writeFile4,
 } from 'node:fs/promises';
-// src/service.ts
+// plugins/terraform/src/service.ts
 import {
   isAbsolute,
   isAbsolute as isAbsolute2,
@@ -1324,7 +1324,7 @@ async function workerDigest() {
   );
 }
 
-// src/independent-cleanup.ts
+// plugins/terraform/src/independent-cleanup.ts
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { writeFile as writeFile2 } from 'node:fs/promises';
@@ -1570,7 +1570,7 @@ var executeIndependentCleanup = async (request, ambient, signal) => {
   });
 };
 
-// src/artifact-retirement.ts
+// plugins/terraform/src/artifact-retirement.ts
 var markerName = 'artifact-retirement.json';
 var hash5 = (value) => createHash6('sha256').update(value).digest('hex');
 var sha3 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -1719,7 +1719,7 @@ async function retirePrivateArtifacts(
   };
 }
 
-// src/failure.ts
+// plugins/terraform/src/failure.ts
 var patterns = [
   ['capacity', /\bInsufficientInstanceCapacity\b/],
   ['quota', /\bVpcLimitExceeded\b/],
@@ -1751,7 +1751,7 @@ class TerraformCommandError extends Error {
   }
 }
 
-// src/runner.ts
+// plugins/terraform/src/runner.ts
 var planApplicationFlag = ['apply', 'able'].join('');
 var cliConfig = `provider_installation {
   direct {}
@@ -3127,7 +3127,7 @@ class TerraformRunner {
   }
 }
 
-// src/service.ts
+// plugins/terraform/src/service.ts
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 function createCeTerraformService(platform) {
   const service = {
@@ -3269,7 +3269,7 @@ function requestPlatform(bus) {
   });
 }
 
-// src/index.ts
+// plugins/terraform/src/index.ts
 function factory(pi) {
   terraformIntegration(pi);
   pi.setLabel('Terraform CE lifecycle execution');

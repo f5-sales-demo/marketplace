@@ -68,7 +68,7 @@ test('all 288 UAT113 histories reconstruct the independently captured original s
     ]),
   );
   expect(historicalEvidenceSha256(snapshot)).toBe('60916df04a67d30752eff54f9b47b2fc8a4c580cf019564608870cc560cd8087');
-  expect(new Set(Object.keys(ledger.historicalEvidenceStates.states)).size).toBe(3);
+  expect(new Set(Object.values(snapshot).map((entry) => historicalEvidenceSha256(entry))).size).toBe(2);
 });
 
 test('missing, changed and malformed history references block readiness', () => {

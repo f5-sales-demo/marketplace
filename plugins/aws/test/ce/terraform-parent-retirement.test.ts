@@ -1327,3 +1327,84 @@ test('parent retirement rejects missing independent original execution evidence'
     'Independent',
   );
 });
+
+test('parent retirement curates other integrity-verified teardown plans without changing the selected retirement', async () => {
+  const f = await fixture();
+  const owner = siteBindings(f.base)[0].binding.owner;
+  const drain = {
+    owner,
+    sourcePlanSha256: f.base.planSha256,
+    siteContractFingerprint: 'site',
+    ingressContractFingerprint: 'ingress',
+  };
+  Object.assign(f.teardown, { drain });
+  await f.store.write(`${f.teardown.planId}.json`, f.teardown);
+  const draft = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    kind: 'aws-ce-terraform-pending-teardown',
+    sourcePlanSha256: f.base.planSha256,
+    sourceJournalSha256: 'd'.repeat(64),
+    drain,
+    retirement: [],
+  };
+  const planSha256 = canonicalSha256(draft),
+    planId = `aws-ce-pending-teardown-${planSha256.slice(0, 24)}`;
+  await f.store.write(`${planId}.json`, { ...draft, planId, planSha256 });
+  await f.store.write(`${planId}-authorization.json`, {
+    schemaVersion: 1,
+    engine: 'terraform',
+    sourcePlanSha256: f.base.planSha256,
+    teardownPlanSha256: planSha256,
+    mutations: true,
+  });
+  const result = await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store);
+  expect(result.status).toBe('deployment-artifacts-retired');
+  expect(await readdir(f.store.directory)).not.toContain(`${planId}.json`);
+  expect(await readdir(f.store.directory)).not.toContain(`${planId}-authorization.json`);
+  expect(await readdir(f.store.directory)).toContain(`${f.teardown.planId}.json`);
+});
+
+test('parent retirement refuses altered or foreign alternative teardown plan and authorization', async () => {
+  for (const mode of ['bytes', 'owner', 'source', 'contract', 'authorization']) {
+    const f = await fixture();
+    const owner = siteBindings(f.base)[0].binding.owner;
+    const drain = {
+      owner,
+      sourcePlanSha256: f.base.planSha256,
+      siteContractFingerprint: 'site',
+      ingressContractFingerprint: 'ingress',
+    };
+    Object.assign(f.teardown, { drain });
+    await f.store.write(`${f.teardown.planId}.json`, f.teardown);
+    const draft = {
+      schemaVersion: 1,
+      engine: 'terraform',
+      kind: 'aws-ce-terraform-pending-teardown',
+      sourcePlanSha256: mode === 'source' ? 'f'.repeat(64) : f.base.planSha256,
+      drain: {
+        ...drain,
+        ...(mode === 'owner' ? { owner: {} } : {}),
+        ...(mode === 'contract' ? { siteContractFingerprint: 'foreign' } : {}),
+      },
+      retirement: [],
+    };
+    const planSha256 = canonicalSha256(draft),
+      planId = `aws-ce-pending-teardown-${planSha256.slice(0, 24)}`;
+    await f.store.write(`${planId}.json`, {
+      ...draft,
+      planId,
+      planSha256,
+      ...(mode === 'bytes' ? { changed: true } : {}),
+    });
+    await f.store.write(`${planId}-authorization.json`, {
+      schemaVersion: 1,
+      engine: 'terraform',
+      sourcePlanSha256: f.base.planSha256,
+      teardownPlanSha256: mode === 'authorization' ? 'f'.repeat(64) : planSha256,
+      mutations: true,
+    });
+    await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
+    expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+  }
+});

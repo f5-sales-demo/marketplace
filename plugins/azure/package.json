@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "5.0.0-uat.119",
+  "version": "5.0.0-uat.120",
   "description": "Azure CLI tools and deterministic F5 Customer Edge administration for xcsh",
   "main": "dist/runtime.js",
   "scripts": {

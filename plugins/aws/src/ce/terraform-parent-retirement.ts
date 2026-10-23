@@ -149,6 +149,56 @@ async function inventory(
     `${teardown.planId}.json`,
     `${teardown.planId}-authorization.json`,
   ]);
+  const otherTeardownArtifacts = new Set<string>();
+  const prefixes: Record<string, string> = {
+    'aws-ce-terraform-teardown': 'aws-ce-teardown-',
+    'aws-ce-terraform-foundation-teardown': 'aws-ce-foundation-teardown-',
+    'aws-ce-terraform-pending-teardown': 'aws-ce-pending-teardown-',
+  };
+  for (const name of (await readdir(store.directory)).filter(
+    (name) =>
+      /^aws-ce-(?:foundation-|pending-)?teardown-[a-f0-9]{24}\.json$/.test(name) && name !== `${teardown.planId}.json`,
+  )) {
+    const candidate = object(await store.read(name));
+    const { planId, planSha256, ...draft } = candidate;
+    const drain = object(candidate.drain),
+      selectedDrain = object(object(await store.read(`${teardown.planId}.json`)).drain);
+    if (
+      typeof candidate.kind !== 'string' ||
+      !Object.hasOwn(prefixes, candidate.kind) ||
+      !sha(planSha256) ||
+      planId !== prefixes[candidate.kind] + planSha256.slice(0, 24) ||
+      name !== `${planId}.json` ||
+      canonicalSha256(draft) !== planSha256 ||
+      candidate.schemaVersion !== 1 ||
+      candidate.engine !== 'terraform' ||
+      candidate.sourcePlanSha256 !== base.planSha256 ||
+      drain.sourcePlanSha256 !== base.planSha256 ||
+      canonicalSha256(drain.owner) !== canonicalSha256(store.owner) ||
+      typeof drain.siteContractFingerprint !== 'string' ||
+      !drain.siteContractFingerprint ||
+      typeof drain.ingressContractFingerprint !== 'string' ||
+      !drain.ingressContractFingerprint ||
+      drain.siteContractFingerprint !== selectedDrain.siteContractFingerprint ||
+      drain.ingressContractFingerprint !== selectedDrain.ingressContractFingerprint
+    )
+      throw Error('Alternative teardown artifact identity differs');
+    const authName = `${planId}-authorization.json`;
+    const authorization = object(await store.read(authName));
+    if (
+      canonicalSha256(authorization) !==
+      canonicalSha256({
+        schemaVersion: 1,
+        engine: 'terraform',
+        sourcePlanSha256: base.planSha256,
+        teardownPlanSha256: planSha256,
+        mutations: true,
+      })
+    )
+      throw Error('Alternative teardown artifact authorization differs');
+    otherTeardownArtifacts.add(name);
+    otherTeardownArtifacts.add(authName);
+  }
   const drainJournals = new Set([
     'platform-drain-source.json',
     'platform-drain-progress.json',
@@ -280,6 +330,10 @@ async function inventory(
           throw Error('Stage deployment inventory differs');
         await runner(`${name}/${stage}/${base.deploymentName}`, stage, upgrades.get(stage));
       }
+      continue;
+    }
+    if (otherTeardownArtifacts.has(name)) {
+      await add(name, false);
       continue;
     }
     if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {

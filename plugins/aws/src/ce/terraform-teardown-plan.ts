@@ -5,9 +5,9 @@ import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import type { AwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
-import { prepareAwsFoundationTeardown } from './terraform-foundation-teardown';
-import { prepareAwsPendingTeardown } from './terraform-pending-teardown';
-import { compileAwsTerraformTeardown } from './terraform-teardown';
+import { type AwsFoundationTeardownPlan, prepareAwsFoundationTeardown } from './terraform-foundation-teardown';
+import { type AwsPendingTeardownPlan, prepareAwsPendingTeardown } from './terraform-pending-teardown';
+import { type AwsTerraformTeardownPlan, compileAwsTerraformTeardown } from './terraform-teardown';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -274,6 +274,70 @@ export async function collectAwsTeardownMaterial(
   return { drain, retirement };
 }
 
+/** Retirement fixes the selected contract before mutation. Preparation resumes that
+ * exact plan even after admission, registrations or cloud resources have disappeared.
+ * Fresh execution prerequisites are still verified by the owning teardown coordinator.
+ */
+async function retiringPlan(
+  base: AwsCePlan,
+  runtime: CeRuntime,
+  contract: VerifiedIngressContract,
+  storage: CeDeploymentStore,
+  signal?: AbortSignal,
+): Promise<AwsTerraformTeardownPlan | AwsFoundationTeardownPlan | AwsPendingTeardownPlan | undefined> {
+  await storage.verify();
+  const raw = await optional(storage, 'aws-terraform-lifecycle-retirement.json');
+  if (raw === undefined) return;
+  verifyAwsCePlan(base);
+  const marker = object(raw),
+    owner = siteBindings(base)[0].binding.owner;
+  const prefixes: Record<string, string> = {
+    'aws-ce-terraform-teardown': 'aws-ce-teardown-',
+    'aws-ce-terraform-foundation-teardown': 'aws-ce-foundation-teardown-',
+    'aws-ce-terraform-pending-teardown': 'aws-ce-pending-teardown-',
+  };
+  if (
+    typeof marker.kind !== 'string' ||
+    !Object.hasOwn(prefixes, marker.kind) ||
+    typeof marker.teardownPlanSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(marker.teardownPlanSha256) ||
+    runtime.engine !== 'terraform' ||
+    canonicalSha256(storage.owner) !== canonicalSha256(owner) ||
+    canonicalSha256(marker) !==
+      canonicalSha256({
+        schemaVersion: 1,
+        engine: 'terraform',
+        status: 'retiring',
+        owner,
+        sourcePlanSha256: base.planSha256,
+        teardownPlanSha256: marker.teardownPlanSha256,
+        kind: marker.kind,
+      })
+  )
+    throw new Error('Existing Terraform retirement binding differs');
+  const id = prefixes[marker.kind] + marker.teardownPlanSha256.slice(0, 24);
+  const stored = object(await storage.read(`${id}.json`));
+  const { planId, planSha256, ...draft } = stored;
+  const drain = object(stored.drain);
+  if (
+    planId !== id ||
+    planSha256 !== marker.teardownPlanSha256 ||
+    canonicalSha256(draft) !== planSha256 ||
+    stored.schemaVersion !== 1 ||
+    stored.engine !== 'terraform' ||
+    stored.kind !== marker.kind ||
+    stored.sourcePlanSha256 !== base.planSha256 ||
+    drain.sourcePlanSha256 !== base.planSha256 ||
+    canonicalSha256(drain.owner) !== canonicalSha256(owner) ||
+    drain.siteContractFingerprint !== runtime.contract.fingerprint ||
+    drain.ingressContractFingerprint !== contract.fingerprint ||
+    canonicalSha256(await storage.read('aws-terraform-lifecycle-retirement.json')) !== canonicalSha256(marker)
+  )
+    throw new Error('Original immutable Terraform retirement plan differs');
+  signal?.throwIfAborted();
+  return stored as unknown as AwsTerraformTeardownPlan | AwsFoundationTeardownPlan | AwsPendingTeardownPlan;
+}
+
 export async function prepareAwsTerraformTeardown(
   input: AwsCePlan,
   runtime: CeRuntime,
@@ -282,6 +346,8 @@ export async function prepareAwsTerraformTeardown(
   signal?: AbortSignal,
 ) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
+  const existing = await retiringPlan(input, runtime, contract, storage, signal);
+  if (existing) return existing;
   const workflow = await optional(storage, 'terraform-workflow.json');
   const admission = await optional(storage, 'terraform-admission.json');
   const f5State = admission === undefined ? await optional(storage, 'terraform-f5-resources.json') : undefined;

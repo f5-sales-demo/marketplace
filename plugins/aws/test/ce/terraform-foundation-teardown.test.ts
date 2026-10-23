@@ -8,6 +8,8 @@ import {
   coordinateAwsFoundationTeardown,
   prepareAwsFoundationTeardown,
 } from '../../src/ce/terraform-foundation-teardown';
+import { beginAwsTerraformRetirement } from '../../src/ce/terraform-lifecycle';
+import { prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
 import { siteBindings } from '../../src/ce/topology';
 import { foundationPlan } from './terraform-fixtures';
 
@@ -157,4 +159,16 @@ test('foundation retirement preserves unknown after post-destroy publication app
   };
   await expect(coordinateAwsFoundationTeardown(f.base, p, p.planSha256, f.storage, stale)).rejects.toThrow('absence');
   expect(f.counts().mutations).toBe(1);
+});
+
+test('public preparation resumes the exact foundation contract after its workflow disappears', async () => {
+  const f = await fixture();
+  const original = await prepareAwsFoundationTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+  await beginAwsTerraformRetirement(f.base, original, f.storage);
+  await rm(join(f.storage.directory, 'terraform-workflow.json'));
+  const before = f.counts();
+  expect(await prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage)).toEqual(
+    original,
+  );
+  expect(f.counts()).toEqual(before);
 });
