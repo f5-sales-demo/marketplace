@@ -68,10 +68,12 @@ export function ceUatReadiness(value: unknown) {
   );
   const blockers: string[] = [];
   for (const raw of ledger.rows) {
-    const historical = object(raw).historicalEvidence;
-    if (historical !== undefined) {
-      if (!Array.isArray(historical)) throw Error('Malformed historical evidence collection');
-      for (const entry of historical) resolveHistoricalEvidence(ledger, entry);
+    for (const key of ['historicalEvidence', 'historicalQualifications']) {
+      const historical = object(raw)[key];
+      if (historical !== undefined) {
+        if (!Array.isArray(historical)) throw Error('Malformed historical evidence collection');
+        for (const entry of historical) resolveHistoricalEvidence(ledger, entry);
+      }
     }
     const row = object(raw);
     if (typeof row.id !== 'string' || !expected.delete(row.id))

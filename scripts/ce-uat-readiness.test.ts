@@ -83,3 +83,21 @@ test('missing, changed and malformed history references block readiness', () => 
     expect(() => ceUatReadiness(candidate)).toThrow(/historical|Historical/);
   }
 });
+
+test('pooled historical qualifications preserve the complete independently captured snapshot', () => {
+  const snapshot = Object.fromEntries(
+    ledger.rows.map((row) => [
+      row.id,
+      (row.historicalQualifications ?? []).map((entry) => resolveHistoricalEvidence(ledger, entry)),
+    ]),
+  );
+  expect(historicalEvidenceSha256(snapshot)).toBe('5da5ffdd6662ba58d736ee2d9d4590e03234c16baa2c5160d6816faffcf45864');
+});
+test('invalid historical qualification references block readiness without qualifying current rows', () => {
+  const candidate = structuredClone(ledger);
+  const row = candidate.rows.find((entry) => entry.historicalQualifications?.length);
+  if (!row?.historicalQualifications) throw Error('Historical qualification missing');
+  const reference = row.historicalQualifications[0] as { evidenceStateSha256: string };
+  delete (candidate.historicalEvidenceStates.states as Record<string, unknown>)[reference.evidenceStateSha256];
+  expect(() => ceUatReadiness(candidate)).toThrow(/historical|Historical/);
+});
