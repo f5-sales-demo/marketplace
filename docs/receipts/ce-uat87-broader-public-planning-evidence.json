@@ -1,0 +1,129 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "discovery": "current-live-AWS-and-Azure-three-node",
+  "results": [
+    {
+      "cloud": "aws",
+      "engine": "native",
+      "profile": "independent-sites",
+      "planId": "aws-ce-23619456ce8511f5ac02c7f7",
+      "planSha256": "23619456ce8511f5ac02c7f704e95599facf3ada025bbecf595a3616f737b717",
+      "nodeCount": 3,
+      "privateResultSha256": "eb47d2f248df3cdd34da2af21f545629272eb7966a4e720af8488191d4a51ad8",
+      "routingProfile": "nlb-ingress",
+      "distinctSiteBindings": 3,
+      "siteNodeBindingsVerified": true,
+      "plannedInterfaces": 6,
+      "availabilityZones": ["us-east-2a", "us-east-2b", "us-east-2c"]
+    },
+    {
+      "cloud": "aws",
+      "engine": "terraform",
+      "profile": "independent-sites",
+      "planId": "aws-ce-02ae5177f5eaf330fd2b0432",
+      "planSha256": "02ae5177f5eaf330fd2b04324bb8157ce592bd79be03e7be3ba0feebd90cf710",
+      "nodeCount": 3,
+      "privateResultSha256": "6ba890eb7cace9f9ea4261555ccc76f664c8dc7b5def9deb97374246051af3d3",
+      "routingProfile": "nlb-ingress",
+      "distinctSiteBindings": 3,
+      "siteNodeBindingsVerified": true,
+      "plannedInterfaces": 6,
+      "availabilityZones": ["us-east-2a", "us-east-2b", "us-east-2c"]
+    },
+    {
+      "cloud": "azure",
+      "engine": "native",
+      "profile": "three-node-ha",
+      "planId": "azure-ce-8bfc8b95f9af4112ed3a1730",
+      "planSha256": "8bfc8b95f9af4112ed3a173028966c628669ed584431d45e5f6c6e9b8cf5af5b",
+      "nodeCount": 3,
+      "privateResultSha256": "61e5eda42a657f1e2bed914d75fa30ab9493d492ebebadb69bfc694d8973c5eb",
+      "ha": true,
+      "zones": ["1", "2", "3"],
+      "routingMode": "udr",
+      "plannedInterfaces": 6
+    },
+    {
+      "cloud": "azure",
+      "engine": "terraform",
+      "profile": "three-node-ha",
+      "planId": "azure-ce-49ab58d46c70399bdf5ee6ac",
+      "planSha256": "49ab58d46c70399bdf5ee6ac76759a32fe56ac682e7760d195876ef67156d7ea",
+      "nodeCount": 3,
+      "privateResultSha256": "c7ee70f8b3af180257ce0e9b36bbc145654c4e934a079c050a29ec0cbe5d5c14",
+      "ha": true,
+      "zones": ["1", "2", "3"],
+      "routingMode": "udr",
+      "plannedInterfaces": 6
+    }
+  ],
+  "trace": [
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-21T19:57:08.881Z",
+      "completedAt": "2026-10-21T19:57:08.902Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-21T19:57:08.902Z",
+      "completedAt": "2026-10-21T19:57:08.916Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:57:10.030Z",
+      "completedAt": "2026-10-21T19:57:10.036Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:57:10.036Z",
+      "completedAt": "2026-10-21T19:57:10.037Z",
+      "isError": false
+    }
+  ],
+  "cloudMutation": false,
+  "creationQualified": false,
+  "lifecycleQualified": false,
+  "fullCeAcceptance": false,
+  "automated": {
+    "tests": 98,
+    "assertions": 540,
+    "passed": true
+  },
+  "retainedRejections": [
+    {
+      "cloud": "aws",
+      "profile": "independent-sites",
+      "routingProfile": "direct-eni",
+      "reason": "direct ENI routing requires a one-node topology"
+    },
+    {
+      "cloud": "aws",
+      "profile": "three-node-ha",
+      "reason": "Three-node HA requires distinct verified guest device identities for every interface"
+    }
+  ]
+}
