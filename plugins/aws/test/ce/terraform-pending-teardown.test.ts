@@ -615,3 +615,103 @@ test('rejected pending retirement cannot persist a terminal deployment marker', 
     await expect(f.storage.read('aws-terraform-lifecycle-retirement.json')).rejects.toMatchObject({ code: 'ENOENT' });
   }
 });
+
+async function launchedFixture() {
+  const f = await fixture();
+  await f.storage.write('terraform-admission.json', {
+    schemaVersion: 1,
+    planSha256: f.base.planSha256,
+    configurationSha256: 'b'.repeat(64),
+    bootstrapByNode: { '1': 'private-cloud-init' },
+    launchedAtByNode: { '1': new Date().toISOString() },
+    admittedSites: [f.binding.siteName],
+  });
+  await f.storage.write(`terraform-site-${f.binding.siteName}.json`, {
+    siteName: f.binding.siteName,
+    uid: 'logical-uid',
+    owner: f.binding.owner,
+    contractFingerprint: 'site',
+  });
+  Object.assign(f.runtime, { teardownInventory: async () => ({ status: 'unknown' }) });
+  return f;
+}
+
+test('public teardown retires a launched single node before registration without requiring a physical site', async () => {
+  const f = await launchedFixture();
+  const plan = await prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+  expect(plan.kind).toBe('aws-ce-terraform-pending-teardown');
+  expect(plan.retirement[0].physicalSiteUid).toBeNull();
+  expect(JSON.stringify(plan)).not.toContain('private-cloud-init');
+  const result = await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never);
+  expect(result.status).toBe('resources-retired-awaiting-inventory');
+  expect(f.mutations).toEqual(['token', 'cloud', 'site']);
+});
+
+test('launched pending retirement rejects incomplete, foreign and advanced provenance before mutations', async () => {
+  for (const mode of [
+    'foreign-site',
+    'duplicate-site',
+    'missing-bootstrap',
+    'missing-launch',
+    'future-launch',
+    'missing-site',
+    'approval-requested',
+    'approval-submitted',
+    'routing',
+    'unknown',
+    'stale',
+  ]) {
+    const f = await launchedFixture();
+    const admission = (await f.storage.read('terraform-admission.json')) as Record<string, unknown>;
+    if (mode === 'foreign-site') admission.admittedSites = ['foreign'];
+    if (mode === 'duplicate-site') admission.admittedSites = [f.binding.siteName, f.binding.siteName];
+    if (mode === 'missing-bootstrap') admission.bootstrapByNode = {};
+    if (mode === 'missing-launch') admission.launchedAtByNode = {};
+    if (mode === 'future-launch') admission.launchedAtByNode = { '1': new Date(Date.now() + 60000).toISOString() };
+    await f.storage.write('terraform-admission.json', admission);
+    if (mode === 'missing-site') await unlink(join(f.storage.directory, `terraform-site-${f.binding.siteName}.json`));
+    if (mode.startsWith('approval-'))
+      await f.storage.write(`terraform-registration-${f.binding.siteName}.json`, {
+        siteName: f.binding.siteName,
+        state: mode.slice('approval-'.length),
+        action: 'approve-registration',
+      });
+    if (mode === 'routing') await f.storage.write('terraform-routing-checkpoint.json', {});
+    if (mode === 'unknown') f.change('unknown');
+    if (mode === 'stale')
+      Object.assign(f.runtime, {
+        preRegistrationInventory: async () => ({
+          ...(await f.runtime.pendingAdmissionInventory()),
+          observedAt: new Date(Date.now() - 60001).toISOString(),
+        }),
+      });
+    await expect(
+      prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage),
+    ).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+  }
+});
+
+test('launched pending retirement rechecks approval provenance and registration evidence at execution', async () => {
+  for (const mode of ['approval', 'registration', 'launch-drift']) {
+    const f = await launchedFixture();
+    const plan = await prepareAwsTerraformTeardown(f.base, f.runtime as never, f.contract as never, f.storage);
+    if (mode === 'approval')
+      await f.storage.write(`terraform-registration-${f.binding.siteName}.json`, {
+        siteName: f.binding.siteName,
+        state: 'requested',
+        action: 'approve-registration',
+      });
+    if (mode === 'registration') f.change('unknown');
+    if (mode === 'launch-drift') {
+      const admission = (await f.storage.read('terraform-admission.json')) as Record<string, unknown>;
+      admission.launchedAtByNode = { '1': new Date(Date.now() - 1000).toISOString() };
+      await f.storage.write('terraform-admission.json', admission);
+    }
+    await expect(
+      coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never),
+    ).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+    await expect(f.storage.read('aws-terraform-lifecycle-retirement.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  }
+});

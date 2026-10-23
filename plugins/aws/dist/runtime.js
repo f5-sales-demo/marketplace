@@ -16410,6 +16410,18 @@ async function journal(base, storage, siteFingerprint) {
   const bootstrap = admission ? object22(admission.bootstrapByNode) : {},
     launched = admission ? object22(admission.launchedAtByNode) : {};
   const indexes = selected.flatMap(({ site }) => site.nodeIndexes.map(String));
+  const admitted = admission?.admittedSites;
+  const launchedSite = Array.isArray(admitted) && admitted.length === 1 && admitted[0] === selected[0].site.name;
+  const completeLaunch =
+    launchedSite &&
+    indexes.every(
+      (node) =>
+        uid(bootstrap[node]) &&
+        typeof launched[node] === 'string' &&
+        Number.isFinite(Date.parse(launched[node])) &&
+        new Date(Date.parse(launched[node])).toISOString() === launched[node] &&
+        Date.parse(launched[node]) <= Date.now(),
+    );
   if (
     auth.schemaVersion !== 1 ||
     auth.engine !== 'terraform' ||
@@ -16425,7 +16437,7 @@ async function journal(base, storage, siteFingerprint) {
         admission.planSha256 !== base.planSha256 ||
         !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
         !Array.isArray(admission.admittedSites) ||
-        admission.admittedSites.length)) ||
+        (admission.admittedSites.length > 0 && !completeLaunch))) ||
     Object.entries(bootstrap).some(([node, value]) => !indexes.includes(node) || !uid(value)) ||
     Object.entries(launched).some(
       ([node, value]) => !indexes.includes(node) || typeof value !== 'string' || !Number.isFinite(Date.parse(value)),
@@ -16455,6 +16467,8 @@ async function journal(base, storage, siteFingerprint) {
       siteRecords.push(row);
     }
   }
+  if (launchedSite && siteRecords.length !== selected.length)
+    throw new Error('Launched pending site requires its owning logical checkpoint');
   return canonicalSha256({ auth, workflow, admission, siteRecords });
 }
 async function reconcilePendingF5Site(base, runtime, storage, signal) {
@@ -21948,7 +21962,8 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
     admission !== undefined &&
     ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage)) &&
     Array.isArray(object34(admission).admittedSites) &&
-    object34(admission).admittedSites.length === 0
+    (object34(admission).admittedSites.length === 0 ||
+      !(await readdir7(storage.directory)).some((file) => file.startsWith('terraform-registration-')))
   )
     return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);

@@ -303,7 +303,10 @@ export async function prepareAwsTerraformTeardown(
     admission !== undefined &&
     ['network-pending', 'registration-pending'].includes(String(object(workflow).stage)) &&
     Array.isArray(object(admission).admittedSites) &&
-    (object(admission).admittedSites as unknown[]).length === 0
+    ((object(admission).admittedSites as unknown[]).length === 0 ||
+      // A launch checkpoint alone is not registration. Approval attempts retain
+      // the registered teardown contract; pending inventory rejects live registrations.
+      !(await readdir(storage.directory)).some((file) => file.startsWith('terraform-registration-')))
   )
     return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);

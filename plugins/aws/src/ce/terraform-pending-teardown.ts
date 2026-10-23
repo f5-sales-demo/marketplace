@@ -70,6 +70,20 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
   const bootstrap = admission ? object(admission.bootstrapByNode) : {},
     launched = admission ? object(admission.launchedAtByNode) : {};
   const indexes = selected.flatMap(({ site }) => site.nodeIndexes.map(String));
+  // Admission records launch completion, not approval. Only the exact single-node
+  // launch boundary can use fresh pre-registration evidence for retirement.
+  const admitted = admission?.admittedSites;
+  const launchedSite = Array.isArray(admitted) && admitted.length === 1 && admitted[0] === selected[0].site.name;
+  const completeLaunch =
+    launchedSite &&
+    indexes.every(
+      (node) =>
+        uid(bootstrap[node]) &&
+        typeof launched[node] === 'string' &&
+        Number.isFinite(Date.parse(launched[node] as string)) &&
+        new Date(Date.parse(launched[node] as string)).toISOString() === launched[node] &&
+        Date.parse(launched[node] as string) <= Date.now(),
+    );
   if (
     auth.schemaVersion !== 1 ||
     auth.engine !== 'terraform' ||
@@ -85,7 +99,7 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
         admission.planSha256 !== base.planSha256 ||
         !/^[a-f0-9]{64}$/.test(String(admission.configurationSha256)) ||
         !Array.isArray(admission.admittedSites) ||
-        admission.admittedSites.length)) ||
+        (admission.admittedSites.length > 0 && !completeLaunch))) ||
     Object.entries(bootstrap).some(([node, value]) => !indexes.includes(node) || !uid(value)) ||
     Object.entries(launched).some(
       ([node, value]) => !indexes.includes(node) || typeof value !== 'string' || !Number.isFinite(Date.parse(value)),
@@ -115,6 +129,8 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
       siteRecords.push(row);
     }
   }
+  if (launchedSite && siteRecords.length !== selected.length)
+    throw new Error('Launched pending site requires its owning logical checkpoint');
   // Only a digest leaves private storage; bootstrap content is never copied into a public plan.
   return canonicalSha256({ auth, workflow, admission, siteRecords });
 }

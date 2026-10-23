@@ -1,5 +1,11 @@
 # Changelog
 
+## CE suite UAT114
+
+- Prepare ownership-bound AWS Terraform retirement after a single-node launch and before registration, requiring exact launch and logical-site journals plus fresh pre-registration inventory.
+- Keep approval attempts on the registered retirement contract and preserve the single-node mutation boundary.
+- Advance all four CE plugins together and retain previous installed/live receipts as history; current archive, installed and live qualification remain pending.
+
 ## CE suite UAT110
 
 - Qualify exact owning Terraform whole-site power journals for terminal artifact retirement after the existing teardown and runner gates.
