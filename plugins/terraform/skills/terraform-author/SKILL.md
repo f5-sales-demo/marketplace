@@ -22,3 +22,9 @@ This skill provides operational standards for writing maintainable, production-r
 5. **DRY & Minimum Settings**:
    - Omit server-applied defaults.
    - Keep configurations concise and default-free.
+
+## Customer Edge lifecycle execution
+
+Use the cloud CE adapter for deployment identity, engine ownership, readiness, and
+convergence. See [CE lifecycle action plans](references/ce-actions.md) for isolated
+upgrade workspaces and exact saved-plan invocation.

@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-10-22T08:00:20.381222+00:00",
+  "queries": [
+    {
+      "query": "\"Argo Watch\" is:public",
+      "available": true,
+      "totalCount": 0,
+      "urls": []
+    },
+    {
+      "query": "\"SiteStatusMgr\" is:public",
+      "available": true,
+      "totalCount": 0,
+      "urls": []
+    },
+    {
+      "query": "\"argod\" \"interface\" is:public",
+      "available": true,
+      "totalCount": 0,
+      "urls": []
+    },
+    {
+      "query": "\"SLI\" \"link down\" repo:f5devcentral/f5xc-solutions",
+      "available": true,
+      "totalCount": 0,
+      "urls": []
+    }
+  ],
+  "argoPreserved": true,
+  "privateRepositoriesAccessed": false,
+  "supportedSliControlQualified": false,
+  "publisherFreshnessQualified": false,
+  "universalImpossibilityClaimed": false
+}
