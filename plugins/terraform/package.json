@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-terraform",
-  "version": "3.0.0-uat.116",
+  "version": "3.0.0-uat.117",
   "description": "Isolated Terraform lifecycle execution with immutable saved plans and deployment ownership",
   "license": "Apache-2.0",
   "main": "dist/runtime.js",

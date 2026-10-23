@@ -84,7 +84,19 @@ test('missing, malformed and replayed independent response cannot authorize dele
     expect(() => validateIndependentCleanup(response, {} as never)).toThrow();
 });
 
-test.skipIf(!Bun.which('terraform'))(
+// Real execution binds the discovered compatible binary rather than a workstation version.
+const installedVersion = (() => {
+  try {
+    const result = Bun.spawnSync(['terraform', 'version', '-json'], { stderr: 'pipe' });
+    if (result.exitCode !== 0) return undefined;
+    const value = JSON.parse(result.stdout.toString()).terraform_version;
+    return typeof value === 'string' && /^1\.(?:1[4-9]|[2-9]\d)\.\d+$/.test(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+test.skipIf(!installedVersion)(
   'actual separate Terraform process verifies original local workspace before sensitive retirement',
   async () => {
     const root = await mkdtemp(join(tmpdir(), 'cleanup-real-'));
@@ -95,8 +107,8 @@ test.skipIf(!Bun.which('terraform'))(
       deploymentId: 'local-cleanup',
       engine: 'terraform',
       scope: { cloud: 'aws', account: 'example-account', region: 'us-east-1' },
-      terraformVersion: '1.16.5',
-      configuration: '{"terraform":{"required_version":"= 1.16.5"}}',
+      terraformVersion: installedVersion!,
+      configuration: JSON.stringify({ terraform: { required_version: `= ${installedVersion}` } }),
       providerLock: '# no external providers',
       backendIdentity: 'local:local-cleanup',
     });
@@ -105,27 +117,29 @@ test.skipIf(!Bun.which('terraform'))(
     expect(result.status).toBe('runner-artifacts-retired');
     const marker = JSON.parse(await readFile(join(root, 'local-cleanup', 'artifact-retirement.json'), 'utf8'));
     expect(marker.independentCleanup.executorPid).not.toBe(process.pid);
-    expect(marker.independentCleanup.terraformVersion).toBe('1.16.5');
+    expect(marker.independentCleanup.terraformVersion).toBe(installedVersion);
     expect(marker.independentCleanup.commands.some((args: string[]) => args.includes('-refresh=true'))).toBe(true);
   },
   30000,
 );
 
-test.skipIf(!Bun.which('terraform'))(
+test.skipIf(!installedVersion)(
   'actual original previously applied state is empty and retired only after separate execution',
   async () => {
     const root = await mkdtemp(join(tmpdir(), 'cleanup-applied-'));
     roots.push(root);
     const runner = new TerraformRunner(root);
-    const empty = '{"terraform":{"required_version":"= 1.16.5"}}';
+    const empty = JSON.stringify({ terraform: { required_version: `= ${installedVersion}` } });
     await runner.prepare({
       schemaVersion: 1,
       deploymentId: 'local-applied',
       engine: 'terraform',
       scope: { cloud: 'aws', account: 'example-account', region: 'us-east-1' },
-      terraformVersion: '1.16.5',
-      configuration:
-        '{"terraform":{"required_version":"= 1.16.5"},"resource":{"terraform_data":{"fixture":{"input":"SYNTHETIC_PRIVATE_STAGING"}}}}',
+      terraformVersion: installedVersion!,
+      configuration: JSON.stringify({
+        terraform: { required_version: `= ${installedVersion}` },
+        resource: { terraform_data: { fixture: { input: 'SYNTHETIC_PRIVATE_STAGING' } } },
+      }),
       providerLock: '# no external providers',
       backendIdentity: 'local:local-applied',
     });
