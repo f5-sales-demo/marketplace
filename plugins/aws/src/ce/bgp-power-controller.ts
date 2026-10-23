@@ -86,7 +86,7 @@ interface Preparation {
 function filename(plan: AwsWholeSitePowerPlan, effect: Effect, suffix: string) {
   return `${plan.planId}-${effect}-${plan.engine}-bgp-${suffix}.json`;
 }
-function validatePreparation(prep: Preparation, marker: Marker) {
+export function validateAwsBgpPowerPreparation(prep: Preparation, marker: Marker) {
   if (
     canonicalSha256(prep.marker) !== canonicalSha256(marker) ||
     prep.servicesSha256 !== marker.servicesSha256 ||
@@ -201,7 +201,7 @@ async function retainedStop(base: AwsCePlan, plan: AwsWholeSitePowerPlan, storag
     marker: Marker;
     observed: Observation;
   };
-  validatePreparation(prep, outcome.marker);
+  validateAwsBgpPowerPreparation(prep, outcome.marker);
   const checkpoint = (await storage.read(`${stop.planId}-checkpoint.json`)) as {
     schemaVersion: number;
     planSha256: string;
@@ -289,7 +289,7 @@ async function prepare(
   if (!saved) await assertNoDispatchWithoutPreparation(storage, plan, effect);
   const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
   if (saved) {
-    validatePreparation(saved, marker);
+    validateAwsBgpPowerPreparation(saved, marker);
     return { prep: saved, prior };
   }
   const observed = await observe(base, plan, values, api, runtime, prior?.prep, signal);
@@ -312,7 +312,7 @@ async function prepare(
     snapshots: observed.snapshots,
     policies,
   };
-  validatePreparation(prep, marker);
+  validateAwsBgpPowerPreparation(prep, marker);
   signal?.throwIfAborted();
   await storage.write(filename(plan, effect, 'preparation'), prep);
   return { prep, prior };
@@ -458,7 +458,7 @@ async function reconcileAwsOwnedBgpPower(
       await assertNoDispatchWithoutPreparation(storage, plan, effect);
       return 'not-submitted';
     }
-    validatePreparation(prep, marker);
+    validateAwsBgpPowerPreparation(prep, marker);
     const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
     const created = await policy(storage, prior?.stop ?? plan, prior?.prep ?? prep, runtime, false, signal);
     const dispatch = await optional<{ policy: Policy }>(storage, filename(plan, effect, 'replacement-dispatch'));
@@ -552,7 +552,7 @@ async function retireAwsOwnedBgpPowerPolicy(
       marker: Marker;
       observed: Observation;
     };
-    validatePreparation(prep, outcome.marker);
+    validateAwsBgpPowerPreparation(prep, outcome.marker);
     if (
       outcome.marker.planSha256 !== plan.planSha256 ||
       outcome.marker.bindingsSha256 !== plan.bindingsSha256 ||

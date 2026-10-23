@@ -16990,8 +16990,2916 @@ async function retireBootstrapToken(binding, evidenceSha256, signal) {
 }
 var init_token_store = () => {};
 
-// plugins/aws/src/ce/terraform-parent-retirement.ts
+// plugins/aws/src/ce/whole-site-power-service-binding.ts
+function requested(base) {
+  const kinds = [];
+  const profile = base.intent.routing.profile;
+  if (profile === 'direct-eni') kinds.push('direct');
+  else if (profile === 'tgw-static') kinds.push('static-tgw');
+  else if (profile === 'tgw-connect') kinds.push('bgp');
+  else if (profile !== 'nlb-ingress') throw Error('Whole-site service profile is unsupported');
+  if (base.intent.ingress?.mode === 'nlb') kinds.push('nlb');
+  if (!kinds.length) throw Error('Whole-site service components are missing');
+  return kinds;
+}
+function validatePowerServiceInventory(base, bindings) {
+  const expected = requested(base);
+  const inventory = bindings.servicesInventory;
+  if (!inventory) {
+    if (expected.length !== 1) throw Error('Combined whole-site services require complete inventory binding');
+    return;
+  }
+  if (
+    inventory.schemaVersion !== 1 ||
+    inventory.kind !== 'aws-ce-whole-site-services' ||
+    inventory.sourcePlanSha256 !== base.planSha256 ||
+    inventory.engine !== base.engine ||
+    canonicalSha256(inventory) !== bindings.servicesSha256 ||
+    !Array.isArray(inventory.components) ||
+    inventory.components.length !== expected.length
+  )
+    throw Error('Whole-site complete service inventory differs');
+  for (const [index, kind] of expected.entries()) {
+    const row = inventory.components[index];
+    if (
+      !row ||
+      row.kind !== kind ||
+      !/^[a-f0-9]{64}$/.test(row.servicesSha256) ||
+      canonicalSha256(row.services) !== row.servicesSha256
+    )
+      throw Error('Whole-site component identity differs');
+  }
+}
+function powerServiceComponentSha256(base, bindings, kind) {
+  validatePowerServiceInventory(base, bindings);
+  if (!requested(base).includes(kind)) throw Error('Whole-site component is not requested');
+  if (!bindings.servicesInventory) return bindings.servicesSha256;
+  const row = bindings.servicesInventory.components.find((item) => item.kind === kind);
+  if (!row) throw Error('Whole-site component binding missing');
+  return row.servicesSha256;
+}
+var init_whole_site_power_service_binding = __esm(() => {
+  init_canonical();
+});
+
+// plugins/aws/src/ce/whole-site-power.ts
+function validateBindings(base, bindings) {
+  validatePowerServiceInventory(base, bindings);
+  const owner = {
+    deploymentId: base.deploymentName,
+    engine: base.engine,
+    provider: 'aws',
+    account: base.accountId,
+    region: base.region,
+  };
+  const expected = siteBindings(base).flatMap(({ site, binding }) =>
+    site.nodeIndexes.map((nodeIndex, index) => ({ nodeIndex, nodeName: binding.nodes[index], siteName: site.name })),
+  );
+  if (
+    bindings.sourcePlanSha256 !== base.planSha256 ||
+    canonicalSha256(bindings.owner) !== canonicalSha256(owner) ||
+    !sha.test(bindings.servicesSha256) ||
+    bindings.nodes.length !== expected.length ||
+    new Set(bindings.nodes.map((node) => node.instanceId)).size !== expected.length
+  )
+    throw new Error('Whole-site power deployment ownership or service binding differs');
+  const allInterfaces = bindings.nodes.flatMap((node) => node.interfaces);
+  if (
+    new Set(allInterfaces.map((item) => item.id)).size !== allInterfaces.length ||
+    new Set(allInterfaces.map((item) => item.mac.toLowerCase())).size !== allInterfaces.length
+  )
+    throw new Error('Whole-site power interface identities are duplicated');
+  for (const expectedNode of expected) {
+    const matches = bindings.nodes.filter((node) => node.nodeIndex === expectedNode.nodeIndex);
+    if (matches.length !== 1) throw new Error('Whole-site power node discovery is incomplete or duplicated');
+    const node = matches[0];
+    if (
+      node.nodeName !== expectedNode.nodeName ||
+      node.siteName !== expectedNode.siteName ||
+      !/^i-[a-f0-9]{8,17}$/.test(node.instanceId) ||
+      node.interfaces.length !== base.interfaces.length
+    )
+      throw new Error('Whole-site power node or interface cardinality differs');
+    for (const expectedInterface of base.interfaces) {
+      const items = node.interfaces.filter((item) => item.index === expectedInterface.index);
+      if (
+        items.length !== 1 ||
+        items[0].role !== expectedInterface.role ||
+        !/^eni-[a-f0-9]{8,17}$/.test(items[0].id) ||
+        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(items[0].mac) ||
+        !/^[a-zA-Z0-9_.:-]+$/.test(items[0].device) ||
+        (expectedInterface.guestDevice !== undefined && items[0].device !== expectedInterface.guestDevice)
+      )
+        throw new Error('Whole-site power interface MAC/device/role binding differs or remains unresolved');
+    }
+  }
+}
+function buildAwsWholeSitePowerPlan(base, operation, bindings, transitionId, maintenance) {
+  verifyAwsCePlan(base);
+  if (base.intent.operation !== 'deploy' || !['stop', 'start'].includes(operation))
+    throw new Error('Whole-site power requires the exact original deployment plan');
+  validateBindings(base, bindings);
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(transitionId))
+    throw new Error('Whole-site power requires an immutable transition UUID');
+  const bindingsSha256 = canonicalSha256(bindings);
+  if (operation === 'start') {
+    if (!maintenance) throw new Error('Whole-site start requires the exact verified stopped maintenance receipt');
+    const { receiptSha256, ...body } = maintenance;
+    if (
+      maintenance.schemaVersion !== 1 ||
+      maintenance.kind !== 'aws-ce-stopped' ||
+      maintenance.sourcePlanSha256 !== base.planSha256 ||
+      maintenance.transitionId !== transitionId ||
+      maintenance.bindingsSha256 !== bindingsSha256 ||
+      !sha.test(maintenance.stopPlanSha256) ||
+      !sha.test(maintenance.stoppedEvidenceSha256) ||
+      canonicalSha256(body) !== receiptSha256 ||
+      !Number.isFinite(Date.parse(maintenance.originalAttemptAt)) ||
+      !Number.isFinite(Date.parse(maintenance.observedAt)) ||
+      Date.parse(maintenance.observedAt) < Date.parse(maintenance.originalAttemptAt)
+    )
+      throw new Error('Whole-site start maintenance receipt is malformed or belongs to another deployment');
+  } else if (maintenance) throw new Error('Whole-site stop cannot consume an unrelated maintenance receipt');
+  const body = {
+    schemaVersion: 1,
+    kind: 'aws-ce-whole-site-power',
+    engine: base.engine,
+    operation,
+    transitionId,
+    sourcePlanId: base.planId,
+    sourcePlanSha256: base.planSha256,
+    bindings: structuredClone(bindings),
+    bindingsSha256,
+    ...(maintenance ? { maintenance: structuredClone(maintenance) } : {}),
+  };
+  const planSha256 = canonicalSha256(body);
+  return { ...body, planSha256, planId: `aws-ce-power-${planSha256.slice(0, 24)}` };
+}
+function verifyAwsWholeSitePowerPlan(base, plan) {
+  const expected = buildAwsWholeSitePowerPlan(base, plan.operation, plan.bindings, plan.transitionId, plan.maintenance);
+  if (canonicalSha256(plan) !== canonicalSha256(expected)) throw new Error('Whole-site power immutable plan differs');
+}
+function evidencePasses(plan, gate, value, now) {
+  if (
+    value.source !== 'live' ||
+    value.planSha256 !== plan.planSha256 ||
+    value.bindingsSha256 !== plan.bindingsSha256 ||
+    value.gate !== gate ||
+    value.identity !== 'verified' ||
+    !Number.isFinite(Date.parse(value.collectedAt)) ||
+    Date.parse(value.collectedAt) > now ||
+    now - Date.parse(value.collectedAt) > 30000
+  )
+    return false;
+  if (gate === 'stopped' || gate === 'ready-to-start')
+    return value.cloud === 'stopped' && value.services === 'withdrawn' && value.traffic === 'blocked';
+  if (gate === 'withdrawn')
+    return value.cloud === 'running' && value.services === 'withdrawn' && value.traffic === 'blocked';
+  const healthy =
+    value.cloud === 'running' &&
+    value.registration === 'healthy' &&
+    value.configuration === 'verified' &&
+    value.versions === 'stable' &&
+    value.interfaces === 'up' &&
+    value.canSatisfyInterfaceMutationGate === true;
+  if (gate === 'running') return healthy && value.services === 'withdrawn';
+  return healthy && value.services === 'active' && value.traffic === 'passing';
+}
+async function optional8(storage, name) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return;
+  }
+}
+async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, driver, signal, clock = Date.now) {
+  verifyAwsWholeSitePowerPlan(base, plan);
+  if (
+    authorizedPlanSha256 !== plan.planSha256 ||
+    driver.engine !== base.engine ||
+    canonicalSha256(storage.owner) !== canonicalSha256(plan.bindings.owner)
+  )
+    throw new Error('Whole-site power authorization, owning engine or deployment store differs');
+  if (base.topology.nodeCount !== 1 || plan.bindings.nodes.length !== 1)
+    throw new Error('Whole-site power requires a separately qualified multi-node lifecycle contract');
+  const release = await acquireProcessLock(`${storage.directory}/.whole-site-power-lock`);
+  try {
+    await storage.verify();
+    if (plan.operation === 'start') {
+      const maintenance = plan.maintenance;
+      if (!maintenance) throw new Error('Whole-site start maintenance receipt is missing');
+      const prior = await storage.read(`aws-ce-power-${maintenance.stopPlanSha256.slice(0, 24)}-maintenance.json`);
+      if (canonicalSha256(prior) !== canonicalSha256(plan.maintenance))
+        throw new Error('Whole-site start requires the privately retained owning-engine stopped receipt');
+    }
+    const sourceName = `${plan.planId}.json`;
+    const saved = await optional8(storage, sourceName);
+    if (saved && canonicalSha256(saved) !== canonicalSha256(plan))
+      throw new Error('Saved whole-site power plan differs');
+    if (!saved) await storage.write(sourceName, plan);
+    const checkpointName = `${plan.planId}-checkpoint.json`;
+    const savedCheckpoint = await optional8(storage, checkpointName);
+    const steps = sequence[plan.operation];
+    let state = savedCheckpoint ?? {
+      schemaVersion: 1,
+      planSha256: plan.planSha256,
+      bindingsSha256: plan.bindingsSha256,
+      step: 0,
+      attempts: {},
+      evidence: {},
+      complete: false,
+    };
+    if (!savedCheckpoint) await storage.write(checkpointName, state);
+    const now = clock();
+    if (
+      !Number.isFinite(now) ||
+      state.schemaVersion !== 1 ||
+      state.planSha256 !== plan.planSha256 ||
+      state.bindingsSha256 !== plan.bindingsSha256 ||
+      !Number.isInteger(state.step) ||
+      state.step < 0 ||
+      state.step > steps.length ||
+      state.complete !== (state.step === steps.length) ||
+      (state.pending && state.pending.effect !== steps[state.step])
+    )
+      throw new Error('Whole-site power checkpoint differs');
+    for (const [effect, attempt] of Object.entries(state.attempts)) {
+      if (
+        !effects.has(effect) ||
+        !steps.some((step) => step === effect) ||
+        !attempt ||
+        attempt.effect !== effect ||
+        attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
+        !Number.isFinite(Date.parse(attempt.originalAttemptAt)) ||
+        Date.parse(attempt.originalAttemptAt) > now
+      )
+        throw new Error('Whole-site power original attempt binding differs');
+    }
+    for (const completed of steps.slice(0, state.step)) {
+      if (effects.has(completed)) {
+        if (!state.attempts[completed]) throw new Error('Completed whole-site effect lacks an original attempt');
+      } else {
+        const evidence = state.evidence[completed];
+        if (!evidence || !evidencePasses(plan, completed, evidence, Date.parse(evidence.collectedAt)))
+          throw new Error('Completed whole-site gate lacks valid bound evidence');
+      }
+    }
+    if (state.pending && canonicalSha256(state.pending) !== canonicalSha256(state.attempts[state.pending.effect]))
+      throw new Error('Whole-site power submitted attempt differs');
+    const assertCurrentBindings = async () => {
+      await storage.verify();
+      const current = await driver.readBindings(signal);
+      validateBindings(base, current);
+      if (canonicalSha256(current) !== plan.bindingsSha256)
+        throw new Error('Whole-site power live identities or retained services changed');
+    };
+    const pending = (reason) => ({
+      status: 'power-pending',
+      reason,
+      operation: plan.operation,
+      engine: plan.engine,
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      step: state.step,
+      fullCeAcceptance: false,
+    });
+    for (; state.step < steps.length; ) {
+      signal?.throwIfAborted();
+      await assertCurrentBindings();
+      const step = steps[state.step];
+      if (effects.has(step)) {
+        const effect = step;
+        if (state.pending) {
+          let observed = await driver.reconcile(plan, effect, state.pending.originalAttemptAt, signal);
+          if (observed === 'not-submitted') {
+            const preceding = [...steps.slice(0, state.step)].reverse().find((value) => !effects.has(value));
+            const evidence = await driver.observe(plan, preceding, signal);
+            if (!evidencePasses(plan, preceding, evidence, clock()))
+              return pending(`prerequisite-${preceding}-unknown`);
+            await driver.execute(plan, effect, signal);
+            observed = await driver.reconcile(plan, effect, state.pending.originalAttemptAt, signal);
+          }
+          if (observed !== 'completed') return pending(`submitted-${effect}-${observed}`);
+          state = { ...state, pending: undefined, step: state.step + 1, complete: state.step + 1 === steps.length };
+          await storage.write(checkpointName, state);
+          continue;
+        }
+        const preceding = [...steps.slice(0, state.step)].reverse().find((value) => !effects.has(value));
+        const evidence = await driver.observe(plan, preceding, signal);
+        if (!evidencePasses(plan, preceding, evidence, clock())) return pending(`prerequisite-${preceding}-unknown`);
+        const attempt = {
+          effect,
+          originalAttemptAt: new Date(clock()).toISOString(),
+          requestSha256: canonicalSha256({ planSha256: plan.planSha256, effect }),
+        };
+        if (state.attempts[effect])
+          throw new Error('Whole-site power effect cannot be resubmitted from a prior attempt');
+        state = { ...state, pending: attempt, attempts: { ...state.attempts, [effect]: attempt } };
+        await storage.write(checkpointName, state);
+        await driver.execute(plan, effect, signal);
+        const observed = await driver.reconcile(plan, effect, attempt.originalAttemptAt, signal);
+        if (observed !== 'completed') return pending(`submitted-${effect}-${observed}`);
+        state = { ...state, pending: undefined, step: state.step + 1 };
+      } else {
+        const gate = step;
+        const evidence = await driver.observe(plan, gate, signal);
+        await storage.write(`${plan.planId}-${gate}-last-evidence.json`, evidence);
+        if (!evidencePasses(plan, gate, evidence, clock())) return pending(`${gate}-unknown`);
+        state = { ...state, step: state.step + 1, evidence: { ...state.evidence, [gate]: evidence } };
+      }
+      state = { ...state, complete: state.step === steps.length };
+      await storage.write(checkpointName, state);
+    }
+    await assertCurrentBindings();
+    const finalGate = plan.operation === 'stop' ? 'stopped' : 'restored';
+    const finalEvidence = await driver.observe(plan, finalGate, signal);
+    if (!evidencePasses(plan, finalGate, finalEvidence, clock()))
+      return pending(`completed-${finalGate}-evidence-unavailable`);
+    if (plan.operation === 'stop') {
+      const attempt = state.attempts.stop;
+      if (!attempt) throw new Error('Whole-site stop original attempt is missing');
+      const evidenceName = `${plan.planId}-final-stopped-evidence.json`;
+      const captured = (await optional8(storage, evidenceName)) ?? finalEvidence;
+      if (
+        !evidencePasses(plan, 'stopped', captured, Date.parse(captured.collectedAt)) ||
+        Date.parse(captured.collectedAt) > clock() ||
+        Date.parse(captured.collectedAt) < Date.parse(attempt.originalAttemptAt)
+      )
+        throw new Error('Retained stopped evidence differs from the original power attempt');
+      await storage.write(evidenceName, captured);
+      const maintenanceName = `${plan.planId}-maintenance.json`;
+      const prior = await optional8(storage, maintenanceName);
+      let maintenance;
+      if (prior) {
+        buildAwsWholeSitePowerPlan(base, 'start', plan.bindings, plan.transitionId, prior);
+        if (
+          prior.stopPlanSha256 !== plan.planSha256 ||
+          prior.originalAttemptAt !== attempt.originalAttemptAt ||
+          prior.stoppedEvidenceSha256 !== canonicalSha256(captured) ||
+          prior.observedAt !== captured.collectedAt
+        )
+          throw new Error('Retained stopped maintenance receipt differs');
+        maintenance = prior;
+      } else {
+        const body = {
+          schemaVersion: 1,
+          kind: 'aws-ce-stopped',
+          sourcePlanSha256: base.planSha256,
+          transitionId: plan.transitionId,
+          stopPlanSha256: plan.planSha256,
+          bindingsSha256: plan.bindingsSha256,
+          stoppedEvidenceSha256: canonicalSha256(captured),
+          originalAttemptAt: attempt.originalAttemptAt,
+          observedAt: captured.collectedAt,
+        };
+        maintenance = { ...body, receiptSha256: canonicalSha256(body) };
+        await storage.write(maintenanceName, maintenance);
+      }
+      return {
+        status: 'site-stopped',
+        operation: plan.operation,
+        engine: plan.engine,
+        planId: plan.planId,
+        planSha256: plan.planSha256,
+        maintenance,
+        evidence: finalEvidence,
+        originalCeHeartbeat: 'unknown',
+        fullCeAcceptance: false,
+      };
+    }
+    const final = await driver.finish(plan, signal);
+    if (final.engine !== plan.engine || final.noChanges !== true)
+      throw new Error('Whole-site start final owning-engine no-change verification failed');
+    return {
+      status: 'site-started',
+      operation: plan.operation,
+      engine: plan.engine,
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      evidence: finalEvidence,
+      noChanges: true,
+      originalCeHeartbeat: 'unknown',
+      fullCeAcceptance: false,
+    };
+  } finally {
+    await release();
+  }
+}
+var sha, sequence, effects;
+var init_whole_site_power = __esm(() => {
+  init_process_lock();
+  init_artifacts();
+  init_canonical();
+  init_whole_site_power_service_binding();
+  sha = /^[a-f0-9]{64}$/;
+  sequence = {
+    stop: ['ready-to-stop', 'withdraw', 'withdrawn', 'stop', 'stopped'],
+    start: ['ready-to-start', 'start', 'running', 'restore', 'restored', 'release'],
+  };
+  effects = new Set(['withdraw', 'stop', 'start', 'restore', 'release']);
+});
+
+// plugins/platform/src/ce/bgp-power-policy.ts
 import { createHash as createHash16 } from 'node:crypto';
+import { isIP as isIP12 } from 'node:net';
+
+function object23(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed BGP maintenance policy');
+  return value;
+}
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, validate, retained) {
+  if (
+    !/^[a-z0-9][a-z0-9-]{0,62}$/.test(siteName) ||
+    !Array.isArray(prefixes) ||
+    !prefixes.length ||
+    new Set(prefixes).size !== prefixes.length
+  )
+    throw Error('BGP maintenance identity or service prefixes differ');
+  for (const cidr of prefixes) {
+    const [ip, bits, extra] = cidr.split('/');
+    if (
+      isIP12(ip) !== 4 ||
+      !/^\d{1,2}$/.test(bits ?? '') ||
+      Number(bits) < 1 ||
+      Number(bits) > 32 ||
+      extra !== undefined
+    )
+      throw Error('BGP maintenance service prefix unresolved or broad');
+    const address = ip.split('.').reduce((v, o) => (v * 256 + Number(o)) >>> 0, 0);
+    const mask = (4294967295 << (32 - Number(bits))) >>> 0;
+    if ((address & mask) >>> 0 !== address) throw Error('BGP maintenance prefix is not network aligned');
+  }
+  const normalized = [...prefixes].sort();
+  const policy = {
+    name: `${siteName.slice(0, 43)}-tgw-power-policy`,
+    spec: {
+      rules: [
+        {
+          match: {
+            ip_prefixes: { prefixes: normalized.map((ip_prefixes) => ({ ip_prefixes, equal_or_longer_than: {} })) },
+          },
+          action: { deny: {} },
+        },
+      ],
+    },
+  };
+  validate('bgp_routing_policy', policy.spec);
+  const original =
+    effect === 'withdraw' ? structuredClone(object23(snapshot)) : structuredClone(object23(retained?.originalBgpSpec));
+  if (
+    effect === 'restore' &&
+    (retained?.schemaVersion !== 1 ||
+      retained.effect !== 'withdraw' ||
+      retained.siteName !== siteName ||
+      canonical(retained.prefixes) !== canonical(normalized) ||
+      hash7(original) !== retained.originalSha256 ||
+      hash7(snapshot) !== retained.withdrawnSha256 ||
+      hash7(retained.bgpSpec) !== retained.withdrawnSha256 ||
+      canonical(retained.policy) !== canonical(policy))
+  )
+    throw Error('BGP restoration requires exact retained withdrawal');
+  if (!['withdraw', 'restore'].includes(effect)) throw Error('BGP maintenance effect differs');
+  const where = object23(object23(original.where).site);
+  const refs = where.ref;
+  if (
+    where.network_type !== 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' ||
+    !Array.isArray(refs) ||
+    refs.length !== 1 ||
+    object23(refs[0]).name !== siteName ||
+    object23(refs[0]).namespace !== 'system' ||
+    !Array.isArray(original.peers) ||
+    !original.peers.length
+  )
+    throw Error('BGP maintenance site or peer binding differs');
+  const peerNames = new Set(),
+    addresses = new Set();
+  for (const peerValue of original.peers) {
+    const peer = object23(peerValue),
+      external = object23(peer.external),
+      metadata = object23(peer.metadata);
+    if (
+      Object.hasOwn(peer, 'routing_policies') ||
+      Object.hasOwn(peer, 'disable') ||
+      typeof metadata.name !== 'string' ||
+      peerNames.has(metadata.name) ||
+      typeof external.address !== 'string' ||
+      isIP12(external.address) !== 4 ||
+      addresses.has(external.address)
+    )
+      throw Error('BGP maintenance original peers ambiguous or foreign policy');
+    peerNames.add(metadata.name);
+    addresses.add(external.address);
+  }
+  const originalSpec = original;
+  validate('bgp', original);
+  const withdrawn = structuredClone(originalSpec);
+  for (const peer of withdrawn.peers)
+    peer.routing_policies = {
+      route_policy: [{ all_nodes: {}, outbound: {}, object_refs: [{ name: policy.name, namespace: 'system' }] }],
+    };
+  validate('bgp', withdrawn);
+  if (effect === 'restore' && canonical(withdrawn) !== canonical(snapshot))
+    throw Error('BGP maintenance withdrawal configuration differs');
+  return {
+    schemaVersion: 1,
+    effect,
+    siteName,
+    prefixes: normalized,
+    policy,
+    originalBgpSpec: originalSpec,
+    bgpSpec: effect === 'withdraw' ? withdrawn : structuredClone(originalSpec),
+    originalSha256: hash7(original),
+    withdrawnSha256: hash7(withdrawn),
+    operationalEvidence: 'unknown',
+  };
+}
+var hash7 = (value) => createHash16('sha256').update(canonical(value)).digest('hex');
+var init_bgp_power_policy = () => {};
+
+// plugins/aws/src/ce/whole-site-power-connect.ts
+import { isIP as isIP13 } from 'node:net';
+
+function object24(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');
+  return v;
+}
+function rows8(v) {
+  if (!Array.isArray(v)) throw Error('Incomplete Connect service evidence');
+  return v.map(object24);
+}
+function exactly(v) {
+  const all = rows8(v);
+  if (all.length !== 1) throw Error('Connect service cardinality differs');
+  return all[0];
+}
+function network3(cidr) {
+  const [ip, prefix, extra] = cidr.split('/'),
+    bits = Number(prefix);
+  if (isIP13(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || bits < 1 || bits > 32 || extra !== undefined)
+    throw Error('Connect service prefix unresolved or broad');
+  const address = ip.split('.').reduce((n, o) => (n * 256 + Number(o)) >>> 0, 0),
+    mask = (4294967295 << (32 - bits)) >>> 0;
+  if ((address & mask) >>> 0 !== address) throw Error('Connect service prefix not network aligned');
+  return { address, bits };
+}
+function overlaps(a, b) {
+  const x = network3(a),
+    y = network3(b),
+    mask = (4294967295 << (32 - Math.min(x.bits, y.bits))) >>> 0;
+  return (x.address & mask) >>> 0 === (y.address & mask) >>> 0;
+}
+async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
+  verifyAwsCePlan(base);
+  const routing = base.intent.routing,
+    gateway = routing.transitGatewayId ?? '',
+    vpc = values.__VPC_ID__ ?? base.intent.vpc.vpcId ?? '';
+  const transport = routing.transportAttachmentId ?? values.__TGW_TRANSPORT_ATTACHMENT__;
+  const tables = [...new Set([...routing.associations, ...routing.propagations])].sort();
+  if (
+    routing.profile !== 'tgw-connect' ||
+    !Number.isInteger(routing.customerAsn) ||
+    !Number.isInteger(routing.transitGatewayAsn) ||
+    (routing.customerAsn ?? 0) < 1 ||
+    (routing.transitGatewayAsn ?? 0) < 1 ||
+    !/^tgw-[a-f0-9]{8,17}$/.test(gateway) ||
+    !/^vpc-[a-f0-9]{8,17}$/.test(vpc) ||
+    !/^tgw-attach-[a-f0-9]{8,17}$/.test(transport ?? '') ||
+    !base.intent.brownfield.resourceIds.includes(gateway) ||
+    routing.associations.length !== 1 ||
+    !routing.propagations.length ||
+    new Set(routing.propagations).size !== routing.propagations.length ||
+    tables.some(
+      (t) => !/^tgw-rtb-[a-f0-9]{8,17}$/.test(t) || !base.intent.brownfield.transitGatewayRouteTableIds.includes(t),
+    ) ||
+    !routing.destinationCidrs.length ||
+    new Set(routing.destinationCidrs).size !== routing.destinationCidrs.length
+  )
+    throw Error('Connect service scope unresolved or ambiguous');
+  const prefixes = [...routing.destinationCidrs].sort();
+  for (const p of prefixes) network3(p);
+  const resolve = (v) => (v?.startsWith('__') ? values[v] : v);
+  const arg = (args, flag) => {
+    const index = args?.indexOf(flag) ?? -1;
+    return index < 0 ? undefined : resolve(args?.[index + 1]);
+  };
+  const attachmentActions = base.actions.filter((a) => a.kind === 'tgw-connect-attachment-create');
+  const attachmentIds = attachmentActions.map((a) => values[a.capture?.placeholder ?? '']);
+  const peerActions = base.actions.filter((a) => a.kind === 'tgw-connect-peer-create');
+  const expected = peerActions.map((a) => {
+    const ref = a.args?.[(a.args?.indexOf('--peer-address') ?? -1) + 1],
+      role = ref?.match(/^__NODE_(\d+)_(SLO|SLI)_IP__$/);
+    const index = role?.[2] === 'SLO' ? 0 : 1,
+      node = a.node ?? 0;
+    if (
+      !role ||
+      Number(role[1]) !== node ||
+      !base.intent.interfaces.some((i) => i.index === index && i.role === role[2].toLowerCase())
+    )
+      throw Error('Connect peer interface role unresolved');
+    return {
+      node,
+      siteName: siteForNode(base.intent, node).name,
+      interfaceIndex: index,
+      peerId: values[a.capture?.placeholder ?? ''],
+      attachmentId: arg(a.args, '--transit-gateway-attachment-id'),
+      peerAddress: arg(a.args, '--peer-address'),
+      insideCidr: arg(a.args, '--inside-cidr-blocks'),
+      gatewayAddress: arg(a.args, '--transit-gateway-address'),
+      eni: values[`__ENI_${node}_${index}__`],
+      mac: values[`__ENI_${node}_${index}_MAC__`],
+      instance: values[`__INSTANCE_${node}__`],
+    };
+  });
+  if (
+    !attachmentIds.length ||
+    new Set(attachmentIds).size !== attachmentIds.length ||
+    attachmentIds.some((a) => !/^tgw-attach-[a-f0-9]{8,17}$/.test(a ?? '')) ||
+    attachmentActions.some(
+      (a) =>
+        arg(a.args, '--transport-transit-gateway-attachment-id') !== transport ||
+        arg(a.args, '--options') !== 'Protocol=gre',
+    ) ||
+    !expected.length ||
+    new Set(expected.map((p) => p.peerId)).size !== expected.length ||
+    (routing.connectPeers !== undefined &&
+      (routing.connectPeers.length !== expected.length ||
+        routing.connectPeers.some(
+          (p, i) =>
+            p.node !== expected[i].node ||
+            p.transportInterfaceIndex !== expected[i].interfaceIndex ||
+            p.insideCidr !== expected[i].insideCidr ||
+            p.transitGatewayAddress !== expected[i].gatewayAddress,
+        ))) ||
+    Array.from({ length: base.intent.topology.nodeCount }, (_, i) => i + 1).some(
+      (node) => !expected.some((p) => p.node === node),
+    ) ||
+    attachmentIds.some(
+      (id) =>
+        expected.filter((p) => p.attachmentId === id).length < 1 ||
+        expected.filter((p) => p.attachmentId === id).length > 4,
+    ) ||
+    expected.some(
+      (p) =>
+        !/^tgw-connect-peer-[a-f0-9]{8,21}$/.test(p.peerId ?? '') ||
+        !attachmentIds.includes(p.attachmentId ?? '') ||
+        isIP13(p.peerAddress ?? '') !== 4 ||
+        !/^eni-[a-f0-9]{8,17}$/.test(p.eni ?? '') ||
+        !/^i-[a-f0-9]{8,17}$/.test(p.instance ?? '') ||
+        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(p.mac ?? ''),
+    )
+  )
+    throw Error('Connect runtime bindings incomplete or duplicated');
+  const api = scopedAwsApi(raw, base.intent.awsProfile ?? 'default', signal);
+  const read = async (args) => {
+    signal?.throwIfAborted();
+    const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
+    if (r.exitCode) throw Error('Connect service observation unavailable');
+    const result = object24(JSON.parse(r.stdout));
+    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(result, k)))
+      throw Error('Partial Connect service evidence');
+    return result;
+  };
+  const owned = (resource, node, interfaceIndex) => {
+    const tags = rows8(resource.Tags ?? resource.TagSet);
+    const labels = {
+      'xcsh-managed-by': 'aws-ce',
+      'xcsh-deployment-id': base.deploymentName,
+      'xcsh-execution-engine': base.engine,
+      'xcsh-plan-sha256': base.planSha256,
+      ...(node ? { 'xcsh-node-index': String(node) } : {}),
+      ...(interfaceIndex !== undefined ? { 'xcsh-interface-index': String(interfaceIndex) } : {}),
+    };
+    if (
+      new Set(tags.map((t) => t.Key)).size !== tags.length ||
+      tags.some((t) => typeof t.Key !== 'string' || typeof t.Value !== 'string') ||
+      Object.entries(labels).some(([k, v]) => !tags.some((t) => t.Key === k && t.Value === v))
+    )
+      throw Error('Foreign Connect service ownership');
+  };
+  if ((await read(['sts', 'get-caller-identity'])).Account !== base.accountId)
+    throw Error('Connect service account differs');
+  const transportObject = exactly(
+    (await read(['ec2', 'describe-transit-gateway-vpc-attachments', '--transit-gateway-attachment-ids', transport]))
+      .TransitGatewayVpcAttachments,
+  );
+  if (routing.transportAttachmentId) {
+    if (!base.intent.brownfield.resourceIds.includes(transport))
+      throw Error('Connect brownfield transport not allowlisted');
+  } else owned(transportObject);
+  const transportSubnets = transportObject.SubnetIds;
+  if (
+    transportObject.TransitGatewayAttachmentId !== transport ||
+    transportObject.TransitGatewayId !== gateway ||
+    transportObject.VpcId !== vpc ||
+    transportObject.VpcOwnerId !== base.accountId ||
+    transportObject.State !== 'available' ||
+    !Array.isArray(transportSubnets) ||
+    !transportSubnets.length ||
+    new Set(transportSubnets).size !== transportSubnets.length ||
+    transportSubnets.some((s) => typeof s !== 'string' || !/^subnet-[a-f0-9]{8,17}$/.test(s)) ||
+    !['enable', 'disable'].includes(String(object24(transportObject.Options).ApplianceModeSupport))
+  )
+    throw Error('Connect retained transport differs');
+  const attachmentBindings = [];
+  for (const id of [...attachmentIds].sort()) {
+    const connect = exactly(
+      (await read(['ec2', 'describe-transit-gateway-connects', '--transit-gateway-attachment-ids', id]))
+        .TransitGatewayConnects,
+    );
+    const generic = exactly(
+      (await read(['ec2', 'describe-transit-gateway-attachments', '--transit-gateway-attachment-ids', id]))
+        .TransitGatewayAttachments,
+    );
+    owned(connect);
+    owned(generic);
+    if (
+      connect.TransitGatewayAttachmentId !== id ||
+      connect.TransitGatewayId !== gateway ||
+      connect.TransportTransitGatewayAttachmentId !== transport ||
+      connect.State !== 'available' ||
+      object24(connect.Options).Protocol !== 'gre' ||
+      generic.TransitGatewayAttachmentId !== id ||
+      generic.TransitGatewayId !== gateway ||
+      generic.ResourceOwnerId !== base.accountId ||
+      generic.ResourceType !== 'connect' ||
+      generic.State !== 'available'
+    )
+      throw Error('Connect attachment owner or transport differs');
+    attachmentBindings.push({ id, transportAttachmentId: transport, protocol: 'gre' });
+  }
+  const peerResponse = rows8(
+    (
+      await read([
+        'ec2',
+        'describe-transit-gateway-connect-peers',
+        '--transit-gateway-connect-peer-ids',
+        ...expected.map((p) => p.peerId),
+      ])
+    ).TransitGatewayConnectPeers,
+  );
+  if (
+    peerResponse.length !== expected.length ||
+    new Set(peerResponse.map((p) => p.TransitGatewayConnectPeerId)).size !== peerResponse.length
+  )
+    throw Error('Connect peer discovery incomplete or duplicated');
+  const peerBindings = [],
+    sessions = [];
+  for (const selected of expected) {
+    const peer = exactly(peerResponse.filter((p) => p.TransitGatewayConnectPeerId === selected.peerId));
+    owned(peer, selected.node);
+    const nic = exactly(
+      (await read(['ec2', 'describe-network-interfaces', '--network-interface-ids', selected.eni])).NetworkInterfaces,
+    );
+    owned(nic, selected.node, selected.interfaceIndex);
+    if (
+      peer.TransitGatewayAttachmentId !== selected.attachmentId ||
+      peer.State !== 'available' ||
+      nic.NetworkInterfaceId !== selected.eni ||
+      nic.OwnerId !== base.accountId ||
+      nic.VpcId !== vpc ||
+      nic.PrivateIpAddress !== selected.peerAddress ||
+      nic.MacAddress !== selected.mac ||
+      nic.Status !== 'in-use' ||
+      object24(nic.Attachment).InstanceId !== selected.instance ||
+      object24(nic.Attachment).DeviceIndex !== selected.interfaceIndex ||
+      !/^subnet-[a-f0-9]{8,17}$/.test(String(nic.SubnetId))
+    )
+      throw Error('Connect peer and physical interface binding differs');
+    const config = object24(peer.ConnectPeerConfiguration),
+      cidrs = config.InsideCidrBlocks;
+    if (
+      config.Protocol !== 'gre' ||
+      config.PeerAddress !== selected.peerAddress ||
+      isIP13(String(config.TransitGatewayAddress)) !== 4 ||
+      (selected.gatewayAddress !== undefined && config.TransitGatewayAddress !== selected.gatewayAddress) ||
+      !Array.isArray(cidrs) ||
+      cidrs.length !== 1 ||
+      cidrs[0] !== selected.insideCidr
+    )
+      throw Error('Connect GRE configuration differs');
+    const inside = network3(String(cidrs[0]));
+    if (inside.bits !== 29) throw Error('Connect inside network differs');
+    const bgp = rows8(config.BgpConfigurations);
+    if (bgp.length !== 2) throw Error('Connect BGP session discovery incomplete');
+    const endpoints = new Set();
+    let local;
+    for (const session of bgp) {
+      const endpoint = String(session.TransitGatewayAddress),
+        ceEndpoint = String(session.PeerAddress),
+        status = String(session.BgpStatus);
+      const ip = (s) => s.split('.').reduce((n, o) => n * 256 + Number(o), 0);
+      if (
+        isIP13(endpoint) !== 4 ||
+        isIP13(ceEndpoint) !== 4 ||
+        endpoints.has(endpoint) ||
+        endpoint === ceEndpoint ||
+        session.TransitGatewayAsn !== routing.transitGatewayAsn ||
+        session.PeerAsn !== routing.customerAsn ||
+        !['up', 'down'].includes(status) ||
+        (local !== undefined && local !== ceEndpoint) ||
+        [endpoint, ceEndpoint].some((s) => ip(s) <= inside.address || ip(s) >= inside.address + 7)
+      )
+        throw Error('Connect BGP endpoints, ASNs or states differ');
+      endpoints.add(endpoint);
+      local = ceEndpoint;
+      sessions.push({ peerId: selected.peerId, awsEndpoint: endpoint, ceEndpoint, status });
+    }
+    peerBindings.push({
+      ...selected,
+      mac: selected.mac.toLowerCase(),
+      subnetId: nic.SubnetId,
+      awsGreAddress: config.TransitGatewayAddress,
+      ceEndpoint: local,
+      awsEndpoints: [...endpoints].sort(),
+    });
+  }
+  const memberships = [];
+  for (const tableId of tables) {
+    const table = exactly(
+      (await read(['ec2', 'describe-transit-gateway-route-tables', '--transit-gateway-route-table-ids', tableId]))
+        .TransitGatewayRouteTables,
+    );
+    if (
+      table.TransitGatewayRouteTableId !== tableId ||
+      table.TransitGatewayId !== gateway ||
+      table.State !== 'available'
+    )
+      throw Error('Connect table identity differs');
+    for (const [operation, key, required, state] of [
+      [
+        'get-transit-gateway-route-table-associations',
+        'Associations',
+        routing.associations.includes(tableId),
+        'associated',
+      ],
+      [
+        'get-transit-gateway-route-table-propagations',
+        'TransitGatewayRouteTablePropagations',
+        routing.propagations.includes(tableId),
+        'enabled',
+      ],
+    ]) {
+      const found = rows8((await read(['ec2', operation, '--transit-gateway-route-table-id', tableId]))[key]);
+      for (const id of attachmentIds) {
+        const matched = found.filter((r) => r.TransitGatewayAttachmentId === id);
+        if (required && (matched.length !== 1 || matched[0].State !== state))
+          throw Error('Connect retained association or propagation differs');
+        if (!required && matched.some((r) => r.State === state))
+          throw Error('Connect unplanned association or propagation');
+      }
+    }
+    if (!routing.propagations.includes(tableId)) continue;
+    for (const prefix of prefixes) {
+      const merged = new Map();
+      for (const filter of ['exact-match', 'subnet-of-match', 'supernet-of-match']) {
+        const result = await read([
+          'ec2',
+          'search-transit-gateway-routes',
+          '--transit-gateway-route-table-id',
+          tableId,
+          '--filters',
+          `Name=route-search.${filter},Values=${prefix}`,
+        ]);
+        if (result.AdditionalRoutesAvailable !== false) throw Error('Partial Connect route search');
+        const routes = rows8(result.Routes),
+          seen = new Set();
+        for (const route of routes) {
+          const destination = route.DestinationCidrBlock;
+          if (
+            typeof destination !== 'string' ||
+            !overlaps(destination, prefix) ||
+            seen.has(destination) ||
+            route.Type !== 'propagated' ||
+            !['active', 'blackhole'].includes(String(route.State)) ||
+            Object.hasOwn(route, 'PrefixListId')
+          )
+            throw Error('Connect route identity or inventory differs');
+          seen.add(destination);
+          const targets = rows8(route.TransitGatewayAttachments);
+          if (
+            !targets.length ||
+            new Set(targets.map((t) => t.TransitGatewayAttachmentId)).size !== targets.length ||
+            targets.some(
+              (t) => !attachmentIds.includes(String(t.TransitGatewayAttachmentId)) || t.ResourceType !== 'connect',
+            )
+          )
+            throw Error('Foreign Connect service route');
+          const normalized = {
+            destination,
+            type: route.Type,
+            state: route.State,
+            attachments: targets.map((t) => String(t.TransitGatewayAttachmentId)).sort(),
+          };
+          const prior = merged.get(destination);
+          if (prior && canonicalSha256(prior) !== canonicalSha256(normalized))
+            throw Error('Connect route changed during collection');
+          merged.set(destination, normalized);
+        }
+      }
+      const routes = [...merged.values()].sort((a, b) => String(a.destination).localeCompare(String(b.destination)));
+      memberships.push({
+        tableId,
+        prefix,
+        routes,
+        status:
+          routes.length === 0
+            ? 'withdrawn'
+            : routes.length === 1 && routes[0].destination === prefix && routes[0].state === 'active'
+              ? 'active'
+              : 'pending',
+      });
+    }
+  }
+  const services = {
+    schemaVersion: 1,
+    kind: 'aws-ce-connect-power-services',
+    sourcePlanSha256: base.planSha256,
+    engine: base.engine,
+    accountId: base.accountId,
+    region: base.region,
+    transitGatewayId: gateway,
+    vpcId: vpc,
+    transportAttachmentId: transport,
+    transportSubnets: [...transportSubnets].sort(),
+    applianceMode: object24(transportObject.Options).ApplianceModeSupport,
+    attachments: attachmentBindings,
+    peers: peerBindings,
+    tables,
+    associations: [...routing.associations].sort(),
+    propagations: [...routing.propagations].sort(),
+    prefixes,
+  };
+  return {
+    services,
+    servicesSha256: canonicalSha256(services),
+    sessions,
+    memberships,
+    status: sessions.some((s) => s.status !== 'up')
+      ? 'pending'
+      : memberships.every((m) => m.status === 'active')
+        ? 'active'
+        : memberships.every((m) => m.status === 'withdrawn')
+          ? 'withdrawn'
+          : 'pending',
+    traffic: 'unknown',
+    freshness: 'unqualified',
+    collectedAt: new Date().toISOString(),
+  };
+}
+var init_whole_site_power_connect = __esm(() => {
+  init_artifacts();
+  init_canonical();
+});
+
+// plugins/aws/src/ce/whole-site-power-bgp-services.ts
+function object25(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed BGP service binding');
+  return v;
+}
+function rows9(v) {
+  if (!Array.isArray(v)) throw Error('Incomplete BGP service binding');
+  return v.map(object25);
+}
+async function collectAwsPowerBgpServices(base, values, api, runtime, signal, retained) {
+  const cloud = await collectAwsPowerConnectRoutes(base, values, api, signal);
+  const sites = siteBindings(base),
+    platform = [],
+    snapshots = [],
+    observations = [];
+  if (
+    retained &&
+    (retained.length !== sites.length || new Set(retained.map((s) => s.binding.siteName)).size !== sites.length)
+  )
+    throw Error('Retained BGP site inventory differs');
+  const actions = base.actions.filter((a) => a.kind === 'tgw-connect-peer-create');
+  for (const { site, binding } of sites) {
+    const name = `${site.name.slice(0, 55)}-tgw-bgp`,
+      snapshot = await runtime.observePowerRouting(binding, 'bgp', name, signal);
+    if (
+      snapshot.uid !== values[`__XC_ROUTING_${name}__`] ||
+      snapshot.kind !== 'bgp' ||
+      canonicalSha256(snapshot.binding) !== canonicalSha256(binding) ||
+      snapshot.contractFingerprint !== runtime.contract.fingerprint
+    )
+      throw Error('BGP generated object differs from trusted deployment binding');
+    const prior = retained?.find((s) => s.binding.siteName === site.name);
+    if (
+      prior &&
+      (canonicalSha256(prior.binding) !== canonicalSha256(binding) ||
+        prior.siteUid !== snapshot.siteUid ||
+        prior.bgpName !== name ||
+        prior.bgpUid !== snapshot.uid ||
+        prior.contractFingerprint !== snapshot.contractFingerprint)
+    )
+      throw Error('Retained BGP object or site identity differs');
+    const original = prior?.originalSpec ?? snapshot.spec;
+    if (object25(original.bgp_parameters).asn !== base.intent.routing.customerAsn)
+      throw Error('BGP local ASN differs from owning plan');
+    const revision = buildAwsBgpPowerPolicyRevision(
+      original,
+      site.name,
+      cloud.services.prefixes,
+      'withdraw',
+      (kind, spec) => runtime.contract.validateRouting(kind, spec),
+    );
+    if (
+      prior &&
+      (canonicalSha256(prior.revision) !== canonicalSha256(revision) ||
+        ![canonicalSha256(original), canonicalSha256(revision.bgpSpec)].includes(canonicalSha256(snapshot.spec)))
+    )
+      throw Error('Retained BGP revision or current spec differs');
+    const selected = cloud.services.peers.filter((p) => site.nodeIndexes.includes(Number(p.node)));
+    const expectedHardware = site.nodeIndexes.flatMap((node) =>
+      base.intent.interfaces.map((i) => ({
+        node: `${base.deploymentName}-${node}`,
+        role: i.role === 'slo' || i.role === 'sli' ? i.role : 'data',
+        mac: values[`__ENI_${node}_${i.index}_MAC__`],
+      })),
+    );
+    const instances = Object.fromEntries(
+      site.nodeIndexes.map((node) => [`${base.deploymentName}-${node}`, values[`__INSTANCE_${node}__`]]),
+    );
+    const hardware = await runtime.observeRegisteredDevices(binding, instances, expectedHardware, signal);
+    if (hardware.status !== 'observed' || hardware.interfaces.length !== expectedHardware.length)
+      throw Error('BGP registration hardware identity unavailable');
+    const sessions = [],
+      connectors = [];
+    for (const peer of selected) {
+      const actionIndex = actions.findIndex((a) => values[a.capture?.placeholder ?? ''] === peer.peerId),
+        connectorName = `${base.deploymentName.slice(0, 24)}-gre-${actionIndex + 1}`;
+      const connector = await runtime.observePowerRouting(binding, 'external_connector', connectorName, signal);
+      if (
+        actionIndex < 0 ||
+        connector.siteUid !== snapshot.siteUid ||
+        connector.uid !== values[`__XC_ROUTING_${connectorName}__`] ||
+        connector.kind !== 'external_connector' ||
+        canonicalSha256(connector.binding) !== canonicalSha256(binding) ||
+        connector.contractFingerprint !== snapshot.contractFingerprint
+      )
+        throw Error('BGP connector generated identity differs');
+      const ref = object25(connector.spec.ce_site_reference),
+        gre = object25(object25(connector.spec.gre).gre_parameters),
+        endpoints = rows9(gre.tunnel_eps);
+      const node = `${base.deploymentName}-${peer.node}`,
+        devices = hardware.interfaces.filter(
+          (i) =>
+            i.node === node && i.mac === peer.mac && i.role === (Number(peer.interfaceIndex) === 0 ? 'slo' : 'sli'),
+        );
+      if (
+        ref.name !== site.name ||
+        ref.namespace !== 'system' ||
+        endpoints.length !== 1 ||
+        devices.length !== 1 ||
+        endpoints[0].node !== node ||
+        endpoints[0].interface !== devices[0].device ||
+        endpoints[0].local_tunnel_ip !== `${peer.ceEndpoint}/29` ||
+        !peer.awsEndpoints.some((ip) => endpoints[0].remote_tunnel_ip === `${ip}/29`) ||
+        object25(gre.peer_ip_address).addr !== peer.awsGreAddress ||
+        !Object.hasOwn(gre, 'site_local_inside_network')
+      )
+        throw Error('BGP connector physical node/device/MAC/tunnel join differs');
+      connectors.push({ name: connectorName, uid: connector.uid, spec: connector.spec });
+      for (const address of peer.awsEndpoints)
+        sessions.push({ node, interfaceName: `ves-io-external-connector-${connectorName}`, peerAddress: address });
+    }
+    const peers = rows9(original.peers);
+    if (
+      peers.length !== sessions.length ||
+      sessions.some(
+        (s) =>
+          peers.filter((p) => {
+            const e = object25(p.external),
+              ref = object25(e.interface);
+            return (
+              e.address === s.peerAddress &&
+              e.asn === base.intent.routing.transitGatewayAsn &&
+              ref.name === s.interfaceName &&
+              ref.namespace === 'system'
+            );
+          }).length !== 1,
+      )
+    )
+      throw Error('BGP peer spec and cloud endpoint inventory differ');
+    let tables = prior?.tables;
+    if (!tables) {
+      const observed = await runtime.observeBgpRoutes(binding, signal);
+      if (
+        observed.status !== 'observed' ||
+        canonicalSha256(observed.owner) !== canonicalSha256(binding.owner) ||
+        observed.siteName !== binding.siteName ||
+        observed.contractFingerprint !== snapshot.contractFingerprint
+      )
+        throw Error('BGP route discovery binding differs');
+      tables = binding.nodes.map((node) => {
+        const matches = observed.nodes
+          .filter((n) => n.node === node)
+          .flatMap((n) =>
+            n.routingInstances.flatMap((ri) =>
+              ri.tables
+                .filter((t) => cloud.services.prefixes.every((p) => t.exported.includes(p)))
+                .map((t) => ({ node, routingInstance: ri.name, table: t.name })),
+            ),
+          );
+        if (matches.length !== 1) throw Error('BGP service routing instance/table discovery missing or ambiguous');
+        return matches[0];
+      });
+    }
+    const current = {
+      binding,
+      siteUid: snapshot.siteUid,
+      bgpName: name,
+      bgpUid: snapshot.uid,
+      contractFingerprint: snapshot.contractFingerprint,
+      originalSpec: original,
+      connectors,
+      sessions,
+      tables,
+      revision,
+    };
+    if (prior && canonicalSha256(current) !== canonicalSha256(prior))
+      throw Error('BGP retained service inventory changed');
+    const observation = await runtime.observeBgpServiceMembership(
+      binding,
+      snapshot.siteUid,
+      sessions,
+      tables,
+      cloud.services.prefixes,
+      signal,
+    );
+    if (
+      canonicalSha256(observation.owner) !== canonicalSha256(binding.owner) ||
+      observation.siteName !== binding.siteName ||
+      observation.siteUid !== snapshot.siteUid ||
+      observation.contractFingerprint !== snapshot.contractFingerprint
+    )
+      throw Error('BGP service observation binding differs');
+    const final = await runtime.observePowerRouting(binding, 'bgp', name, signal);
+    if (
+      final.uid !== snapshot.uid ||
+      final.siteUid !== snapshot.siteUid ||
+      final.resourceVersion !== snapshot.resourceVersion ||
+      canonicalSha256(final.spec) !== canonicalSha256(snapshot.spec)
+    )
+      throw Error('BGP object changed during service collection');
+    platform.push(current);
+    snapshots.push(snapshot);
+    observations.push(observation);
+  }
+  if (new Set(platform.map((s) => s.revision.policy.name)).size !== platform.length)
+    throw Error('BGP maintenance policy names collide');
+  const services = { schemaVersion: 1, kind: 'aws-ce-bgp-power-services', cloud: cloud.services, platform };
+  const statuses = [cloud.status, ...observations.map((o) => o.status)];
+  return {
+    services,
+    servicesSha256: canonicalSha256(services),
+    snapshots,
+    cloud,
+    observations,
+    status: statuses.every((s) => s === 'active')
+      ? 'active'
+      : statuses.every((s) => s === 'withdrawn')
+        ? 'withdrawn'
+        : 'pending',
+    freshness: 'unqualified',
+    traffic: 'unknown',
+    collectedAt: new Date().toISOString(),
+  };
+}
+var init_whole_site_power_bgp_services = __esm(() => {
+  init_bgp_power_policy();
+  init_canonical();
+  init_whole_site_power_connect();
+});
+
+// plugins/aws/src/ce/bgp-power-controller.ts
+async function optional9(storage, name) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+async function context(base, plan, effect, storage) {
+  verifyAwsWholeSitePowerPlan(base, plan);
+  await storage.verify();
+  if (
+    !['native', 'terraform'].includes(base.engine) ||
+    base.topology.nodeCount !== 1 ||
+    plan.bindings.nodes.length !== 1 ||
+    plan.operation !== (effect === 'withdraw' ? 'stop' : 'start') ||
+    canonicalSha256(storage.owner) !== canonicalSha256(plan.bindings.owner) ||
+    canonicalSha256(await storage.read(`${plan.planId}.json`)) !== canonicalSha256(plan)
+  )
+    throw Error('Native BGP owner or immutable plan differs');
+  const cp = await storage.read(`${plan.planId}-checkpoint.json`);
+  const attempt = cp.pending;
+  if (
+    cp.schemaVersion !== 1 ||
+    cp.planSha256 !== plan.planSha256 ||
+    cp.bindingsSha256 !== plan.bindingsSha256 ||
+    cp.step !== (effect === 'withdraw' ? 1 : effect === 'restore' ? 3 : 5) ||
+    cp.complete !== false ||
+    !attempt ||
+    attempt.effect !== effect ||
+    attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
+    canonicalSha256(cp.attempts?.[effect]) !== canonicalSha256(attempt) ||
+    !Number.isFinite(Date.parse(attempt.originalAttemptAt)) ||
+    Date.parse(attempt.originalAttemptAt) > Date.now()
+  )
+    throw Error('Native BGP original attempt differs');
+  return {
+    schemaVersion: 1,
+    engine: base.engine,
+    planSha256: plan.planSha256,
+    bindingsSha256: plan.bindingsSha256,
+    servicesSha256: powerServiceComponentSha256(base, plan.bindings, 'bgp'),
+    attempt,
+  };
+}
+function filename(plan, effect, suffix) {
+  return `${plan.planId}-${effect}-${plan.engine}-bgp-${suffix}.json`;
+}
+function validateAwsBgpPowerPreparation(prep, marker) {
+  if (
+    canonicalSha256(prep.marker) !== canonicalSha256(marker) ||
+    prep.servicesSha256 !== marker.servicesSha256 ||
+    canonicalSha256(prep.services) !== marker.servicesSha256 ||
+    prep.services.platform.length !== 1 ||
+    prep.snapshots.length !== 1 ||
+    prep.policies.length !== 1
+  )
+    throw Error('Native BGP retained preparation differs');
+  const s = prep.services.platform[0],
+    snapshot = prep.snapshots[0],
+    policy = prep.policies[0];
+  if (
+    snapshot.kind !== 'bgp' ||
+    canonicalSha256(snapshot.binding) !== canonicalSha256(s.binding) ||
+    snapshot.name !== s.bgpName ||
+    snapshot.uid !== s.bgpUid ||
+    snapshot.siteUid !== s.siteUid ||
+    snapshot.contractFingerprint !== s.contractFingerprint ||
+    !snapshot.resourceVersion ||
+    (marker.attempt.effect === 'withdraw' &&
+      policy.attemptId !== canonicalSha256({ marker, siteUid: s.siteUid, policy: s.revision.policy })) ||
+    canonicalSha256(snapshot.spec) !==
+      canonicalSha256(marker.attempt.effect === 'withdraw' ? s.originalSpec : s.revision.bgpSpec) ||
+    canonicalSha256(policy.binding) !== canonicalSha256(s.binding) ||
+    policy.siteUid !== s.siteUid ||
+    policy.name !== s.revision.policy.name ||
+    canonicalSha256(policy.spec) !== canonicalSha256(s.revision.policy.spec) ||
+    policy.contractFingerprint !== s.contractFingerprint ||
+    !/^[a-f0-9]{64}$/.test(policy.attemptId)
+  )
+    throw Error('Native BGP prepared snapshot or policy differs');
+}
+async function observe2(base, plan, values, api, runtime, prep, signal) {
+  const observed = await collectAwsPowerBgpServices(base, values, api, runtime, signal, prep?.services.platform);
+  if (observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp'))
+    throw Error('Native BGP service identity differs');
+  return observed;
+}
+function policyDispatch(intent) {
+  return { ...intent, kind: 'bgp_routing_policy', phase: 'power-policy-create-dispatch' };
+}
+function replacementDispatch(snapshot) {
+  return {
+    kind: snapshot.kind,
+    name: snapshot.name,
+    uid: snapshot.uid,
+    siteUid: snapshot.siteUid,
+    resourceVersion: snapshot.resourceVersion,
+    contractFingerprint: snapshot.contractFingerprint,
+    phase: 'power-routing-dispatch',
+  };
+}
+async function policy(storage, plan, prep, runtime, submit, signal) {
+  const intent = prep.policies[0],
+    name = filename(plan, 'withdraw', 'policy-dispatch'),
+    expected = { marker: prep.marker, intent, record: policyDispatch(intent) },
+    saved = await optional9(storage, name);
+  if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
+    throw Error('Native BGP policy dispatch differs');
+  const createPolicy = (
+    plan.engine === 'native' ? runtime.createPowerRoutingPolicy : runtime.createTerraformPowerRoutingPolicy
+  ).bind(runtime);
+  const result = await createPolicy(
+    intent,
+    saved !== undefined || !submit ? 'submitted' : 'not-submitted',
+    async (record) => {
+      if (canonicalSha256(record) !== canonicalSha256(expected.record))
+        throw Error('Native BGP policy callback differs');
+      await storage.write(name, expected);
+    },
+    signal,
+  );
+  if (result.status !== 'observed') return;
+  const { status: _status, collectedAt: _time, kind: _kind, uid: _uid, resourceVersion: _rv, ...actualIntent } = result;
+  if (canonicalSha256(actualIntent) !== canonicalSha256(intent) || !result.uid || !result.resourceVersion)
+    throw Error('Native BGP policy readback differs');
+  const receiptName = filename(plan, 'withdraw', 'policy-created'),
+    retained = await optional9(storage, receiptName);
+  if (
+    retained &&
+    (retained.uid !== result.uid ||
+      retained.resourceVersion !== result.resourceVersion ||
+      canonicalSha256({ ...retained, collectedAt: '' }) !== canonicalSha256({ ...result, collectedAt: '' }))
+  )
+    throw Error('Native BGP policy created identity changed');
+  if (!retained) await storage.write(receiptName, result);
+  return retained ?? result;
+}
+async function retainedStop(base, plan, storage) {
+  if (!plan.maintenance) throw Error('Native BGP restoration maintenance missing');
+  const id = `aws-ce-power-${plan.maintenance.stopPlanSha256.slice(0, 24)}`;
+  const stop = await storage.read(`${id}.json`);
+  verifyAwsWholeSitePowerPlan(base, stop);
+  const prep = await storage.read(filename(stop, 'withdraw', 'preparation'));
+  const outcome = await storage.read(filename(stop, 'withdraw', 'outcome'));
+  validateAwsBgpPowerPreparation(prep, outcome.marker);
+  const checkpoint = await storage.read(`${stop.planId}-checkpoint.json`);
+  if (
+    checkpoint.schemaVersion !== 1 ||
+    checkpoint.planSha256 !== stop.planSha256 ||
+    checkpoint.bindingsSha256 !== stop.bindingsSha256 ||
+    canonicalSha256(checkpoint.attempts?.withdraw) !== canonicalSha256(prep.marker.attempt)
+  )
+    throw Error('Native BGP retained original withdrawal attempt differs');
+  if (
+    stop.operation !== 'stop' ||
+    stop.planSha256 !== plan.maintenance.stopPlanSha256 ||
+    stop.transitionId !== plan.transitionId ||
+    stop.bindingsSha256 !== plan.bindingsSha256 ||
+    outcome.marker.planSha256 !== stop.planSha256 ||
+    outcome.marker.bindingsSha256 !== stop.bindingsSha256 ||
+    outcome.marker.attempt.effect !== 'withdraw' ||
+    outcome.observed.status !== 'withdrawn' ||
+    outcome.observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
+    canonicalSha256(outcome.observed.services) !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
+    canonicalSha256(outcome.observed.snapshots[0].spec) !== canonicalSha256(prep.services.platform[0].revision.bgpSpec)
+  )
+    throw Error('Native BGP completed withdrawal differs');
+  const created = await storage.read(filename(stop, 'withdraw', 'policy-created'));
+  const { status, collectedAt: _time, kind, uid, resourceVersion, ...intent } = created;
+  if (
+    status !== 'observed' ||
+    kind !== 'bgp_routing_policy' ||
+    !uid ||
+    !resourceVersion ||
+    canonicalSha256(intent) !== canonicalSha256(prep.policies[0])
+  )
+    throw Error('Native BGP retained created policy differs');
+  const creation = await storage.read(filename(stop, 'withdraw', 'policy-dispatch'));
+  if (
+    canonicalSha256(creation) !==
+    canonicalSha256({ marker: prep.marker, intent: prep.policies[0], record: policyDispatch(prep.policies[0]) })
+  )
+    throw Error('Native BGP retained creation dispatch differs');
+  const dispatch = await storage.read(filename(stop, 'withdraw', 'replacement-dispatch'));
+  if (
+    canonicalSha256(dispatch) !==
+    canonicalSha256({
+      marker: prep.marker,
+      snapshot: prep.snapshots[0],
+      desired: prep.services.platform[0].revision.bgpSpec,
+      policy: created,
+      record: replacementDispatch(prep.snapshots[0]),
+    })
+  )
+    throw Error('Native BGP retained replacement differs');
+  return { stop, prep };
+}
+async function assertNoDispatchWithoutPreparation(storage, plan, effect) {
+  for (const suffix of [
+    'replacement-dispatch',
+    'outcome',
+    ...(effect === 'withdraw' ? ['policy-dispatch', 'policy-created'] : []),
+  ])
+    if ((await optional9(storage, filename(plan, effect, suffix))) !== undefined)
+      throw Error('Native BGP submitted attempt preparation missing');
+}
+async function prepare(base, plan, effect, marker, storage, values, api, runtime, signal) {
+  const saved = await optional9(storage, filename(plan, effect, 'preparation'));
+  if (!saved) await assertNoDispatchWithoutPreparation(storage, plan, effect);
+  const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
+  if (saved) {
+    validateAwsBgpPowerPreparation(saved, marker);
+    return { prep: saved, prior };
+  }
+  const observed = await observe2(base, plan, values, api, runtime, prior?.prep, signal);
+  if (observed.status !== (effect === 'withdraw' ? 'active' : 'withdrawn'))
+    throw Error('Native BGP prerequisite pending');
+  const policies =
+    prior?.prep.policies ??
+    observed.services.platform.map((s) => ({
+      binding: s.binding,
+      siteUid: s.siteUid,
+      name: s.revision.policy.name,
+      spec: s.revision.policy.spec,
+      contractFingerprint: s.contractFingerprint,
+      attemptId: canonicalSha256({ marker, siteUid: s.siteUid, policy: s.revision.policy }),
+    }));
+  const prep = {
+    marker,
+    services: observed.services,
+    servicesSha256: observed.servicesSha256,
+    snapshots: observed.snapshots,
+    policies,
+  };
+  validateAwsBgpPowerPreparation(prep, marker);
+  signal?.throwIfAborted();
+  await storage.write(filename(plan, effect, 'preparation'), prep);
+  return { prep, prior };
+}
+async function dispatchAwsNativeBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
+  if (base.engine !== 'native') throw Error('BGP owning engine differs');
+  return dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal);
+}
+async function dispatchAwsTerraformBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
+  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
+  return dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal);
+}
+async function dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
+  if (authorization !== plan.planSha256) throw Error('Native BGP authorization differs');
+  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
+  try {
+    const marker = await context(base, plan, effect, storage),
+      { prep, prior } = await prepare(base, plan, effect, marker, storage, values, api, runtime, signal);
+    const created = await policy(
+      storage,
+      prior?.stop ?? plan,
+      prior?.prep ?? prep,
+      runtime,
+      effect === 'withdraw',
+      signal,
+    );
+    if (!created) throw Error('Native BGP policy creation pending; reconcile original attempt');
+    const current = await observe2(base, plan, values, api, runtime, prep, signal),
+      snapshot = prep.snapshots[0],
+      desired =
+        effect === 'withdraw' ? prep.services.platform[0].revision.bgpSpec : prep.services.platform[0].originalSpec,
+      expected = { marker, snapshot, desired, policy: created, record: replacementDispatch(snapshot) },
+      name = filename(plan, effect, 'replacement-dispatch'),
+      saved = await optional9(storage, name);
+    if (saved) expected.policy = saved.policy;
+    if (
+      saved &&
+      canonicalSha256({ ...saved, policy: { ...saved.policy, collectedAt: '' } }) !==
+        canonicalSha256({ ...expected, policy: { ...created, collectedAt: '' } })
+    )
+      throw Error('Native BGP replacement dispatch differs');
+    if (saved) {
+      if (canonicalSha256(current.snapshots[0].spec) !== canonicalSha256(desired))
+        throw Error('Native BGP submitted replacement pending; reconcile original attempt');
+      return;
+    }
+    if (
+      canonicalSha256(current.snapshots[0].spec) !== canonicalSha256(snapshot.spec) ||
+      current.snapshots[0].resourceVersion !== snapshot.resourceVersion
+    )
+      throw Error('Native BGP original revision changed');
+    await runtime.replacePowerRouting(
+      { ...snapshot, kind: 'bgp' },
+      desired,
+      async (record) => {
+        if (canonicalSha256(record) !== canonicalSha256(expected.record))
+          throw Error('Native BGP replacement callback differs');
+        await storage.write(name, expected);
+      },
+      signal,
+    );
+  } finally {
+    await release();
+  }
+}
+async function reconcileAwsNativeBgpPower(
+  base,
+  plan,
+  effect,
+  originalAttemptAt,
+  storage,
+  values,
+  api,
+  runtime,
+  signal,
+) {
+  if (base.engine !== 'native') throw Error('BGP owning engine differs');
+  return reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal);
+}
+async function reconcileAwsTerraformBgpPower(
+  base,
+  plan,
+  effect,
+  originalAttemptAt,
+  storage,
+  values,
+  api,
+  runtime,
+  signal,
+) {
+  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
+  return reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal);
+}
+async function reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal) {
+  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
+  try {
+    const marker = await context(base, plan, effect, storage);
+    if (marker.attempt.originalAttemptAt !== originalAttemptAt) throw Error('Native BGP original attempt differs');
+    const prep = await optional9(storage, filename(plan, effect, 'preparation'));
+    if (!prep) {
+      await assertNoDispatchWithoutPreparation(storage, plan, effect);
+      return 'not-submitted';
+    }
+    validateAwsBgpPowerPreparation(prep, marker);
+    const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
+    const created = await policy(storage, prior?.stop ?? plan, prior?.prep ?? prep, runtime, false, signal);
+    const dispatch = await optional9(storage, filename(plan, effect, 'replacement-dispatch'));
+    if (!dispatch) {
+      const submitted = await optional9(storage, filename(prior?.stop ?? plan, 'withdraw', 'policy-dispatch'));
+      return submitted && !created ? 'pending' : 'not-submitted';
+    }
+    if (!created) throw Error('Native BGP retained policy missing');
+    const desired =
+      effect === 'withdraw' ? prep.services.platform[0].revision.bgpSpec : prep.services.platform[0].originalSpec;
+    if (
+      canonicalSha256({ ...dispatch, policy: { ...dispatch.policy, collectedAt: '' } }) !==
+      canonicalSha256({
+        marker,
+        snapshot: prep.snapshots[0],
+        desired,
+        policy: { ...created, collectedAt: '' },
+        record: replacementDispatch(prep.snapshots[0]),
+      })
+    )
+      throw Error('Native BGP replacement dispatch differs');
+    const observed = await observe2(base, plan, values, api, runtime, prep, signal);
+    if (
+      canonicalSha256(observed.snapshots[0].spec) !== canonicalSha256(desired) ||
+      observed.status !== (effect === 'withdraw' ? 'withdrawn' : 'active')
+    )
+      return 'pending';
+    await storage.write(filename(plan, effect, 'outcome'), { marker, observed, collectedAt: new Date().toISOString() });
+    return 'completed';
+  } finally {
+    await release();
+  }
+}
+async function retireAwsNativeBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
+  if (base.engine !== 'native') throw Error('BGP owning engine differs');
+  return retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal);
+}
+async function retireAwsTerraformBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
+  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
+  return retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal);
+}
+async function retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
+  if (authorization !== plan.planSha256) throw Error('Native BGP retirement authorization differs');
+  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
+  try {
+    const marker = await context(base, plan, 'release', storage),
+      prior = await retainedStop(base, plan, storage);
+    if (
+      canonicalSha256(await storage.read(`${prior.stop.planId}-maintenance.json`)) !== canonicalSha256(plan.maintenance)
+    )
+      throw Error('Native BGP retained maintenance differs');
+    const cp = await storage.read(`${plan.planId}-checkpoint.json`);
+    const currentGate = await storage.read(`${plan.planId}-restored-last-evidence.json`);
+    if (
+      !cp.evidence?.restored ||
+      !evidencePasses(plan, 'restored', cp.evidence.restored, Date.now()) ||
+      !evidencePasses(plan, 'restored', currentGate, Date.now())
+    )
+      throw Error('Native BGP restored gate unavailable');
+    const prep = await storage.read(filename(plan, 'restore', 'preparation'));
+    const outcome = await storage.read(filename(plan, 'restore', 'outcome'));
+    validateAwsBgpPowerPreparation(prep, outcome.marker);
+    if (
+      outcome.marker.planSha256 !== plan.planSha256 ||
+      outcome.marker.bindingsSha256 !== plan.bindingsSha256 ||
+      outcome.marker.attempt.effect !== 'restore' ||
+      outcome.observed.status !== 'active' ||
+      outcome.observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
+      canonicalSha256(outcome.observed.services) !== powerServiceComponentSha256(base, plan.bindings, 'bgp')
+    )
+      throw Error('Native BGP retained restored outcome differs');
+    const created = await storage.read(filename(prior.stop, 'withdraw', 'policy-created'));
+    const restoredDispatch = await storage.read(filename(plan, 'restore', 'replacement-dispatch'));
+    if (
+      canonicalSha256(restoredDispatch) !==
+      canonicalSha256({
+        marker: prep.marker,
+        snapshot: prep.snapshots[0],
+        desired: prep.services.platform[0].originalSpec,
+        policy: created,
+        record: replacementDispatch(prep.snapshots[0]),
+      })
+    )
+      throw Error('Native BGP retained restoration dispatch differs');
+    const observed = await observe2(base, plan, values, api, runtime, prep, signal);
+    if (
+      observed.status !== 'active' ||
+      canonicalSha256(observed.snapshots[0].spec) !== canonicalSha256(prep.services.platform[0].originalSpec)
+    )
+      return 'pending';
+    const { status: _status, collectedAt: _time, kind: _kind, ...snapshot } = created;
+    const record = { ...snapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' },
+      expected = { marker, snapshot, record },
+      name = filename(plan, 'restore', 'policy-delete-dispatch'),
+      saved = await optional9(storage, name);
+    if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
+      throw Error('Native BGP retirement dispatch differs');
+    const deletePolicy = (
+      plan.engine === 'native' ? runtime.deletePowerRoutingPolicy : runtime.deleteTerraformPowerRoutingPolicy
+    ).bind(runtime);
+    const result = await deletePolicy(
+      snapshot,
+      saved === undefined ? 'not-submitted' : 'submitted',
+      async (actual) => {
+        if (canonicalSha256(actual) !== canonicalSha256(record)) throw Error('Native BGP retirement callback differs');
+        await storage.write(name, expected);
+      },
+      signal,
+    );
+    if (
+      canonicalSha256({ ...result, status: undefined, collectedAt: undefined }) !==
+      canonicalSha256({ ...snapshot, status: undefined, collectedAt: undefined })
+    )
+      throw Error('Native BGP retirement readback differs');
+    await storage.write(filename(plan, 'restore', 'policy-retirement-outcome'), { marker, result, observed });
+    return result.status === 'deleted' ? 'completed' : 'pending';
+  } finally {
+    await release();
+  }
+}
+var init_bgp_power_controller = __esm(() => {
+  init_process_lock();
+  init_canonical();
+  init_whole_site_power();
+  init_whole_site_power_bgp_services();
+  init_whole_site_power_service_binding();
+});
+
+// plugins/aws/src/ce/terraform-direct-power.ts
+import { createHash as createHash17 } from 'node:crypto';
+
+function object26(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw Error('Malformed Terraform direct service configuration');
+  return value;
+}
+function expectedRoutes(base, services) {
+  verifyAwsCePlan(base);
+  const requested = [...base.intent.routes].sort(
+    (a, b) => a.routeTableId.localeCompare(b.routeTableId) || a.destinationCidr.localeCompare(b.destinationCidr),
+  );
+  if (
+    base.engine !== 'terraform' ||
+    base.topology.nodeCount !== 1 ||
+    base.intent.routing.profile !== 'direct-eni' ||
+    services.schemaVersion !== 1 ||
+    services.kind !== 'aws-ce-direct-route-power-services' ||
+    services.engine !== base.engine ||
+    services.sourcePlanSha256 !== base.planSha256 ||
+    services.accountId !== base.accountId ||
+    services.region !== base.region ||
+    !/^i-[a-f0-9]{8,17}$/.test(services.instanceId) ||
+    !/^eni-[a-f0-9]{8,17}$/.test(services.sloNetworkInterfaceId) ||
+    !/^subnet-[a-f0-9]{8,17}$/.test(String(services.sloSubnetId)) ||
+    !requested.length ||
+    canonicalSha256(
+      services.routes.map((r) => ({ routeTableId: r.routeTableId, destinationCidr: r.destinationCidr, node: 1 })),
+    ) !== canonicalSha256(requested) ||
+    services.routes.some(
+      (r) =>
+        !/^eni-[a-f0-9]{8,17}$/.test(r.networkInterfaceId) ||
+        r.networkInterfaceId === services.sloNetworkInterfaceId ||
+        !/^rtb-[a-f0-9]{8,17}$/.test(r.routeTableId) ||
+        !base.intent.brownfield.routeTableIds.includes(r.routeTableId),
+    ) ||
+    new Set(services.routes.map((r) => r.networkInterfaceId)).size !== 1 ||
+    new Set(services.routes.map((r) => `${r.routeTableId}/${r.destinationCidr}`)).size !== requested.length
+  )
+    throw Error('Terraform direct service scope differs');
+  return Object.fromEntries(
+    services.routes.map((route, index) => [
+      `direct_${index}`,
+      {
+        route_table_id: route.routeTableId,
+        destination_cidr_block: route.destinationCidr,
+        network_interface_id: route.networkInterfaceId,
+      },
+    ]),
+  );
+}
+function reviseAwsTerraformDirectServiceRoutes(base, services, configuration, effect, retained) {
+  const routes = expectedRoutes(base, services);
+  const next = object26(JSON.parse(configuration));
+  const terraform = object26(next.terraform),
+    aws = object26(object26(terraform.required_providers).aws),
+    provider = object26(object26(next.provider).aws);
+  if (
+    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
+    aws.source !== 'hashicorp/aws' ||
+    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
+    provider.region !== base.region ||
+    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
+    terraform.backend ||
+    terraform.cloud ||
+    next.import ||
+    next.removed
+  )
+    throw Error('Terraform direct service provider or lifecycle differs');
+  const resources = object26(next.resource);
+  const configured = resources.aws_route === undefined ? {} : object26(resources.aws_route);
+  if (Object.keys(configured).some((name) => name.startsWith('direct_') && !Object.hasOwn(routes, name)))
+    throw Error('Terraform direct service route cardinality differs');
+  if (
+    effect === 'restore' &&
+    (retained?.effect !== 'withdraw' ||
+      retained.servicesSha256 !== canonicalSha256(services) ||
+      hash8(retained.configuration) !== retained.afterSha256 ||
+      canonicalSha256(retained.routes) !== canonicalSha256(routes))
+  )
+    throw Error('Terraform direct restoration requires retained withdrawal');
+  if (!['withdraw', 'restore'].includes(effect)) throw Error('Terraform direct effect differs');
+  for (const [name, route] of Object.entries(routes)) {
+    if (effect === 'withdraw') {
+      if (canonicalSha256(configured[name]) !== canonicalSha256(route))
+        throw Error('Terraform direct service route identity differs');
+      delete configured[name];
+    } else {
+      if (Object.hasOwn(configured, name)) throw Error('Terraform direct restored resource already exists');
+      configured[name] = structuredClone(route);
+    }
+  }
+  if (Object.keys(configured).length) resources.aws_route = configured;
+  else delete resources.aws_route;
+  const result = JSON.stringify(next);
+  return {
+    configuration: result,
+    beforeSha256: hash8(configuration),
+    afterSha256: hash8(result),
+    servicesSha256: canonicalSha256(services),
+    effect,
+    routes,
+  };
+}
+function validateAwsTerraformDirectServiceReceipt(base, services, revision, receipt, before, after) {
+  const routes = expectedRoutes(base, services);
+  if (
+    canonicalSha256(revision.routes) !== canonicalSha256(routes) ||
+    revision.servicesSha256 !== canonicalSha256(services) ||
+    hash8(revision.configuration) !== revision.afterSha256 ||
+    !['withdraw', 'restore'].includes(revision.effect) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== revision.afterSha256 ||
+    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.noChanges ||
+    new Set(receipt.changes.map((c) => c.address)).size !== receipt.changes.length
+  )
+    throw Error('Terraform direct service saved-plan scope differs');
+  const addresses = Object.keys(routes)
+    .map((n) => `aws_route.${n}`)
+    .sort();
+  const mutations = receipt.changes.filter((c) => canonicalSha256(c.actions) !== canonicalSha256(['no-op']));
+  if (
+    canonicalSha256(mutations.map((c) => c.address).sort()) !== canonicalSha256(addresses) ||
+    mutations.some(
+      (c) =>
+        c.type !== 'aws_route' ||
+        canonicalSha256(c.actions) !== canonicalSha256([revision.effect === 'withdraw' ? 'delete' : 'create']),
+    )
+  )
+    throw Error('Terraform direct service unrelated or replacement mutation');
+  if (
+    canonicalSha256(Object.keys(before).sort()) !== canonicalSha256(addresses) ||
+    canonicalSha256(Object.keys(after).sort()) !== canonicalSha256(addresses)
+  )
+    throw Error('Terraform direct service projection incomplete');
+  for (const address of addresses) {
+    if (
+      canonicalSha256(revision.effect === 'withdraw' ? before[address] : after[address]) !==
+        canonicalSha256(routes[address.slice('aws_route.'.length)]) ||
+      (revision.effect === 'withdraw' ? after[address] : before[address]) !== null
+    )
+      throw Error('Terraform direct service resolved identity differs');
+  }
+}
+var hash8 = (value) => createHash17('sha256').update(value).digest('hex');
+var init_terraform_direct_power = __esm(() => {
+  init_artifacts();
+  init_canonical();
+});
+
+// plugins/aws/src/ce/terraform-static-power.ts
+import { createHash as createHash18 } from 'node:crypto';
+
+function object27(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw Error('Malformed Terraform static service configuration');
+  return value;
+}
+function scope2(base, services) {
+  verifyAwsCePlan(base);
+  if (
+    base.engine !== 'terraform' ||
+    services.engine !== base.engine ||
+    services.sourcePlanSha256 !== base.planSha256 ||
+    services.accountId !== base.accountId ||
+    services.region !== base.region ||
+    services.transitGatewayId !== base.intent.routing.transitGatewayId ||
+    services.routeTableId !== base.intent.routing.transitGatewayRouteTableId ||
+    canonicalSha256(services.destinationCidrs) !== canonicalSha256([...base.intent.routing.destinationCidrs].sort()) ||
+    !/^tgw-attach-[a-f0-9]{8,17}$/.test(services.transportAttachmentId) ||
+    base.intent.routing.profile !== 'tgw-static'
+  )
+    throw Error('Terraform static service scope differs');
+}
+function expectedRoutes2(base, services, routes) {
+  if (Object.keys(routes).length !== base.intent.routing.destinationCidrs.length)
+    throw Error('Terraform static service route cardinality differs');
+  for (const [index, destination] of base.intent.routing.destinationCidrs.entries()) {
+    const route = object27(routes[`static_${index}`]);
+    if (
+      canonicalSha256(route) !==
+      canonicalSha256({
+        destination_cidr_block: destination,
+        transit_gateway_attachment_id: `\${aws_ec2_transit_gateway_vpc_attachment.transport.id}`,
+        transit_gateway_route_table_id: services.routeTableId,
+      })
+    )
+      throw Error('Terraform static service route identity differs');
+  }
+}
+function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, effect, retained) {
+  scope2(base, services);
+  const after = object27(JSON.parse(configuration));
+  const terraform = object27(after.terraform),
+    aws = object27(object27(terraform.required_providers).aws),
+    provider = object27(object27(after.provider).aws);
+  if (
+    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
+    aws.source !== 'hashicorp/aws' ||
+    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
+    provider.region !== base.region ||
+    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
+    terraform.backend ||
+    terraform.cloud
+  )
+    throw Error('Terraform static service provider differs');
+  const resources = object27(after.resource);
+  let routes;
+  if (effect === 'withdraw') {
+    routes = object27(resources.aws_ec2_transit_gateway_route);
+    expectedRoutes2(base, services, routes);
+    delete resources.aws_ec2_transit_gateway_route;
+  } else if (effect === 'restore') {
+    if (
+      retained?.effect !== 'withdraw' ||
+      retained.servicesSha256 !== canonicalSha256(services) ||
+      hash9(retained.configuration) !== retained.afterSha256 ||
+      resources.aws_ec2_transit_gateway_route !== undefined
+    )
+      throw Error('Terraform static restoration requires retained withdrawal');
+    routes = object27(retained.routes);
+    expectedRoutes2(base, services, routes);
+    resources.aws_ec2_transit_gateway_route = structuredClone(routes);
+  } else throw Error('Terraform static service effect differs');
+  const next = JSON.stringify(after);
+  return {
+    configuration: next,
+    beforeSha256: hash9(configuration),
+    afterSha256: hash9(next),
+    servicesSha256: canonicalSha256(services),
+    effect,
+    routes: structuredClone(routes),
+  };
+}
+function validateAwsTerraformStaticServiceReceipt(base, services, revision, receipt, before, after) {
+  scope2(base, services);
+  expectedRoutes2(base, services, revision.routes);
+  if (
+    revision.servicesSha256 !== canonicalSha256(services) ||
+    revision.afterSha256 !== hash9(revision.configuration) ||
+    !['withdraw', 'restore'].includes(revision.effect) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== revision.afterSha256 ||
+    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.noChanges ||
+    new Set(receipt.changes.map((c) => c.address)).size !== receipt.changes.length
+  )
+    throw Error('Terraform static service saved-plan scope differs');
+  const addresses = Object.keys(revision.routes)
+    .map((name) => `aws_ec2_transit_gateway_route.${name}`)
+    .sort();
+  const mutations = receipt.changes.filter((c) => canonicalSha256(c.actions) !== canonicalSha256(['no-op']));
+  if (
+    canonicalSha256(mutations.map((c) => c.address).sort()) !== canonicalSha256(addresses) ||
+    mutations.some(
+      (c) =>
+        c.type !== 'aws_ec2_transit_gateway_route' ||
+        canonicalSha256(c.actions) !== canonicalSha256([revision.effect === 'withdraw' ? 'delete' : 'create']),
+    )
+  )
+    throw Error('Terraform static service unrelated or replacement mutation');
+  if (
+    canonicalSha256(Object.keys(before).sort()) !== canonicalSha256(addresses) ||
+    canonicalSha256(Object.keys(after).sort()) !== canonicalSha256(addresses)
+  )
+    throw Error('Terraform static service projection incomplete');
+  for (const address of addresses) {
+    const name = address.split('.')[1];
+    const route = revision.routes[name];
+    const owned = {
+      destination_cidr_block: route.destination_cidr_block,
+      transit_gateway_attachment_id: services.transportAttachmentId,
+      transit_gateway_route_table_id: services.routeTableId,
+      blackhole: false,
+    };
+    if (
+      canonicalSha256(revision.effect === 'withdraw' ? before[address] : after[address]) !== canonicalSha256(owned) ||
+      (revision.effect === 'withdraw' ? after[address] : before[address]) !== null
+    )
+      throw Error('Terraform static service resolved identity differs');
+  }
+}
+var hash9 = (value) => createHash18('sha256').update(value).digest('hex');
+var init_terraform_static_power = __esm(() => {
+  init_artifacts();
+  init_canonical();
+});
+
+// plugins/aws/src/ce/terraform-whole-site-power.ts
+import { createHash as createHash19 } from 'node:crypto';
+
+function scope3(base, plan, effect) {
+  verifyAwsWholeSitePowerPlan(base, plan);
+  if (
+    base.engine !== 'terraform' ||
+    !['stop', 'start', 'release'].includes(effect) ||
+    plan.operation !== (effect === 'stop' ? 'stop' : 'start')
+  )
+    throw Error('Terraform power owning operation differs');
+  if (base.topology.nodeCount !== 1 || plan.bindings.nodes.length !== 1 || siteBindings(base).length !== 1)
+    throw Error('Terraform power requires separately qualified multi-node lifecycle');
+}
+function reviseAwsTerraformPowerConfiguration(base, plan, configuration, effect) {
+  scope3(base, plan, effect);
+  const before = object28(JSON.parse(configuration));
+  const after = structuredClone(before);
+  const terraform = object28(after.terraform);
+  const providers = object28(terraform.required_providers);
+  const awsRequired = object28(providers.aws);
+  const provider = object28(object28(after.provider).aws);
+  if (
+    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
+    awsRequired.source !== 'hashicorp/aws' ||
+    awsRequired.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
+    provider.region !== base.region ||
+    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
+    terraform.backend ||
+    terraform.cloud
+  )
+    throw Error('Terraform power provider, account, region or backend differs');
+  const resources = object28(after.resource);
+  const node = plan.bindings.nodes[0];
+  const vms = object28(resources.aws_instance);
+  if (Object.keys(vms).length !== 1 || !vms[`node_${node.nodeIndex}`])
+    throw Error('Terraform power selected VM cardinality differs');
+  const vm = object28(vms[`node_${node.nodeIndex}`]);
+  const tags = object28(vm.tags);
+  const expected = {
+    'xcsh-deployment-id': base.deploymentName,
+    'xcsh-execution-engine': 'terraform',
+    'xcsh-plan-sha256': base.planSha256,
+    'xcsh-node-index': String(node.nodeIndex),
+    'ves-io-site-name': node.siteName,
+  };
+  if (Object.entries(expected).some(([k, v]) => tags[k] !== v)) throw Error('Terraform power VM ownership differs');
+  const key = `ce_power_${node.nodeIndex}`;
+  const address = `aws_ec2_instance_state.${key}`;
+  const controls =
+    resources.aws_ec2_instance_state === undefined ? undefined : object28(resources.aws_ec2_instance_state);
+  let prior;
+  if (controls) {
+    if (Object.keys(controls).length !== 1 || !controls[key]) throw Error('Foreign Terraform power control');
+    prior = object28(controls[key]);
+    if (
+      prior.instance_id !== node.instanceId ||
+      prior.force !== false ||
+      !['running', 'stopped'].includes(String(prior.state)) ||
+      Object.keys(prior).sort().join(',') !== 'force,instance_id,state'
+    )
+      throw Error('Terraform power retained control differs');
+  }
+  if (effect !== 'stop' && !prior) throw Error('Terraform start/release requires a retained power control');
+  if (effect === 'release' && prior?.state !== 'running')
+    throw Error('Terraform release requires restored running control');
+  if (effect === 'release') delete resources.aws_ec2_instance_state;
+  else
+    resources.aws_ec2_instance_state = {
+      [key]: { instance_id: node.instanceId, state: effect === 'stop' ? 'stopped' : 'running', force: false },
+    };
+  const next = JSON.stringify(after);
+  return {
+    configuration: next,
+    beforeSha256: digest4(configuration),
+    afterSha256: digest4(next),
+    address,
+    instanceId: node.instanceId,
+    effect,
+    expectedActions: [effect === 'release' ? 'delete' : prior ? 'update' : 'create'],
+  };
+}
+function validateAwsTerraformPowerReceipt(base, plan, effect, revision, receipt, fields) {
+  scope3(base, plan, effect);
+  if (
+    revision.effect !== effect ||
+    revision.instanceId !== plan.bindings.nodes[0].instanceId ||
+    revision.address !== `aws_ec2_instance_state.ce_power_${plan.bindings.nodes[0].nodeIndex}` ||
+    revision.afterSha256 !== digest4(revision.configuration) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== revision.afterSha256 ||
+    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.noChanges ||
+    new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
+  )
+    throw Error('Terraform power saved plan scope or revision differs');
+  const mutations = receipt.changes.filter((row) => canonicalSha256(row.actions) !== canonicalSha256(['no-op']));
+  if (mutations.length !== 1) throw Error('Terraform power saved plan must contain only one control mutation');
+  const change = mutations[0];
+  if (
+    change.address !== revision.address ||
+    change.type !== 'aws_ec2_instance_state' ||
+    canonicalSha256(change.actions) !== canonicalSha256(revision.expectedActions)
+  )
+    throw Error('Terraform power saved plan has unrelated or replacement changes');
+  if (effect === 'release') {
+    if (Object.keys(fields).length !== 1 || fields[revision.address] !== null)
+      throw Error('Terraform power removal projection differs');
+  } else {
+    const value = object28(fields[revision.address]);
+    if (
+      Object.keys(fields).length !== 1 ||
+      value.instance_id !== revision.instanceId ||
+      value.force !== false ||
+      value.state !== (effect === 'stop' ? 'stopped' : 'running')
+    )
+      throw Error('Terraform power planned identity/state unresolved or differs');
+  }
+}
+var object28 = (v) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Terraform power configuration');
+    return v;
+  },
+  digest4 = (s) => createHash19('sha256').update(s).digest('hex');
+var init_terraform_whole_site_power = __esm(() => {
+  init_canonical();
+  init_whole_site_power();
+});
+
+// plugins/aws/src/ce/whole-site-power-services.ts
+import { createHash as createHash20 } from 'node:crypto';
+import { isIP as isIP14 } from 'node:net';
+
+function object29(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed NLB service evidence');
+  return v;
+}
+function list3(v) {
+  if (!Array.isArray(v)) throw Error('Incomplete NLB service evidence');
+  return v.map(object29);
+}
+function exactly2(v) {
+  const rows = list3(v);
+  if (rows.length !== 1) throw Error('NLB service cardinality differs');
+  return rows[0];
+}
+async function collectAwsPowerNlbServices(base, values, raw, signal) {
+  verifyAwsCePlan(base);
+  const ingress = base.intent.ingress;
+  if (ingress?.mode !== 'nlb' || base.topology.nodeCount !== 1 || ingress.listener.privateAddresses?.length !== 1)
+    throw Error('Exact single-site NLB service configuration required');
+  const prefix = `arn:${base.intent.partition ?? 'aws'}:elasticloadbalancing:${base.region}:${base.accountId}:`;
+  const lb = values.__NLB_ARN__;
+  const tg = values.__NLB_TARGET_GROUP_ARN__;
+  const listener = values.__NLB_LISTENER_ARN__;
+  for (const [arn, kind] of [
+    [lb, 'loadbalancer/net/'],
+    [tg, 'targetgroup/'],
+    [listener, 'listener/net/'],
+  ])
+    if (typeof arn !== 'string' || !arn.startsWith(prefix + kind) || !/^[a-zA-Z0-9:/_.-]+$/.test(arn))
+      throw Error('NLB runtime identity unresolved or foreign');
+  const target = { Id: ingress.listener.privateAddresses[0], Port: ingress.port, AvailabilityZone: 'all' };
+  if (isIP14(target.Id) !== 4 || !Number.isInteger(target.Port) || target.Port < 1 || target.Port > 65535)
+    throw Error('NLB target identity unresolved');
+  const api = scopedAwsApi(raw, base.intent.awsProfile ?? 'default', signal);
+  const read = async (args) => {
+    const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
+    if (r.exitCode) throw Error('NLB service unavailable');
+    const v = object29(JSON.parse(r.stdout));
+    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(v, k)))
+      throw Error('Partial NLB service evidence');
+    return v;
+  };
+  if ((await read(['sts', 'get-caller-identity'])).Account !== base.accountId) throw Error('NLB account differs');
+  const tags = list3((await read(['elbv2', 'describe-tags', '--resource-arns', lb, tg, listener])).TagDescriptions);
+  if (tags.length !== 3 || new Set(tags.map((v) => v.ResourceArn)).size !== 3)
+    throw Error('NLB ownership cardinality differs');
+  const expected = {
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-deployment-id': base.deploymentName,
+    'xcsh-execution-engine': base.engine,
+    'xcsh-plan-sha256': base.planSha256,
+  };
+  for (const arn of [lb, tg, listener]) {
+    const rows = tags.filter((v) => v.ResourceArn === arn);
+    if (rows.length !== 1) throw Error('NLB ownership missing');
+    const entries = list3(rows[0].Tags);
+    if (
+      new Set(entries.map((v) => v.Key)).size !== entries.length ||
+      entries.some((v) => typeof v.Key !== 'string' || typeof v.Value !== 'string') ||
+      Object.entries(expected).some(([k, v]) => !entries.some((t) => t.Key === k && t.Value === v))
+    )
+      throw Error('Foreign NLB ownership');
+  }
+  const loadBalancer = exactly2(
+    (await read(['elbv2', 'describe-load-balancers', '--load-balancer-arns', lb])).LoadBalancers,
+  );
+  if (
+    loadBalancer.LoadBalancerArn !== lb ||
+    loadBalancer.Type !== 'network' ||
+    loadBalancer.Scheme !== 'internal' ||
+    loadBalancer.VpcId !== ingress.loadBalancer.vpcId ||
+    object29(loadBalancer.State).Code !== 'active'
+  )
+    throw Error('NLB retained load balancer differs');
+  const zones = list3(loadBalancer.AvailabilityZones);
+  const actual = zones
+    .map((z) => ({
+      subnetId: z.SubnetId,
+      addresses: list3(z.LoadBalancerAddresses)
+        .map((a) => a.PrivateIPv4Address)
+        .sort(),
+    }))
+    .sort((a, b) => String(a.subnetId).localeCompare(String(b.subnetId)));
+  const expectedZones = ingress.loadBalancer.subnetIds
+    .map((subnetId, i) => ({ subnetId, addresses: [ingress.loadBalancer.privateAddresses[i]] }))
+    .sort((a, b) => a.subnetId.localeCompare(b.subnetId));
+  if (canonicalSha256(actual) !== canonicalSha256(expectedZones)) throw Error('NLB subnet/address identity differs');
+  const group = exactly2((await read(['elbv2', 'describe-target-groups', '--target-group-arns', tg])).TargetGroups);
+  if (
+    group.TargetGroupArn !== tg ||
+    group.TargetType !== 'ip' ||
+    group.Protocol !== 'TCP' ||
+    group.Port !== target.Port ||
+    group.VpcId !== ingress.loadBalancer.vpcId ||
+    canonicalSha256(group.LoadBalancerArns) !== canonicalSha256([lb])
+  )
+    throw Error('NLB retained target group differs');
+  const retainedListener = exactly2(
+    (await read(['elbv2', 'describe-listeners', '--listener-arns', listener])).Listeners,
+  );
+  const action = exactly2(retainedListener.DefaultActions);
+  if (
+    retainedListener.ListenerArn !== listener ||
+    retainedListener.LoadBalancerArn !== lb ||
+    retainedListener.Port !== target.Port ||
+    retainedListener.Protocol !== 'TCP' ||
+    action.Type !== 'forward' ||
+    action.TargetGroupArn !== tg
+  )
+    throw Error('NLB retained listener differs');
+  const membership = list3(
+    (await read(['elbv2', 'describe-target-health', '--target-group-arn', tg])).TargetHealthDescriptions,
+  );
+  if (membership.length > 1) throw Error('Duplicate NLB membership');
+  let status = 'withdrawn';
+  if (membership.length) {
+    const row = membership[0];
+    if (canonicalSha256(object29(row.Target)) !== canonicalSha256(target)) throw Error('Foreign NLB target membership');
+    const health = object29(row.TargetHealth);
+    if (
+      !['healthy', 'initial', 'unhealthy', 'unused', 'draining', 'unavailable', 'unhealthy.draining'].includes(
+        String(health.State),
+      )
+    )
+      throw Error('NLB membership health unavailable');
+    status = health.State === 'healthy' ? 'active' : 'pending';
+  }
+  const services = {
+    schemaVersion: 1,
+    kind: 'aws-ce-nlb-power-services',
+    sourcePlanSha256: base.planSha256,
+    engine: base.engine,
+    accountId: base.accountId,
+    region: base.region,
+    loadBalancerArn: lb,
+    targetGroupArn: tg,
+    listenerArn: listener,
+    vpcId: ingress.loadBalancer.vpcId,
+    zones: expectedZones,
+    target,
+  };
+  return {
+    services,
+    servicesSha256: canonicalSha256(services),
+    status,
+    traffic: 'unknown',
+    collectedAt: new Date().toISOString(),
+  };
+}
+function reviseAwsTerraformNlbMembership(base, services, configuration, effect, retained) {
+  verifyAwsCePlan(base);
+  if (
+    base.engine !== 'terraform' ||
+    services.engine !== base.engine ||
+    services.sourcePlanSha256 !== base.planSha256 ||
+    services.accountId !== base.accountId ||
+    services.region !== base.region ||
+    base.topology.nodeCount !== 1 ||
+    !['withdraw', 'restore'].includes(effect)
+  )
+    throw Error('Terraform NLB membership ownership differs');
+  const before = object29(JSON.parse(configuration));
+  const after = structuredClone(before);
+  const terraform = object29(after.terraform);
+  const aws = object29(object29(terraform.required_providers).aws);
+  const provider = object29(object29(after.provider).aws);
+  if (
+    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
+    aws.source !== 'hashicorp/aws' ||
+    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
+    provider.region !== base.region ||
+    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
+    terraform.backend ||
+    terraform.cloud
+  )
+    throw Error('Terraform NLB provider scope differs');
+  const resources = object29(after.resource);
+  let attachment;
+  if (effect === 'withdraw') {
+    const attachments = object29(resources.aws_lb_target_group_attachment);
+    if (Object.keys(attachments).join(',') !== 'node_1') throw Error('Terraform NLB attachment cardinality differs');
+    attachment = object29(attachments.node_1);
+    if (
+      attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
+      attachment.target_id !== services.target.Id ||
+      attachment.port !== services.target.Port ||
+      attachment.availability_zone !== 'all' ||
+      canonicalSha256(attachment.depends_on) !== canonicalSha256(['aws_instance.node_1']) ||
+      Object.keys(attachment).sort().join(',') !== 'availability_zone,depends_on,port,target_group_arn,target_id'
+    )
+      throw Error('Terraform NLB attachment identity differs');
+    delete resources.aws_lb_target_group_attachment;
+  } else {
+    if (
+      retained?.effect !== 'withdraw' ||
+      retained.servicesSha256 !== canonicalSha256(services) ||
+      retained.address !== 'aws_lb_target_group_attachment.node_1' ||
+      hash10(retained.configuration) !== retained.afterSha256 ||
+      resources.aws_lb_target_group_attachment !== undefined
+    )
+      throw Error('Terraform NLB restoration requires exact retained withdrawal');
+    attachment = object29(retained.attachment);
+    if (
+      attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
+      attachment.target_id !== services.target.Id ||
+      attachment.port !== services.target.Port ||
+      attachment.availability_zone !== 'all' ||
+      canonicalSha256(attachment.depends_on) !== canonicalSha256(['aws_instance.node_1']) ||
+      Object.keys(attachment).sort().join(',') !== 'availability_zone,depends_on,port,target_group_arn,target_id'
+    )
+      throw Error('Terraform NLB retained attachment differs');
+    resources.aws_lb_target_group_attachment = { node_1: structuredClone(attachment) };
+  }
+  const next = JSON.stringify(after);
+  return {
+    configuration: next,
+    beforeSha256: hash10(configuration),
+    afterSha256: hash10(next),
+    servicesSha256: canonicalSha256(services),
+    address: 'aws_lb_target_group_attachment.node_1',
+    effect,
+    expectedActions: [effect === 'withdraw' ? 'delete' : 'create'],
+    attachment: structuredClone(attachment),
+  };
+}
+function validateAwsTerraformNlbMembershipReceipt(base, services, revision, receipt, before, after) {
+  verifyAwsCePlan(base);
+  if (
+    base.engine !== 'terraform' ||
+    services.engine !== base.engine ||
+    services.sourcePlanSha256 !== base.planSha256 ||
+    revision.servicesSha256 !== canonicalSha256(services) ||
+    revision.address !== 'aws_lb_target_group_attachment.node_1' ||
+    !['withdraw', 'restore'].includes(revision.effect) ||
+    revision.afterSha256 !== hash10(revision.configuration) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== revision.afterSha256 ||
+    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.noChanges ||
+    new Set(receipt.changes.map((r) => r.address)).size !== receipt.changes.length
+  )
+    throw Error('Terraform NLB membership saved-plan scope differs');
+  const mutations = receipt.changes.filter((r) => canonicalSha256(r.actions) !== canonicalSha256(['no-op']));
+  const expected = revision.effect === 'withdraw' ? ['delete'] : ['create'];
+  if (
+    mutations.length !== 1 ||
+    mutations[0].address !== revision.address ||
+    mutations[0].type !== 'aws_lb_target_group_attachment' ||
+    canonicalSha256(mutations[0].actions) !== canonicalSha256(expected) ||
+    canonicalSha256(revision.expectedActions) !== canonicalSha256(expected)
+  )
+    throw Error('Terraform NLB membership unrelated or replacement mutation');
+  if (
+    Object.keys(before).length !== 1 ||
+    Object.keys(after).length !== 1 ||
+    !Object.hasOwn(before, revision.address) ||
+    !Object.hasOwn(after, revision.address)
+  )
+    throw Error('Terraform NLB membership projection incomplete');
+  const owned = {
+    target_group_arn: services.targetGroupArn,
+    target_id: services.target.Id,
+    port: services.target.Port,
+    availability_zone: 'all',
+  };
+  const absent = revision.effect === 'withdraw' ? after[revision.address] : before[revision.address];
+  const present = revision.effect === 'withdraw' ? before[revision.address] : after[revision.address];
+  if (absent !== null || canonicalSha256(present) !== canonicalSha256(owned))
+    throw Error('Terraform NLB membership resolved identity differs');
+}
+var hash10 = (v) => createHash20('sha256').update(v).digest('hex');
+var init_whole_site_power_services = __esm(() => {
+  init_artifacts();
+  init_canonical();
+});
+
+// plugins/aws/src/ce/terraform-power-retirement.ts
+async function qualifyAwsTerraformPowerArtifacts(base, store, names, recorded) {
+  const admitted = new Set();
+  const powerNames = names.filter((n) => n.startsWith('aws-ce-power-'));
+  if (recorded) {
+    for (const name of powerNames) {
+      const item = recorded.get(name);
+      if (!item || item.preserve || !/^aws-ce-power-[a-f0-9]{24}(?:-[a-z-]+)?\.json$/.test(name)) fail2();
+      admitted.add(name);
+    }
+    return admitted;
+  }
+  const plans = new Map();
+  const checkpoints = new Map();
+  const read = async (name) => object30(await store.read(name));
+  for (const name of powerNames.filter((n) => /^aws-ce-power-[a-f0-9]{24}\.json$/.test(n))) {
+    const plan = await read(name);
+    verifyAwsWholeSitePowerPlan(base, plan);
+    if (plan.engine !== 'terraform' || name !== `${plan.planId}.json` || !same2(plan.bindings.owner, store.owner))
+      fail2();
+    plans.set(plan.planId, plan);
+    admitted.add(name);
+  }
+  for (const plan of plans.values()) {
+    const cpName = `${plan.planId}-checkpoint.json`;
+    if (!names.includes(cpName)) {
+      if (powerNames.some((n) => n.startsWith(`${plan.planId}-`))) fail2();
+      continue;
+    }
+    const cp = await read(cpName),
+      steps = sequences[plan.operation];
+    const attempts = object30(cp.attempts),
+      evidence = object30(cp.evidence);
+    if (
+      cp.schemaVersion !== 1 ||
+      cp.planSha256 !== plan.planSha256 ||
+      cp.bindingsSha256 !== plan.bindingsSha256 ||
+      !Number.isInteger(cp.step) ||
+      cp.step < 0 ||
+      cp.step > steps.length ||
+      cp.complete !== (cp.step === steps.length)
+    )
+      fail2();
+    for (const [effect, value] of Object.entries(attempts)) {
+      const attempt = object30(value),
+        index = steps.indexOf(effect);
+      if (
+        !effects2.includes(effect) ||
+        index < 0 ||
+        index > cp.step ||
+        attempt.effect !== effect ||
+        attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
+        !timestamp(attempt.originalAttemptAt)
+      )
+        fail2();
+    }
+    if (cp.pending && (!same2(cp.pending, attempts[cp.pending.effect]) || cp.pending.effect !== steps[cp.step]))
+      fail2();
+    if (effects2.includes(steps[cp.step]) && attempts[steps[cp.step]] && !cp.pending) fail2();
+    for (const [gate, value] of Object.entries(evidence)) {
+      const v = object30(value);
+      if (
+        effects2.includes(gate) ||
+        !steps.includes(gate) ||
+        steps.indexOf(gate) >= cp.step ||
+        !timestamp(v.collectedAt) ||
+        !evidencePasses(plan, gate, v, Date.parse(v.collectedAt))
+      )
+        fail2();
+    }
+    for (const step of steps.slice(0, cp.step))
+      if (!(effects2.includes(step) ? attempts[step] : evidence[step])) fail2();
+    checkpoints.set(plan.planId, cp);
+    admitted.add(cpName);
+  }
+  for (const plan of plans.values()) {
+    if (plan.operation === 'start') {
+      const stop = plans.get(`aws-ce-power-${plan.maintenance?.stopPlanSha256.slice(0, 24)}`);
+      if (
+        !stop ||
+        stop.operation !== 'stop' ||
+        stop.transitionId !== plan.transitionId ||
+        stop.bindingsSha256 !== plan.bindingsSha256 ||
+        !same2(await store.read(`${stop.planId}-maintenance.json`), plan.maintenance)
+      )
+        fail2();
+    }
+    const cp = checkpoints.get(plan.planId);
+    for (const name of powerNames.filter(
+      (n) => n.startsWith(`${plan.planId}-`) && n !== `${plan.planId}-checkpoint.json`,
+    )) {
+      if (!cp) throw Error('Power checkpoint missing');
+      const v = await read(name),
+        suffix = name.slice(plan.planId.length + 1, -5);
+      if (suffix === 'maintenance') {
+        const { receiptSha256, ...body } = v;
+        if (
+          plan.operation !== 'stop' ||
+          !cp.complete ||
+          v.schemaVersion !== 1 ||
+          v.kind !== 'aws-ce-stopped' ||
+          v.sourcePlanSha256 !== base.planSha256 ||
+          v.transitionId !== plan.transitionId ||
+          v.stopPlanSha256 !== plan.planSha256 ||
+          v.bindingsSha256 !== plan.bindingsSha256 ||
+          receiptSha256 !== canonicalSha256(body) ||
+          v.originalAttemptAt !== cp.attempts.stop?.originalAttemptAt ||
+          !timestamp(v.observedAt) ||
+          Date.parse(v.observedAt) < Date.parse(v.originalAttemptAt) ||
+          v.stoppedEvidenceSha256 !== canonicalSha256(await store.read(`${plan.planId}-final-stopped-evidence.json`))
+        )
+          fail2();
+      } else if (suffix.endsWith('-last-evidence') || suffix === 'final-stopped-evidence') {
+        const gate = suffix === 'final-stopped-evidence' ? 'stopped' : suffix.slice(0, -14);
+        if (
+          !sequences[plan.operation].includes(gate) ||
+          effects2.includes(gate) ||
+          v.source !== 'live' ||
+          v.planSha256 !== plan.planSha256 ||
+          v.bindingsSha256 !== plan.bindingsSha256 ||
+          v.gate !== gate ||
+          !timestamp(v.collectedAt)
+        )
+          fail2();
+        if (
+          suffix === 'final-stopped-evidence' &&
+          (!cp.complete || !evidencePasses(plan, 'stopped', v, Date.parse(v.collectedAt)))
+        )
+          fail2();
+      } else {
+        const bgp =
+          /^(withdraw|restore)-terraform-bgp-(preparation|policy-dispatch|policy-created|replacement-dispatch|outcome|policy-delete-dispatch|policy-retirement-outcome)$/.exec(
+            suffix,
+          );
+        if (bgp) {
+          const [, effect, kind] = bgp;
+          const deleting = kind === 'policy-delete-dispatch' || kind === 'policy-retirement-outcome';
+          if ((kind === 'policy-dispatch' || kind === 'policy-created') && effect !== 'withdraw') fail2();
+          if (deleting && effect !== 'restore') fail2();
+          const attempt = cp.attempts[deleting ? 'release' : effect];
+          if (!attempt) fail2();
+          const expected = {
+            schemaVersion: 1,
+            engine: 'terraform',
+            planSha256: plan.planSha256,
+            bindingsSha256: plan.bindingsSha256,
+            servicesSha256: powerServiceComponentSha256(base, plan.bindings, 'bgp'),
+            attempt,
+          };
+          const stem = `${plan.planId}-${effect}-terraform-bgp`;
+          const prep = kind === 'preparation' ? v : await read(`${stem}-preparation.json`);
+          const prepMarker = { ...expected, attempt: cp.attempts[effect] };
+          validateAwsBgpPowerPreparation(prep, prepMarker);
+          if (kind !== 'policy-created' && !same2(v.marker, expected)) fail2();
+          const service = prep.services.platform[0],
+            snapshot = prep.snapshots[0],
+            intent = prep.policies[0];
+          if (
+            !same2(service.binding.owner, store.owner) ||
+            service.binding.nodes.length !== plan.bindings.nodes.length ||
+            !plan.bindings.nodes.every(
+              (n) => n.siteName === service.binding.siteName && service.binding.nodes.includes(n.nodeName),
+            )
+          )
+            fail2();
+          const stopId =
+            effect === 'withdraw' ? plan.planId : `aws-ce-power-${plan.maintenance?.stopPlanSha256.slice(0, 24)}`;
+          const createdName = `${stopId}-withdraw-terraform-bgp-policy-created.json`;
+          const created = names.includes(createdName) ? await read(createdName) : undefined;
+          if (
+            kind === 'policy-dispatch' &&
+            !same2(v, {
+              marker: expected,
+              intent,
+              record: { ...intent, kind: 'bgp_routing_policy', phase: 'power-policy-create-dispatch' },
+            })
+          )
+            fail2();
+          if (kind === 'policy-created') {
+            const { status, collectedAt, kind: resourceKind, uid, resourceVersion, ...actual } = v;
+            if (
+              status !== 'observed' ||
+              resourceKind !== 'bgp_routing_policy' ||
+              !uid ||
+              !resourceVersion ||
+              !timestamp(collectedAt) ||
+              !same2(actual, intent) ||
+              !names.includes(`${stem}-policy-dispatch.json`)
+            )
+              fail2();
+          }
+          if (kind === 'replacement-dispatch') {
+            if (!created) throw Error('Created power policy missing');
+            const record = {
+              kind: snapshot.kind,
+              name: snapshot.name,
+              uid: snapshot.uid,
+              siteUid: snapshot.siteUid,
+              resourceVersion: snapshot.resourceVersion,
+              contractFingerprint: snapshot.contractFingerprint,
+              phase: 'power-routing-dispatch',
+            };
+            if (
+              !same2(v, {
+                marker: expected,
+                snapshot,
+                desired: effect === 'withdraw' ? service.revision.bgpSpec : service.originalSpec,
+                policy: created,
+                record,
+              })
+            )
+              fail2();
+          }
+          const checkObservation = (value, status, desired) => {
+            const o = object30(value);
+            if (
+              o.servicesSha256 !== expected.servicesSha256 ||
+              !same2(o.services, prep.services) ||
+              o.status !== status ||
+              !Array.isArray(o.snapshots) ||
+              o.snapshots.length !== prep.snapshots.length
+            )
+              fail2();
+            for (let index = 0; index < prep.snapshots.length; index++) {
+              const actual = object30(o.snapshots[index]),
+                original = object30(prep.snapshots[index]);
+              for (const key of ['binding', 'kind', 'name', 'uid', 'siteUid', 'contractFingerprint'])
+                if (!same2(actual[key], original[key])) fail2();
+              if (
+                typeof actual.resourceVersion !== 'string' ||
+                !actual.resourceVersion ||
+                !timestamp(actual.collectedAt) ||
+                !same2(actual.spec, desired)
+              )
+                fail2();
+            }
+          };
+          if (kind === 'outcome') {
+            checkObservation(
+              v.observed,
+              effect === 'withdraw' ? 'withdrawn' : 'active',
+              effect === 'withdraw' ? service.revision.bgpSpec : service.originalSpec,
+            );
+            const o = object30(v.observed);
+            if (
+              !names.includes(`${stem}-replacement-dispatch.json`) ||
+              !timestamp(v.collectedAt) ||
+              Date.parse(v.collectedAt) < Date.parse(attempt.originalAttemptAt) ||
+              o.servicesSha256 !== expected.servicesSha256 ||
+              !same2(o.services, prep.services) ||
+              o.status !== (effect === 'withdraw' ? 'withdrawn' : 'active') ||
+              !same2(o.snapshots[0].spec, effect === 'withdraw' ? service.revision.bgpSpec : service.originalSpec)
+            )
+              fail2();
+          }
+          if (deleting) {
+            if (kind === 'policy-retirement-outcome') checkObservation(v.observed, 'active', service.originalSpec);
+            if (!created) throw Error('Created power policy missing');
+            const { status, collectedAt, kind: resourceKind, ...policySnapshot } = created;
+            const record = { ...policySnapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' };
+            if (kind === 'policy-delete-dispatch' && !same2(v, { marker: expected, snapshot: policySnapshot, record }))
+              fail2();
+            if (kind === 'policy-retirement-outcome') {
+              if (
+                !names.includes(`${stem}-policy-delete-dispatch.json`) ||
+                !same2(v.observed.services, prep.services) ||
+                v.observed.status !== 'active' ||
+                v.observed.servicesSha256 !== expected.servicesSha256 ||
+                !['deleted', 'pending'].includes(v.result.status) ||
+                !timestamp(v.result.collectedAt) ||
+                Date.parse(v.result.collectedAt) < Date.parse(attempt.originalAttemptAt)
+              )
+                fail2();
+              const { status: resultStatus, collectedAt: resultTime, ...resultSnapshot } = v.result;
+              if (!same2(resultSnapshot, policySnapshot)) fail2();
+            }
+          }
+          admitted.add(name);
+          continue;
+        }
+        const match =
+          /^(withdraw|restore|stop|start|release)-terraform(?:-(direct|static-tgw|nlb))?-(source|preparation|dispatch|outcome|final-preparing|final-plan|complete)$/.exec(
+            suffix,
+          );
+        if (!match) throw Error('Unknown power journal');
+        const [, effect, family, kind] = match;
+        if (kind === 'source' && family) fail2();
+        if (family ? !['withdraw', 'restore'].includes(effect) : !['stop', 'start', 'release'].includes(effect))
+          fail2();
+        if (['final-preparing', 'final-plan', 'complete'].includes(kind) && (effect !== 'release' || family)) fail2();
+        const attempt = cp.attempts[effect];
+        if (!attempt) fail2();
+        const marker = object30(v.marker);
+        const expected = {
+          schemaVersion: 1,
+          engine: 'terraform',
+          planSha256: plan.planSha256,
+          bindingsSha256: plan.bindingsSha256,
+          ...(family
+            ? { servicesSha256: powerServiceComponentSha256(base, plan.bindings, family) }
+            : { instanceId: plan.bindings.nodes[0].instanceId }),
+          attempt,
+        };
+        if (!same2(marker, expected)) fail2();
+        const stem = `${plan.planId}-${effect}-terraform${family ? `-${family}` : ''}`;
+        if (kind === 'source') {
+          if (!same2(Object.keys(v).sort(), ['configuration', 'marker']) || typeof v.configuration !== 'string')
+            fail2();
+          reviseAwsTerraformPowerConfiguration(base, plan, v.configuration, effect);
+          if (!names.includes(`${stem}-preparation.json`)) {
+            if (names.some((n) => n.startsWith(`${stem}-`) && n !== name)) fail2();
+            admitted.add(name);
+            continue;
+          }
+        }
+        const prep = kind === 'preparation' ? v : await read(`${stem}-preparation.json`);
+        if (!same2(prep.marker, expected)) fail2();
+        const revision = object30(prep.revision);
+        let reconstructed;
+        let serviceIdentity;
+        if (!family) {
+          const source = await read(`${stem}-source.json`);
+          if (!same2(source.marker, expected) || typeof source.configuration !== 'string') fail2();
+          reconstructed = reviseAwsTerraformPowerConfiguration(base, plan, source.configuration, effect);
+        } else {
+          if (typeof prep.source !== 'string') fail2();
+          const outcomeName = `${stem}-outcome.json`;
+          const services =
+            plan.bindings.servicesInventory?.components.find((c) => c.kind === family)?.services ??
+            (names.includes(outcomeName) ? object30((await read(outcomeName)).observed).services : undefined);
+          if (!services || canonicalSha256(services) !== expected.servicesSha256) fail2();
+          serviceIdentity = services;
+          const stopId = `aws-ce-power-${plan.maintenance?.stopPlanSha256.slice(0, 24)}`;
+          const retained =
+            effect === 'restore'
+              ? object30((await read(`${stopId}-withdraw-terraform-${family}-preparation.json`)).revision)
+              : undefined;
+          const revise =
+            family === 'direct'
+              ? reviseAwsTerraformDirectServiceRoutes
+              : family === 'static-tgw'
+                ? reviseAwsTerraformStaticServiceRoutes
+                : reviseAwsTerraformNlbMembership;
+          reconstructed = revise(base, services, prep.source, effect, retained);
+        }
+        if (!same2(reconstructed, revision)) fail2();
+        const receipt = prep.receipt;
+        if (receipt) {
+          const r = object30(receipt);
+          if (
+            r.schemaVersion !== 1 ||
+            r.engine !== 'terraform' ||
+            r.deploymentId !== base.deploymentName ||
+            r.backendIdentity !== `local:${base.deploymentName}` ||
+            r.configurationSha256 !== revision.afterSha256 ||
+            r.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+            !sha2(r.planSha256) ||
+            r.operation ||
+            r.actionInvocations?.length
+          )
+            fail2();
+          if (!family) {
+            const fields = {
+              [revision.address]:
+                effect === 'release'
+                  ? null
+                  : {
+                      instance_id: plan.bindings.nodes[0].instanceId,
+                      state: effect === 'stop' ? 'stopped' : 'running',
+                      force: false,
+                    },
+            };
+            validateAwsTerraformPowerReceipt(base, plan, effect, revision, r, fields);
+          } else {
+            const services = object30(serviceIdentity);
+            let owned;
+            if (family === 'nlb')
+              owned = {
+                [revision.address]: {
+                  target_group_arn: services.targetGroupArn,
+                  target_id: services.target.Id,
+                  port: services.target.Port,
+                  availability_zone: 'all',
+                },
+              };
+            else if (family === 'direct')
+              owned = Object.fromEntries(
+                Object.entries(object30(revision.routes)).map(([name, route]) => [`aws_route.${name}`, route]),
+              );
+            else
+              owned = Object.fromEntries(
+                base.intent.routing.destinationCidrs.map((cidr, index) => [
+                  `aws_ec2_transit_gateway_route.static_${index}`,
+                  {
+                    destination_cidr_block: cidr,
+                    transit_gateway_attachment_id: services.transportAttachmentId,
+                    transit_gateway_route_table_id: services.routeTableId,
+                    blackhole: false,
+                  },
+                ]),
+              );
+            const absent = Object.fromEntries(Object.keys(owned).map((address) => [address, null]));
+            const validate =
+              family === 'direct'
+                ? validateAwsTerraformDirectServiceReceipt
+                : family === 'static-tgw'
+                  ? validateAwsTerraformStaticServiceReceipt
+                  : validateAwsTerraformNlbMembershipReceipt;
+            validate(
+              base,
+              services,
+              revision,
+              r,
+              effect === 'withdraw' ? owned : absent,
+              effect === 'withdraw' ? absent : owned,
+            );
+            if (kind === 'outcome') {
+              const observed = object30(v.observed);
+              if (
+                observed.status !== (effect === 'withdraw' ? 'withdrawn' : 'active') ||
+                !same2(observed.services, services) ||
+                observed.servicesSha256 !== expected.servicesSha256 ||
+                !same2(v.applied, effect === 'withdraw' ? absent : owned)
+              )
+                fail2();
+            }
+          }
+        }
+        if (['dispatch', 'outcome', 'final-preparing', 'final-plan', 'complete'].includes(kind) && !receipt) fail2();
+        if (kind === 'dispatch' && !same2(v, { marker: expected, receipt })) fail2();
+        if (kind === 'source' && !same2(v, await read(`${stem}-source.json`))) fail2();
+        if (
+          kind === 'outcome' &&
+          (!same2(v.receipt, receipt) ||
+            !names.includes(`${stem}-dispatch.json`) ||
+            !timestamp(v.collectedAt) ||
+            Date.parse(v.collectedAt) < Date.parse(attempt.originalAttemptAt))
+        )
+          fail2();
+        if ((kind === 'outcome' || kind === 'complete') && !family) {
+          const fields = object30(v.fields),
+            node = plan.bindings.nodes[0];
+          if (fields[`aws_instance.node_${node.nodeIndex}`]?.id !== node.instanceId) fail2();
+          for (const nic of node.interfaces) {
+            const row = object30(fields[`aws_network_interface.node_${node.nodeIndex}_nic_${nic.index}`]);
+            if (row.id !== nic.id || String(row.mac_address).toLowerCase() !== nic.mac.toLowerCase()) fail2();
+          }
+          const control = fields[revision.address];
+          if (
+            effect === 'release'
+              ? control !== null
+              : !control ||
+                control.id !== node.instanceId ||
+                control.instance_id !== node.instanceId ||
+                control.force !== false ||
+                control.state !== (effect === 'stop' ? 'stopped' : 'running')
+          )
+            fail2();
+          const cloud = object30(v.cloud);
+          if (
+            !same2(cloud.owner, plan.bindings.owner) ||
+            !same2(cloud.nodes, plan.bindings.nodes) ||
+            cloud.cloud !== (effect === 'stop' ? 'stopped' : 'running')
+          )
+            fail2();
+        }
+        if (kind === 'final-preparing' && !same2(v, { marker: expected, removalReceipt: receipt })) fail2();
+        if (kind === 'final-plan' || kind === 'complete') {
+          const r = object30(v.receipt);
+          if (
+            r.noChanges !== true ||
+            r.engine !== 'terraform' ||
+            r.deploymentId !== base.deploymentName ||
+            r.backendIdentity !== `local:${base.deploymentName}` ||
+            r.configurationSha256 !== revision.afterSha256 ||
+            r.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+            !sha2(r.planSha256) ||
+            r.operation ||
+            r.actionInvocations?.length ||
+            !Array.isArray(r.changes) ||
+            new Set(r.changes.map((c) => c.address)).size !== r.changes.length ||
+            r.changes.some((c) => !same2(c.actions, ['no-op']))
+          )
+            fail2();
+          if (
+            kind === 'complete' &&
+            (!timestamp(v.collectedAt) ||
+              Date.parse(v.collectedAt) < Date.parse(attempt.originalAttemptAt) ||
+              !same2(v.receipt, (await read(`${stem}-final-plan.json`)).receipt))
+          )
+            fail2();
+        }
+      }
+      admitted.add(name);
+    }
+  }
+  if (powerNames.some((n) => !admitted.has(n))) fail2();
+  return admitted;
+}
+var object30 = (v) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed power retirement artifact');
+    return v;
+  },
+  same2 = (a, b) => canonicalSha256(a) === canonicalSha256(b),
+  fail2 = () => {
+    throw Error('Power retirement provenance differs');
+  },
+  sequences,
+  effects2,
+  timestamp = (v) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= Date.now(),
+  sha2 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+var init_terraform_power_retirement = __esm(() => {
+  init_bgp_power_controller();
+  init_canonical();
+  init_terraform_direct_power();
+  init_terraform_static_power();
+  init_terraform_whole_site_power();
+  init_whole_site_power();
+  init_whole_site_power_service_binding();
+  init_whole_site_power_services();
+  sequences = {
+    stop: ['ready-to-stop', 'withdraw', 'withdrawn', 'stop', 'stopped'],
+    start: ['ready-to-start', 'start', 'running', 'restore', 'restored', 'release'],
+  };
+  effects2 = ['withdraw', 'stop', 'start', 'restore', 'release'];
+});
+
+// plugins/aws/src/ce/terraform-parent-retirement.ts
+import { createHash as createHash21 } from 'node:crypto';
 import {
   lstat as lstat3,
   readdir as readdir4,
@@ -17015,13 +19923,23 @@ async function file2(path) {
   const stat = await lstat3(path);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== process.getuid?.() || stat.mode & 63)
     throw Error('Parent retirement file ownership differs');
-  return readFile5(path);
+  const bytes = await readFile5(path);
+  const after = await lstat3(path);
+  if (after.ino !== stat.ino || after.dev !== stat.dev || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs)
+    throw Error('Parent retirement file changed during read');
+  return bytes;
 }
 async function inventory(base, teardown, evidenceSha256, store, recorded) {
   await directory(store.directory);
   const items = [];
-  const add = async (path, preserve) =>
-    items.push({ path, preserve, sha256: hash7(await file2(join7(store.directory, path))) });
+  const add = async (path, preserve) => {
+    const absolute = join7(store.directory, path),
+      before = await lstat3(absolute);
+    const sha256 = hash11(await file2(absolute)),
+      after = await lstat3(absolute);
+    if (before.ino !== after.ino || before.dev !== after.dev) throw Error('Parent retirement inode changed');
+    items.push({ path, preserve, sha256, inode: after.ino, device: after.dev });
+  };
   const runner = async (prefix, stage, upgrade) => {
     const path = join7(store.directory, prefix);
     await directory(path);
@@ -17029,9 +19947,9 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
     if (JSON.stringify(names) !== JSON.stringify(['artifact-retirement.json', 'deployment.json']))
       throw Error('Runner has unretired artifacts');
     const encoded = await file2(join7(path, 'deployment.json')),
-      manifest = object23(JSON.parse(encoded.toString())),
-      scope = object23(manifest.scope);
-    const marker = object23(JSON.parse((await file2(join7(path, 'artifact-retirement.json'))).toString()));
+      manifest = object31(JSON.parse(encoded.toString())),
+      scope = object31(manifest.scope);
+    const marker = object31(JSON.parse((await file2(join7(path, 'artifact-retirement.json'))).toString()));
     if (
       manifest.schemaVersion !== 1 ||
       manifest.engine !== 'terraform' ||
@@ -17045,16 +19963,16 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       marker.status !== 'runner-artifacts-retired' ||
       marker.manifestSha256 !== canonicalSha256(manifest) ||
       marker.evidenceSha256 !== evidenceSha256 ||
-      !sha(marker.finalPlanSha256) ||
-      !sha(marker.planReceiptSha256) ||
+      !sha3(marker.finalPlanSha256) ||
+      !sha3(marker.planReceiptSha256) ||
       !Array.isArray(marker.artifacts) ||
-      marker.inventorySha256 !== hash7(JSON.stringify(marker.artifacts))
+      marker.inventorySha256 !== hash11(JSON.stringify(marker.artifacts))
     )
       throw Error('Runner retirement provenance differs');
     if (upgrade) {
-      const deployment = object23(upgrade.deployment),
-        retirement = object23(await store.read(`${String(upgrade.planId)}-stage-retirement.json`)),
-        final = object23(retirement.receipt);
+      const deployment = object31(upgrade.deployment),
+        retirement = object31(await store.read(`${String(upgrade.planId)}-stage-retirement.json`)),
+        final = object31(retirement.receipt);
       if (
         retirement.schemaVersion !== 1 ||
         retirement.status !== 'retired' ||
@@ -17064,8 +19982,8 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
         retirement.deploymentSha256 !== canonicalSha256(deployment) ||
         retirement.evidenceSha256 !== evidenceSha256 ||
         retirement.receiptSha256 !== canonicalSha256(final) ||
-        manifest.configurationSha256 !== hash7(String(deployment.configuration)) ||
-        manifest.providerLockSha256 !== hash7(String(deployment.providerLock)) ||
+        manifest.configurationSha256 !== hash11(String(deployment.configuration)) ||
+        manifest.providerLockSha256 !== hash11(String(deployment.providerLock)) ||
         marker.finalPlanSha256 !== final.planSha256 ||
         marker.planReceiptSha256 !== canonicalSha256(final) ||
         final.noChanges !== true ||
@@ -17098,15 +20016,15 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   for (const name of (await readdir4(store.directory)).filter((name) =>
     /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
   )) {
-    const source = object23(await store.read(name)),
-      deployment = object23(source.deployment);
+    const source = object31(await store.read(name)),
+      deployment = object31(source.deployment);
     if (
       source.schemaVersion !== 2 ||
       source.engine !== 'terraform' ||
       source.kind !== 'aws-ce-terraform-upgrade' ||
       source.sourcePlanSha256 !== base.planSha256 ||
       name !== `${String(source.planId)}.json` ||
-      !sha(source.planSha256) ||
+      !sha3(source.planSha256) ||
       typeof deployment.stage !== 'string' ||
       !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(deployment.stage) ||
       upgrades.has(deployment.stage)
@@ -17133,25 +20051,25 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
     const frozenName = `terraform-initial-replacement-${binding.siteName}.json`;
     if (!(await readdir4(store.directory)).includes(frozenName)) continue;
     if (recorded?.has(frozenName)) continue;
-    const frozen = object23(await store.read(frozenName)),
-      plan = object23(frozen.plan),
-      checkpoint = object23(await store.read(`${String(plan.planId)}.json`));
+    const frozen = object31(await store.read(frozenName)),
+      plan = object31(frozen.plan),
+      checkpoint = object31(await store.read(`${String(plan.planId)}.json`));
     const { planId: _id, planSha256: _digest, ...draft } = plan;
-    const versions = object23(plan.versions),
-      preparation = object23(plan.preparation),
-      versionIdentity = object23(versions.identity),
-      instances = object23(checkpoint.instances),
-      bootstrap = object23(checkpoint.bootstrap),
-      bootstrapSha256 = object23(checkpoint.bootstrapSha256);
+    const versions = object31(plan.versions),
+      preparation = object31(plan.preparation),
+      versionIdentity = object31(versions.identity),
+      instances = object31(checkpoint.instances),
+      bootstrap = object31(checkpoint.bootstrap),
+      bootstrapSha256 = object31(checkpoint.bootstrapSha256);
     if (
       frozen.sourcePlanSha256 !== base.planSha256 ||
-      !sha(frozen.configurationSha256) ||
+      !sha3(frozen.configurationSha256) ||
       plan.schemaVersion !== 2 ||
       plan.kind !== 'aws-ce-site-replacement' ||
       plan.engine !== 'terraform' ||
       plan.sourcePlanSha256 !== base.planSha256 ||
       canonicalSha256(plan.binding) !== canonicalSha256(binding) ||
-      !sha(plan.planSha256) ||
+      !sha3(plan.planSha256) ||
       canonicalSha256(draft) !== plan.planSha256 ||
       plan.planId !== `aws-ce-replace-${String(plan.planSha256).slice(0, 24)}` ||
       versions.schemaVersion !== 1 ||
@@ -17167,7 +20085,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       checkpoint.siteUid === preparation.uid ||
       typeof checkpoint.physicalSiteUid !== 'string' ||
       !checkpoint.physicalSiteUid ||
-      !sha(checkpoint.quiesceConfigurationSha256) ||
+      !sha3(checkpoint.quiesceConfigurationSha256) ||
       checkpoint.versionAdmissionSha256 !== canonicalSha256(versions) ||
       Object.keys(instances).length !== binding.nodes.length ||
       new Set(Object.values(instances)).size !== binding.nodes.length ||
@@ -17176,7 +20094,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       binding.nodes.some(
         (node) =>
           !/^i-[a-f0-9]{8,17}$/.test(String(instances[node])) ||
-          instances[node] === object23(preparation.instances)[node] ||
+          instances[node] === object31(preparation.instances)[node] ||
           typeof bootstrap[node] !== 'string' ||
           !bootstrap[node] ||
           bootstrapSha256[node] !== canonicalSha256(bootstrap[node]),
@@ -17197,6 +20115,7 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
   }
   for (const name of upgradeJournals) preserve.add(name);
   if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
+  const powerJournals = await qualifyAwsTerraformPowerArtifacts(base, store, await readdir4(store.directory), recorded);
   let rootRunner = false;
   for (const name of (await readdir4(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;
@@ -17219,8 +20138,8 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       continue;
     }
     if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {
-      const value = object23(await store.read(name)),
-        checkout = object23(value.checkout);
+      const value = object31(await store.read(name)),
+        checkout = object31(value.checkout);
       const match = siteBindings(base).find(
         ({ binding }) => canonicalSha256(value.binding) === canonicalSha256(binding),
       );
@@ -17239,13 +20158,13 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
       )
         throw Error('AWS checkout provenance differs');
       if (!recorded?.has(name)) {
-        const token = object23(await store.read(`${String(value.tokenName)}.json`));
+        const token = object31(await store.read(`${String(value.tokenName)}.json`));
         if (
           token.tokenName !== value.tokenName ||
           token.siteName !== match.binding.siteName ||
           token.node !== value.node ||
           typeof token.jwt !== 'string' ||
-          hash7(token.jwt) !== checkout.digest
+          hash11(token.jwt) !== checkout.digest
         )
           throw Error('AWS checkout upstream token differs');
       }
@@ -17255,12 +20174,13 @@ async function inventory(base, teardown, evidenceSha256, store, recorded) {
     if (
       !preserve.has(name) &&
       !drainJournals.has(name) &&
+      !powerJournals.has(name) &&
       !replacementJournals.has(name) &&
       !/^(?:terraform-|aws-terraform-|ingress-plan-|ingress-checkpoint-|ingress-origin-checkpoint-)[a-zA-Z0-9._-]+\.json$/.test(
         name,
       )
     ) {
-      const value = object23(JSON.parse((await file2(join7(store.directory, name))).toString()));
+      const value = object31(JSON.parse((await file2(join7(store.directory, name))).toString()));
       const binding = siteBindings(base).find(
         ({ binding }) => value.siteName === binding.siteName && binding.nodes.includes(String(value.node)),
       );
@@ -17286,15 +20206,15 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
   if (
     base.engine !== 'terraform' ||
     teardown.sourcePlanSha256 !== base.planSha256 ||
-    !sha(teardown.planSha256) ||
-    !sha(evidenceSha256) ||
+    !sha3(teardown.planSha256) ||
+    !sha3(evidenceSha256) ||
     !/^[a-z][a-z0-9-]{0,100}$/.test(teardown.planId) ||
     canonicalSha256(store.owner) !== canonicalSha256(siteBindings(base)[0].binding.owner)
   )
     throw Error('Parent retirement owner or teardown binding differs');
   await store.verify();
-  const lifecycle = object23(await store.read('aws-terraform-lifecycle-retirement.json'));
-  const authorization = object23(await store.read(`${teardown.planId}-authorization.json`));
+  const lifecycle = object31(await store.read('aws-terraform-lifecycle-retirement.json'));
+  const authorization = object31(await store.read(`${teardown.planId}-authorization.json`));
   if (
     lifecycle.sourcePlanSha256 !== base.planSha256 ||
     lifecycle.teardownPlanSha256 !== teardown.planSha256 ||
@@ -17329,7 +20249,7 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     signal?.throwIfAborted();
     await store.write(markerName, saved);
   }
-  const marker = object23(saved);
+  const marker = object31(saved);
   if (
     marker.schemaVersion !== 1 ||
     !['retiring', 'deployment-artifacts-retired'].includes(String(marker.status)) ||
@@ -17343,12 +20263,14 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     throw Error('Parent retirement checkpoint differs');
   const expected = new Map();
   for (const value of marker.artifacts) {
-    const item = object23(value);
+    const item = object31(value);
     if (
       typeof item.path !== 'string' ||
       item.path.split('/').some((p) => !p || p === '.' || p === '..') ||
-      !sha(item.sha256) ||
+      !sha3(item.sha256) ||
       typeof item.preserve !== 'boolean' ||
+      !Number.isSafeInteger(item.inode) ||
+      !Number.isSafeInteger(item.device) ||
       expected.has(item.path)
     )
       throw Error('Parent retirement inventory malformed');
@@ -17363,14 +20285,16 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
     throw Error('Parent retirement inventory changed');
   for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
     signal?.throwIfAborted();
-    const value = object23(await store.read(item.path));
+    const value = object31(await store.read(item.path));
     await retireBootstrapToken(value.checkout, evidenceSha256, signal);
   }
   for (const item of current.filter((item) => !item.preserve)) {
     signal?.throwIfAborted();
     await directory(store.directory);
     await store.verify();
-    if (hash7(await file2(join7(store.directory, item.path))) !== item.sha256)
+    const absolute = join7(store.directory, item.path),
+      stat = await lstat3(absolute);
+    if (hash11(await file2(absolute)) !== item.sha256 || stat.ino !== item.inode || stat.dev !== item.device)
       throw Error('Parent retirement artifact changed before removal');
     signal?.throwIfAborted();
     await unlink2(join7(store.directory, item.path));
@@ -17388,9 +20312,9 @@ async function retireAwsTerraformParentArtifacts(base, teardown, evidenceSha256,
   };
 }
 var markerName = 'aws-terraform-parent-artifact-retirement.json',
-  hash7 = (value) => createHash16('sha256').update(value).digest('hex'),
-  sha = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  object23 = (value) => {
+  hash11 = (value) => createHash21('sha256').update(value).digest('hex'),
+  sha3 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+  object31 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Malformed parent retirement evidence');
     return value;
@@ -17399,22 +20323,23 @@ var init_terraform_parent_retirement = __esm(() => {
   init_token_store();
   init_artifacts();
   init_canonical();
+  init_terraform_power_retirement();
 });
 
 // plugins/terraform/src/ce-upgrade.ts
-import { createHash as createHash17, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
+import { createHash as createHash22, timingSafeEqual as timingSafeEqual2 } from 'node:crypto';
 
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+function canonical2(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .filter(([, item]) => item !== undefined)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical2(item)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional8(storage, name) {
+async function optional10(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -17428,13 +20353,13 @@ function validateActionReceipt(upgrade, receipt) {
     receipt.engine !== 'terraform' ||
     receipt.deploymentId !== upgrade.deployment.deploymentId ||
     receipt.backendIdentity !== upgrade.deployment.backendIdentity ||
-    receipt.configurationSha256 !== digest4(upgrade.deployment.configuration) ||
-    receipt.providerLockSha256 !== digest4(upgrade.deployment.providerLock) ||
+    receipt.configurationSha256 !== digest5(upgrade.deployment.configuration) ||
+    receipt.providerLockSha256 !== digest5(upgrade.deployment.providerLock) ||
     receipt.operation ||
     receipt.noChanges ||
     receipt.changes.length ||
     receipt.actionInvocations?.length !== 1 ||
-    hash8(receipt.actionInvocations[0]) !== hash8(upgrade.action) ||
+    hash12(receipt.actionInvocations[0]) !== hash12(upgrade.action) ||
     !/^[a-f0-9]{64}$/.test(receipt.planSha256)
   )
     throw new Error('Terraform upgrade saved action plan differs');
@@ -17459,7 +20384,7 @@ async function runTerraformCeUpgrade(
   if (
     runtime.engine !== 'terraform' ||
     storage.owner.engine !== 'terraform' ||
-    hash8(storage.owner) !== hash8(upgrade.expectation.binding.owner)
+    hash12(storage.owner) !== hash12(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning Terraform engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -17467,11 +20392,11 @@ async function runTerraformCeUpgrade(
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional8(storage, sourceName);
+    const saved = await optional10(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash8(saved) !== hash8(upgrade)) throw new Error('Saved Terraform upgrade source differs');
+    else if (hash12(saved) !== hash12(upgrade)) throw new Error('Saved Terraform upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional8(storage, checkpointName);
+    let checkpoint = await optional10(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 2,
@@ -17492,7 +20417,7 @@ async function runTerraformCeUpgrade(
       (checkpoint.phase !== 'ready' && !/^[a-f0-9]{64}$/.test(checkpoint.actionPlanSha256 ?? ''))
     )
       throw new Error('Terraform upgrade checkpoint differs');
-    let serial = await optional8(storage, 'terraform-ce-upgrade-serial.json');
+    let serial = await optional10(storage, 'terraform-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 2, engine: 'terraform', status: 'idle' };
     if (
       serial.schemaVersion !== 2 ||
@@ -17536,7 +20461,7 @@ async function runTerraformCeUpgrade(
       if (state === 'applying') {
         await session.reconcileApplyFromEvidence(
           action,
-          hash8({
+          hash12({
             owner: storage.owner,
             sourcePlanSha256: upgrade.sourcePlanSha256,
             upgradePlanSha256: upgrade.planSha256,
@@ -17569,7 +20494,7 @@ async function runTerraformCeUpgrade(
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash8(receipt.target) !== hash8(upgrade.expectation.target) ||
+        hash12(receipt.target) !== hash12(upgrade.expectation.target) ||
         receipt.actionPlanSha256 !== checkpoint.actionPlanSha256 ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
@@ -17657,8 +20582,8 @@ async function runTerraformCeUpgrade(
     await release();
   }
 }
-var digest4 = (value) => createHash17('sha256').update(value).digest('hex'),
-  hash8 = (value) => digest4(canonical(value)),
+var digest5 = (value) => createHash22('sha256').update(value).digest('hex'),
+  hash12 = (value) => digest5(canonical2(value)),
   sameHash = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -17808,7 +20733,7 @@ var init_terraform_upgrade = __esm(() => {
 // plugins/aws/src/ce/terraform-upgrade-retirement.ts
 import { join as join8 } from 'node:path';
 
-async function optional9(store, name) {
+async function optional11(store, name) {
   try {
     return await store.read(name);
   } catch (e) {
@@ -17820,7 +20745,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
   base = structuredClone(base);
   env = { ...env };
   await verifyAwsTerraformUpgrade(base, upgrade, contract);
-  if (!sha2(evidenceSha256) || canonicalSha256(store.owner) !== canonicalSha256(upgrade.expectation.binding.owner))
+  if (!sha4(evidenceSha256) || canonicalSha256(store.owner) !== canonicalSha256(upgrade.expectation.binding.owner))
     throw Error('Upgrade retirement owner or external absence differs');
   const release = await acquireProcessLock(join8(store.directory, '.upgrade-lock'));
   try {
@@ -17830,7 +20755,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
       await store.verify();
       if (canonicalSha256(await store.read(`${upgrade.planId}.json`)) !== canonicalSha256(upgrade))
         throw Error('Upgrade retirement source differs');
-      const serial = object24(await store.read('terraform-ce-upgrade-serial.json'));
+      const serial = object32(await store.read('terraform-ce-upgrade-serial.json'));
       if (
         serial.schemaVersion !== 2 ||
         serial.engine !== 'terraform' ||
@@ -17838,13 +20763,13 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         serial.activePlanId !== undefined ||
         serial.activePlanSha256 !== undefined ||
         typeof serial.lastPlanId !== 'string' ||
-        !sha2(serial.lastPlanSha256)
+        !sha4(serial.lastPlanSha256)
       )
         throw Error('Active or malformed serial upgrade blocks retirement');
-      const auth = object24(await store.read(`${upgrade.planId}-authorization.json`)),
-        checkpoint = object24(await store.read(`${upgrade.planId}-checkpoint.json`)),
-        action = object24(await store.read(`${upgrade.planId}-action-plan.json`)),
-        receipt = object24(await store.read(`${upgrade.planId}-receipt.json`));
+      const auth = object32(await store.read(`${upgrade.planId}-authorization.json`)),
+        checkpoint = object32(await store.read(`${upgrade.planId}-checkpoint.json`)),
+        action = object32(await store.read(`${upgrade.planId}-action-plan.json`)),
+        receipt = object32(await store.read(`${upgrade.planId}-receipt.json`));
       if (
         auth.schemaVersion !== 1 ||
         auth.engine !== 'terraform' ||
@@ -17856,7 +20781,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         checkpoint.sourcePlanSha256 !== base.planSha256 ||
         checkpoint.upgradePlanSha256 !== upgrade.planSha256 ||
         checkpoint.phase !== 'complete' ||
-        !sha2(checkpoint.actionPlanSha256)
+        !sha4(checkpoint.actionPlanSha256)
       )
         throw Error('Upgrade retirement authorization or completion differs');
       if (
@@ -17895,7 +20820,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
       return action;
     };
     const validateFinal = (v) => {
-      const r = object24(v);
+      const r = object32(v);
       if (
         r.schemaVersion !== 1 ||
         r.engine !== 'terraform' ||
@@ -17906,7 +20831,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
         r.noChanges !== true ||
         !Array.isArray(r.changes) ||
         r.changes.length ||
-        !sha2(r.planSha256) ||
+        !sha4(r.planSha256) ||
         r.operation ||
         r.actionInvocations ||
         r.imports ||
@@ -17916,7 +20841,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
       return r;
     };
     const validateCheckpoint = (v) => {
-      const c = object24(v);
+      const c = object32(v);
       if (
         c.schemaVersion !== 1 ||
         !['preparing', 'retiring', 'retired'].includes(String(c.status)) ||
@@ -17932,7 +20857,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
       return { bound: c, receipt: c.status === 'preparing' ? undefined : validateFinal(c.receipt) };
     };
     const action = await validate();
-    let checkpoint = await optional9(store, checkpointName);
+    let checkpoint = await optional11(store, checkpointName);
     if (checkpoint !== undefined) validateCheckpoint(checkpoint);
     const session = await terraform.open(store.owner, upgrade.deployment, 'current');
     if (!session.retireArtifacts || !session.readConfigurationSha256)
@@ -17953,7 +20878,7 @@ async function retireAwsTerraformUpgradeStage(base, input, contract, terraform, 
       };
       await store.write(checkpointName, checkpoint);
     }
-    if (object24(checkpoint).status === 'preparing') {
+    if (object32(checkpoint).status === 'preparing') {
       const receipt = validateFinal(await session.plan(env, signal));
       await validate();
       checkpoint = {
@@ -18002,11 +20927,11 @@ async function qualifiedAwsTerraformUpgradeStages(base, store, stages, contract)
     throw Error('Unqualified Terraform stage blocks terminal cleanup');
   return upgrades.sort((a, b) => String(a.deployment.stage).localeCompare(String(b.deployment.stage)));
 }
-var object24 = (v) => {
+var object32 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed upgrade retirement evidence');
     return v;
   },
-  sha2 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+  sha4 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_upgrade_retirement = __esm(() => {
   init_process_lock();
   init_canonical();
@@ -18017,7 +20942,7 @@ var init_terraform_upgrade_retirement = __esm(() => {
 import { lstat as lstat4, readdir as readdir5, realpath as realpath3 } from 'node:fs/promises';
 import { join as join9 } from 'node:path';
 
-async function optional10(store, name) {
+async function optional12(store, name) {
   try {
     return await store.read(name);
   } catch (error) {
@@ -18025,7 +20950,7 @@ async function optional10(store, name) {
   }
 }
 async function hasAwsTerraformTerminalCleanup(store) {
-  return (await optional10(store, checkpointName)) !== undefined;
+  return (await optional12(store, checkpointName)) !== undefined;
 }
 async function stageInventory(store) {
   const path = join9(store.directory, 'terraform-stages');
@@ -18077,8 +21002,8 @@ async function finalizeAwsTerraformCleanup(
     teardown.drain.ingressContractFingerprint !== contract.fingerprint
   )
     throw Error('Terminal cleanup authorization or contracts differ');
-  const savedAuthorization = object25(await store.read(`${teardown.planId}-authorization.json`)),
-    lifecycle = object25(await store.read('aws-terraform-lifecycle-retirement.json'));
+  const savedAuthorization = object33(await store.read(`${teardown.planId}-authorization.json`)),
+    lifecycle = object33(await store.read('aws-terraform-lifecycle-retirement.json'));
   if (
     savedAuthorization.schemaVersion !== 1 ||
     savedAuthorization.engine !== 'terraform' ||
@@ -18099,10 +21024,10 @@ async function finalizeAwsTerraformCleanup(
       throw Error('Terminal ingress namespace is unresolved');
     namespaces.add(value);
   };
-  for (const item of teardown.drain.listeners ?? []) namespace(object25(item).namespace);
-  for (const item of teardown.drain.origins ?? []) namespace(object25(object25(item).origin).namespace);
+  for (const item of teardown.drain.listeners ?? []) namespace(object33(item).namespace);
+  for (const item of teardown.drain.origins ?? []) namespace(object33(object33(item).origin).namespace);
   const stages = await stageInventory(store);
-  const book = await optional10(store, 'terraform-f5-resources.json');
+  const book = await optional12(store, 'terraform-f5-resources.json');
   if ((book !== undefined) !== stages.includes('f5-resources'))
     throw Error('F5 bookkeeping and owning stage inventory differ');
   if (stages.includes('f5-resources') && !terraform?.retireF5Stage)
@@ -18111,7 +21036,7 @@ async function finalizeAwsTerraformCleanup(
   if (upgradeStages.length) {
     const names = (await readdir5(store.directory)).filter((name) => /^aws-ce-upgrade-[a-f0-9]{24}\.json$/.test(name));
     const sources = await Promise.all(names.map((name) => store.read(name)));
-    if (upgradeStages.some((stage) => !sources.some((source) => object25(object25(source).deployment).stage === stage)))
+    if (upgradeStages.some((stage) => !sources.some((source) => object33(object33(source).deployment).stage === stage)))
       throw Error('Unqualified Terraform stage blocks terminal cleanup');
   }
   const upgradeContract = upgradeStages.length ? await VerifiedUpgradeContract.release(fetch, signal) : undefined;
@@ -18149,10 +21074,10 @@ async function finalizeAwsTerraformCleanup(
     if (cloud.status !== 'absent-or-retired') throw Error('Current exact cloud absence unavailable');
     return { platform, cloud };
   };
-  let checkpoint = await optional10(store, checkpointName);
+  let checkpoint = await optional12(store, checkpointName);
   let current = await fresh();
   if (checkpoint === undefined) {
-    const phase = object25(await store.read('terraform-cloud-teardown.json'));
+    const phase = object33(await store.read('terraform-cloud-teardown.json'));
     if (
       phase.schemaVersion !== 1 ||
       phase.engine !== 'terraform' ||
@@ -18199,9 +21124,9 @@ async function finalizeAwsTerraformCleanup(
     };
     await store.write(checkpointName, checkpoint);
   }
-  const bound = object25(checkpoint),
-    evidence = object25(bound.evidence),
-    receipt = object25(bound.receipt);
+  const bound = object33(checkpoint),
+    evidence = object33(bound.evidence),
+    receipt = object33(bound.receipt);
   if (
     bound.schemaVersion !== 1 ||
     canonicalSha256(bound.owner) !== canonicalSha256(store.owner) ||
@@ -18217,8 +21142,8 @@ async function finalizeAwsTerraformCleanup(
     receipt.backendIdentity !== `local:${base.deploymentName}`
   )
     throw Error('Terminal cleanup checkpoint differs');
-  const parent = await optional10(store, 'aws-terraform-parent-artifact-retirement.json');
-  if (parent !== undefined && object25(parent).status === 'deployment-artifacts-retired') {
+  const parent = await optional12(store, 'aws-terraform-parent-artifact-retirement.json');
+  if (parent !== undefined && object33(parent).status === 'deployment-artifacts-retired') {
     return {
       ...(await retireAwsTerraformParentArtifacts(base, teardown, String(bound.evidenceSha256), store, signal)),
       cloudInventory: 'absent-or-retired',
@@ -18260,7 +21185,7 @@ async function finalizeAwsTerraformCleanup(
   };
 }
 var checkpointName = 'aws-terraform-terminal-cleanup.json',
-  object25 = (value) => {
+  object33 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed terminal cleanup evidence');
     return value;
   };
@@ -18756,7 +21681,7 @@ var init_terraform_foundation_teardown = __esm(() => {
 // plugins/aws/src/ce/terraform-teardown-plan.ts
 import { readdir as readdir7 } from 'node:fs/promises';
 
-async function optional11(storage, name) {
+async function optional13(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -18804,11 +21729,11 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
   const before = await files(),
     namespaces = new Set(['default']);
   for (const file of before.filter(ingressFile)) {
-    const value = object26(await storage.read(file));
-    const namespace = object26(object26(value.request).metadata).namespace;
+    const value = object34(await storage.read(file));
+    const namespace = object34(object34(value.request).metadata).namespace;
     if (!safeName(namespace)) throw new Error('Stored listener namespace is invalid');
     namespaces.add(namespace);
-    const originNamespace = object26(object26(object26(value.material).intent).originPool).namespace;
+    const originNamespace = object34(object34(object34(value.material).intent).originPool).namespace;
     if (!safeName(originNamespace)) throw new Error('Stored origin namespace is invalid');
     namespaces.add(originNamespace);
   }
@@ -18878,11 +21803,11 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     (row) => row.kind === 'bgps' || row.kind === 'bgp_routing_policys' || row.kind === 'external_connectors',
   );
   if (base.routing.profile === 'tgw-connect') {
-    const saved = await optional11(storage, `${base.engine}-routing-checkpoint.json`);
+    const saved = await optional13(storage, `${base.engine}-routing-checkpoint.json`);
     if (saved === undefined) {
       if (routing.length) throw new Error('Live routing exists without an owning checkpoint');
     } else {
-      const checkpoint = object26(saved);
+      const checkpoint = object34(saved);
       let values;
       if (base.engine === 'terraform') {
         if (
@@ -18892,7 +21817,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
           checkpoint.planSha256 !== base.planSha256
         )
           throw new Error('Routing checkpoint source differs');
-        values = object26(checkpoint.resolvedValues);
+        values = object34(checkpoint.resolvedValues);
       } else {
         const native = checkpoint;
         const version = Number(checkpoint.schemaVersion);
@@ -18930,7 +21855,7 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
     const matches = tokenMatches(file);
     if (!matches.length) continue;
     if (matches.length !== 1) throw new Error('Ambiguous historical enrollment filename');
-    const record = object26(await storage.read(file));
+    const record = object34(await storage.read(file));
     const { tokenName, siteName, node } = record;
     if (
       !safeName(tokenName) ||
@@ -19002,28 +21927,28 @@ async function collectAwsTeardownMaterial(input, runtime, contract, storage, sig
 }
 async function prepareAwsTerraformTeardown(input, runtime, contract, storage, signal) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
-  const workflow = await optional11(storage, 'terraform-workflow.json');
-  const admission = await optional11(storage, 'terraform-admission.json');
-  const f5State = admission === undefined ? await optional11(storage, 'terraform-f5-resources.json') : undefined;
+  const workflow = await optional13(storage, 'terraform-workflow.json');
+  const admission = await optional13(storage, 'terraform-admission.json');
+  const f5State = admission === undefined ? await optional13(storage, 'terraform-f5-resources.json') : undefined;
   if (
     workflow !== undefined &&
     admission === undefined &&
     f5State !== undefined &&
-    ['network-pending', 'registration-pending'].includes(String(object26(workflow).stage))
+    ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage))
   )
     return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   if (
     workflow !== undefined &&
     admission === undefined &&
-    ['network-pending', 'registration-pending'].includes(String(object26(workflow).stage))
+    ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage))
   )
     return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
   if (
     workflow !== undefined &&
     admission !== undefined &&
-    ['network-pending', 'registration-pending'].includes(String(object26(workflow).stage)) &&
-    Array.isArray(object26(admission).admittedSites) &&
-    object26(admission).admittedSites.length === 0
+    ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage)) &&
+    Array.isArray(object34(admission).admittedSites) &&
+    object34(admission).admittedSites.length === 0
   )
     return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
   const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
@@ -19031,7 +21956,7 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-var object26 = (value) => {
+var object34 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed teardown source record');
     return value;
@@ -19157,7 +22082,7 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
     throw new Error('Native teardown preparation requires native ownership');
   const materialName = 'aws-native-teardown-material.json';
   const persisted =
-    (await optional12(storage, materialName)) ?? (await optional12(storage, 'aws-native-teardown-source.json'));
+    (await optional14(storage, materialName)) ?? (await optional14(storage, 'aws-native-teardown-source.json'));
   let material;
   if (persisted === undefined) {
     const collected = await collectAwsTeardownMaterial(base, runtime, contract, storage, signal);
@@ -19172,14 +22097,14 @@ async function prepareAwsNativeTeardown(base, cloud, runtime, contract, storage,
       drain: candidate.drain,
       retirement: candidate.retirement,
     };
-    if ((await optional12(storage, materialName)) === undefined) await storage.write(materialName, material);
+    if ((await optional14(storage, materialName)) === undefined) await storage.write(materialName, material);
   }
   const { drain, retirement } = material;
   const plan = compileAwsNativeTeardown(base, cloud, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
-async function optional12(storage, key) {
+async function optional14(storage, key) {
   try {
     return await storage.read(key);
   } catch (error) {
@@ -19206,7 +22131,7 @@ async function coordinateAwsNativeTeardown(base, cloud, input, authorizedPlanSha
   const release = await acquireProcessLock(join10(storage.directory, '.aws-native-teardown-lock'));
   try {
     const sourceName = `${plan.planId}-source.json`;
-    const saved = await optional12(storage, sourceName);
+    const saved = await optional14(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, plan);
     else if (canonicalSha256(saved) !== canonicalSha256(plan))
       throw new Error('Persisted native teardown source differs');
@@ -19338,7 +22263,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-teardown.ts
-async function optional13(storage, name) {
+async function optional15(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -19446,7 +22371,7 @@ Artifact: artifact://${artifactId}`,
         )
           throw new Error('Persisted AWS CE teardown plan identity differs');
         const authorizationName = `${teardown.planId}-authorization.json`;
-        const authorization = await optional13(storage, authorizationName);
+        const authorization = await optional15(storage, authorizationName);
         if (authorization !== undefined) {
           if (
             !authorization ||
@@ -19615,19 +22540,19 @@ var init_aws_ce_teardown = __esm(() => {
 });
 
 // plugins/platform/src/ce/native-upgrade.ts
-import { createHash as createHash18, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
+import { createHash as createHash23, timingSafeEqual as timingSafeEqual3 } from 'node:crypto';
 
-function canonical2(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
+function canonical3(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .filter(([, item]) => item !== undefined)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical2(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical3(item)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
-async function optional14(storage, name) {
+async function optional16(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -19644,7 +22569,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
   if (
     runtime.engine !== 'native' ||
     storage.owner.engine !== 'native' ||
-    hash9(storage.owner) !== hash9(upgrade.expectation.binding.owner)
+    hash13(storage.owner) !== hash13(upgrade.expectation.binding.owner)
   )
     throw new Error('Only the owning native engine may upgrade this site');
   const release = await acquireProcessLock(`${storage.directory}/.upgrade-lock`);
@@ -19652,11 +22577,11 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     signal?.throwIfAborted();
     await storage.verify();
     const sourceName = `${upgrade.planId}.json`;
-    const saved = await optional14(storage, sourceName);
+    const saved = await optional16(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, upgrade);
-    else if (hash9(saved) !== hash9(upgrade)) throw new Error('Saved native upgrade source differs');
+    else if (hash13(saved) !== hash13(upgrade)) throw new Error('Saved native upgrade source differs');
     const checkpointName = `${upgrade.planId}-checkpoint.json`;
-    let checkpoint = await optional14(storage, checkpointName);
+    let checkpoint = await optional16(storage, checkpointName);
     if (checkpoint === undefined) {
       checkpoint = {
         schemaVersion: 1,
@@ -19675,7 +22600,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
       !['ready', 'submitted', 'complete'].includes(checkpoint.phase)
     )
       throw new Error('Native upgrade checkpoint differs');
-    let serial = await optional14(storage, 'native-ce-upgrade-serial.json');
+    let serial = await optional16(storage, 'native-ce-upgrade-serial.json');
     if (serial === undefined) serial = { schemaVersion: 1, engine: 'native', status: 'idle' };
     if (
       serial.schemaVersion !== 1 ||
@@ -19717,7 +22642,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
         receipt.planId !== upgrade.planId ||
         receipt.planSha256 !== upgrade.planSha256 ||
         receipt.siteName !== upgrade.expectation.binding.siteName ||
-        hash9(receipt.target) !== hash9(upgrade.expectation.target) ||
+        hash13(receipt.target) !== hash13(upgrade.expectation.target) ||
         receipt.nodeHealth !== 'unknown' ||
         receipt.routing !== 'unknown' ||
         receipt.traffic !== 'unknown'
@@ -19824,7 +22749,7 @@ async function runNativeCeUpgrade(input, authorizedPlanSha256, verify, runtime, 
     await release();
   }
 }
-var hash9 = (value) => createHash18('sha256').update(canonical2(value)).digest('hex'),
+var hash13 = (value) => createHash23('sha256').update(canonical3(value)).digest('hex'),
   sameHash2 = (left, right) =>
     /^[a-f0-9]{64}$/.test(left) &&
     /^[a-f0-9]{64}$/.test(right) &&
@@ -19914,7 +22839,7 @@ var init_native_upgrade2 = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-upgrade.ts
-async function optional15(storage, name) {
+async function optional17(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -19981,7 +22906,7 @@ function createAwsCeUpgradeTool(pi, dependencies = defaults2) {
                     contract,
                     signal,
                   );
-            const existing = await optional15(storage, `${upgrade.planId}.json`);
+            const existing = await optional17(storage, `${upgrade.planId}.json`);
             if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
             else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
               throw new Error('Persisted AWS CE upgrade plan differs');
@@ -20026,7 +22951,7 @@ Artifact: artifact://${artifactId}`,
           if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
             throw new Error('Persisted AWS CE upgrade plan identity differs');
           const authorizationName = `${upgrade.planId}-authorization.json`;
-          const authorization = await optional15(storage, authorizationName);
+          const authorization = await optional17(storage, authorizationName);
           if (authorization !== undefined) {
             if (
               !authorization ||
@@ -20250,7 +23175,7 @@ function verifyAwsNativeFailover(base, failover) {
   )
     throw new Error('Saved AWS native failover plan changed');
 }
-async function optional16(storage, name) {
+async function optional18(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -20291,11 +23216,11 @@ async function runAwsNativeFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional16(storage, sourceName);
+    const saved = await optional18(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional16(storage, checkpointName);
+    let checkpoint = await optional18(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -20398,17 +23323,17 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
     sha256Hex(configuration) !== expectedConfigurationSha256
   )
     throw new Error('Terraform failover engine, instance or configuration binding differs');
-  const original = object27(JSON.parse(configuration));
-  const provider = object27(object27(original.provider).aws);
+  const original = object35(JSON.parse(configuration));
+  const provider = object35(object35(original.provider).aws);
   if (
     provider.region !== base.region ||
     canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId])
   )
     throw new Error('Terraform failover provider scope differs');
-  const resources = object27(original.resource);
+  const resources = object35(original.resource);
   if (resources.aws_ec2_instance_state !== undefined) throw new Error('An instance power control is already present');
-  const instance = object27(object27(resources.aws_instance)[`node_${nodeIndex}`]);
-  const tags = object27(instance.tags);
+  const instance = object35(object35(resources.aws_instance)[`node_${nodeIndex}`]);
+  const tags = object35(instance.tags);
   if (
     tags['xcsh-execution-engine'] !== 'terraform' ||
     tags['xcsh-managed-by'] !== 'aws-ce' ||
@@ -20424,12 +23349,12 @@ function awsTerraformFailoverStages(base, nodeIndex, instanceId, configuration, 
   )
     throw new Error('Terraform failover instance ownership or identity differs');
   const retainedAddresses = Object.entries(resources).flatMap(([type, values]) =>
-    Object.keys(object27(values)).map((name) => ({ address: `${type}.${name}`, type })),
+    Object.keys(object35(values)).map((name) => ({ address: `${type}.${name}`, type })),
   );
   const controlAddress = 'aws_ec2_instance_state.ce_failover';
   const power = (state) => {
     const result = structuredClone(original);
-    object27(result.resource).aws_ec2_instance_state = {
+    object35(result.resource).aws_ec2_instance_state = {
       ce_failover: { instance_id: instanceId, state, force: false },
     };
     return JSON.stringify(result);
@@ -20513,7 +23438,7 @@ function verifyAwsTerraformFailover(base, failover) {
   if (canonicalSha256(expected) !== canonicalSha256(failover))
     throw new Error('Saved AWS Terraform failover plan changed');
 }
-async function optional17(storage, name) {
+async function optional19(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -20556,11 +23481,11 @@ async function runAwsTerraformFailover(
   try {
     await storage.verify();
     const sourceName = `${failover.planId}.json`;
-    const saved = await optional17(storage, sourceName);
+    const saved = await optional19(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, failover);
     else if (canonicalSha256(saved) !== canonicalSha256(failover)) throw new Error('Saved failover source differs');
     const checkpointName = `${failover.planId}-checkpoint.json`;
-    let checkpoint = await optional17(storage, checkpointName);
+    let checkpoint = await optional19(storage, checkpointName);
     if (!checkpoint) {
       checkpoint = {
         schemaVersion: 1,
@@ -20746,7 +23671,7 @@ async function runAwsTerraformFailover(
     await release();
   }
 }
-var object27 = (value) => {
+var object35 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover configuration');
   return value;
 };
@@ -20757,7 +23682,7 @@ var init_terraform_failover = __esm(() => {
 });
 
 // plugins/aws/src/tools/aws-ce-failover.ts
-async function optional18(storage, name) {
+async function optional20(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
@@ -20808,7 +23733,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
             if (plan.engine === 'terraform') {
               const terraform = await dependencies.terraform(pi, signal);
               const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
-              const marker = object28(await storage.read('terraform-connect-stage.json'));
+              const marker = object36(await storage.read('terraform-connect-stage.json'));
               if (
                 marker.schemaVersion !== 1 ||
                 marker.engine !== 'terraform' ||
@@ -20819,8 +23744,8 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
                 throw new Error('Terraform Connect deployment has not completed');
               const configuration = await session.readConfiguration(marker.configurationSha256);
               const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
-              const instances = object28(outputs.ce_instances);
-              const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object28(value) }));
+              const instances = object36(outputs.ce_instances);
+              const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object36(value) }));
               if (
                 identities.length !== plan.intent.topology.nodeCount ||
                 new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
@@ -20832,7 +23757,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
                 )
               )
                 throw new Error('Terraform instance output is incomplete');
-              const selected = object28(instances[String(params.nodeIndex)]);
+              const selected = object36(instances[String(params.nodeIndex)]);
               if (typeof selected.id !== 'string')
                 throw new Error('Selected Terraform instance identity is unavailable');
               failover = buildAwsTerraformFailover(
@@ -20851,13 +23776,13 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
                 (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
               );
               const replacement = registration
-                ? await optional18(storage, `${registration.id}-initial-mtu-replacement.json`)
+                ? await optional20(storage, `${registration.id}-initial-mtu-replacement.json`)
                 : undefined;
               let instancePlanSha256 = plan.planSha256;
               if (replacement !== undefined) {
-                const envelope = object28(replacement);
-                const child = object28(envelope.plan);
-                const binding = object28(child.binding);
+                const envelope = object36(replacement);
+                const child = object36(envelope.plan);
+                const binding = object36(child.binding);
                 const { planId, planSha256, ...draft } = child;
                 const expectedSite = siteForNode(plan.intent, params.nodeIndex);
                 if (
@@ -20875,7 +23800,7 @@ function createAwsCeFailoverTool(pi, dependencies = defaults3) {
               }
               failover = buildAwsNativeFailover(plan, params.nodeIndex, instanceId, instancePlanSha256);
             }
-            const existing = await optional18(storage, `${failover.planId}.json`);
+            const existing = await optional20(storage, `${failover.planId}.json`);
             if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
             else if (canonicalSha256(existing) !== canonicalSha256(failover))
               throw new Error('Persisted AWS CE failover plan differs');
@@ -20918,7 +23843,7 @@ Artifact: artifact://${artifactId}`,
           if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
             throw new Error('Persisted AWS CE failover plan identity differs');
           const authorizationName = `${failover.planId}-authorization.json`;
-          const authorization = await optional18(storage, authorizationName);
+          const authorization = await optional20(storage, authorizationName);
           if (authorization === undefined) {
             if (
               ctx.hasUI &&
@@ -21031,7 +23956,7 @@ Node ${failover.nodeIndex}`,
   };
 }
 var defaults3,
-  object28 = (value) => {
+  object36 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover identity');
     return value;
   };
@@ -21148,416 +24073,6 @@ async function readAwsTerraformInstanceBindings(plan, session, env, signal) {
 }
 var init_terraform_status = () => {};
 
-// plugins/aws/src/ce/whole-site-power-service-binding.ts
-function requested(base) {
-  const kinds = [];
-  const profile = base.intent.routing.profile;
-  if (profile === 'direct-eni') kinds.push('direct');
-  else if (profile === 'tgw-static') kinds.push('static-tgw');
-  else if (profile === 'tgw-connect') kinds.push('bgp');
-  else if (profile !== 'nlb-ingress') throw Error('Whole-site service profile is unsupported');
-  if (base.intent.ingress?.mode === 'nlb') kinds.push('nlb');
-  if (!kinds.length) throw Error('Whole-site service components are missing');
-  return kinds;
-}
-function validatePowerServiceInventory(base, bindings) {
-  const expected = requested(base);
-  const inventory = bindings.servicesInventory;
-  if (!inventory) {
-    if (expected.length !== 1) throw Error('Combined whole-site services require complete inventory binding');
-    return;
-  }
-  if (
-    inventory.schemaVersion !== 1 ||
-    inventory.kind !== 'aws-ce-whole-site-services' ||
-    inventory.sourcePlanSha256 !== base.planSha256 ||
-    inventory.engine !== base.engine ||
-    canonicalSha256(inventory) !== bindings.servicesSha256 ||
-    !Array.isArray(inventory.components) ||
-    inventory.components.length !== expected.length
-  )
-    throw Error('Whole-site complete service inventory differs');
-  for (const [index, kind] of expected.entries()) {
-    const row = inventory.components[index];
-    if (
-      !row ||
-      row.kind !== kind ||
-      !/^[a-f0-9]{64}$/.test(row.servicesSha256) ||
-      canonicalSha256(row.services) !== row.servicesSha256
-    )
-      throw Error('Whole-site component identity differs');
-  }
-}
-function powerServiceComponentSha256(base, bindings, kind) {
-  validatePowerServiceInventory(base, bindings);
-  if (!requested(base).includes(kind)) throw Error('Whole-site component is not requested');
-  if (!bindings.servicesInventory) return bindings.servicesSha256;
-  const row = bindings.servicesInventory.components.find((item) => item.kind === kind);
-  if (!row) throw Error('Whole-site component binding missing');
-  return row.servicesSha256;
-}
-var init_whole_site_power_service_binding = __esm(() => {
-  init_canonical();
-});
-
-// plugins/aws/src/ce/whole-site-power.ts
-function validateBindings(base, bindings) {
-  validatePowerServiceInventory(base, bindings);
-  const owner = {
-    deploymentId: base.deploymentName,
-    engine: base.engine,
-    provider: 'aws',
-    account: base.accountId,
-    region: base.region,
-  };
-  const expected = siteBindings(base).flatMap(({ site, binding }) =>
-    site.nodeIndexes.map((nodeIndex, index) => ({ nodeIndex, nodeName: binding.nodes[index], siteName: site.name })),
-  );
-  if (
-    bindings.sourcePlanSha256 !== base.planSha256 ||
-    canonicalSha256(bindings.owner) !== canonicalSha256(owner) ||
-    !sha3.test(bindings.servicesSha256) ||
-    bindings.nodes.length !== expected.length ||
-    new Set(bindings.nodes.map((node) => node.instanceId)).size !== expected.length
-  )
-    throw new Error('Whole-site power deployment ownership or service binding differs');
-  const allInterfaces = bindings.nodes.flatMap((node) => node.interfaces);
-  if (
-    new Set(allInterfaces.map((item) => item.id)).size !== allInterfaces.length ||
-    new Set(allInterfaces.map((item) => item.mac.toLowerCase())).size !== allInterfaces.length
-  )
-    throw new Error('Whole-site power interface identities are duplicated');
-  for (const expectedNode of expected) {
-    const matches = bindings.nodes.filter((node) => node.nodeIndex === expectedNode.nodeIndex);
-    if (matches.length !== 1) throw new Error('Whole-site power node discovery is incomplete or duplicated');
-    const node = matches[0];
-    if (
-      node.nodeName !== expectedNode.nodeName ||
-      node.siteName !== expectedNode.siteName ||
-      !/^i-[a-f0-9]{8,17}$/.test(node.instanceId) ||
-      node.interfaces.length !== base.interfaces.length
-    )
-      throw new Error('Whole-site power node or interface cardinality differs');
-    for (const expectedInterface of base.interfaces) {
-      const items = node.interfaces.filter((item) => item.index === expectedInterface.index);
-      if (
-        items.length !== 1 ||
-        items[0].role !== expectedInterface.role ||
-        !/^eni-[a-f0-9]{8,17}$/.test(items[0].id) ||
-        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(items[0].mac) ||
-        !/^[a-zA-Z0-9_.:-]+$/.test(items[0].device) ||
-        (expectedInterface.guestDevice !== undefined && items[0].device !== expectedInterface.guestDevice)
-      )
-        throw new Error('Whole-site power interface MAC/device/role binding differs or remains unresolved');
-    }
-  }
-}
-function buildAwsWholeSitePowerPlan(base, operation, bindings, transitionId, maintenance) {
-  verifyAwsCePlan(base);
-  if (base.intent.operation !== 'deploy' || !['stop', 'start'].includes(operation))
-    throw new Error('Whole-site power requires the exact original deployment plan');
-  validateBindings(base, bindings);
-  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(transitionId))
-    throw new Error('Whole-site power requires an immutable transition UUID');
-  const bindingsSha256 = canonicalSha256(bindings);
-  if (operation === 'start') {
-    if (!maintenance) throw new Error('Whole-site start requires the exact verified stopped maintenance receipt');
-    const { receiptSha256, ...body } = maintenance;
-    if (
-      maintenance.schemaVersion !== 1 ||
-      maintenance.kind !== 'aws-ce-stopped' ||
-      maintenance.sourcePlanSha256 !== base.planSha256 ||
-      maintenance.transitionId !== transitionId ||
-      maintenance.bindingsSha256 !== bindingsSha256 ||
-      !sha3.test(maintenance.stopPlanSha256) ||
-      !sha3.test(maintenance.stoppedEvidenceSha256) ||
-      canonicalSha256(body) !== receiptSha256 ||
-      !Number.isFinite(Date.parse(maintenance.originalAttemptAt)) ||
-      !Number.isFinite(Date.parse(maintenance.observedAt)) ||
-      Date.parse(maintenance.observedAt) < Date.parse(maintenance.originalAttemptAt)
-    )
-      throw new Error('Whole-site start maintenance receipt is malformed or belongs to another deployment');
-  } else if (maintenance) throw new Error('Whole-site stop cannot consume an unrelated maintenance receipt');
-  const body = {
-    schemaVersion: 1,
-    kind: 'aws-ce-whole-site-power',
-    engine: base.engine,
-    operation,
-    transitionId,
-    sourcePlanId: base.planId,
-    sourcePlanSha256: base.planSha256,
-    bindings: structuredClone(bindings),
-    bindingsSha256,
-    ...(maintenance ? { maintenance: structuredClone(maintenance) } : {}),
-  };
-  const planSha256 = canonicalSha256(body);
-  return { ...body, planSha256, planId: `aws-ce-power-${planSha256.slice(0, 24)}` };
-}
-function verifyAwsWholeSitePowerPlan(base, plan) {
-  const expected = buildAwsWholeSitePowerPlan(base, plan.operation, plan.bindings, plan.transitionId, plan.maintenance);
-  if (canonicalSha256(plan) !== canonicalSha256(expected)) throw new Error('Whole-site power immutable plan differs');
-}
-function evidencePasses(plan, gate, value, now) {
-  if (
-    value.source !== 'live' ||
-    value.planSha256 !== plan.planSha256 ||
-    value.bindingsSha256 !== plan.bindingsSha256 ||
-    value.gate !== gate ||
-    value.identity !== 'verified' ||
-    !Number.isFinite(Date.parse(value.collectedAt)) ||
-    Date.parse(value.collectedAt) > now ||
-    now - Date.parse(value.collectedAt) > 30000
-  )
-    return false;
-  if (gate === 'stopped' || gate === 'ready-to-start')
-    return value.cloud === 'stopped' && value.services === 'withdrawn' && value.traffic === 'blocked';
-  if (gate === 'withdrawn')
-    return value.cloud === 'running' && value.services === 'withdrawn' && value.traffic === 'blocked';
-  const healthy =
-    value.cloud === 'running' &&
-    value.registration === 'healthy' &&
-    value.configuration === 'verified' &&
-    value.versions === 'stable' &&
-    value.interfaces === 'up' &&
-    value.canSatisfyInterfaceMutationGate === true;
-  if (gate === 'running') return healthy && value.services === 'withdrawn';
-  return healthy && value.services === 'active' && value.traffic === 'passing';
-}
-async function optional19(storage, name) {
-  try {
-    return await storage.read(name);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return;
-  }
-}
-async function runAwsWholeSitePower(base, plan, authorizedPlanSha256, storage, driver, signal, clock = Date.now) {
-  verifyAwsWholeSitePowerPlan(base, plan);
-  if (
-    authorizedPlanSha256 !== plan.planSha256 ||
-    driver.engine !== base.engine ||
-    canonicalSha256(storage.owner) !== canonicalSha256(plan.bindings.owner)
-  )
-    throw new Error('Whole-site power authorization, owning engine or deployment store differs');
-  if (base.topology.nodeCount !== 1 || plan.bindings.nodes.length !== 1)
-    throw new Error('Whole-site power requires a separately qualified multi-node lifecycle contract');
-  const release = await acquireProcessLock(`${storage.directory}/.whole-site-power-lock`);
-  try {
-    await storage.verify();
-    if (plan.operation === 'start') {
-      const maintenance = plan.maintenance;
-      if (!maintenance) throw new Error('Whole-site start maintenance receipt is missing');
-      const prior = await storage.read(`aws-ce-power-${maintenance.stopPlanSha256.slice(0, 24)}-maintenance.json`);
-      if (canonicalSha256(prior) !== canonicalSha256(plan.maintenance))
-        throw new Error('Whole-site start requires the privately retained owning-engine stopped receipt');
-    }
-    const sourceName = `${plan.planId}.json`;
-    const saved = await optional19(storage, sourceName);
-    if (saved && canonicalSha256(saved) !== canonicalSha256(plan))
-      throw new Error('Saved whole-site power plan differs');
-    if (!saved) await storage.write(sourceName, plan);
-    const checkpointName = `${plan.planId}-checkpoint.json`;
-    const savedCheckpoint = await optional19(storage, checkpointName);
-    const steps = sequence[plan.operation];
-    let state = savedCheckpoint ?? {
-      schemaVersion: 1,
-      planSha256: plan.planSha256,
-      bindingsSha256: plan.bindingsSha256,
-      step: 0,
-      attempts: {},
-      evidence: {},
-      complete: false,
-    };
-    if (!savedCheckpoint) await storage.write(checkpointName, state);
-    const now = clock();
-    if (
-      !Number.isFinite(now) ||
-      state.schemaVersion !== 1 ||
-      state.planSha256 !== plan.planSha256 ||
-      state.bindingsSha256 !== plan.bindingsSha256 ||
-      !Number.isInteger(state.step) ||
-      state.step < 0 ||
-      state.step > steps.length ||
-      state.complete !== (state.step === steps.length) ||
-      (state.pending && state.pending.effect !== steps[state.step])
-    )
-      throw new Error('Whole-site power checkpoint differs');
-    for (const [effect, attempt] of Object.entries(state.attempts)) {
-      if (
-        !effects.has(effect) ||
-        !steps.some((step) => step === effect) ||
-        !attempt ||
-        attempt.effect !== effect ||
-        attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
-        !Number.isFinite(Date.parse(attempt.originalAttemptAt)) ||
-        Date.parse(attempt.originalAttemptAt) > now
-      )
-        throw new Error('Whole-site power original attempt binding differs');
-    }
-    for (const completed of steps.slice(0, state.step)) {
-      if (effects.has(completed)) {
-        if (!state.attempts[completed]) throw new Error('Completed whole-site effect lacks an original attempt');
-      } else {
-        const evidence = state.evidence[completed];
-        if (!evidence || !evidencePasses(plan, completed, evidence, Date.parse(evidence.collectedAt)))
-          throw new Error('Completed whole-site gate lacks valid bound evidence');
-      }
-    }
-    if (state.pending && canonicalSha256(state.pending) !== canonicalSha256(state.attempts[state.pending.effect]))
-      throw new Error('Whole-site power submitted attempt differs');
-    const assertCurrentBindings = async () => {
-      await storage.verify();
-      const current = await driver.readBindings(signal);
-      validateBindings(base, current);
-      if (canonicalSha256(current) !== plan.bindingsSha256)
-        throw new Error('Whole-site power live identities or retained services changed');
-    };
-    const pending = (reason) => ({
-      status: 'power-pending',
-      reason,
-      operation: plan.operation,
-      engine: plan.engine,
-      planId: plan.planId,
-      planSha256: plan.planSha256,
-      step: state.step,
-      fullCeAcceptance: false,
-    });
-    for (; state.step < steps.length; ) {
-      signal?.throwIfAborted();
-      await assertCurrentBindings();
-      const step = steps[state.step];
-      if (effects.has(step)) {
-        const effect = step;
-        if (state.pending) {
-          let observed = await driver.reconcile(plan, effect, state.pending.originalAttemptAt, signal);
-          if (observed === 'not-submitted') {
-            const preceding = [...steps.slice(0, state.step)].reverse().find((value) => !effects.has(value));
-            const evidence = await driver.observe(plan, preceding, signal);
-            if (!evidencePasses(plan, preceding, evidence, clock()))
-              return pending(`prerequisite-${preceding}-unknown`);
-            await driver.execute(plan, effect, signal);
-            observed = await driver.reconcile(plan, effect, state.pending.originalAttemptAt, signal);
-          }
-          if (observed !== 'completed') return pending(`submitted-${effect}-${observed}`);
-          state = { ...state, pending: undefined, step: state.step + 1, complete: state.step + 1 === steps.length };
-          await storage.write(checkpointName, state);
-          continue;
-        }
-        const preceding = [...steps.slice(0, state.step)].reverse().find((value) => !effects.has(value));
-        const evidence = await driver.observe(plan, preceding, signal);
-        if (!evidencePasses(plan, preceding, evidence, clock())) return pending(`prerequisite-${preceding}-unknown`);
-        const attempt = {
-          effect,
-          originalAttemptAt: new Date(clock()).toISOString(),
-          requestSha256: canonicalSha256({ planSha256: plan.planSha256, effect }),
-        };
-        if (state.attempts[effect])
-          throw new Error('Whole-site power effect cannot be resubmitted from a prior attempt');
-        state = { ...state, pending: attempt, attempts: { ...state.attempts, [effect]: attempt } };
-        await storage.write(checkpointName, state);
-        await driver.execute(plan, effect, signal);
-        const observed = await driver.reconcile(plan, effect, attempt.originalAttemptAt, signal);
-        if (observed !== 'completed') return pending(`submitted-${effect}-${observed}`);
-        state = { ...state, pending: undefined, step: state.step + 1 };
-      } else {
-        const gate = step;
-        const evidence = await driver.observe(plan, gate, signal);
-        await storage.write(`${plan.planId}-${gate}-last-evidence.json`, evidence);
-        if (!evidencePasses(plan, gate, evidence, clock())) return pending(`${gate}-unknown`);
-        state = { ...state, step: state.step + 1, evidence: { ...state.evidence, [gate]: evidence } };
-      }
-      state = { ...state, complete: state.step === steps.length };
-      await storage.write(checkpointName, state);
-    }
-    await assertCurrentBindings();
-    const finalGate = plan.operation === 'stop' ? 'stopped' : 'restored';
-    const finalEvidence = await driver.observe(plan, finalGate, signal);
-    if (!evidencePasses(plan, finalGate, finalEvidence, clock()))
-      return pending(`completed-${finalGate}-evidence-unavailable`);
-    if (plan.operation === 'stop') {
-      const attempt = state.attempts.stop;
-      if (!attempt) throw new Error('Whole-site stop original attempt is missing');
-      const evidenceName = `${plan.planId}-final-stopped-evidence.json`;
-      const captured = (await optional19(storage, evidenceName)) ?? finalEvidence;
-      if (
-        !evidencePasses(plan, 'stopped', captured, Date.parse(captured.collectedAt)) ||
-        Date.parse(captured.collectedAt) > clock() ||
-        Date.parse(captured.collectedAt) < Date.parse(attempt.originalAttemptAt)
-      )
-        throw new Error('Retained stopped evidence differs from the original power attempt');
-      await storage.write(evidenceName, captured);
-      const maintenanceName = `${plan.planId}-maintenance.json`;
-      const prior = await optional19(storage, maintenanceName);
-      let maintenance;
-      if (prior) {
-        buildAwsWholeSitePowerPlan(base, 'start', plan.bindings, plan.transitionId, prior);
-        if (
-          prior.stopPlanSha256 !== plan.planSha256 ||
-          prior.originalAttemptAt !== attempt.originalAttemptAt ||
-          prior.stoppedEvidenceSha256 !== canonicalSha256(captured) ||
-          prior.observedAt !== captured.collectedAt
-        )
-          throw new Error('Retained stopped maintenance receipt differs');
-        maintenance = prior;
-      } else {
-        const body = {
-          schemaVersion: 1,
-          kind: 'aws-ce-stopped',
-          sourcePlanSha256: base.planSha256,
-          transitionId: plan.transitionId,
-          stopPlanSha256: plan.planSha256,
-          bindingsSha256: plan.bindingsSha256,
-          stoppedEvidenceSha256: canonicalSha256(captured),
-          originalAttemptAt: attempt.originalAttemptAt,
-          observedAt: captured.collectedAt,
-        };
-        maintenance = { ...body, receiptSha256: canonicalSha256(body) };
-        await storage.write(maintenanceName, maintenance);
-      }
-      return {
-        status: 'site-stopped',
-        operation: plan.operation,
-        engine: plan.engine,
-        planId: plan.planId,
-        planSha256: plan.planSha256,
-        maintenance,
-        evidence: finalEvidence,
-        originalCeHeartbeat: 'unknown',
-        fullCeAcceptance: false,
-      };
-    }
-    const final = await driver.finish(plan, signal);
-    if (final.engine !== plan.engine || final.noChanges !== true)
-      throw new Error('Whole-site start final owning-engine no-change verification failed');
-    return {
-      status: 'site-started',
-      operation: plan.operation,
-      engine: plan.engine,
-      planId: plan.planId,
-      planSha256: plan.planSha256,
-      evidence: finalEvidence,
-      noChanges: true,
-      originalCeHeartbeat: 'unknown',
-      fullCeAcceptance: false,
-    };
-  } finally {
-    await release();
-  }
-}
-var sha3, sequence, effects;
-var init_whole_site_power = __esm(() => {
-  init_process_lock();
-  init_artifacts();
-  init_canonical();
-  init_whole_site_power_service_binding();
-  sha3 = /^[a-f0-9]{64}$/;
-  sequence = {
-    stop: ['ready-to-stop', 'withdraw', 'withdrawn', 'stop', 'stopped'],
-    start: ['ready-to-start', 'start', 'running', 'restore', 'restored', 'release'],
-  };
-  effects = new Set(['withdraw', 'stop', 'start', 'restore', 'release']);
-});
-
 // plugins/aws/src/ce/whole-site-power-identities.ts
 function tags3(value, expected) {
   const rows = array(value);
@@ -21597,7 +24112,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode !== 0) throw new Error('Power identity observation unavailable');
-    const value = object29(JSON.parse(result.stdout));
+    const value = object37(JSON.parse(result.stdout));
     if (['NextToken', 'NextMarker', 'nextToken'].some((key) => value[key] !== undefined))
       throw new Error('Partial power identity response');
     return value;
@@ -21630,7 +24145,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
       'ves-io-site-name': node.siteName,
     };
     tags3(instance.Tags, ownerTags);
-    const state = object29(instance.State).Name;
+    const state = object37(instance.State).Name;
     if (!['running', 'stopped', 'pending', 'stopping'].includes(String(state)))
       throw new Error('Power instance lifecycle state is unavailable');
     states.push(String(state));
@@ -21643,7 +24158,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
       const attachments = attached.filter((row) => row.NetworkInterfaceId === id);
       if (rows.length !== 1 || attachments.length !== 1) throw new Error('Power ENI identity is duplicated or missing');
       const eni = rows[0],
-        attachment = object29(eni.Attachment),
+        attachment = object37(eni.Attachment),
         embedded = attachments[0];
       tags3(eni.TagSet, { ...ownerTags, 'xcsh-interface-index': String(item.index) });
       if (
@@ -21651,7 +24166,7 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
         eni.Status !== 'in-use' ||
         attachment.InstanceId !== instanceId ||
         attachment.DeviceIndex !== item.index ||
-        object29(embedded.Attachment).DeviceIndex !== item.index ||
+        object37(embedded.Attachment).DeviceIndex !== item.index ||
         String(eni.MacAddress).toLowerCase() !== mac ||
         String(embedded.MacAddress).toLowerCase() !== mac
       )
@@ -21720,815 +24235,34 @@ async function collectAwsPowerIdentities(base, resolved, rawApi, runtime, signal
     canSatisfyInterfaceMutationGate: false,
   };
 }
-var object29 = (value) => {
+var object37 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed power identity evidence');
     return value;
   },
   array = (value) => {
     if (!Array.isArray(value)) throw new Error('Missing power identity collection');
-    return value.map(object29);
+    return value.map(object37);
   };
 var init_whole_site_power_identities = __esm(() => {
   init_artifacts();
 });
 
-// plugins/platform/src/ce/bgp-power-policy.ts
-import { createHash as createHash19 } from 'node:crypto';
-import { isIP as isIP12 } from 'node:net';
-
-function object30(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed BGP maintenance policy');
-  return value;
-}
-function canonical3(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
-  if (value && typeof value === 'object')
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical3(item)}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, validate, retained) {
-  if (
-    !/^[a-z0-9][a-z0-9-]{0,62}$/.test(siteName) ||
-    !Array.isArray(prefixes) ||
-    !prefixes.length ||
-    new Set(prefixes).size !== prefixes.length
-  )
-    throw Error('BGP maintenance identity or service prefixes differ');
-  for (const cidr of prefixes) {
-    const [ip, bits, extra] = cidr.split('/');
-    if (
-      isIP12(ip) !== 4 ||
-      !/^\d{1,2}$/.test(bits ?? '') ||
-      Number(bits) < 1 ||
-      Number(bits) > 32 ||
-      extra !== undefined
-    )
-      throw Error('BGP maintenance service prefix unresolved or broad');
-    const address = ip.split('.').reduce((v, o) => (v * 256 + Number(o)) >>> 0, 0);
-    const mask = (4294967295 << (32 - Number(bits))) >>> 0;
-    if ((address & mask) >>> 0 !== address) throw Error('BGP maintenance prefix is not network aligned');
-  }
-  const normalized = [...prefixes].sort();
-  const policy = {
-    name: `${siteName.slice(0, 43)}-tgw-power-policy`,
-    spec: {
-      rules: [
-        {
-          match: {
-            ip_prefixes: { prefixes: normalized.map((ip_prefixes) => ({ ip_prefixes, equal_or_longer_than: {} })) },
-          },
-          action: { deny: {} },
-        },
-      ],
-    },
-  };
-  validate('bgp_routing_policy', policy.spec);
-  const original =
-    effect === 'withdraw' ? structuredClone(object30(snapshot)) : structuredClone(object30(retained?.originalBgpSpec));
-  if (
-    effect === 'restore' &&
-    (retained?.schemaVersion !== 1 ||
-      retained.effect !== 'withdraw' ||
-      retained.siteName !== siteName ||
-      canonical3(retained.prefixes) !== canonical3(normalized) ||
-      hash10(original) !== retained.originalSha256 ||
-      hash10(snapshot) !== retained.withdrawnSha256 ||
-      hash10(retained.bgpSpec) !== retained.withdrawnSha256 ||
-      canonical3(retained.policy) !== canonical3(policy))
-  )
-    throw Error('BGP restoration requires exact retained withdrawal');
-  if (!['withdraw', 'restore'].includes(effect)) throw Error('BGP maintenance effect differs');
-  const where = object30(object30(original.where).site);
-  const refs = where.ref;
-  if (
-    where.network_type !== 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' ||
-    !Array.isArray(refs) ||
-    refs.length !== 1 ||
-    object30(refs[0]).name !== siteName ||
-    object30(refs[0]).namespace !== 'system' ||
-    !Array.isArray(original.peers) ||
-    !original.peers.length
-  )
-    throw Error('BGP maintenance site or peer binding differs');
-  const peerNames = new Set(),
-    addresses = new Set();
-  for (const peerValue of original.peers) {
-    const peer = object30(peerValue),
-      external = object30(peer.external),
-      metadata = object30(peer.metadata);
-    if (
-      Object.hasOwn(peer, 'routing_policies') ||
-      Object.hasOwn(peer, 'disable') ||
-      typeof metadata.name !== 'string' ||
-      peerNames.has(metadata.name) ||
-      typeof external.address !== 'string' ||
-      isIP12(external.address) !== 4 ||
-      addresses.has(external.address)
-    )
-      throw Error('BGP maintenance original peers ambiguous or foreign policy');
-    peerNames.add(metadata.name);
-    addresses.add(external.address);
-  }
-  const originalSpec = original;
-  validate('bgp', original);
-  const withdrawn = structuredClone(originalSpec);
-  for (const peer of withdrawn.peers)
-    peer.routing_policies = {
-      route_policy: [{ all_nodes: {}, outbound: {}, object_refs: [{ name: policy.name, namespace: 'system' }] }],
-    };
-  validate('bgp', withdrawn);
-  if (effect === 'restore' && canonical3(withdrawn) !== canonical3(snapshot))
-    throw Error('BGP maintenance withdrawal configuration differs');
-  return {
-    schemaVersion: 1,
-    effect,
-    siteName,
-    prefixes: normalized,
-    policy,
-    originalBgpSpec: originalSpec,
-    bgpSpec: effect === 'withdraw' ? withdrawn : structuredClone(originalSpec),
-    originalSha256: hash10(original),
-    withdrawnSha256: hash10(withdrawn),
-    operationalEvidence: 'unknown',
-  };
-}
-var hash10 = (value) => createHash19('sha256').update(canonical3(value)).digest('hex');
-var init_bgp_power_policy = () => {};
-
-// plugins/aws/src/ce/whole-site-power-connect.ts
-import { isIP as isIP13 } from 'node:net';
-
-function object31(v) {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');
-  return v;
-}
-function rows8(v) {
-  if (!Array.isArray(v)) throw Error('Incomplete Connect service evidence');
-  return v.map(object31);
-}
-function exactly(v) {
-  const all = rows8(v);
-  if (all.length !== 1) throw Error('Connect service cardinality differs');
-  return all[0];
-}
-function network3(cidr) {
-  const [ip, prefix, extra] = cidr.split('/'),
-    bits = Number(prefix);
-  if (isIP13(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || bits < 1 || bits > 32 || extra !== undefined)
-    throw Error('Connect service prefix unresolved or broad');
-  const address = ip.split('.').reduce((n, o) => (n * 256 + Number(o)) >>> 0, 0),
-    mask = (4294967295 << (32 - bits)) >>> 0;
-  if ((address & mask) >>> 0 !== address) throw Error('Connect service prefix not network aligned');
-  return { address, bits };
-}
-function overlaps(a, b) {
-  const x = network3(a),
-    y = network3(b),
-    mask = (4294967295 << (32 - Math.min(x.bits, y.bits))) >>> 0;
-  return (x.address & mask) >>> 0 === (y.address & mask) >>> 0;
-}
-async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
-  verifyAwsCePlan(base);
-  const routing = base.intent.routing,
-    gateway = routing.transitGatewayId ?? '',
-    vpc = values.__VPC_ID__ ?? base.intent.vpc.vpcId ?? '';
-  const transport = routing.transportAttachmentId ?? values.__TGW_TRANSPORT_ATTACHMENT__;
-  const tables = [...new Set([...routing.associations, ...routing.propagations])].sort();
-  if (
-    routing.profile !== 'tgw-connect' ||
-    !Number.isInteger(routing.customerAsn) ||
-    !Number.isInteger(routing.transitGatewayAsn) ||
-    (routing.customerAsn ?? 0) < 1 ||
-    (routing.transitGatewayAsn ?? 0) < 1 ||
-    !/^tgw-[a-f0-9]{8,17}$/.test(gateway) ||
-    !/^vpc-[a-f0-9]{8,17}$/.test(vpc) ||
-    !/^tgw-attach-[a-f0-9]{8,17}$/.test(transport ?? '') ||
-    !base.intent.brownfield.resourceIds.includes(gateway) ||
-    routing.associations.length !== 1 ||
-    !routing.propagations.length ||
-    new Set(routing.propagations).size !== routing.propagations.length ||
-    tables.some(
-      (t) => !/^tgw-rtb-[a-f0-9]{8,17}$/.test(t) || !base.intent.brownfield.transitGatewayRouteTableIds.includes(t),
-    ) ||
-    !routing.destinationCidrs.length ||
-    new Set(routing.destinationCidrs).size !== routing.destinationCidrs.length
-  )
-    throw Error('Connect service scope unresolved or ambiguous');
-  const prefixes = [...routing.destinationCidrs].sort();
-  for (const p of prefixes) network3(p);
-  const resolve = (v) => (v?.startsWith('__') ? values[v] : v);
-  const arg = (args, flag) => {
-    const index = args?.indexOf(flag) ?? -1;
-    return index < 0 ? undefined : resolve(args?.[index + 1]);
-  };
-  const attachmentActions = base.actions.filter((a) => a.kind === 'tgw-connect-attachment-create');
-  const attachmentIds = attachmentActions.map((a) => values[a.capture?.placeholder ?? '']);
-  const peerActions = base.actions.filter((a) => a.kind === 'tgw-connect-peer-create');
-  const expected = peerActions.map((a) => {
-    const ref = a.args?.[(a.args?.indexOf('--peer-address') ?? -1) + 1],
-      role = ref?.match(/^__NODE_(\d+)_(SLO|SLI)_IP__$/);
-    const index = role?.[2] === 'SLO' ? 0 : 1,
-      node = a.node ?? 0;
-    if (
-      !role ||
-      Number(role[1]) !== node ||
-      !base.intent.interfaces.some((i) => i.index === index && i.role === role[2].toLowerCase())
-    )
-      throw Error('Connect peer interface role unresolved');
-    return {
-      node,
-      siteName: siteForNode(base.intent, node).name,
-      interfaceIndex: index,
-      peerId: values[a.capture?.placeholder ?? ''],
-      attachmentId: arg(a.args, '--transit-gateway-attachment-id'),
-      peerAddress: arg(a.args, '--peer-address'),
-      insideCidr: arg(a.args, '--inside-cidr-blocks'),
-      gatewayAddress: arg(a.args, '--transit-gateway-address'),
-      eni: values[`__ENI_${node}_${index}__`],
-      mac: values[`__ENI_${node}_${index}_MAC__`],
-      instance: values[`__INSTANCE_${node}__`],
-    };
-  });
-  if (
-    !attachmentIds.length ||
-    new Set(attachmentIds).size !== attachmentIds.length ||
-    attachmentIds.some((a) => !/^tgw-attach-[a-f0-9]{8,17}$/.test(a ?? '')) ||
-    attachmentActions.some(
-      (a) =>
-        arg(a.args, '--transport-transit-gateway-attachment-id') !== transport ||
-        arg(a.args, '--options') !== 'Protocol=gre',
-    ) ||
-    !expected.length ||
-    new Set(expected.map((p) => p.peerId)).size !== expected.length ||
-    (routing.connectPeers !== undefined &&
-      (routing.connectPeers.length !== expected.length ||
-        routing.connectPeers.some(
-          (p, i) =>
-            p.node !== expected[i].node ||
-            p.transportInterfaceIndex !== expected[i].interfaceIndex ||
-            p.insideCidr !== expected[i].insideCidr ||
-            p.transitGatewayAddress !== expected[i].gatewayAddress,
-        ))) ||
-    Array.from({ length: base.intent.topology.nodeCount }, (_, i) => i + 1).some(
-      (node) => !expected.some((p) => p.node === node),
-    ) ||
-    attachmentIds.some(
-      (id) =>
-        expected.filter((p) => p.attachmentId === id).length < 1 ||
-        expected.filter((p) => p.attachmentId === id).length > 4,
-    ) ||
-    expected.some(
-      (p) =>
-        !/^tgw-connect-peer-[a-f0-9]{8,21}$/.test(p.peerId ?? '') ||
-        !attachmentIds.includes(p.attachmentId ?? '') ||
-        isIP13(p.peerAddress ?? '') !== 4 ||
-        !/^eni-[a-f0-9]{8,17}$/.test(p.eni ?? '') ||
-        !/^i-[a-f0-9]{8,17}$/.test(p.instance ?? '') ||
-        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(p.mac ?? ''),
-    )
-  )
-    throw Error('Connect runtime bindings incomplete or duplicated');
-  const api = scopedAwsApi(raw, base.intent.awsProfile ?? 'default', signal);
-  const read = async (args) => {
-    signal?.throwIfAborted();
-    const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
-    if (r.exitCode) throw Error('Connect service observation unavailable');
-    const result = object31(JSON.parse(r.stdout));
-    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(result, k)))
-      throw Error('Partial Connect service evidence');
-    return result;
-  };
-  const owned = (resource, node, interfaceIndex) => {
-    const tags = rows8(resource.Tags ?? resource.TagSet);
-    const labels = {
-      'xcsh-managed-by': 'aws-ce',
-      'xcsh-deployment-id': base.deploymentName,
-      'xcsh-execution-engine': base.engine,
-      'xcsh-plan-sha256': base.planSha256,
-      ...(node ? { 'xcsh-node-index': String(node) } : {}),
-      ...(interfaceIndex !== undefined ? { 'xcsh-interface-index': String(interfaceIndex) } : {}),
-    };
-    if (
-      new Set(tags.map((t) => t.Key)).size !== tags.length ||
-      tags.some((t) => typeof t.Key !== 'string' || typeof t.Value !== 'string') ||
-      Object.entries(labels).some(([k, v]) => !tags.some((t) => t.Key === k && t.Value === v))
-    )
-      throw Error('Foreign Connect service ownership');
-  };
-  if ((await read(['sts', 'get-caller-identity'])).Account !== base.accountId)
-    throw Error('Connect service account differs');
-  const transportObject = exactly(
-    (await read(['ec2', 'describe-transit-gateway-vpc-attachments', '--transit-gateway-attachment-ids', transport]))
-      .TransitGatewayVpcAttachments,
-  );
-  if (routing.transportAttachmentId) {
-    if (!base.intent.brownfield.resourceIds.includes(transport))
-      throw Error('Connect brownfield transport not allowlisted');
-  } else owned(transportObject);
-  const transportSubnets = transportObject.SubnetIds;
-  if (
-    transportObject.TransitGatewayAttachmentId !== transport ||
-    transportObject.TransitGatewayId !== gateway ||
-    transportObject.VpcId !== vpc ||
-    transportObject.VpcOwnerId !== base.accountId ||
-    transportObject.State !== 'available' ||
-    !Array.isArray(transportSubnets) ||
-    !transportSubnets.length ||
-    new Set(transportSubnets).size !== transportSubnets.length ||
-    transportSubnets.some((s) => typeof s !== 'string' || !/^subnet-[a-f0-9]{8,17}$/.test(s)) ||
-    !['enable', 'disable'].includes(String(object31(transportObject.Options).ApplianceModeSupport))
-  )
-    throw Error('Connect retained transport differs');
-  const attachmentBindings = [];
-  for (const id of [...attachmentIds].sort()) {
-    const connect = exactly(
-      (await read(['ec2', 'describe-transit-gateway-connects', '--transit-gateway-attachment-ids', id]))
-        .TransitGatewayConnects,
-    );
-    const generic = exactly(
-      (await read(['ec2', 'describe-transit-gateway-attachments', '--transit-gateway-attachment-ids', id]))
-        .TransitGatewayAttachments,
-    );
-    owned(connect);
-    owned(generic);
-    if (
-      connect.TransitGatewayAttachmentId !== id ||
-      connect.TransitGatewayId !== gateway ||
-      connect.TransportTransitGatewayAttachmentId !== transport ||
-      connect.State !== 'available' ||
-      object31(connect.Options).Protocol !== 'gre' ||
-      generic.TransitGatewayAttachmentId !== id ||
-      generic.TransitGatewayId !== gateway ||
-      generic.ResourceOwnerId !== base.accountId ||
-      generic.ResourceType !== 'connect' ||
-      generic.State !== 'available'
-    )
-      throw Error('Connect attachment owner or transport differs');
-    attachmentBindings.push({ id, transportAttachmentId: transport, protocol: 'gre' });
-  }
-  const peerResponse = rows8(
-    (
-      await read([
-        'ec2',
-        'describe-transit-gateway-connect-peers',
-        '--transit-gateway-connect-peer-ids',
-        ...expected.map((p) => p.peerId),
-      ])
-    ).TransitGatewayConnectPeers,
-  );
-  if (
-    peerResponse.length !== expected.length ||
-    new Set(peerResponse.map((p) => p.TransitGatewayConnectPeerId)).size !== peerResponse.length
-  )
-    throw Error('Connect peer discovery incomplete or duplicated');
-  const peerBindings = [],
-    sessions = [];
-  for (const selected of expected) {
-    const peer = exactly(peerResponse.filter((p) => p.TransitGatewayConnectPeerId === selected.peerId));
-    owned(peer, selected.node);
-    const nic = exactly(
-      (await read(['ec2', 'describe-network-interfaces', '--network-interface-ids', selected.eni])).NetworkInterfaces,
-    );
-    owned(nic, selected.node, selected.interfaceIndex);
-    if (
-      peer.TransitGatewayAttachmentId !== selected.attachmentId ||
-      peer.State !== 'available' ||
-      nic.NetworkInterfaceId !== selected.eni ||
-      nic.OwnerId !== base.accountId ||
-      nic.VpcId !== vpc ||
-      nic.PrivateIpAddress !== selected.peerAddress ||
-      nic.MacAddress !== selected.mac ||
-      nic.Status !== 'in-use' ||
-      object31(nic.Attachment).InstanceId !== selected.instance ||
-      object31(nic.Attachment).DeviceIndex !== selected.interfaceIndex ||
-      !/^subnet-[a-f0-9]{8,17}$/.test(String(nic.SubnetId))
-    )
-      throw Error('Connect peer and physical interface binding differs');
-    const config = object31(peer.ConnectPeerConfiguration),
-      cidrs = config.InsideCidrBlocks;
-    if (
-      config.Protocol !== 'gre' ||
-      config.PeerAddress !== selected.peerAddress ||
-      isIP13(String(config.TransitGatewayAddress)) !== 4 ||
-      (selected.gatewayAddress !== undefined && config.TransitGatewayAddress !== selected.gatewayAddress) ||
-      !Array.isArray(cidrs) ||
-      cidrs.length !== 1 ||
-      cidrs[0] !== selected.insideCidr
-    )
-      throw Error('Connect GRE configuration differs');
-    const inside = network3(String(cidrs[0]));
-    if (inside.bits !== 29) throw Error('Connect inside network differs');
-    const bgp = rows8(config.BgpConfigurations);
-    if (bgp.length !== 2) throw Error('Connect BGP session discovery incomplete');
-    const endpoints = new Set();
-    let local;
-    for (const session of bgp) {
-      const endpoint = String(session.TransitGatewayAddress),
-        ceEndpoint = String(session.PeerAddress),
-        status = String(session.BgpStatus);
-      const ip = (s) => s.split('.').reduce((n, o) => n * 256 + Number(o), 0);
-      if (
-        isIP13(endpoint) !== 4 ||
-        isIP13(ceEndpoint) !== 4 ||
-        endpoints.has(endpoint) ||
-        endpoint === ceEndpoint ||
-        session.TransitGatewayAsn !== routing.transitGatewayAsn ||
-        session.PeerAsn !== routing.customerAsn ||
-        !['up', 'down'].includes(status) ||
-        (local !== undefined && local !== ceEndpoint) ||
-        [endpoint, ceEndpoint].some((s) => ip(s) <= inside.address || ip(s) >= inside.address + 7)
-      )
-        throw Error('Connect BGP endpoints, ASNs or states differ');
-      endpoints.add(endpoint);
-      local = ceEndpoint;
-      sessions.push({ peerId: selected.peerId, awsEndpoint: endpoint, ceEndpoint, status });
-    }
-    peerBindings.push({
-      ...selected,
-      mac: selected.mac.toLowerCase(),
-      subnetId: nic.SubnetId,
-      awsGreAddress: config.TransitGatewayAddress,
-      ceEndpoint: local,
-      awsEndpoints: [...endpoints].sort(),
-    });
-  }
-  const memberships = [];
-  for (const tableId of tables) {
-    const table = exactly(
-      (await read(['ec2', 'describe-transit-gateway-route-tables', '--transit-gateway-route-table-ids', tableId]))
-        .TransitGatewayRouteTables,
-    );
-    if (
-      table.TransitGatewayRouteTableId !== tableId ||
-      table.TransitGatewayId !== gateway ||
-      table.State !== 'available'
-    )
-      throw Error('Connect table identity differs');
-    for (const [operation, key, required, state] of [
-      [
-        'get-transit-gateway-route-table-associations',
-        'Associations',
-        routing.associations.includes(tableId),
-        'associated',
-      ],
-      [
-        'get-transit-gateway-route-table-propagations',
-        'TransitGatewayRouteTablePropagations',
-        routing.propagations.includes(tableId),
-        'enabled',
-      ],
-    ]) {
-      const found = rows8((await read(['ec2', operation, '--transit-gateway-route-table-id', tableId]))[key]);
-      for (const id of attachmentIds) {
-        const matched = found.filter((r) => r.TransitGatewayAttachmentId === id);
-        if (required && (matched.length !== 1 || matched[0].State !== state))
-          throw Error('Connect retained association or propagation differs');
-        if (!required && matched.some((r) => r.State === state))
-          throw Error('Connect unplanned association or propagation');
-      }
-    }
-    if (!routing.propagations.includes(tableId)) continue;
-    for (const prefix of prefixes) {
-      const merged = new Map();
-      for (const filter of ['exact-match', 'subnet-of-match', 'supernet-of-match']) {
-        const result = await read([
-          'ec2',
-          'search-transit-gateway-routes',
-          '--transit-gateway-route-table-id',
-          tableId,
-          '--filters',
-          `Name=route-search.${filter},Values=${prefix}`,
-        ]);
-        if (result.AdditionalRoutesAvailable !== false) throw Error('Partial Connect route search');
-        const routes = rows8(result.Routes),
-          seen = new Set();
-        for (const route of routes) {
-          const destination = route.DestinationCidrBlock;
-          if (
-            typeof destination !== 'string' ||
-            !overlaps(destination, prefix) ||
-            seen.has(destination) ||
-            route.Type !== 'propagated' ||
-            !['active', 'blackhole'].includes(String(route.State)) ||
-            Object.hasOwn(route, 'PrefixListId')
-          )
-            throw Error('Connect route identity or inventory differs');
-          seen.add(destination);
-          const targets = rows8(route.TransitGatewayAttachments);
-          if (
-            !targets.length ||
-            new Set(targets.map((t) => t.TransitGatewayAttachmentId)).size !== targets.length ||
-            targets.some(
-              (t) => !attachmentIds.includes(String(t.TransitGatewayAttachmentId)) || t.ResourceType !== 'connect',
-            )
-          )
-            throw Error('Foreign Connect service route');
-          const normalized = {
-            destination,
-            type: route.Type,
-            state: route.State,
-            attachments: targets.map((t) => String(t.TransitGatewayAttachmentId)).sort(),
-          };
-          const prior = merged.get(destination);
-          if (prior && canonicalSha256(prior) !== canonicalSha256(normalized))
-            throw Error('Connect route changed during collection');
-          merged.set(destination, normalized);
-        }
-      }
-      const routes = [...merged.values()].sort((a, b) => String(a.destination).localeCompare(String(b.destination)));
-      memberships.push({
-        tableId,
-        prefix,
-        routes,
-        status:
-          routes.length === 0
-            ? 'withdrawn'
-            : routes.length === 1 && routes[0].destination === prefix && routes[0].state === 'active'
-              ? 'active'
-              : 'pending',
-      });
-    }
-  }
-  const services = {
-    schemaVersion: 1,
-    kind: 'aws-ce-connect-power-services',
-    sourcePlanSha256: base.planSha256,
-    engine: base.engine,
-    accountId: base.accountId,
-    region: base.region,
-    transitGatewayId: gateway,
-    vpcId: vpc,
-    transportAttachmentId: transport,
-    transportSubnets: [...transportSubnets].sort(),
-    applianceMode: object31(transportObject.Options).ApplianceModeSupport,
-    attachments: attachmentBindings,
-    peers: peerBindings,
-    tables,
-    associations: [...routing.associations].sort(),
-    propagations: [...routing.propagations].sort(),
-    prefixes,
-  };
-  return {
-    services,
-    servicesSha256: canonicalSha256(services),
-    sessions,
-    memberships,
-    status: sessions.some((s) => s.status !== 'up')
-      ? 'pending'
-      : memberships.every((m) => m.status === 'active')
-        ? 'active'
-        : memberships.every((m) => m.status === 'withdrawn')
-          ? 'withdrawn'
-          : 'pending',
-    traffic: 'unknown',
-    freshness: 'unqualified',
-    collectedAt: new Date().toISOString(),
-  };
-}
-var init_whole_site_power_connect = __esm(() => {
-  init_artifacts();
-  init_canonical();
-});
-
-// plugins/aws/src/ce/whole-site-power-bgp-services.ts
-function object32(v) {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed BGP service binding');
-  return v;
-}
-function rows9(v) {
-  if (!Array.isArray(v)) throw Error('Incomplete BGP service binding');
-  return v.map(object32);
-}
-async function collectAwsPowerBgpServices(base, values, api, runtime, signal, retained) {
-  const cloud = await collectAwsPowerConnectRoutes(base, values, api, signal);
-  const sites = siteBindings(base),
-    platform = [],
-    snapshots = [],
-    observations = [];
-  if (
-    retained &&
-    (retained.length !== sites.length || new Set(retained.map((s) => s.binding.siteName)).size !== sites.length)
-  )
-    throw Error('Retained BGP site inventory differs');
-  const actions = base.actions.filter((a) => a.kind === 'tgw-connect-peer-create');
-  for (const { site, binding } of sites) {
-    const name = `${site.name.slice(0, 55)}-tgw-bgp`,
-      snapshot = await runtime.observePowerRouting(binding, 'bgp', name, signal);
-    if (
-      snapshot.uid !== values[`__XC_ROUTING_${name}__`] ||
-      snapshot.kind !== 'bgp' ||
-      canonicalSha256(snapshot.binding) !== canonicalSha256(binding) ||
-      snapshot.contractFingerprint !== runtime.contract.fingerprint
-    )
-      throw Error('BGP generated object differs from trusted deployment binding');
-    const prior = retained?.find((s) => s.binding.siteName === site.name);
-    if (
-      prior &&
-      (canonicalSha256(prior.binding) !== canonicalSha256(binding) ||
-        prior.siteUid !== snapshot.siteUid ||
-        prior.bgpName !== name ||
-        prior.bgpUid !== snapshot.uid ||
-        prior.contractFingerprint !== snapshot.contractFingerprint)
-    )
-      throw Error('Retained BGP object or site identity differs');
-    const original = prior?.originalSpec ?? snapshot.spec;
-    if (object32(original.bgp_parameters).asn !== base.intent.routing.customerAsn)
-      throw Error('BGP local ASN differs from owning plan');
-    const revision = buildAwsBgpPowerPolicyRevision(
-      original,
-      site.name,
-      cloud.services.prefixes,
-      'withdraw',
-      (kind, spec) => runtime.contract.validateRouting(kind, spec),
-    );
-    if (
-      prior &&
-      (canonicalSha256(prior.revision) !== canonicalSha256(revision) ||
-        ![canonicalSha256(original), canonicalSha256(revision.bgpSpec)].includes(canonicalSha256(snapshot.spec)))
-    )
-      throw Error('Retained BGP revision or current spec differs');
-    const selected = cloud.services.peers.filter((p) => site.nodeIndexes.includes(Number(p.node)));
-    const expectedHardware = site.nodeIndexes.flatMap((node) =>
-      base.intent.interfaces.map((i) => ({
-        node: `${base.deploymentName}-${node}`,
-        role: i.role === 'slo' || i.role === 'sli' ? i.role : 'data',
-        mac: values[`__ENI_${node}_${i.index}_MAC__`],
-      })),
-    );
-    const instances = Object.fromEntries(
-      site.nodeIndexes.map((node) => [`${base.deploymentName}-${node}`, values[`__INSTANCE_${node}__`]]),
-    );
-    const hardware = await runtime.observeRegisteredDevices(binding, instances, expectedHardware, signal);
-    if (hardware.status !== 'observed' || hardware.interfaces.length !== expectedHardware.length)
-      throw Error('BGP registration hardware identity unavailable');
-    const sessions = [],
-      connectors = [];
-    for (const peer of selected) {
-      const actionIndex = actions.findIndex((a) => values[a.capture?.placeholder ?? ''] === peer.peerId),
-        connectorName = `${base.deploymentName.slice(0, 24)}-gre-${actionIndex + 1}`;
-      const connector = await runtime.observePowerRouting(binding, 'external_connector', connectorName, signal);
-      if (
-        actionIndex < 0 ||
-        connector.siteUid !== snapshot.siteUid ||
-        connector.uid !== values[`__XC_ROUTING_${connectorName}__`] ||
-        connector.kind !== 'external_connector' ||
-        canonicalSha256(connector.binding) !== canonicalSha256(binding) ||
-        connector.contractFingerprint !== snapshot.contractFingerprint
-      )
-        throw Error('BGP connector generated identity differs');
-      const ref = object32(connector.spec.ce_site_reference),
-        gre = object32(object32(connector.spec.gre).gre_parameters),
-        endpoints = rows9(gre.tunnel_eps);
-      const node = `${base.deploymentName}-${peer.node}`,
-        devices = hardware.interfaces.filter(
-          (i) =>
-            i.node === node && i.mac === peer.mac && i.role === (Number(peer.interfaceIndex) === 0 ? 'slo' : 'sli'),
-        );
-      if (
-        ref.name !== site.name ||
-        ref.namespace !== 'system' ||
-        endpoints.length !== 1 ||
-        devices.length !== 1 ||
-        endpoints[0].node !== node ||
-        endpoints[0].interface !== devices[0].device ||
-        endpoints[0].local_tunnel_ip !== `${peer.ceEndpoint}/29` ||
-        !peer.awsEndpoints.some((ip) => endpoints[0].remote_tunnel_ip === `${ip}/29`) ||
-        object32(gre.peer_ip_address).addr !== peer.awsGreAddress ||
-        !Object.hasOwn(gre, 'site_local_inside_network')
-      )
-        throw Error('BGP connector physical node/device/MAC/tunnel join differs');
-      connectors.push({ name: connectorName, uid: connector.uid, spec: connector.spec });
-      for (const address of peer.awsEndpoints)
-        sessions.push({ node, interfaceName: `ves-io-external-connector-${connectorName}`, peerAddress: address });
-    }
-    const peers = rows9(original.peers);
-    if (
-      peers.length !== sessions.length ||
-      sessions.some(
-        (s) =>
-          peers.filter((p) => {
-            const e = object32(p.external),
-              ref = object32(e.interface);
-            return (
-              e.address === s.peerAddress &&
-              e.asn === base.intent.routing.transitGatewayAsn &&
-              ref.name === s.interfaceName &&
-              ref.namespace === 'system'
-            );
-          }).length !== 1,
-      )
-    )
-      throw Error('BGP peer spec and cloud endpoint inventory differ');
-    let tables = prior?.tables;
-    if (!tables) {
-      const observed = await runtime.observeBgpRoutes(binding, signal);
-      if (
-        observed.status !== 'observed' ||
-        canonicalSha256(observed.owner) !== canonicalSha256(binding.owner) ||
-        observed.siteName !== binding.siteName ||
-        observed.contractFingerprint !== snapshot.contractFingerprint
-      )
-        throw Error('BGP route discovery binding differs');
-      tables = binding.nodes.map((node) => {
-        const matches = observed.nodes
-          .filter((n) => n.node === node)
-          .flatMap((n) =>
-            n.routingInstances.flatMap((ri) =>
-              ri.tables
-                .filter((t) => cloud.services.prefixes.every((p) => t.exported.includes(p)))
-                .map((t) => ({ node, routingInstance: ri.name, table: t.name })),
-            ),
-          );
-        if (matches.length !== 1) throw Error('BGP service routing instance/table discovery missing or ambiguous');
-        return matches[0];
-      });
-    }
-    const current = {
-      binding,
-      siteUid: snapshot.siteUid,
-      bgpName: name,
-      bgpUid: snapshot.uid,
-      contractFingerprint: snapshot.contractFingerprint,
-      originalSpec: original,
-      connectors,
-      sessions,
-      tables,
-      revision,
-    };
-    if (prior && canonicalSha256(current) !== canonicalSha256(prior))
-      throw Error('BGP retained service inventory changed');
-    const observation = await runtime.observeBgpServiceMembership(
-      binding,
-      snapshot.siteUid,
-      sessions,
-      tables,
-      cloud.services.prefixes,
-      signal,
-    );
-    if (
-      canonicalSha256(observation.owner) !== canonicalSha256(binding.owner) ||
-      observation.siteName !== binding.siteName ||
-      observation.siteUid !== snapshot.siteUid ||
-      observation.contractFingerprint !== snapshot.contractFingerprint
-    )
-      throw Error('BGP service observation binding differs');
-    const final = await runtime.observePowerRouting(binding, 'bgp', name, signal);
-    if (
-      final.uid !== snapshot.uid ||
-      final.siteUid !== snapshot.siteUid ||
-      final.resourceVersion !== snapshot.resourceVersion ||
-      canonicalSha256(final.spec) !== canonicalSha256(snapshot.spec)
-    )
-      throw Error('BGP object changed during service collection');
-    platform.push(current);
-    snapshots.push(snapshot);
-    observations.push(observation);
-  }
-  if (new Set(platform.map((s) => s.revision.policy.name)).size !== platform.length)
-    throw Error('BGP maintenance policy names collide');
-  const services = { schemaVersion: 1, kind: 'aws-ce-bgp-power-services', cloud: cloud.services, platform };
-  const statuses = [cloud.status, ...observations.map((o) => o.status)];
-  return {
-    services,
-    servicesSha256: canonicalSha256(services),
-    snapshots,
-    cloud,
-    observations,
-    status: statuses.every((s) => s === 'active')
-      ? 'active'
-      : statuses.every((s) => s === 'withdrawn')
-        ? 'withdrawn'
-        : 'pending',
-    freshness: 'unqualified',
-    traffic: 'unknown',
-    collectedAt: new Date().toISOString(),
-  };
-}
-var init_whole_site_power_bgp_services = __esm(() => {
-  init_bgp_power_policy();
-  init_canonical();
-  init_whole_site_power_connect();
-});
-
 // plugins/aws/src/ce/whole-site-power-routes.ts
-import { isIP as isIP14 } from 'node:net';
+import { isIP as isIP15 } from 'node:net';
 
-function object33(value) {
+function object38(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed direct route evidence');
   return value;
 }
 function rows10(value) {
   if (!Array.isArray(value)) throw Error('Incomplete direct route evidence');
-  return value.map(object33);
+  return value.map(object38);
 }
 function network4(cidr) {
   const parts = cidr.split('/'),
     bits = Number(parts[1]);
-  if (parts.length !== 2 || isIP14(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
+  if (parts.length !== 2 || isIP15(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
     throw Error('Malformed direct service route prefix');
   const start = parts[0].split('.').reduce((value, octet) => value * 256 + Number(octet), 0),
     size = 2 ** (32 - bits);
@@ -22567,7 +24301,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
         !base.intent.brownfield.routeTableIds.includes(route.routeTableId) ||
         route.node !== 1 ||
         parts.length !== 2 ||
-        isIP14(parts[0]) !== 4 ||
+        isIP15(parts[0]) !== 4 ||
         !Number.isInteger(prefix) ||
         prefix < 1 ||
         prefix > 32
@@ -22583,7 +24317,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode) throw Error('Direct route service unavailable');
-    const data = object33(JSON.parse(result.stdout));
+    const data = object38(JSON.parse(result.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(data, k)))
       throw Error('Partial direct route evidence');
     return data;
@@ -22598,8 +24332,8 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
     enis[0].NetworkInterfaceId !== slo ||
     enis[0].OwnerId !== base.accountId ||
     !/^subnet-[a-f0-9]{8,17}$/.test(String(enis[0].SubnetId)) ||
-    object33(enis[0].Attachment).InstanceId !== instance ||
-    object33(enis[0].Attachment).DeviceIndex !== 0
+    object38(enis[0].Attachment).InstanceId !== instance ||
+    object38(enis[0].Attachment).DeviceIndex !== 0
   )
     throw Error('Direct route SLO identity differs');
   const ids = [...new Set(routes.map((r) => r.routeTableId))];
@@ -22624,7 +24358,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
           a.Main === true ||
           a.SubnetId === enis[0].SubnetId ||
           !/^subnet-[a-f0-9]{8,17}$/.test(String(a.SubnetId)) ||
-          object33(a.AssociationState).State !== 'associated',
+          object38(a.AssociationState).State !== 'associated',
       ) ||
       new Set(associations.map((a) => a.SubnetId)).size !== associations.length
     )
@@ -22713,301 +24447,16 @@ var init_whole_site_power_routes = __esm(() => {
   init_canonical();
 });
 
-// plugins/aws/src/ce/whole-site-power-services.ts
-import { createHash as createHash20 } from 'node:crypto';
-import { isIP as isIP15 } from 'node:net';
-
-function object34(v) {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed NLB service evidence');
-  return v;
-}
-function list3(v) {
-  if (!Array.isArray(v)) throw Error('Incomplete NLB service evidence');
-  return v.map(object34);
-}
-function exactly2(v) {
-  const rows = list3(v);
-  if (rows.length !== 1) throw Error('NLB service cardinality differs');
-  return rows[0];
-}
-async function collectAwsPowerNlbServices(base, values, raw, signal) {
-  verifyAwsCePlan(base);
-  const ingress = base.intent.ingress;
-  if (ingress?.mode !== 'nlb' || base.topology.nodeCount !== 1 || ingress.listener.privateAddresses?.length !== 1)
-    throw Error('Exact single-site NLB service configuration required');
-  const prefix = `arn:${base.intent.partition ?? 'aws'}:elasticloadbalancing:${base.region}:${base.accountId}:`;
-  const lb = values.__NLB_ARN__;
-  const tg = values.__NLB_TARGET_GROUP_ARN__;
-  const listener = values.__NLB_LISTENER_ARN__;
-  for (const [arn, kind] of [
-    [lb, 'loadbalancer/net/'],
-    [tg, 'targetgroup/'],
-    [listener, 'listener/net/'],
-  ])
-    if (typeof arn !== 'string' || !arn.startsWith(prefix + kind) || !/^[a-zA-Z0-9:/_.-]+$/.test(arn))
-      throw Error('NLB runtime identity unresolved or foreign');
-  const target = { Id: ingress.listener.privateAddresses[0], Port: ingress.port, AvailabilityZone: 'all' };
-  if (isIP15(target.Id) !== 4 || !Number.isInteger(target.Port) || target.Port < 1 || target.Port > 65535)
-    throw Error('NLB target identity unresolved');
-  const api = scopedAwsApi(raw, base.intent.awsProfile ?? 'default', signal);
-  const read = async (args) => {
-    const r = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
-    if (r.exitCode) throw Error('NLB service unavailable');
-    const v = object34(JSON.parse(r.stdout));
-    if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(v, k)))
-      throw Error('Partial NLB service evidence');
-    return v;
-  };
-  if ((await read(['sts', 'get-caller-identity'])).Account !== base.accountId) throw Error('NLB account differs');
-  const tags = list3((await read(['elbv2', 'describe-tags', '--resource-arns', lb, tg, listener])).TagDescriptions);
-  if (tags.length !== 3 || new Set(tags.map((v) => v.ResourceArn)).size !== 3)
-    throw Error('NLB ownership cardinality differs');
-  const expected = {
-    'xcsh-managed-by': 'aws-ce',
-    'xcsh-deployment-id': base.deploymentName,
-    'xcsh-execution-engine': base.engine,
-    'xcsh-plan-sha256': base.planSha256,
-  };
-  for (const arn of [lb, tg, listener]) {
-    const rows = tags.filter((v) => v.ResourceArn === arn);
-    if (rows.length !== 1) throw Error('NLB ownership missing');
-    const entries = list3(rows[0].Tags);
-    if (
-      new Set(entries.map((v) => v.Key)).size !== entries.length ||
-      entries.some((v) => typeof v.Key !== 'string' || typeof v.Value !== 'string') ||
-      Object.entries(expected).some(([k, v]) => !entries.some((t) => t.Key === k && t.Value === v))
-    )
-      throw Error('Foreign NLB ownership');
-  }
-  const loadBalancer = exactly2(
-    (await read(['elbv2', 'describe-load-balancers', '--load-balancer-arns', lb])).LoadBalancers,
-  );
-  if (
-    loadBalancer.LoadBalancerArn !== lb ||
-    loadBalancer.Type !== 'network' ||
-    loadBalancer.Scheme !== 'internal' ||
-    loadBalancer.VpcId !== ingress.loadBalancer.vpcId ||
-    object34(loadBalancer.State).Code !== 'active'
-  )
-    throw Error('NLB retained load balancer differs');
-  const zones = list3(loadBalancer.AvailabilityZones);
-  const actual = zones
-    .map((z) => ({
-      subnetId: z.SubnetId,
-      addresses: list3(z.LoadBalancerAddresses)
-        .map((a) => a.PrivateIPv4Address)
-        .sort(),
-    }))
-    .sort((a, b) => String(a.subnetId).localeCompare(String(b.subnetId)));
-  const expectedZones = ingress.loadBalancer.subnetIds
-    .map((subnetId, i) => ({ subnetId, addresses: [ingress.loadBalancer.privateAddresses[i]] }))
-    .sort((a, b) => a.subnetId.localeCompare(b.subnetId));
-  if (canonicalSha256(actual) !== canonicalSha256(expectedZones)) throw Error('NLB subnet/address identity differs');
-  const group = exactly2((await read(['elbv2', 'describe-target-groups', '--target-group-arns', tg])).TargetGroups);
-  if (
-    group.TargetGroupArn !== tg ||
-    group.TargetType !== 'ip' ||
-    group.Protocol !== 'TCP' ||
-    group.Port !== target.Port ||
-    group.VpcId !== ingress.loadBalancer.vpcId ||
-    canonicalSha256(group.LoadBalancerArns) !== canonicalSha256([lb])
-  )
-    throw Error('NLB retained target group differs');
-  const retainedListener = exactly2(
-    (await read(['elbv2', 'describe-listeners', '--listener-arns', listener])).Listeners,
-  );
-  const action = exactly2(retainedListener.DefaultActions);
-  if (
-    retainedListener.ListenerArn !== listener ||
-    retainedListener.LoadBalancerArn !== lb ||
-    retainedListener.Port !== target.Port ||
-    retainedListener.Protocol !== 'TCP' ||
-    action.Type !== 'forward' ||
-    action.TargetGroupArn !== tg
-  )
-    throw Error('NLB retained listener differs');
-  const membership = list3(
-    (await read(['elbv2', 'describe-target-health', '--target-group-arn', tg])).TargetHealthDescriptions,
-  );
-  if (membership.length > 1) throw Error('Duplicate NLB membership');
-  let status = 'withdrawn';
-  if (membership.length) {
-    const row = membership[0];
-    if (canonicalSha256(object34(row.Target)) !== canonicalSha256(target)) throw Error('Foreign NLB target membership');
-    const health = object34(row.TargetHealth);
-    if (
-      !['healthy', 'initial', 'unhealthy', 'unused', 'draining', 'unavailable', 'unhealthy.draining'].includes(
-        String(health.State),
-      )
-    )
-      throw Error('NLB membership health unavailable');
-    status = health.State === 'healthy' ? 'active' : 'pending';
-  }
-  const services = {
-    schemaVersion: 1,
-    kind: 'aws-ce-nlb-power-services',
-    sourcePlanSha256: base.planSha256,
-    engine: base.engine,
-    accountId: base.accountId,
-    region: base.region,
-    loadBalancerArn: lb,
-    targetGroupArn: tg,
-    listenerArn: listener,
-    vpcId: ingress.loadBalancer.vpcId,
-    zones: expectedZones,
-    target,
-  };
-  return {
-    services,
-    servicesSha256: canonicalSha256(services),
-    status,
-    traffic: 'unknown',
-    collectedAt: new Date().toISOString(),
-  };
-}
-function reviseAwsTerraformNlbMembership(base, services, configuration, effect, retained) {
-  verifyAwsCePlan(base);
-  if (
-    base.engine !== 'terraform' ||
-    services.engine !== base.engine ||
-    services.sourcePlanSha256 !== base.planSha256 ||
-    services.accountId !== base.accountId ||
-    services.region !== base.region ||
-    base.topology.nodeCount !== 1 ||
-    !['withdraw', 'restore'].includes(effect)
-  )
-    throw Error('Terraform NLB membership ownership differs');
-  const before = object34(JSON.parse(configuration));
-  const after = structuredClone(before);
-  const terraform = object34(after.terraform);
-  const aws = object34(object34(terraform.required_providers).aws);
-  const provider = object34(object34(after.provider).aws);
-  if (
-    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
-    aws.source !== 'hashicorp/aws' ||
-    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
-    provider.region !== base.region ||
-    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
-    terraform.backend ||
-    terraform.cloud
-  )
-    throw Error('Terraform NLB provider scope differs');
-  const resources = object34(after.resource);
-  let attachment;
-  if (effect === 'withdraw') {
-    const attachments = object34(resources.aws_lb_target_group_attachment);
-    if (Object.keys(attachments).join(',') !== 'node_1') throw Error('Terraform NLB attachment cardinality differs');
-    attachment = object34(attachments.node_1);
-    if (
-      attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
-      attachment.target_id !== services.target.Id ||
-      attachment.port !== services.target.Port ||
-      attachment.availability_zone !== 'all' ||
-      canonicalSha256(attachment.depends_on) !== canonicalSha256(['aws_instance.node_1']) ||
-      Object.keys(attachment).sort().join(',') !== 'availability_zone,depends_on,port,target_group_arn,target_id'
-    )
-      throw Error('Terraform NLB attachment identity differs');
-    delete resources.aws_lb_target_group_attachment;
-  } else {
-    if (
-      retained?.effect !== 'withdraw' ||
-      retained.servicesSha256 !== canonicalSha256(services) ||
-      retained.address !== 'aws_lb_target_group_attachment.node_1' ||
-      hash11(retained.configuration) !== retained.afterSha256 ||
-      resources.aws_lb_target_group_attachment !== undefined
-    )
-      throw Error('Terraform NLB restoration requires exact retained withdrawal');
-    attachment = object34(retained.attachment);
-    if (
-      attachment.target_group_arn !== `\${aws_lb_target_group.ce.arn}` ||
-      attachment.target_id !== services.target.Id ||
-      attachment.port !== services.target.Port ||
-      attachment.availability_zone !== 'all' ||
-      canonicalSha256(attachment.depends_on) !== canonicalSha256(['aws_instance.node_1']) ||
-      Object.keys(attachment).sort().join(',') !== 'availability_zone,depends_on,port,target_group_arn,target_id'
-    )
-      throw Error('Terraform NLB retained attachment differs');
-    resources.aws_lb_target_group_attachment = { node_1: structuredClone(attachment) };
-  }
-  const next = JSON.stringify(after);
-  return {
-    configuration: next,
-    beforeSha256: hash11(configuration),
-    afterSha256: hash11(next),
-    servicesSha256: canonicalSha256(services),
-    address: 'aws_lb_target_group_attachment.node_1',
-    effect,
-    expectedActions: [effect === 'withdraw' ? 'delete' : 'create'],
-    attachment: structuredClone(attachment),
-  };
-}
-function validateAwsTerraformNlbMembershipReceipt(base, services, revision, receipt, before, after) {
-  verifyAwsCePlan(base);
-  if (
-    base.engine !== 'terraform' ||
-    services.engine !== base.engine ||
-    services.sourcePlanSha256 !== base.planSha256 ||
-    revision.servicesSha256 !== canonicalSha256(services) ||
-    revision.address !== 'aws_lb_target_group_attachment.node_1' ||
-    !['withdraw', 'restore'].includes(revision.effect) ||
-    revision.afterSha256 !== hash11(revision.configuration) ||
-    receipt.schemaVersion !== 1 ||
-    receipt.engine !== 'terraform' ||
-    receipt.deploymentId !== base.deploymentName ||
-    receipt.backendIdentity !== `local:${base.deploymentName}` ||
-    receipt.configurationSha256 !== revision.afterSha256 ||
-    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
-    receipt.operation ||
-    receipt.actionInvocations?.length ||
-    receipt.noChanges ||
-    new Set(receipt.changes.map((r) => r.address)).size !== receipt.changes.length
-  )
-    throw Error('Terraform NLB membership saved-plan scope differs');
-  const mutations = receipt.changes.filter((r) => canonicalSha256(r.actions) !== canonicalSha256(['no-op']));
-  const expected = revision.effect === 'withdraw' ? ['delete'] : ['create'];
-  if (
-    mutations.length !== 1 ||
-    mutations[0].address !== revision.address ||
-    mutations[0].type !== 'aws_lb_target_group_attachment' ||
-    canonicalSha256(mutations[0].actions) !== canonicalSha256(expected) ||
-    canonicalSha256(revision.expectedActions) !== canonicalSha256(expected)
-  )
-    throw Error('Terraform NLB membership unrelated or replacement mutation');
-  if (
-    Object.keys(before).length !== 1 ||
-    Object.keys(after).length !== 1 ||
-    !Object.hasOwn(before, revision.address) ||
-    !Object.hasOwn(after, revision.address)
-  )
-    throw Error('Terraform NLB membership projection incomplete');
-  const owned = {
-    target_group_arn: services.targetGroupArn,
-    target_id: services.target.Id,
-    port: services.target.Port,
-    availability_zone: 'all',
-  };
-  const absent = revision.effect === 'withdraw' ? after[revision.address] : before[revision.address];
-  const present = revision.effect === 'withdraw' ? before[revision.address] : after[revision.address];
-  if (absent !== null || canonicalSha256(present) !== canonicalSha256(owned))
-    throw Error('Terraform NLB membership resolved identity differs');
-}
-var hash11 = (v) => createHash20('sha256').update(v).digest('hex');
-var init_whole_site_power_services = __esm(() => {
-  init_artifacts();
-  init_canonical();
-});
-
 // plugins/aws/src/ce/whole-site-power-tgw.ts
 import { isIP as isIP16 } from 'node:net';
 
-function object35(value) {
+function object39(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed static TGW evidence');
   return value;
 }
 function rows11(value) {
   if (!Array.isArray(value)) throw Error('Incomplete static TGW evidence');
-  return value.map(object35);
+  return value.map(object39);
 }
 function exactly3(value) {
   const items = rows11(value);
@@ -23054,7 +24503,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
   const read = async (args) => {
     const result = await api.exec('aws', [...args, '--region', base.region, '--output', 'json']);
     if (result.exitCode) throw Error('Static TGW service unavailable');
-    const data = object35(JSON.parse(result.stdout));
+    const data = object39(JSON.parse(result.stdout));
     if (['NextToken', 'nextToken', 'NextMarker', 'Marker'].some((k) => Object.hasOwn(data, k)))
       throw Error('Partial static TGW evidence');
     return data;
@@ -23088,7 +24537,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
     transport.VpcId !== vpc ||
     transport.VpcOwnerId !== base.accountId ||
     transport.State !== 'available' ||
-    object35(transport.Options).ApplianceModeSupport !== 'enable'
+    object39(transport.Options).ApplianceModeSupport !== 'enable'
   )
     throw Error('Static TGW retained transport differs');
   const transportSubnets = transport.SubnetIds;
@@ -23138,8 +24587,8 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       nic.OwnerId !== base.accountId ||
       nic.VpcId !== vpc ||
       !transportSubnets.includes(nic.SubnetId) ||
-      object35(nic.Attachment).InstanceId !== instance ||
-      object35(nic.Attachment).DeviceIndex !== 1
+      object39(nic.Attachment).InstanceId !== instance ||
+      object39(nic.Attachment).DeviceIndex !== 1
     )
       throw Error('Static TGW SLI transport identity differs');
     const local = exactly3((await read(['ec2', 'describe-route-tables', '--route-table-ids', rt])).RouteTables);
@@ -23152,7 +24601,7 @@ async function collectAwsPowerStaticTgwRoutes(base, values, raw, signal) {
       localAssociations.length !== 1 ||
       localAssociations[0].SubnetId !== nic.SubnetId ||
       localAssociations[0].Main === true ||
-      object35(localAssociations[0].AssociationState).State !== 'associated'
+      object39(localAssociations[0].AssociationState).State !== 'associated'
     )
       throw Error('Static TGW appliance table association differs');
     const localRoutes = rows11(local.Routes);
@@ -23395,474 +24844,6 @@ var init_whole_site_power_bindings = __esm(() => {
   init_whole_site_power_service_inventory();
 });
 
-// plugins/aws/src/ce/bgp-power-controller.ts
-async function optional20(storage, name) {
-  try {
-    return await storage.read(name);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-}
-async function context(base, plan, effect, storage) {
-  verifyAwsWholeSitePowerPlan(base, plan);
-  await storage.verify();
-  if (
-    !['native', 'terraform'].includes(base.engine) ||
-    base.topology.nodeCount !== 1 ||
-    plan.bindings.nodes.length !== 1 ||
-    plan.operation !== (effect === 'withdraw' ? 'stop' : 'start') ||
-    canonicalSha256(storage.owner) !== canonicalSha256(plan.bindings.owner) ||
-    canonicalSha256(await storage.read(`${plan.planId}.json`)) !== canonicalSha256(plan)
-  )
-    throw Error('Native BGP owner or immutable plan differs');
-  const cp = await storage.read(`${plan.planId}-checkpoint.json`);
-  const attempt = cp.pending;
-  if (
-    cp.schemaVersion !== 1 ||
-    cp.planSha256 !== plan.planSha256 ||
-    cp.bindingsSha256 !== plan.bindingsSha256 ||
-    cp.step !== (effect === 'withdraw' ? 1 : effect === 'restore' ? 3 : 5) ||
-    cp.complete !== false ||
-    !attempt ||
-    attempt.effect !== effect ||
-    attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
-    canonicalSha256(cp.attempts?.[effect]) !== canonicalSha256(attempt) ||
-    !Number.isFinite(Date.parse(attempt.originalAttemptAt)) ||
-    Date.parse(attempt.originalAttemptAt) > Date.now()
-  )
-    throw Error('Native BGP original attempt differs');
-  return {
-    schemaVersion: 1,
-    engine: base.engine,
-    planSha256: plan.planSha256,
-    bindingsSha256: plan.bindingsSha256,
-    servicesSha256: powerServiceComponentSha256(base, plan.bindings, 'bgp'),
-    attempt,
-  };
-}
-function filename(plan, effect, suffix) {
-  return `${plan.planId}-${effect}-${plan.engine}-bgp-${suffix}.json`;
-}
-function validatePreparation(prep, marker) {
-  if (
-    canonicalSha256(prep.marker) !== canonicalSha256(marker) ||
-    prep.servicesSha256 !== marker.servicesSha256 ||
-    canonicalSha256(prep.services) !== marker.servicesSha256 ||
-    prep.services.platform.length !== 1 ||
-    prep.snapshots.length !== 1 ||
-    prep.policies.length !== 1
-  )
-    throw Error('Native BGP retained preparation differs');
-  const s = prep.services.platform[0],
-    snapshot = prep.snapshots[0],
-    policy = prep.policies[0];
-  if (
-    snapshot.kind !== 'bgp' ||
-    canonicalSha256(snapshot.binding) !== canonicalSha256(s.binding) ||
-    snapshot.name !== s.bgpName ||
-    snapshot.uid !== s.bgpUid ||
-    snapshot.siteUid !== s.siteUid ||
-    snapshot.contractFingerprint !== s.contractFingerprint ||
-    !snapshot.resourceVersion ||
-    (marker.attempt.effect === 'withdraw' &&
-      policy.attemptId !== canonicalSha256({ marker, siteUid: s.siteUid, policy: s.revision.policy })) ||
-    canonicalSha256(snapshot.spec) !==
-      canonicalSha256(marker.attempt.effect === 'withdraw' ? s.originalSpec : s.revision.bgpSpec) ||
-    canonicalSha256(policy.binding) !== canonicalSha256(s.binding) ||
-    policy.siteUid !== s.siteUid ||
-    policy.name !== s.revision.policy.name ||
-    canonicalSha256(policy.spec) !== canonicalSha256(s.revision.policy.spec) ||
-    policy.contractFingerprint !== s.contractFingerprint ||
-    !/^[a-f0-9]{64}$/.test(policy.attemptId)
-  )
-    throw Error('Native BGP prepared snapshot or policy differs');
-}
-async function observe2(base, plan, values, api, runtime, prep, signal) {
-  const observed = await collectAwsPowerBgpServices(base, values, api, runtime, signal, prep?.services.platform);
-  if (observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp'))
-    throw Error('Native BGP service identity differs');
-  return observed;
-}
-function policyDispatch(intent) {
-  return { ...intent, kind: 'bgp_routing_policy', phase: 'power-policy-create-dispatch' };
-}
-function replacementDispatch(snapshot) {
-  return {
-    kind: snapshot.kind,
-    name: snapshot.name,
-    uid: snapshot.uid,
-    siteUid: snapshot.siteUid,
-    resourceVersion: snapshot.resourceVersion,
-    contractFingerprint: snapshot.contractFingerprint,
-    phase: 'power-routing-dispatch',
-  };
-}
-async function policy(storage, plan, prep, runtime, submit, signal) {
-  const intent = prep.policies[0],
-    name = filename(plan, 'withdraw', 'policy-dispatch'),
-    expected = { marker: prep.marker, intent, record: policyDispatch(intent) },
-    saved = await optional20(storage, name);
-  if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
-    throw Error('Native BGP policy dispatch differs');
-  const createPolicy = (
-    plan.engine === 'native' ? runtime.createPowerRoutingPolicy : runtime.createTerraformPowerRoutingPolicy
-  ).bind(runtime);
-  const result = await createPolicy(
-    intent,
-    saved !== undefined || !submit ? 'submitted' : 'not-submitted',
-    async (record) => {
-      if (canonicalSha256(record) !== canonicalSha256(expected.record))
-        throw Error('Native BGP policy callback differs');
-      await storage.write(name, expected);
-    },
-    signal,
-  );
-  if (result.status !== 'observed') return;
-  const { status: _status, collectedAt: _time, kind: _kind, uid: _uid, resourceVersion: _rv, ...actualIntent } = result;
-  if (canonicalSha256(actualIntent) !== canonicalSha256(intent) || !result.uid || !result.resourceVersion)
-    throw Error('Native BGP policy readback differs');
-  const receiptName = filename(plan, 'withdraw', 'policy-created'),
-    retained = await optional20(storage, receiptName);
-  if (
-    retained &&
-    (retained.uid !== result.uid ||
-      retained.resourceVersion !== result.resourceVersion ||
-      canonicalSha256({ ...retained, collectedAt: '' }) !== canonicalSha256({ ...result, collectedAt: '' }))
-  )
-    throw Error('Native BGP policy created identity changed');
-  if (!retained) await storage.write(receiptName, result);
-  return retained ?? result;
-}
-async function retainedStop(base, plan, storage) {
-  if (!plan.maintenance) throw Error('Native BGP restoration maintenance missing');
-  const id = `aws-ce-power-${plan.maintenance.stopPlanSha256.slice(0, 24)}`;
-  const stop = await storage.read(`${id}.json`);
-  verifyAwsWholeSitePowerPlan(base, stop);
-  const prep = await storage.read(filename(stop, 'withdraw', 'preparation'));
-  const outcome = await storage.read(filename(stop, 'withdraw', 'outcome'));
-  validatePreparation(prep, outcome.marker);
-  const checkpoint = await storage.read(`${stop.planId}-checkpoint.json`);
-  if (
-    checkpoint.schemaVersion !== 1 ||
-    checkpoint.planSha256 !== stop.planSha256 ||
-    checkpoint.bindingsSha256 !== stop.bindingsSha256 ||
-    canonicalSha256(checkpoint.attempts?.withdraw) !== canonicalSha256(prep.marker.attempt)
-  )
-    throw Error('Native BGP retained original withdrawal attempt differs');
-  if (
-    stop.operation !== 'stop' ||
-    stop.planSha256 !== plan.maintenance.stopPlanSha256 ||
-    stop.transitionId !== plan.transitionId ||
-    stop.bindingsSha256 !== plan.bindingsSha256 ||
-    outcome.marker.planSha256 !== stop.planSha256 ||
-    outcome.marker.bindingsSha256 !== stop.bindingsSha256 ||
-    outcome.marker.attempt.effect !== 'withdraw' ||
-    outcome.observed.status !== 'withdrawn' ||
-    outcome.observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
-    canonicalSha256(outcome.observed.services) !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
-    canonicalSha256(outcome.observed.snapshots[0].spec) !== canonicalSha256(prep.services.platform[0].revision.bgpSpec)
-  )
-    throw Error('Native BGP completed withdrawal differs');
-  const created = await storage.read(filename(stop, 'withdraw', 'policy-created'));
-  const { status, collectedAt: _time, kind, uid, resourceVersion, ...intent } = created;
-  if (
-    status !== 'observed' ||
-    kind !== 'bgp_routing_policy' ||
-    !uid ||
-    !resourceVersion ||
-    canonicalSha256(intent) !== canonicalSha256(prep.policies[0])
-  )
-    throw Error('Native BGP retained created policy differs');
-  const creation = await storage.read(filename(stop, 'withdraw', 'policy-dispatch'));
-  if (
-    canonicalSha256(creation) !==
-    canonicalSha256({ marker: prep.marker, intent: prep.policies[0], record: policyDispatch(prep.policies[0]) })
-  )
-    throw Error('Native BGP retained creation dispatch differs');
-  const dispatch = await storage.read(filename(stop, 'withdraw', 'replacement-dispatch'));
-  if (
-    canonicalSha256(dispatch) !==
-    canonicalSha256({
-      marker: prep.marker,
-      snapshot: prep.snapshots[0],
-      desired: prep.services.platform[0].revision.bgpSpec,
-      policy: created,
-      record: replacementDispatch(prep.snapshots[0]),
-    })
-  )
-    throw Error('Native BGP retained replacement differs');
-  return { stop, prep };
-}
-async function assertNoDispatchWithoutPreparation(storage, plan, effect) {
-  for (const suffix of [
-    'replacement-dispatch',
-    'outcome',
-    ...(effect === 'withdraw' ? ['policy-dispatch', 'policy-created'] : []),
-  ])
-    if ((await optional20(storage, filename(plan, effect, suffix))) !== undefined)
-      throw Error('Native BGP submitted attempt preparation missing');
-}
-async function prepare(base, plan, effect, marker, storage, values, api, runtime, signal) {
-  const saved = await optional20(storage, filename(plan, effect, 'preparation'));
-  if (!saved) await assertNoDispatchWithoutPreparation(storage, plan, effect);
-  const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
-  if (saved) {
-    validatePreparation(saved, marker);
-    return { prep: saved, prior };
-  }
-  const observed = await observe2(base, plan, values, api, runtime, prior?.prep, signal);
-  if (observed.status !== (effect === 'withdraw' ? 'active' : 'withdrawn'))
-    throw Error('Native BGP prerequisite pending');
-  const policies =
-    prior?.prep.policies ??
-    observed.services.platform.map((s) => ({
-      binding: s.binding,
-      siteUid: s.siteUid,
-      name: s.revision.policy.name,
-      spec: s.revision.policy.spec,
-      contractFingerprint: s.contractFingerprint,
-      attemptId: canonicalSha256({ marker, siteUid: s.siteUid, policy: s.revision.policy }),
-    }));
-  const prep = {
-    marker,
-    services: observed.services,
-    servicesSha256: observed.servicesSha256,
-    snapshots: observed.snapshots,
-    policies,
-  };
-  validatePreparation(prep, marker);
-  signal?.throwIfAborted();
-  await storage.write(filename(plan, effect, 'preparation'), prep);
-  return { prep, prior };
-}
-async function dispatchAwsNativeBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
-  if (base.engine !== 'native') throw Error('BGP owning engine differs');
-  return dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal);
-}
-async function dispatchAwsTerraformBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
-  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
-  return dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal);
-}
-async function dispatchAwsOwnedBgpPower(base, plan, authorization, effect, storage, values, api, runtime, signal) {
-  if (authorization !== plan.planSha256) throw Error('Native BGP authorization differs');
-  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
-  try {
-    const marker = await context(base, plan, effect, storage),
-      { prep, prior } = await prepare(base, plan, effect, marker, storage, values, api, runtime, signal);
-    const created = await policy(
-      storage,
-      prior?.stop ?? plan,
-      prior?.prep ?? prep,
-      runtime,
-      effect === 'withdraw',
-      signal,
-    );
-    if (!created) throw Error('Native BGP policy creation pending; reconcile original attempt');
-    const current = await observe2(base, plan, values, api, runtime, prep, signal),
-      snapshot = prep.snapshots[0],
-      desired =
-        effect === 'withdraw' ? prep.services.platform[0].revision.bgpSpec : prep.services.platform[0].originalSpec,
-      expected = { marker, snapshot, desired, policy: created, record: replacementDispatch(snapshot) },
-      name = filename(plan, effect, 'replacement-dispatch'),
-      saved = await optional20(storage, name);
-    if (saved) expected.policy = saved.policy;
-    if (
-      saved &&
-      canonicalSha256({ ...saved, policy: { ...saved.policy, collectedAt: '' } }) !==
-        canonicalSha256({ ...expected, policy: { ...created, collectedAt: '' } })
-    )
-      throw Error('Native BGP replacement dispatch differs');
-    if (saved) {
-      if (canonicalSha256(current.snapshots[0].spec) !== canonicalSha256(desired))
-        throw Error('Native BGP submitted replacement pending; reconcile original attempt');
-      return;
-    }
-    if (
-      canonicalSha256(current.snapshots[0].spec) !== canonicalSha256(snapshot.spec) ||
-      current.snapshots[0].resourceVersion !== snapshot.resourceVersion
-    )
-      throw Error('Native BGP original revision changed');
-    await runtime.replacePowerRouting(
-      { ...snapshot, kind: 'bgp' },
-      desired,
-      async (record) => {
-        if (canonicalSha256(record) !== canonicalSha256(expected.record))
-          throw Error('Native BGP replacement callback differs');
-        await storage.write(name, expected);
-      },
-      signal,
-    );
-  } finally {
-    await release();
-  }
-}
-async function reconcileAwsNativeBgpPower(
-  base,
-  plan,
-  effect,
-  originalAttemptAt,
-  storage,
-  values,
-  api,
-  runtime,
-  signal,
-) {
-  if (base.engine !== 'native') throw Error('BGP owning engine differs');
-  return reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal);
-}
-async function reconcileAwsTerraformBgpPower(
-  base,
-  plan,
-  effect,
-  originalAttemptAt,
-  storage,
-  values,
-  api,
-  runtime,
-  signal,
-) {
-  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
-  return reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal);
-}
-async function reconcileAwsOwnedBgpPower(base, plan, effect, originalAttemptAt, storage, values, api, runtime, signal) {
-  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
-  try {
-    const marker = await context(base, plan, effect, storage);
-    if (marker.attempt.originalAttemptAt !== originalAttemptAt) throw Error('Native BGP original attempt differs');
-    const prep = await optional20(storage, filename(plan, effect, 'preparation'));
-    if (!prep) {
-      await assertNoDispatchWithoutPreparation(storage, plan, effect);
-      return 'not-submitted';
-    }
-    validatePreparation(prep, marker);
-    const prior = effect === 'restore' ? await retainedStop(base, plan, storage) : undefined;
-    const created = await policy(storage, prior?.stop ?? plan, prior?.prep ?? prep, runtime, false, signal);
-    const dispatch = await optional20(storage, filename(plan, effect, 'replacement-dispatch'));
-    if (!dispatch) {
-      const submitted = await optional20(storage, filename(prior?.stop ?? plan, 'withdraw', 'policy-dispatch'));
-      return submitted && !created ? 'pending' : 'not-submitted';
-    }
-    if (!created) throw Error('Native BGP retained policy missing');
-    const desired =
-      effect === 'withdraw' ? prep.services.platform[0].revision.bgpSpec : prep.services.platform[0].originalSpec;
-    if (
-      canonicalSha256({ ...dispatch, policy: { ...dispatch.policy, collectedAt: '' } }) !==
-      canonicalSha256({
-        marker,
-        snapshot: prep.snapshots[0],
-        desired,
-        policy: { ...created, collectedAt: '' },
-        record: replacementDispatch(prep.snapshots[0]),
-      })
-    )
-      throw Error('Native BGP replacement dispatch differs');
-    const observed = await observe2(base, plan, values, api, runtime, prep, signal);
-    if (
-      canonicalSha256(observed.snapshots[0].spec) !== canonicalSha256(desired) ||
-      observed.status !== (effect === 'withdraw' ? 'withdrawn' : 'active')
-    )
-      return 'pending';
-    await storage.write(filename(plan, effect, 'outcome'), { marker, observed, collectedAt: new Date().toISOString() });
-    return 'completed';
-  } finally {
-    await release();
-  }
-}
-async function retireAwsNativeBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
-  if (base.engine !== 'native') throw Error('BGP owning engine differs');
-  return retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal);
-}
-async function retireAwsTerraformBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
-  if (base.engine !== 'terraform') throw Error('BGP owning engine differs');
-  return retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal);
-}
-async function retireAwsOwnedBgpPowerPolicy(base, plan, authorization, storage, values, api, runtime, signal) {
-  if (authorization !== plan.planSha256) throw Error('Native BGP retirement authorization differs');
-  const release = await acquireProcessLock(`${storage.directory}/.native-bgp-power-lock`);
-  try {
-    const marker = await context(base, plan, 'release', storage),
-      prior = await retainedStop(base, plan, storage);
-    if (
-      canonicalSha256(await storage.read(`${prior.stop.planId}-maintenance.json`)) !== canonicalSha256(plan.maintenance)
-    )
-      throw Error('Native BGP retained maintenance differs');
-    const cp = await storage.read(`${plan.planId}-checkpoint.json`);
-    const currentGate = await storage.read(`${plan.planId}-restored-last-evidence.json`);
-    if (
-      !cp.evidence?.restored ||
-      !evidencePasses(plan, 'restored', cp.evidence.restored, Date.now()) ||
-      !evidencePasses(plan, 'restored', currentGate, Date.now())
-    )
-      throw Error('Native BGP restored gate unavailable');
-    const prep = await storage.read(filename(plan, 'restore', 'preparation'));
-    const outcome = await storage.read(filename(plan, 'restore', 'outcome'));
-    validatePreparation(prep, outcome.marker);
-    if (
-      outcome.marker.planSha256 !== plan.planSha256 ||
-      outcome.marker.bindingsSha256 !== plan.bindingsSha256 ||
-      outcome.marker.attempt.effect !== 'restore' ||
-      outcome.observed.status !== 'active' ||
-      outcome.observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'bgp') ||
-      canonicalSha256(outcome.observed.services) !== powerServiceComponentSha256(base, plan.bindings, 'bgp')
-    )
-      throw Error('Native BGP retained restored outcome differs');
-    const created = await storage.read(filename(prior.stop, 'withdraw', 'policy-created'));
-    const restoredDispatch = await storage.read(filename(plan, 'restore', 'replacement-dispatch'));
-    if (
-      canonicalSha256(restoredDispatch) !==
-      canonicalSha256({
-        marker: prep.marker,
-        snapshot: prep.snapshots[0],
-        desired: prep.services.platform[0].originalSpec,
-        policy: created,
-        record: replacementDispatch(prep.snapshots[0]),
-      })
-    )
-      throw Error('Native BGP retained restoration dispatch differs');
-    const observed = await observe2(base, plan, values, api, runtime, prep, signal);
-    if (
-      observed.status !== 'active' ||
-      canonicalSha256(observed.snapshots[0].spec) !== canonicalSha256(prep.services.platform[0].originalSpec)
-    )
-      return 'pending';
-    const { status: _status, collectedAt: _time, kind: _kind, ...snapshot } = created;
-    const record = { ...snapshot, kind: 'bgp_routing_policy', phase: 'power-policy-delete-dispatch' },
-      expected = { marker, snapshot, record },
-      name = filename(plan, 'restore', 'policy-delete-dispatch'),
-      saved = await optional20(storage, name);
-    if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
-      throw Error('Native BGP retirement dispatch differs');
-    const deletePolicy = (
-      plan.engine === 'native' ? runtime.deletePowerRoutingPolicy : runtime.deleteTerraformPowerRoutingPolicy
-    ).bind(runtime);
-    const result = await deletePolicy(
-      snapshot,
-      saved === undefined ? 'not-submitted' : 'submitted',
-      async (actual) => {
-        if (canonicalSha256(actual) !== canonicalSha256(record)) throw Error('Native BGP retirement callback differs');
-        await storage.write(name, expected);
-      },
-      signal,
-    );
-    if (
-      canonicalSha256({ ...result, status: undefined, collectedAt: undefined }) !==
-      canonicalSha256({ ...snapshot, status: undefined, collectedAt: undefined })
-    )
-      throw Error('Native BGP retirement readback differs');
-    await storage.write(filename(plan, 'restore', 'policy-retirement-outcome'), { marker, result, observed });
-    return result.status === 'deleted' ? 'completed' : 'pending';
-  } finally {
-    await release();
-  }
-}
-var init_bgp_power_controller = __esm(() => {
-  init_process_lock();
-  init_canonical();
-  init_whole_site_power();
-  init_whole_site_power_bgp_services();
-  init_whole_site_power_service_binding();
-});
-
 // plugins/aws/src/ce/native-whole-site-power.ts
 async function optional21(storage, name) {
   try {
@@ -24022,141 +25003,6 @@ var init_terraform_power_session = __esm(() => {
   init_artifacts();
   init_terraform_brownfield_binding();
   init_terraform_foundation();
-});
-
-// plugins/aws/src/ce/terraform-whole-site-power.ts
-import { createHash as createHash21 } from 'node:crypto';
-
-function scope2(base, plan, effect) {
-  verifyAwsWholeSitePowerPlan(base, plan);
-  if (
-    base.engine !== 'terraform' ||
-    !['stop', 'start', 'release'].includes(effect) ||
-    plan.operation !== (effect === 'stop' ? 'stop' : 'start')
-  )
-    throw Error('Terraform power owning operation differs');
-  if (base.topology.nodeCount !== 1 || plan.bindings.nodes.length !== 1 || siteBindings(base).length !== 1)
-    throw Error('Terraform power requires separately qualified multi-node lifecycle');
-}
-function reviseAwsTerraformPowerConfiguration(base, plan, configuration, effect) {
-  scope2(base, plan, effect);
-  const before = object36(JSON.parse(configuration));
-  const after = structuredClone(before);
-  const terraform = object36(after.terraform);
-  const providers = object36(terraform.required_providers);
-  const awsRequired = object36(providers.aws);
-  const provider = object36(object36(after.provider).aws);
-  if (
-    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
-    awsRequired.source !== 'hashicorp/aws' ||
-    awsRequired.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
-    provider.region !== base.region ||
-    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
-    terraform.backend ||
-    terraform.cloud
-  )
-    throw Error('Terraform power provider, account, region or backend differs');
-  const resources = object36(after.resource);
-  const node = plan.bindings.nodes[0];
-  const vms = object36(resources.aws_instance);
-  if (Object.keys(vms).length !== 1 || !vms[`node_${node.nodeIndex}`])
-    throw Error('Terraform power selected VM cardinality differs');
-  const vm = object36(vms[`node_${node.nodeIndex}`]);
-  const tags = object36(vm.tags);
-  const expected = {
-    'xcsh-deployment-id': base.deploymentName,
-    'xcsh-execution-engine': 'terraform',
-    'xcsh-plan-sha256': base.planSha256,
-    'xcsh-node-index': String(node.nodeIndex),
-    'ves-io-site-name': node.siteName,
-  };
-  if (Object.entries(expected).some(([k, v]) => tags[k] !== v)) throw Error('Terraform power VM ownership differs');
-  const key = `ce_power_${node.nodeIndex}`;
-  const address = `aws_ec2_instance_state.${key}`;
-  const controls =
-    resources.aws_ec2_instance_state === undefined ? undefined : object36(resources.aws_ec2_instance_state);
-  let prior;
-  if (controls) {
-    if (Object.keys(controls).length !== 1 || !controls[key]) throw Error('Foreign Terraform power control');
-    prior = object36(controls[key]);
-    if (
-      prior.instance_id !== node.instanceId ||
-      prior.force !== false ||
-      !['running', 'stopped'].includes(String(prior.state)) ||
-      Object.keys(prior).sort().join(',') !== 'force,instance_id,state'
-    )
-      throw Error('Terraform power retained control differs');
-  }
-  if (effect !== 'stop' && !prior) throw Error('Terraform start/release requires a retained power control');
-  if (effect === 'release' && prior?.state !== 'running')
-    throw Error('Terraform release requires restored running control');
-  if (effect === 'release') delete resources.aws_ec2_instance_state;
-  else
-    resources.aws_ec2_instance_state = {
-      [key]: { instance_id: node.instanceId, state: effect === 'stop' ? 'stopped' : 'running', force: false },
-    };
-  const next = JSON.stringify(after);
-  return {
-    configuration: next,
-    beforeSha256: digest5(configuration),
-    afterSha256: digest5(next),
-    address,
-    instanceId: node.instanceId,
-    effect,
-    expectedActions: [effect === 'release' ? 'delete' : prior ? 'update' : 'create'],
-  };
-}
-function validateAwsTerraformPowerReceipt(base, plan, effect, revision, receipt, fields) {
-  scope2(base, plan, effect);
-  if (
-    revision.effect !== effect ||
-    revision.instanceId !== plan.bindings.nodes[0].instanceId ||
-    revision.address !== `aws_ec2_instance_state.ce_power_${plan.bindings.nodes[0].nodeIndex}` ||
-    revision.afterSha256 !== digest5(revision.configuration) ||
-    receipt.schemaVersion !== 1 ||
-    receipt.engine !== 'terraform' ||
-    receipt.deploymentId !== base.deploymentName ||
-    receipt.backendIdentity !== `local:${base.deploymentName}` ||
-    receipt.configurationSha256 !== revision.afterSha256 ||
-    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
-    receipt.operation ||
-    receipt.actionInvocations?.length ||
-    receipt.noChanges ||
-    new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
-  )
-    throw Error('Terraform power saved plan scope or revision differs');
-  const mutations = receipt.changes.filter((row) => canonicalSha256(row.actions) !== canonicalSha256(['no-op']));
-  if (mutations.length !== 1) throw Error('Terraform power saved plan must contain only one control mutation');
-  const change = mutations[0];
-  if (
-    change.address !== revision.address ||
-    change.type !== 'aws_ec2_instance_state' ||
-    canonicalSha256(change.actions) !== canonicalSha256(revision.expectedActions)
-  )
-    throw Error('Terraform power saved plan has unrelated or replacement changes');
-  if (effect === 'release') {
-    if (Object.keys(fields).length !== 1 || fields[revision.address] !== null)
-      throw Error('Terraform power removal projection differs');
-  } else {
-    const value = object36(fields[revision.address]);
-    if (
-      Object.keys(fields).length !== 1 ||
-      value.instance_id !== revision.instanceId ||
-      value.force !== false ||
-      value.state !== (effect === 'stop' ? 'stopped' : 'running')
-    )
-      throw Error('Terraform power planned identity/state unresolved or differs');
-  }
-}
-var object36 = (v) => {
-    if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Terraform power configuration');
-    return v;
-  },
-  digest5 = (s) => createHash21('sha256').update(s).digest('hex');
-var init_terraform_whole_site_power = __esm(() => {
-  init_canonical();
-  init_whole_site_power();
 });
 
 // plugins/aws/src/ce/terraform-power-controller.ts
@@ -25444,164 +26290,6 @@ var init_static_tgw_power_controller = __esm(() => {
   init_whole_site_power_tgw();
 });
 
-// plugins/aws/src/ce/terraform-direct-power.ts
-import { createHash as createHash22 } from 'node:crypto';
-
-function object37(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw Error('Malformed Terraform direct service configuration');
-  return value;
-}
-function expectedRoutes(base, services) {
-  verifyAwsCePlan(base);
-  const requested = [...base.intent.routes].sort(
-    (a, b) => a.routeTableId.localeCompare(b.routeTableId) || a.destinationCidr.localeCompare(b.destinationCidr),
-  );
-  if (
-    base.engine !== 'terraform' ||
-    base.topology.nodeCount !== 1 ||
-    base.intent.routing.profile !== 'direct-eni' ||
-    services.schemaVersion !== 1 ||
-    services.kind !== 'aws-ce-direct-route-power-services' ||
-    services.engine !== base.engine ||
-    services.sourcePlanSha256 !== base.planSha256 ||
-    services.accountId !== base.accountId ||
-    services.region !== base.region ||
-    !/^i-[a-f0-9]{8,17}$/.test(services.instanceId) ||
-    !/^eni-[a-f0-9]{8,17}$/.test(services.sloNetworkInterfaceId) ||
-    !/^subnet-[a-f0-9]{8,17}$/.test(String(services.sloSubnetId)) ||
-    !requested.length ||
-    canonicalSha256(
-      services.routes.map((r) => ({ routeTableId: r.routeTableId, destinationCidr: r.destinationCidr, node: 1 })),
-    ) !== canonicalSha256(requested) ||
-    services.routes.some(
-      (r) =>
-        !/^eni-[a-f0-9]{8,17}$/.test(r.networkInterfaceId) ||
-        r.networkInterfaceId === services.sloNetworkInterfaceId ||
-        !/^rtb-[a-f0-9]{8,17}$/.test(r.routeTableId) ||
-        !base.intent.brownfield.routeTableIds.includes(r.routeTableId),
-    ) ||
-    new Set(services.routes.map((r) => r.networkInterfaceId)).size !== 1 ||
-    new Set(services.routes.map((r) => `${r.routeTableId}/${r.destinationCidr}`)).size !== requested.length
-  )
-    throw Error('Terraform direct service scope differs');
-  return Object.fromEntries(
-    services.routes.map((route, index) => [
-      `direct_${index}`,
-      {
-        route_table_id: route.routeTableId,
-        destination_cidr_block: route.destinationCidr,
-        network_interface_id: route.networkInterfaceId,
-      },
-    ]),
-  );
-}
-function reviseAwsTerraformDirectServiceRoutes(base, services, configuration, effect, retained) {
-  const routes = expectedRoutes(base, services);
-  const next = object37(JSON.parse(configuration));
-  const terraform = object37(next.terraform),
-    aws = object37(object37(terraform.required_providers).aws),
-    provider = object37(object37(next.provider).aws);
-  if (
-    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
-    aws.source !== 'hashicorp/aws' ||
-    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
-    provider.region !== base.region ||
-    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
-    terraform.backend ||
-    terraform.cloud ||
-    next.import ||
-    next.removed
-  )
-    throw Error('Terraform direct service provider or lifecycle differs');
-  const resources = object37(next.resource);
-  const configured = resources.aws_route === undefined ? {} : object37(resources.aws_route);
-  if (Object.keys(configured).some((name) => name.startsWith('direct_') && !Object.hasOwn(routes, name)))
-    throw Error('Terraform direct service route cardinality differs');
-  if (
-    effect === 'restore' &&
-    (retained?.effect !== 'withdraw' ||
-      retained.servicesSha256 !== canonicalSha256(services) ||
-      hash12(retained.configuration) !== retained.afterSha256 ||
-      canonicalSha256(retained.routes) !== canonicalSha256(routes))
-  )
-    throw Error('Terraform direct restoration requires retained withdrawal');
-  if (!['withdraw', 'restore'].includes(effect)) throw Error('Terraform direct effect differs');
-  for (const [name, route] of Object.entries(routes)) {
-    if (effect === 'withdraw') {
-      if (canonicalSha256(configured[name]) !== canonicalSha256(route))
-        throw Error('Terraform direct service route identity differs');
-      delete configured[name];
-    } else {
-      if (Object.hasOwn(configured, name)) throw Error('Terraform direct restored resource already exists');
-      configured[name] = structuredClone(route);
-    }
-  }
-  if (Object.keys(configured).length) resources.aws_route = configured;
-  else delete resources.aws_route;
-  const result = JSON.stringify(next);
-  return {
-    configuration: result,
-    beforeSha256: hash12(configuration),
-    afterSha256: hash12(result),
-    servicesSha256: canonicalSha256(services),
-    effect,
-    routes,
-  };
-}
-function validateAwsTerraformDirectServiceReceipt(base, services, revision, receipt, before, after) {
-  const routes = expectedRoutes(base, services);
-  if (
-    canonicalSha256(revision.routes) !== canonicalSha256(routes) ||
-    revision.servicesSha256 !== canonicalSha256(services) ||
-    hash12(revision.configuration) !== revision.afterSha256 ||
-    !['withdraw', 'restore'].includes(revision.effect) ||
-    receipt.schemaVersion !== 1 ||
-    receipt.engine !== 'terraform' ||
-    receipt.deploymentId !== base.deploymentName ||
-    receipt.backendIdentity !== `local:${base.deploymentName}` ||
-    receipt.configurationSha256 !== revision.afterSha256 ||
-    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
-    receipt.operation ||
-    receipt.actionInvocations?.length ||
-    receipt.noChanges ||
-    new Set(receipt.changes.map((c) => c.address)).size !== receipt.changes.length
-  )
-    throw Error('Terraform direct service saved-plan scope differs');
-  const addresses = Object.keys(routes)
-    .map((n) => `aws_route.${n}`)
-    .sort();
-  const mutations = receipt.changes.filter((c) => canonicalSha256(c.actions) !== canonicalSha256(['no-op']));
-  if (
-    canonicalSha256(mutations.map((c) => c.address).sort()) !== canonicalSha256(addresses) ||
-    mutations.some(
-      (c) =>
-        c.type !== 'aws_route' ||
-        canonicalSha256(c.actions) !== canonicalSha256([revision.effect === 'withdraw' ? 'delete' : 'create']),
-    )
-  )
-    throw Error('Terraform direct service unrelated or replacement mutation');
-  if (
-    canonicalSha256(Object.keys(before).sort()) !== canonicalSha256(addresses) ||
-    canonicalSha256(Object.keys(after).sort()) !== canonicalSha256(addresses)
-  )
-    throw Error('Terraform direct service projection incomplete');
-  for (const address of addresses) {
-    if (
-      canonicalSha256(revision.effect === 'withdraw' ? before[address] : after[address]) !==
-        canonicalSha256(routes[address.slice('aws_route.'.length)]) ||
-      (revision.effect === 'withdraw' ? after[address] : before[address]) !== null
-    )
-      throw Error('Terraform direct service resolved identity differs');
-  }
-}
-var hash12 = (value) => createHash22('sha256').update(value).digest('hex');
-var init_terraform_direct_power = __esm(() => {
-  init_artifacts();
-  init_canonical();
-});
-
 // plugins/aws/src/ce/terraform-direct-power-controller.ts
 async function optional26(storage, name) {
   try {
@@ -25909,150 +26597,6 @@ var init_terraform_direct_power_controller = __esm(() => {
   init_whole_site_power();
   init_whole_site_power_routes();
   init_whole_site_power_service_binding();
-});
-
-// plugins/aws/src/ce/terraform-static-power.ts
-import { createHash as createHash23 } from 'node:crypto';
-
-function object38(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw Error('Malformed Terraform static service configuration');
-  return value;
-}
-function scope3(base, services) {
-  verifyAwsCePlan(base);
-  if (
-    base.engine !== 'terraform' ||
-    services.engine !== base.engine ||
-    services.sourcePlanSha256 !== base.planSha256 ||
-    services.accountId !== base.accountId ||
-    services.region !== base.region ||
-    services.transitGatewayId !== base.intent.routing.transitGatewayId ||
-    services.routeTableId !== base.intent.routing.transitGatewayRouteTableId ||
-    canonicalSha256(services.destinationCidrs) !== canonicalSha256([...base.intent.routing.destinationCidrs].sort()) ||
-    !/^tgw-attach-[a-f0-9]{8,17}$/.test(services.transportAttachmentId) ||
-    base.intent.routing.profile !== 'tgw-static'
-  )
-    throw Error('Terraform static service scope differs');
-}
-function expectedRoutes2(base, services, routes) {
-  if (Object.keys(routes).length !== base.intent.routing.destinationCidrs.length)
-    throw Error('Terraform static service route cardinality differs');
-  for (const [index, destination] of base.intent.routing.destinationCidrs.entries()) {
-    const route = object38(routes[`static_${index}`]);
-    if (
-      canonicalSha256(route) !==
-      canonicalSha256({
-        destination_cidr_block: destination,
-        transit_gateway_attachment_id: `\${aws_ec2_transit_gateway_vpc_attachment.transport.id}`,
-        transit_gateway_route_table_id: services.routeTableId,
-      })
-    )
-      throw Error('Terraform static service route identity differs');
-  }
-}
-function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, effect, retained) {
-  scope3(base, services);
-  const after = object38(JSON.parse(configuration));
-  const terraform = object38(after.terraform),
-    aws = object38(object38(terraform.required_providers).aws),
-    provider = object38(object38(after.provider).aws);
-  if (
-    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
-    aws.source !== 'hashicorp/aws' ||
-    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
-    provider.region !== base.region ||
-    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
-    terraform.backend ||
-    terraform.cloud
-  )
-    throw Error('Terraform static service provider differs');
-  const resources = object38(after.resource);
-  let routes;
-  if (effect === 'withdraw') {
-    routes = object38(resources.aws_ec2_transit_gateway_route);
-    expectedRoutes2(base, services, routes);
-    delete resources.aws_ec2_transit_gateway_route;
-  } else if (effect === 'restore') {
-    if (
-      retained?.effect !== 'withdraw' ||
-      retained.servicesSha256 !== canonicalSha256(services) ||
-      hash13(retained.configuration) !== retained.afterSha256 ||
-      resources.aws_ec2_transit_gateway_route !== undefined
-    )
-      throw Error('Terraform static restoration requires retained withdrawal');
-    routes = object38(retained.routes);
-    expectedRoutes2(base, services, routes);
-    resources.aws_ec2_transit_gateway_route = structuredClone(routes);
-  } else throw Error('Terraform static service effect differs');
-  const next = JSON.stringify(after);
-  return {
-    configuration: next,
-    beforeSha256: hash13(configuration),
-    afterSha256: hash13(next),
-    servicesSha256: canonicalSha256(services),
-    effect,
-    routes: structuredClone(routes),
-  };
-}
-function validateAwsTerraformStaticServiceReceipt(base, services, revision, receipt, before, after) {
-  scope3(base, services);
-  expectedRoutes2(base, services, revision.routes);
-  if (
-    revision.servicesSha256 !== canonicalSha256(services) ||
-    revision.afterSha256 !== hash13(revision.configuration) ||
-    !['withdraw', 'restore'].includes(revision.effect) ||
-    receipt.schemaVersion !== 1 ||
-    receipt.engine !== 'terraform' ||
-    receipt.deploymentId !== base.deploymentName ||
-    receipt.backendIdentity !== `local:${base.deploymentName}` ||
-    receipt.configurationSha256 !== revision.afterSha256 ||
-    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
-    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
-    receipt.operation ||
-    receipt.actionInvocations?.length ||
-    receipt.noChanges ||
-    new Set(receipt.changes.map((c) => c.address)).size !== receipt.changes.length
-  )
-    throw Error('Terraform static service saved-plan scope differs');
-  const addresses = Object.keys(revision.routes)
-    .map((name) => `aws_ec2_transit_gateway_route.${name}`)
-    .sort();
-  const mutations = receipt.changes.filter((c) => canonicalSha256(c.actions) !== canonicalSha256(['no-op']));
-  if (
-    canonicalSha256(mutations.map((c) => c.address).sort()) !== canonicalSha256(addresses) ||
-    mutations.some(
-      (c) =>
-        c.type !== 'aws_ec2_transit_gateway_route' ||
-        canonicalSha256(c.actions) !== canonicalSha256([revision.effect === 'withdraw' ? 'delete' : 'create']),
-    )
-  )
-    throw Error('Terraform static service unrelated or replacement mutation');
-  if (
-    canonicalSha256(Object.keys(before).sort()) !== canonicalSha256(addresses) ||
-    canonicalSha256(Object.keys(after).sort()) !== canonicalSha256(addresses)
-  )
-    throw Error('Terraform static service projection incomplete');
-  for (const address of addresses) {
-    const name = address.split('.')[1];
-    const route = revision.routes[name];
-    const owned = {
-      destination_cidr_block: route.destination_cidr_block,
-      transit_gateway_attachment_id: services.transportAttachmentId,
-      transit_gateway_route_table_id: services.routeTableId,
-      blackhole: false,
-    };
-    if (
-      canonicalSha256(revision.effect === 'withdraw' ? before[address] : after[address]) !== canonicalSha256(owned) ||
-      (revision.effect === 'withdraw' ? after[address] : before[address]) !== null
-    )
-      throw Error('Terraform static service resolved identity differs');
-  }
-}
-var hash13 = (value) => createHash23('sha256').update(value).digest('hex');
-var init_terraform_static_power = __esm(() => {
-  init_artifacts();
-  init_canonical();
 });
 
 // plugins/aws/src/ce/terraform-static-tgw-power-controller.ts
@@ -27237,14 +27781,14 @@ async function verifyDiagnosticManagedNode(api, instanceId, region) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('SSM managed-node prerequisites are unavailable');
-  const response = object39(JSON.parse(result.stdout));
+  const response = object40(JSON.parse(result.stdout));
   if (
     Object.hasOwn(response, 'NextToken') ||
     !Array.isArray(response.InstanceInformationList) ||
     response.InstanceInformationList.length !== 1
   )
     throw new Error('SSM managed-node observation is incomplete');
-  const node = object39(response.InstanceInformationList[0]);
+  const node = object40(response.InstanceInformationList[0]);
   const pingTime =
     typeof node.LastPingDateTime === 'number'
       ? node.LastPingDateTime * 1000
@@ -27275,15 +27819,15 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('Diagnostic instance ownership is unavailable');
-  const data = object39(JSON.parse(result.stdout));
+  const data = object40(JSON.parse(result.stdout));
   if (data.NextToken || !Array.isArray(data.Reservations) || data.Reservations.length !== 1)
     throw new Error('Diagnostic instance response is incomplete');
-  const reservation = object39(data.Reservations[0]);
+  const reservation = object40(data.Reservations[0]);
   const instances = reservation.Instances;
   if (reservation.OwnerId !== plan.accountId || !Array.isArray(instances) || instances.length !== 1)
     throw new Error('Diagnostic instance account is unverified');
-  const instance = object39(instances[0]);
-  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object39) : [];
+  const instance = object40(instances[0]);
+  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object40) : [];
   const expected = {
     'xcsh-managed-by': 'aws-ce',
     'xcsh-deployment-id': plan.deploymentName,
@@ -27292,7 +27836,7 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
   };
   if (
     instance.InstanceId !== instanceId ||
-    object39(instance.State).Name !== 'running' ||
+    object40(instance.State).Name !== 'running' ||
     Object.entries(expected).some(
       ([key, value]) =>
         tags.filter((tag) => tag.Key === key).length !== 1 || tags.find((tag) => tag.Key === key)?.Value !== value,
@@ -27332,7 +27876,7 @@ async function observeDiagnosticInvocation(
     } else {
       let invocation;
       try {
-        invocation = object39(JSON.parse(result.stdout));
+        invocation = object40(JSON.parse(result.stdout));
       } catch {
         return { ...base, status: 'unknown', reason: 'invocation-response-malformed' };
       }
@@ -27358,7 +27902,7 @@ async function observeDiagnosticInvocation(
   }
   return { ...base, status: 'unknown', reason: 'invocation-not-converged' };
 }
-var object39 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var object40 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_diagnostic_invocation = () => {};
 
 // plugins/aws/src/ce/flow-log-evidence.ts

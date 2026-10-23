@@ -331,7 +331,7 @@ for (const mode of ['changed', 'partial-subnet', 'duplicate-supernet'] as const)
     await expect(collectAwsPowerStaticTgwRoutes(f.base, f.values, api)).rejects.toThrow();
   });
 
-async function terraformRevisionFixture() {
+export async function staticRevisionFixture() {
   const f = fixture('terraform');
   const observed = await collectAwsPowerStaticTgwRoutes(f.base, f.values, f.api);
   const original = JSON.stringify({
@@ -359,7 +359,7 @@ async function terraformRevisionFixture() {
   return { ...f, observed, original };
 }
 test('Terraform static service revision withdraws only service routes and restores exact originals', async () => {
-  const f = await terraformRevisionFixture();
+  const f = await staticRevisionFixture();
   const revision = reviseAwsTerraformStaticServiceRoutes(f.base, f.observed.services, f.original, 'withdraw');
   const after = JSON.parse(revision.configuration);
   expect(after.resource.aws_ec2_transit_gateway_route).toBeUndefined();
@@ -378,7 +378,7 @@ test('Terraform static service revision withdraws only service routes and restor
 });
 for (const mode of ['foreign-attachment', 'extra-route', 'provider-drift', 'missing-retained'] as const)
   test(`Terraform static revision ${mode} rejects`, async () => {
-    const f = await terraformRevisionFixture();
+    const f = await staticRevisionFixture();
     const config = JSON.parse(f.original);
     if (mode === 'foreign-attachment')
       config.resource.aws_ec2_transit_gateway_route.static_0.transit_gateway_attachment_id = 'tgw-attach-ffffffff';
@@ -398,7 +398,7 @@ for (const mode of ['foreign-attachment', 'extra-route', 'provider-drift', 'miss
   });
 for (const effect of ['withdraw', 'restore'] as const)
   test(`Terraform static ${effect} exact saved plan rejects unrelated mutation and foreign target`, async () => {
-    const f = await terraformRevisionFixture();
+    const f = await staticRevisionFixture();
     const withdrawal = reviseAwsTerraformStaticServiceRoutes(f.base, f.observed.services, f.original, 'withdraw');
     const revision =
       effect === 'withdraw'
@@ -632,7 +632,7 @@ test('native TGW restoration requires observed retained attachment and original 
 });
 
 async function terraformTgwControllerFixture(effect: 'withdraw' | 'restore' = 'withdraw') {
-  const f = await terraformRevisionFixture();
+  const f = await staticRevisionFixture();
   const observed = f.observed;
   const identity = await powerIdentityFixture('terraform').read();
   const bindings = {

@@ -1,5 +1,11 @@
 # Changelog
 
+## CE suite UAT110
+
+- Qualify exact owning Terraform whole-site power journals for terminal artifact retirement after the existing teardown and runner gates.
+- Bind frozen parent inventory to file digests, inode and device identity; interrupted cleanup admits only unchanged surviving artifacts.
+- Preserve prior UAT109 evidence and reset current installed/live qualification for the coordinated changed candidate.
+
 ## CE UAT109 qualification candidate
 
 AWS Terraform whole-site power now withdraws and restores exact direct-route resources through the owning saved-plan runner. Brownfield power operations freshly verify existing placement before opening the current runner. Live operational acceptance and normal publication remain pending.

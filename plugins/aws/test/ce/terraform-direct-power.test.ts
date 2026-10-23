@@ -138,7 +138,7 @@ async function fixture(multiple = false) {
     },
   };
 }
-async function terraformRevisionFixture() {
+export async function terraformRevisionFixture() {
   const f = await fixture();
   const observed = await collectAwsPowerDirectRoutes(f.base, f.values, f.api);
   const original = JSON.stringify({

@@ -23,7 +23,10 @@ const directories: string[] = [];
 afterEach(async () => {
   for (const d of directories.splice(0)) await rm(d, { recursive: true });
 });
-async function fixture(engine: 'native' | 'terraform' = 'native', composed: boolean | 'combined' = false) {
+export async function bgpControllerFixture(
+  engine: 'native' | 'terraform' = 'native',
+  composed: boolean | 'combined' = false,
+) {
   const f = bgpPowerFixture(engine);
   let nlb: Awaited<ReturnType<typeof nlbPowerFixture>> | undefined;
   let nlbSubmissions = 0;
@@ -185,7 +188,7 @@ async function fixture(engine: 'native' | 'terraform' = 'native', composed: bool
   };
 }
 test('native BGP write-ahead creation and replacement require independent membership convergence', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   expect(await f.reconcile()).toBe('not-submitted');
   await f.dispatch();
   expect(f.mutations).toEqual(['POST', 'PUT']);
@@ -201,14 +204,14 @@ test('native BGP write-ahead creation and replacement require independent member
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('lost policy creation resumes using the same attempt without replaying POST', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   f.loseCreate();
   await expect(f.dispatch()).rejects.toThrow('lost create');
   await f.dispatch();
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('lost BGP replacement reconciles without repeating PUT', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   f.loseReplace();
   await expect(f.dispatch()).rejects.toThrow('lost replace');
   await f.dispatch();
@@ -217,7 +220,7 @@ test('lost BGP replacement reconciles without repeating PUT', async () => {
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('ambiguous absent creation remains pending without replay', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   f.stall();
   await expect(f.dispatch()).rejects.toThrow('pending');
   await expect(f.dispatch()).rejects.toThrow('pending');
@@ -225,7 +228,7 @@ test('ambiguous absent creation remains pending without replay', async () => {
   expect(f.mutations).toEqual(['POST']);
 });
 test('changed original attempt or saved preparation rejects before replay', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   await f.dispatch();
   const name = `${f.plan.planId}-withdraw-native-bgp-preparation.json`;
   const prep = (await f.storage.read(name)) as Record<string, unknown>;
@@ -234,7 +237,7 @@ test('changed original attempt or saved preparation rejects before replay', asyn
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('wrong authorization and missing checkpoint reject before any mutation', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   await expect(
     dispatchAwsNativeBgpPower(f.base, f.plan, 'f'.repeat(64), 'withdraw', f.storage, f.values, f.api, f.runtime),
   ).rejects.toThrow('authorization');
@@ -244,7 +247,7 @@ test('wrong authorization and missing checkpoint reject before any mutation', as
 });
 
 test('completed policy creation with no BGP dispatch permits the next original-attempt stage', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   f.loseCreate();
   await expect(f.dispatch()).rejects.toThrow('lost create');
   expect(await f.reconcile()).toBe('not-submitted');
@@ -254,7 +257,7 @@ test('completed policy creation with no BGP dispatch permits the next original-a
 
 for (const engine of ['native', 'terraform'] as const)
   test(`${engine} restoration requires retained withdrawal and restores the exact original object without new policy creation`, async () => {
-    const f = await fixture(engine);
+    const f = await bgpControllerFixture(engine);
     await f.dispatch();
     f.withdraw();
     expect(await f.reconcile()).toBe('completed');
@@ -416,7 +419,7 @@ for (const engine of ['native', 'terraform'] as const)
   });
 
 test('policy retirement rejects missing restored operational and traffic evidence before DELETE', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   await f.dispatch();
   await expect(
     retireAwsNativeBgpPowerPolicy(f.base, f.plan, f.plan.planSha256, f.storage, f.values, f.api, f.runtime),
@@ -425,7 +428,7 @@ test('policy retirement rejects missing restored operational and traffic evidenc
 });
 
 test('submitted stalled replacement remains pending and never repeats PUT', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   f.stallReplace();
   await f.dispatch();
   expect(await f.reconcile()).toBe('pending');
@@ -433,7 +436,7 @@ test('submitted stalled replacement remains pending and never repeats PUT', asyn
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('concurrent dispatch and foreign current identity preserve one original mutation pair', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   const results = await Promise.allSettled([f.dispatch(), f.dispatch()]);
   expect(results.some((result) => result.status === 'fulfilled')).toBe(true);
   expect(f.mutations).toEqual(['POST', 'PUT']);
@@ -442,7 +445,7 @@ test('concurrent dispatch and foreign current identity preserve one original mut
   expect(f.mutations).toEqual(['POST', 'PUT']);
 });
 test('reconciliation cannot reset the original attempt timestamp', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   await f.dispatch();
   await expect(
     reconcileAwsNativeBgpPower(
@@ -460,7 +463,7 @@ test('reconciliation cannot reset the original attempt timestamp', async () => {
 });
 
 test('missing preparation with an existing mutation marker cannot claim not-submitted', async () => {
-  const f = await fixture();
+  const f = await bgpControllerFixture();
   await f.dispatch();
   await f.storage.remove(`${f.plan.planId}-withdraw-native-bgp-preparation.json`);
   await expect(f.reconcile()).rejects.toThrow('preparation');
@@ -469,7 +472,7 @@ test('missing preparation with an existing mutation marker cannot claim not-subm
 
 test('tampered policy and replacement markers reject without replay', async () => {
   for (const suffix of ['policy-dispatch', 'replacement-dispatch']) {
-    const f = await fixture();
+    const f = await bgpControllerFixture();
     await f.dispatch();
     const name = `${f.plan.planId}-withdraw-native-bgp-${suffix}.json`;
     const saved = (await f.storage.read(name)) as Record<string, unknown>;
@@ -481,7 +484,7 @@ test('tampered policy and replacement markers reject without replay', async () =
 });
 
 test('Terraform BGP controller preserves owning engine and journals policy, BGP and cloud membership', async () => {
-  const f = await fixture('terraform');
+  const f = await bgpControllerFixture('terraform');
   await expect(
     dispatchAwsNativeBgpPower(f.base, f.plan, f.plan.planSha256, 'withdraw', f.storage, f.values, f.api, f.runtime),
   ).rejects.toThrow('engine');
@@ -498,7 +501,7 @@ test('Terraform BGP controller preserves owning engine and journals policy, BGP 
   expect(prep.marker.engine).toBe('terraform');
 });
 test('Terraform BGP lost creation continues without replaying the provider request', async () => {
-  const f = await fixture('terraform');
+  const f = await bgpControllerFixture('terraform');
   f.loseCreate();
   await expect(f.dispatch()).rejects.toThrow('lost create');
   expect(await f.reconcile()).toBe('not-submitted');
@@ -508,7 +511,7 @@ test('Terraform BGP lost creation continues without replaying the provider reque
 
 for (const engine of ['native', 'terraform'] as const)
   test(`${engine} BGP controller consumes complete inventory without replacing original attempt`, async () => {
-    const f = await fixture(engine, true);
+    const f = await bgpControllerFixture(engine, true);
     expect(await f.reconcile()).toBe('not-submitted');
     await f.dispatch();
     f.withdraw();
@@ -525,7 +528,7 @@ for (const engine of ['native', 'terraform'] as const)
   });
 
 test('combined BGP/NLB continuation preserves completed BGP and lost NLB original attempt', async () => {
-  const f = await fixture('native', 'combined');
+  const f = await bgpControllerFixture('native', 'combined');
   const continueServices = () =>
     continueAwsPowerServices(
       f.base,
@@ -561,7 +564,7 @@ test('combined BGP/NLB continuation preserves completed BGP and lost NLB origina
 });
 for (const engine of ['native', 'terraform'] as const)
   test(`${engine} BGP service coordinator never resets or replays completed attempt`, async () => {
-    const f = await fixture(engine, true);
+    const f = await bgpControllerFixture(engine, true);
     const continueServices = () =>
       continueAwsPowerServices(
         f.base,

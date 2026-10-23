@@ -5,6 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { qualifyAwsTerraformPowerArtifacts } from './terraform-power-retirement';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -25,6 +26,8 @@ interface Item {
   path: string;
   sha256: string;
   preserve: boolean;
+  inode: number;
+  device: number;
 }
 async function directory(path: string) {
   const stat = await lstat(path);
@@ -46,7 +49,11 @@ async function file(path: string) {
     stat.mode & 0o077
   )
     throw Error('Parent retirement file ownership differs');
-  return readFile(path);
+  const bytes = await readFile(path);
+  const after = await lstat(path);
+  if (after.ino !== stat.ino || after.dev !== stat.dev || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs)
+    throw Error('Parent retirement file changed during read');
+  return bytes;
 }
 async function inventory(
   base: AwsCePlan,
@@ -57,8 +64,14 @@ async function inventory(
 ): Promise<Item[]> {
   await directory(store.directory);
   const items: Item[] = [];
-  const add = async (path: string, preserve: boolean) =>
-    items.push({ path, preserve, sha256: hash(await file(join(store.directory, path))) });
+  const add = async (path: string, preserve: boolean) => {
+    const absolute = join(store.directory, path),
+      before = await lstat(absolute);
+    const sha256 = hash(await file(absolute)),
+      after = await lstat(absolute);
+    if (before.ino !== after.ino || before.dev !== after.dev) throw Error('Parent retirement inode changed');
+    items.push({ path, preserve, sha256, inode: after.ino, device: after.dev });
+  };
   const runner = async (prefix: string, stage?: string, upgrade?: Record<string, unknown>) => {
     const path = join(store.directory, prefix);
     await directory(path);
@@ -236,6 +249,7 @@ async function inventory(
   }
   for (const name of upgradeJournals) preserve.add(name);
   if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
+  const powerJournals = await qualifyAwsTerraformPowerArtifacts(base, store, await readdir(store.directory), recorded);
   let rootRunner = false;
   for (const name of (await readdir(store.directory)).sort()) {
     if (name === markerName || name === '.aws-terraform-lifecycle-lock') continue;
@@ -294,6 +308,7 @@ async function inventory(
     if (
       !preserve.has(name) &&
       !drainJournals.has(name) &&
+      !powerJournals.has(name) &&
       !replacementJournals.has(name) &&
       !/^(?:terraform-|aws-terraform-|ingress-plan-|ingress-checkpoint-|ingress-origin-checkpoint-)[a-zA-Z0-9._-]+\.json$/.test(
         name,
@@ -395,6 +410,8 @@ export async function retireAwsTerraformParentArtifacts(
       item.path.split('/').some((p) => !p || p === '.' || p === '..') ||
       !sha(item.sha256) ||
       typeof item.preserve !== 'boolean' ||
+      !Number.isSafeInteger(item.inode) ||
+      !Number.isSafeInteger(item.device) ||
       expected.has(item.path)
     )
       throw Error('Parent retirement inventory malformed');
@@ -416,7 +433,9 @@ export async function retireAwsTerraformParentArtifacts(
     signal?.throwIfAborted();
     await directory(store.directory);
     await store.verify();
-    if (hash(await file(join(store.directory, item.path))) !== item.sha256)
+    const absolute = join(store.directory, item.path),
+      stat = await lstat(absolute);
+    if (hash(await file(absolute)) !== item.sha256 || stat.ino !== item.inode || stat.dev !== item.device)
       throw Error('Parent retirement artifact changed before removal');
     signal?.throwIfAborted();
     await unlink(join(store.directory, item.path));
