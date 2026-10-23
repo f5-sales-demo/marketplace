@@ -16,7 +16,7 @@ cache byte for byte on both hosts. Private receipts retain every file digest.
 
 Both installed registries resolve GCloud 1.6.1 and runtime 23.9.3. Mac resolves
 `/opt/homebrew/Caskroom/xcsh/23.9.3/bin/xcsh`; Ubuntu resolves
-`/home/robin/.local/bin/xcsh`. Both are supported GCloud service hosts.
+`/home/<user>/.local/bin/xcsh`. Both are supported GCloud service hosts.
 This proves artifact and installation provenance separately from service access.
 
 ## Native fixture results
