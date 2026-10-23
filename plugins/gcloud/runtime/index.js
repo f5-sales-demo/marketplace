@@ -2012,6 +2012,45 @@ var init_operational_source_hashes = __esm(() => {
   };
 });
 
+// plugins/gcloud/src/ce/release-fetch.ts
+function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
+  return async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const metadata =
+      url.protocol === 'https:' &&
+      url.hostname === 'api.github.com' &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      /^\/repos\/f5-sales-demo\/api-specs-enriched\/(?:releases\/tags\/v12\.(?:1\.3|3\.1)|git\/ref\/tags\/v12\.3\.1|git\/tags\/[a-f0-9]{40})$/.test(
+        url.pathname,
+      );
+    if (!metadata) return fetcher(input, init);
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    if (
+      method !== 'GET' ||
+      init?.body != null ||
+      (input instanceof Request && input.body !== null) ||
+      headers.has('Authorization')
+    )
+      throw new Error('Exact unauthenticated metadata GET required');
+    const token = env.GH_TOKEN ?? env.GITHUB_TOKEN;
+    if (token !== undefined) {
+      if (!/^[A-Za-z0-9_]{16,8192}$/.test(token)) throw new Error('Invalid GitHub read credential');
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    const caller = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const timeout = AbortSignal.timeout(60000);
+    const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
+    signal.throwIfAborted();
+    return fetcher(input, { ...init, headers, redirect: 'error', signal });
+  };
+}
+var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
+
 // plugins/gcloud/src/ce/terraform-ha-profile.ts
 function qualifiedGcpTerraformHaProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -2088,7 +2127,7 @@ var init_terraform_ha_profile = __esm(() => {
 import { createHash as createHash2 } from 'node:crypto';
 
 async function resolveGcpOperationalRelease(
-  fetcher = fetch,
+  fetcher = fetchGcpRelease,
   signal,
   pin = GCP_OPERATIONAL_RELEASE_PIN,
   compiledSourceHashes = operational_source_hashes_default,
@@ -2241,7 +2280,7 @@ function qualifiedGcpHaObservationMappings(assets) {
     serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
   };
 }
-async function resolveGcpContract(fetcher = fetch, signal) {
+async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
   const read = async (url, maximum = 1024 * 1024) => {
     combined.throwIfAborted();

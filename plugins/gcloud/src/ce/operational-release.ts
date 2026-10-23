@@ -3,6 +3,7 @@ import type { GcpOperationalContract } from './contract';
 import { fingerprint } from './discovery';
 import { qualifiedOperationalProfile, qualifiedOperationalRelease } from './operational-health';
 import sourceHashes from './operational-source-hashes.json';
+import { fetchGcpRelease } from './release-fetch';
 import { type GcpTerraformHaProfile, qualifiedGcpTerraformHaProfile } from './terraform-ha-profile';
 
 export interface GcpOperationalReleasePin {
@@ -46,7 +47,7 @@ const repository = 'f5-sales-demo/api-specs-enriched';
 
 /** Verify source, immutable assets, qualification and compiled parser identities independently. */
 export async function resolveGcpOperationalRelease(
-  fetcher: typeof fetch = fetch,
+  fetcher: typeof fetch = fetchGcpRelease,
   signal?: AbortSignal,
   pin: GcpOperationalReleasePin | undefined = GCP_OPERATIONAL_RELEASE_PIN,
   compiledSourceHashes: Record<string, string> = sourceHashes,

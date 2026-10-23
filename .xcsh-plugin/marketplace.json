@@ -167,7 +167,7 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "6.3.7",
+      "version": "6.3.8",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
@@ -418,7 +418,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-      "version": "1.7.21",
+      "version": "1.7.22",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {

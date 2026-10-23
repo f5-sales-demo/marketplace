@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud` 1.7.22 and `platform` 6.3.8** support scoped GitHub authentication
+  for pinned GCP CE release metadata, including owned cleanup when anonymous
+  quota is exhausted. Asset downloads remain anonymous and retain immutable
+  digest checks. Real xcsh development-runtime registration, shared services,
+  authenticated contract reads and credential-expiry refusal passed; HA live
+  acceptance remains separate (#1559).
+
 - **`gcloud` 1.7.20 and `platform` 6.3.4** add the scoped operational-health
   collector for public Terraform ownership, persist complete original placement
   once, and verify immutable profile, qualification and parser identities.

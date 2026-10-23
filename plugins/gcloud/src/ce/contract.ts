@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { fingerprint } from './discovery';
 import type { OperationalProfile, OperationalReleaseQualification } from './operational-health';
 import { GCP_OPERATIONAL_RELEASE_PIN, resolveGcpOperationalRelease } from './operational-release';
+import { fetchGcpRelease } from './release-fetch';
 import { type GcpTerraformHaProfile, qualifiedGcpTerraformHaProfile } from './terraform-ha-profile';
 
 export interface GcpOperationalContract {
@@ -54,7 +55,7 @@ export function qualifiedGcpHaObservationMappings(assets: unknown): GcpCeContrac
   };
 }
 export async function resolveGcpContract(
-  fetcher: typeof fetch = fetch,
+  fetcher: typeof fetch = fetchGcpRelease,
   signal?: AbortSignal,
 ): Promise<GcpCeContractBoundary> {
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);

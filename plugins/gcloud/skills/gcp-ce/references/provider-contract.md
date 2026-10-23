@@ -175,3 +175,16 @@ establish ownership. Private interrupted-success and partial-cleanup campaigns
 verified these joins without replay and finished with eighteen independent
 absences. Their receipts retain original executable attribution; public HA
 admission and exhaustive health remain unqualified.
+
+## GitHub release metadata access
+
+The pinned GCP CE contract and operational qualification require current GitHub
+release metadata reads, including during owned cleanup. If anonymous GitHub API
+quota is exhausted, provide an existing read credential to the xcsh process as
+`GH_TOKEN` or `GITHUB_TOKEN` (`GH_TOKEN` takes precedence). Do not supply credentials
+in tool arguments, deployment intent, receipts or chat. The resolver authenticates
+only fixed metadata GETs for the pinned releases in
+`f5-sales-demo/api-specs-enriched`, forbids their redirects, and keeps asset
+downloads anonymous. Immutable source, asset digests, ownership and saved-plan
+checks still apply. An invalid or expired credential fails without an anonymous
+retry; renew the credential before resuming the same owned cleanup.
