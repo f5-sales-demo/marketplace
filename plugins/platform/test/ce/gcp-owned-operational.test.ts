@@ -108,6 +108,9 @@ async function fixture(initialize = false) {
       binding: f.binding,
       identities: f.identities,
     });
+  let runtimeRows: unknown[] = f.binding.nodes.map((node) => ({
+    node_info: { hostname: node.nodeName, role: ['k8s-master-primary'] },
+  }));
   let reads = 0;
   const fetcher = (async (url: Parameters<typeof fetch>[0], options?: RequestInit) => {
     reads++;
@@ -124,9 +127,7 @@ async function fixture(initialize = false) {
     if (path.endsWith('/sites/site-a'))
       return Response.json({
         ...(await f.port.runtimeSite()),
-        status: f.binding.nodes.map((node) => ({
-          node_info: { hostname: node.nodeName, role: ['k8s-master-primary'] },
-        })),
+        status: runtimeRows,
       });
     if (path.endsWith('/exec-user') && JSON.parse(String(options?.body)).command[0] === 'crictl-ps-a') {
       const output =
@@ -176,6 +177,9 @@ async function fixture(initialize = false) {
     store,
     collect,
     reads: () => reads,
+    changeRuntimeRows: (rows: unknown[]) => {
+      runtimeRows = rows;
+    },
     changeContext: () => {
       context = { ...context, credential: 'replacement' };
     },
@@ -213,3 +217,39 @@ it('establishes complete frozen placement once and keeps the original binding on
   expect((await f.collect()).binding).toEqual(first.binding);
   expect(await f.store.read('gcp-operational-original-binding.json')).toEqual(persisted);
 });
+
+it('establishes original placement with interleaved null global runtime rows', async () => {
+  const f = await fixture(true);
+  f.changeRuntimeRows(
+    f.binding.nodes.flatMap((node) => [
+      { node_info: null, metadata: { status_id: `${node.nodeName}_SiteStatusMgr` } },
+      { node_info: { hostname: node.nodeName, role: ['k8s-master-primary'] } },
+      { node_info: null },
+      { metadata: { status_id: 'global' } },
+    ]),
+  );
+  const first = await f.collect();
+  const persisted = await f.store.read('gcp-operational-original-binding.json');
+  expect(first.binding.nodes.map((node) => node.role)).toEqual(['control', 'control', 'control']);
+  expect((await f.collect()).binding).toEqual(first.binding);
+  expect(await f.store.read('gcp-operational-original-binding.json')).toEqual(persisted);
+});
+it.each(['foreign', 'duplicate', 'missing', 'malformed', 'malformed-row', 'ambiguous-role'])(
+  'rejects %s runtime node placement without persisting a binding',
+  async (change) => {
+    const f = await fixture(true);
+    const rows: unknown[] = f.binding.nodes.map((node) => ({
+      node_info: { hostname: node.nodeName, role: ['k8s-master-primary'] },
+    }));
+    if (change === 'foreign') rows.push({ node_info: { hostname: 'foreign', role: ['k8s-master-primary'] } });
+    if (change === 'duplicate') rows.push(rows[0]);
+    if (change === 'missing') rows.shift();
+    if (change === 'malformed') rows.push({ node_info: 'invalid' });
+    if (change === 'malformed-row') rows.push(null);
+    if (change === 'ambiguous-role')
+      rows[0] = { node_info: { hostname: f.binding.nodes[0].nodeName, role: ['a', 'b'] } };
+    f.changeRuntimeRows(rows);
+    await expect(f.collect()).rejects.toThrow();
+    await expect(f.store.read('gcp-operational-original-binding.json')).rejects.toThrow();
+  },
+);

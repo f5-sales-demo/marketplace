@@ -311,13 +311,18 @@ export async function collectGcpOwnedOperationalHealth(
       )
         throw new Error('Complete original workload placement required');
       const componentRows = components.status.map(object),
-        runtimeRows = siteStatus.status.map(object);
+        runtimeRows = siteStatus.status
+          .map(object)
+          .filter((row) => row.node_info != null)
+          .map((row) => object(row.node_info));
       if (componentRows.some((row) => !nodes.some((node) => node.nodeName === row.node)))
         throw new Error('Foreign workload placement row');
+      if (runtimeRows.some((row) => !nodes.some((node) => node.nodeName === row.hostname)))
+        throw new Error('Foreign runtime placement row');
       const observations = [];
       for (const node of provisional.nodes) {
-        const rows = runtimeRows.filter((row) => object(row.node_info).hostname === node.nodeName);
-        const role = rows.length === 1 ? object(rows[0].node_info).role : undefined;
+        const rows = runtimeRows.filter((row) => row.hostname === node.nodeName);
+        const role = rows.length === 1 ? rows[0].role : undefined;
         if (!Array.isArray(role) || role.length !== 1 || typeof role[0] !== 'string')
           throw new Error('Original runtime role ambiguous');
         observations.push({
