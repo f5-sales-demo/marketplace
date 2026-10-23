@@ -35,10 +35,31 @@ const OFFICIAL_SOURCES = [
 ] as const;
 
 export function normalizeResearchDocument(body: string): string {
-  const normalized = body
+  let source = body
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
-    .normalize('NFC')
+    .normalize('NFC');
+  if (/<html(?:\s|>)/i.test(source)) {
+    const open = /<main\b[^>]*>/i.exec(source);
+    const close = open ? source.toLowerCase().indexOf('</main>', open.index + open[0].length) : -1;
+    if (!open || close < 0) throw new Error('Official HTML research document has no complete main content');
+    source = source
+      .slice(open.index + open[0].length, close)
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(script|style|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+      .replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>/gi, (_tag, _quote, href: string) => `\nlink:${href}\n`)
+      .replace(/<img\b[^>]*>/gi, (tag) => {
+        const source = /\bsrc\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        const alt = /\balt\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        return `\nimage:${source}:${alt}\n`;
+      })
+      .replace(/<[^>]+>/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+  const normalized = source
     .split('\n')
     .map((line) => line.replace(/[\t ]+$/g, ''))
     .join('\n')
@@ -64,11 +85,11 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
         const normalized = normalizeResearchDocument(body);
         if (
           url === AZURE_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -91,8 +112,8 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
     sourceReceipts,
     sharedContract: {
       url: AZURE_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: contract.normalizedSha256,
     },
   };
@@ -138,12 +159,12 @@ async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: st
   if (result.exitCode !== 0) return undefined;
   try {
     const usages = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
-    const cores = usages.find((usage) =>
-      String((usage.name as Record<string, unknown> | undefined)?.value ?? '')
-        .toLowerCase()
-        .includes('cores'),
+    const cores = usages.find(
+      (usage) => String((usage.name as Record<string, unknown> | undefined)?.value ?? '').toLowerCase() === 'cores',
     );
-    return Math.max(0, Number(cores?.limit ?? 0) - Number(cores?.currentValue ?? 0));
+    const limit = Number(cores?.limit);
+    const current = Number(cores?.currentValue);
+    return Number.isFinite(limit) && Number.isFinite(current) ? Math.max(0, limit - current) : undefined;
   } catch {
     return undefined;
   }
@@ -441,6 +462,15 @@ export async function discoverAzureCompute(
   api: AzExecApi,
   fetcher: typeof fetch = fetch,
 ): Promise<AzureCeObservation> {
+  input = {
+    ...input,
+    publisher: input.publisher || undefined,
+    offer: input.offer || undefined,
+    plan: input.plan || undefined,
+    version: input.version || undefined,
+    vmSize: input.vmSize || undefined,
+  };
+
   validateInput(input);
   const subscriptionId = input.subscriptionId.toLowerCase();
   const research = await verifyOfficialSources(fetcher);

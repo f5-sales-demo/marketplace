@@ -1,0 +1,198 @@
+{
+  "candidateRevision": 91,
+  "sourceCommit": "c25d01b0ae4bb828e2afec9152e579ea6178e397",
+  "cliVersion": "23.9.3",
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "1f033589d5b2aa325a685c7b5741aa9dc7f8c58e3b52bffcba6f19d5a5ae4346"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "azure_ce_apply",
+      "startedAt": "2026-10-22T02:54:21.887Z",
+      "completedAt": "2026-10-22T02:59:24.827Z",
+      "isError": false,
+      "status": "registered"
+    }
+  ],
+  "cloudMutationRequested": true,
+  "fullCeAcceptance": false,
+  "scope": "Azure Terraform single-site registration/configuration only; full CE acceptance remains false",
+  "initialApply": {
+    "trace": [
+      {
+        "tool": "azure_ce_apply",
+        "startedAt": "2026-10-22T02:32:27.164Z",
+        "completedAt": "2026-10-22T02:51:49.648Z",
+        "isError": false,
+        "status": "pending-registration"
+      }
+    ],
+    "status": "pending-registration",
+    "registrationStates": ["ADMITTED"],
+    "configurationStatus": "unknown"
+  },
+  "resume": {
+    "status": "registered",
+    "registrationStates": ["ONLINE"],
+    "registrationStatus": "healthy",
+    "configurationStatus": "configured"
+  },
+  "siteUidSha256": "55f5501f3ca5f15bcf5ae99d68f6a8eb1b77bf07e19262f1881cdcd274b0b32e",
+  "physicalSiteUidSha256": "78ccc42f411da1d883af8e24d1eb5fb90a86ec6349853d9444a2604b0dbb57b6",
+  "interfaces": [
+    {
+      "role": "slo",
+      "device": "eth0",
+      "macSha256": "82becfe319d50ecdabc94d80d466427c883c90d421c72a7fd31794a17e58399e"
+    },
+    {
+      "role": "data",
+      "device": "eth2",
+      "macSha256": "a47e845ba5afe659d00b0f3da3f35172df7d822f0e120bb618f7cc83cdee2de8"
+    },
+    {
+      "role": "sli",
+      "device": "eth1",
+      "macSha256": "3b863b786d80960f8361ee4a6e03be8afb291d6cf607c78b0fc2174792e069df"
+    }
+  ],
+  "trustedInterfaceCount": 3,
+  "generatedOwnedInterfaceCount": 3,
+  "publicStatus": {
+    "engine": "terraform",
+    "observedAt": "2026-10-22T03:00:09.167Z",
+    "scope": "site-global-and-registration-only",
+    "nodeHealth": "unknown",
+    "bgp": "unknown",
+    "routes": "unknown",
+    "traffic": "unknown",
+    "status": "unknown",
+    "reason": "platform-observation-unavailable"
+  },
+  "publicInterfaceStatus": {
+    "tool": "f5xc_ce_v2_status",
+    "status": "unknown",
+    "interfaces": [],
+    "fetchedAt": "2026-10-22T03:00:08.018Z",
+    "ceSampleAge": "unknown",
+    "freshnessQualification": "pending-1930",
+    "canSatisfyMutationGate": false
+  },
+  "diagnostics": [
+    {
+      "category": "vm-1-instance-view",
+      "ok": true,
+      "bytes": 5390,
+      "digest": "4d186d55025947025ba5468dceeb52af016a945a5c02db8187b7ac99697cf7c2",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-boot",
+      "ok": true,
+      "bytes": 44725,
+      "digest": "fc195e8f2a94def945df7d57c62cd0529bcddf5dcf27f8231022ee7c44a1c495",
+      "cloudInitFinished": true,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-0-nsg",
+      "ok": true,
+      "bytes": 1825,
+      "digest": "9c7af7989912886748e5d88356fd9330d9dc92ef4d85b47325e422d41aeec58a",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-0-routes",
+      "ok": true,
+      "bytes": 9684,
+      "digest": "47e66bd14d3d9e987e11757879f9a07760821674a558bb8d36f2d51d6df92f37",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-1-nsg",
+      "ok": true,
+      "bytes": 1825,
+      "digest": "9c7af7989912886748e5d88356fd9330d9dc92ef4d85b47325e422d41aeec58a",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-1-routes",
+      "ok": true,
+      "bytes": 9684,
+      "digest": "47e66bd14d3d9e987e11757879f9a07760821674a558bb8d36f2d51d6df92f37",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-2-nsg",
+      "ok": true,
+      "bytes": 1825,
+      "digest": "9c7af7989912886748e5d88356fd9330d9dc92ef4d85b47325e422d41aeec58a",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    },
+    {
+      "category": "vm-1-nic-2-routes",
+      "ok": true,
+      "bytes": 9684,
+      "digest": "47e66bd14d3d9e987e11757879f9a07760821674a558bb8d36f2d51d6df92f37",
+      "cloudInitFinished": false,
+      "errorsDetected": false
+    }
+  ],
+  "inventory": {
+    "cloudCoverage": {
+      "activityLookbackDays": 89,
+      "complete": true,
+      "resourceGraphPages": 1
+    },
+    "platformEvidence": "unavailable",
+    "ownedFixturePresent": true
+  },
+  "siteState": "UPGRADING",
+  "ceInterfacePublicationPresent": false,
+  "routing": "unknown",
+  "traffic": "unknown",
+  "cleanupQualified": false,
+  "sourceMappingValidation": {
+    "tests": 101,
+    "assertions": 457,
+    "passed": true,
+    "files": [
+      "plugins/azure/test/ce/terraform-workflow.test.ts",
+      "plugins/platform/test/ce/registration-devices.test.ts",
+      "plugins/platform/test/ce/runtime.test.ts",
+      "plugins/platform/test/ce/tools.test.ts"
+    ],
+    "initialHarnessFailure": "Mac /tmp symlink rejected by deployment-store ownership guard; rerun with TMPDIR=/private/tmp passed; guard unchanged"
+  },
+  "healthEndpointFailure": {
+    "httpStatus": 503,
+    "operationalAcceptance": false
+  },
+  "initialUpgradeObservation": {
+    "softwareTarget": "crt-20260801-0209",
+    "osTarget": "9.2026.20",
+    "softwarePhase": "UPGRADE_IN_PROGRESS",
+    "osPhase": "UPGRADE_IN_PROGRESS"
+  }
+}

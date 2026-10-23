@@ -1,0 +1,114 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "discovery": "current-live-AWS-three-node",
+  "layoutProvenance": {
+    "candidateRevision": 87,
+    "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+    "evidenceKind": "historical-owned-registration-hardware-layout-for-planning",
+    "priorObservationAt": "2026-10-21T19:04:23.760Z",
+    "sourceDigests": {
+      "fourth-apply-aws_ce_apply.private.json": "8de911b47ffe949e41360bf83f1dda0b01124f249f5a190a02cd8e84260d3a71",
+      "replacement-instances.private.json": "e4dcc69dbbfa6ee09652547d05adcc05124bc3c2de349c16282f82591ce9222f"
+    },
+    "sameCurrentDiscoveredMarketplaceAmiVerified": true,
+    "ownerAndRegistrationInstanceBindingVerified": true,
+    "interfaces": [
+      {
+        "index": 0,
+        "role": "slo",
+        "guestDevice": "ens5",
+        "macAndDeviceIndexJoinVerified": true
+      },
+      {
+        "index": 1,
+        "role": "sli",
+        "guestDevice": "ens6",
+        "macAndDeviceIndexJoinVerified": true
+      }
+    ],
+    "freshSixInterfaceExecutionRequired": true,
+    "operationalStateQualified": false,
+    "creationQualified": false,
+    "lifecycleQualified": false,
+    "fullCeAcceptance": false
+  },
+  "results": [
+    {
+      "cloud": "aws",
+      "engine": "native",
+      "profile": "three-node-ha",
+      "planId": "aws-ce-0ebd5ec55e76e47cf0f36763",
+      "planSha256": "0ebd5ec55e76e47cf0f36763de0fee17d7a7309efdf73cea75ecc48421609a7e",
+      "privateResultSha256": "771ec593a456a6cba9daff27d7137bc37d9a913890f4910994c77dd5c2149540",
+      "nodeCount": 3,
+      "logicalSiteCount": 1,
+      "oneSiteThreeNodeBindingsVerified": true,
+      "plannedInterfaces": 6,
+      "historicalGuestLayoutInputsVerified": true,
+      "availabilityZones": ["us-east-2a", "us-east-2b", "us-east-2c"],
+      "routingProfile": "nlb-ingress"
+    },
+    {
+      "cloud": "aws",
+      "engine": "terraform",
+      "profile": "three-node-ha",
+      "planId": "aws-ce-3439f26e55f17c202214b74e",
+      "planSha256": "3439f26e55f17c202214b74e9685912c7f9fd41a1257acbb54c59c964b832d99",
+      "privateResultSha256": "bc92293a425f2b602df83efc33d613df6e6c52e74f0b06a57afdd38f2ab5fcbc",
+      "nodeCount": 3,
+      "logicalSiteCount": 1,
+      "oneSiteThreeNodeBindingsVerified": true,
+      "plannedInterfaces": 6,
+      "historicalGuestLayoutInputsVerified": true,
+      "availabilityZones": ["us-east-2a", "us-east-2b", "us-east-2c"],
+      "routingProfile": "nlb-ingress"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-21T20:05:13.964Z",
+      "completedAt": "2026-10-21T20:05:13.981Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-21T20:05:13.982Z",
+      "completedAt": "2026-10-21T20:05:13.993Z",
+      "isError": false
+    }
+  ],
+  "cloudMutation": false,
+  "creationQualified": false,
+  "lifecycleQualified": false,
+  "freshSixInterfaceExecutionRequired": true,
+  "awsSingleNonHaMutationGuardChanged": false,
+  "fullCeAcceptance": false,
+  "automated": {
+    "tests": 98,
+    "assertions": 540,
+    "passed": true
+  },
+  "retainedInitialRejection": "Three-node HA requires distinct verified guest device identities for every interface"
+}
