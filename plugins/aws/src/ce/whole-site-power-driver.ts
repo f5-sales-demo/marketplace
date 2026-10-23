@@ -31,9 +31,7 @@ export function createAwsWholeSitePowerDriver(
   verifyAwsWholeSitePowerPlan(base, boundPlan);
   const inventory = boundPlan.bindings.servicesInventory;
   if (!inventory) throw Error('Owning power driver requires complete service inventory');
-  const kinds = inventory.components.map((row) => row.kind);
-  if (base.engine === 'terraform' && (!terraform || kinds.includes('direct')))
-    throw Error('Terraform power owner unavailable or direct routing unqualified');
+  if (base.engine === 'terraform' && !terraform) throw Error('Terraform power owner unavailable');
   const bgp = inventory.components.find((row) => row.kind === 'bgp');
   const retained = bgp ? (bgp.services as { platform: AwsBgpPowerSiteBinding[] }).platform : undefined;
   const assertPlan = (plan: AwsWholeSitePowerPlan) => {

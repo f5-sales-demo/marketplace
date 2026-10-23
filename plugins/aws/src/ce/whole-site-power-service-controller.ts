@@ -19,6 +19,10 @@ import {
 } from './nlb-power-controller';
 import { dispatchAwsNativeStaticTgwRoutes, reconcileAwsNativeStaticTgwRoutes } from './static-tgw-power-controller';
 import {
+  dispatchAwsTerraformDirectRoutes,
+  reconcileAwsTerraformDirectRoutes,
+} from './terraform-direct-power-controller';
+import {
   dispatchAwsTerraformStaticTgwRoutes,
   reconcileAwsTerraformStaticTgwRoutes,
 } from './terraform-static-tgw-power-controller';
@@ -73,8 +77,8 @@ async function components(
   )
     throw Error('Complete service original attempt differs');
   const kinds = plan.bindings.servicesInventory.components.map((row) => row.kind);
-  if (base.engine === 'terraform' && (kinds.includes('direct') || (kinds.some((k) => k !== 'bgp') && !terraform)))
-    throw Error('Terraform service owner is unavailable or direct routing is unqualified');
+  if (base.engine === 'terraform' && kinds.some((k) => k !== 'bgp') && !terraform)
+    throw Error('Terraform service owner is unavailable');
   return kinds;
 }
 async function component(
@@ -132,9 +136,19 @@ async function component(
     if (dispatch) await submit(base, plan, plan.planSha256, effect, storage, values, api, signal);
     return reconcile(base, plan, effect, at, storage, values, api, signal);
   }
-  if (!terraform || kind === 'direct') throw Error('Terraform component is unqualified');
-  const submit = kind === 'nlb' ? dispatchAwsTerraformNlbMembership : dispatchAwsTerraformStaticTgwRoutes;
-  const reconcile = kind === 'nlb' ? reconcileAwsTerraformNlbMembership : reconcileAwsTerraformStaticTgwRoutes;
+  if (!terraform) throw Error('Terraform component owner is unavailable');
+  const submit =
+    kind === 'nlb'
+      ? dispatchAwsTerraformNlbMembership
+      : kind === 'direct'
+        ? dispatchAwsTerraformDirectRoutes
+        : dispatchAwsTerraformStaticTgwRoutes;
+  const reconcile =
+    kind === 'nlb'
+      ? reconcileAwsTerraformNlbMembership
+      : kind === 'direct'
+        ? reconcileAwsTerraformDirectRoutes
+        : reconcileAwsTerraformStaticTgwRoutes;
   if (dispatch) await submit(base, plan, plan.planSha256, effect, storage, values, api, terraform, signal);
   return reconcile(base, plan, effect, at, storage, values, api, terraform, signal);
 }

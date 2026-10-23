@@ -23997,6 +23997,33 @@ var init_native_whole_site_power = __esm(() => {
   init_whole_site_power_identities();
 });
 
+// plugins/aws/src/ce/terraform-power-session.ts
+async function openAwsTerraformPowerSession(base, storage, terraform, api, signal) {
+  verifyAwsCePlan(base);
+  const owner = storage.owner;
+  if (
+    base.engine !== 'terraform' ||
+    owner.engine !== 'terraform' ||
+    owner.provider !== 'aws' ||
+    owner.deploymentId !== base.intent.deploymentName ||
+    owner.account !== base.intent.accountId ||
+    owner.region !== base.intent.region
+  )
+    throw Error('Terraform power runner owner differs');
+  await storage.verify();
+  signal?.throwIfAborted();
+  const placement =
+    base.intent.vpc.mode === 'brownfield'
+      ? await loadAwsTerraformBrownfieldBinding(base, storage, api, signal)
+      : undefined;
+  return terraform.open(owner, await awsTerraformFoundationDeployment(base, {}, placement), 'current');
+}
+var init_terraform_power_session = __esm(() => {
+  init_artifacts();
+  init_terraform_brownfield_binding();
+  init_terraform_foundation();
+});
+
 // plugins/aws/src/ce/terraform-whole-site-power.ts
 import { createHash as createHash21 } from 'node:crypto';
 
@@ -24224,9 +24251,6 @@ async function identities3(base, plan, api, runtime, signal) {
     throw new Error('Terraform power live ownership or interface identities changed');
   return current;
 }
-async function open(base, plan, terraform) {
-  return terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
-}
 function verifyPreparation(plan, effect, marker, value) {
   const prep = value;
   if (!prep || canonicalSha256(prep.marker) !== canonicalSha256(marker) || !prep.revision)
@@ -24263,7 +24287,7 @@ async function dispatchAwsTerraformPowerState(
   const release = await acquireProcessLock(`${storage.directory}/.terraform-power-dispatch-lock`);
   try {
     const { marker, name } = await context3(base, plan, effect, storage, true);
-    const session = await open(base, plan, terraform);
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const prepName = `${plan.planId}-${effect}-terraform-preparation.json`;
     const existing = await optional22(storage, prepName);
     let prep;
@@ -24384,7 +24408,7 @@ async function reconcileAwsTerraformPowerState(
         canonicalSha256(prep.revision)
     )
       throw Error('Terraform power retained source or revision differs');
-    const session = await open(base, plan, terraform);
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     if (effect === 'release') {
       const outcome = await optional22(storage, `${plan.planId}-${effect}-terraform-outcome.json`);
       if (outcome !== undefined) {
@@ -24525,7 +24549,7 @@ async function finishRelease(base, plan, marker, prep, storage, session, api, ru
 var init_terraform_power_controller = __esm(() => {
   init_process_lock();
   init_canonical();
-  init_terraform_foundation();
+  init_terraform_power_session();
   init_terraform_whole_site_power();
   init_whole_site_power();
   init_whole_site_power_identities();
@@ -25069,7 +25093,7 @@ async function dispatchAwsTerraformNlbMembership(
     const dispatchName = `${plan.planId}-${effect}-terraform-nlb-dispatch.json`;
     const observed = await collectAwsPowerNlbServices(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform NLB service identity differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     let prep = await optional24(storage, name);
     const retained = await retainedWithdrawal(base, plan, storage, effect);
     if (prep) {
@@ -25174,7 +25198,7 @@ async function reconcileAwsTerraformNlbMembership(
       ) !== canonicalSha256(prep.revision)
     )
       throw Error('Terraform NLB retained preparation differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const journal = await session.readPlanApplicationState(prep.receipt);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
       throw Error('Terraform NLB dispatch marker differs');
@@ -25228,7 +25252,7 @@ async function reconcileAwsTerraformNlbMembership(
 var init_nlb_power_controller = __esm(() => {
   init_process_lock();
   init_canonical();
-  init_terraform_foundation();
+  init_terraform_power_session();
   init_whole_site_power();
   init_whole_site_power_service_binding();
   init_whole_site_power_services();
@@ -25420,10 +25444,477 @@ var init_static_tgw_power_controller = __esm(() => {
   init_whole_site_power_tgw();
 });
 
-// plugins/aws/src/ce/terraform-static-power.ts
+// plugins/aws/src/ce/terraform-direct-power.ts
 import { createHash as createHash22 } from 'node:crypto';
 
 function object37(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw Error('Malformed Terraform direct service configuration');
+  return value;
+}
+function expectedRoutes(base, services) {
+  verifyAwsCePlan(base);
+  const requested = [...base.intent.routes].sort(
+    (a, b) => a.routeTableId.localeCompare(b.routeTableId) || a.destinationCidr.localeCompare(b.destinationCidr),
+  );
+  if (
+    base.engine !== 'terraform' ||
+    base.topology.nodeCount !== 1 ||
+    base.intent.routing.profile !== 'direct-eni' ||
+    services.schemaVersion !== 1 ||
+    services.kind !== 'aws-ce-direct-route-power-services' ||
+    services.engine !== base.engine ||
+    services.sourcePlanSha256 !== base.planSha256 ||
+    services.accountId !== base.accountId ||
+    services.region !== base.region ||
+    !/^i-[a-f0-9]{8,17}$/.test(services.instanceId) ||
+    !/^eni-[a-f0-9]{8,17}$/.test(services.sloNetworkInterfaceId) ||
+    !/^subnet-[a-f0-9]{8,17}$/.test(String(services.sloSubnetId)) ||
+    !requested.length ||
+    canonicalSha256(
+      services.routes.map((r) => ({ routeTableId: r.routeTableId, destinationCidr: r.destinationCidr, node: 1 })),
+    ) !== canonicalSha256(requested) ||
+    services.routes.some(
+      (r) =>
+        !/^eni-[a-f0-9]{8,17}$/.test(r.networkInterfaceId) ||
+        r.networkInterfaceId === services.sloNetworkInterfaceId ||
+        !/^rtb-[a-f0-9]{8,17}$/.test(r.routeTableId) ||
+        !base.intent.brownfield.routeTableIds.includes(r.routeTableId),
+    ) ||
+    new Set(services.routes.map((r) => r.networkInterfaceId)).size !== 1 ||
+    new Set(services.routes.map((r) => `${r.routeTableId}/${r.destinationCidr}`)).size !== requested.length
+  )
+    throw Error('Terraform direct service scope differs');
+  return Object.fromEntries(
+    services.routes.map((route, index) => [
+      `direct_${index}`,
+      {
+        route_table_id: route.routeTableId,
+        destination_cidr_block: route.destinationCidr,
+        network_interface_id: route.networkInterfaceId,
+      },
+    ]),
+  );
+}
+function reviseAwsTerraformDirectServiceRoutes(base, services, configuration, effect, retained) {
+  const routes = expectedRoutes(base, services);
+  const next = object37(JSON.parse(configuration));
+  const terraform = object37(next.terraform),
+    aws = object37(object37(terraform.required_providers).aws),
+    provider = object37(object37(next.provider).aws);
+  if (
+    terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
+    aws.source !== 'hashicorp/aws' ||
+    aws.version !== `= ${AWS_CE_TERRAFORM_PROVIDER_VERSION}` ||
+    provider.region !== base.region ||
+    canonicalSha256(provider.allowed_account_ids) !== canonicalSha256([base.accountId]) ||
+    terraform.backend ||
+    terraform.cloud ||
+    next.import ||
+    next.removed
+  )
+    throw Error('Terraform direct service provider or lifecycle differs');
+  const resources = object37(next.resource);
+  const configured = resources.aws_route === undefined ? {} : object37(resources.aws_route);
+  if (Object.keys(configured).some((name) => name.startsWith('direct_') && !Object.hasOwn(routes, name)))
+    throw Error('Terraform direct service route cardinality differs');
+  if (
+    effect === 'restore' &&
+    (retained?.effect !== 'withdraw' ||
+      retained.servicesSha256 !== canonicalSha256(services) ||
+      hash12(retained.configuration) !== retained.afterSha256 ||
+      canonicalSha256(retained.routes) !== canonicalSha256(routes))
+  )
+    throw Error('Terraform direct restoration requires retained withdrawal');
+  if (!['withdraw', 'restore'].includes(effect)) throw Error('Terraform direct effect differs');
+  for (const [name, route] of Object.entries(routes)) {
+    if (effect === 'withdraw') {
+      if (canonicalSha256(configured[name]) !== canonicalSha256(route))
+        throw Error('Terraform direct service route identity differs');
+      delete configured[name];
+    } else {
+      if (Object.hasOwn(configured, name)) throw Error('Terraform direct restored resource already exists');
+      configured[name] = structuredClone(route);
+    }
+  }
+  if (Object.keys(configured).length) resources.aws_route = configured;
+  else delete resources.aws_route;
+  const result = JSON.stringify(next);
+  return {
+    configuration: result,
+    beforeSha256: hash12(configuration),
+    afterSha256: hash12(result),
+    servicesSha256: canonicalSha256(services),
+    effect,
+    routes,
+  };
+}
+function validateAwsTerraformDirectServiceReceipt(base, services, revision, receipt, before, after) {
+  const routes = expectedRoutes(base, services);
+  if (
+    canonicalSha256(revision.routes) !== canonicalSha256(routes) ||
+    revision.servicesSha256 !== canonicalSha256(services) ||
+    hash12(revision.configuration) !== revision.afterSha256 ||
+    !['withdraw', 'restore'].includes(revision.effect) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== base.deploymentName ||
+    receipt.backendIdentity !== `local:${base.deploymentName}` ||
+    receipt.configurationSha256 !== revision.afterSha256 ||
+    receipt.providerLockSha256 !== AWS_CE_PROVIDER_LOCK_SHA256 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    receipt.operation ||
+    receipt.actionInvocations?.length ||
+    receipt.noChanges ||
+    new Set(receipt.changes.map((c) => c.address)).size !== receipt.changes.length
+  )
+    throw Error('Terraform direct service saved-plan scope differs');
+  const addresses = Object.keys(routes)
+    .map((n) => `aws_route.${n}`)
+    .sort();
+  const mutations = receipt.changes.filter((c) => canonicalSha256(c.actions) !== canonicalSha256(['no-op']));
+  if (
+    canonicalSha256(mutations.map((c) => c.address).sort()) !== canonicalSha256(addresses) ||
+    mutations.some(
+      (c) =>
+        c.type !== 'aws_route' ||
+        canonicalSha256(c.actions) !== canonicalSha256([revision.effect === 'withdraw' ? 'delete' : 'create']),
+    )
+  )
+    throw Error('Terraform direct service unrelated or replacement mutation');
+  if (
+    canonicalSha256(Object.keys(before).sort()) !== canonicalSha256(addresses) ||
+    canonicalSha256(Object.keys(after).sort()) !== canonicalSha256(addresses)
+  )
+    throw Error('Terraform direct service projection incomplete');
+  for (const address of addresses) {
+    if (
+      canonicalSha256(revision.effect === 'withdraw' ? before[address] : after[address]) !==
+        canonicalSha256(routes[address.slice('aws_route.'.length)]) ||
+      (revision.effect === 'withdraw' ? after[address] : before[address]) !== null
+    )
+      throw Error('Terraform direct service resolved identity differs');
+  }
+}
+var hash12 = (value) => createHash22('sha256').update(value).digest('hex');
+var init_terraform_direct_power = __esm(() => {
+  init_artifacts();
+  init_canonical();
+});
+
+// plugins/aws/src/ce/terraform-direct-power-controller.ts
+async function optional26(storage, name) {
+  try {
+    return await storage.read(name);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+async function context7(base, plan, effect, storage) {
+  verifyAwsWholeSitePowerPlan(base, plan);
+  await storage.verify();
+  if (
+    plan.operation !== (effect === 'withdraw' ? 'stop' : 'start') ||
+    base.topology.nodeCount !== 1 ||
+    canonicalSha256(storage.owner) !== canonicalSha256(plan.bindings.owner) ||
+    canonicalSha256(await storage.read(`${plan.planId}.json`)) !== canonicalSha256(plan)
+  )
+    throw Error('Direct route owning plan differs');
+  const cp = await storage.read(`${plan.planId}-checkpoint.json`);
+  const attempt = cp.pending;
+  if (
+    cp.schemaVersion !== 1 ||
+    cp.planSha256 !== plan.planSha256 ||
+    cp.bindingsSha256 !== plan.bindingsSha256 ||
+    cp.step !== (effect === 'withdraw' ? 1 : 3) ||
+    cp.complete !== false ||
+    !attempt ||
+    attempt.effect !== effect ||
+    attempt.requestSha256 !== canonicalSha256({ planSha256: plan.planSha256, effect }) ||
+    !Number.isFinite(Date.parse(attempt.originalAttemptAt)) ||
+    Date.parse(attempt.originalAttemptAt) > Date.now() ||
+    canonicalSha256(attempt) !== canonicalSha256(cp.attempts?.[effect])
+  )
+    throw Error('Direct route original attempt differs');
+  return {
+    schemaVersion: 1,
+    engine: base.engine,
+    planSha256: plan.planSha256,
+    bindingsSha256: plan.bindingsSha256,
+    servicesSha256: powerServiceComponentSha256(base, plan.bindings, 'direct'),
+    attempt,
+  };
+}
+async function retainedWithdrawal2(base, plan, storage, effect) {
+  if (effect !== 'restore') return;
+  if (!plan.maintenance) throw Error('Terraform direct route stopped maintenance missing');
+  const id = `aws-ce-power-${plan.maintenance.stopPlanSha256.slice(0, 24)}`;
+  const stop = await storage.read(`${id}.json`);
+  verifyAwsWholeSitePowerPlan(base, stop);
+  if (
+    stop.operation !== 'stop' ||
+    stop.planSha256 !== plan.maintenance.stopPlanSha256 ||
+    stop.transitionId !== plan.transitionId ||
+    stop.bindingsSha256 !== plan.bindingsSha256
+  )
+    throw Error('Terraform direct route retained stop plan differs');
+  const prior = await storage.read(`${id}-withdraw-terraform-direct-preparation.json`);
+  if (
+    prior.marker.planSha256 !== plan.maintenance.stopPlanSha256 ||
+    prior.marker.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'direct') ||
+    prior.marker.bindingsSha256 !== plan.bindingsSha256 ||
+    !prior.receipt
+  )
+    throw Error('Terraform direct route retained withdrawal differs');
+  const dispatch = await storage.read(`${id}-withdraw-terraform-direct-dispatch.json`);
+  const outcome = await storage.read(`${id}-withdraw-terraform-direct-outcome.json`);
+  if (
+    prior.marker.schemaVersion !== 1 ||
+    prior.marker.engine !== 'terraform' ||
+    prior.marker.attempt.requestSha256 !== canonicalSha256({ planSha256: stop.planSha256, effect: 'withdraw' }) ||
+    !Number.isFinite(Date.parse(prior.marker.attempt.originalAttemptAt)) ||
+    Date.parse(prior.marker.attempt.originalAttemptAt) > Date.now() ||
+    prior.marker.attempt.effect !== 'withdraw' ||
+    canonicalSha256(dispatch) !== canonicalSha256({ marker: prior.marker, receipt: prior.receipt }) ||
+    canonicalSha256(outcome.marker) !== canonicalSha256(prior.marker) ||
+    canonicalSha256(outcome.receipt) !== canonicalSha256(prior.receipt) ||
+    outcome.observed.status !== 'withdrawn' ||
+    outcome.observed.servicesSha256 !== powerServiceComponentSha256(base, plan.bindings, 'direct') ||
+    canonicalSha256(outcome.observed.services) !== powerServiceComponentSha256(base, plan.bindings, 'direct') ||
+    canonicalSha256(outcome.applied) !==
+      canonicalSha256(
+        Object.fromEntries(Object.keys(prior.revision.routes).map((name) => [`aws_route.${name}`, null])),
+      ) ||
+    !Number.isFinite(Date.parse(outcome.collectedAt)) ||
+    Date.parse(outcome.collectedAt) > Date.now() ||
+    Date.parse(outcome.collectedAt) < Date.parse(prior.marker.attempt.originalAttemptAt)
+  )
+    throw Error('Terraform direct route completed withdrawal evidence differs');
+  const services = outcome.observed.services;
+  if (
+    canonicalSha256(reviseAwsTerraformDirectServiceRoutes(base, services, prior.source, 'withdraw')) !==
+    canonicalSha256(prior.revision)
+  )
+    throw Error('Terraform direct route completed withdrawal revision differs');
+  validateAwsTerraformDirectServiceReceipt(
+    base,
+    services,
+    prior.revision,
+    prior.receipt,
+    ownedFields(prior.revision),
+    absentFields(prior.revision),
+  );
+  return prior.revision;
+}
+function selections(revision) {
+  return Object.fromEntries(
+    Object.keys(revision.routes).map((name) => [
+      `aws_route.${name}`,
+      ['route_table_id', 'destination_cidr_block', 'network_interface_id'],
+    ]),
+  );
+}
+function absentFields(revision) {
+  return Object.fromEntries(Object.keys(selections(revision)).map((address) => [address, null]));
+}
+function ownedFields(revision) {
+  return Object.fromEntries(
+    Object.entries(revision.routes).map(([name, route]) => [
+      `aws_route.${name}`,
+      {
+        destination_cidr_block: route.destination_cidr_block,
+        network_interface_id: route.network_interface_id,
+        route_table_id: route.route_table_id,
+      },
+    ]),
+  );
+}
+async function projections2(session, receipt, revision, signal) {
+  return {
+    before: await session.readPlannedResourceFields(receipt, selections(revision), process.env, signal),
+    after: await session.readProposedResourceFields(receipt, selections(revision), process.env, signal),
+  };
+}
+async function dispatchAwsTerraformDirectRoutes(
+  base,
+  plan,
+  authorization,
+  effect,
+  storage,
+  values,
+  api,
+  terraform,
+  signal,
+) {
+  if (base.engine !== 'terraform' || authorization !== plan.planSha256)
+    throw Error('Terraform direct route engine or authorization differs');
+  const release = await acquireProcessLock(`${storage.directory}/.terraform-direct-power-lock`);
+  try {
+    const marker = await context7(base, plan, effect, storage);
+    const name = `${plan.planId}-${effect}-terraform-direct-preparation.json`;
+    const dispatchName = `${plan.planId}-${effect}-terraform-direct-dispatch.json`;
+    const observed = await collectAwsPowerDirectRoutes(base, values, api, signal);
+    if (observed.servicesSha256 !== marker.servicesSha256)
+      throw Error('Terraform direct route service identity differs');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
+    let prep = await optional26(storage, name);
+    const retained = await retainedWithdrawal2(base, plan, storage, effect);
+    if (prep) {
+      if (
+        canonicalSha256(prep.marker) !== canonicalSha256(marker) ||
+        canonicalSha256(
+          reviseAwsTerraformDirectServiceRoutes(base, observed.services, prep.source, effect, retained),
+        ) !== canonicalSha256(prep.revision)
+      )
+        throw Error('Terraform direct route preparation differs');
+      if (prep.receipt && (await session.readPlanApplicationState(prep.receipt)) !== 'planned')
+        throw Error('Terraform direct route already submitted; reconcile original attempt');
+    } else {
+      if ((await optional26(storage, dispatchName)) !== undefined)
+        throw Error('Terraform direct route submission lacks preparation');
+      if (!session.readConfigurationSha256) throw Error('Terraform direct route configuration reader missing');
+      const source = await session.readConfiguration(await session.readConfigurationSha256());
+      prep = {
+        marker,
+        source,
+        revision: reviseAwsTerraformDirectServiceRoutes(base, observed.services, source, effect, retained),
+      };
+      await storage.write(name, prep);
+    }
+    if (observed.status !== (effect === 'withdraw' ? 'active' : 'withdrawn'))
+      throw Error('Terraform direct route prerequisite membership differs');
+    if (!session.readConfigurationSha256) throw Error('Terraform direct route configuration reader missing');
+    const current = await session.readConfigurationSha256();
+    if (current === prep.revision.beforeSha256) await session.reviseConfiguration(current, prep.revision.configuration);
+    else if (current !== prep.revision.afterSha256) throw Error('Terraform direct route current revision differs');
+    if (!prep.receipt) {
+      const receipt = await session.plan(process.env, signal);
+      const fields = await projections2(session, receipt, prep.revision, signal);
+      validateAwsTerraformDirectServiceReceipt(
+        base,
+        observed.services,
+        prep.revision,
+        receipt,
+        fields.before,
+        fields.after,
+      );
+      prep = { ...prep, receipt };
+      await storage.write(name, prep);
+    }
+    if (!prep.receipt) throw Error('Terraform direct route receipt missing');
+    const fields = await projections2(session, prep.receipt, prep.revision, signal);
+    validateAwsTerraformDirectServiceReceipt(
+      base,
+      observed.services,
+      prep.revision,
+      prep.receipt,
+      fields.before,
+      fields.after,
+    );
+    if ((await session.readPlanApplicationState(prep.receipt)) !== 'planned')
+      throw Error('Terraform direct route already submitted');
+    const expected = { marker, receipt: prep.receipt };
+    const saved = await optional26(storage, dispatchName);
+    if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
+      throw Error('Terraform direct route dispatch marker differs');
+    signal?.throwIfAborted();
+    await storage.write(dispatchName, expected);
+    await session.apply(prep.receipt, process.env, signal);
+  } finally {
+    await release();
+  }
+}
+async function reconcileAwsTerraformDirectRoutes(
+  base,
+  plan,
+  effect,
+  originalAttemptAt,
+  storage,
+  values,
+  api,
+  terraform,
+  signal,
+) {
+  if (base.engine !== 'terraform') throw Error('Terraform direct route engine differs');
+  const release = await acquireProcessLock(`${storage.directory}/.terraform-direct-power-lock`);
+  try {
+    const marker = await context7(base, plan, effect, storage);
+    if (originalAttemptAt !== marker.attempt.originalAttemptAt)
+      throw Error('Terraform direct route original attempt differs');
+    const prep = await optional26(storage, `${plan.planId}-${effect}-terraform-direct-preparation.json`);
+    const saved = await optional26(storage, `${plan.planId}-${effect}-terraform-direct-dispatch.json`);
+    if (!prep?.receipt) {
+      if (saved !== undefined) throw Error('Terraform direct route submission lacks receipt');
+      return 'not-submitted';
+    }
+    if (canonicalSha256(prep.marker) !== canonicalSha256(marker))
+      throw Error('Terraform direct route preparation marker differs');
+    const observed = await collectAwsPowerDirectRoutes(base, values, api, signal);
+    if (
+      observed.servicesSha256 !== marker.servicesSha256 ||
+      canonicalSha256(
+        reviseAwsTerraformDirectServiceRoutes(
+          base,
+          observed.services,
+          prep.source,
+          effect,
+          await retainedWithdrawal2(base, plan, storage, effect),
+        ),
+      ) !== canonicalSha256(prep.revision)
+    )
+      throw Error('Terraform direct route retained preparation differs');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
+    const journal = await session.readPlanApplicationState(prep.receipt);
+    if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
+      throw Error('Terraform direct route dispatch marker differs');
+    if (journal === 'planned') return 'not-submitted';
+    if (saved === undefined) throw Error('Terraform direct route submitted journal lacks marker');
+    const fields = await projections2(session, prep.receipt, prep.revision, signal);
+    validateAwsTerraformDirectServiceReceipt(
+      base,
+      observed.services,
+      prep.revision,
+      prep.receipt,
+      fields.before,
+      fields.after,
+    );
+    const applied = await session.readAppliedResourceFields(
+      prep.receipt,
+      selections(prep.revision),
+      process.env,
+      signal,
+    );
+    const owned = ownedFields(prep.revision);
+    const absent = absentFields(prep.revision);
+    if (canonicalSha256(Object.keys(applied).sort()) !== canonicalSha256(Object.keys(owned).sort()))
+      throw Error('Terraform direct route applied identity incomplete');
+    for (const address of Object.keys(owned))
+      if (applied[address] !== null && canonicalSha256(applied[address]) !== canonicalSha256(owned[address]))
+        throw Error('Terraform direct route applied route identity differs');
+    if (canonicalSha256(applied) !== canonicalSha256(effect === 'withdraw' ? absent : owned)) return 'pending';
+    if (observed.status !== (effect === 'withdraw' ? 'withdrawn' : 'active')) return 'pending';
+    const evidence = { marker, receipt: prep.receipt, observed, applied, collectedAt: new Date().toISOString() };
+    await storage.write(`${plan.planId}-${effect}-terraform-direct-outcome.json`, evidence);
+    await session.reconcileApplyFromEvidence(prep.receipt, canonicalSha256(evidence));
+    return 'completed';
+  } finally {
+    await release();
+  }
+}
+var init_terraform_direct_power_controller = __esm(() => {
+  init_process_lock();
+  init_canonical();
+  init_terraform_direct_power();
+  init_terraform_power_session();
+  init_whole_site_power();
+  init_whole_site_power_routes();
+  init_whole_site_power_service_binding();
+});
+
+// plugins/aws/src/ce/terraform-static-power.ts
+import { createHash as createHash23 } from 'node:crypto';
+
+function object38(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error('Malformed Terraform static service configuration');
   return value;
@@ -25444,11 +25935,11 @@ function scope3(base, services) {
   )
     throw Error('Terraform static service scope differs');
 }
-function expectedRoutes(base, services, routes) {
+function expectedRoutes2(base, services, routes) {
   if (Object.keys(routes).length !== base.intent.routing.destinationCidrs.length)
     throw Error('Terraform static service route cardinality differs');
   for (const [index, destination] of base.intent.routing.destinationCidrs.entries()) {
-    const route = object37(routes[`static_${index}`]);
+    const route = object38(routes[`static_${index}`]);
     if (
       canonicalSha256(route) !==
       canonicalSha256({
@@ -25462,10 +25953,10 @@ function expectedRoutes(base, services, routes) {
 }
 function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, effect, retained) {
   scope3(base, services);
-  const after = object37(JSON.parse(configuration));
-  const terraform = object37(after.terraform),
-    aws = object37(object37(terraform.required_providers).aws),
-    provider = object37(object37(after.provider).aws);
+  const after = object38(JSON.parse(configuration));
+  const terraform = object38(after.terraform),
+    aws = object38(object38(terraform.required_providers).aws),
+    provider = object38(object38(after.provider).aws);
   if (
     terraform.required_version !== `= ${AWS_CE_TERRAFORM_VERSION}` ||
     aws.source !== 'hashicorp/aws' ||
@@ -25476,29 +25967,29 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
     terraform.cloud
   )
     throw Error('Terraform static service provider differs');
-  const resources = object37(after.resource);
+  const resources = object38(after.resource);
   let routes;
   if (effect === 'withdraw') {
-    routes = object37(resources.aws_ec2_transit_gateway_route);
-    expectedRoutes(base, services, routes);
+    routes = object38(resources.aws_ec2_transit_gateway_route);
+    expectedRoutes2(base, services, routes);
     delete resources.aws_ec2_transit_gateway_route;
   } else if (effect === 'restore') {
     if (
       retained?.effect !== 'withdraw' ||
       retained.servicesSha256 !== canonicalSha256(services) ||
-      hash12(retained.configuration) !== retained.afterSha256 ||
+      hash13(retained.configuration) !== retained.afterSha256 ||
       resources.aws_ec2_transit_gateway_route !== undefined
     )
       throw Error('Terraform static restoration requires retained withdrawal');
-    routes = object37(retained.routes);
-    expectedRoutes(base, services, routes);
+    routes = object38(retained.routes);
+    expectedRoutes2(base, services, routes);
     resources.aws_ec2_transit_gateway_route = structuredClone(routes);
   } else throw Error('Terraform static service effect differs');
   const next = JSON.stringify(after);
   return {
     configuration: next,
-    beforeSha256: hash12(configuration),
-    afterSha256: hash12(next),
+    beforeSha256: hash13(configuration),
+    afterSha256: hash13(next),
     servicesSha256: canonicalSha256(services),
     effect,
     routes: structuredClone(routes),
@@ -25506,10 +25997,10 @@ function reviseAwsTerraformStaticServiceRoutes(base, services, configuration, ef
 }
 function validateAwsTerraformStaticServiceReceipt(base, services, revision, receipt, before, after) {
   scope3(base, services);
-  expectedRoutes(base, services, revision.routes);
+  expectedRoutes2(base, services, revision.routes);
   if (
     revision.servicesSha256 !== canonicalSha256(services) ||
-    revision.afterSha256 !== hash12(revision.configuration) ||
+    revision.afterSha256 !== hash13(revision.configuration) ||
     !['withdraw', 'restore'].includes(revision.effect) ||
     receipt.schemaVersion !== 1 ||
     receipt.engine !== 'terraform' ||
@@ -25558,21 +26049,21 @@ function validateAwsTerraformStaticServiceReceipt(base, services, revision, rece
       throw Error('Terraform static service resolved identity differs');
   }
 }
-var hash12 = (value) => createHash22('sha256').update(value).digest('hex');
+var hash13 = (value) => createHash23('sha256').update(value).digest('hex');
 var init_terraform_static_power = __esm(() => {
   init_artifacts();
   init_canonical();
 });
 
 // plugins/aws/src/ce/terraform-static-tgw-power-controller.ts
-async function optional26(storage, name) {
+async function optional27(storage, name) {
   try {
     return await storage.read(name);
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-async function context7(base, plan, effect, storage) {
+async function context8(base, plan, effect, storage) {
   verifyAwsWholeSitePowerPlan(base, plan);
   await storage.verify();
   if (
@@ -25607,7 +26098,7 @@ async function context7(base, plan, effect, storage) {
     attempt,
   };
 }
-async function retainedWithdrawal2(base, plan, storage, effect) {
+async function retainedWithdrawal3(base, plan, storage, effect) {
   if (effect !== 'restore') return;
   if (!plan.maintenance) throw Error('Terraform static TGW stopped maintenance missing');
   const id = `aws-ce-power-${plan.maintenance.stopPlanSha256.slice(0, 24)}`;
@@ -25661,12 +26152,12 @@ async function retainedWithdrawal2(base, plan, storage, effect) {
     services,
     prior.revision,
     prior.receipt,
-    ownedFields(services, prior.revision),
-    absentFields(prior.revision),
+    ownedFields2(services, prior.revision),
+    absentFields2(prior.revision),
   );
   return prior.revision;
 }
-function selections(revision) {
+function selections2(revision) {
   return Object.fromEntries(
     Object.keys(revision.routes).map((name) => [
       `aws_ec2_transit_gateway_route.${name}`,
@@ -25674,10 +26165,10 @@ function selections(revision) {
     ]),
   );
 }
-function absentFields(revision) {
-  return Object.fromEntries(Object.keys(selections(revision)).map((address) => [address, null]));
+function absentFields2(revision) {
+  return Object.fromEntries(Object.keys(selections2(revision)).map((address) => [address, null]));
 }
-function ownedFields(services, revision) {
+function ownedFields2(services, revision) {
   return Object.fromEntries(
     Object.entries(revision.routes).map(([name, route]) => [
       `aws_ec2_transit_gateway_route.${name}`,
@@ -25690,10 +26181,10 @@ function ownedFields(services, revision) {
     ]),
   );
 }
-async function projections2(session, receipt, revision, signal) {
+async function projections3(session, receipt, revision, signal) {
   return {
-    before: await session.readPlannedResourceFields(receipt, selections(revision), process.env, signal),
-    after: await session.readProposedResourceFields(receipt, selections(revision), process.env, signal),
+    before: await session.readPlannedResourceFields(receipt, selections2(revision), process.env, signal),
+    after: await session.readProposedResourceFields(receipt, selections2(revision), process.env, signal),
   };
 }
 async function dispatchAwsTerraformStaticTgwRoutes(
@@ -25711,14 +26202,14 @@ async function dispatchAwsTerraformStaticTgwRoutes(
     throw Error('Terraform static TGW engine or authorization differs');
   const release = await acquireProcessLock(`${storage.directory}/.terraform-static-tgw-power-lock`);
   try {
-    const marker = await context7(base, plan, effect, storage);
+    const marker = await context8(base, plan, effect, storage);
     const name = `${plan.planId}-${effect}-terraform-static-tgw-preparation.json`;
     const dispatchName = `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`;
     const observed = await collectAwsPowerStaticTgwRoutes(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform static TGW service identity differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
-    let prep = await optional26(storage, name);
-    const retained = await retainedWithdrawal2(base, plan, storage, effect);
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
+    let prep = await optional27(storage, name);
+    const retained = await retainedWithdrawal3(base, plan, storage, effect);
     if (prep) {
       if (
         canonicalSha256(prep.marker) !== canonicalSha256(marker) ||
@@ -25730,7 +26221,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
       if (prep.receipt && (await session.readPlanApplicationState(prep.receipt)) !== 'planned')
         throw Error('Terraform static TGW already submitted; reconcile original attempt');
     } else {
-      if ((await optional26(storage, dispatchName)) !== undefined)
+      if ((await optional27(storage, dispatchName)) !== undefined)
         throw Error('Terraform static TGW submission lacks preparation');
       if (!session.readConfigurationSha256) throw Error('Terraform static TGW configuration reader missing');
       const source = await session.readConfiguration(await session.readConfigurationSha256());
@@ -25749,7 +26240,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
     else if (current !== prep.revision.afterSha256) throw Error('Terraform static TGW current revision differs');
     if (!prep.receipt) {
       const receipt = await session.plan(process.env, signal);
-      const fields = await projections2(session, receipt, prep.revision, signal);
+      const fields = await projections3(session, receipt, prep.revision, signal);
       validateAwsTerraformStaticServiceReceipt(
         base,
         observed.services,
@@ -25762,7 +26253,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
       await storage.write(name, prep);
     }
     if (!prep.receipt) throw Error('Terraform static TGW receipt missing');
-    const fields = await projections2(session, prep.receipt, prep.revision, signal);
+    const fields = await projections3(session, prep.receipt, prep.revision, signal);
     validateAwsTerraformStaticServiceReceipt(
       base,
       observed.services,
@@ -25774,7 +26265,7 @@ async function dispatchAwsTerraformStaticTgwRoutes(
     if ((await session.readPlanApplicationState(prep.receipt)) !== 'planned')
       throw Error('Terraform static TGW already submitted');
     const expected = { marker, receipt: prep.receipt };
-    const saved = await optional26(storage, dispatchName);
+    const saved = await optional27(storage, dispatchName);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256(expected))
       throw Error('Terraform static TGW dispatch marker differs');
     signal?.throwIfAborted();
@@ -25798,11 +26289,11 @@ async function reconcileAwsTerraformStaticTgwRoutes(
   if (base.engine !== 'terraform') throw Error('Terraform static TGW engine differs');
   const release = await acquireProcessLock(`${storage.directory}/.terraform-static-tgw-power-lock`);
   try {
-    const marker = await context7(base, plan, effect, storage);
+    const marker = await context8(base, plan, effect, storage);
     if (originalAttemptAt !== marker.attempt.originalAttemptAt)
       throw Error('Terraform static TGW original attempt differs');
-    const prep = await optional26(storage, `${plan.planId}-${effect}-terraform-static-tgw-preparation.json`);
-    const saved = await optional26(storage, `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`);
+    const prep = await optional27(storage, `${plan.planId}-${effect}-terraform-static-tgw-preparation.json`);
+    const saved = await optional27(storage, `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`);
     if (!prep?.receipt) {
       if (saved !== undefined) throw Error('Terraform static TGW submission lacks receipt');
       return 'not-submitted';
@@ -25818,18 +26309,18 @@ async function reconcileAwsTerraformStaticTgwRoutes(
           observed.services,
           prep.source,
           effect,
-          await retainedWithdrawal2(base, plan, storage, effect),
+          await retainedWithdrawal3(base, plan, storage, effect),
         ),
       ) !== canonicalSha256(prep.revision)
     )
       throw Error('Terraform static TGW retained preparation differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const journal = await session.readPlanApplicationState(prep.receipt);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
       throw Error('Terraform static TGW dispatch marker differs');
     if (journal === 'planned') return 'not-submitted';
     if (saved === undefined) throw Error('Terraform static TGW submitted journal lacks marker');
-    const fields = await projections2(session, prep.receipt, prep.revision, signal);
+    const fields = await projections3(session, prep.receipt, prep.revision, signal);
     validateAwsTerraformStaticServiceReceipt(
       base,
       observed.services,
@@ -25840,12 +26331,12 @@ async function reconcileAwsTerraformStaticTgwRoutes(
     );
     const applied = await session.readAppliedResourceFields(
       prep.receipt,
-      selections(prep.revision),
+      selections2(prep.revision),
       process.env,
       signal,
     );
-    const owned = ownedFields(observed.services, prep.revision);
-    const absent = absentFields(prep.revision);
+    const owned = ownedFields2(observed.services, prep.revision);
+    const absent = absentFields2(prep.revision);
     if (canonicalSha256(Object.keys(applied).sort()) !== canonicalSha256(Object.keys(owned).sort()))
       throw Error('Terraform static TGW applied identity incomplete');
     for (const address of Object.keys(owned))
@@ -25864,7 +26355,7 @@ async function reconcileAwsTerraformStaticTgwRoutes(
 var init_terraform_static_tgw_power_controller = __esm(() => {
   init_process_lock();
   init_canonical();
-  init_terraform_foundation();
+  init_terraform_power_session();
   init_terraform_static_power();
   init_whole_site_power();
   init_whole_site_power_service_binding();
@@ -25902,8 +26393,8 @@ async function components(base, plan, effect, at, storage, terraform) {
   )
     throw Error('Complete service original attempt differs');
   const kinds = plan.bindings.servicesInventory.components.map((row) => row.kind);
-  if (base.engine === 'terraform' && (kinds.includes('direct') || (kinds.some((k) => k !== 'bgp') && !terraform)))
-    throw Error('Terraform service owner is unavailable or direct routing is unqualified');
+  if (base.engine === 'terraform' && kinds.some((k) => k !== 'bgp') && !terraform)
+    throw Error('Terraform service owner is unavailable');
   return kinds;
 }
 async function component(kind, dispatch, base, plan, effect, at, storage, values, api, runtime, signal, terraform) {
@@ -25948,9 +26439,19 @@ async function component(kind, dispatch, base, plan, effect, at, storage, values
     if (dispatch) await submit(base, plan, plan.planSha256, effect, storage, values, api, signal);
     return reconcile(base, plan, effect, at, storage, values, api, signal);
   }
-  if (!terraform || kind === 'direct') throw Error('Terraform component is unqualified');
-  const submit = kind === 'nlb' ? dispatchAwsTerraformNlbMembership : dispatchAwsTerraformStaticTgwRoutes;
-  const reconcile = kind === 'nlb' ? reconcileAwsTerraformNlbMembership : reconcileAwsTerraformStaticTgwRoutes;
+  if (!terraform) throw Error('Terraform component owner is unavailable');
+  const submit =
+    kind === 'nlb'
+      ? dispatchAwsTerraformNlbMembership
+      : kind === 'direct'
+        ? dispatchAwsTerraformDirectRoutes
+        : dispatchAwsTerraformStaticTgwRoutes;
+  const reconcile =
+    kind === 'nlb'
+      ? reconcileAwsTerraformNlbMembership
+      : kind === 'direct'
+        ? reconcileAwsTerraformDirectRoutes
+        : reconcileAwsTerraformStaticTgwRoutes;
   if (dispatch) await submit(base, plan, plan.planSha256, effect, storage, values, api, terraform, signal);
   return reconcile(base, plan, effect, at, storage, values, api, terraform, signal);
 }
@@ -26003,6 +26504,7 @@ var init_whole_site_power_service_controller = __esm(() => {
   init_direct_route_power_controller();
   init_nlb_power_controller();
   init_static_tgw_power_controller();
+  init_terraform_direct_power_controller();
   init_terraform_static_tgw_power_controller();
   init_whole_site_power();
 });
@@ -26012,9 +26514,7 @@ function createAwsWholeSitePowerDriver(base, boundPlan, values, storage, api, ru
   verifyAwsWholeSitePowerPlan(base, boundPlan);
   const inventory = boundPlan.bindings.servicesInventory;
   if (!inventory) throw Error('Owning power driver requires complete service inventory');
-  const kinds = inventory.components.map((row) => row.kind);
-  if (base.engine === 'terraform' && (!terraform || kinds.includes('direct')))
-    throw Error('Terraform power owner unavailable or direct routing unqualified');
+  if (base.engine === 'terraform' && !terraform) throw Error('Terraform power owner unavailable');
   const bgp = inventory.components.find((row) => row.kind === 'bgp');
   const retained = bgp ? bgp.services.platform : undefined;
   const assertPlan = (plan) => {
@@ -26737,14 +27237,14 @@ async function verifyDiagnosticManagedNode(api, instanceId, region) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('SSM managed-node prerequisites are unavailable');
-  const response = object38(JSON.parse(result.stdout));
+  const response = object39(JSON.parse(result.stdout));
   if (
     Object.hasOwn(response, 'NextToken') ||
     !Array.isArray(response.InstanceInformationList) ||
     response.InstanceInformationList.length !== 1
   )
     throw new Error('SSM managed-node observation is incomplete');
-  const node = object38(response.InstanceInformationList[0]);
+  const node = object39(response.InstanceInformationList[0]);
   const pingTime =
     typeof node.LastPingDateTime === 'number'
       ? node.LastPingDateTime * 1000
@@ -26775,15 +27275,15 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
     'json',
   ]);
   if (result.exitCode !== 0) throw new Error('Diagnostic instance ownership is unavailable');
-  const data = object38(JSON.parse(result.stdout));
+  const data = object39(JSON.parse(result.stdout));
   if (data.NextToken || !Array.isArray(data.Reservations) || data.Reservations.length !== 1)
     throw new Error('Diagnostic instance response is incomplete');
-  const reservation = object38(data.Reservations[0]);
+  const reservation = object39(data.Reservations[0]);
   const instances = reservation.Instances;
   if (reservation.OwnerId !== plan.accountId || !Array.isArray(instances) || instances.length !== 1)
     throw new Error('Diagnostic instance account is unverified');
-  const instance = object38(instances[0]);
-  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object38) : [];
+  const instance = object39(instances[0]);
+  const tags = Array.isArray(instance.Tags) ? instance.Tags.map(object39) : [];
   const expected = {
     'xcsh-managed-by': 'aws-ce',
     'xcsh-deployment-id': plan.deploymentName,
@@ -26792,7 +27292,7 @@ async function verifyDiagnosticInstance(api, plan, instanceId, node) {
   };
   if (
     instance.InstanceId !== instanceId ||
-    object38(instance.State).Name !== 'running' ||
+    object39(instance.State).Name !== 'running' ||
     Object.entries(expected).some(
       ([key, value]) =>
         tags.filter((tag) => tag.Key === key).length !== 1 || tags.find((tag) => tag.Key === key)?.Value !== value,
@@ -26832,7 +27332,7 @@ async function observeDiagnosticInvocation(
     } else {
       let invocation;
       try {
-        invocation = object38(JSON.parse(result.stdout));
+        invocation = object39(JSON.parse(result.stdout));
       } catch {
         return { ...base, status: 'unknown', reason: 'invocation-response-malformed' };
       }
@@ -26858,7 +27358,7 @@ async function observeDiagnosticInvocation(
   }
   return { ...base, status: 'unknown', reason: 'invocation-not-converged' };
 }
-var object38 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+var object39 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 var init_diagnostic_invocation = () => {};
 
 // plugins/aws/src/ce/flow-log-evidence.ts

@@ -5,7 +5,7 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
-import { awsTerraformFoundationDeployment } from './terraform-foundation';
+import { openAwsTerraformPowerSession } from './terraform-power-session';
 import type { AwsCePlan } from './types';
 import { type AwsWholeSitePowerPlan, verifyAwsWholeSitePowerPlan } from './whole-site-power';
 import { powerServiceComponentSha256 } from './whole-site-power-service-binding';
@@ -265,7 +265,7 @@ export async function dispatchAwsTerraformNlbMembership(
     const dispatchName = `${plan.planId}-${effect}-terraform-nlb-dispatch.json`;
     const observed = await collectAwsPowerNlbServices(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform NLB service identity differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     let prep = (await optional(storage, name)) as Preparation | undefined;
     const retained = await retainedWithdrawal(base, plan, storage, effect);
     if (prep) {
@@ -372,7 +372,7 @@ export async function reconcileAwsTerraformNlbMembership(
       ) !== canonicalSha256(prep.revision)
     )
       throw Error('Terraform NLB retained preparation differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const journal = await session.readPlanApplicationState(prep.receipt);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
       throw Error('Terraform NLB dispatch marker differs');

@@ -5,7 +5,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
-import { awsTerraformFoundationDeployment } from './terraform-foundation';
+import { openAwsTerraformPowerSession } from './terraform-power-session';
 import {
   type AwsTerraformPowerRevision,
   reviseAwsTerraformPowerConfiguration,
@@ -149,9 +149,6 @@ async function identities(
   return current;
 }
 
-async function open(base: AwsCePlan, plan: AwsWholeSitePowerPlan, terraform: CeTerraformService) {
-  return terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
-}
 function verifyPreparation(plan: AwsWholeSitePowerPlan, effect: Effect, marker: Marker, value: unknown): Preparation {
   const prep = value as Preparation;
   if (!prep || canonicalSha256(prep.marker) !== canonicalSha256(marker) || !prep.revision)
@@ -190,7 +187,7 @@ export async function dispatchAwsTerraformPowerState(
   const release = await acquireProcessLock(`${storage.directory}/.terraform-power-dispatch-lock`);
   try {
     const { marker, name } = await context(base, plan, effect, storage, true);
-    const session = await open(base, plan, terraform);
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const prepName = `${plan.planId}-${effect}-terraform-preparation.json`;
     const existing = await optional(storage, prepName);
     let prep: Preparation;
@@ -318,7 +315,7 @@ export async function reconcileAwsTerraformPowerState(
         canonicalSha256(prep.revision)
     )
       throw Error('Terraform power retained source or revision differs');
-    const session = await open(base, plan, terraform);
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     if (effect === 'release') {
       const outcome = await optional(storage, `${plan.planId}-${effect}-terraform-outcome.json`);
       if (outcome !== undefined) {

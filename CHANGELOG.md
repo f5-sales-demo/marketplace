@@ -1,5 +1,9 @@
 # Changelog
 
+## CE UAT109 qualification candidate
+
+AWS Terraform whole-site power now withdraws and restores exact direct-route resources through the owning saved-plan runner. Brownfield power operations freshly verify existing placement before opening the current runner. Live operational acceptance and normal publication remain pending.
+
 All notable changes to the f5-sales-demo marketplace will
 be documented in this file.
 

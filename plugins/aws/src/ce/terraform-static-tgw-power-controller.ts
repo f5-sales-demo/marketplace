@@ -4,7 +4,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
-import { awsTerraformFoundationDeployment } from './terraform-foundation';
+import { openAwsTerraformPowerSession } from './terraform-power-session';
 import {
   type AwsStaticServiceRevision,
   reviseAwsTerraformStaticServiceRoutes,
@@ -202,7 +202,7 @@ export async function dispatchAwsTerraformStaticTgwRoutes(
     const dispatchName = `${plan.planId}-${effect}-terraform-static-tgw-dispatch.json`;
     const observed = await collectAwsPowerStaticTgwRoutes(base, values, api, signal);
     if (observed.servicesSha256 !== marker.servicesSha256) throw Error('Terraform static TGW service identity differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     let prep = (await optional(storage, name)) as Preparation | undefined;
     const retained = await retainedWithdrawal(base, plan, storage, effect);
     if (prep) {
@@ -311,7 +311,7 @@ export async function reconcileAwsTerraformStaticTgwRoutes(
       ) !== canonicalSha256(prep.revision)
     )
       throw Error('Terraform static TGW retained preparation differs');
-    const session = await terraform.open(plan.bindings.owner, await awsTerraformFoundationDeployment(base), 'current');
+    const session = await openAwsTerraformPowerSession(base, storage, terraform, api, signal);
     const journal = await session.readPlanApplicationState(prep.receipt);
     if (saved !== undefined && canonicalSha256(saved) !== canonicalSha256({ marker, receipt: prep.receipt }))
       throw Error('Terraform static TGW dispatch marker differs');
