@@ -1616,14 +1616,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -1765,14 +1765,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -5956,14 +5956,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -6092,14 +6092,14 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
       "live": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat119-aws-single-site-readonly-evidence.json"]
       },
-      "status": "pending",
+      "status": "verified",
       "historicalQualifications": [
         {
           "candidateRevision": 87,
@@ -18569,6 +18569,10 @@
         {
           "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json",
           "result": "UAT115 exact archives, installed loader identity, rejection and producer downloads passed on both supported CLI versions; successful live teardown and complete installed feature matrix remain pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat119-preprovision-cleanup-evidence.json",
+          "result": "Actual installed public cancellation before provisioning, teardown, independent original execution and current AWS/API/token/interface absence passed; zero cloud-ID baseline does not qualify launched-CE cleanup or watchdog arming."
         }
       ]
     },
