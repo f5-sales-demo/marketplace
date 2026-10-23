@@ -4,7 +4,7 @@ import { CE_API_RELEASE } from './verified-api-release';
 
 const RELEASE_TAG = CE_API_RELEASE.tag;
 const RELEASE_COMMIT = CE_API_RELEASE.commit;
-const RELEASE_VERSION = '12.2.0';
+const RELEASE_VERSION = '12.3.0';
 const OPENAPI_SHA256 = CE_API_RELEASE.fingerprint;
 const REPOSITORY = 'f5-sales-demo/api-specs-enriched';
 const RELEASE_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/${RELEASE_TAG}`;
@@ -14,7 +14,7 @@ const REQUIRED_ASSETS = new Set([
   'enrichment-coverage.json',
   'upstream-contract-changes.json',
   'concurrency_contracts.json',
-  'f5xc-api-specs-v12.2.0.zip',
+  'f5xc-api-specs-v12.3.0.zip',
   'index.json',
   'minimal-export-defaults.json',
   'openapi.json',

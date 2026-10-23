@@ -4503,7 +4503,7 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.2.0' || object12(receipt.assets)['openapi.json'] !== digest2)
+  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object12(receipt.assets)['openapi.json'] !== digest2)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
     ? release.assets.map(object12).filter((asset) => asset.name === 'openapi.json')
@@ -4521,9 +4521,9 @@ async function verifyPublishedCeApi(fetcher, signal) {
 }
 var CeContractFailure,
   repository = 'f5-sales-demo/api-specs-enriched',
-  tag = 'v12.2.0',
-  commit = '5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f',
-  digest2 = 'sha256:f599b99d0824aa52599896dcfc1dad9dca69a94396acc64eedca837c17517cd9',
+  tag = 'v12.3.0',
+  commit = '7f61de00a1048a801c4be6bea9c462803fd1e3ae',
+  digest2 = 'sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5',
   assetUrl,
   CE_API_RELEASE,
   verifiedSchemas;
@@ -4650,7 +4650,7 @@ var init_release_contract = __esm(() => {
     'enrichment-coverage.json',
     'upstream-contract-changes.json',
     'concurrency_contracts.json',
-    'f5xc-api-specs-v12.2.0.zip',
+    'f5xc-api-specs-v12.3.0.zip',
     'index.json',
     'minimal-export-defaults.json',
     'openapi.json',
@@ -5424,7 +5424,7 @@ class VerifiedCeContract {
         ...parseKvmImageResolution(api),
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v12.2.0',
+          tag: 'v12.3.0',
           commit: CE_API_RELEASE.commit,
           asset: 'openapi.json',
           sha256: CE_API_RELEASE.fingerprint,
@@ -5747,7 +5747,7 @@ var hash3 = (bytes) => `sha256:${createHash6('sha256').update(bytes).digest('hex
   commitPattern,
   digestPattern,
   publishedAssets,
-  publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.2.0';
+  publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0';
 var init_verified_contract = __esm(() => {
   init_release_contract();
   init_verified_api_release();
@@ -5758,7 +5758,7 @@ var init_verified_contract = __esm(() => {
   digestPattern = /^sha256:[0-9a-f]{64}$/;
   publishedAssets = Object.freeze({
     'smsv2-contract.json': 'sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08',
-    'smsv2-contract-manifest.json': 'sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453',
+    'smsv2-contract-manifest.json': 'sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af',
     'smsv2-evidence-receipt.json': 'sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932',
   });
 });
@@ -5861,7 +5861,7 @@ function createCePlatformService(
       const capabilities = aws.capabilities;
       const azureRouteServerEbgpMultihop = artifact.azureRouteServerEbgpMultihop();
       return {
-        contractIdentity: 'f5xc-smsv2-api/v1@12.2.0',
+        contractIdentity: 'f5xc-smsv2-api/v1@12.3.0',
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],

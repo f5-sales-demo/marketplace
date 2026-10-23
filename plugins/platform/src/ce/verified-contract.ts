@@ -41,10 +41,10 @@ function parse(bytes: Uint8Array): Json {
 }
 const publishedAssets = Object.freeze({
   'smsv2-contract.json': 'sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08',
-  'smsv2-contract-manifest.json': 'sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453',
+  'smsv2-contract-manifest.json': 'sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af',
   'smsv2-evidence-receipt.json': 'sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932',
 });
-const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.2.0';
+const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0';
 
 export class VerifiedCeContract {
   readonly publication: 'published-release';
@@ -109,7 +109,7 @@ export class VerifiedCeContract {
         ...parseKvmImageResolution(api),
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v12.2.0',
+          tag: 'v12.3.0',
           commit: CE_API_RELEASE.commit,
           asset: 'openapi.json',
           sha256: CE_API_RELEASE.fingerprint,

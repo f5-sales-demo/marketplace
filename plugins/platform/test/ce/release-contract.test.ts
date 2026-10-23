@@ -2,15 +2,15 @@ import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { resolveSmsv2ReleaseContract } from '../../src/ce/release-contract';
 
-const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v12.2.0';
-const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v12.2.0';
-const commit = '5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f';
+const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v12.3.0';
+const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v12.3.0';
+const commit = '7f61de00a1048a801c4be6bea9c462803fd1e3ae';
 const names = [
   'api-catalog.json',
   'enrichment-coverage.json',
   'upstream-contract-changes.json',
   'concurrency_contracts.json',
-  'f5xc-api-specs-v12.2.0.zip',
+  'f5xc-api-specs-v12.3.0.zip',
   'index.json',
   'minimal-export-defaults.json',
   'openapi.json',
@@ -145,7 +145,7 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
       schema_version: 1,
       contract_id: 'f5xc-smsv2-api/v1',
       contract_version: '7.1.0',
-      release: { tag: 'v12.2.0', commit: options.wrongCommit ? '0'.repeat(40) : commit },
+      release: { tag: 'v12.3.0', commit: options.wrongCommit ? '0'.repeat(40) : commit },
       assets: {
         'smsv2-contract.json': digest(contractBytes),
         'smsv2-evidence-receipt.json': digest(evidenceBytes),
@@ -166,11 +166,11 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
   }));
   const publicationAssets = Object.fromEntries(metadata.map((item) => [item.name, item.digest]));
   const release = {
-    tag_name: 'v12.2.0',
+    tag_name: 'v12.3.0',
     draft: options.draft ?? false,
     prerelease: false,
     immutable: true,
-    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '12.2.0' })} -->`,
+    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '12.3.0' })} -->`,
     assets: options.malformed ? metadata.slice(1) : metadata,
   };
   const fetcher = (async (input: RequestInfo | URL) => {
@@ -222,7 +222,7 @@ describe('verified SMSv2 AWS release resolver', () => {
         ],
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v12.2.0',
+          tag: 'v12.3.0',
           commit,
           asset: 'openapi.json',
           sha256: openapiDigest,

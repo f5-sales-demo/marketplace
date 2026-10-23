@@ -13,6 +13,6 @@ runs in the platform suite and verifies exact reconstruction, malformed and
 cyclic reference rejection, preservation of vendor references and isolation
 between consumers that mutate their own fixture copies.
 
-Regenerate shared storage with `python3 scripts/deduplicate-ce-schema-fixtures.py`,
+Regenerate shared storage with `python3 scripts/deduplicate_ce_schema_fixtures.py`,
 then format the JSON with the repository Biome configuration. Regeneration is
 idempotent on parsed JSON; formatting does not alter the reconstructed documents.
