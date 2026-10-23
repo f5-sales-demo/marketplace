@@ -2,6 +2,10 @@ import { type InitialSiteVersions, initialSoftwareSettings } from './initial-ver
 import type { CeRuntime, SiteBinding } from './runtime';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
 import { type CeVersionIdentity, stableCeSiteVersions } from './upgrade-transition';
+import {
+  type CeVersionObservationDiagnostic,
+  safeCeVersionObservationDiagnostic,
+} from './version-observation-diagnostic';
 
 export interface CeReplacementVersions {
   schemaVersion: 1;
@@ -9,6 +13,26 @@ export interface CeReplacementVersions {
   versions: InitialSiteVersions;
 }
 type Runtime = Pick<CeRuntime, 'observeUpgrade'>;
+
+export class CeReplacementVersionEvidenceError extends Error {
+  readonly diagnostic: CeVersionObservationDiagnostic;
+  constructor(kind: 'unavailable' | 'unstable', observation?: unknown) {
+    super(
+      kind === 'unavailable'
+        ? 'Replacement version evidence is unavailable'
+        : 'Replacement site identity or effective versions are not stable',
+    );
+    this.diagnostic = safeCeVersionObservationDiagnostic(
+      kind === 'unavailable'
+        ? observation
+        : {
+            status: 'unstable',
+            reason: 'identity-or-versions-not-stable',
+            failedStage: 'replacement-version-stability',
+          },
+    );
+  }
+}
 
 /** Capture from the runtime, bound to the logical site already selected for replacement. */
 export async function captureCeReplacementVersions(
@@ -21,7 +45,7 @@ export async function captureCeReplacementVersions(
 ): Promise<CeReplacementVersions> {
   binding = structuredClone(binding);
   const observation = await runtime.observeUpgrade(binding, contract, undefined, signal);
-  if (observation.status !== 'observed') throw new Error('Replacement version evidence is unavailable');
+  if (observation.status !== 'observed') throw new CeReplacementVersionEvidenceError('unavailable', observation);
   const identity: CeVersionIdentity = {
     binding,
     siteUid,
@@ -30,7 +54,7 @@ export async function captureCeReplacementVersions(
     contractFingerprint: contract.fingerprint,
   };
   const versions = stableCeSiteVersions(identity, observation);
-  if (!versions) throw new Error('Replacement site identity or effective versions are not stable');
+  if (!versions) throw new CeReplacementVersionEvidenceError('unstable');
   return { schemaVersion: 1, identity, versions };
 }
 

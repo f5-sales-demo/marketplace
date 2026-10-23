@@ -2620,25 +2620,35 @@ class CeRuntime {
       startedAt: new Date().toISOString(),
       targetSoftware,
     };
+    let failedStage = 'logical-site';
     try {
       const logical = await this.observeOwnedSite(binding, signal);
       const siteUid = object11(logical.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
+      failedStage = 'physical-site';
       const physical = await this.#request(source, {}, signal);
       this.#owned(physical, binding);
+      failedStage = 'site-versions';
       const state = parseSiteUpgradeState(physical, binding);
       const selectedSoftware = targetSoftware ?? state.software.installed;
+      failedStage = 'upgrade-paths';
       const paths = contract.observationPaths(
         binding.siteName,
         { software: state.software.installed, os: state.os.installed },
         selectedSoftware,
       );
+      failedStage = 'targets';
       const targets = parseSoftwareTargets(await this.#request(paths.targets, {}, signal));
+      failedStage = 'prechecks';
       const prechecks = parseUpgradePrechecks(await this.#request(paths.precheck, {}, signal));
+      failedStage = 'progress';
       const progress = parseUpgradeProgress(await this.#request(paths.progress, {}, signal), binding.siteName);
+      failedStage = 'logical-site-recheck';
       const finalLogical = await this.observeOwnedSite(binding, signal);
+      failedStage = 'physical-site-recheck';
       const finalPhysical = await this.#request(source, {}, signal);
       this.#owned(finalPhysical, binding);
+      failedStage = 'stability-recheck';
       if (
         object11(finalLogical.system_metadata).uid !== siteUid ||
         JSON.stringify(parseSiteUpgradeState(finalPhysical, binding)) !== JSON.stringify(state)
@@ -2665,6 +2675,7 @@ class CeRuntime {
       return {
         ...base,
         status: 'unknown',
+        failedStage,
         observedAt: new Date().toISOString(),
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };

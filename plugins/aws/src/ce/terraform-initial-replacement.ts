@@ -1,5 +1,8 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { captureCeReplacementVersions } from '../../../platform/src/ce/replacement-versions';
+import {
+  CeReplacementVersionEvidenceError,
+  captureCeReplacementVersions,
+} from '../../../platform/src/ce/replacement-versions';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { CeTerraformService } from '../../../terraform/src/service';
@@ -71,12 +74,8 @@ export async function runAwsTerraformInitialReplacement(
           signal,
         );
       } catch (error) {
-        if (
-          error instanceof Error &&
-          (error.message.includes('version evidence is unavailable') ||
-            error.message.includes('versions are not stable'))
-        )
-          return { handled: true, status: 'pending-replacement-versions' };
+        if (error instanceof CeReplacementVersionEvidenceError)
+          return { handled: true, status: 'pending-replacement-versions', versionEvidence: error.diagnostic };
         throw error;
       }
       if (!session.readResourceIdentities || !session.readConfigurationSha256)

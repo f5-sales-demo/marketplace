@@ -27,6 +27,7 @@ import {
   parseUpgradeProgress,
 } from './upgrade-evidence';
 import type { VerifiedCeContract } from './verified-contract';
+import type { CeUpgradeObservationStage } from './version-observation-diagnostic';
 import type { AwsGreBinding, AzureSloBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
 import type { SiteUpgradeIntent } from './wire-upgrade';
@@ -342,27 +343,37 @@ export class CeRuntime {
       startedAt: new Date().toISOString(),
       targetSoftware,
     };
+    let failedStage: CeUpgradeObservationStage = 'logical-site';
     try {
       const logical = await this.observeOwnedSite(binding, signal);
       const siteUid = object(logical.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
+      failedStage = 'physical-site';
       const physical = await this.#request(source, {}, signal);
       this.#owned(physical, binding);
+      failedStage = 'site-versions';
       const state = parseSiteUpgradeState(physical, binding);
       // OS eligibility must use the installed software, including a preceding software upgrade.
       const selectedSoftware = targetSoftware ?? state.software.installed;
+      failedStage = 'upgrade-paths';
       const paths = contract.observationPaths(
         binding.siteName,
         { software: state.software.installed, os: state.os.installed },
         selectedSoftware,
       );
+      failedStage = 'targets';
       const targets = parseSoftwareTargets(await this.#request(paths.targets, {}, signal));
+      failedStage = 'prechecks';
       const prechecks = parseUpgradePrechecks(await this.#request(paths.precheck, {}, signal));
+      failedStage = 'progress';
       const progress = parseUpgradeProgress(await this.#request(paths.progress, {}, signal), binding.siteName);
       // Re-read identity and state: a replacement or upgrade during collection invalidates the snapshot.
+      failedStage = 'logical-site-recheck';
       const finalLogical = await this.observeOwnedSite(binding, signal);
+      failedStage = 'physical-site-recheck';
       const finalPhysical = await this.#request(source, {}, signal);
       this.#owned(finalPhysical, binding);
+      failedStage = 'stability-recheck';
       if (
         object(finalLogical.system_metadata).uid !== siteUid ||
         JSON.stringify(parseSiteUpgradeState(finalPhysical, binding)) !== JSON.stringify(state)
@@ -389,6 +400,7 @@ export class CeRuntime {
       return {
         ...base,
         status: 'unknown' as const,
+        failedStage,
         observedAt: new Date().toISOString(),
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };

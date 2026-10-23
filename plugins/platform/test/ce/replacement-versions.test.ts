@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { captureCeReplacementVersions, verifyCeReplacementVersions } from '../../src/ce/replacement-versions';
+import {
+  CeReplacementVersionEvidenceError,
+  captureCeReplacementVersions,
+  verifyCeReplacementVersions,
+} from '../../src/ce/replacement-versions';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { versionFixture } from './version-fixtures';
 
@@ -109,4 +113,44 @@ test('unknown snapshot versions and malformed frozen versions fail before observ
   await expect(
     verifyCeReplacementVersions({ ...snapshot, versions: { software: 'latest', os: 'latest' } }, runtime, f.contract),
   ).rejects.toThrow('explicit version pair');
+});
+
+test('pending replacement preserves only whitelisted version diagnostics', async () => {
+  for (const [reason, failedStage, expectedReason, expectedStage] of [
+    ['authorization', 'physical-site', 'authorization', 'physical-site'],
+    ['transient', 'progress', 'transient', 'progress'],
+    ['private-reason-marker', 'private-stage-marker', 'not-established', 'not-established'],
+    [undefined, undefined, 'not-established', 'not-established'],
+  ]) {
+    const f = fixture();
+    f.runtime.observeUpgrade = async () => ({ status: 'unknown', reason, failedStage }) as never;
+    try {
+      await f.capture();
+      throw Error('must reject');
+    } catch (error) {
+      expect(error).toHaveProperty('diagnostic', {
+        status: 'unknown',
+        reason: expectedReason,
+        failedStage: expectedStage,
+      });
+      expect(JSON.stringify(error)).not.toContain('private-reason-marker');
+      expect(JSON.stringify(error)).not.toContain('private-stage-marker');
+    }
+  }
+});
+
+test('unstable identity and versions expose a bounded stability diagnostic', async () => {
+  const f = fixture();
+  f.observation.siteUid = 'other';
+  try {
+    await f.capture();
+    throw Error('must reject');
+  } catch (error) {
+    expect(error).toBeInstanceOf(CeReplacementVersionEvidenceError);
+    expect(error).toHaveProperty('diagnostic', {
+      status: 'unstable',
+      reason: 'identity-or-versions-not-stable',
+      failedStage: 'replacement-version-stability',
+    });
+  }
 });

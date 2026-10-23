@@ -6747,11 +6747,51 @@ var init_upgrade_transition = __esm(() => {
   init_upgrade_evidence();
 });
 
+// plugins/platform/src/ce/version-observation-diagnostic.ts
+function safeCeVersionObservationDiagnostic(value) {
+  const row = value && typeof value === 'object' ? value : {};
+  return {
+    status: row.status === 'unstable' ? 'unstable' : 'unknown',
+    reason: reasons.includes(row.reason) ? row.reason : 'not-established',
+    failedStage: stages.includes(row.failedStage) ? row.failedStage : 'not-established',
+  };
+}
+var CE_UPGRADE_OBSERVATION_STAGES, reasons, stages;
+var init_version_observation_diagnostic = __esm(() => {
+  CE_UPGRADE_OBSERVATION_STAGES = [
+    'logical-site',
+    'physical-site',
+    'site-versions',
+    'upgrade-paths',
+    'targets',
+    'prechecks',
+    'progress',
+    'logical-site-recheck',
+    'physical-site-recheck',
+    'stability-recheck',
+  ];
+  reasons = [
+    'authorization',
+    'expired',
+    'throttled',
+    'not-found',
+    'conflict',
+    'invalid-request',
+    'transient',
+    'malformed',
+    'cancelled',
+    'deadline',
+    'ownership-or-response-invalid',
+    'identity-or-versions-not-stable',
+  ];
+  stages = [...CE_UPGRADE_OBSERVATION_STAGES, 'replacement-version-stability'];
+});
+
 // plugins/platform/src/ce/replacement-versions.ts
 async function captureCeReplacementVersions(binding, siteUid, siteContractFingerprint, runtime, contract, signal) {
   binding = structuredClone(binding);
   const observation = await runtime.observeUpgrade(binding, contract, undefined, signal);
-  if (observation.status !== 'observed') throw new Error('Replacement version evidence is unavailable');
+  if (observation.status !== 'observed') throw new CeReplacementVersionEvidenceError('unavailable', observation);
   const identity = {
     binding,
     siteUid,
@@ -6760,7 +6800,7 @@ async function captureCeReplacementVersions(binding, siteUid, siteContractFinger
     contractFingerprint: contract.fingerprint,
   };
   const versions = stableCeSiteVersions(identity, observation);
-  if (!versions) throw new Error('Replacement site identity or effective versions are not stable');
+  if (!versions) throw new CeReplacementVersionEvidenceError('unstable');
   return { schemaVersion: 1, identity, versions };
 }
 async function verifyCeReplacementVersions(snapshot, runtime, contract, signal) {
@@ -6773,8 +6813,29 @@ async function verifyCeReplacementVersions(snapshot, runtime, contract, signal) 
   if (!current || current.software !== snapshot.versions.software || current.os !== snapshot.versions.os)
     throw new Error('Replacement site identity or effective versions changed before mutation');
 }
+var CeReplacementVersionEvidenceError;
 var init_replacement_versions = __esm(() => {
   init_upgrade_transition();
+  init_version_observation_diagnostic();
+  CeReplacementVersionEvidenceError = class CeReplacementVersionEvidenceError extends Error {
+    diagnostic;
+    constructor(kind, observation) {
+      super(
+        kind === 'unavailable'
+          ? 'Replacement version evidence is unavailable'
+          : 'Replacement site identity or effective versions are not stable',
+      );
+      this.diagnostic = safeCeVersionObservationDiagnostic(
+        kind === 'unavailable'
+          ? observation
+          : {
+              status: 'unstable',
+              reason: 'identity-or-versions-not-stable',
+              failedStage: 'replacement-version-stability',
+            },
+      );
+    }
+  };
 });
 
 // plugins/platform/src/ce/upgrade-contract.ts
@@ -13475,12 +13536,8 @@ async function runAwsTerraformInitialReplacement(
           signal,
         );
       } catch (error) {
-        if (
-          error instanceof Error &&
-          (error.message.includes('version evidence is unavailable') ||
-            error.message.includes('versions are not stable'))
-        )
-          return { handled: true, status: 'pending-replacement-versions' };
+        if (error instanceof CeReplacementVersionEvidenceError)
+          return { handled: true, status: 'pending-replacement-versions', versionEvidence: error.diagnostic };
         throw error;
       }
       if (!session.readResourceIdentities || !session.readConfigurationSha256)

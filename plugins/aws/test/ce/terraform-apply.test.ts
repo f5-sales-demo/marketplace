@@ -1,6 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import { CeApiError } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import { type AwsCeToolContext, saveAwsPlan } from '../../src/ce/artifacts';
 import { awsTerraformService, executeAwsCeTerraformApply } from '../../src/ce/terraform-apply';
@@ -214,3 +215,79 @@ for (const marker of [
     expect(reconciles).toBe(0);
     expect(f.bootstrapped).toEqual([]);
   });
+
+test('public Terraform apply persists sanitized pending version provenance before replacement shutdown', async () => {
+  const f = admissionFixture();
+  const siteName = f.plan.intent.topology.sites?.[0].name ?? 'missing';
+  const preparation = {
+    evidenceKind: 'preboot-interface-configuration-required',
+    planId: f.plan.planId,
+    planSha256: f.plan.planSha256,
+    uid: 'site-uid',
+    contractFingerprint: `sha256:${'a'.repeat(64)}`,
+  };
+  await f.storage.write(`terraform-interface-mtu-${siteName}.json`, preparation);
+  await f.storage.write('terraform-authorization.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    planSha256: f.plan.planSha256,
+    mutations: true,
+    f5StateOwner: 'terraform',
+  });
+  Object.assign(f.runtime, {
+    resourceMutation: async () => ({}),
+    reconcileTerraformResources: async () => {},
+    engine: 'terraform',
+    observeUpgrade: async () => ({
+      status: 'unknown',
+      reason: 'authorization',
+      failedStage: 'physical-site',
+      response: 'private-response-marker',
+      token: 'private-token-marker',
+    }),
+  });
+  const artifacts: string[] = [];
+  const ctx = {
+    cwd: '/tmp',
+    hasUI: false,
+    sessionManager: {
+      getSessionId: () => 'pending-version-fixture',
+      getArtifactsDir: () => null,
+      getArtifactPath: async () => null,
+      saveArtifact: async (value: string) => {
+        artifacts.push(value);
+        return 'receipt';
+      },
+    },
+  } as AwsCeToolContext;
+  await saveAwsPlan(ctx.sessionManager, f.plan, {} as AwsCeObservation);
+  const contract = spyOn(VerifiedUpgradeContract, 'release').mockResolvedValue({
+    fingerprint: `sha256:${'b'.repeat(64)}`,
+  } as VerifiedUpgradeContract);
+  try {
+    const result = await executeAwsCeTerraformApply(
+      { planId: f.plan.planId, planSha256: f.plan.planSha256 },
+      ctx,
+      f.api,
+      { storage: async () => f.storage, runtime: async () => f.runtime } as unknown as CePlatformService,
+      { open: async () => f.session },
+      fetch,
+      undefined,
+      async () => ({}) as AwsCeObservation,
+    );
+    expect(result).toMatchObject({
+      status: 'pending-replacement-versions',
+      artifactId: 'receipt',
+      versionEvidence: { status: 'unknown', reason: 'authorization', failedStage: 'physical-site' },
+    });
+    const checkpoint = JSON.parse(artifacts.at(-1) ?? 'null');
+    expect(checkpoint.versionEvidence).toEqual(result.versionEvidence);
+    expect(JSON.stringify(result)).not.toContain('private-response-marker');
+    expect(artifacts.at(-1)).not.toContain('private-token-marker');
+    expect(await f.storage.read(`terraform-interface-mtu-${siteName}.json`)).toEqual(preparation);
+    await expect(f.storage.read(`terraform-initial-replacement-${siteName}.json`)).rejects.toThrow('missing');
+    expect(f.nodes.size).toBe(0);
+  } finally {
+    contract.mockRestore();
+  }
+});

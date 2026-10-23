@@ -45,14 +45,21 @@ test('unstable replacement versions remain pending before shutdown and preserve 
         return f.session;
       },
     },
-    { engine: 'terraform', observeUpgrade: async () => ({ status: 'unknown' }) } as unknown as CeRuntime,
+    {
+      engine: 'terraform',
+      observeUpgrade: async () => ({ status: 'unknown', reason: 'transient', failedStage: 'progress' }),
+    } as unknown as CeRuntime,
     f.storage as unknown as CeDeploymentStore,
     f.api,
     fetch,
     undefined,
     async () => ({ fingerprint: `sha256:${'b'.repeat(64)}` }) as VerifiedUpgradeContract,
   );
-  expect(result).toEqual({ handled: true, status: 'pending-replacement-versions' });
+  expect(result).toEqual({
+    handled: true,
+    status: 'pending-replacement-versions',
+    versionEvidence: { status: 'unknown', reason: 'transient', failedStage: 'progress' },
+  });
   expect(opened).toBe(1);
   expect(await f.storage.read(`terraform-interface-mtu-${siteName}.json`)).toEqual(preparation);
   await expect(f.storage.read(`terraform-initial-replacement-${siteName}.json`)).rejects.toThrow('missing');
