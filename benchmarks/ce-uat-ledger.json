@@ -15,61 +15,61 @@
     },
     "runtimePeer": "23.8.0",
     "testedRuntimeVersions": ["23.9.3"],
-    "revision": 107,
+    "revision": 108,
     "versions": {
-      "platform": "7.0.0-uat.107",
-      "aws": "3.0.0-uat.107",
-      "azure": "5.0.0-uat.107",
-      "terraform": "3.0.0-uat.107"
+      "platform": "7.0.0-uat.108",
+      "aws": "3.0.0-uat.108",
+      "azure": "5.0.0-uat.108",
+      "terraform": "3.0.0-uat.108"
     },
-    "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+    "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
     "deliverable": false,
     "archives": [
       {
         "plugin": "platform",
-        "version": "7.0.0-uat.107",
-        "archiveSha256": "743198e44ef9ef887a7522a24ff5bfc37df6f3f1a60f9a2f9c17da7af2718104",
-        "archiveBytes": 391433,
+        "version": "7.0.0-uat.108",
+        "archiveSha256": "0a016e3c8b9c37659f350987c445d5506e183022f800da94e49e31be1465ec26",
+        "archiveBytes": 391434,
         "filesVerified": 267,
         "runtimeSha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356",
-        "manifestSha256": "3e95c4c99a0422bd5263c1df6c9fdde8a8607264ca8c987021da5226bb68813a",
-        "packageSha256": "3556f84fa304faa8ea7d95f6e36ae6b2f8ceb0c95184a7125af017c1ef50df1d",
+        "manifestSha256": "71e4d109c99c6a9769c0ba0961f5b7d165a9b7cf217df1f6d20cb9be2357454a",
+        "packageSha256": "5f51d2a7cc4960cdc79094e120bee2e4e6169e95b1a594d45cdaa1d92232ba7b",
         "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
         "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
       },
       {
         "plugin": "aws",
-        "version": "3.0.0-uat.107",
-        "archiveSha256": "d2207c1e386bd65b0a9e9271af5c12fd70e07b89d386fbe0143bee0c4eb4ca1a",
+        "version": "3.0.0-uat.108",
+        "archiveSha256": "3f07572645da14fe47f55d0b1158c4a67d817fd59d06a1c312833de7a2377e1c",
         "archiveBytes": 774387,
         "filesVerified": 288,
         "runtimeSha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef",
-        "manifestSha256": "429ce905bcb9d4ff6ed644bf0ba9909b7a46839ea9315219de66ffd44ad6a53b",
-        "packageSha256": "c4ddba34cdab377851e00891f2063e293b97eea40c8156ae2f67fdde7949f319",
+        "manifestSha256": "1c27b1d6677382d225c2744c2fcbb6ea3b695915e3f6eff2a39b1036b7f0cccb",
+        "packageSha256": "0b34ec2775112f71d0c660f65ce2facde00ff8e392f37620340e56cfac78fd11",
         "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
         "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
       },
       {
         "plugin": "azure",
-        "version": "5.0.0-uat.107",
-        "archiveSha256": "af8b6071c0f793eab09eaf83e84aab0e925ad8d534b3ee8204791a9f58191137",
-        "archiveBytes": 483639,
+        "version": "5.0.0-uat.108",
+        "archiveSha256": "ce3b15fa3891c39fa8ffd17e1745c17e3ab14fd287f72b002022fa9473958fcc",
+        "archiveBytes": 484235,
         "filesVerified": 179,
-        "runtimeSha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115",
-        "manifestSha256": "b97fb9fdd89e7dc6d910094822ab764f0b4880e817ffe463157a2067d19d8856",
-        "packageSha256": "d9f421148e910f40c9bec0720cf09937bdc79a1e9f04df3639094b811752ef3f",
+        "runtimeSha256": "f11e8d73c4d04f5769912acaf82af7c1ee39e1297a67e63ad606dc350725c848",
+        "manifestSha256": "8b8f95ffcde1306c4507444620a4780397f9cc8226471f8b96209f8069857bd8",
+        "packageSha256": "5d897386d8521ffc038765c490863debc5fe5af2c19f267051893eb19540f792",
         "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
         "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
       },
       {
         "plugin": "terraform",
-        "version": "3.0.0-uat.107",
-        "archiveSha256": "d31aa97bfdc15b13b59811f7503adca390c69d0cd3cc168fc20f07ac3b27a8ee",
-        "archiveBytes": 115289,
+        "version": "3.0.0-uat.108",
+        "archiveSha256": "19dc9e211314f148d30a26261baba0d0b19a712faf57decd69f7bf7948645be7",
+        "archiveBytes": 115288,
         "filesVerified": 34,
         "runtimeSha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6",
-        "manifestSha256": "a41f3518efe08082a0e986556f1b01b166cf1faa1d0d81ffd0d126c5adece090",
-        "packageSha256": "ad39918ab6d44b4df8aa19529100c06464eb4001e5a597def7d25f6869d28bed",
+        "manifestSha256": "a9183787adf1f26686bfb809cfc43afc37cf9abb4841bec230e208667bc68959",
+        "packageSha256": "2a87570fcaa14a617f862ab8e30c0b430c8fe7cf6816a914fdde8d4399b51c25",
         "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
         "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
       }
@@ -10550,7 +10550,13 @@
       "id": "live-matrix",
       "status": "blocked",
       "requirement": "All required profiles/features on both clouds and engines, installed cohort and independent cleanup; advertised aws_ce_power stop/start requires separate installed/live evidence",
-      "supplementalEvidence": ["docs/receipts/ce-uat107-installed-inventory-current-evidence.json"]
+      "supplementalEvidence": [
+        "docs/receipts/ce-uat107-installed-inventory-current-evidence.json",
+        {
+          "receipt": "docs/receipts/ce-uat108-public-site-retirement-current-evidence.json",
+          "result": "exact archived installed public teardown and independent cleanup passed; fresh full qualification remains pending"
+        }
+      ]
     },
     {
       "id": "producer-publication",
@@ -10561,7 +10567,13 @@
     {
       "id": "installed-cohort",
       "status": "blocked",
-      "requirement": "One validated commit, archive digests, exact installed loader identity and all public executions; clean runtime dependency install without supplemental development packages"
+      "requirement": "One validated commit, archive digests, exact installed loader identity and all public executions; clean runtime dependency install without supplemental development packages",
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-public-site-retirement-current-evidence.json",
+          "result": "exact archived installed public teardown and independent cleanup passed; fresh full qualification remains pending"
+        }
+      ]
     },
     {
       "id": "human-uat",
