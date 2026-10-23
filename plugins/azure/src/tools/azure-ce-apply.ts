@@ -1,195 +1,539 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import type { CePlatformService } from '../../../platform/src/ce/service';
+import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
 import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
-import { fingerprintObservation, sha256Hex } from '../ce/canonical';
-import { renderCeCloudInit } from '../ce/cloud-init';
+import { safeHexEqual } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
-import { consumeBootstrapRef } from '../ce/token-consumer';
+import { withAzureCeExecution } from '../ce/execution';
+import { resolveInterfaceAddress } from '../ce/interface-address';
+import {
+  azureNativePendingActionConverged,
+  buildAzureNativePendingAction,
+  validateAzureNativePendingAction,
+} from '../ce/native-action-recovery';
+import {
+  azureNativeBootstrapForAction,
+  collectAzureNativeAdmissionHealth,
+  collectAzureNativeVmState,
+  prepareAzureNativeAdmission,
+  prepareAzureNativeReplacement,
+  recordAzureNativeLaunch,
+  withAzureNativeBootstrapFile,
+} from '../ce/native-workflow';
+import { azurePlatformService, azureTerraformService } from '../ce/platform';
+import { ensureAzurePlatformIngress } from '../ce/platform-ingress';
+import {
+  collectAzureAbsentDeletionTail,
+  fingerprintCheckpointObservation,
+  reconcileAzureNativeDeletionPrefix,
+  upgradeAzureCeCheckpoint,
+  validateAzureDeletionTail,
+} from '../ce/recovery';
+import { configureAzureRouteServerRouting } from '../ce/routing-workflow';
+import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
+import { collectAzureTrafficProbe } from '../ce/traffic-probe';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
-import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
+
+interface TerraformDependencies {
+  platform(pi: PluginInterface, signal?: AbortSignal): Promise<CePlatformService>;
+  terraform(pi: PluginInterface, signal?: AbortSignal): Promise<CeTerraformService>;
+}
+
+const terraformDefaults: TerraformDependencies = {
+  platform: azurePlatformService,
+  terraform: azureTerraformService,
+};
 
 interface ApplyParams {
   planId: string;
   planSha256: string;
-  bootstrapRefs?: Array<{ node: number; reference: string }>;
-  f5Evidence?: { healthyNodes?: number[]; bgpEstablished?: boolean; trafficHealthy?: boolean };
 }
 
-async function privateIp(api: AzExecApi, plan: AzureCePlan, node: number, nicIndex: number): Promise<string> {
-  const result = await api.exec('az', [
-    'network',
-    'nic',
-    'show',
-    '--resource-group',
-    plan.intent.resourceGroup,
-    '--name',
-    `${plan.deploymentName}-${node}-nic${nicIndex}`,
-    '--query',
-    'ipConfigurations[0].privateIPAddress',
-    '--output',
-    'tsv',
-    '--subscription',
-    plan.subscription.id,
-  ]);
-  if (result.exitCode !== 0) throw new Error(`Unable to resolve CE node ${node} private IP`);
-  const value = result.stdout.trim();
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(value))
-    throw new Error(`Azure returned an invalid private IP for CE node ${node}`);
-  return value;
+interface NativeApplyDependencies {
+  observe?: () => ReturnType<typeof discoverAzureCompute>;
+  ingressContract?: () => Promise<VerifiedIngressContract>;
+  ensureIngress?: typeof ensureAzurePlatformIngress;
+  collectTraffic?: typeof collectAzureTrafficProbe;
 }
 
-async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
+async function replacementsFor(
+  args: string[],
+  api: AzExecApi,
+  plan: AzureCePlan,
+  ownerPlanSha256 = plan.planSha256,
+): Promise<Record<string, string>> {
   const replacements: Record<string, string> = {};
   for (const arg of args) {
-    const match = /^__NODE_(\d+)_(SLI|DATA)_PRIVATE_IP__$/.exec(arg);
+    const match = /^__NODE_(\d+)_(SLO|SLI|DATA)_PRIVATE_IP__$/.exec(arg);
     if (!match || replacements[arg]) continue;
-    const nicIndex = plan.nics.length > 1 ? 1 : 0;
-    replacements[arg] = await privateIp(api, plan, Number(match[1]), nicIndex);
+    const role = match[2] === 'SLO' || (match[2] === 'DATA' && plan.nics.length === 1) ? 'slo' : 'sli';
+    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role, ownerPlanSha256);
   }
   return replacements;
 }
 
-async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: AzExecApi) {
+export async function executeAzureCeNativeApply(
+  params: ApplyParams,
+  ctx: AzureCeToolContext,
+  api: AzExecApi,
+  platformFactory: () => Promise<CePlatformService>,
+  signal?: AbortSignal,
+  dependencies: NativeApplyDependencies = {},
+) {
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+  if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
+    throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
+  let existing = await loadCheckpoint(ctx.sessionManager, plan);
+  let recoveredNativeLaunchNode: number | undefined;
   assertApplyAllowed(plan, {
     planId: params.planId,
     planSha256: params.planSha256,
     hasUI: ctx.hasUI,
     env: process.env,
+    authorization: existing?.authorization,
   });
-  const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
-  if (existing) {
-    const expectedPrefix = plan.actions.slice(0, existing.completedActionIds.length).map((action) => action.id);
-    if (JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
-      throw new Error('Persisted checkpoint is not an ordered prefix of the immutable plan');
-    if (existing.observationFingerprint && !/^[a-f0-9]{64}$/.test(existing.observationFingerprint))
-      throw new Error('Persisted checkpoint has an invalid observation fingerprint');
+  const observe =
+    dependencies.observe ??
+    (() =>
+      discoverAzureCompute(
+        {
+          subscriptionId: plan.subscription.id,
+          publisher: plan.image.publisher,
+          offer: plan.image.offer,
+          plan: plan.image.plan,
+          version: plan.image.version,
+          vmSize: plan.vm.size,
+          requiredNics: plan.nics.length,
+          nodeCount: plan.topology.nodeCount,
+          requireRouteServer: plan.routing.mode === 'route-server',
+          brownfieldResourceIds: plan.intent.brownfield.resourceIds,
+          deploymentName: plan.deploymentName,
+          resourceGroup: plan.intent.resourceGroup,
+        },
+        api,
+      ));
+  const remainingActions = plan.actions.slice(existing?.completedActionIds.length ?? 0);
+  const hasImmutableDeleteTail =
+    remainingActions.length > 0 && remainingActions.every((action) => action.kind === 'resource-delete');
+  if (existing && plan.intent.operation === 'teardown' && hasImmutableDeleteTail) {
+    validateAzureDeletionTail(plan, existing.completedActionIds);
   }
-  const completed = new Set(existing?.completedActionIds ?? []);
-  const observe = () =>
-    discoverAzureCompute(
-      {
-        subscriptionId: plan.subscription.id,
-        publisher: plan.image.publisher,
-        offer: plan.image.offer,
-        plan: plan.image.plan,
-        version: plan.image.version,
-        vmSize: plan.vm.size,
-        requiredNics: plan.nics.length,
-        nodeCount: plan.topology.nodeCount,
-        requireRouteServer: plan.routing.mode === 'route-server',
-        brownfieldResourceIds: plan.intent.brownfield.resourceIds,
-        deploymentName: plan.deploymentName,
-        resourceGroup: plan.intent.resourceGroup,
-      },
-      api,
-    );
-  const current = await observe();
+  let current = await observe();
+  let currentFingerprint = fingerprintCheckpointObservation(current);
+  const existingSnapshot =
+    existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.observationSnapshot : undefined;
   if (
-    !existing?.observationFingerprint &&
-    completed.has(plan.actions.find((action) => action.kind === 'marketplace-terms-accept')?.id ?? '')
-  )
-    current.image.termsAccepted = observation.image.termsAccepted;
-  assertObservationFresh(plan, current, existing?.observationFingerprint);
-
-  if (ctx.hasUI) {
-    const confirmed = await ctx.ui.confirm(
-      'Apply immutable Azure CE plan',
-      `${plan.planId}\n${plan.planSha256}\n${plan.actions.length - completed.size} action(s) remain.`,
-    );
-    if (!confirmed) throw new Error('Apply was not approved');
-    if (plan.actions.some((action) => action.kind === 'marketplace-terms-accept' && !completed.has(action.id))) {
-      const terms = await ctx.ui.confirm(
-        'Accept Azure Marketplace terms',
-        `Accept the legal terms for ${plan.image.urn}?`,
-      );
-      if (!terms) throw new Error('Marketplace terms were not approved');
+    plan.intent.operation === 'teardown' &&
+    hasImmutableDeleteTail &&
+    !existingSnapshot &&
+    (!existing || existing.completedActionIds.length === 0)
+  ) {
+    reconcileAzureNativeDeletionPrefix(plan, existing?.completedActionIds ?? [], observation, current, []);
+  }
+  const mayRecoverDeletion = existingSnapshot !== undefined;
+  if (existing?.schemaVersion === AZURE_CE_SCHEMA_VERSION) {
+    if (existing.completedActionIds.length === 0) assertObservationFresh(plan, current);
+    if (
+      plan.intent.operation === 'teardown' &&
+      hasImmutableDeleteTail &&
+      (await collectAzureAbsentDeletionTail(plan, existing.completedActionIds, api, signal)).length > 0
+    ) {
+      throw new Error('Stale incomplete legacy Azure teardown checkpoint cannot be recovered safely');
     }
-    if (plan.intent.operation === 'teardown') {
+    existing = upgradeAzureCeCheckpoint(plan, existing, current);
+    await saveCheckpoint(ctx.sessionManager, plan, existing);
+  }
+  if (
+    mayRecoverDeletion &&
+    existing?.observationSnapshot &&
+    plan.intent.operation === 'teardown' &&
+    existing.state !== 'complete'
+  ) {
+    const priorFingerprint = existing.observationFingerprint;
+    if (!priorFingerprint) throw new Error('Azure teardown checkpoint has no observation fingerprint');
+    const previousCompletedCount = existing.completedActionIds.length;
+    const completedActionIds = reconcileAzureNativeDeletionPrefix(
+      plan,
+      existing.completedActionIds,
+      existing.observationSnapshot,
+      current,
+      await collectAzureAbsentDeletionTail(plan, existing.completedActionIds, api, signal),
+    );
+    const recoveredActions = completedActionIds.length > previousCompletedCount;
+    if (recoveredActions || !safeHexEqual(priorFingerprint, currentFingerprint)) {
+      const newlyRecovered = new Set(completedActionIds.slice(previousCompletedCount));
+      existing = {
+        ...existing,
+        completedActionIds,
+        failedActionId:
+          existing.failedActionId && newlyRecovered.has(existing.failedActionId) ? undefined : existing.failedActionId,
+        observationFingerprint: currentFingerprint,
+        observationSnapshot: structuredClone(current),
+        state: recoveredActions
+          ? completedActionIds.length === plan.actions.length
+            ? 'complete'
+            : existing.failedActionId && !newlyRecovered.has(existing.failedActionId)
+              ? 'partial'
+              : 'running'
+          : existing.state,
+      };
+      await saveCheckpoint(ctx.sessionManager, plan, existing);
+      if (existing.state === 'complete') return { plan, checkpoint: existing };
+    }
+  }
+  if (existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION && existing.pendingAction) {
+    const action = plan.actions[existing.completedActionIds.length];
+    if (!action) throw new Error('Pending Azure native mutation has no next immutable action');
+    validateAzureNativePendingAction(plan, existing.completedActionIds, existing.pendingAction);
+    const replacements = await replacementsFor(action.args ?? [], api, plan, action.expectedOwnerPlanSha256);
+    const resolvedAction = {
+      ...action,
+      args: resolveActionArgs(action.args ?? [], plan.planSha256, replacements),
+    };
+    if (await azureNativePendingActionConverged(plan, resolvedAction, api, signal)) {
+      if (action.kind === 'vm-create') recoveredNativeLaunchNode = action.node;
+      current = await observe();
+      currentFingerprint = fingerprintCheckpointObservation(current);
+      existing = {
+        ...existing,
+        completedActionIds: [...existing.completedActionIds, action.id],
+        failedActionId: existing.failedActionId === action.id ? undefined : existing.failedActionId,
+        pendingAction: undefined,
+        observationFingerprint: currentFingerprint,
+        observationSnapshot: structuredClone(current),
+        state: existing.completedActionIds.length + 1 === plan.actions.length ? 'complete' : 'running',
+      };
+      await saveCheckpoint(ctx.sessionManager, plan, existing);
+      if (existing.state === 'complete') return { plan, checkpoint: existing };
+    }
+  }
+  if (existing?.observationFingerprint) {
+    if (!safeHexEqual(existing.observationFingerprint, currentFingerprint)) {
+      throw new Error('Stale Azure CE checkpoint: observations changed outside an allowed recovery boundary');
+    }
+  } else {
+    assertObservationFresh(plan, current);
+  }
+  if (existing?.state === 'complete') return { plan, checkpoint: existing };
+  const completed = new Set(existing?.completedActionIds ?? []);
+
+  const authorization = {
+    apply: existing?.authorization?.apply === true,
+    terms: existing?.authorization?.terms === true,
+    destroy: existing?.authorization?.destroy === true,
+  };
+  if (ctx.hasUI) {
+    if (!authorization.apply) {
+      const confirmed = await ctx.ui.confirm(
+        'Apply immutable Azure CE plan',
+        `${plan.planId}\n${plan.planSha256}\n${plan.actions.length - completed.size} action(s) remain.`,
+      );
+      if (!confirmed) throw new Error('Apply was not approved');
+      authorization.apply = true;
+    }
+    if (plan.intent.operation === 'teardown' && !authorization.destroy) {
       const destroy = await ctx.ui.confirm(
         'Tear down Customer Edge',
         `Drain routing, restore approved brownfield state, and delete only resources owned by ${plan.deploymentName}?`,
       );
       if (!destroy) throw new Error('Teardown was not approved');
+      authorization.destroy = true;
     }
   }
 
+  if (!ctx.hasUI) {
+    authorization.apply ||= process.env.XCSH_CE_HEADLESS_MUTATIONS === '1';
+    authorization.destroy ||= process.env.XCSH_CE_ALLOW_DESTROY === '1';
+  }
+
   const checkpoint: AzureCeCheckpoint = {
-    schemaVersion: AZURE_CE_SCHEMA_VERSION,
+    authorization,
+    engine: plan.engine,
+    schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
     planId: plan.planId,
     planSha256: plan.planSha256,
     completedActionIds: [...completed],
-    observationFingerprint: existing?.observationFingerprint,
+    observationFingerprint: existing?.observationFingerprint ?? currentFingerprint,
+    observationSnapshot: structuredClone(current),
+    pendingAction: existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.pendingAction : undefined,
     state: 'running',
   };
+  await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+  const platform = await platformFactory();
+  const runtime = await platform.runtime('native', plan.intent.platformContext);
+  const storage = await platform.storage({
+    deploymentId: plan.deploymentName,
+    engine: 'native',
+    provider: 'azure',
+    account: plan.subscription.id,
+    region: plan.region,
+  });
+  const ingressContract =
+    plan.intent.ingress?.mode === 'platform-http'
+      ? await (dependencies.ingressContract?.() ?? VerifiedIngressContract.release(undefined, signal))
+      : undefined;
+  const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
+  if (recoveredNativeLaunchNode) await recordAzureNativeLaunch(plan, recoveredNativeLaunchNode, native, storage);
+  if (plan.intent.operation === 'replace-node')
+    await prepareAzureNativeReplacement(plan, native, api, runtime, storage, signal);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
-    let launchDir: string | undefined;
+    const preActionFingerprint = checkpoint.observationFingerprint;
+    const preActionSnapshot = checkpoint.observationSnapshot;
     try {
+      let postMutationObservation: Awaited<ReturnType<typeof observe>> | undefined;
       await assertActionOwnership(plan, action, api);
-      if (action.kind === 'health-gate' && action.node && !params.f5Evidence?.healthyNodes?.includes(action.node))
-        throw new Error(`F5 health evidence is missing for node ${action.node}`);
-      if (action.kind === 'bgp-gate' && !params.f5Evidence?.bgpEstablished)
-        throw new Error('F5 BGP evidence is not established');
-      if (action.kind === 'traffic-gate' && !params.f5Evidence?.trafficHealthy)
-        throw new Error('End-to-end traffic evidence is not healthy');
-      if (action.command && action.args) {
-        const replacements = await replacementsFor(action.args, api, plan);
-        if (action.requiresBootstrap && action.node) {
-          const reference = params.bootstrapRefs?.find((item) => item.node === action.node)?.reference;
-          if (!reference) throw new Error(`A just-in-time bootstrap reference is required for node ${action.node}`);
-          const token = await consumeBootstrapRef(reference, ctx.sessionManager.getSessionId());
-          const sessionRoot = join(
-            tmpdir(),
-            'xcsh-azure-ce-launch',
-            sha256Hex(ctx.sessionManager.getSessionId()).slice(0, 24),
-          );
-          await mkdir(sessionRoot, { recursive: true, mode: 0o700 });
-          launchDir = await mkdtemp(join(sessionRoot, 'node-'));
-          const bootstrapPath = join(launchDir, 'cloud-init.yaml');
-          await writeFile(
-            bootstrapPath,
-            renderCeCloudInit({ siteName: plan.siteName, nodeName: `${plan.deploymentName}-${action.node}`, token }),
-            { mode: 0o600 },
-          );
-          replacements.__BOOTSTRAP_FILE__ = bootstrapPath;
+      if (action.kind === 'vm-state-gate') {
+        const deadline = Date.now() + 15 * 60_000;
+        while (true) {
+          const evidence = await collectAzureNativeVmState(plan, action, api, signal);
+          await storage.write(`${action.id}-evidence.json`, evidence);
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline) throw new Error('Observed Azure VM power state has not converged');
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure VM convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
         }
-        const result = await api.exec(action.command, resolveActionArgs(action.args, plan.planSha256, replacements));
-        if (result.exitCode !== 0) throw new Error(`Azure action ${action.id} failed: ${result.stderr.slice(0, 500)}`);
+      }
+      if (action.kind === 'health-gate') {
+        const deadline = Date.now() + 15 * 60_000;
+        let evidence: Awaited<ReturnType<typeof collectAzureNativeAdmissionHealth>>;
+        while (true) {
+          evidence = await collectAzureNativeAdmissionHealth(
+            plan,
+            plan.intent.operation === 'replace-node'
+              ? plan.topology.nodeCount
+              : (action.node ?? plan.topology.nodeCount),
+            api,
+            runtime,
+            storage,
+            signal,
+            native,
+          );
+          await storage.write(`${action.id}-evidence.json`, {
+            ...evidence,
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+          });
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline)
+            throw new Error(
+              evidence.status === 'unknown'
+                ? 'Collected Azure platform health evidence is unavailable'
+                : 'Observed Azure platform health has not converged',
+            );
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure health convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
+      if (action.kind === 'bgp-gate') {
+        const admission = await collectAzureNativeAdmissionHealth(
+          plan,
+          plan.topology.nodeCount,
+          api,
+          runtime,
+          storage,
+          signal,
+          native,
+        );
+        if (!('configuration' in admission) || admission.configuration.status !== 'configured')
+          throw new Error('Authoritative Azure registered interface configuration is unavailable');
+        const expectedInterfaces = admission.configuration.interfaces.map(({ node, role, mac }) => ({
+          node,
+          role,
+          mac,
+        }));
+        const deadline = Date.now() + 15 * 60_000;
+        while (true) {
+          const evidence = await configureAzureRouteServerRouting(
+            plan,
+            expectedInterfaces,
+            runtime,
+            storage,
+            api,
+            signal,
+            native.replacement?.routeServer,
+          );
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline) throw new Error('Azure Route Server BGP and learned routes have not converged');
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure Route Server convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
+      if (action.kind === 'f5-ingress-configure') {
+        if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+        const evidence = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
+          plan,
+          runtime,
+          storage,
+          ingressContract,
+          api,
+          signal,
+        );
+        if (evidence?.listener !== 'configured') throw new Error('Observed Azure platform ingress has not converged');
+        await storage.write(`${action.id}-evidence.json`, evidence);
+      }
+      if (action.kind === 'traffic-gate') {
+        if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+        const ingress = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
+          plan,
+          runtime,
+          storage,
+          ingressContract,
+          api,
+          signal,
+        );
+        if (ingress?.listener !== 'configured') throw new Error('Observed Azure platform ingress has not converged');
+        const evidence = await (dependencies.collectTraffic ?? collectAzureTrafficProbe)(
+          plan,
+          storage,
+          api,
+          signal,
+          `${plan.planId}-${action.id}-traffic-probe`,
+        );
+        await storage.write(`${action.id}-evidence.json`, evidence);
+        if (evidence.status !== 'healthy') throw new Error('Observed end-to-end Azure traffic has not converged');
+      }
+      if (action.command && action.args) {
+        const replacements = await replacementsFor(action.args, api, plan, action.expectedOwnerPlanSha256);
+        const execute = (bootstrapFile?: string) =>
+          api.exec(
+            action.command as 'az',
+            resolveActionArgs(action.args ?? [], plan.planSha256, {
+              ...replacements,
+              ...(bootstrapFile ? { __BOOTSTRAP_FILE__: bootstrapFile } : {}),
+            }),
+          );
+        const bootstrap = action.requiresBootstrap
+          ? await azureNativeBootstrapForAction(plan, action, native, runtime, storage, signal)
+          : undefined;
+        if (action.mutates && action.kind !== 'resource-delete') {
+          const pending = buildAzureNativePendingAction(plan, action);
+          if (checkpoint.pendingAction) {
+            validateAzureNativePendingAction(plan, checkpoint.completedActionIds, checkpoint.pendingAction);
+          } else {
+            checkpoint.pendingAction = pending;
+            await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+          }
+        }
+        const result = bootstrap ? await withAzureNativeBootstrapFile(bootstrap, execute) : await execute();
+        if (result.exitCode !== 0)
+          throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (checkpoint.pendingAction) {
+          const deadline = Date.now() + 15 * 60_000;
+          const resolvedAction = {
+            ...action,
+            args: resolveActionArgs(action.args, plan.planSha256, replacements),
+          };
+          while (!(await azureNativePendingActionConverged(plan, resolvedAction, api, signal))) {
+            if (Date.now() >= deadline) throw new Error('Azure native mutation postcondition has not converged');
+            await new Promise<void>((resolve, reject) => {
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal?.reason ?? new Error('Azure native mutation convergence cancelled'));
+              };
+              const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', abort);
+                resolve();
+              }, 10_000);
+              signal?.addEventListener('abort', abort, { once: true });
+              if (signal?.aborted) abort();
+            });
+          }
+        }
+        if (action.kind === 'resource-delete' && action.resourceId) {
+          const deadline = Date.now() + 15 * 60_000;
+          while (true) {
+            postMutationObservation = await observe();
+            const resource = postMutationObservation.resources.find(
+              (candidate) => candidate.id.toLowerCase() === action.resourceId?.toLowerCase(),
+            );
+            if (!resource?.exists) break;
+            if (Date.now() >= deadline) throw new Error('Azure resource deletion has not converged');
+            await new Promise<void>((resolve, reject) => {
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal?.reason ?? new Error('Azure deletion convergence cancelled'));
+              };
+              const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', abort);
+                resolve();
+              }, 10_000);
+              signal?.addEventListener('abort', abort, { once: true });
+              if (signal?.aborted) abort();
+            });
+          }
+        }
+        if (action.kind === 'vm-create' && action.node)
+          await recordAzureNativeLaunch(plan, action.node, native, storage);
       }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
-      const changesFingerprint =
-        action.kind === 'marketplace-terms-accept' ||
-        action.kind === 'route-association-update' ||
-        action.kind === 'brownfield-restore' ||
-        (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
-      if (changesFingerprint)
-        checkpoint.observationFingerprint = fingerprintObservation(await observe(), plan.intent.brownfield.resourceIds);
-      await saveCheckpoint(ctx.sessionManager, checkpoint);
+      checkpoint.pendingAction = undefined;
+      checkpoint.state = completed.size === plan.actions.length ? 'complete' : 'running';
+      const changesFingerprint = action.mutates;
+      if (changesFingerprint) {
+        const checkpointObservation = postMutationObservation ?? (await observe());
+        checkpoint.observationFingerprint = fingerprintCheckpointObservation(checkpointObservation);
+        checkpoint.observationSnapshot = structuredClone(checkpointObservation);
+      }
+      await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
     } catch (error) {
+      completed.delete(action.id);
+      checkpoint.completedActionIds = [...completed];
+      checkpoint.observationFingerprint = preActionFingerprint;
+      checkpoint.observationSnapshot = preActionSnapshot;
       checkpoint.state = 'partial';
       checkpoint.failedActionId = action.id;
-      await saveCheckpoint(ctx.sessionManager, checkpoint);
+      await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
       );
-    } finally {
-      if (launchDir) await rm(launchDir, { recursive: true, force: true });
     }
   }
-  checkpoint.state = 'complete';
-  await saveCheckpoint(ctx.sessionManager, checkpoint);
   return { plan, checkpoint };
 }
 
-export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
+export function createAzureCeApplyTool(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => AzExecApi = makeExecApi,
+  terraformDependencies: TerraformDependencies = terraformDefaults,
+) {
   const { Type } = pi.typebox;
   return {
     name: 'azure_ce_apply',
@@ -199,24 +543,43 @@ export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: strin
     parameters: Type.Object({
       planId: Type.String(),
       planSha256: Type.String(),
-      bootstrapRefs: Type.Optional(Type.Array(Type.Object({ node: Type.Number(), reference: Type.String() }))),
-      f5Evidence: Type.Optional(
-        Type.Object({
-          healthyNodes: Type.Optional(Type.Array(Type.Number())),
-          bgpEstablished: Type.Optional(Type.Boolean()),
-          trafficHealthy: Type.Optional(Type.Boolean()),
-        }),
-      ),
     }),
     async execute(
       _id: string,
       params: ApplyParams,
-      _signal: AbortSignal | undefined,
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
       try {
-        const { plan, checkpoint } = await executeApply(params, ctx, makeApi(ctx.cwd));
+        const envelope = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+        if (envelope.plan.engine === 'terraform') {
+          const platform = await terraformDependencies.platform(pi, signal);
+          const result = await executeAzureCeTerraformApply(
+            params,
+            ctx,
+            withAzureCeExecution(makeApi(ctx.cwd), signal),
+            platform,
+            await terraformDependencies.terraform(pi, signal),
+            signal,
+          );
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Azure CE Terraform plan ${envelope.plan.planId}: ${result.status}. Routing and traffic remain separate collected evidence.`,
+              },
+            ],
+            details: { tool: 'azure_ce_apply', ...result },
+          };
+        }
+        const { plan, checkpoint } = await executeAzureCeNativeApply(
+          params,
+          ctx,
+          withAzureCeExecution(makeApi(ctx.cwd), signal),
+          () => terraformDependencies.platform(pi, signal),
+          signal,
+        );
         return {
           content: [
             {

@@ -1,5 +1,26 @@
 # Changelog
 
+## CE suite UAT115
+
+- Preserve independently verified registered teardown when registration completes without an approval journal. If registered inventory is unavailable, the separate launched pre-registration contract still requires complete current evidence before retirement.
+- Advance the coordinated cohort after this selection regression; preserve UAT114 archive and installed receipts as history.
+
+## CE suite UAT114
+
+- Prepare ownership-bound AWS Terraform retirement after a single-node launch and before registration, requiring exact launch and logical-site journals plus fresh pre-registration inventory.
+- Keep approval attempts on the registered retirement contract and preserve the single-node mutation boundary.
+- Advance all four CE plugins together and retain previous installed/live receipts as history; current archive, installed and live qualification remain pending.
+
+## CE suite UAT110
+
+- Qualify exact owning Terraform whole-site power journals for terminal artifact retirement after the existing teardown and runner gates.
+- Bind frozen parent inventory to file digests, inode and device identity; interrupted cleanup admits only unchanged surviving artifacts.
+- Preserve prior UAT109 evidence and reset current installed/live qualification for the coordinated changed candidate.
+
+## CE UAT109 qualification candidate
+
+AWS Terraform whole-site power now withdraws and restores exact direct-route resources through the owning saved-plan runner. Brownfield power operations freshly verify existing placement before opening the current runner. Live operational acceptance and normal publication remain pending.
+
 All notable changes to the f5-sales-demo marketplace will
 be documented in this file.
 
@@ -8,7 +29,31 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## CE UAT87
+
+- Retire validated completed initial-replacement journals and bootstrap staging during AWS Terraform parent cleanup, retaining exact interruption recovery.
+
+## CE UAT86
+
+- Qualify provider-computed interface readback for Terraform replacement reconciliation; retain strict writable configuration and identity checks.
+
 ## [Unreleased]
+
+- **CE UAT78** retires completed software/OS Terraform action stages through exact source ownership, applied action journals, final ordinary no-change plans and independent terminal absence evidence. Durable preparation and retirement checkpoints preserve interruption recovery; parent cleanup verifies every stage receipt (#1651, #1326).
+
+- **CE UAT77** reconciles serial upgrade completion with the exact owning Terraform application journal and fresh version evidence. Completion receipts persist before admission is released; interrupted actions resume without replay, while unsubmitted actions and live runners block completion (#1651, #1326).
+
+- **CE UAT76** matches parent cleanup to the owning Terraform runner canonical manifest digest. Installed UAT75 retired both runners but blocked parent journal cleanup; that failure is retained and canonical receipt regressions cover the repaired join (#1651, #1326).
+
+- **CE UAT75** repairs AWS provider cache validation on macOS with a signed, multi-platform immutable lock for Linux/macOS AMD64/ARM64. Compiler and archive assets bind the new lock digest; UAT74 installed failure remains retained (#1651, #1326).
+
+- **CE UAT74** integrates terminal AWS Terraform teardown with fresh cloud/F5 absence,owning runner retirement and digest-bound parent journal cleanup. Terminal resume preserves reviewed authorization and brownfield placement, rejects unqualified stages and removes site/node-bound bootstrap staging (#1651,#1326).
+
+- **CE UAT73** retires the empty provider-owned F5 Terraform stage through its owning service after a refreshed ordinary no-change plan and digest-bound evidence. Durable checkpoints resume cleanup and prohibit later F5 writes or cancellation; live absence and parent deployment cleanup remain required (#1651, #1326).
+
+- **CE UAT72** prevents AWS Terraform cleanup from declaring absence when deployment-tagged resources are malformed, unsupported, foreign, duplicated or incompletely paginated. Supported EC2 ARNs join exact identities for independent absence checks; captured ELB ARNs must match deployment scope (#1651, #1326).
+
+- **CE UAT71** adds terminal Terraform runner artifact retirement after exact empty-state and refreshed no-change-plan verification. Digest-bound interruption recovery preserves provenance and permanently rejects later execution; cloud/F5 absence and public teardown integration remain separate qualification gates (#1651, #1326).
 
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
@@ -18,6 +63,19 @@ and this project adheres to
 - **`meddpicc`** v7.8.2 quotes every legacy migration argument and identifies the running executable and CLI source path so corrective advice reconstructs exactly in Bash and Zsh (#1775).
 
 - **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.
+- CE UAT59 imports original direct routes through the owning AWS Terraform apply stage without changing targets; resumes exact journaled plans and keeps CE activation pending (#1651). Full UAT remains blocked.
+
+- CE UAT58 qualifies brownfield snapshots in real AWS Terraform preflight and retains every immutable network reference during revalidation (#1651). Full UAT remains blocked.
+
+- CE UAT57 carries ownership-qualified brownfield placement through public AWS Terraform admission and resume, rechecking unchanged references before apply (#1651). Full UAT remains blocked.
+
+- CE UAT56 persists source-bound restoration and relinquishment preparation before revision, reuses durable exact plans on resume and rejects changed evidence before submission (#1651). Full UAT remains blocked.
+
+- CE UAT52 qualifies durable brownfield placement during AWS Terraform teardown preparation and verifies fresh cloud references before public session opening (#1651). Full UAT remains blocked.
+
+- CE UAT51 restores and relinquishes original direct routes before AWS Terraform cloud destruction, and verifies completed retirement resume against configuration, state and fresh cloud evidence (#1651). Full UAT remains blocked.
+
+- **`gcloud`** v1.6.2 — use explicit example project identifiers in presentation regression fixtures.
 - **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
 
 - **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
@@ -53,6 +111,12 @@ and this project adheres to
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
+
+- **`terraform`** v3.0.0 adds the isolated saved-plan runner and provider-owned F5 resource stages, with restricted journals and exact-state recovery.
+
+- **`platform`** v7.0.0 consumes verified API v12.0.9 bootstrap and telemetry, exposes the shared CE service, and separates native operations from Terraform resource state.
+
+- **`aws`** v3.0.1 introduces deployment schema v2, explicit execution/profile context, complete internet egress, per-AZ static appliance routing, shared inventory, and bounded operational evidence. HA and publication remain gated by their qualification receipts. Whole-site stop/start is gated until coordinated service withdrawal and restoration are implemented.
 
 - **`salesforce`** v2.3.14 — show connection status, schema catalog counts and filtering guidance, fiscal-year bookings with explicit unknown currency, and actionable anomaly explanations in the default shared-renderer output.
 

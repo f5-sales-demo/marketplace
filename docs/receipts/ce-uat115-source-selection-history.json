@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-10-23T12:48:33.404705+00:00",
+  "revision": 115,
+  "trackingIssue": 1850,
+  "launchSelection": "Qualify registered inventory first; its explicit unavailable result requires independent fresh pre-registration qualification. Approval journals remain on the registered contract.",
+  "sourceTestsPassed": 2301,
+  "sourceAssertions": 13506,
+  "buildAndTypeChecks": "all four pass",
+  "ledgerChecksPassed": 14,
+  "ledgerAssertions": 59,
+  "trackerHistoriesPreserved": 2734,
+  "originalHistorySnapshotDigest": "60916df04a67d30752eff54f9b47b2fc8a4c580cf019564608870cc560cd8087",
+  "historyReferenceValidation": "missing, changed, augmented and cyclic records reject",
+  "originalCiFailures": "39954251032 stale tracker;39954251543 JSCPD10.5 percent vs10percent",
+  "precommit": "pending frozen final check",
+  "archives115": "pending",
+  "installed115": "pending",
+  "liveCleanup115": "pending",
+  "sliControlAndFreshness": "unqualified",
+  "awsRecovery": "212977ms FAILED;45000ms threshold retained",
+  "releaseReady": false
+}

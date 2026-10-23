@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-22T15:17:03.387426+00:00",
+  "tag": "v12.2.1",
+  "resolvedCommit": "317f4bef441fff5c0913a4584c27da01ec4ff18c",
+  "manifestReleaseVerified": true,
+  "manifestAssets": [
+    {
+      "asset": "smsv2-contract.json",
+      "digest": "sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08"
+    },
+    {
+      "asset": "smsv2-evidence-receipt.json",
+      "digest": "sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932"
+    }
+  ],
+  "schemaAssetSha256": "8de9ccfd3eb3a8373b5e81b624066d9d99b156fc1dc7341c1012003ac25ae96b",
+  "consumerPinUnchanged": "v12.2.0",
+  "freshLiveQualification": false,
+  "installedConsumption": false,
+  "fullProducer1930Acceptance": false
+}
