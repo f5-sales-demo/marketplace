@@ -1,7 +1,7 @@
 {
   "name": "gcloud",
-  "description": "Google Cloud authentication and CLI tools with gated Customer Edge discovery and lifecycle readiness planning",
-  "version": "1.6.1",
+  "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
+  "version": "1.7.23",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
   "license": "Apache-2.0",
   "author": {
@@ -29,7 +29,8 @@
     "requirements": ["Google Cloud CLI", "An authenticated Google Cloud account"],
     "setupRequired": true,
     "collectedData": ["accounts"],
-    "pluginDependencies": []
+    "pluginDependencies": ["platform"]
   },
-  "minimumRuntimeVersion": "23.8.0"
+  "minimumRuntimeVersion": "23.8.0",
+  "extensions": ["runtime/index.js"]
 }

@@ -16,6 +16,22 @@ const stubExec = () => ({
   exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
 });
 
+it('arbitrary component installs are blocked before optional-group preparation, even with a read-shaped argument', async () => {
+  let calls = 0;
+  const tool = createGcloudExecTool({ typebox: mockTypebox }, () => {
+    calls++;
+    return stubExec();
+  });
+  for (const args of [
+    ['components', 'install', 'alpha', 'list'],
+    ['alpha', 'components', 'uninstall', 'beta', 'list'],
+  ]) {
+    const result = await tool.execute('blocked-components', { args }, undefined, null, { cwd: '/tmp' });
+    expect(result.isError).toBe(true);
+  }
+  expect(calls).toBe(0);
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,

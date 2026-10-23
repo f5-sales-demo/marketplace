@@ -1,0 +1,12 @@
+{
+  "gcp-operational-source": "sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9",
+  "gcp-operational-command": "sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846",
+  "gcp-runtime-diagnostics": "sha256:ee99d0713c713cb2348020a3b3e152feff52caf15af612c5f65a5899a8ce9580",
+  "gcp-operational-diagnosis": "sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1",
+  "gcp-operational-site-status": "sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d",
+  "gcp-operational-observation": "sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec",
+  "gcp-operational-runtime": "sha256:86093df90f14194d94570773008203e0b5af2e8d041ccb21cce19459f2b2a4b8",
+  "gcp-operational-binding": "sha256:5241e6662bcad89e4ef3048b60005dbcfb333c692877b73348e3f3dcdf086a16",
+  "gcp-operational-placement": "sha256:6bdda37171ee119261cbe88a6959ebdd84bb21c5fd2aceb110de895016347e5f",
+  "evaluator": "sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39"
+}
