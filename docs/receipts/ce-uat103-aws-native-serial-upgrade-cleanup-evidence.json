@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-22T13:41:29.106560+00:00",
+  "scope": "UAT103 installed AWS native singleton serial software and OS convergence; traffic and operational freshness unqualified",
+  "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+  "candidateRevision": 103,
+  "cliVersion": "23.9.3",
+  "engine": "native",
+  "profile": "single-site",
+  "pluginContentsChanged": false,
+  "exactArchives": [
+    {
+      "plugin": "platform",
+      "version": "7.0.0-uat.103",
+      "filesVerified": 267,
+      "archiveSha256": "f4a018b6cd5ed210bdb091a760713d501464b6c5d98f7dde8d51fb46d906f34b",
+      "archiveBytes": 390920,
+      "runtimeSha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8",
+      "manifestSha256": "969c4cc8feabe6467c1f02c5d6b8908e9354d6950f15ff99c4267b75e9a645a7",
+      "packageSha256": "211abc1ed4c3ed9a5ab48f27c52879498b207109ec046a25b24273128ada0f18",
+      "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+      "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+    },
+    {
+      "plugin": "aws",
+      "version": "3.0.0-uat.103",
+      "filesVerified": 288,
+      "archiveSha256": "568961c7bc8e06a462a39822f03cbf2f975592becdcd79e4162c910f49506309",
+      "archiveBytes": 774388,
+      "runtimeSha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef",
+      "manifestSha256": "035be5d3762c4228a878372f9cc8fa606ff3f42f8818be2087dba96838f52469",
+      "packageSha256": "788077ef5b092748256117a7df5ba610821558f02a4d08dc7d7b5ee9ec3ddae4",
+      "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+      "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+    },
+    {
+      "plugin": "azure",
+      "version": "5.0.0-uat.103",
+      "filesVerified": 176,
+      "archiveSha256": "45b6e63f039950a9c3aa79baa3eeac2564a2fe0b10e9fa93223470040d0f23be",
+      "archiveBytes": 473070,
+      "runtimeSha256": "43a3eef242dfaf0b8ddeb49de0c93fa3faedf0c60b6ac6aadeec63572391f295",
+      "manifestSha256": "bde184d2b008b724c81b96e19a68dc7aceb127fe10128cfa75bccc99fbc80907",
+      "packageSha256": "0b96937a4289f8854d99cfb64c02299d82074cb9953b8fcb1817738884e4842b",
+      "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+      "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+    },
+    {
+      "plugin": "terraform",
+      "version": "3.0.0-uat.103",
+      "filesVerified": 34,
+      "archiveSha256": "5863dd952cc48c0df94f2ff0dd2998a3d94cd81eeee09fb9b2133aea103a0be3",
+      "archiveBytes": 115198,
+      "runtimeSha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6",
+      "manifestSha256": "44f03a5b7e0344ca95fe90c3727909584c85c65e3a22dd46236eb923b63ca159",
+      "packageSha256": "6c4a2c91cc283590b35a646fb934c1539372422ae33b35588eec3be27fb7f21d",
+      "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+      "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+    }
+  ],
+  "serialUpgradeIdentity": {
+    "observedAt": "2026-10-22T13:28:26.489500+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "sourcePlanSha256": "bc230da925fad2f55ddb4276af5a7c7a88882a1ce318a48f4ce79a64bcc2f201",
+    "softwareUpgradePlanSha256": "e8560c3614a4f14c4d7d1b8a623bc318dfc04b0cd9e253196c12ec34fe3406c9",
+    "osUpgradePlanSha256": "4703ceeb3332d0f1be72810790acb1112c5fd740ae75e023bfdfcbe367043e3f",
+    "sourcePrivateReceipt": "independent-inventory-20261022T132814233274Z.private.json",
+    "responseSha256": "ebf74811454cfc4e1753cbfebc73a2d50a0e26f004425462ce8508be1344edfb",
+    "installedBefore": {
+      "software": "crt-20260201-0179",
+      "os": "9.2026.17"
+    },
+    "installedAfter": {
+      "software": "crt-20260801-0209",
+      "os": "9.2026.20"
+    },
+    "publicSoftwareStatus": "upgrade-complete",
+    "publicOsStatus": "upgrade-complete",
+    "osHardwareVersionVerified": true,
+    "serialOsBaselineAfterSoftwareVerified": true,
+    "sameInstance": true,
+    "sameRegistrationNode": true,
+    "sameLogicalPhysicalUids": true,
+    "sameTwoEniMacDeviceIndexBindings": true,
+    "sameTwoInterfaceResourceDeviceBindings": true,
+    "nodeHealth": "unknown",
+    "routing": "unknown",
+    "traffic": "unknown",
+    "originalCeSampleFreshness": "unknown",
+    "cleanupComplete": true,
+    "fullCeAcceptance": false
+  },
+  "originalQualificationDeadlineSeconds": 4500,
+  "originalStartedAt": "2026-10-22T12:14:00.507559+00:00",
+  "softwareCompletion": {
+    "kind": "software",
+    "status": "upgrade-complete",
+    "completedAt": "2026-10-22T13:11:31.579858+00:00"
+  },
+  "osCompletion": {
+    "kind": "os",
+    "status": "upgrade-complete",
+    "completedAt": "2026-10-22T13:28:13.892623+00:00"
+  },
+  "serialCompletionElapsedSeconds": 4453.385072469711,
+  "postStatusPassed": true,
+  "diagnosis": {
+    "exitCode": 124,
+    "reason": "Original qualification deadline reached",
+    "accepted": false
+  },
+  "interfaceAndSiteReadAfterUpgrade": "not-executed-before-original-deadline",
+  "cleanup": {
+    "independent": {
+      "observedAt": "2026-10-22T13:40:22.838395+00:00",
+      "candidateRevision": 103,
+      "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+      "exactCloudIds": 11,
+      "rootVolumesAbsent": 1,
+      "tokensAbsent": 1,
+      "interfaceBaselines": 2,
+      "freshOwnershipInventoryEmpty": true,
+      "logicalPhysicalSitesAbsent": true,
+      "nativeFinalPlanNoChanges": true,
+      "finalPlanSha256": "ec358c577ffd37d28815fc63e130c8545d22b1711e6187f401f823cca0d31b21",
+      "terraformState": "not-applicable-native",
+      "sensitiveStagingRetired": true,
+      "fullCleanupAcceptance": true,
+      "fullCeAcceptance": false,
+      "sensitiveRetirementReceipt": "sensitive-retirement103-safe.json"
+    },
+    "postVerification": {
+      "exitCodes": [0, 0],
+      "observedAt": "2026-10-22T13:40:22.847514+00:00",
+      "fullCeAcceptance": false
+    },
+    "retirement": {
+      "status": "retirement-complete",
+      "retirementExitCode": 0,
+      "fullCleanupAcceptance": true,
+      "fullCeAcceptance": false,
+      "observedAt": "2026-10-22T13:40:31.236353+00:00"
+    },
+    "sensitiveRetirement": {
+      "observedAt": "2026-10-22T13:40:31.232120+00:00",
+      "sensitiveFilesRetired": 1,
+      "sensitiveBytesRetired": 758,
+      "inventorySha256": "e1c94a5e07263eebb7defc743cfc513bc48ee856044b3f608f13d5e8ac6395c3",
+      "remainingJwtOrPrivateKeyMatches": 0,
+      "sharedContextUntouched": true,
+      "cloudKeysCreated": false,
+      "fullCeAcceptance": false
+    }
+  },
+  "ledgerRowsQualified": [],
+  "fullCeAcceptance": false,
+  "releaseReady": false,
+  "upgradeAutomated": {
+    "testsPassed": 9,
+    "assertions": 40,
+    "files": ["plugins/aws/test/ce/native-upgrade.test.ts", "plugins/aws/test/tools/aws-ce-upgrade.test.ts"]
+  },
+  "remainingUpgradeAcceptance": "Node health, routing/traffic continuity, original interface freshness, and post-upgrade diagnosis remain unqualified; preserve all matrix rows/gates."
+}
