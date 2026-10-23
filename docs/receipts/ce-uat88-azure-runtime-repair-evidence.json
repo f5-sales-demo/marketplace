@@ -1,0 +1,50 @@
+{
+  "candidateRevision": 88,
+  "problem": "Azure CE rendered Terraform 1.16.1 while the qualified installed runtime is 1.16.5",
+  "change": "Foundation, lifecycle and failover share the exact Terraform 1.16.5 constant; the execution version guard remains enforced",
+  "regressions": {
+    "before": {
+      "passed": 17,
+      "failed": 3
+    },
+    "after": {
+      "passed": 20,
+      "assertions": 155
+    }
+  },
+  "fullTests": {
+    "passed": 2056,
+    "assertions": 12567
+  },
+  "compilersAndBuilds": {
+    "plugins": 4,
+    "passed": true
+  },
+  "assetsMappingsReadiness": {
+    "tests": 8,
+    "assertions": 44,
+    "passed": true
+  },
+  "historicalInstalledApply": {
+    "candidateRevision": 87,
+    "status": "failed-safely-network-pending",
+    "error": "Terraform version changed",
+    "privateResultSha256": "539152787583163366e1c79abab12e83b9cdd9a888113b230277903b5c91655c"
+  },
+  "historicalCleanup": {
+    "candidateRevision": 87,
+    "publicPrepare": "failed",
+    "error": "Fresh Azure platform teardown inventory is unavailable",
+    "cleanupComplete": false
+  },
+  "qualifiedInstalled88": false,
+  "qualifiedLive88": false,
+  "historicalDiscoveryAndPlanningRows": 24,
+  "currentRowsRequireRequalification": true,
+  "recoveryCriterion": {
+    "maximumMs": 45000,
+    "historicalObservedMs": 212977,
+    "passed": false
+  },
+  "fullCeAcceptance": false
+}

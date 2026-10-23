@@ -1,0 +1,85 @@
+{
+  "observedAt": "2026-10-22T08:33:54.120546+00:00",
+  "candidateRevision": 99,
+  "sourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+  "cliVersion": "23.9.3",
+  "sanitized": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "8057d507087209ff3434d8afc7542da21be71fa76cf628c4ee96a2d7874e325c"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "b320e69dbacf63589c873c474ca2a117f6941df87ddb0097d0e10b294c7b38d9"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "azure_ce_upgrade",
+      "startedAt": "2026-10-22T08:22:17.518Z",
+      "completedAt": "2026-10-22T08:22:42.548Z",
+      "isError": false,
+      "status": "upgrade-complete"
+    },
+    {
+      "tool": "azure_ce_upgrade",
+      "startedAt": "2026-10-22T08:31:25.761Z",
+      "completedAt": "2026-10-22T08:31:50.245Z",
+      "isError": false,
+      "status": "upgrade-complete"
+    }
+  ],
+  "upgrades": [
+    {
+      "kind": "software",
+      "before": {
+        "software": "crt-20260201-0179",
+        "os": "9.2026.17"
+      },
+      "target": {
+        "kind": "software",
+        "version": "crt-20260801-0209"
+      },
+      "planSha256": "140ce1bc5645bbb7fc94115052546723a1fcf138c4b719e340e394ba81134bdb",
+      "actionPlanSha256": "0b7181707bd4b165c4529a8c23c5939247eb07843327c016e51866b197bce89c",
+      "owningCheckpoint": "complete"
+    },
+    {
+      "kind": "os",
+      "before": {
+        "software": "crt-20260801-0209",
+        "os": "9.2026.17"
+      },
+      "target": {
+        "kind": "os",
+        "version": "9.2026.20"
+      },
+      "planSha256": "fb83a1aac239de3f41bcdfe02588c6eebb5cc25fe4e32a5839740d2a1ecf37fa",
+      "actionPlanSha256": "0ada3e39cce52f3e6f984342ff8f550ccc24c6d814fc583b004e3a4fad252947",
+      "owningCheckpoint": "complete"
+    }
+  ],
+  "serialLedger": "idle",
+  "sameLogicalPhysicalUidsPreserved": true,
+  "effectiveVersions": {
+    "software": "crt-20260801-0209",
+    "os": "9.2026.20"
+  },
+  "siteState": "ONLINE",
+  "publicGlobalHealth": "PROVISIONED",
+  "registration": "healthy",
+  "nodeHealth": "unknown",
+  "routing": "unknown",
+  "traffic": "unknown",
+  "cleanup": "pending",
+  "fullCeAcceptance": false
+}

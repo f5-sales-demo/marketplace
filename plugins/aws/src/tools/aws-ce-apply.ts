@@ -2,7 +2,11 @@ import type { AwsExecApi } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import type { AwsCeApplyInput } from '../ce/apply';
 import { executeAwsCeApply } from '../ce/apply';
-import type { AwsCeToolContext } from '../ce/artifacts';
+import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
+import { nativeAwsApplyQualification } from '../ce/native-apply-qualification';
+import { AwsCeRevalidationError } from '../ce/observation-rejection';
+import { awsPlatformService } from '../ce/platform';
+import { awsTerraformService, executeAwsCeTerraformApply } from '../ce/terraform-apply';
 import { makeExecApi } from './shared';
 
 export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
@@ -15,48 +19,59 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
     parameters: Type.Object({
       planId: Type.String(),
       planSha256: Type.String(),
-      bootstrapRefs: Type.Optional(Type.Array(Type.Object({ node: Type.Number(), reference: Type.String() }))),
-      f5Capabilities: Type.Object({
-        smsv2ContractVersion: Type.Literal('v2'),
-        supportedProviders: Type.Array(Type.Union([Type.Literal('aws'), Type.Literal('azure')])),
-        bootstrapDrivers: Type.Array(Type.Literal('console')),
-        providerNetworkingProfiles: Type.Object({
-          aws: Type.Optional(Type.Array(Type.String())),
-          azure: Type.Optional(Type.Array(Type.String())),
-        }),
-        awsSmsv2TgwConnect: Type.Object({
-          supported: Type.Boolean(),
-          schemaVersion: Type.Union([Type.String(), Type.Null()]),
-        }),
-      }),
-      f5Evidence: Type.Optional(
-        Type.Object({
-          registeredNodes: Type.Optional(Type.Array(Type.Number())),
-          healthyNodes: Type.Optional(Type.Array(Type.Number())),
-          bgpEstablished: Type.Optional(Type.Boolean()),
-          nlbHealthy: Type.Optional(Type.Boolean()),
-          tgwRoutesHealthy: Type.Optional(Type.Boolean()),
-          trafficHealthy: Type.Optional(Type.Boolean()),
-        }),
-      ),
     }),
     async execute(
       _id: string,
       params: AwsCeApplyInput,
-      _signal: AbortSignal | undefined,
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: AwsCeToolContext,
     ) {
       try {
-        const { plan, checkpoint } = await executeAwsCeApply(params, ctx, makeApi(ctx.cwd));
+        const selected = await loadAwsPlan(ctx.sessionManager, params.planId, params.planSha256);
+        if (selected.plan.engine === 'terraform') {
+          const result = await executeAwsCeTerraformApply(
+            params,
+            ctx,
+            makeApi(ctx.cwd),
+            await awsPlatformService(pi, signal),
+            await awsTerraformService(pi, signal),
+            fetch,
+            signal,
+          );
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `AWS CE Terraform ${selected.plan.deploymentName}: ${result.status}. Collected routing and ingress evidence is included; traffic acceptance remains separate.`,
+              },
+            ],
+            details: { tool: 'aws_ce_apply', ...result },
+          };
+        }
+        const { plan, checkpoint } = await executeAwsCeApply(
+          params,
+          ctx,
+          makeApi(ctx.cwd),
+          await awsPlatformService(pi, signal),
+          fetch,
+          signal,
+        );
+        const qualification = nativeAwsApplyQualification(plan, checkpoint);
         return {
           content: [
             {
               type: 'text' as const,
-              text: `AWS CE ${plan.deploymentName}: ${checkpoint.state}; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed.`,
+              text: `AWS CE ${plan.deploymentName}: ${qualification.installation.status} installation; ${checkpoint.completedActionIds.length}/${plan.actions.length} immutable actions checkpointed. Global site health does not establish node health. ${plan.intent.ingress?.mode === 'nlb' ? 'Traffic probe completion is recorded in the checkpoint; current traffic requires a fresh observation.' : 'No ingress probe is configured; traffic qualification remains unknown.'}`,
             },
           ],
-          details: { tool: 'aws_ce_apply', planId: plan.planId, planSha256: plan.planSha256, checkpoint },
+          details: {
+            tool: 'aws_ce_apply',
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+            checkpoint,
+            qualification,
+          },
         };
       } catch (error) {
         return {
@@ -67,7 +82,10 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
             },
           ],
           isError: true,
-          details: { tool: 'aws_ce_apply' },
+          details: {
+            tool: 'aws_ce_apply',
+            ...(error instanceof AwsCeRevalidationError ? { revalidation: error.diagnostic } : {}),
+          },
         };
       }
     },

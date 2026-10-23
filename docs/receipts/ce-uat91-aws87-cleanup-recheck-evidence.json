@@ -1,0 +1,38 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "ownershipInventoriesEmpty": true,
+  "ownershipInventoryCounts": {
+    "Tags": 0,
+    "ResourceTagMappingList": 0
+  },
+  "logicalAndPhysical404": [
+    {
+      "kind": "securemesh_site_v2s",
+      "httpStatus": 404
+    },
+    {
+      "kind": "sites",
+      "httpStatus": 404
+    },
+    {
+      "kind": "securemesh_site_v2s",
+      "httpStatus": 404
+    },
+    {
+      "kind": "sites",
+      "httpStatus": 404
+    }
+  ],
+  "registrationTokenRoutingIngressAndInterfaceAbsence": true,
+  "runnerAndParentRetirementIndependentlyVerified": true,
+  "preservedFinalRefreshPlanSha256": [
+    "1d2c118fb8f8fe6d3d47f7cb9a29628ca624b627b89bd0277b9d1505792902e5",
+    "a2ac4530b942ce51424cdca4cc32691da371b41b6aa494608d758b9f51ab8d51"
+  ],
+  "newPostRetirementPlanExecuted": false,
+  "fullCeAcceptance": false,
+  "observedAt": "2026-10-22T02:38:03.967487+00:00",
+  "exactCloudIdCount": 14,
+  "scope": "Fresh independent recheck of retained UAT87 teardown; not current91 deployment qualification"
+}

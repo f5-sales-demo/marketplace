@@ -1,0 +1,39 @@
+{
+  "candidateRevision": 90,
+  "sourceCommit": "455bb429737bd0d70bea9c3a52696abdfd80375d",
+  "fixture": "ce-az87-664b1744",
+  "cliVersion": "23.9.3",
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "403c08c0d1c51e95e89a88a1fc9816de527d89658a4a35670830e1f056574368"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "azure_ce_teardown",
+      "startedAt": "2026-10-22T01:57:20.786Z",
+      "completedAt": "2026-10-22T01:57:51.026Z",
+      "isError": false,
+      "status": "deployment-artifacts-retired"
+    }
+  ],
+  "originalReceiptCandidateRevision": 89,
+  "correctionEvidence": "immutable archive source and four independently verified installed runtime digests identify UAT90; original receipt preserved",
+  "scope": "repeat retirement of already-retired Azure87 pre-admission foundation",
+  "fullDeploymentTeardownQualified": false,
+  "fullCeAcceptance": false,
+  "priorCleanupReceipt": "1651-uat89-azure87-foundation-cleanup-safe-receipt.json"
+}

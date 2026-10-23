@@ -1,0 +1,30 @@
+{
+  "candidateRevision": 91,
+  "sourceCommit": "c25d01b0ae4bb828e2afec9152e579ea6178e397",
+  "observedAt": "2026-10-22T02:25:48.512126+00:00",
+  "installedPublicTeardownPassed": true,
+  "independentCloudSubscriptionVerified": true,
+  "resourceGroupAbsent": true,
+  "ownedAzureTagInventoryEmpty": true,
+  "logicalPhysicalSitesAbsent": true,
+  "registrationsEmpty": true,
+  "tokensRoutingIngressEmpty": true,
+  "matchingInterfaceObjectsAbsent": true,
+  "initialJournalBootstrapAndLaunchEmpty": true,
+  "finalOrdinaryRefreshNoChanges": true,
+  "finalPlanSha256": "9e1a66effa0a081c2639dcd383d2b9df16581b930db939a7c4448919a92bee59",
+  "terraformStateEmptyVerifiedByOwningRetirement": true,
+  "runnerInventoryExactRetiredPair": true,
+  "runnerArtifactsRetired": 58,
+  "frozenTerraformVersionPreserved": "1.16.5",
+  "publicRepeatQualified": true,
+  "fullCeAcceptance": false,
+  "scope": "pre-registration reserved-site foundation retirement; does not qualify full registered deployment teardown",
+  "fullDeploymentTeardownQualified": false,
+  "repeatTrace": {
+    "startedAt": "2026-10-22T02:25:58.244Z",
+    "completedAt": "2026-10-22T02:26:28.304Z",
+    "isError": false,
+    "status": "deployment-artifacts-retired"
+  }
+}
