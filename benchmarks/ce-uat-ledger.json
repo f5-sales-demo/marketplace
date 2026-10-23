@@ -927,7 +927,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -1001,6 +1004,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -1027,7 +1036,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -1101,6 +1113,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -1951,7 +1969,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -2000,6 +2021,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -2026,7 +2053,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -2075,6 +2105,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -2719,7 +2755,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -2769,6 +2808,12 @@
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
         }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
+        }
       ]
     },
     {
@@ -2794,7 +2839,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -2829,6 +2877,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -3473,7 +3527,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -3534,6 +3591,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -3560,7 +3623,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -3621,6 +3687,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -4332,7 +4404,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -4381,6 +4456,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -4407,7 +4488,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -4456,6 +4540,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -5110,7 +5200,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -5160,6 +5253,12 @@
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
         }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
+        }
       ]
     },
     {
@@ -5185,7 +5284,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -5220,6 +5322,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -5874,7 +5982,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -5909,6 +6020,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -5935,7 +6052,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -5970,6 +6090,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -6608,7 +6734,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -6643,6 +6772,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -6669,7 +6804,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -6704,6 +6842,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -7342,7 +7486,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -7377,6 +7524,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -7403,7 +7556,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -7438,6 +7594,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -8076,7 +8238,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -8154,6 +8319,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -8180,7 +8351,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -8258,6 +8432,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -9057,7 +9237,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -9092,6 +9275,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -9118,7 +9307,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -9153,6 +9345,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -9795,7 +9993,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -9830,6 +10031,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -9856,7 +10063,10 @@
       },
       "installed": {
         "status": "verified",
-        "receipts": ["docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json"]
+        "receipts": [
+          "docs/receipts/ce-uat107-installed-readonly-matrix-evidence.json",
+          "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json"
+        ]
       },
       "live": {
         "status": "verified",
@@ -9891,6 +10101,12 @@
           "status": "verified",
           "candidateRevision": 103,
           "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797"
+        }
+      ],
+      "supplementalEvidence": [
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Installed public read-only discovery/planning and saved-plan identity verified for UAT108; full row remains unverified pending mapped automated/live requirements"
         }
       ]
     },
@@ -10555,6 +10771,10 @@
         {
           "receipt": "docs/receipts/ce-uat108-public-site-retirement-current-evidence.json",
           "result": "exact archived installed public teardown and independent cleanup passed; fresh full qualification remains pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Read-only discovery/planning matrix and all eight exact archive installations verified; complete live feature matrix remains pending"
         }
       ]
     },
@@ -10572,6 +10792,10 @@
         {
           "receipt": "docs/receipts/ce-uat108-public-site-retirement-current-evidence.json",
           "result": "exact archived installed public teardown and independent cleanup passed; fresh full qualification remains pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat108-readonly-matrix-current-evidence.json",
+          "result": "Read-only discovery/planning matrix and all eight exact archive installations verified; complete live feature matrix remains pending"
         }
       ]
     },
