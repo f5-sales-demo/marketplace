@@ -1,21 +1,22 @@
-export function renderAwsCeCloudInit(input: { siteName: string; nodeName: string; token: string }): string {
+export function renderAwsCeCloudInit(input: { nodeName: string; material: string }): string {
+  if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(input.nodeName)) throw new Error('Cloud-init node name is invalid');
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = Bun.YAML.parse(input.material) as Record<string, unknown>;
+  } catch {
+    throw new Error('Issued cloud-init material is malformed');
+  }
   if (
-    !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/.test(input.siteName) ||
-    !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/.test(input.nodeName)
+    !input.material.startsWith('#cloud-config') ||
+    !parsed ||
+    !Array.isArray(parsed.write_files) ||
+    parsed.write_files.some((file) => file.path === '/etc/vpm/config.yaml') ||
+    !parsed.write_files.some((file) => file.path === '/etc/vpm/user_data')
   )
-    throw new Error('Cloud-init site or node name is invalid');
-  if (
-    !input.token ||
-    Array.from(input.token).some(
-      (character) => character === '\r' || character === '\n' || character.charCodeAt(0) === 0,
-    )
-  )
-    throw new Error('Bootstrap token is invalid');
-  const payload = Buffer.from(
-    JSON.stringify({ siteName: input.siteName, nodeName: input.nodeName, bootstrapToken: input.token }),
-    'utf8',
-  ).toString('base64');
-  return `#cloud-config\nwrite_files:\n  - path: /var/lib/f5xc/bootstrap.json\n    permissions: '0600'\n    encoding: b64\n    content: ${payload}\nruncmd:\n  - [ systemctl, enable, --now, f5xc-ce ]\n`;
+    throw new Error('Verified issued cloud-init material is required');
+  if (['hostname', 'fqdn', 'preserve_hostname'].some((key) => Object.hasOwn(parsed, key)))
+    throw new Error('Issued cloud-init contains an unresolved hostname policy');
+  return `${input.material.trimEnd()}\nhostname: ${input.nodeName}\nfqdn: ${input.nodeName}\npreserve_hostname: false\n`;
 }
 
 export function analyzeAwsCloudInit(body: string, sensitiveValues: string[] = []) {

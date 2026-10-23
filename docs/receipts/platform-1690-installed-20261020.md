@@ -17,7 +17,7 @@ Private artifact receipts retain every file digest.
 
 Both installed registries resolve Platform 6.2.1 and runtime 23.9.3. Mac resolves
 `/opt/homebrew/Caskroom/xcsh/23.9.3/bin/xcsh`; Ubuntu resolves
-`/home/robin/.local/bin/xcsh`. Both are supported Platform service hosts.
+`/home/<user>/.local/bin/xcsh`. Both are supported Platform service hosts.
 Artifact and installation provenance do not establish service access.
 
 ## Native fixture results

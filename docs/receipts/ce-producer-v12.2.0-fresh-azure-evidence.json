@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-22T06:31:50.566090+00:00",
+  "producerRelease": {
+    "commit": "5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f",
+    "tag": "v12.2.0"
+  },
+  "contractVersion": "7.1.0",
+  "freshOwnedFixture": true,
+  "downloadedAssetDigestsVerified": true,
+  "endpointSchemaAndStateEnumVerified": true,
+  "logicalPhysicalSiteUidJoinsVerified": true,
+  "ownedNodeJoinVerified": true,
+  "healthHttpStatus": 200,
+  "healthState": "PROVISIONED",
+  "healthScope": "site_global_representative_node",
+  "nodeCount": 1,
+  "installedPublicHealthPathQualified": false,
+  "consumerRepinned": false,
+  "perNodeHaHealthQualified": false,
+  "leastPrivilegeQualified": false,
+  "originalCeSampleFreshnessQualified": false,
+  "interfaceStateQualified": false,
+  "mutationAdmission": false,
+  "fullCeAcceptance": false,
+  "cleanupPending": true
+}

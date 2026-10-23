@@ -24,7 +24,7 @@ Keywords and paraphrases: "Customer Edge", "F5 CE", "XC CE", "CE site",
 node", "Distributed Cloud appliance", "F5 cloud edge", "F5 appliance from the
 Azure Marketplace", "one-node CE", "three-node F5 cluster", "CE HA", "Route
 Server", "CE BGP", "CE bootstrap", "CE lifecycle", "CE image", and requests to
-deploy, resize, replace, repair, inspect, or tear down F5 Distributed Cloud in Azure.
+deploy, resize, replace, repair, inspect, fail over, recover, or tear down F5 Distributed Cloud in Azure.
 
 - Invoke `azure:azure-ce` for discovery, planning, mutation, lifecycle,
   status, diagnostics, cloud-init, or teardown.

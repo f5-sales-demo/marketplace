@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "observedAt": "2026-10-22T15:04:39.602850+00:00",
+  "archives": [
+    {
+      "plugin": "platform",
+      "version": "7.0.0-uat.107",
+      "archiveSha256": "743198e44ef9ef887a7522a24ff5bfc37df6f3f1a60f9a2f9c17da7af2718104",
+      "archiveBytes": 391433,
+      "filesVerified": 267,
+      "runtimeSha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356",
+      "manifestSha256": "3e95c4c99a0422bd5263c1df6c9fdde8a8607264ca8c987021da5226bb68813a",
+      "packageSha256": "3556f84fa304faa8ea7d95f6e36ae6b2f8ceb0c95184a7125af017c1ef50df1d",
+      "lockfileSha256": "7d1a40c8c1454391b2a07d2be70904d05bcc23cb479a72d4688bd13098410245",
+      "runtimeAssetsManifestSha256": "a4a3dfc350ba367475b42842ba4da42ec74d461a446925a09c043bb6f519a015"
+    },
+    {
+      "plugin": "aws",
+      "version": "3.0.0-uat.107",
+      "archiveSha256": "d2207c1e386bd65b0a9e9271af5c12fd70e07b89d386fbe0143bee0c4eb4ca1a",
+      "archiveBytes": 774387,
+      "filesVerified": 288,
+      "runtimeSha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef",
+      "manifestSha256": "429ce905bcb9d4ff6ed644bf0ba9909b7a46839ea9315219de66ffd44ad6a53b",
+      "packageSha256": "c4ddba34cdab377851e00891f2063e293b97eea40c8156ae2f67fdde7949f319",
+      "lockfileSha256": "c3ff8e0042072aaada389dc48f96e744c400a5d2f0ae27c13e1053cd01397d31",
+      "runtimeAssetsManifestSha256": "d5219fbe06d3efac8e9df98e2638901fc2895ab7503a391d884a124025aa04c9"
+    },
+    {
+      "plugin": "azure",
+      "version": "5.0.0-uat.107",
+      "archiveSha256": "af8b6071c0f793eab09eaf83e84aab0e925ad8d534b3ee8204791a9f58191137",
+      "archiveBytes": 483639,
+      "filesVerified": 179,
+      "runtimeSha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115",
+      "manifestSha256": "b97fb9fdd89e7dc6d910094822ab764f0b4880e817ffe463157a2067d19d8856",
+      "packageSha256": "d9f421148e910f40c9bec0720cf09937bdc79a1e9f04df3639094b811752ef3f",
+      "lockfileSha256": "b2a646da5a916f9bcc389baa844c9dba16b171c0ec7ddb12afde1f6cc680749c",
+      "runtimeAssetsManifestSha256": "21d47ae3ef7a38ca844285b4e6d01eba485cc07d934cd13ed0f39549a5fa9870"
+    },
+    {
+      "plugin": "terraform",
+      "version": "3.0.0-uat.107",
+      "archiveSha256": "d31aa97bfdc15b13b59811f7503adca390c69d0cd3cc168fc20f07ac3b27a8ee",
+      "archiveBytes": 115289,
+      "filesVerified": 34,
+      "runtimeSha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6",
+      "manifestSha256": "a41f3518efe08082a0e986556f1b01b166cf1faa1d0d81ffd0d126c5adece090",
+      "packageSha256": "ad39918ab6d44b4df8aa19529100c06464eb4001e5a597def7d25f6869d28bed",
+      "lockfileSha256": "d5297414b28dcadd35578e556ac1066c39014f1b40d2ef7c57bb214871a06d80",
+      "runtimeAssetsManifestSha256": "163bd3ad669443dbe48168d1cd5481db2402d5902ff296590365e4d72a372876"
+    }
+  ],
+  "allCommittedFilesVerified": true,
+  "installedDigestsVerified": true,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
