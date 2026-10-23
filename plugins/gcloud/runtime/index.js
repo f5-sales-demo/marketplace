@@ -2195,6 +2195,32 @@ var init_operational_release = __esm(() => {
   init_operational_health();
   init_operational_source_hashes();
   init_terraform_ha_profile();
+  GCP_OPERATIONAL_RELEASE_PIN = {
+    tag: 'v12.3.1',
+    sourceCommit: '0f42f302f85e82675b2b8a4b8637cb89bb3636c3',
+    profileAssetDigest: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+    contractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+    qualificationAssetDigest: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
+    qualificationFingerprint: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
+    terraformHaLifecycle: {
+      diskGiB: 80,
+      imageIdentitySha256: 'sha256:c6e845dfd9bf978c2e86b4a07a8bcedc14b5a67a4d8199a4276209acb049a6cc',
+      lifecycleEvidenceSha256: 'sha256:7376537c6201d9bc9c04a8bdbb7692e0f5ed0e5ddc6f161e67dcc8f57ecf98a7',
+      machineType: 'n2-standard-8',
+      operationalContractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+      providerLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
+      region: 'northamerica-northeast1',
+      schemaVersion: 2,
+      scope: 'original-three-node-terraform-ha',
+      versions: {
+        google: '8.7.0',
+        terraform: '1.16.6',
+        xcsh: '15.13.0',
+      },
+      zones: ['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c'],
+    },
+    terraformHaLifecycleFingerprint: 'sha256:72253930d08afb1ff5d5205675ba8250a6fa43e1f2402732025e40de22e14e20',
+  };
 });
 
 // plugins/gcloud/src/ce/contract.ts
