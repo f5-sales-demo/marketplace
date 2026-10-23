@@ -1079,7 +1079,8 @@
     },
     "qualificationScope": "archive identity and installed public producer capability consumption; full live UAT remains unqualified",
     "producerPin": "v12.3.0",
-    "installedProducerConsumptionReceipt": "docs/receipts/ce-1846-producer123-installed-20261023.json"
+    "installedProducerConsumptionReceipt": "docs/receipts/ce-1846-producer123-installed-20261023.json",
+    "installedReadonlyMatrix113Receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"
   },
   "requiredClouds": ["aws", "azure"],
   "requiredEngines": ["native", "terraform"],
@@ -1283,8 +1284,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -1397,6 +1398,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -1422,8 +1427,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -1536,6 +1541,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -2715,8 +2724,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -2804,6 +2813,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -2829,8 +2842,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -2918,6 +2931,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -3891,8 +3908,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -3980,6 +3997,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -4005,8 +4026,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -4080,6 +4101,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -5053,8 +5078,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -5154,6 +5179,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -5179,8 +5208,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -5280,6 +5309,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -6320,8 +6353,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -6409,6 +6442,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -6434,8 +6471,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -6523,6 +6560,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -7506,8 +7547,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -7595,6 +7636,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -7620,8 +7665,8 @@
         "tests": ["plugins/aws/test/ce/discovery.test.ts", "plugins/aws/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -7695,6 +7740,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -8678,8 +8727,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -8753,6 +8802,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -8778,8 +8831,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -8853,6 +8906,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -9820,8 +9877,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -9895,6 +9952,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -9920,8 +9981,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -9995,6 +10056,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -10962,8 +11027,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -11037,6 +11102,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -11062,8 +11131,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -11137,6 +11206,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -12104,8 +12177,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -12222,6 +12295,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -12247,8 +12324,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -12365,6 +12442,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -13487,8 +13568,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -13562,6 +13643,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -13587,8 +13672,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -13662,6 +13747,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -14633,8 +14722,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -14708,6 +14797,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
@@ -14733,8 +14826,8 @@
         "tests": ["plugins/azure/test/ce/discovery.test.ts", "plugins/azure/test/ce/planner.test.ts"]
       },
       "installed": {
-        "status": "pending",
-        "receipts": []
+        "status": "verified",
+        "receipts": ["docs/receipts/ce-uat113-readonly-matrix-current-evidence.json"]
       },
       "live": {
         "status": "pending",
@@ -14808,6 +14901,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "UAT109 installed read-only matrix passed; full row remains pending other evidence requirements"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat113-readonly-matrix-current-evidence.json",
+          "result": "UAT113 installed read-only discovery/planning and saved-plan identities verified; complete row remains pending its live requirements"
         }
       ]
     },
