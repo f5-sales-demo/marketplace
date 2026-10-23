@@ -41,28 +41,28 @@
         "admin_user_credentials": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsAdminUserCredentialsType"
+              "$ref": "./shared-schema-components.json#/63a335d2798d727afb3adcafb5be4abc51fc2dcd6fee85197027fa2f603eef6f"
             }
           ]
         },
         "aws": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2AWSProviderType"
+              "$ref": "./shared-schema-components.json#/0dcfd3f12803bf040561d6849b53de91ba3fc53c9b96dccc2a0803573f17aa39"
             }
           ]
         },
         "azure": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2AzureProviderType"
+              "$ref": "./shared-schema-components.json#/7bce024d06f4c3cc334436fb4fb6a3ea9b0d0c939c8caa0e07ca26c0f9b7804b"
             }
           ]
         },
         "baremetal": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2BaremetalProviderType"
+              "$ref": "./shared-schema-components.json#/8c14e4425f9fbd4c6ee9b63315c78a24d77e6c6b8b116cf7b9674b9658d6f247"
             }
           ]
         },
@@ -76,37 +76,29 @@
         "blocked_services": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/fleetBlockedServicesListType"
+              "$ref": "./shared-schema-components.json#/4a206c45b2166f230c4fc032c4d32ac355b6080b87742dbf209aa6a805bdcf59"
             }
           ]
         },
         "custom_proxy": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2CustomProxy"
+              "$ref": "./shared-schema-components.json#/2f205bec9828388f3841597778cf4bb46100a246cc1df0f70262fa5e1784d8a9"
             }
           ]
         },
         "custom_proxy_bypass": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2CustomProxyBypassSettings"
+              "$ref": "./shared-schema-components.json#/d08904ae7f049b5999361e7a2d0baef6595d4395df0c95e9cf0e0643ab48b1e7"
             }
           ]
         },
         "dc_cluster_group_sli": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "dc_cluster_group_slo": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "disable_advanced_delivery": {
           "allOf": [
@@ -146,7 +138,7 @@
         "dns_ntp_config": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2DNSNTPServerConfig"
+              "$ref": "./shared-schema-components.json#/09b525c6ac303458f920ea5869395ac585aac8126bb64681131e5a419690c25b"
             }
           ]
         },
@@ -188,7 +180,7 @@
         "equinix": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2EquinixProviderType"
+              "$ref": "./shared-schema-components.json#/36e55b80aca3ed98d3d3573b63bdeee0f26ab6b7d1def461dd6000d8e27c14b0"
             }
           ]
         },
@@ -202,35 +194,35 @@
         "gcp": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2GCPProviderType"
+              "$ref": "./shared-schema-components.json#/76797782dbc41e0bad72dcf615ed5de199ce28f337745a5d523ad0fde3680613"
             }
           ]
         },
         "kvm": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2KVMProviderType"
+              "$ref": "./shared-schema-components.json#/fc721b7ec039a25fdda3d85a72f92ce45335783e0d93c1befc071373d9cbc099"
             }
           ]
         },
         "load_balancing": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2LoadBalancingSettingsType"
+              "$ref": "./shared-schema-components.json#/6274a943a2838a1cdbd1f6aa3cb77f95848ea84484f223334f733b3b89b32a6c"
             }
           ]
         },
         "local_vrf": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2LocalVRFSettingType"
+              "$ref": "./shared-schema-components.json#/100e3dd115768eb7db9f3b608dd921674536fa9e14ab62fc835ea11d1d74aa29"
             }
           ]
         },
         "log_receiver_with_net": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2LogReceiverWithNet"
+              "$ref": "./shared-schema-components.json#/8eef35cbfb97ad7ab362a673bd82f341306cd72d39c8dbce0024ebba4fba7b32"
             }
           ]
         },
@@ -279,42 +271,42 @@
         "nutanix": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2NutanixProviderType"
+              "$ref": "./shared-schema-components.json#/0296cfa98381a00c7be68a35a836704bde8ace229a6d4a3865c807da90aa4b94"
             }
           ]
         },
         "oci": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2OCIProviderType"
+              "$ref": "./shared-schema-components.json#/e6e2944d6b2f6e51701aa1f5c12d5a723dd670839bc86c0515b54741a5e424dc"
             }
           ]
         },
         "offline_survivability_mode": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsOfflineSurvivabilityModeType"
+              "$ref": "./shared-schema-components.json#/d91bcaad8afa1ddf7cce4d23668c4f833a3db24588f3bbabc5a34c0a737f9c5a"
             }
           ]
         },
         "openshift_virtualization": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2OpenShiftProviderType"
+              "$ref": "./shared-schema-components.json#/147154ca651a4a7c5747181ec30bde3ffffac3c4f88345939d69ea26f24905af"
             }
           ]
         },
         "openstack": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2OpenstackProviderType"
+              "$ref": "./shared-schema-components.json#/233c2ca897fd2e29e98a4207b8e939063f44826eb20a304a2b7e03fe1f7242f8"
             }
           ]
         },
         "performance_enhancement_mode": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsPerformanceEnhancementModeType"
+              "$ref": "./shared-schema-components.json#/b4371ca3d9cf10193532672e2fc4f181b4452d9c07d8c762892f607e203810d5"
             }
           ]
         },
@@ -328,20 +320,20 @@
         "segment_vrf": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/securemesh_site_v2SegmentVRFSettingType"
+            "$ref": "./shared-schema-components.json#/3f2e8fb9ed2fed676f5827fe2bc23d237b4d6091009a05c99b5bf5e97f98cc41"
           }
         },
         "site_mesh_group_on_slo": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2SiteMeshGroupType"
+              "$ref": "./shared-schema-components.json#/177ab63de137d9a245a04217f8434edba22acbbae666aa1ccd2d3a511217f707"
             }
           ]
         },
         "software_settings": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2SoftwareSettingsType"
+              "$ref": "./shared-schema-components.json#/4548cdf353a60694c0417762b56bf87cf6a88fb8426f9a81e2276a54e0a6ac41"
             }
           ]
         },
@@ -359,31 +351,21 @@
         "upgrade_settings": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2UpgradeSettingsType"
+              "$ref": "./shared-schema-components.json#/f276fd2719f7b9ac0ebf1933c7e5516c1abfe5d04ace57a2287b727806c27bb2"
             }
           ]
         },
         "vmware": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2VMwareProviderType"
+              "$ref": "./shared-schema-components.json#/f03c8856d70415f01f88e40f9cbf6318ed4b1ded2f9cfc345933d8b304007148"
             }
           ]
         }
       }
     },
     "securemesh_site_v2VMwareProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2NodeList": {
       "type": "object",
@@ -455,14 +437,14 @@
         "ethernet_interface": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewssecuremesh_site_v2EthernetInterfaceType"
+              "$ref": "./shared-schema-components.json#/96e017431f66235644e27ce56c75ac645b1eb541b6327f3674bf75adb7b39404"
             }
           ]
         },
         "ipv6_auto_config": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigType"
+              "$ref": "./shared-schema-components.json#/0ad37f0d99cafb7e3cf47b71e1e32223f210cd98461e72dfe34295eaa0cda713"
             }
           ]
         },
@@ -472,7 +454,7 @@
         "monitor": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceLinkQualityMonitorConfig"
+              "$ref": "./shared-schema-components.json#/f5efe473c32b4dd4d3e5bea7b7e0dbf553fb521eecdf82438797a02621e23b5c"
             }
           ]
         },
@@ -533,30 +515,26 @@
           ]
         },
         "static_ip": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/network_interfaceStaticIpParametersNodeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2cdcb930d43a1c81200b262d219d85b055d2599144a5077f81f7641e762a1bd3"
         },
         "static_ipv6_address": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceStaticIPParametersType"
+              "$ref": "./shared-schema-components.json#/ba3fdf48738b0c1f3756546fdd14ecb27d7193eb2247d1b808d13237a238fcf7"
             }
           ]
         },
         "vlan_interface": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2VlanInterfaceType"
+              "$ref": "./shared-schema-components.json#/4f59fd2743ca7c86292e351abaf7d3f97166571e2fc7cb03fcd34cdcb975525e"
             }
           ]
         },
         "dhcp_server": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceDHCPServerParametersType"
+              "$ref": "./shared-schema-components.json#/ddfcb46fb3f2137465f38b93ca4eb89fcddc8d95ffd5968971b0c57b1670aa19"
             }
           ]
         },
@@ -593,7 +571,7 @@
           "minItems": 1,
           "maxItems": 1,
           "items": {
-            "$ref": "#/components/schemas/network_interfaceDHCPNetworkType"
+            "$ref": "./shared-schema-components.json#/ea3554fb3143730082905bc8f72934b9fb4569bbc101656024ac116e6c16d76d"
           }
         },
         "fixed_ip_map": {
@@ -602,7 +580,7 @@
         "interface_ip_map": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPType"
+              "$ref": "./shared-schema-components.json#/a0ecc0652527d1012786eaf3c2d4081ad259d99a02edb1f0e41bd299b46714d7"
             }
           ]
         },
@@ -612,12 +590,7 @@
       }
     },
     "network_interfaceDHCPInterfaceIPType": {
-      "type": "object",
-      "properties": {
-        "interface_ip_map": {
-          "type": "object"
-        }
-      }
+      "$ref": "./shared-schema-components.json#/96f9cfdfabe5f38342b7c2a5b7a3a7a7741486cb417be68ca9c1871b17b8e8dd"
     },
     "network_interfaceDHCPNetworkType": {
       "type": "object",
@@ -652,17 +625,13 @@
           "maxLength": 1024
         },
         "pool_settings": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/network_interfaceDHCPPoolSettingType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e03cd5df4359d1e49d94a16f5c2d6d2796b5cac79f59b78ea25d7c865fc1e164"
         },
         "pools": {
           "type": "array",
           "maxItems": 16,
           "items": {
-            "$ref": "#/components/schemas/network_interfaceDHCPPoolType"
+            "$ref": "./shared-schema-components.json#/e15f4b251730a43967136582d95d0c88eafab102ccc61ad0276fc14d1ec288fb"
           }
         },
         "same_as_dgw": {
@@ -720,16 +689,12 @@
         "cluster_static_ip": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceStaticIpParametersClusterType"
+              "$ref": "./shared-schema-components.json#/f77026eb44e44f01c5b376de5b664f9b55712922697f18fe96dd580c42107b1d"
             }
           ]
         },
         "node_static_ip": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/network_interfaceStaticIpParametersNodeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2cdcb930d43a1c81200b262d219d85b055d2599144a5077f81f7641e762a1bd3"
         }
       }
     },
@@ -797,7 +762,7 @@
         "router": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigRouterType"
+              "$ref": "./shared-schema-components.json#/66b2978f0cfc10273676e0af92e75473c0073104174184e7de0199ebe8ac6c48"
             }
           ]
         }
@@ -810,7 +775,7 @@
         "dns_config": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceIPV6DnsConfig"
+              "$ref": "./shared-schema-components.json#/d4b38771bd62a18599763bd08612e87e46ae51df3200e29f6c719cace38be788"
             }
           ]
         },
@@ -821,7 +786,7 @@
         "stateful": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceDHCPIPV6StatefulServer"
+              "$ref": "./shared-schema-components.json#/33566cf31a7564a231091432ca469518c23d2df34fb1679c9a2ae4f6293d4038"
             }
           ]
         }
@@ -850,7 +815,7 @@
           "minItems": 1,
           "maxItems": 1,
           "items": {
-            "$ref": "#/components/schemas/network_interfaceDHCPIPV6NetworkType"
+            "$ref": "./shared-schema-components.json#/37e1bc7e72767c28a737ccee55a81bc25860a9f34afdbb908d6fe801c41fb126"
           }
         },
         "fixed_ip_map": {
@@ -859,19 +824,14 @@
         "interface_ip_map": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPV6Type"
+              "$ref": "./shared-schema-components.json#/0b029a8a5fae6479b759f617a8837d39b88d971dc9e07095f2f835e026f985af"
             }
           ]
         }
       }
     },
     "network_interfaceDHCPInterfaceIPV6Type": {
-      "type": "object",
-      "properties": {
-        "interface_ip_map": {
-          "type": "object"
-        }
-      }
+      "$ref": "./shared-schema-components.json#/96f9cfdfabe5f38342b7c2a5b7a3a7a7741486cb417be68ca9c1871b17b8e8dd"
     },
     "network_interfaceDHCPIPV6NetworkType": {
       "type": "object",
@@ -882,17 +842,13 @@
           "maxLength": 1024
         },
         "pool_settings": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/network_interfaceDHCPPoolSettingType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e03cd5df4359d1e49d94a16f5c2d6d2796b5cac79f59b78ea25d7c865fc1e164"
         },
         "pools": {
           "type": "array",
           "maxItems": 16,
           "items": {
-            "$ref": "#/components/schemas/network_interfaceDHCPIPV6PoolType"
+            "$ref": "./shared-schema-components.json#/58948095e4b48724357dfa1ecd536bd45ad6b921c6ebd4f76be16dc25e98a45a"
           }
         }
       }
@@ -917,14 +873,14 @@
         "configured_list": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceIPV6DnsList"
+              "$ref": "./shared-schema-components.json#/d9928410b0a26955c3dd25990b9e0a5febfafdaadcaae42b625b53af5ca6c506"
             }
           ]
         },
         "local_dns": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/network_interfaceIPV6LocalDnsAddress"
+              "$ref": "./shared-schema-components.json#/e5dfe42dceca70a8b79c03f20f4f27e8aae9665cea6d598623fd482875ab1037"
             }
           ]
         }
@@ -1059,7 +1015,7 @@
         "enable_upgrade_drain": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsKubernetesUpgradeDrainConfig"
+              "$ref": "./shared-schema-components.json#/3af7d1d2832c7c29c5a9918f093dc709c6a775c85e18366535f72e781f09e8d2"
             }
           ]
         }
@@ -1168,11 +1124,7 @@
           ]
         },
         "site_mesh_group": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "sm_connection_public_ip": {
           "allOf": [
@@ -1199,10 +1151,7 @@
           "maxLength": 128
         },
         "namespace": {
-          "type": "string",
-          "maxLength": 63,
-          "minLength": 1,
-          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          "$ref": "./shared-schema-components.json#/a024a423c4f9c9f6b444d1402fb23188f43bd4325ba70dadd526d6b07e2a952b"
         },
         "tenant": {
           "type": "string",
@@ -1218,7 +1167,7 @@
         "segment_config": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2SegmentNetworkConfiguration"
+              "$ref": "./shared-schema-components.json#/cb4c711da17ffd52b163e68fd76fa95f4a7dfb86e0563578eb6bc19c8fe4cfc8"
             }
           ]
         },
@@ -1235,10 +1184,7 @@
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string",
-          "maxLength": 1024,
-          "readOnly": true,
-          "minLength": 12
+          "$ref": "./shared-schema-components.json#/2ea9875938d1938c0e755d47faa4e320e4bcf03787ffd6832d0a85871fe7820f"
         },
         "name": {
           "type": "string",
@@ -1246,16 +1192,10 @@
           "minLength": 6
         },
         "namespace": {
-          "type": "string",
-          "maxLength": 63,
-          "minLength": 1,
-          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          "$ref": "./shared-schema-components.json#/a024a423c4f9c9f6b444d1402fb23188f43bd4325ba70dadd526d6b07e2a952b"
         },
         "tenant": {
-          "type": "string",
-          "maxLength": 1024,
-          "readOnly": true,
-          "minLength": 12
+          "$ref": "./shared-schema-components.json#/2ea9875938d1938c0e755d47faa4e320e4bcf03787ffd6832d0a85871fe7820f"
         },
         "uid": {
           "type": "string",
@@ -1294,18 +1234,10 @@
           "maxLength": 1024
         },
         "static_routes": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2StaticRoutesListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/83197f12537be29c99a71bb86b3b32998bd5a53cb7e1d5221d98898cc0b0aa79"
         },
         "static_v6_routes": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_networkStaticV6RoutesListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0aa039b8a326ad51d32239a90073b6da578be2f5edaf04187b08107df7dc344e"
         }
       }
     },
@@ -1317,49 +1249,13 @@
           "minItems": 1,
           "maxItems": 16,
           "items": {
-            "$ref": "#/components/schemas/virtual_networkStaticV6RouteViewType"
+            "$ref": "./shared-schema-components.json#/75f8aefb7f18ad6221c59c2e7abebc6c347349f91ac53a3c45723d57166eb31b"
           }
         }
       }
     },
     "virtual_networkStaticV6RouteViewType": {
-      "type": "object",
-      "x-ves-oneof-field-next_hop_choice": "[\"default_gateway\",\"ip_address\",\"node_interface\"]",
-      "properties": {
-        "attrs": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "$ref": "#/components/schemas/schemaRouteAttrType"
-          }
-        },
-        "default_gateway": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "ip_address": {
-          "type": "string",
-          "maxLength": 1024
-        },
-        "ip_prefixes": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 256,
-          "items": {
-            "type": "string"
-          }
-        },
-        "node_interface": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaNodeInterfaceType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/315374c03cd776e57dd22fed375591d455dc7ad357fe4c24ff8dbbfaba4be5ce"
     },
     "schemaNodeInterfaceType": {
       "type": "object",
@@ -1407,49 +1303,13 @@
           "minItems": 1,
           "maxItems": 16,
           "items": {
-            "$ref": "#/components/schemas/virtual_networkStaticRouteViewType"
+            "$ref": "./shared-schema-components.json#/423675da327e32c508c1336692613b6ea252ee7fea1d1135eaf4627046ca8b84"
           }
         }
       }
     },
     "virtual_networkStaticRouteViewType": {
-      "type": "object",
-      "x-ves-oneof-field-next_hop_choice": "[\"default_gateway\",\"ip_address\",\"node_interface\"]",
-      "properties": {
-        "attrs": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "$ref": "#/components/schemas/schemaRouteAttrType"
-          }
-        },
-        "default_gateway": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "ip_address": {
-          "type": "string",
-          "maxLength": 1024
-        },
-        "ip_prefixes": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 256,
-          "items": {
-            "type": "string"
-          }
-        },
-        "node_interface": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaNodeInterfaceType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/315374c03cd776e57dd22fed375591d455dc7ad357fe4c24ff8dbbfaba4be5ce"
     },
     "viewsRegionalEdgeSelection": {
       "type": "object",
@@ -1495,14 +1355,14 @@
         "perf_mode_l3_enhanced": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsL3PerformanceEnhancementType"
+              "$ref": "./shared-schema-components.json#/ff68626ff18b3a1832155ff8ec82a570db7bc4ec47fbb83169a1771df485ada0"
             }
           ]
         },
         "perf_mode_l7_enhanced": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/viewsL7PerformanceEnhancementType"
+              "$ref": "./shared-schema-components.json#/a073c0da210dfec51e80579fca5f3cf696fce69ee20cd3492b66165948357a55"
             }
           ]
         }
@@ -1549,30 +1409,10 @@
       }
     },
     "securemesh_site_v2OpenstackProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2OpenShiftProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "viewsOfflineSurvivabilityModeType": {
       "type": "object",
@@ -1595,41 +1435,17 @@
       }
     },
     "securemesh_site_v2OCIProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2NutanixProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2LogReceiverWithNet": {
       "type": "object",
       "x-ves-oneof-field-network_choice": "[\"use_management_network\",\"use_slo_sli\"]",
       "properties": {
         "log_receiver": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "use_management_network": {
           "allOf": [
@@ -1667,18 +1483,10 @@
           ]
         },
         "sli_config": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2VirtualNetworkConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ccf995092a4617c360907e07388b0849dd3d3c8a3705b012d88fb5e80592be04"
         },
         "slo_config": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2VirtualNetworkConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ccf995092a4617c360907e07388b0849dd3d3c8a3705b012d88fb5e80592be04"
         }
       }
     },
@@ -1713,18 +1521,10 @@
           "maxLength": 1024
         },
         "static_routes": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2StaticRoutesListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/83197f12537be29c99a71bb86b3b32998bd5a53cb7e1d5221d98898cc0b0aa79"
         },
         "static_v6_routes": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_networkStaticV6RoutesListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0aa039b8a326ad51d32239a90073b6da578be2f5edaf04187b08107df7dc344e"
         },
         "vip": {
           "type": "string",
@@ -1749,43 +1549,13 @@
       "enum": ["VIP_VRRP_INVALID", "VIP_VRRP_ENABLE", "VIP_VRRP_DISABLE"]
     },
     "securemesh_site_v2KVMProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2GCPProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2EquinixProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2DNSNTPServerConfig": {
       "type": "object",
@@ -1795,14 +1565,14 @@
         "custom_dns": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2CustomDNSSettings"
+              "$ref": "./shared-schema-components.json#/738b327f5ff5428eed2eaaa8271d1afd40c141c4822639fdfd702be8b8ac4334"
             }
           ]
         },
         "custom_ntp": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/securemesh_site_v2CustomNTPSettings"
+              "$ref": "./shared-schema-components.json#/559e0c54383ce236e54f75bc2e8b43f51fa677ed13e023ea68084465efef9ffb"
             }
           ]
         },
@@ -1850,12 +1620,7 @@
       "type": "object",
       "properties": {
         "proxy_bypass": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/7e3c9630e66cb64dff4b9e102270455f01e75a1b7ebeae65c29f138cd236d3fe"
         }
       }
     },
@@ -1878,11 +1643,7 @@
           ]
         },
         "password": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "proxy_ip_address": {
           "type": "string",
@@ -1899,24 +1660,7 @@
       }
     },
     "schemaSecretType": {
-      "type": "object",
-      "x-ves-oneof-field-secret_info_oneof": "[\"blindfold_secret_info\",\"clear_secret_info\"]",
-      "properties": {
-        "blindfold_secret_info": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaBlindfoldSecretInfoType"
-            }
-          ]
-        },
-        "clear_secret_info": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaClearSecretInfoType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/80741fb2cdeb9f3723b361c77f6dec9401b8311db1b6c8ecb9071fc6405b8f33"
     },
     "schemaClearSecretInfoType": {
       "type": "object",
@@ -2016,53 +1760,19 @@
       ]
     },
     "securemesh_site_v2BaremetalProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2AzureProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "securemesh_site_v2AWSProviderType": {
-      "type": "object",
-      "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
-      "properties": {
-        "not_managed": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/securemesh_site_v2NodeList"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004"
     },
     "viewsAdminUserCredentialsType": {
       "type": "object",
       "properties": {
         "admin_password": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "ssh_key": {
           "type": "string",
@@ -2074,12 +1784,7 @@
       "type": "object",
       "properties": {
         "forward_proxy_policies": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/schemaviewsObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/b37a3cfd6887747f194a558f1ef230bdf43b7aff1eefa923396c0f13cb5fabec"
         }
       }
     },
@@ -2087,12 +1792,7 @@
       "type": "object",
       "properties": {
         "enhanced_firewall_policies": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/schemaviewsObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/b37a3cfd6887747f194a558f1ef230bdf43b7aff1eefa923396c0f13cb5fabec"
         }
       }
     }

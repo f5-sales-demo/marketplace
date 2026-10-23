@@ -11,7 +11,10 @@ import { createF5xcCeV2CapabilitiesTool } from '../../src/tools/f5xc-ce-v2-capab
 import { createF5xcCeV2SiteTool, createSitePlan } from '../../src/tools/f5xc-ce-v2-site';
 import { createF5xcCeV2StatusTool } from '../../src/tools/f5xc-ce-v2-status';
 import type { PlatformToolApi } from '../../src/types';
-import schema from '../fixtures/smsv2-create-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+import schemaCompact from '../fixtures/smsv2-create-schema.json';
+
+const schema = resolveCeSchemaFixture(schemaCompact);
 
 const pi = { typebox: { Type } } as unknown as PlatformToolApi;
 const binding: SiteBinding = {

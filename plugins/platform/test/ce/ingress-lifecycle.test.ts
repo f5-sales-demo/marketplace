@@ -8,8 +8,12 @@ import { CeApiError, type CeOwner, type SiteBinding } from '../../src/ce/runtime
 import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { buildSiteLocalHttpOrigin, projectSiteLocalHttpOrigin } from '../../src/ce/wire-origin';
 import { createWireValidator } from '../../src/ce/wire-schema';
-import fixture from '../fixtures/inside-listener-schema.json';
-import originFixture from '../fixtures/site-local-origin-schema.json';
+import fixtureCompact from '../fixtures/inside-listener-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+import originFixtureCompact from '../fixtures/site-local-origin-schema.json';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
+const originFixture = resolveCeSchemaFixture(originFixtureCompact);
 
 const directories: string[] = [];
 afterEach(async () => {

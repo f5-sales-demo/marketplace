@@ -5,7 +5,10 @@ import {
   type SiteLocalHttpOrigin,
 } from '../../src/ce/wire-origin';
 import { createWireValidator } from '../../src/ce/wire-schema';
-import fixture from '../fixtures/site-local-origin-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+import fixtureCompact from '../fixtures/site-local-origin-schema.json';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 const validate = createWireValidator(fixture.schemas, fixture.provenance.root);
 const input = {

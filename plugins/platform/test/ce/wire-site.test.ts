@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
 import { buildWireSite, type WireSiteIntent } from '../../src/ce/wire-site';
-import fixture from '../fixtures/smsv2-create-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+import fixtureCompact from '../fixtures/smsv2-create-schema.json';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 const node = (number: number) => ({
   hostname: `ce-${number}`,

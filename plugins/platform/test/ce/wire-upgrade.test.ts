@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { createWireValidator } from '../../src/ce/wire-schema';
 import { buildSiteUpgradeRequest, type SiteUpgradeIntent } from '../../src/ce/wire-upgrade';
-import fixture from '../fixtures/site-upgrade-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+import fixtureCompact from '../fixtures/site-upgrade-schema.json';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 test('maps software and OS actions to verified request bodies without bypassing platform checks', () => {
   for (const [kind, version, root, suffix] of [

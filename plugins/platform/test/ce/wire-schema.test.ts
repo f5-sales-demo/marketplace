@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createWireValidator } from '../../src/ce/wire-schema';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 
 const schemas = {
   root: {
@@ -95,7 +96,9 @@ test('preserves scalar, collection, composition and network format constraints w
 });
 
 test('validates actual AWS and Azure request schemas while rejecting wire errors', async () => {
-  const fixture = await Bun.file(new URL('../fixtures/smsv2-create-schema.json', import.meta.url)).json();
+  const fixture = resolveCeSchemaFixture(
+    await Bun.file(new URL('../fixtures/smsv2-create-schema.json', import.meta.url)).json(),
+  );
   const validate = createWireValidator(fixture.schemas);
   for (const provider of ['aws', 'azure']) {
     const node = {

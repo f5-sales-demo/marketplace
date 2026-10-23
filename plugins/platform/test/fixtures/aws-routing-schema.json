@@ -87,10 +87,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for bgp parameters.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "peers": {
@@ -103,14 +100,10 @@
             "x-displayname": "Peers",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "8",
-              "ves.io.schema.rules.repeated.unique_metadata_name": "true"
+              "$ref": "./shared-schema-components.json#/6aa1bb477e20d1bcabbe2dd04faa7219105a887a9ae7919610052937a6922ac1"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "8",
-              "ves.io.schema.rules.repeated.unique_metadata_name": "true"
+              "$ref": "./shared-schema-components.json#/6aa1bb477e20d1bcabbe2dd04faa7219105a887a9ae7919610052937a6922ac1"
             },
             "x-f5xc-constraints": {
               "constraintType": "array",
@@ -118,16 +111,11 @@
               "maxItems": 8,
               "deterministic": true,
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               }
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "where": {
@@ -137,10 +125,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-references": [
               {
@@ -164,19 +149,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "schemaSiteVirtualSiteRefSelector": {
@@ -194,10 +167,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["virtual_site"],
             "x-f5xc-references": [
@@ -219,10 +189,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["site"],
             "x-f5xc-references": [
@@ -249,19 +216,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "Sites are platform-level infrastructure"
-          },
-          "classification": {
-            "category": "infrastructure",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/a9cf0fd4bc05d615957c44c51669117e8b1da6aeda30d6c0b9629a93d31c1244"
         }
       },
       "schemaVSiteRefType__ves_io_schema_bgp": {
@@ -273,81 +228,36 @@
         "x-ves-proto-message": "ves.io.schema.VSiteRefType",
         "properties": {
           "disable_internet_vip": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["enable_internet_vip"]
+            "$ref": "./shared-schema-components.json#/5c1807c9ee2a02b9dba0a38657f6e064cc61cbd4b5f1c070635b7e6832b77faf"
           },
           "enable_internet_vip": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["disable_internet_vip"]
+            "$ref": "./shared-schema-components.json#/b45a412616ec2eb9cd1141eb20407b587261dfc14b9073d43387bd42c30b6078"
           },
           "network_type": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaVirtualNetworkType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            }
+            "$ref": "./shared-schema-components.json#/9d121a6baf77e2444ad0fd69aa32ca093d567967285d268d3fda5c0831a14b40"
           },
           "ref": {
             "type": "array",
-            "description": "A virtual_site direct reference.",
-            "title": "ref",
             "maxItems": 1,
             "items": {
               "$ref": "#/components/schemas/ioschemaObjectRefType"
             },
-            "x-displayname": "Reference",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "maxItems": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d608546d818faa9b3a561d64eaa4c101acc49ca40f84622b8868faff9092c019"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+            },
+            "description": "A virtual_site direct reference.",
+            "title": "ref",
+            "x-displayname": "Reference"
           }
         },
         "x-f5xc-minimum-configuration": {
@@ -359,19 +269,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "ioschemaObjectRefType": {
@@ -381,203 +279,16 @@
         "x-displayname": "Object reference.",
         "x-ves-proto-message": "ves.io.schema.ObjectRefType",
         "properties": {
-          "kind": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen kind will hold the referred object's kind (e.g. \"route\")",
-            "title": "kind",
-            "x-displayname": "Kind",
-            "x-ves-example": "Virtual_site.",
-            "x-f5xc-example": "virtual_site",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\")",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\").",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "name": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
-            "title": "name",
-            "x-displayname": "Name",
-            "x-ves-example": "Contactus-route.",
-            "x-f5xc-example": "contactus-route",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 6,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "namespace": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
-            "title": "namespace",
-            "x-displayname": "Namespace",
-            "x-ves-example": "Ns1",
-            "x-f5xc-example": "ns1",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
-            "maxLength": 63,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "naming",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 1,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
-            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "tenant": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
-            "title": "tenant",
-            "x-displayname": "Tenant",
-            "x-ves-example": "Example-corp.",
-            "x-f5xc-example": "example-corp",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "uid": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen uid will hold the referred object's(e.g. Route's) uid.",
-            "title": "uid",
-            "x-displayname": "UID",
-            "x-ves-example": "00000000-0000-4000-8000-0df41b679859.",
-            "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 36,
-            "format": "uuid",
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          }
+          "$ref": "./shared-schema-components.json#/9fada1b2d61bb061ac51763e70834cd2af6595b0433f9d4073208e37fa378ba1"
         },
         "x-f5xc-description-short": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred).",
         "x-f5xc-description-medium": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector...",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for ioschemaObjectRefType",
-          "required_fields": [],
-          "mutually_exclusive_groups": [],
-          "example_json": "{}",
-          "example_yaml": "{}"
+          "$ref": "./shared-schema-components.json#/1b0211f8896ebf61ef0d82369d180b0f3b8797b683dfe48838b842e06cf9e7d9"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "schemaVirtualNetworkType": {
@@ -606,11 +317,7 @@
         "x-f5xc-description-short": "Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public...",
         "x-f5xc-description-medium": "Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public (outside) network. This is an insecure network and is connected to public internet via NAT Gateways/firwalls Virtual-network of this type is local to...",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for schemaVirtualNetworkType",
-          "required_fields": [],
-          "mutually_exclusive_groups": [],
-          "example_json": "\"VIRTUAL_NETWORK_SITE_LOCAL\"",
-          "example_yaml": "VIRTUAL_NETWORK_SITE_LOCAL\n..."
+          "$ref": "./shared-schema-components.json#/b2fcdaf3a99eb56ef33ebeda2b3c9ba4a40bc087d1aabc67dfdd45b7eed70dc8"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
@@ -636,27 +343,11 @@
         "x-displayname": "Empty",
         "x-ves-proto-message": "ves.io.schema.Empty",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for ioschemaEmpty",
-          "required_fields": [],
-          "mutually_exclusive_groups": [],
-          "example_json": "{}",
-          "example_yaml": "{}"
+          "$ref": "./shared-schema-components.json#/1fde158c605f6cfea9cd37b216ad0464ffd096baa1db8302a79993a38abeaf16"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "schemaSiteRefType__ves_io_schema_bgp": {
@@ -668,81 +359,36 @@
         "x-ves-proto-message": "ves.io.schema.SiteRefType",
         "properties": {
           "disable_internet_vip": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["enable_internet_vip"]
+            "$ref": "./shared-schema-components.json#/5c1807c9ee2a02b9dba0a38657f6e064cc61cbd4b5f1c070635b7e6832b77faf"
           },
           "enable_internet_vip": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["disable_internet_vip"]
+            "$ref": "./shared-schema-components.json#/b45a412616ec2eb9cd1141eb20407b587261dfc14b9073d43387bd42c30b6078"
           },
           "network_type": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaVirtualNetworkType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            }
+            "$ref": "./shared-schema-components.json#/9d121a6baf77e2444ad0fd69aa32ca093d567967285d268d3fda5c0831a14b40"
           },
           "ref": {
             "type": "array",
-            "description": "A site direct reference.",
-            "title": "ref",
             "maxItems": 1,
             "items": {
               "$ref": "#/components/schemas/ioschemaObjectRefType"
             },
-            "x-displayname": "Reference",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "maxItems": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d608546d818faa9b3a561d64eaa4c101acc49ca40f84622b8868faff9092c019"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+            },
+            "description": "A site direct reference.",
+            "title": "ref",
+            "x-displayname": "Reference"
           }
         },
         "x-f5xc-description-short": "Specifies a direct reference to a site configuration object.",
@@ -755,19 +401,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "Sites are platform-level infrastructure"
-          },
-          "classification": {
-            "category": "infrastructure",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/a9cf0fd4bc05d615957c44c51669117e8b1da6aeda30d6c0b9629a93d31c1244"
         }
       },
       "bgpPeer": {
@@ -789,10 +423,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["bfd_enabled"]
           },
@@ -803,10 +434,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["bfd_disabled"]
           },
@@ -817,10 +445,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["routing_policies"]
           },
@@ -831,10 +456,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "label": {
@@ -850,16 +472,11 @@
               "minLength": 1,
               "pattern": "^[a-zA-Z0-9_.-]+$",
               "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/cfd332d2698c8c867209f14b9a575be8475f71dc43e0405833cb5de59cc2bcd1"
               }
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "metadata": {
@@ -870,10 +487,7 @@
             ],
             "x-f5xc-example": "{\"key\": \"value\"}",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "passive_mode_disabled": {
@@ -883,10 +497,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["passive_mode_enabled"]
           },
@@ -897,10 +508,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["passive_mode_disabled"]
           },
@@ -912,10 +520,7 @@
             ],
             "x-f5xc-example": "{\"key\": \"value\"}",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["disable"]
           }
@@ -929,19 +534,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpBgpRoutePolicies": {
@@ -968,21 +561,10 @@
             },
             "x-f5xc-description-short": "Policy configuration for this feature.",
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "maxItems": 4,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/c4ebcf044d3a3924730559839ef4a97391550f4217a5be438597c000bc798551"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -996,19 +578,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpBgpRoutePolicy": {
@@ -1028,10 +598,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["node_name"]
           },
@@ -1042,10 +609,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["outbound"]
           },
@@ -1057,10 +621,7 @@
             ],
             "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["all_nodes"]
           },
@@ -1076,32 +637,16 @@
             "x-displayname": "BGP routing policy.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/40fa723b12f5717f81ef8d83b754b99a159baa2004aaf0ead352677725069531"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/40fa723b12f5717f81ef8d83b754b99a159baa2004aaf0ead352677725069531"
             },
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "minItems": 1,
-              "maxItems": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d9f3191b062eddcd8f30a5ffeb024e6b16a92672bce818295226f9f98210e405"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "outbound": {
@@ -1111,10 +656,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["inbound"]
           }
@@ -1129,19 +671,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpNodes": {
@@ -1161,10 +691,7 @@
             "x-displayname": "Node of choice.",
             "x-f5xc-description-short": "Select BGP Session on which policy will be applied.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -1178,19 +705,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "schemaMessageMetaType": {
@@ -1223,17 +738,12 @@
                 "description": "Free text with UTF-8 support"
               },
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               },
               "deterministic": true
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "minLength": 21,
             "x-reconciled-from-discovery": true,
@@ -1248,15 +758,11 @@
             "x-ves-example": "Example-corp-web.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.min_len": "1",
-              "ves.io.schema.rules.string.ves_object_name": "true"
+              "$ref": "./shared-schema-components.json#/54b408752640ada4e4f4caa7319a3be23fa6e9439a2a4bc6b0203bcacd165baf"
             },
             "x-f5xc-example": "example-corp-web",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.min_len": "1",
-              "ves.io.schema.rules.string.ves_object_name": "true"
+              "$ref": "./shared-schema-components.json#/54b408752640ada4e4f4caa7319a3be23fa6e9439a2a4bc6b0203bcacd165baf"
             },
             "x-f5xc-description-short": "Name of the message. The value of name has to follow DNS-1035 format.",
             "maxLength": 63,
@@ -1267,29 +773,20 @@
               "maxLength": 63,
               "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
               "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+                "$ref": "./shared-schema-components.json#/4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81"
               },
               "format": "dns-label",
               "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
               "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
+                "$ref": "./shared-schema-components.json#/e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f"
               },
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               },
               "deterministic": true
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             },
             "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
           }
@@ -1305,19 +802,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "bgpPeerExternal": {
@@ -1347,22 +832,10 @@
             "x-f5xc-description-medium": "Exclusive with [default_gateway disable external_connector from_site subnet_begin_offset subnet_end_offset] Specify IPv4 peer address.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 1024,
-              "format": "ipv4",
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "default_gateway",
@@ -1388,22 +861,10 @@
             "x-f5xc-description-medium": "Exclusive with [default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6 subnet_end_offset_v6] Specify peer IPv6 address.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 1024,
-              "format": "ipv6",
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/53f400555be023e9476694d1a12275b04f29bb60250fcadb26d29a45e9abd0d2"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "default_gateway_v6",
@@ -1415,38 +876,25 @@
           },
           "asn": {
             "type": "integer",
-            "description": "Autonomous System Number for BGP peer.",
-            "title": "ASN",
             "format": "int64",
-            "x-displayname": "ASN",
             "x-ves-example": "64512",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "1"
+              "$ref": "./shared-schema-components.json#/30bfd12daae8c0bccdc3703042b9479f8026968fa74531e3838847f22db8a785"
             },
             "x-f5xc-example": "64512",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "1"
+              "$ref": "./shared-schema-components.json#/30bfd12daae8c0bccdc3703042b9479f8026968fa74531e3838847f22db8a785"
             },
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/a0c4b15b160a2ad71fa00bcd564b6352629bd7e5795e6e17994feec8be537cc2"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+            },
+            "description": "Autonomous System Number for BGP peer.",
+            "title": "ASN",
+            "x-displayname": "ASN"
           },
           "default_gateway": {
             "allOf": [
@@ -1456,10 +904,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for default gateway.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1478,10 +923,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for default gateway v6.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address_ipv6",
@@ -1498,10 +940,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1519,10 +958,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address_ipv6",
@@ -1540,10 +976,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for external connector.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1562,10 +995,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for family inet.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "from_site": {
@@ -1575,10 +1005,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1596,10 +1023,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address_ipv6",
@@ -1616,10 +1040,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["interface_list"],
             "x-f5xc-references": [
@@ -1641,10 +1062,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["interface"]
           },
@@ -1656,20 +1074,10 @@
             "x-f5xc-description-short": "Exclusive with [no_authentication] MD5 key for protecting BGP Sessions (RFC 2385).",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["no_authentication"]
           },
@@ -1681,10 +1089,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for no authentication.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["md5_auth_key"]
           },
@@ -1696,34 +1101,19 @@
             "x-displayname": "Peer Port",
             "x-ves-example": "179",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "1",
-              "ves.io.schema.rules.uint32.lte": "65535"
+              "$ref": "./shared-schema-components.json#/b41018a067989a32de7d5aa72c70223dec15af3a154affa8ed074ca9a08c7f05"
             },
             "x-f5xc-example": "179",
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "1",
-              "ves.io.schema.rules.uint32.lte": "65535"
+              "$ref": "./shared-schema-components.json#/b41018a067989a32de7d5aa72c70223dec15af3a154affa8ed074ca9a08c7f05"
             },
             "minimum": 1,
             "maximum": 65535,
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 1,
-              "maximum": 65535,
-              "multipleOf": 1,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true
+              "$ref": "./shared-schema-components.json#/f9b0af4f602efe26ad470f65a22e1a1f8b929cde485205faca119851eec8c925"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "subnet_begin_offset": {
@@ -1733,32 +1123,18 @@
             "format": "int64",
             "x-displayname": "Offset From Beginning Of Subnet.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-f5xc-description-short": "Exclusive with [address default_gateway disable external_connector from_site subnet_end_offset] Calculate peer address using offset from the...",
             "x-f5xc-description-medium": "Exclusive with [address default_gateway disable external_connector from_site subnet_end_offset] Calculate peer address using offset from the beginning of the subnet.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 0,
-              "maximum": 32,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d725f5c75d6e43131bc3c703b54fd13c48e2f149a6941a9600e4e43b307007db"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1776,32 +1152,18 @@
             "format": "int64",
             "x-displayname": "Offset From Beginning Of Subnet.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-f5xc-description-short": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_end_offset_v6] Calculate peer address using offset from the...",
             "x-f5xc-description-medium": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_end_offset_v6] Calculate peer address using offset from the beginning of the subnet.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 0,
-              "maximum": 32,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d725f5c75d6e43131bc3c703b54fd13c48e2f149a6941a9600e4e43b307007db"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address_ipv6",
@@ -1818,32 +1180,18 @@
             "format": "int64",
             "x-displayname": "Offset From End Of Subnet.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-f5xc-description-short": "Exclusive with [address default_gateway disable external_connector from_site subnet_begin_offset] Calculate peer address using offset from the end...",
             "x-f5xc-description-medium": "Exclusive with [address default_gateway disable external_connector from_site subnet_begin_offset] Calculate peer address using offset from the end of the subnet.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 0,
-              "maximum": 32,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d725f5c75d6e43131bc3c703b54fd13c48e2f149a6941a9600e4e43b307007db"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address",
@@ -1861,32 +1209,18 @@
             "format": "int64",
             "x-displayname": "Offset From End Of Subnet.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "0",
-              "ves.io.schema.rules.uint32.lte": "32"
+              "$ref": "./shared-schema-components.json#/337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69"
             },
             "x-f5xc-description-short": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6] Calculate peer address using offset from the end...",
             "x-f5xc-description-medium": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6] Calculate peer address using offset from the end of the subnet.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 0,
-              "maximum": 32,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d725f5c75d6e43131bc3c703b54fd13c48e2f149a6941a9600e4e43b307007db"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": [
               "address_ipv6",
@@ -1906,19 +1240,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpInterfaceList": {
@@ -1940,16 +1262,10 @@
             "x-displayname": "Interface List.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "16",
-              "ves.io.schema.rules.repeated.min_items": "1",
-              "ves.io.schema.rules.repeated.unique": "true"
+              "$ref": "./shared-schema-components.json#/2c028c51b7419f5e4ce7e8e802a7070d74c9e34b2185ddad3e06fcc153885f64"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "16",
-              "ves.io.schema.rules.repeated.min_items": "1",
-              "ves.io.schema.rules.repeated.unique": "true"
+              "$ref": "./shared-schema-components.json#/2c028c51b7419f5e4ce7e8e802a7070d74c9e34b2185ddad3e06fcc153885f64"
             },
             "x-f5xc-constraints": {
               "constraintType": "array",
@@ -1959,16 +1275,11 @@
               "uniqueItems": true,
               "deterministic": true,
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               }
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -1981,19 +1292,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "schemaviewsObjectRefType": {
@@ -2003,173 +1302,16 @@
         "x-displayname": "Object reference.",
         "x-ves-proto-message": "ves.io.schema.views.ObjectRefType",
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
-            "title": "name",
-            "minLength": 1,
-            "maxLength": 128,
-            "x-displayname": "Name",
-            "x-ves-example": "Contacts-route.",
-            "x-ves-required": "true",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.max_bytes": "128",
-              "ves.io.schema.rules.string.min_bytes": "1"
-            },
-            "x-f5xc-example": "contacts-route",
-            "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.max_bytes": "128",
-              "ves.io.schema.rules.string.min_bytes": "1"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "minLength": 1,
-              "maxLength": 128,
-              "byteLength": {
-                "max": 128,
-                "min": 1
-              },
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
-          },
-          "namespace": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
-            "title": "namespace",
-            "maxLength": 63,
-            "x-displayname": "Namespace",
-            "x-ves-example": "Ns1",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-example": "ns1",
-            "x-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true,
-              "byteLength": {
-                "max": 64
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 1,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
-            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "tenant": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
-            "title": "tenant",
-            "maxLength": 64,
-            "x-displayname": "Tenant",
-            "x-ves-example": "Example-corp.",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-example": "example-corp",
-            "x-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 64,
-              "byteLength": {
-                "max": 64
-              },
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          }
+          "$ref": "./shared-schema-components.json#/9263bad11e86803981922c58496630ecb671444e199234f391dba30ecded3bc7"
         },
         "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
         "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for schemaviewsObjectRefType",
-          "required_fields": ["name"],
-          "mutually_exclusive_groups": [],
-          "example_json": "{\n  \"name\": \"contacts-route\"\n}",
-          "example_yaml": "name: contacts-route"
+          "$ref": "./shared-schema-components.json#/9ca6a0eb0e2e554b1ec8329fbe93b725e0ac148e33352d589267f727ec973d50"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "bgpFamilyInet": {
@@ -2187,10 +1329,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["enable"]
           },
@@ -2201,10 +1340,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["disable"]
           }
@@ -2218,19 +1354,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpUnicastIPv4": {
@@ -2257,21 +1381,10 @@
             "x-f5xc-description-short": "BGP aggregation prefixes are shared among all peers, aggregation configured under any peer will take effect on all peers.",
             "x-f5xc-description-medium": "BGP aggregation prefixes are shared among all peers, aggregation configured under any peer will take effect on all peers. Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "uniqueItems": true,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/cf0e758d6063327edace195e21f81e931b76d8354e3146326c144c7490ab7c10"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -2284,19 +1397,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpAggregationIPv4": {
@@ -2319,20 +1420,10 @@
             },
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "options": {
@@ -2350,21 +1441,10 @@
               "ves.io.schema.rules.repeated.unique": "true"
             },
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "uniqueItems": true,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/cf0e758d6063327edace195e21f81e931b76d8354e3146326c144c7490ab7c10"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -2379,19 +1459,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpAggregationOption": {
@@ -2410,10 +1478,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for summary only.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -2426,19 +1491,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpBFD": {
@@ -2457,15 +1510,11 @@
             "x-ves-example": "3",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "2",
-              "ves.io.schema.rules.uint32.lte": "255"
+              "$ref": "./shared-schema-components.json#/c29949eaf0cbc1639361f2bb56000a9fa1c4150555854bd6bc672d7cc0b0239b"
             },
             "x-f5xc-example": "3",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "2",
-              "ves.io.schema.rules.uint32.lte": "255"
+              "$ref": "./shared-schema-components.json#/c29949eaf0cbc1639361f2bb56000a9fa1c4150555854bd6bc672d7cc0b0239b"
             },
             "x-f5xc-description-short": "Specify Number of missed packets to bring session down\".",
             "x-f5xc-constraints": {
@@ -2475,16 +1524,11 @@
               "maximum": 255,
               "deterministic": true,
               "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
               }
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "receive_interval_milliseconds": {
@@ -2496,34 +1540,18 @@
             "x-ves-example": "3000",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "300",
-              "ves.io.schema.rules.uint32.lte": "60000"
+              "$ref": "./shared-schema-components.json#/992487fa67f0d7e585d032b3de319a804a30252cc9434a7d2da35a6f5298bc89"
             },
             "x-f5xc-example": "3000",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "300",
-              "ves.io.schema.rules.uint32.lte": "60000"
+              "$ref": "./shared-schema-components.json#/992487fa67f0d7e585d032b3de319a804a30252cc9434a7d2da35a6f5298bc89"
             },
             "x-f5xc-description-short": "BFD receive interval timer, in milliseconds.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 300,
-              "maximum": 60000,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/f4e30b7c0f5abf97d0b3beda657d68bed1bb2233c546b4472ed98f773d768de1"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "transmit_interval_milliseconds": {
@@ -2535,34 +1563,18 @@
             "x-ves-example": "3000",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "300",
-              "ves.io.schema.rules.uint32.lte": "60000"
+              "$ref": "./shared-schema-components.json#/992487fa67f0d7e585d032b3de319a804a30252cc9434a7d2da35a6f5298bc89"
             },
             "x-f5xc-example": "3000",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "300",
-              "ves.io.schema.rules.uint32.lte": "60000"
+              "$ref": "./shared-schema-components.json#/992487fa67f0d7e585d032b3de319a804a30252cc9434a7d2da35a6f5298bc89"
             },
             "x-f5xc-description-short": "BFD transmit interval timer, in milliseconds.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 300,
-              "maximum": 60000,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/f4e30b7c0f5abf97d0b3beda657d68bed1bb2233c546b4472ed98f773d768de1"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -2575,19 +1587,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "bgpBgpParameters": {
@@ -2601,38 +1601,25 @@
         "properties": {
           "asn": {
             "type": "integer",
-            "description": "Autonomous System Number.",
-            "title": "ASN",
             "format": "int64",
-            "x-displayname": "ASN",
             "x-ves-example": "64512",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "1"
+              "$ref": "./shared-schema-components.json#/30bfd12daae8c0bccdc3703042b9479f8026968fa74531e3838847f22db8a785"
             },
             "x-f5xc-example": "64512",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "1"
+              "$ref": "./shared-schema-components.json#/30bfd12daae8c0bccdc3703042b9479f8026968fa74531e3838847f22db8a785"
             },
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/a0c4b15b160a2ad71fa00bcd564b6352629bd7e5795e6e17994feec8be537cc2"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+            },
+            "description": "Autonomous System Number.",
+            "title": "ASN",
+            "x-displayname": "ASN"
           },
           "from_site": {
             "allOf": [
@@ -2641,10 +1628,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["ip_address", "local_address"]
           },
@@ -2671,17 +1655,12 @@
               "format": "ipv4",
               "formatDescription": "IPv4 dotted-decimal notation (e.g., 192.168.1.1)",
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               },
               "deterministic": true
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["from_site", "local_address"]
           },
@@ -2692,10 +1671,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["from_site", "ip_address"]
           }
@@ -2709,19 +1685,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "system",
-            "alternatives": [],
-            "rationale": "BGP configuration is platform-level routing"
-          },
-          "classification": {
-            "category": "networking",
-            "multi_tenant_pattern": "none"
-          }
+          "$ref": "./shared-schema-components.json#/beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070"
         }
       },
       "schemaObjectCreateMetaType": {
@@ -2737,25 +1701,16 @@
             "title": "annotations",
             "x-displayname": "Annotation.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.map.keys.string.max_len": "64",
-              "ves.io.schema.rules.map.keys.string.min_len": "1",
-              "ves.io.schema.rules.map.values.string.max_len": "1024",
-              "ves.io.schema.rules.map.values.string.min_len": "1"
+              "$ref": "./shared-schema-components.json#/d47ccd631fee92aebaba5a56363d9852fc34557bdee7f2fb9104fc8bed7fd988"
             },
             "x-f5xc-example": "value",
             "x-validation-rules": {
-              "ves.io.schema.rules.map.keys.string.max_len": "64",
-              "ves.io.schema.rules.map.keys.string.min_len": "1",
-              "ves.io.schema.rules.map.values.string.max_len": "1024",
-              "ves.io.schema.rules.map.values.string.min_len": "1"
+              "$ref": "./shared-schema-components.json#/d47ccd631fee92aebaba5a56363d9852fc34557bdee7f2fb9104fc8bed7fd988"
             },
             "x-f5xc-description-short": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
             "x-f5xc-description-medium": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "description": {
@@ -2782,9 +1737,7 @@
                 "description": "Free text with UTF-8 support"
               },
               "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
               },
               "byteLength": {
                 "max": 1200
@@ -2792,10 +1745,7 @@
               "deterministic": true
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "minLength": 21,
             "x-reconciled-from-discovery": true,
@@ -2810,10 +1760,7 @@
             "x-f5xc-example": "true",
             "x-f5xc-description-short": "Value of true will administratively disable the object.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "labels": {
@@ -2825,10 +1772,7 @@
             "x-f5xc-description-short": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user.",
             "x-f5xc-description-medium": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user. Values specified here will be used by selector expression.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "name": {
@@ -2849,35 +1793,10 @@
             "x-f5xc-description-medium": "Name of configuration object. It has to be unique within the namespace. It can only be specified during create API and cannot be changed during replace API.",
             "maxLength": 63,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "naming",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true
+              "$ref": "./shared-schema-components.json#/5ab1c4d93c14bb91ddf4d4d7d5f4822573d425b4b3c4565819be98bf163cc20e"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             },
             "minLength": 1,
             "x-reconciled-from-discovery": true,
@@ -2895,35 +1814,10 @@
             "x-f5xc-description-medium": "Defines the workspace within which each the configuration object is to be created. Must be a DNS_LABEL format. For a namespace object itself, namespace value will be \"\".",
             "maxLength": 63,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "naming",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true
+              "$ref": "./shared-schema-components.json#/7de20144df5103252b0a7c4a13b3ca9fe82ef8ef5e4c7d85dca4a3ce26f36180"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "minLength": 1,
             "x-reconciled-from-discovery": true,
@@ -2941,19 +1835,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "bgp_routing_policyCreateRequest": {
@@ -2971,10 +1853,7 @@
             ],
             "x-f5xc-example": "{\"key\": \"value\"}",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "spec": {
@@ -2985,10 +1864,7 @@
             ],
             "x-f5xc-example": "{\"key\": \"value\"}",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -3034,10 +1910,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-references": [
               {
@@ -3056,10 +1929,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["ipsec"]
           },
@@ -3070,10 +1940,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["gre"]
           }
@@ -3088,19 +1955,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "external_connectorConnectionTypeIPSec": {
@@ -3118,10 +1973,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for ike parameters.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           },
           "ipsec_tunnel_parameters": {
@@ -3132,10 +1984,7 @@
             ],
             "x-f5xc-example": "{\"key\": \"value\"}",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -3148,19 +1997,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "external_connectorTunnelParameters": {
@@ -3172,17 +2009,7 @@
         "x-ves-proto-message": "ves.io.schema.views.external_connector.TunnelParameters",
         "properties": {
           "peer_ip_address": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaIpv4AddressType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            }
+            "$ref": "./shared-schema-components.json#/aedb17b816729e091f3e18f559306f8632a5fb5c58960c941c77d88fc64eddff"
           },
           "psk": {
             "type": "string",
@@ -3200,74 +2027,20 @@
             "x-f5xc-description-medium": "The IKE pre-shared key (PSK) is required to ensure the IKE peers can authenticate one another within IKE phase 1 negotiation.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "segment": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaSegmentRefType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["site_local_inside_network", "site_local_network"],
-            "x-f5xc-references": [
-              {
-                "resource_kind": "segment",
-                "field_path": "segment",
-                "gated_by": {
-                  "choice": "tunnel_source_vn"
-                },
-                "required": false,
-                "cardinality": "single"
-              }
-            ]
+            "$ref": "./shared-schema-components.json#/fb59adec54dd57cb69feb0fe2b98f2588c25aa542d78b8ba9ca143d31c2dd6fd"
           },
           "site_local_inside_network": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["segment", "site_local_network"]
+            "$ref": "./shared-schema-components.json#/5c4ceb4f3847da232df258c7146b135bac705ee5241026824bc42e2ca10c8020"
           },
           "site_local_network": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["segment", "site_local_inside_network"]
+            "$ref": "./shared-schema-components.json#/87c142c299f9f5a07d9ac4bac97a831b8f18b8d05b756fbde55629787fbbdb5b"
           },
           "tunnel_eps": {
             "type": "array",
@@ -3276,38 +2049,22 @@
             "minItems": 1,
             "maxItems": 4,
             "items": {
-              "$ref": "#/components/schemas/external_connectorTunnelEndpoint"
+              "$ref": "./shared-schema-components.json#/fb5ca6320f144bf80baa27f601f0e20eb3c6268d4f783f983630b918a1af6eb3"
             },
             "x-displayname": "Tunnel Endpoint.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "4",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/db2fe4a0a246077ad8734aa7125b7d094cc2e1f437a8976d6b7608fb3b988f6b"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "4",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/db2fe4a0a246077ad8734aa7125b7d094cc2e1f437a8976d6b7608fb3b988f6b"
             },
             "x-f5xc-description-short": "Configure tunnel parameters, local and remote IP addresses.",
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "minItems": 1,
-              "maxItems": 4,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/46125d4ab1c2665bf62d7d544af40526925cca3340494acebfcf2d9b2047b5c4"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "tunnel_mtu": {
@@ -3318,34 +2075,18 @@
             "x-displayname": "MTU",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "512",
-              "ves.io.schema.rules.uint32.lte": "1370"
+              "$ref": "./shared-schema-components.json#/ab556160de7bcceb95fc36da8bdbd9c2ed6cd3e084c38715ed7d0186a44b7b70"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.uint32.gte": "512",
-              "ves.io.schema.rules.uint32.lte": "1370"
+              "$ref": "./shared-schema-components.json#/ab556160de7bcceb95fc36da8bdbd9c2ed6cd3e084c38715ed7d0186a44b7b70"
             },
             "x-f5xc-description-short": "The tunnel MTU defines the maximum size of the packet that can be sent through the tunnel without needing to be fragmented.",
             "x-f5xc-description-medium": "The tunnel MTU defines the maximum size of the packet that can be sent through the tunnel without needing to be fragmented.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 512,
-              "maximum": 1370,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/81daca5d832756815c1cf768dade7947a277642b2fa0d7a1d67a7524e4d17941"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -3360,19 +2101,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "external_connectorTunnelEndpoint": {
@@ -3398,20 +2127,10 @@
             "x-f5xc-description-short": "For the chosen node, specify the interface that will be the tunnel source.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "local_tunnel_ip": {
@@ -3422,32 +2141,20 @@
             "x-ves-example": "192.0.2.0/24.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.ipv4_prefix": "true"
+              "$ref": "./shared-schema-components.json#/3260243ae8f077165d372b2e97fb72fd90fae203fc717e19f420ad355e02de5c"
             },
             "x-f5xc-example": "192.0.2.0/24",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.ipv4_prefix": "true"
+              "$ref": "./shared-schema-components.json#/3260243ae8f077165d372b2e97fb72fd90fae203fc717e19f420ad355e02de5c"
             },
             "x-f5xc-description-short": "For a particular tunnel on a node, specify the local tunnel IP Address i.e.",
             "x-f5xc-description-medium": "For a particular tunnel on a node, specify the local tunnel IP Address i.e. The IP address of the tunnel on the CE node itself and a subnet prefix length.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "node": {
@@ -3465,20 +2172,10 @@
             "x-f5xc-description-short": "CE site is composed of multiple nodes. Choose a node that will be part of this external connection.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "remote_tunnel_ip": {
@@ -3489,32 +2186,20 @@
             "x-ves-example": "192.0.2.0/24.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.ipv4_prefix": "true"
+              "$ref": "./shared-schema-components.json#/3260243ae8f077165d372b2e97fb72fd90fae203fc717e19f420ad355e02de5c"
             },
             "x-f5xc-example": "192.0.2.0/24",
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.ipv4_prefix": "true"
+              "$ref": "./shared-schema-components.json#/3260243ae8f077165d372b2e97fb72fd90fae203fc717e19f420ad355e02de5c"
             },
             "x-f5xc-description-short": "For a particular tunnel on a node, specify the remote tunnel IP Address i.e.",
             "x-f5xc-description-medium": "For a particular tunnel on a node, specify the remote tunnel IP Address i.e. The IP address of the tunnel on the remote gateway and a subnet prefix length.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -3528,19 +2213,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "ioschemaEmpty": {
@@ -3550,27 +2223,11 @@
         "x-displayname": "Empty",
         "x-ves-proto-message": "ves.io.schema.Empty",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for ioschemaEmpty",
-          "required_fields": [],
-          "mutually_exclusive_groups": [],
-          "example_json": "{}",
-          "example_yaml": "{}"
+          "$ref": "./shared-schema-components.json#/1fde158c605f6cfea9cd37b216ad0464ffd096baa1db8302a79993a38abeaf16"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "schemaSegmentRefType": {
@@ -3582,39 +2239,26 @@
         "properties": {
           "refs": {
             "type": "array",
-            "description": "Reference to Segment Object.",
-            "title": "Segment",
             "maxItems": 1,
             "items": {
               "$ref": "#/components/schemas/ioschemaObjectRefType"
             },
-            "x-displayname": "Segment",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "1"
+              "$ref": "./shared-schema-components.json#/1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9"
             },
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "maxItems": 1,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/d608546d818faa9b3a561d64eaa4c101acc49ca40f84622b8868faff9092c019"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+            },
+            "description": "Reference to Segment Object.",
+            "title": "Segment",
+            "x-displayname": "Segment"
           }
         },
         "x-f5xc-minimum-configuration": {
@@ -3636,8 +2280,7 @@
             "rationale": "Standard tenant resource"
           },
           "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
+            "$ref": "./shared-schema-components.json#/fb33ccf2607e80141526867c4bad7b024efb5f505675b93bbfa34dd70d50e1a7"
           }
         }
       },
@@ -3648,203 +2291,16 @@
         "x-displayname": "Object reference.",
         "x-ves-proto-message": "ves.io.schema.ObjectRefType",
         "properties": {
-          "kind": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen kind will hold the referred object's kind (e.g. \"route\")",
-            "title": "kind",
-            "x-displayname": "Kind",
-            "x-ves-example": "Virtual_site.",
-            "x-f5xc-example": "virtual_site",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\")",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\").",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "name": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
-            "title": "name",
-            "x-displayname": "Name",
-            "x-ves-example": "Contactus-route.",
-            "x-f5xc-example": "contactus-route",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 6,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "namespace": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
-            "title": "namespace",
-            "x-displayname": "Namespace",
-            "x-ves-example": "Ns1",
-            "x-f5xc-example": "ns1",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
-            "maxLength": 63,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "naming",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 1,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
-            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "tenant": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
-            "title": "tenant",
-            "x-displayname": "Tenant",
-            "x-ves-example": "Example-corp.",
-            "x-f5xc-example": "example-corp",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          },
-          "uid": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen uid will hold the referred object's(e.g. Route's) uid.",
-            "title": "uid",
-            "x-displayname": "UID",
-            "x-ves-example": "00000000-0000-4000-8000-0df41b679859.",
-            "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
-            "maxLength": 1024,
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 36,
-            "format": "uuid",
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          }
+          "$ref": "./shared-schema-components.json#/9fada1b2d61bb061ac51763e70834cd2af6595b0433f9d4073208e37fa378ba1"
         },
         "x-f5xc-description-short": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred).",
         "x-f5xc-description-medium": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector...",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for ioschemaObjectRefType",
-          "required_fields": [],
-          "mutually_exclusive_groups": [],
-          "example_json": "{}",
-          "example_yaml": "{}"
+          "$ref": "./shared-schema-components.json#/1b0211f8896ebf61ef0d82369d180b0f3b8797b683dfe48838b842e06cf9e7d9"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "schemaIpv4AddressType": {
@@ -3870,22 +2326,10 @@
             "x-f5xc-description-short": "IPv4 Address in string form with dot-decimal notation.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 1024,
-              "format": "ipv4",
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -3898,19 +2342,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "external_connectorIkeParameters": {
@@ -3931,10 +2363,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["dpd_keep_alive_timer"]
           },
@@ -3946,10 +2375,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for dpd keep alive timer.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["dpd_disabled"]
           },
@@ -3961,10 +2387,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for ike phase1 profile.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-references": [
               {
@@ -3984,10 +2407,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for ike phase2 profile.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-references": [
               {
@@ -4006,10 +2426,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["responder"]
           },
@@ -4020,10 +2437,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["initiator"]
           },
@@ -4036,20 +2450,10 @@
             "x-f5xc-description-short": "Exclusive with [rm_ip_address use_default_remote_ike_id] Configure an hostname Remote IKE ID.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "general",
-              "maxLength": 1024,
-              "metadata": {
-                "source": "inferred",
-                "confidence": 0.85,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["rm_ip_address", "use_default_remote_ike_id"]
           },
@@ -4060,10 +2464,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["rm_hostname", "use_default_remote_ike_id"]
           },
@@ -4074,10 +2475,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-field-mutability": "read-only"
           },
@@ -4088,10 +2486,7 @@
               }
             ],
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-field-mutability": "read-only",
             "x-f5xc-conflicts-with": ["rm_hostname", "rm_ip_address"]
@@ -4107,19 +2502,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "schemaIpAddressType": {
@@ -4140,10 +2523,7 @@
             "x-f5xc-example": "192.0.2.1",
             "x-f5xc-description-short": "IPv4 address in dotted decimal notation (e.g., 192.0.2.1).",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["ipv6"]
           },
@@ -4156,10 +2536,7 @@
             "x-f5xc-example": "2001:db8::1",
             "x-f5xc-description-short": "IPv6 address in colon-separated hexadecimal format.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             },
             "x-f5xc-conflicts-with": ["ipv4"]
           }
@@ -4174,19 +2551,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "schemaIpv6AddressType": {
@@ -4212,22 +2577,10 @@
             "x-f5xc-description-medium": "IPv6 Address in form of string. IPv6 address must be specified as hexadecimal numbers separated by ':' The address can be compacted by suppressing zeros e.g. '2001:db8:0:0:0:0:2:1' becomes '2001:db8::2:1' or '2001:db8:0:0:0:2:0:0' becomes '2001:db8::2::'.",
             "maxLength": 1024,
             "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 1024,
-              "format": "ipv6",
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/53f400555be023e9476694d1a12275b04f29bb60250fcadb26d29a45e9abd0d2"
             },
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -4241,19 +2594,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "schemaviewsObjectRefType": {
@@ -4263,173 +2604,16 @@
         "x-displayname": "Object reference.",
         "x-ves-proto-message": "ves.io.schema.views.ObjectRefType",
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
-            "title": "name",
-            "minLength": 1,
-            "maxLength": 128,
-            "x-displayname": "Name",
-            "x-ves-example": "Contacts-route.",
-            "x-ves-required": "true",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.max_bytes": "128",
-              "ves.io.schema.rules.string.min_bytes": "1"
-            },
-            "x-f5xc-example": "contacts-route",
-            "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.string.max_bytes": "128",
-              "ves.io.schema.rules.string.min_bytes": "1"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "minLength": 1,
-              "maxLength": 128,
-              "byteLength": {
-                "max": 128,
-                "min": 1
-              },
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
-            }
-          },
-          "namespace": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
-            "title": "namespace",
-            "maxLength": 63,
-            "x-displayname": "Namespace",
-            "x-ves-example": "Ns1",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-example": "ns1",
-            "x-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 63,
-              "minLength": 1,
-              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-              "characterSet": {
-                "allowed": "[a-z0-9-]",
-                "restricted": "[^a-z0-9-]",
-                "required": "[a-z0-9]",
-                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
-              },
-              "format": "dns-label",
-              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
-              "validation": {
-                "rfc": "RFC 1035",
-                "standard": "DNS-1035 label (alpha-first)"
-              },
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              },
-              "deterministic": true,
-              "byteLength": {
-                "max": 64
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "minLength": 1,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
-            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "tenant": {
-            "type": "string",
-            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
-            "title": "tenant",
-            "maxLength": 64,
-            "x-displayname": "Tenant",
-            "x-ves-example": "Example-corp.",
-            "x-ves-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-example": "example-corp",
-            "x-validation-rules": {
-              "ves.io.schema.rules.string.max_bytes": "64"
-            },
-            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
-            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
-            "x-f5xc-constraints": {
-              "constraintType": "string",
-              "category": "discovery",
-              "maxLength": 64,
-              "byteLength": {
-                "max": 64
-              },
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
-            },
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "readOnly": true,
-            "x-field-mutability": "read-only",
-            "minLength": 12,
-            "x-reconciled-from-discovery": true,
-            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
-          }
+          "$ref": "./shared-schema-components.json#/9263bad11e86803981922c58496630ecb671444e199234f391dba30ecded3bc7"
         },
         "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
         "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
         "x-f5xc-minimum-configuration": {
-          "description": "Minimum configuration for schemaviewsObjectRefType",
-          "required_fields": ["name"],
-          "mutually_exclusive_groups": [],
-          "example_json": "{\n  \"name\": \"contacts-route\"\n}",
-          "example_yaml": "name: contacts-route"
+          "$ref": "./shared-schema-components.json#/9ca6a0eb0e2e554b1ec8329fbe93b725e0ac148e33352d589267f727ec973d50"
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["custom", "default", "shared"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57"
         }
       },
       "external_connectorDpdKeepAliveTimer": {
@@ -4445,12 +2629,10 @@
             "format": "int64",
             "x-displayname": "Keepalive Timer.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "1",
-              "ves.io.schema.rules.uint32.lte": "5"
+              "$ref": "./shared-schema-components.json#/a26aa78f10cab93a9ff571bf3c7120968b604bc4e9e440fee1e46a470ec20857"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "1",
-              "ves.io.schema.rules.uint32.lte": "5"
+              "$ref": "./shared-schema-components.json#/a26aa78f10cab93a9ff571bf3c7120968b604bc4e9e440fee1e46a470ec20857"
             },
             "x-f5xc-example": "30s",
             "x-f5xc-constraints": {
@@ -4460,17 +2642,12 @@
               "maximum": 5,
               "multipleOf": 1,
               "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
+                "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
               },
               "deterministic": true
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -4483,19 +2660,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "external_connectorConnectionTypeGRE": {
@@ -4513,10 +2678,7 @@
             ],
             "x-f5xc-description-short": "Configuration parameter for gre parameters.",
             "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
             }
           }
         },
@@ -4529,19 +2691,7 @@
         },
         "x-f5xc-cli-domain": "other",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       },
       "external_connectorGRETunnelParameters": {
@@ -4553,70 +2703,16 @@
         "x-ves-proto-message": "ves.io.schema.views.external_connector.GRETunnelParameters",
         "properties": {
           "peer_ip_address": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaIpv4AddressType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            }
+            "$ref": "./shared-schema-components.json#/aedb17b816729e091f3e18f559306f8632a5fb5c58960c941c77d88fc64eddff"
           },
           "segment": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/schemaSegmentRefType"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["site_local_inside_network", "site_local_network"],
-            "x-f5xc-references": [
-              {
-                "resource_kind": "segment",
-                "field_path": "segment",
-                "gated_by": {
-                  "choice": "tunnel_source_vn"
-                },
-                "required": false,
-                "cardinality": "single"
-              }
-            ]
+            "$ref": "./shared-schema-components.json#/fb59adec54dd57cb69feb0fe2b98f2588c25aa542d78b8ba9ca143d31c2dd6fd"
           },
           "site_local_inside_network": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["segment", "site_local_network"]
+            "$ref": "./shared-schema-components.json#/5c4ceb4f3847da232df258c7146b135bac705ee5241026824bc42e2ca10c8020"
           },
           "site_local_network": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ioschemaEmpty"
-              }
-            ],
-            "x-f5xc-required-for": {
-              "minimum_config": false,
-              "create": false,
-              "update": false,
-              "read": false
-            },
-            "x-f5xc-conflicts-with": ["segment", "site_local_inside_network"]
+            "$ref": "./shared-schema-components.json#/87c142c299f9f5a07d9ac4bac97a831b8f18b8d05b756fbde55629787fbbdb5b"
           },
           "tunnel_eps": {
             "type": "array",
@@ -4625,38 +2721,22 @@
             "minItems": 1,
             "maxItems": 4,
             "items": {
-              "$ref": "#/components/schemas/external_connectorTunnelEndpoint"
+              "$ref": "./shared-schema-components.json#/fb5ca6320f144bf80baa27f601f0e20eb3c6268d4f783f983630b918a1af6eb3"
             },
             "x-displayname": "Tunnel Endpoint.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "4",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/db2fe4a0a246077ad8734aa7125b7d094cc2e1f437a8976d6b7608fb3b988f6b"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.message.required": "true",
-              "ves.io.schema.rules.repeated.max_items": "4",
-              "ves.io.schema.rules.repeated.min_items": "1"
+              "$ref": "./shared-schema-components.json#/db2fe4a0a246077ad8734aa7125b7d094cc2e1f437a8976d6b7608fb3b988f6b"
             },
             "x-f5xc-description-short": "Configure tunnel parameters, source, destination, IP addresses.",
             "x-f5xc-constraints": {
-              "constraintType": "array",
-              "category": "discovery",
-              "minItems": 1,
-              "maxItems": 4,
-              "deterministic": true,
-              "metadata": {
-                "source": "discovery",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/46125d4ab1c2665bf62d7d544af40526925cca3340494acebfcf2d9b2047b5c4"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           },
           "tunnel_mtu": {
@@ -4666,31 +2746,17 @@
             "format": "int64",
             "x-displayname": "Tunnel MTU.",
             "x-ves-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "512",
-              "ves.io.schema.rules.uint32.lte": "1370"
+              "$ref": "./shared-schema-components.json#/283c2b26c137c537825ac1fce32315bc9407729a75c820a1aa941f07295903cb"
             },
             "x-validation-rules": {
-              "ves.io.schema.rules.uint32.gte": "512",
-              "ves.io.schema.rules.uint32.lte": "1370"
+              "$ref": "./shared-schema-components.json#/283c2b26c137c537825ac1fce32315bc9407729a75c820a1aa941f07295903cb"
             },
             "x-f5xc-description-short": "Configure MTU for the GRE tunnel interface.",
             "x-f5xc-constraints": {
-              "constraintType": "number",
-              "category": "discovery",
-              "minimum": 512,
-              "maximum": 1370,
-              "deterministic": true,
-              "metadata": {
-                "source": "api-probed",
-                "confidence": 0.99,
-                "validatedAt": "2026-09-03T15:40:08+00:00"
-              }
+              "$ref": "./shared-schema-components.json#/81daca5d832756815c1cf768dade7947a277642b2fa0d7a1d67a7524e4d17941"
             },
             "x-f5xc-required-for": {
-              "minimum_config": true,
-              "create": true,
-              "update": false,
-              "read": false
+              "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
             }
           }
         },
@@ -4704,19 +2770,7 @@
         },
         "x-f5xc-cli-domain": "network",
         "x-f5xc-namespace-profile": {
-          "constraint": {
-            "allowed": ["system"],
-            "enforced": false
-          },
-          "recommendation": {
-            "primary": "custom",
-            "alternatives": [],
-            "rationale": "Standard tenant resource"
-          },
-          "classification": {
-            "category": "application",
-            "multi_tenant_pattern": "per-tenant"
-          }
+          "$ref": "./shared-schema-components.json#/74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3"
         }
       }
     }

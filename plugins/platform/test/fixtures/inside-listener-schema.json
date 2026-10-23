@@ -110,11 +110,7 @@
           "format": "int64"
         },
         "priority": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaRoutingPriority"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/429e7e101a09c0351fa4470bd1f205f6fd9279e28a9b0bc0b3e4d65fab035f81"
         },
         "retries": {
           "type": "integer",
@@ -180,10 +176,7 @@
       "type": "object",
       "properties": {
         "cdn_cache_rules": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/schemaviewsObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/35b37f3c40218747062e85e8608d21306cf71fe592af297491c91e0434a18546"
         }
       }
     },
@@ -209,12 +202,7 @@
           ]
         },
         "domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaDomainType"
-            }
-          ],
-          "format": "hostname"
+          "$ref": "./shared-schema-components.json#/84649fd1d128144fb1cfcf9e925ddb1c87eb85159a1426549a14c63468320c06"
         },
         "flow_label": {
           "allOf": [
@@ -224,11 +212,7 @@
           ]
         },
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/5ef7eef285f5061945d8fcf24588368c96af6eb8512512b167e733638cc164ef"
         },
         "http_methods": {
           "type": "array",
@@ -239,11 +223,7 @@
           }
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "mitigate_good_bots": {
           "allOf": [
@@ -267,11 +247,7 @@
           ]
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         },
         "protocol": {
           "allOf": [
@@ -281,11 +257,7 @@
           ]
         },
         "query_params": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/ce957be964ed8407d07977d063382308f071bf0e6ed372314745e2c8349baead"
         },
         "undefined_flow_label": {
           "allOf": [
@@ -311,16 +283,7 @@
       }
     },
     "common_securityBotAdvancedMobileSDKConfigType": {
-      "type": "object",
-      "properties": {
-        "mobile_identifier": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityMobileTrafficIdentifierType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/acec23151bb3a906560d151743a687f8488734dcef1a8f8ff1d07ab71ed5bff6"
     },
     "common_securityBotDefenseAdvancedType": {
       "type": "object",
@@ -342,32 +305,16 @@
           ]
         },
         "js_insert_all_pages": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a4b22d08d73ef610406e7bbda252686a296107766c73a8bfb27c042b8334cc72"
         },
         "js_insert_all_pages_except": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllWithExceptionsType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e00d2995094f2c3a152a6dfd3b97bd702fd885a2443057e7d9347823eaa3452a"
         },
         "js_insertion_rules": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a13d98c088444b39de2a2d7a4907edaa6c51e468ad572ab4d54d30f0cb31cc66"
         },
         "mobile": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "mobile_sdk_config": {
           "allOf": [
@@ -377,11 +324,7 @@
           ]
         },
         "web": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -389,11 +332,7 @@
       "type": "object",
       "properties": {
         "exclude_list": {
-          "type": "array",
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/common_securityShapeJavaScriptExclusionRule"
-          }
+          "$ref": "./shared-schema-components.json#/c18d02fe733fc3c7e6fea6cb508dcf28b3c8b851749d14a103a65f1474c97e96"
         }
       }
     },
@@ -401,11 +340,7 @@
       "type": "object",
       "properties": {
         "exclude_list": {
-          "type": "array",
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/common_securityShapeJavaScriptExclusionRule"
-          }
+          "$ref": "./shared-schema-components.json#/c18d02fe733fc3c7e6fea6cb508dcf28b3c8b851749d14a103a65f1474c97e96"
         },
         "rules": {
           "type": "array",
@@ -418,39 +353,7 @@
       }
     },
     "common_securityCSDJavaScriptInsertionRule": {
-      "type": "object",
-      "x-ves-oneof-field-domain_matcher_choice": "[\"any_domain\",\"domain\"]",
-      "properties": {
-        "any_domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaDomainType"
-            }
-          ],
-          "format": "hostname"
-        },
-        "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
-        },
-        "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/f651b938ba397c936ab7c6e2aa0e9606d61eae489c947ca47e1d6bc8d7eb28f4"
     },
     "common_securityClientSideDefensePolicyType": {
       "type": "object",
@@ -502,18 +405,10 @@
       "type": "object",
       "properties": {
         "asn_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9d87ee30a2a8a742b7ac858af46aa0815cba373be33aa4546b29ca9220f7fae9"
         },
         "country_list": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "$ref": "#/components/schemas/policyCountryCode"
-          }
+          "$ref": "./shared-schema-components.json#/abdfec77e00f33602088af3949f5ad266e7b86b7676cfa4264094fbfc90b5c47"
         },
         "ja4_tls_fingerprint_matcher": {
           "allOf": [
@@ -523,11 +418,7 @@
           ]
         },
         "tls_fingerprint_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyTlsFingerprintMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/bff6372aeeec6c4907d6cb93b671be0300f9bb827c8d0d29bcad8e0df8a366ee"
         }
       }
     },
@@ -555,18 +446,10 @@
           "format": "date-time"
         },
         "ip_prefix_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyPrefixMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ba9d4777a2e70ce6d8bd4c5a16af33511a7eadf40959f59a70f8ed8f246b43ec"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         }
       }
     },
@@ -608,18 +491,10 @@
           }
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         }
       }
     },
@@ -628,16 +503,7 @@
       "enum": ["HEADERS"]
     },
     "common_securityMobileSDKConfigType": {
-      "type": "object",
-      "properties": {
-        "mobile_identifier": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityMobileTrafficIdentifierType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/acec23151bb3a906560d151743a687f8488734dcef1a8f8ff1d07ab71ed5bff6"
     },
     "common_securityMobileTrafficIdentifierType": {
       "type": "object",
@@ -655,11 +521,7 @@
       "type": "object",
       "properties": {
         "sensitive_data_policy_ref": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -693,25 +555,13 @@
           "type": "string"
         },
         "js_insert_all_pages": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a4b22d08d73ef610406e7bbda252686a296107766c73a8bfb27c042b8334cc72"
         },
         "js_insert_all_pages_except": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllWithExceptionsType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e00d2995094f2c3a152a6dfd3b97bd702fd885a2443057e7d9347823eaa3452a"
         },
         "js_insertion_rules": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a13d98c088444b39de2a2d7a4907edaa6c51e468ad572ab4d54d30f0cb31cc66"
         },
         "mobile_sdk_config": {
           "allOf": [
@@ -773,49 +623,13 @@
       }
     },
     "common_securityShapeJavaScriptExclusionRule": {
-      "type": "object",
-      "x-ves-oneof-field-domain_matcher_choice": "[\"any_domain\",\"domain\"]",
-      "properties": {
-        "any_domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaDomainType"
-            }
-          ],
-          "format": "hostname"
-        },
-        "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
-        },
-        "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/f651b938ba397c936ab7c6e2aa0e9606d61eae489c947ca47e1d6bc8d7eb28f4"
     },
     "common_securityShapeJavaScriptInsertAllType": {
       "type": "object",
       "properties": {
         "javascript_location": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewscommon_securityJavaScriptLocation"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6a880cce1cc9ba6969968c1ca788c8dee5f811892e9a1004701b0245762ec669"
         }
       }
     },
@@ -823,18 +637,10 @@
       "type": "object",
       "properties": {
         "exclude_list": {
-          "type": "array",
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/common_securityShapeJavaScriptExclusionRule"
-          }
+          "$ref": "./shared-schema-components.json#/c18d02fe733fc3c7e6fea6cb508dcf28b3c8b851749d14a103a65f1474c97e96"
         },
         "javascript_location": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewscommon_securityJavaScriptLocation"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6a880cce1cc9ba6969968c1ca788c8dee5f811892e9a1004701b0245762ec669"
         }
       }
     },
@@ -842,11 +648,7 @@
       "type": "object",
       "properties": {
         "exclude_list": {
-          "type": "array",
-          "maxItems": 128,
-          "items": {
-            "$ref": "#/components/schemas/common_securityShapeJavaScriptExclusionRule"
-          }
+          "$ref": "./shared-schema-components.json#/c18d02fe733fc3c7e6fea6cb508dcf28b3c8b851749d14a103a65f1474c97e96"
         },
         "rules": {
           "type": "array",
@@ -870,33 +672,16 @@
           ]
         },
         "domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaDomainType"
-            }
-          ],
-          "format": "hostname"
+          "$ref": "./shared-schema-components.json#/84649fd1d128144fb1cfcf9e925ddb1c87eb85159a1426549a14c63468320c06"
         },
         "javascript_location": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewscommon_securityJavaScriptLocation"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6a880cce1cc9ba6969968c1ca788c8dee5f811892e9a1004701b0245762ec669"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         }
       }
     },
@@ -921,11 +706,7 @@
       "x-ves-oneof-field-domain_choice": "[\"any_domain\",\"specific_domain\"]",
       "properties": {
         "action": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafAPIProtectionRuleAction__ves_io_schema_views_http_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fe5af5814eec8e5fb3765598fc5f5b197e4311c1b0669b0824b5384079ff70c0"
         },
         "any_domain": {
           "allOf": [
@@ -935,36 +716,20 @@
           ]
         },
         "api_endpoint_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyHttpMethodMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/8201e18a61c1630e804eec8b8ef29cca76ab10b5beae2e3217a3e023cc15c5ec"
         },
         "api_endpoint_path": {
           "type": "string",
           "maxLength": 1024
         },
         "client_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "request_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144"
         },
         "specific_domain": {
           "type": "string",
@@ -977,11 +742,7 @@
       "x-ves-oneof-field-domain_choice": "[\"any_domain\",\"specific_domain\"]",
       "properties": {
         "action": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafAPIProtectionRuleAction__ves_io_schema_views_http_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fe5af5814eec8e5fb3765598fc5f5b197e4311c1b0669b0824b5384079ff70c0"
         },
         "any_domain": {
           "allOf": [
@@ -999,25 +760,13 @@
           "maxLength": 128
         },
         "client_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "request_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144"
         },
         "specific_domain": {
           "type": "string",
@@ -1095,18 +844,10 @@
           ]
         },
         "custom_ip_allowed_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafCustomIpAllowedList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9edc05d917294a365e18519a85d66790c069e986ca0b45ea15da9b2c09b839e0"
         },
         "ip_allowed_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsPrefixStringListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a615a4cbfb6e72fcfa558845c2c8c66b8a5736da0e96c2761c8c58b0b4656448"
         },
         "no_ip_allowed_list": {
           "allOf": [
@@ -1129,11 +870,7 @@
       "x-ves-oneof-field-validation_target_choice": "[\"validation_all_spec_endpoints\",\"validation_custom_list\",\"validation_disabled\"]",
       "properties": {
         "api_definition": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "validation_all_spec_endpoints": {
           "allOf": [
@@ -1206,11 +943,7 @@
       "type": "object",
       "properties": {
         "api_discovery_ref": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -1286,11 +1019,7 @@
       "type": "object",
       "properties": {
         "methods": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemaHttpMethod"
-          }
+          "$ref": "./shared-schema-components.json#/8a9c67dd4825e328dc729acf0c16548cbf3393d4ff2d510889aedb9b40d92a0a"
         },
         "path": {
           "type": "string",
@@ -1311,43 +1040,23 @@
           ]
         },
         "api_endpoint_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyHttpMethodMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/8201e18a61c1630e804eec8b8ef29cca76ab10b5beae2e3217a3e023cc15c5ec"
         },
         "api_endpoint_path": {
           "type": "string",
           "maxLength": 1024
         },
         "client_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538"
         },
         "inline_rate_limiter": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafInlineRateLimiter__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/cf0804378fb74e21d989dbe7bbaf0509f708564eddaaa67c46c9d003a9af08cf"
         },
         "ref_rate_limiter": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "request_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144"
         },
         "specific_domain": {
           "type": "string",
@@ -1372,10 +1081,7 @@
       "type": "object",
       "properties": {
         "authorization_servers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/schemaviewsObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/35b37f3c40218747062e85e8608d21306cf71fe592af297491c91e0434a18546"
         }
       }
     },
@@ -1411,36 +1117,20 @@
           ]
         },
         "api_endpoint": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiEndpointDetails"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0d2b71e8c24804f44a3587dbdfa1da9c74255915f645f1c6d87495677740e25d"
         },
         "api_groups": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafAPIGroups"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e0fa17045306b542057379f9309255e2d5c11f548073b6002c1233e8562ca964"
         },
         "base_path": {
           "type": "string",
           "maxLength": 128
         },
         "client_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538"
         },
         "request_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144"
         },
         "specific_domain": {
           "type": "string",
@@ -1464,11 +1154,7 @@
       "type": "object",
       "properties": {
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "spec": {
           "allOf": [
@@ -1517,11 +1203,7 @@
           ]
         },
         "code_base_integration": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "selected_repos": {
           "allOf": [
@@ -1564,11 +1246,7 @@
       "x-ves-oneof-field-malicious_user_mitigation_choice": "[\"default_mitigation_settings\",\"malicious_user_mitigation\"]",
       "properties": {
         "captcha_challenge_parameters": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617"
         },
         "default_captcha_challenge_parameters": {
           "allOf": [
@@ -1592,18 +1270,10 @@
           ]
         },
         "js_challenge_parameters": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "malicious_user_mitigation": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -1634,11 +1304,7 @@
           ]
         },
         "api_endpoint": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiEndpointDetails"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0d2b71e8c24804f44a3587dbdfa1da9c74255915f645f1c6d87495677740e25d"
         },
         "api_group": {
           "type": "string",
@@ -1649,11 +1315,7 @@
           "maxLength": 128
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         }
       }
     },
@@ -1661,11 +1323,7 @@
       "type": "object",
       "properties": {
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaHeaderMatcherType"
-          }
+          "$ref": "./shared-schema-components.json#/d6f9f3e4cbb99c3deebec37f42e2893970016af5e85e58f3bd298e51186b3765"
         }
       }
     },
@@ -1674,22 +1332,14 @@
       "x-ves-oneof-field-count_by_choice": "[\"ref_user_id\",\"use_http_lb_user_id\"]",
       "properties": {
         "ref_user_id": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "threshold": {
           "type": "integer",
           "format": "int64"
         },
         "unit": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/rate_limiterRateLimitPeriodUnit"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/640c6e7be0cf0a7126fc78406838c70e2512e8ebdf45f05a1862acd3bb699074"
         },
         "use_http_lb_user_id": {
           "allOf": [
@@ -1800,25 +1450,13 @@
       "x-ves-oneof-field-oversized_body_choice": "[]",
       "properties": {
         "fall_through_mode": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiFallThroughMode__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/74fb7a4342daebefb11ec9ba7a216eaeecd573792a8b5c5e43d3da0db6990dd2"
         },
         "settings": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiValidationCommonSettings__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/730d933127cc205965576583211e236d579a2aa801a5273230460086bd261682"
         },
         "validation_mode": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiValidationMode__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/570dba0867cb8d03b24c9289f30d30e0e0a6c58237d94b447df8dc02b9fba277"
         }
       }
     },
@@ -1877,11 +1515,7 @@
           ]
         },
         "response_validation_properties": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/components/schemas/schemaOpenApiValidationProperties"
-          }
+          "$ref": "./shared-schema-components.json#/71080690a6ed5e222364a5a433c008861842a0eef4e08624b12207c9ffa02f35"
         }
       }
     },
@@ -1904,11 +1538,7 @@
           ]
         },
         "request_validation_properties": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/components/schemas/schemaOpenApiValidationProperties"
-          }
+          "$ref": "./shared-schema-components.json#/71080690a6ed5e222364a5a433c008861842a0eef4e08624b12207c9ffa02f35"
         }
       }
     },
@@ -1960,11 +1590,7 @@
           ]
         },
         "api_endpoint": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiEndpointDetails"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0d2b71e8c24804f44a3587dbdfa1da9c74255915f645f1c6d87495677740e25d"
         },
         "api_group": {
           "type": "string",
@@ -1975,22 +1601,14 @@
           "maxLength": 128
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "specific_domain": {
           "type": "string",
           "maxLength": 128
         },
         "validation_mode": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiValidationMode__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/570dba0867cb8d03b24c9289f30d30e0e0a6c58237d94b447df8dc02b9fba277"
         }
       }
     },
@@ -2000,18 +1618,10 @@
       "x-ves-oneof-field-policy_choice": "[\"no_policies\",\"policies\"]",
       "properties": {
         "custom_ip_allowed_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafCustomIpAllowedList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9edc05d917294a365e18519a85d66790c069e986ca0b45ea15da9b2c09b839e0"
         },
         "ip_allowed_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsPrefixStringListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a615a4cbfb6e72fcfa558845c2c8c66b8a5736da0e96c2761c8c58b0b4656448"
         },
         "no_ip_allowed_list": {
           "allOf": [
@@ -2110,32 +1720,16 @@
           "maxLength": 128
         },
         "client_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538"
         },
         "inline_rate_limiter": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafInlineRateLimiter__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/cf0804378fb74e21d989dbe7bbaf0509f708564eddaaa67c46c9d003a9af08cf"
         },
         "ref_rate_limiter": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "request_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144"
         },
         "specific_domain": {
           "type": "string",
@@ -2197,11 +1791,7 @@
           "type": "string"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "skip_processing": {
           "allOf": [
@@ -2224,20 +1814,7 @@
       }
     },
     "common_wafSimpleLogin": {
-      "type": "object",
-      "properties": {
-        "password": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
-        },
-        "user": {
-          "type": "string",
-          "maxLength": 64
-        }
-      }
+      "$ref": "./shared-schema-components.json#/6dd851c2f390ee23f5f2c396304bbba4721979c066010351c57df29b2247aa6e"
     },
     "common_wafTarget": {
       "type": "object",
@@ -2251,11 +1828,7 @@
           ]
         },
         "api_groups": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafAPIGroups"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e0fa17045306b542057379f9309255e2d5c11f548073b6002c1233e8562ca964"
         },
         "base_paths": {
           "allOf": [
@@ -2284,11 +1857,7 @@
       "x-ves-oneof-field-oversized_body_choice": "[]",
       "properties": {
         "fall_through_mode": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiFallThroughMode__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/74fb7a4342daebefb11ec9ba7a216eaeecd573792a8b5c5e43d3da0db6990dd2"
         },
         "open_api_validation_rules": {
           "type": "array",
@@ -2298,11 +1867,7 @@
           }
         },
         "settings": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafOpenApiValidationCommonSettings__ves_io_schema_views_bigip_virtual_server"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/730d933127cc205965576583211e236d579a2aa801a5273230460086bd261682"
         }
       }
     },
@@ -2350,11 +1915,7 @@
           ]
         },
         "waf_exclusion_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -2377,11 +1938,7 @@
       "x-ves-oneof-field-strict_sni_host_header_check_choice": "[]",
       "properties": {
         "buffer_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaBufferConfigType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c0de98737b2ebc493abc91d0fdd879a0f1a418976fe95525f9845a3a0fff8cbc"
         },
         "compression_params": {
           "allOf": [
@@ -2431,68 +1988,28 @@
           ]
         },
         "request_cookies_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaCookieValueOption"
-          }
+          "$ref": "./shared-schema-components.json#/9a3ce0e29f62404b75936baf9561b9a1a310ebf989fea95b7c10936897a7031a"
         },
         "request_cookies_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "request_headers_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaHeaderManipulationOptionType"
-          }
+          "$ref": "./shared-schema-components.json#/cd7a8dd6c2ec214dd1e1a32e086c87cde672001e24df35320d479f0554fad987"
         },
         "request_headers_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "response_cookies_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaSetCookieValueOption"
-          }
+          "$ref": "./shared-schema-components.json#/af1ee635ae3a4ef8db335be36065f7b554e848f9b1f794d7fb5c83b0b3354b64"
         },
         "response_cookies_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "response_headers_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaHeaderManipulationOptionType"
-          }
+          "$ref": "./shared-schema-components.json#/cd7a8dd6c2ec214dd1e1a32e086c87cde672001e24df35320d479f0554fad987"
         },
         "response_headers_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         }
       }
     },
@@ -2504,11 +2021,7 @@
           "maxLength": 128
         },
         "value": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         }
       }
     },
@@ -2551,30 +2064,13 @@
       }
     },
     "http_loadbalancerBasicAuthentication": {
-      "type": "object",
-      "properties": {
-        "password": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
-        },
-        "user": {
-          "type": "string",
-          "maxLength": 64
-        }
-      }
+      "$ref": "./shared-schema-components.json#/6dd851c2f390ee23f5f2c396304bbba4721979c066010351c57df29b2247aa6e"
     },
     "http_loadbalancerBearer": {
       "type": "object",
       "properties": {
         "token": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         }
       }
     },
@@ -2685,18 +2181,10 @@
       "x-ves-oneof-field-rps_threshold_choice": "[\"default_rps_threshold\",\"rps_threshold\"]",
       "properties": {
         "clientside_action_captcha_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617"
         },
         "clientside_action_js_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "clientside_action_none": {
           "allOf": [
@@ -2706,11 +2194,7 @@
           ]
         },
         "ddos_policy_custom": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "ddos_policy_none": {
           "allOf": [
@@ -2734,18 +2218,10 @@
           ]
         },
         "mitigation_captcha_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617"
         },
         "mitigation_js_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "rps_threshold": {
           "type": "integer",
@@ -2757,18 +2233,10 @@
       "type": "object",
       "properties": {
         "json_payload": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpMethod"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c431fae273eca2f8a61610712d6610952d52c00dcc84ee0381f5d861a5d02b28"
         },
         "path": {
           "type": "string",
@@ -2827,11 +2295,7 @@
           "maxLength": 8096
         },
         "coalescing_options": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaTLSCoalescingOptions"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0105f9797ef83cb8149b2e94a63e23b09046883832e63475a8fa4569f59f0d37"
         },
         "connection_idle_timeout": {
           "type": "integer",
@@ -2866,11 +2330,7 @@
           ]
         },
         "http_protocol_options": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostHttpProtocolOptions"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ccb8aef5eb14570d8d80e50bdd8eb7b08174de79c444605ed8c273d04515e932"
         },
         "http_redirect": {
           "type": "boolean",
@@ -2936,11 +2396,7 @@
           "maxLength": 8096
         },
         "coalescing_options": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaTLSCoalescingOptions"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0105f9797ef83cb8149b2e94a63e23b09046883832e63475a8fa4569f59f0d37"
         },
         "connection_idle_timeout": {
           "type": "integer",
@@ -2975,11 +2431,7 @@
           ]
         },
         "http_protocol_options": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostHttpProtocolOptions"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ccb8aef5eb14570d8d80e50bdd8eb7b08174de79c444605ed8c273d04515e932"
         },
         "http_redirect": {
           "type": "boolean",
@@ -3027,11 +2479,7 @@
           ]
         },
         "use_mtls": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsDownstreamTlsValidationContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fec253bc9fcce951c48eb397a0a9eb27b3319012f77289823f3e2fb9d6917495"
         }
       }
     },
@@ -3050,11 +2498,7 @@
       "x-ves-oneof-field-websocket_choice": "[\"disable_web_socket_config\",\"web_socket_config\"]",
       "properties": {
         "app_firewall": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "bot_defense_javascript_injection": {
           "allOf": [
@@ -3064,11 +2508,7 @@
           ]
         },
         "buffer_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaBufferConfigType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c0de98737b2ebc493abc91d0fdd879a0f1a418976fe95525f9845a3a0fff8cbc"
         },
         "common_buffering": {
           "allOf": [
@@ -3085,18 +2525,10 @@
           ]
         },
         "cors_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaCorsPolicy"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6d392477fc0c87c499f613ea4c767acf5cf9c042174ff848f6ee2ff314f5a95f"
         },
         "csrf_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaCsrfPolicy"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c053f658ed4b43747b329bb43fb00db739a7d3e43b0deeaaac88816d0e974a15"
         },
         "default_retry_policy": {
           "allOf": [
@@ -3201,11 +2633,7 @@
           "maxLength": 256
         },
         "priority": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaRoutingPriority"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/429e7e101a09c0351fa4470bd1f205f6fd9279e28a9b0bc0b3e4d65fab035f81"
         },
         "regex_rewrite": {
           "allOf": [
@@ -3215,68 +2643,28 @@
           ]
         },
         "request_cookies_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaCookieValueOption"
-          }
+          "$ref": "./shared-schema-components.json#/9a3ce0e29f62404b75936baf9561b9a1a310ebf989fea95b7c10936897a7031a"
         },
         "request_cookies_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "request_headers_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaHeaderManipulationOptionType"
-          }
+          "$ref": "./shared-schema-components.json#/cd7a8dd6c2ec214dd1e1a32e086c87cde672001e24df35320d479f0554fad987"
         },
         "request_headers_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "response_cookies_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaSetCookieValueOption"
-          }
+          "$ref": "./shared-schema-components.json#/af1ee635ae3a4ef8db335be36065f7b554e848f9b1f794d7fb5c83b0b3354b64"
         },
         "response_cookies_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "response_headers_to_add": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/schemaHeaderManipulationOptionType"
-          }
+          "$ref": "./shared-schema-components.json#/cd7a8dd6c2ec214dd1e1a32e086c87cde672001e24df35320d479f0554fad987"
         },
         "response_headers_to_remove": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0"
         },
         "retract_cluster": {
           "allOf": [
@@ -3293,22 +2681,14 @@
           ]
         },
         "specific_hash_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/http_loadbalancerHashPolicyListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1fa2fed06f381ad90b37bf28f9863c887c40d8ec0f1a3c8f23c37b55da3e385"
         },
         "timeout": {
           "type": "integer",
           "format": "int64"
         },
         "waf_exclusion_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "web_socket_config": {
           "allOf": [
@@ -3338,11 +2718,7 @@
           ]
         },
         "route_ref": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -3350,32 +2726,16 @@
       "type": "object",
       "properties": {
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaHeaderMatcherType"
-          }
+          "$ref": "./shared-schema-components.json#/d6f9f3e4cbb99c3deebec37f42e2893970016af5e85e58f3bd298e51186b3765"
         },
         "http_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpMethod"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c431fae273eca2f8a61610712d6610952d52c00dcc84ee0381f5d861a5d02b28"
         },
         "incoming_port": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPortMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/4d6573a35a11144fd9e4124bcef548c39af6fd29d6178502b7f3fcb8c8ab621d"
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         },
         "route_direct_response": {
           "allOf": [
@@ -3390,32 +2750,16 @@
       "type": "object",
       "properties": {
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaHeaderMatcherType"
-          }
+          "$ref": "./shared-schema-components.json#/d6f9f3e4cbb99c3deebec37f42e2893970016af5e85e58f3bd298e51186b3765"
         },
         "http_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpMethod"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c431fae273eca2f8a61610712d6610952d52c00dcc84ee0381f5d861a5d02b28"
         },
         "incoming_port": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPortMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/4d6573a35a11144fd9e4124bcef548c39af6fd29d6178502b7f3fcb8c8ab621d"
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         },
         "route_redirect": {
           "allOf": [
@@ -3467,28 +2811,16 @@
           ]
         },
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaHeaderMatcherType"
-          }
+          "$ref": "./shared-schema-components.json#/d6f9f3e4cbb99c3deebec37f42e2893970016af5e85e58f3bd298e51186b3765"
         },
         "host_rewrite": {
           "type": "string"
         },
         "http_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpMethod"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c431fae273eca2f8a61610712d6610952d52c00dcc84ee0381f5d861a5d02b28"
         },
         "incoming_port": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPortMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/4d6573a35a11144fd9e4124bcef548c39af6fd29d6178502b7f3fcb8c8ab621d"
         },
         "origin_pools": {
           "type": "array",
@@ -3499,11 +2831,7 @@
           }
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         },
         "query_params": {
           "allOf": [
@@ -3532,11 +2860,7 @@
       "x-ves-oneof-field-type_condition_type_choice": "[\"api_endpoint\"]",
       "properties": {
         "api_endpoint": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiEndpointDetails"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/0d2b71e8c24804f44a3587dbdfa1da9c74255915f645f1c6d87495677740e25d"
         },
         "body": {
           "allOf": [
@@ -3581,11 +2905,7 @@
           ]
         },
         "enable_discovery": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiDiscoverySetting__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/4fd57cfb75b2f8519b155a818d93a2dfa9787ed7fa9c746566f08809d43c2266"
         },
         "enable_malicious_user_detection": {
           "allOf": [
@@ -3772,7 +3092,7 @@
         "enable_subsets": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginPoolSubsets"
+              "$ref": "./shared-schema-components.json#/f11c93b5978def03c3f68e5910f819f5e0d9d6f6cfa3681bc2e726ee089bccb2"
             }
           ]
         },
@@ -3861,7 +3181,7 @@
         "default_subset": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginPoolDefaultSubset"
+              "$ref": "./shared-schema-components.json#/8cc0f3bc96cd5557103956eec9bf8fdf63265940ae8d2eff88ae4a02a1a1b009"
             }
           ]
         },
@@ -3869,7 +3189,7 @@
           "type": "array",
           "maxItems": 32,
           "items": {
-            "$ref": "#/components/schemas/clusterEndpointSubsetSelectorType"
+            "$ref": "./shared-schema-components.json#/2b3c1ee05f0852dbb9f50a7f9ba5c6688a2036c5fdfde61bf48a7b6e610599ca"
           }
         },
         "fail_request": {
@@ -3911,18 +3231,10 @@
           "type": "string"
         },
         "site_locator": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteLocator"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/90d813d932667ab9baf2b3e5c46a8a89e015a8136af10a51ab356a946d61dc1b"
         },
         "snat_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c7667783d04af20d49ca6fd7d3e6179cbf19d68df1e27713b3c6ddd490424a26"
         }
       }
     },
@@ -3930,11 +3242,7 @@
       "type": "object",
       "properties": {
         "endpoint": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -3968,18 +3276,10 @@
           "type": "string"
         },
         "site_locator": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteLocator"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/90d813d932667ab9baf2b3e5c46a8a89e015a8136af10a51ab356a946d61dc1b"
         },
         "snat_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c7667783d04af20d49ca6fd7d3e6179cbf19d68df1e27713b3c6ddd490424a26"
         },
         "vk8s_networks": {
           "allOf": [
@@ -4013,25 +3313,13 @@
           ]
         },
         "segment": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "site_locator": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteLocator"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/90d813d932667ab9baf2b3e5c46a8a89e015a8136af10a51ab356a946d61dc1b"
         },
         "snat_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c7667783d04af20d49ca6fd7d3e6179cbf19d68df1e27713b3c6ddd490424a26"
         }
       }
     },
@@ -4061,25 +3349,13 @@
           "format": "int64"
         },
         "segment": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "site_locator": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteLocator"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/90d813d932667ab9baf2b3e5c46a8a89e015a8136af10a51ab356a946d61dc1b"
         },
         "snat_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c7667783d04af20d49ca6fd7d3e6179cbf19d68df1e27713b3c6ddd490424a26"
         }
       }
     },
@@ -4113,28 +3389,28 @@
         "cbip_service": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerCBIPService"
+              "$ref": "./shared-schema-components.json#/d01e6838dc9b3f1d4538b0b126f271745bb14e34874a9e5ef35e7fcea040b0fc"
             }
           ]
         },
         "consul_service": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerConsulService"
+              "$ref": "./shared-schema-components.json#/483229e6ddf87c2d6780bed07b736598fabfb4c5c721b5b1ac1613431a5445f3"
             }
           ]
         },
         "custom_endpoint_object": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerCustomEndpoint"
+              "$ref": "./shared-schema-components.json#/ac1e4491f6440587f3190328a212fcfc71516fcfe33f15e86cadeb759820ed05"
             }
           ]
         },
         "k8s_service": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerK8SService"
+              "$ref": "./shared-schema-components.json#/318d58a0735019d73e8b702732f9e5765669f703c4ad664a66eebc9db7f64580"
             }
           ]
         },
@@ -4147,42 +3423,42 @@
         "private_ip": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerPrivateIP"
+              "$ref": "./shared-schema-components.json#/38288c361ec8374a56b22a5720ad7ccff203f2a1b8d525c4bda36308cd50b385"
             }
           ]
         },
         "private_name": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerPrivateName"
+              "$ref": "./shared-schema-components.json#/b83b2a166c3eb6d3fd11ff8a871febe999b3a54ee074dbffb95b3a5378ab3442"
             }
           ]
         },
         "public_ip": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerPublicIP"
+              "$ref": "./shared-schema-components.json#/b4a03fcfc07075cb1de89cded6334370348d3eda3382f3bca08d2caec62b5624"
             }
           ]
         },
         "public_name": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerPublicName"
+              "$ref": "./shared-schema-components.json#/39be0badaa54ed4dcb030d0ffc23bdad713897a8cd064fa52a1baa02c274e527"
             }
           ]
         },
         "vn_private_ip": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerVirtualNetworkIP"
+              "$ref": "./shared-schema-components.json#/0f770498c6fb007ae945f9fb7981904c2c1e87c148e81fc700a276df2ba6824d"
             }
           ]
         },
         "vn_private_name": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolOriginServerVirtualNetworkName"
+              "$ref": "./shared-schema-components.json#/1823f80d28979bb717e88ba08832828793911adf3cfe9f29496512db97a2048d"
             }
           ]
         }
@@ -4196,11 +3472,7 @@
           "type": "string"
         },
         "virtual_network": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -4211,11 +3483,7 @@
           "type": "string"
         },
         "private_network": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -4303,21 +3571,17 @@
         "use_mtls": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolTlsCertificatesType"
+              "$ref": "./shared-schema-components.json#/e2ca94631b361607cc3b8a46da9d57ab76a6451e56b86d4a7f1e709a43ffb877"
             }
           ]
         },
         "use_mtls_obj": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "use_server_verification": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolUpstreamTlsValidationContext"
+              "$ref": "./shared-schema-components.json#/a701bcd73c3268207ad904af7bb36cee1c44cadc29d2fc00b9c3fd4855011e5a"
             }
           ]
         },
@@ -4335,11 +3599,7 @@
       "x-ves-oneof-field-trusted_ca_choice": "[\"trusted_ca\",\"trusted_ca_url\"]",
       "properties": {
         "trusted_ca": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "trusted_ca_url": {
           "type": "string",
@@ -4352,11 +3612,7 @@
       "type": "object",
       "properties": {
         "context": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyDetectionContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/318971665e2a9af56da2ed9d6a8f11c6d98329713be1117baa8f4f2e3705dbf2"
         },
         "context_name": {
           "type": "string",
@@ -4408,11 +3664,7 @@
       "type": "object",
       "properties": {
         "context": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyDetectionContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/318971665e2a9af56da2ed9d6a8f11c6d98329713be1117baa8f4f2e3705dbf2"
         },
         "context_name": {
           "type": "string",
@@ -4428,11 +3680,7 @@
       "type": "object",
       "properties": {
         "context": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyDetectionContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/318971665e2a9af56da2ed9d6a8f11c6d98329713be1117baa8f4f2e3705dbf2"
         },
         "context_name": {
           "type": "string",
@@ -4448,39 +3696,7 @@
       }
     },
     "policyArgMatcherType": {
-      "type": "object",
-      "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
-      "properties": {
-        "check_not_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "check_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "invert_matcher": {
-          "type": "boolean",
-          "format": "boolean"
-        },
-        "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
-        },
-        "name": {
-          "type": "string",
-          "maxLength": 256
-        }
-      }
+      "$ref": "./shared-schema-components.json#/5cd8661766022d56654d5b719ec0595fc05595549d065519480883e9492929bc"
     },
     "policyAsnMatchList": {
       "type": "object",
@@ -4500,11 +3716,7 @@
       "type": "object",
       "properties": {
         "asn_sets": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/0a9e19ae9dc598ddb4d23d907c4885391fca1c63c104602e57dea61430ec8551"
         }
       }
     },
@@ -4536,39 +3748,19 @@
           ]
         },
         "asn_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9d87ee30a2a8a742b7ac858af46aa0815cba373be33aa4546b29ca9220f7fae9"
         },
         "asn_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6ebba1b72ee4a4306fb95a1c90b8d8fdcbd50f4135523386df421bc8a3c87de0"
         },
         "client_selector": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaLabelSelectorType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/118e09181b57bbd47ab64cd4eb7fd4f22b42c94b4529d870247732c215f38093"
         },
         "ip_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyIpMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/20be26bb4854e524058250d01048e29ea53834a5e44f4dfee1d2488e581f2100"
         },
         "ip_prefix_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyPrefixMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ba9d4777a2e70ce6d8bd4c5a16af33511a7eadf40959f59a70f8ed8f246b43ec"
         },
         "ip_threat_category_list": {
           "allOf": [
@@ -4578,48 +3770,12 @@
           ]
         },
         "tls_fingerprint_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyTlsFingerprintMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/bff6372aeeec6c4907d6cb93b671be0300f9bb827c8d0d29bcad8e0df8a366ee"
         }
       }
     },
     "policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer": {
-      "type": "object",
-      "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
-      "properties": {
-        "check_not_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "check_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "invert_matcher": {
-          "type": "boolean",
-          "format": "boolean"
-        },
-        "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
-        },
-        "name": {
-          "type": "string",
-          "maxLength": 256
-        }
-      }
+      "$ref": "./shared-schema-components.json#/5cd8661766022d56654d5b719ec0595fc05595549d065519480883e9492929bc"
     },
     "policyCountryCode": {
       "type": "string",
@@ -4923,11 +4079,7 @@
           ]
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "method_get": {
           "allOf": [
@@ -5001,11 +4153,7 @@
           ]
         },
         "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/05af259a91238bc5e297a2495189a13f25b57ba5ca48d64006dfc3370f4e665a"
         },
         "name": {
           "type": "string",
@@ -5021,11 +4169,7 @@
           "format": "boolean"
         },
         "methods": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemaHttpMethod"
-          }
+          "$ref": "./shared-schema-components.json#/8a9c67dd4825e328dc729acf0c16548cbf3393d4ff2d510889aedb9b40d92a0a"
         }
       }
     },
@@ -5054,11 +4198,7 @@
           "format": "boolean"
         },
         "prefix_sets": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "$ref": "#/components/schemas/ioschemaObjectRefType"
-          }
+          "$ref": "./shared-schema-components.json#/0a9e19ae9dc598ddb4d23d907c4885391fca1c63c104602e57dea61430ec8551"
         }
       }
     },
@@ -5075,39 +4215,7 @@
       }
     },
     "policyJWTClaimMatcherType__ves_io_schema_views_cdn_loadbalancer": {
-      "type": "object",
-      "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
-      "properties": {
-        "check_not_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "check_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "invert_matcher": {
-          "type": "boolean",
-          "format": "boolean"
-        },
-        "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
-        },
-        "name": {
-          "type": "string",
-          "maxLength": 256
-        }
-      }
+      "$ref": "./shared-schema-components.json#/5cd8661766022d56654d5b719ec0595fc05595549d065519480883e9492929bc"
     },
     "policyKnownTlsFingerprintClass": {
       "type": "string",
@@ -5132,27 +4240,13 @@
       "type": "object",
       "properties": {
         "exact_values": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/7e3c9630e66cb64dff4b9e102270455f01e75a1b7ebeae65c29f138cd236d3fe"
         },
         "regex_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         },
         "transformers": {
-          "type": "array",
-          "maxItems": 9,
-          "items": {
-            "$ref": "#/components/schemas/policyTransformer"
-          }
+          "$ref": "./shared-schema-components.json#/6a89e21d88516a7f5c1be943ba58d027bb96ff9187dc93f9210302ce5ade6e02"
         }
       }
     },
@@ -5160,20 +4254,10 @@
       "type": "object",
       "properties": {
         "exact_values": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/7e3c9630e66cb64dff4b9e102270455f01e75a1b7ebeae65c29f138cd236d3fe"
         },
         "regex_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         }
       }
     },
@@ -5198,53 +4282,25 @@
           ]
         },
         "asn_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9d87ee30a2a8a742b7ac858af46aa0815cba373be33aa4546b29ca9220f7fae9"
         },
         "asn_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6ebba1b72ee4a4306fb95a1c90b8d8fdcbd50f4135523386df421bc8a3c87de0"
         },
         "client_selector": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaLabelSelectorType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/118e09181b57bbd47ab64cd4eb7fd4f22b42c94b4529d870247732c215f38093"
         },
         "country_codes": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "$ref": "#/components/schemas/policyCountryCode"
-          }
+          "$ref": "./shared-schema-components.json#/abdfec77e00f33602088af3949f5ad266e7b86b7676cfa4264094fbfc90b5c47"
         },
         "ip_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyIpMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/20be26bb4854e524058250d01048e29ea53834a5e44f4dfee1d2488e581f2100"
         },
         "ip_prefix_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyPrefixMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ba9d4777a2e70ce6d8bd4c5a16af33511a7eadf40959f59a70f8ed8f246b43ec"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "none": {
           "allOf": [
@@ -5286,18 +4342,10 @@
       "type": "object",
       "properties": {
         "cookie_matchers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/b545ea56c9b9afccf3f5476e41e8ede5f30d15378fb64d7ea12e3cfc6987b3c6"
         },
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/5ef7eef285f5061945d8fcf24588368c96af6eb8512512b167e733638cc164ef"
         },
         "jwt_claims": {
           "type": "array",
@@ -5307,11 +4355,7 @@
           }
         },
         "query_params": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/ce957be964ed8407d07977d063382308f071bf0e6ed372314745e2c8349baead"
         }
       }
     },
@@ -5323,11 +4367,7 @@
           "maxLength": 4096
         },
         "status": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpStatusCode"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e78673760bb2db187bb71bb98256e1f3ea22a7957f1473e262c03b1d11df55b9"
         }
       }
     },
@@ -5424,18 +4464,10 @@
           "maxLength": 256
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "path": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaPathMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
         },
         "skip_data_guard": {
           "allOf": [
@@ -5488,18 +4520,10 @@
           "format": "date-time"
         },
         "metadata": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaMessageMetaType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
         },
         "methods": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemaHttpMethod"
-          }
+          "$ref": "./shared-schema-components.json#/8a9c67dd4825e328dc729acf0c16548cbf3393d4ff2d510889aedb9b40d92a0a"
         },
         "path_prefix": {
           "type": "string",
@@ -5564,31 +4588,13 @@
       ]
     },
     "rate_limiterInputHours": {
-      "type": "object",
-      "properties": {
-        "duration": {
-          "type": "integer",
-          "format": "int64"
-        }
-      }
+      "$ref": "./shared-schema-components.json#/aee9363e15263cc893aa905fa498e6413c2db32cec6d6d8989d945ec05a8c6fd"
     },
     "rate_limiterInputMinutes": {
-      "type": "object",
-      "properties": {
-        "duration": {
-          "type": "integer",
-          "format": "int64"
-        }
-      }
+      "$ref": "./shared-schema-components.json#/aee9363e15263cc893aa905fa498e6413c2db32cec6d6d8989d945ec05a8c6fd"
     },
     "rate_limiterInputSeconds": {
-      "type": "object",
-      "properties": {
-        "duration": {
-          "type": "integer",
-          "format": "int64"
-        }
-      }
+      "$ref": "./shared-schema-components.json#/aee9363e15263cc893aa905fa498e6413c2db32cec6d6d8989d945ec05a8c6fd"
     },
     "rate_limiterLeakyBucketRateLimiter": {
       "type": "object"
@@ -5670,11 +4676,7 @@
           "format": "int64"
         },
         "unit": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/rate_limiterRateLimitPeriodUnit"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/640c6e7be0cf0a7126fc78406838c70e2512e8ebdf45f05a1862acd3bb699074"
         }
       }
     },
@@ -5794,11 +4796,7 @@
       "x-ves-oneof-field-policy_specifier": "[\"cookie\",\"header_name\",\"source_ip\"]",
       "properties": {
         "cookie": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/routeCookieForHashing"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/85ff921efbec1e639a4b08801e5452cd527955cbd0af9d839775a433137ef592"
         },
         "header_name": {
           "type": "string",
@@ -6315,19 +5313,10 @@
           "maxLength": 256
         },
         "regex_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         },
         "status": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHttpStatusCode"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e78673760bb2db187bb71bb98256e1f3ea22a7957f1473e262c03b1d11df55b9"
         }
       }
     },
@@ -6335,18 +5324,10 @@
       "type": "object",
       "properties": {
         "failure_conditions": {
-          "type": "array",
-          "maxItems": 3,
-          "items": {
-            "$ref": "#/components/schemas/schemaBotDefenseTransactionResultCondition"
-          }
+          "$ref": "./shared-schema-components.json#/038e901e09a9348352b5f3c302b95ef542572e4a547729c56ad78732716b9787"
         },
         "success_conditions": {
-          "type": "array",
-          "maxItems": 3,
-          "items": {
-            "$ref": "#/components/schemas/schemaBotDefenseTransactionResultCondition"
-          }
+          "$ref": "./shared-schema-components.json#/038e901e09a9348352b5f3c302b95ef542572e4a547729c56ad78732716b9787"
         }
       }
     },
@@ -6496,11 +5477,7 @@
           "format": "boolean"
         },
         "secret_value": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "value": {
           "type": "string",
@@ -6595,12 +5572,7 @@
           ]
         },
         "domain": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaDomainType"
-            }
-          ],
-          "format": "hostname"
+          "$ref": "./shared-schema-components.json#/84649fd1d128144fb1cfcf9e925ddb1c87eb85159a1426549a14c63468320c06"
         }
       }
     },
@@ -6608,14 +5580,7 @@
       "type": "object",
       "properties": {
         "domains": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/fbdc2f37a36a69fe23d6a76c22d55bbe6a260b27ca2c9dda0a6c2618acca79cf"
         }
       }
     },
@@ -6686,11 +5651,7 @@
           "maxLength": 256
         },
         "secret_value": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "value": {
           "type": "string",
@@ -6899,24 +5860,7 @@
       "enum": ["DEFAULT", "HIGH"]
     },
     "schemaSecretType": {
-      "type": "object",
-      "x-ves-oneof-field-secret_info_oneof": "[\"blindfold_secret_info\",\"clear_secret_info\"]",
-      "properties": {
-        "blindfold_secret_info": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaBlindfoldSecretInfoType"
-            }
-          ]
-        },
-        "clear_secret_info": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaClearSecretInfoType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/80741fb2cdeb9f3723b361c77f6dec9401b8311db1b6c8ecb9071fc6405b8f33"
     },
     "schemaSetCookieValueOption": {
       "type": "object",
@@ -7061,11 +6005,7 @@
           ]
         },
         "secret_value": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "value": {
           "type": "string",
@@ -7117,11 +6057,7 @@
           ]
         },
         "private_key": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaSecretType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
         },
         "use_system_defaults": {
           "allOf": [
@@ -7161,63 +6097,13 @@
       "enum": ["XFCC_NONE", "XFCC_CERT", "XFCC_CHAIN", "XFCC_SUBJECT", "XFCC_URI", "XFCC_DNS"]
     },
     "schemaclusterHttp1ProtocolOptions": {
-      "type": "object",
-      "properties": {
-        "header_transformation": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHeaderTransformationType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/a0cd8741119ed3f45a3abc703a49c50a2bf412ce91180b29260b7b47a50fc731"
     },
     "schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer": {
-      "type": "object",
-      "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
-      "properties": {
-        "check_not_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "check_present": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/ioschemaEmpty"
-            }
-          ]
-        },
-        "invert_matcher": {
-          "type": "boolean",
-          "format": "boolean"
-        },
-        "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
-        },
-        "name": {
-          "type": "string",
-          "maxLength": 256
-        }
-      }
+      "$ref": "./shared-schema-components.json#/5cd8661766022d56654d5b719ec0595fc05595549d065519480883e9492929bc"
     },
     "schemapolicyIPThreatCategoryListType": {
-      "type": "object",
-      "properties": {
-        "ip_threat_categories": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/policyIPThreatCategory"
-          }
-        }
-      }
+      "$ref": "./shared-schema-components.json#/1afc03ad8f33c25ff4f8543a194cf1cde44d3726cfc1e6d8e6a0ad92266cd203"
     },
     "schemapolicyPathMatcherType": {
       "type": "object",
@@ -7227,32 +6113,17 @@
           "format": "boolean"
         },
         "exact_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         },
         "invert_matcher": {
           "type": "boolean",
           "format": "boolean"
         },
         "prefix_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         },
         "regex_values": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55"
         },
         "suffix_values": {
           "type": "array",
@@ -7263,11 +6134,7 @@
           }
         },
         "transformers": {
-          "type": "array",
-          "maxItems": 9,
-          "items": {
-            "$ref": "#/components/schemas/policyTransformer"
-          }
+          "$ref": "./shared-schema-components.json#/6a89e21d88516a7f5c1be943ba58d027bb96ff9187dc93f9210302ce5ade6e02"
         }
       }
     },
@@ -7294,11 +6161,7 @@
           "format": "boolean"
         },
         "item": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/05af259a91238bc5e297a2495189a13f25b57ba5ca48d64006dfc3370f4e665a"
         },
         "key": {
           "type": "string",
@@ -7307,8 +6170,7 @@
       }
     },
     "schemarouteJavaScriptLocation": {
-      "type": "string",
-      "enum": ["AFTER_HEAD", "AFTER_TITLE_END", "BEFORE_SCRIPT"]
+      "$ref": "./shared-schema-components.json#/428a82943fca2444b0b25e354a99ca665624edefb3f265646f96598414c62adb"
     },
     "schemaviewsDownstreamTlsParamsType": {
       "type": "object",
@@ -7337,11 +6199,7 @@
           ]
         },
         "use_mtls": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsDownstreamTlsValidationContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fec253bc9fcce951c48eb397a0a9eb27b3319012f77289823f3e2fb9d6917495"
         }
       }
     },
@@ -7365,16 +6223,7 @@
       }
     },
     "schemavirtual_hostHttp1ProtocolOptions": {
-      "type": "object",
-      "properties": {
-        "header_transformation": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaHeaderTransformationType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/a0cd8741119ed3f45a3abc703a49c50a2bf412ce91180b29260b7b47a50fc731"
     },
     "service_policy_ruleChallengeRuleSpec": {
       "type": "object",
@@ -7413,39 +6262,19 @@
           }
         },
         "asn_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/9d87ee30a2a8a742b7ac858af46aa0815cba373be33aa4546b29ca9220f7fae9"
         },
         "asn_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyAsnMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6ebba1b72ee4a4306fb95a1c90b8d8fdcbd50f4135523386df421bc8a3c87de0"
         },
         "body_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/05af259a91238bc5e297a2495189a13f25b57ba5ca48d64006dfc3370f4e665a"
         },
         "client_selector": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaLabelSelectorType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/118e09181b57bbd47ab64cd4eb7fd4f22b42c94b4529d870247732c215f38093"
         },
         "cookie_matchers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/b545ea56c9b9afccf3f5476e41e8ede5f30d15378fb64d7ea12e3cfc6987b3c6"
         },
         "disable_challenge": {
           "allOf": [
@@ -7480,32 +6309,16 @@
           "format": "date-time"
         },
         "headers": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/5ef7eef285f5061945d8fcf24588368c96af6eb8512512b167e733638cc164ef"
         },
         "http_method": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyHttpMethodMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/8201e18a61c1630e804eec8b8ef29cca76ab10b5beae2e3217a3e023cc15c5ec"
         },
         "ip_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyIpMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/20be26bb4854e524058250d01048e29ea53834a5e44f4dfee1d2488e581f2100"
         },
         "ip_prefix_list": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyPrefixMatchList"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/ba9d4777a2e70ce6d8bd4c5a16af33511a7eadf40959f59a70f8ed8f246b43ec"
         },
         "path": {
           "allOf": [
@@ -7515,18 +6328,10 @@
           ]
         },
         "query_params": {
-          "type": "array",
-          "maxItems": 16,
-          "items": {
-            "$ref": "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/ce957be964ed8407d07977d063382308f071bf0e6ed372314745e2c8349baead"
         },
         "tls_fingerprint_matcher": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/policyTlsFingerprintMatcherType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/bff6372aeeec6c4907d6cb93b671be0300f9bb827c8d0d29bcad8e0df8a366ee"
         }
       }
     },
@@ -7547,11 +6352,7 @@
       "type": "object",
       "properties": {
         "public_ip": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -7565,18 +6366,10 @@
           }
         },
         "max_version": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaTlsProtocol"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fcbbc566d66382238fe6c2e507cb6e94ae657fb3da7cf6529406bcda1ca520e5"
         },
         "min_version": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaTlsProtocol"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fcbbc566d66382238fe6c2e507cb6e94ae657fb3da7cf6529406bcda1ca520e5"
         }
       }
     },
@@ -7606,11 +6399,7 @@
           ]
         },
         "use_mtls": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsDownstreamTlsValidationContext"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/fec253bc9fcce951c48eb397a0a9eb27b3319012f77289823f3e2fb9d6917495"
         }
       }
     },
@@ -7625,11 +6414,7 @@
           "format": "boolean"
         },
         "crl": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "no_crl": {
           "allOf": [
@@ -7639,11 +6424,7 @@
           ]
         },
         "trusted_ca": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "trusted_ca_url": {
           "type": "string",
@@ -7670,11 +6451,7 @@
       "type": "object",
       "properties": {
         "pools": {
-          "type": "array",
-          "maxItems": 8,
-          "items": {
-            "$ref": "#/components/schemas/viewsOriginPoolWithWeight"
-          }
+          "$ref": "./shared-schema-components.json#/df9a5b5be203a705f51590b81a47bd63e6bdb8b04cec22bee3889436185e61d1"
         }
       }
     },
@@ -7683,21 +6460,13 @@
       "x-ves-oneof-field-pool_choice": "[\"cluster\",\"pool\"]",
       "properties": {
         "cluster": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "endpoint_subsets": {
           "type": "object"
         },
         "pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "priority": {
           "type": "integer",
@@ -7722,24 +6491,7 @@
       }
     },
     "viewsSiteLocator": {
-      "type": "object",
-      "x-ves-oneof-field-choice": "[\"site\",\"virtual_site\"]",
-      "properties": {
-        "site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
-        },
-        "virtual_site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/4bd4c1b1d52f2942e9932bbb972b8279b00494f7c87a8c3940352d9229052eb9"
     },
     "viewsSiteNetwork": {
       "type": "string",
@@ -7769,11 +6521,7 @@
           ]
         },
         "snat_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsPrefixStringListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/a615a4cbfb6e72fcfa558845c2c8c66b8a5736da0e96c2761c8c58b0b4656448"
         }
       }
     },
@@ -7818,18 +6566,10 @@
           "type": "string"
         },
         "network": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteNetwork"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/3dd8db4025011a3980d9d021fbaa8a433ea8830953adf4c34298aba5b783bc62"
         },
         "site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -7839,11 +6579,7 @@
       "x-ves-oneof-field-port_choice": "[\"port\",\"port_ranges\",\"use_default_port\"]",
       "properties": {
         "advertise_on_public": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsAdvertisePublic"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/1542b44b52c6ff927ebc67b88ab78604118b43b960cb155d9b309c71f1173d57"
         },
         "port": {
           "type": "integer",
@@ -7899,24 +6635,7 @@
       }
     },
     "viewsWhereVK8SService": {
-      "type": "object",
-      "x-ves-oneof-field-choice": "[\"site\",\"virtual_site\"]",
-      "properties": {
-        "site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
-        },
-        "virtual_site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
-        }
-      }
+      "$ref": "./shared-schema-components.json#/4bd4c1b1d52f2942e9932bbb972b8279b00494f7c87a8c3940352d9229052eb9"
     },
     "viewsWhereVirtualNetwork": {
       "type": "object",
@@ -7944,11 +6663,7 @@
           "type": "string"
         },
         "virtual_network": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -7956,18 +6671,10 @@
       "type": "object",
       "properties": {
         "network": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsSiteNetwork"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/3dd8db4025011a3980d9d021fbaa8a433ea8830953adf4c34298aba5b783bc62"
         },
         "virtual_site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -7985,11 +6692,7 @@
           ]
         },
         "virtual_site": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },
@@ -8024,8 +6727,7 @@
       }
     },
     "viewscommon_securityJavaScriptLocation": {
-      "type": "string",
-      "enum": ["AFTER_HEAD", "AFTER_TITLE_END", "BEFORE_SCRIPT"]
+      "$ref": "./shared-schema-components.json#/428a82943fca2444b0b25e354a99ca665624edefb3f265646f96598414c62adb"
     },
     "viewscommon_wafDomainConfiguration": {
       "type": "object",
@@ -8045,16 +6747,7 @@
       }
     },
     "viewscommon_wafIPThreatCategoryListType": {
-      "type": "object",
-      "properties": {
-        "ip_threat_categories": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "$ref": "#/components/schemas/policyIPThreatCategory"
-          }
-        }
-      }
+      "$ref": "./shared-schema-components.json#/1afc03ad8f33c25ff4f8543a194cf1cde44d3726cfc1e6d8e6a0ad92266cd203"
     },
     "viewscommon_wafPolicyBasedChallenge": {
       "type": "object",
@@ -8079,11 +6772,7 @@
           ]
         },
         "captcha_challenge_parameters": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617"
         },
         "default_captcha_challenge_parameters": {
           "allOf": [
@@ -8114,18 +6803,10 @@
           ]
         },
         "js_challenge_parameters": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "malicious_user_mitigation": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "no_challenge": {
           "allOf": [
@@ -8196,11 +6877,7 @@
           ]
         },
         "advertise_on_public": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/viewsAdvertisePublic"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/1542b44b52c6ff927ebc67b88ab78604118b43b960cb155d9b309c71f1173d57"
         },
         "advertise_on_public_default_vip": {
           "allOf": [
@@ -8238,18 +6915,10 @@
           ]
         },
         "app_firewall": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "blocked_clients": {
-          "type": "array",
-          "maxItems": 256,
-          "items": {
-            "$ref": "#/components/schemas/common_wafSimpleClientSrcRule__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/6ecc3d7fe6e715b69520a35b9b7310055fd74bef2bb57e8c0b7b07890a40ff09"
         },
         "bot_defense": {
           "allOf": [
@@ -8273,11 +6942,7 @@
           ]
         },
         "captcha_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617"
         },
         "client_side_defense": {
           "allOf": [
@@ -8287,25 +6952,13 @@
           ]
         },
         "cookie_stickiness": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/routeCookieForHashing"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/85ff921efbec1e639a4b08801e5452cd527955cbd0af9d839775a433137ef592"
         },
         "cors_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaCorsPolicy"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/6d392477fc0c87c499f613ea4c767acf5cf9c042174ff848f6ee2ff314f5a95f"
         },
         "csrf_policy": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaCsrfPolicy"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/c053f658ed4b43747b329bb43fb00db739a7d3e43b0deeaaac88816d0e974a15"
         },
         "data_guard_rules": {
           "type": "array",
@@ -8336,11 +6989,7 @@
           ]
         },
         "default_route_pools": {
-          "type": "array",
-          "maxItems": 8,
-          "items": {
-            "$ref": "#/components/schemas/viewsOriginPoolWithWeight"
-          }
+          "$ref": "./shared-schema-components.json#/df9a5b5be203a705f51590b81a47bd63e6bdb8b04cec22bee3889436185e61d1"
         },
         "default_sensitive_data_policy": {
           "allOf": [
@@ -8448,21 +7097,10 @@
           ]
         },
         "domains": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 32,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
+          "$ref": "./shared-schema-components.json#/fbdc2f37a36a69fe23d6a76c22d55bbe6a260b27ca2c9dda0a6c2618acca79cf"
         },
         "enable_api_discovery": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/common_wafApiDiscoverySetting__ves_io_schema_views_cdn_loadbalancer"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/4fd57cfb75b2f8519b155a818d93a2dfa9787ed7fa9c746566f08809d43c2266"
         },
         "enable_challenge": {
           "allOf": [
@@ -8528,11 +7166,7 @@
           ]
         },
         "js_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "jwt_validation": {
           "allOf": [
@@ -8556,11 +7190,7 @@
           ]
         },
         "l7_ddos_action_js_challenge": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962"
         },
         "l7_ddos_protection": {
           "allOf": [
@@ -8647,11 +7277,7 @@
           ]
         },
         "ring_hash": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/http_loadbalancerHashPolicyListType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/b1fa2fed06f381ad90b37bf28f9863c887c40d8ec0f1a3c8f23c37b55da3e385"
         },
         "round_robin": {
           "allOf": [
@@ -8717,11 +7343,7 @@
           ]
         },
         "trusted_clients": {
-          "type": "array",
-          "maxItems": 256,
-          "items": {
-            "$ref": "#/components/schemas/common_wafSimpleClientSrcRule__ves_io_schema_views_cdn_loadbalancer"
-          }
+          "$ref": "./shared-schema-components.json#/6ecc3d7fe6e715b69520a35b9b7310055fd74bef2bb57e8c0b7b07890a40ff09"
         },
         "user_id_client_ip": {
           "allOf": [
@@ -8731,11 +7353,7 @@
           ]
         },
         "user_identification": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "waf_exclusion": {
           "allOf": [
@@ -8770,11 +7388,7 @@
       "type": "object",
       "properties": {
         "origin_pool": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         },
         "percent": {
           "allOf": [
@@ -8857,7 +7471,7 @@
         "endpoint_selection": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/clusterEndpointSelectionPolicy"
+              "$ref": "./shared-schema-components.json#/cde6927e019428e59e9e7bbf942efcfdeb1c3723e9899b2f81661c4db60cfe1f"
             }
           ]
         },
@@ -8882,7 +7496,7 @@
         "loadbalancer_algorithm": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/clusterLoadbalancerAlgorithm"
+              "$ref": "./shared-schema-components.json#/07ad8856748de7a038eed1fe19d676a0fd4d320330724aae7f5c53cdf15acb4f"
             }
           ]
         },
@@ -8915,23 +7529,19 @@
         "upstream_conn_pool_reuse_type": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/schemaUpstreamConnPoolReuseType"
+              "$ref": "./shared-schema-components.json#/746e052b9888a0d308af89eda06dab12af80bf9d8eb30d6d93e0606523afacc5"
             }
           ]
         },
         "use_tls": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/origin_poolUpstreamTlsParameters"
+              "$ref": "./shared-schema-components.json#/b0986be2e8f95821197ff673775967abe855c8f682509dd9f155fab6eb3386fa"
             }
           ]
         },
         "view_internal": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/schemaviewsObjectRefType"
-            }
-          ]
+          "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
         }
       }
     },

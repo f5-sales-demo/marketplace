@@ -2,7 +2,10 @@ import { expect, test } from 'bun:test';
 import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { createWireValidator } from '../../src/ce/wire-schema';
 import observed from '../fixtures/inside-listener-response.json';
-import fixture from '../fixtures/inside-listener-schema.json';
+import fixtureCompact from '../fixtures/inside-listener-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 const validate = createWireValidator(fixture.schemas, fixture.provenance.root);
 const input = {

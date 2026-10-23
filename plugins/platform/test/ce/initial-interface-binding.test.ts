@@ -6,9 +6,13 @@ import type { CePlatformService, CeStoredSiteBinding } from '../../src/ce/servic
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
 import { createF5xcCeV2StatusTool } from '../../src/tools/f5xc-ce-v2-status';
 import type { PlatformToolApi } from '../../src/types';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 import contract from '../fixtures/smsv2-contract-v7.json';
-import schema from '../fixtures/smsv2-create-schema.json';
-import replaceSchema from '../fixtures/smsv2-replace-schema.json';
+import schemaCompact from '../fixtures/smsv2-create-schema.json';
+import replaceSchemaCompact from '../fixtures/smsv2-replace-schema.json';
+
+const schema = resolveCeSchemaFixture(schemaCompact);
+const replaceSchema = resolveCeSchemaFixture(replaceSchemaCompact);
 
 type Constructor = new (
   commit: string,

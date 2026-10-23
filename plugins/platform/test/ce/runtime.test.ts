@@ -7,11 +7,16 @@ import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import { type CeStoredSiteBinding, createCePlatformService } from '../../src/ce/service';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
-import routingSchema from '../fixtures/aws-routing-schema.json';
+import routingSchemaCompact from '../fixtures/aws-routing-schema.json';
 import recordedInterfaces from '../fixtures/aws-site-publisher-links.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 import contract from '../fixtures/smsv2-contract-v7.json';
-import schema from '../fixtures/smsv2-create-schema.json';
-import replaceSchema from '../fixtures/smsv2-replace-schema.json';
+import schemaCompact from '../fixtures/smsv2-create-schema.json';
+import replaceSchemaCompact from '../fixtures/smsv2-replace-schema.json';
+
+const routingSchema = resolveCeSchemaFixture(routingSchemaCompact);
+const schema = resolveCeSchemaFixture(schemaCompact);
+const replaceSchema = resolveCeSchemaFixture(replaceSchemaCompact);
 
 type ContractFixtureConstructor = new (
   commit: string,

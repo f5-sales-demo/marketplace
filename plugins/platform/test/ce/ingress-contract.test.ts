@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { VerifiedIngressContract } from '../../src/ce/ingress-contract';
 import { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
-import fixture from '../fixtures/inside-listener-schema.json';
+import fixtureCompact from '../fixtures/inside-listener-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 const previousGithubToken = process.env.GH_TOKEN;
 beforeEach(() => {

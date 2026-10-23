@@ -1,8 +1,11 @@
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { buildAwsRouting, routingValidators } from '../../../platform/src/ce/wire-routing';
-import schema from '../../../platform/test/fixtures/aws-routing-schema.json';
+import schemaCompact from '../../../platform/test/fixtures/aws-routing-schema.json';
+import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
 import { collectAwsPowerBgpServices } from '../../src/ce/whole-site-power-bgp-services';
 import { connectPowerFixture } from './whole-site-power-connect-fixtures';
+
+const schema = resolveCeSchemaFixture(schemaCompact);
 
 export function bgpPowerFixture(engine: 'native' | 'terraform' = 'native') {
   const f = connectPowerFixture(engine, 'site-a'),

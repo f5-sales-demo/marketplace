@@ -1,8 +1,11 @@
 import { expect, it } from 'bun:test';
 import { buildWireSite, type WireSiteIntent } from '../../../platform/src/ce/wire-site';
-import schema from '../../../platform/test/fixtures/smsv2-create-schema.json';
+import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
+import schemaCompact from '../../../platform/test/fixtures/smsv2-create-schema.json';
 import { admitAwsTerraformSites } from '../../src/ce/terraform-admission';
 import { admissionFixture as fixture } from './terraform-admission-fixture';
+
+const schema = resolveCeSchemaFixture(schemaCompact);
 
 it('persists initial admission before a site mutation can fail', async () => {
   for (const staticAddressing of [false, true]) {

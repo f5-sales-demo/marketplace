@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
 import { buildAwsRouting, buildAzureRouting, routingValidators } from '../../src/ce/wire-routing';
-import fixture from '../fixtures/aws-routing-schema.json';
+import fixtureCompact from '../fixtures/aws-routing-schema.json';
+import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
+
+const fixture = resolveCeSchemaFixture(fixtureCompact);
 
 const validate = routingValidators(fixture.schemas.network, fixture.schemas.marketplace);
 const bindings = [0, 1].map((index) => ({
