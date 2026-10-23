@@ -22,9 +22,38 @@
       "azure": "5.0.0-uat.115",
       "terraform": "3.0.0-uat.115"
     },
-    "sourceCommit": null,
+    "sourceCommit": "1af3779d0189e7fcf861d1ea1e42a3745fd22311",
     "deliverable": false,
-    "archives": [],
+    "archives": [
+      {
+        "plugin": "platform",
+        "version": "7.0.0-uat.115",
+        "archive": "platform-7.0.0-uat.115.tar.gz",
+        "archiveSha256": "b1798a127e92bf499819cfbc58c52cbe19d8bc44a4b1f6975bc06a6223457120",
+        "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "aws",
+        "version": "3.0.0-uat.115",
+        "archive": "aws-3.0.0-uat.115.tar.gz",
+        "archiveSha256": "329707adbc9fc3529920a1617c0a73b584a9923edab96454b803052846408ffd",
+        "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "azure",
+        "version": "5.0.0-uat.115",
+        "archive": "azure-5.0.0-uat.115.tar.gz",
+        "archiveSha256": "f64f681c4f11362602600a8c61159b1d86ca8551206537a3da6e94b356e92a91",
+        "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "terraform",
+        "version": "3.0.0-uat.115",
+        "archive": "terraform-3.0.0-uat.115.tar.gz",
+        "archiveSha256": "98d0ad36ab9d2ddf7c0f513ebd48347e833bba51a86a0ad0054a34765d908501",
+        "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json"
+      }
+    ],
     "historicalCohort": {
       "stableBaseVersions": {
         "platform": "6.2.0",
@@ -18285,6 +18314,10 @@
         {
           "receipt": "docs/receipts/ce-uat109-readonly-matrix-current-evidence.json",
           "result": "16 plans, eight installed scopes and 6184 file comparisons passed; full live matrix remains pending"
+        },
+        {
+          "receipt": "docs/receipts/ce-uat115-archive-installed-evidence.json",
+          "result": "UAT115 exact archives, installed loader identity, rejection and producer downloads passed on both supported CLI versions; successful live teardown and complete installed feature matrix remain pending"
         }
       ]
     },
