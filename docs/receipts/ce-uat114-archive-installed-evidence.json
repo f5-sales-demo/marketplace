@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-23T12:40:30.346343+00:00",
+  "candidateRevision": 114,
+  "sourceCommit": "66ab0134cb405b1133a3db4d91398e71c062015f",
+  "archive": {
+    "schemaVersion": 1,
+    "candidateRevision": 114,
+    "sourceCommit": "66ab0134cb405b1133a3db4d91398e71c062015f",
+    "observedAt": "2026-10-23T12:34:12.883582+00:00",
+    "archives": [
+      {
+        "plugin": "platform",
+        "version": "7.0.0-uat.114",
+        "archive": "platform-7.0.0-uat.114.tar.gz",
+        "archiveSha256": "52e037ba16cec33fabb2e667287922effc0cee248618b24f18ff34a0860d9aa3",
+        "runtimeSha256": "6cc4db2f5987db747e313b2df390696e5df357e60bee4700557f4480fa003aa2",
+        "committedFiles": 272,
+        "fileManifestSha256": "4cfa82457727020f68a02a1d225d5fd7a45b29a359731893b399e9bbb12b8401"
+      },
+      {
+        "plugin": "aws",
+        "version": "3.0.0-uat.114",
+        "archive": "aws-3.0.0-uat.114.tar.gz",
+        "archiveSha256": "c0cb626e6c0279447d2b790db69c746012bfd6a84baa87d999016b6e57ea3e3c",
+        "runtimeSha256": "ab430d4f85fd29ec3f852ff576fa6c90a1716a9a07a3d6648a57f89c0862d9b1",
+        "committedFiles": 294,
+        "fileManifestSha256": "571978bd8a7fe66d91b0051ff28088a9dbadfb3b1ee5e872185ae5347c2293cb"
+      },
+      {
+        "plugin": "azure",
+        "version": "5.0.0-uat.114",
+        "archive": "azure-5.0.0-uat.114.tar.gz",
+        "archiveSha256": "646eb7791dcf8fb70dc022110c522f02675b57d8faadbc35ebf100936dc1f424",
+        "runtimeSha256": "220144678646bb400bf607954b12c37a7024a9d644463cbdebd5b54627c744d7",
+        "committedFiles": 179,
+        "fileManifestSha256": "55976925515c1bef5824404771483f3ca7b9ce761ae0d264fc3fa1d84b59a757"
+      },
+      {
+        "plugin": "terraform",
+        "version": "3.0.0-uat.114",
+        "archive": "terraform-3.0.0-uat.114.tar.gz",
+        "archiveSha256": "264cf0e1b83827315788a45aaa67a893f9ce4b1b0dc2dccc876d8f60c069ea68",
+        "runtimeSha256": "5406316c668091e23598c34c5ba970f1956b55c81bcc3287ff204b92e5f2e73b",
+        "committedFiles": 34,
+        "fileManifestSha256": "a3fc430baaeb3fa7f82a3347d61798bfd50e3dcef5701d2a0d24216ef78fc3d4"
+      }
+    ],
+    "allCommittedFilesCompared": 779,
+    "installedExtractedFilesVerified": true,
+    "producerApiPin": "v12.3.0",
+    "sourceCiQualified": false,
+    "liveLifecycleQualified": false,
+    "fullCeAcceptance": false,
+    "releaseReady": false
+  },
+  "sourcePluginImported": false,
+  "installedLaunchedTeardownQualified": false,
+  "fixtureLaunched": false,
+  "cloudMutationPerformed": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false,
+  "installedSmoke": {
+    "registeredTools": [
+      "aws_ce_apply",
+      "aws_ce_diagnose",
+      "aws_ce_failover",
+      "aws_ce_inventory",
+      "aws_ce_plan",
+      "aws_ce_power",
+      "aws_ce_status",
+      "aws_ce_teardown",
+      "aws_ce_upgrade",
+      "aws_cloud_init_analyze",
+      "aws_compute_discover",
+      "aws_ec2_describe_instances",
+      "aws_exec",
+      "aws_help",
+      "aws_s3_ls",
+      "aws_sts_whoami",
+      "az_account_show",
+      "az_activity_log_list",
+      "az_exec",
+      "az_group_list",
+      "az_help",
+      "az_resource_graph_query",
+      "az_resource_list",
+      "az_vm_list",
+      "azure_ce_apply",
+      "azure_ce_diagnose",
+      "azure_ce_failover",
+      "azure_ce_inventory",
+      "azure_ce_plan",
+      "azure_ce_status",
+      "azure_ce_teardown",
+      "azure_ce_upgrade",
+      "azure_cloud_init_analyze",
+      "azure_compute_discover",
+      "f5xc_ce_v2_bootstrap",
+      "f5xc_ce_v2_capabilities",
+      "f5xc_ce_v2_site",
+      "f5xc_ce_v2_status"
+    ],
+    "outcomes": [
+      {
+        "tool": "aws_ce_power",
+        "rejected": true
+      },
+      {
+        "tool": "aws_ce_apply",
+        "rejected": true
+      },
+      {
+        "tool": "azure_ce_apply",
+        "rejected": true
+      },
+      {
+        "tool": "f5xc_ce_v2_site",
+        "rejected": true
+      },
+      {
+        "tool": "f5xc_ce_v2_status",
+        "missingBindingUnknown": true,
+        "mutationGate": false
+      }
+    ],
+    "runtimeCases": [
+      {
+        "cliVersion": "23.9.3",
+        "extensionCount": 4,
+        "resolvedPathsVerified": true,
+        "installedPublicExecution": true,
+        "cloudMutationPerformed": false,
+        "producerObservedAt": "2026-10-23T12:34:56.686Z",
+        "smokeReceiptSha256": "bff5f01933df5c25c235e7f7175cdffd6e7765f90e9b5cefd15e3779ce17a986",
+        "producerReceiptSha256": "eac0a1ec4889cdb656b1c2c8e1df9c87ff1f9aaf7e9e7ff18c04e5c1b91740d2"
+      },
+      {
+        "cliVersion": "23.8.0",
+        "extensionCount": 4,
+        "resolvedPathsVerified": true,
+        "installedPublicExecution": true,
+        "cloudMutationPerformed": false,
+        "producerObservedAt": "2026-10-23T12:35:11.156Z",
+        "smokeReceiptSha256": "02a58535a5ca2a98b7286c8bff19c59399353525d51187855ff957461b719ce9",
+        "producerReceiptSha256": "8d6c071e2d0876f920097fa61d01e3e307b20c3bd2ba50e57fab616e4c0459fc"
+      }
+    ]
+  },
+  "installedProducer": {
+    "publicTool": "f5xc_ce_v2_capabilities",
+    "contractIdentity": "f5xc-smsv2-api/v1@12.3.0",
+    "contractCommit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+    "contractFingerprint": "sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+    "downloads": [
+      {
+        "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/openapi.json",
+        "sha256": "91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+        "bytes": 37162410
+      },
+      {
+        "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract.json",
+        "sha256": "050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08",
+        "bytes": 34144
+      },
+      {
+        "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract-manifest.json",
+        "sha256": "ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+        "bytes": 372
+      },
+      {
+        "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-evidence-receipt.json",
+        "sha256": "887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932",
+        "bytes": 4770
+      }
+    ],
+    "installedPublicConsumption": true,
+    "sourcePluginImported": false,
+    "tenantMutationPerformed": false,
+    "interfaceMapping1930Qualified": false,
+    "originalSampleFreshnessQualified": false,
+    "liveAcceptance": "not-established",
+    "fullCeAcceptance": false
+  }
+}

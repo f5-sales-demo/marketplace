@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 103,
+  "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+  "observedAt": "2026-10-22T11:22:26.620855+00:00",
+  "attemptStatus": "rejected-before-execution",
+  "publicError": "Stale AWS CE plan: revalidation rejected",
+  "changedRegionalCategories": ["regions"],
+  "changedCapacities": {
+    "vpcCapacity": {
+      "original": {
+        "limit": 6,
+        "used": 5,
+        "reusableOwned": 0,
+        "remaining": 1,
+        "source": "aws-cli-live"
+      },
+      "current": {
+        "limit": 6,
+        "used": 4,
+        "reusableOwned": 0,
+        "remaining": 2,
+        "source": "aws-cli-live"
+      }
+    },
+    "internetGatewayCapacity": {
+      "original": {
+        "limit": 6,
+        "used": 5,
+        "reusableOwned": 0,
+        "remaining": 1,
+        "source": "aws-cli-live"
+      },
+      "current": {
+        "limit": 6,
+        "used": 4,
+        "reusableOwned": 0,
+        "remaining": 2,
+        "source": "aws-cli-live"
+      }
+    },
+    "elasticIpCapacity": {
+      "original": {
+        "limit": 6,
+        "allocated": 4,
+        "reusableOwned": 0,
+        "available": 2,
+        "requiredAdditional": 1
+      },
+      "current": {
+        "limit": 6,
+        "allocated": 3,
+        "reusableOwned": 0,
+        "available": 3,
+        "requiredAdditional": 1
+      }
+    }
+  },
+  "executionCheckpointCount": 0,
+  "independentEmptyWitnesses": 8,
+  "cloudOwnershipInventoriesEmpty": true,
+  "logicalPhysicalSitesRegistrationsInterfacesTokensAbsent": true,
+  "finalNativePlanNoChanges": true,
+  "finalPlanSha256": "31d18e35b626b60805ad637cfb8e001c8c91d7424bf1d964c7844adcd8c1f533",
+  "remainingJwtOrPrivateKeyMatches": 0,
+  "cloudResourcesCreated": 0,
+  "upstreamTokensCreated": 0,
+  "noStartedCampaignAbsenceComplete": true,
+  "installationQualified": false,
+  "fullCeAcceptance": false
+}

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "candidateRevision": 108,
+  "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+  "qualification": {
+    "observedAt": "2026-10-23T01:09:24.375809+00:00",
+    "candidateRevision": 108,
+    "fixture": "ce-az108r-5a351e3d",
+    "qualificationResult": "failed",
+    "siteGlobalProvisionedVerified": true,
+    "siteProvisionedAt": "2026-10-23T01:04:40.822633+00:00",
+    "publicApplyContinuationExitCode": 124,
+    "expectedInterfaceBindingsAtDeadline": 0,
+    "sameOriginalInstallationDeadline": 1792717649.8256476,
+    "continuationWindowMs": 168729,
+    "completedTenantApiCallsDuringContinuation": 0,
+    "preAdmissionRediscoveryDelayObserved": true,
+    "continuationReturnedPublicOutcome": false,
+    "exactPublishedLiveQualifierExecuted": false,
+    "consumerRepinned": false,
+    "cleanupStartedAt": "2026-10-23T01:07:29.926672+00:00",
+    "independentCleanupAcceptance": false,
+    "nextHypothesis": "Start same-plan continuation after initial pending-registration outcome while initial CE boot proceeds, retaining original installation deadline and a separate mandatory PROVISIONED gate before qualification. Rediscovery and node boot can overlap; no acceptance reduction.",
+    "fullCeAcceptance": false
+  },
+  "independentCleanup": {
+    "candidateRevision": 108,
+    "fixtureCreationRevision": 108,
+    "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+    "observedAt": "2026-10-23T01:14:10.211834+00:00",
+    "sanitized": true,
+    "installedPublicTeardownPassed": true,
+    "exactCloudIdsAbsent": 13,
+    "resourceGroupAbsent": true,
+    "ownedAzureTagInventoryEmpty": true,
+    "logicalPhysicalSitesAbsent": true,
+    "registrationsEmpty": true,
+    "exactTokensAbsent": true,
+    "tokensRoutingIngressEmpty": true,
+    "matchingInterfaceObjectsAbsent": true,
+    "capturedInterfaceObjectCount": 0,
+    "capturedOwnedNicMacsAbsent": 3,
+    "interfaceProvisioningQualified": false,
+    "terraformStateEmptyVerifiedByOwningRunner": true,
+    "independentPreRetirementStateWitness": true,
+    "owningFinalDestroyNoChanges": true,
+    "preservedOrdinaryRefreshPlanProvenanceVerified": true,
+    "emptyStateIndependentlyObservedBeforeRetirement": true,
+    "newPostRetirementPlanRun": false,
+    "finalPlanSha256": "8ac92e6a4b9c2ca178f934e9a74527ded52bc3a771d5929b94ca7ef2bbf2348e",
+    "independentlyVerifiedOwningOrdinaryRefreshPlanProvenance": true,
+    "runnerArtifactsRetired": true,
+    "parentSensitiveArtifactsRetired": true,
+    "separateBootstrapCheckoutCreated": false,
+    "fullCleanupAcceptance": false,
+    "remainingCleanupEvidence": [
+      "Retire external private bootstrap, raw state and diagnostic staging after independent inventory verification"
+    ],
+    "fullCeAcceptance": false
+  },
+  "additionalIndependentCleanup": {
+    "observedAt": "2026-10-23T01:15:26.457924+00:00",
+    "fixture": "ce-az108r-5a351e3d",
+    "candidateRevision": 108,
+    "laterObservedInterfaceObjectsExact404": [
+      {
+        "interfaceUidSha256": "b7a7c552eb8cd72d104096624663576602e540db9b569fde0ddbe9d72f97a69f",
+        "exactNameGet404": true
+      },
+      {
+        "interfaceUidSha256": "c71ad0923d034e33b8b75534461c32a67515e8fde3ac215b9a961374b2390045",
+        "exactNameGet404": true
+      },
+      {
+        "interfaceUidSha256": "a89ba0068ae7f33dc219db9831e741b41d804a88f9f0225dcb89408f8f079c27",
+        "exactNameGet404": true
+      }
+    ],
+    "additionalExactInterfaceCount": 3,
+    "independentSensitiveMatchCount": 0,
+    "previousPrelaunchBaselineInterfaceCount": 0,
+    "fullCleanupAcceptance": true,
+    "fullCeAcceptance": false
+  },
+  "externalSensitiveRetirement": {
+    "observedAt": "2026-10-23T01:15:03.434564+00:00",
+    "candidateRevision": 108,
+    "independentCleanupPassed": true,
+    "sensitiveFilesRetired": 0,
+    "sensitiveBytesRetired": 0,
+    "retired": [],
+    "remainingJwtPrivateKeyOrContextCredentialMatches": 0,
+    "sharedContextPreserved": true,
+    "installedArchivesPreserved": true,
+    "fullCleanupAcceptance": true,
+    "fullCeAcceptance": false
+  },
+  "verifierCorrection": {
+    "observedAt": "2026-10-23T01:13:41.696817+00:00",
+    "initialVerifierFailurePreserved": true,
+    "failure": "Copied verifier required archive107 although fixture run and all four archives are108",
+    "change": "Bind verifier to fixture run candidateRevision108; correct fixtureCreationRevision metadata",
+    "frozenHarnessUnchanged": true,
+    "newVerifierSha256": "e6ac0bcdc16753930a4d895c87da3f7c0a9ec5863885d8b2b9245ffaf5f609cd",
+    "acceptanceChecksRemoved": false,
+    "fullCleanupAcceptance": false
+  },
+  "consumerProducerPin": "v12.2.0",
+  "consumerRepinned": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}

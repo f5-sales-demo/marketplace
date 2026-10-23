@@ -1,0 +1,2 @@
+export const AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE = 'Standard_B1s';
+export const AZURE_CE_WORKLOAD_FIXTURE_VCPUS = 1;
