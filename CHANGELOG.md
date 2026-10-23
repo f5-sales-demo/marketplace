@@ -133,8 +133,10 @@ and this project adheres to
   absence evidence. Installed qualification covers synthetic Compute identities
   and live owned XC cleanup; fresh installed native live cloud teardown and eight
   independent absence checks now pass on the narrow disposable single-node profile (#1559).
-- **`platform`** v6.3.5 registers shared CE storage/runtime service with portable
+- **`platform`** v6.3.6 registers shared CE storage/runtime service with portable
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
+  Terraform HA ownership observations now bind each of the three original node tokens,
+  allowing initial absence and partial cleanup reads while rejecting foreign or ambiguous nodes.
 - **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
   disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
   live saved-plan replay and fresh installed live typed Terraform teardown pass,

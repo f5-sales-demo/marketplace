@@ -11,13 +11,13 @@ const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true });
 });
-async function fixture() {
+async function fixture(names = ['node-a'], engine: 'terraform' | 'native' = 'terraform') {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'gcp-observe-')));
   roots.push(root);
   const owner = {
     deploymentId: 'demo-ce',
     provider: 'gcp' as const,
-    engine: 'terraform' as const,
+    engine,
     account: 'example-project',
     region: 'northamerica-northeast1',
   };
@@ -28,9 +28,9 @@ async function fixture() {
     deploymentName: owner.deploymentId,
     engine: owner.engine,
     platformContext: 'lab',
-    sites: [{ name: 'site-a', nodes: [{ name: 'node-a' }] }],
+    sites: [{ name: 'site-a', nodes: names.map((name) => ({ name })) }],
   };
-  await store.write('gcp-terraform-input-identity.json', {
+  await store.write(engine === 'terraform' ? 'gcp-terraform-input-identity.json' : 'gcp-deployment-intent.json', {
     intent,
     platformContext: 'lab',
     intentFingerprint: fingerprint(intent),
@@ -49,6 +49,99 @@ async function fixture() {
   };
   return { store, intent, contract };
 }
+it('observes all three original Terraform node tokens independently, including partial absence', async () => {
+  const names = ['node-a', 'node-b', 'node-c'];
+  const f = await fixture(names);
+  const calls: string[] = [];
+  let absent = true;
+  let foreignNode = false;
+  let drift = false;
+  const observer = await createGcpPlatformObservations(
+    f.store,
+    'lab',
+    'https://tenant.example.test',
+    'fixture',
+    f.contract,
+    (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(init?.method).toBe('GET');
+      const path = new URL(String(url)).pathname;
+      calls.push(path);
+      const token = path.includes('/tokens/');
+      const name = path.split('/').at(-1);
+      if (!name) throw new Error('Missing fixture object name');
+      if (absent || (token && name === 'node-b-token')) return Response.json({}, { status: 404 });
+      if (drift && token) {
+        const intent = { ...f.intent, sites: [{ name: 'site-a', nodes: [{ name: 'replacement' }] }] };
+        await f.store.write('gcp-terraform-input-identity.json', {
+          intent,
+          platformContext: 'lab',
+          intentFingerprint: fingerprint(intent),
+        });
+      }
+      return Response.json({
+        metadata: {
+          name,
+          namespace: 'system',
+          labels: {
+            'xcsh-deployment': 'demo-ce',
+            'xcsh-engine': 'terraform',
+            ...(token ? { 'xcsh-node': foreignNode ? 'node-a' : name.slice(0, -6) } : {}),
+          },
+        },
+        system_metadata: { uid: `${name}-uid` },
+        ...(token ? { spec: { site_name: 'site-a', content: 'private-bootstrap-fixture' } } : {}),
+      });
+    }) as unknown as typeof fetch,
+  );
+  if (!observer.teardown) throw new Error('Missing teardown observation');
+  for (const name of names) {
+    const result = await observer.teardown('site-a', `${name}-token`);
+    expect(result.siteAbsent).toBe(true);
+    expect(result.tokenAbsent).toBe(true);
+  }
+  expect(calls).toHaveLength(6);
+  await expect(observer.teardown('site-a', 'foreign-token')).rejects.toThrow('binding');
+  expect(calls).toHaveLength(6);
+  absent = false;
+  const teardown = observer.teardown;
+  const rows = await Promise.all(names.map((name) => teardown('site-a', `${name}-token`)));
+  expect(rows.map((row) => row.tokenAbsent)).toEqual([false, true, false]);
+  expect(rows[0].tokenIdentitySha256).not.toBe(rows[2].tokenIdentitySha256);
+  expect(rows.every((row) => row.siteIdentitySha256 === rows[0].siteIdentitySha256)).toBe(true);
+  expect(JSON.stringify(rows)).not.toContain('private-bootstrap-fixture');
+  expect(JSON.stringify(rows)).not.toContain('token-uid');
+  foreignNode = true;
+  await expect(observer.teardown('site-a', 'node-c-token')).rejects.toThrow('token binding');
+  foreignNode = false;
+  drift = true;
+  await expect(observer.teardown('site-a', 'node-c-token')).rejects.toThrow('intent changed');
+});
+
+it('rejects unsupported or ambiguous teardown node sets before any HTTP read', async () => {
+  for (const [names, engine] of [
+    [['node-a', 'node-b'], 'terraform'],
+    [['node-a', 'node-b', 'node-c', 'node-d'], 'terraform'],
+    [['node-a', 'node-a', 'node-c'], 'terraform'],
+    [['node-a', 'node-b', 'node-c'], 'native'],
+  ] as const) {
+    const f = await fixture([...names], engine);
+    let calls = 0;
+    const observer = await createGcpPlatformObservations(
+      f.store,
+      'lab',
+      'https://tenant.example.test',
+      'fixture',
+      f.contract,
+      (async () => {
+        calls++;
+        return Response.json({}, { status: 404 });
+      }) as unknown as typeof fetch,
+    );
+    if (!observer.teardown) throw new Error('Missing teardown observation');
+    await expect(observer.teardown('site-a', 'node-a-token')).rejects.toThrow('binding');
+    expect(calls).toBe(0);
+  }
+});
 it('uses only scoped GET paths and rechecks live ownership before private observations', async () => {
   const f = await fixture();
   const calls: string[] = [];

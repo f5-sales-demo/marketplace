@@ -367,12 +367,18 @@ export async function createGcpPlatformObservations(
       if (!contract.singleNodeLifecycle) throw new Error('Qualified GCP teardown observation unavailable');
       const current = await loadIntent();
       const sites = current.sites.filter((s) => s.name === site);
-      const node = sites[0]?.nodes?.[0];
+      const nodes = sites[0]?.nodes;
+      const matches = nodes?.filter((node) => tokenName === `${node.name}-token`);
+      const node = matches?.[0];
       if (
         fingerprint(current) !== fingerprint(original) ||
         !/^[a-z][a-z0-9-]{0,62}$/.test(site) ||
         sites.length !== 1 ||
-        sites[0].nodes?.length !== 1 ||
+        !Array.isArray(nodes) ||
+        !(nodes.length === 1 || (store.owner.engine === 'terraform' && nodes.length === 3)) ||
+        new Set(nodes.map((node) => node.name)).size !== nodes.length ||
+        nodes.some((node) => !/^[a-z][a-z0-9-]{0,56}$/.test(node.name)) ||
+        matches?.length !== 1 ||
         !node ||
         tokenName !== `${node.name}-token` ||
         !/^[a-z][a-z0-9-]{0,62}$/.test(tokenName)
