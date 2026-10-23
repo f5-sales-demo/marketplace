@@ -21957,19 +21957,31 @@ async function prepareAwsTerraformTeardown(input, runtime, contract, storage, si
     ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage))
   )
     return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
+  const registered = async () => {
+    const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
+    const plan = compileAwsTerraformTeardown(input, drain, retirement);
+    await storage.write(`${plan.planId}.json`, plan);
+    return plan;
+  };
   if (
     workflow !== undefined &&
     admission !== undefined &&
     ['network-pending', 'registration-pending'].includes(String(object34(workflow).stage)) &&
-    Array.isArray(object34(admission).admittedSites) &&
-    (object34(admission).admittedSites.length === 0 ||
-      !(await readdir7(storage.directory)).some((file) => file.startsWith('terraform-registration-')))
-  )
-    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
-  const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
-  const plan = compileAwsTerraformTeardown(input, drain, retirement);
-  await storage.write(`${plan.planId}.json`, plan);
-  return plan;
+    Array.isArray(object34(admission).admittedSites)
+  ) {
+    if (object34(admission).admittedSites.length === 0)
+      return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+    if (!(await readdir7(storage.directory)).some((file) => file.startsWith('terraform-registration-'))) {
+      try {
+        return await registered();
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'Fresh platform teardown inventory is unavailable')
+          throw error;
+        return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+      }
+    }
+  }
+  return registered();
 }
 var object34 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import ledger from '../benchmarks/ce-uat-ledger.json';
+import { historicalEvidenceSha256, resolveHistoricalEvidence } from './ce-uat-history';
 import { ceUatReadiness } from './check-ce-uat-readiness';
 
 test('blocks delivery of the current incomplete 288-feature cohort', () => {
@@ -54,5 +55,31 @@ test('whole-site power coverage cannot be removed or duplicated to claim readine
     if (duplicate) row.additionalPublicInterfaces.push(row.additionalPublicInterfaces[0]);
     else delete row.additionalPublicInterfaces;
     expect(() => ceUatReadiness(candidate)).toThrow('power qualification mapping');
+  }
+});
+
+test('all 288 UAT113 histories reconstruct the independently captured original snapshot', () => {
+  const snapshot = Object.fromEntries(
+    ledger.rows.map((row) => [
+      row.id,
+      row.historicalEvidence
+        .map((entry) => resolveHistoricalEvidence(ledger, entry))
+        .find((entry) => entry.candidateRevision === 113),
+    ]),
+  );
+  expect(historicalEvidenceSha256(snapshot)).toBe('60916df04a67d30752eff54f9b47b2fc8a4c580cf019564608870cc560cd8087');
+  expect(new Set(Object.keys(ledger.historicalEvidenceStates.states)).size).toBe(3);
+});
+
+test('missing, changed and malformed history references block readiness', () => {
+  for (const mode of ['missing', 'changed', 'augmented', 'cycle']) {
+    const candidate = structuredClone(ledger);
+    const reference = candidate.rows[0].historicalEvidence.at(-1) as { evidenceStateSha256: string };
+    const states = candidate.historicalEvidenceStates.states as Record<string, Record<string, unknown>>;
+    if (mode === 'missing') delete states[reference.evidenceStateSha256];
+    if (mode === 'changed') states[reference.evidenceStateSha256].status = 'invented-success';
+    if (mode === 'augmented') Object.assign(reference, { status: 'invented-success' });
+    if (mode === 'cycle') states[reference.evidenceStateSha256] = { ...reference };
+    expect(() => ceUatReadiness(candidate)).toThrow(/historical|Historical/);
   }
 });

@@ -298,19 +298,33 @@ export async function prepareAwsTerraformTeardown(
     ['network-pending', 'registration-pending'].includes(String(object(workflow).stage))
   )
     return prepareAwsFoundationTeardown(input, runtime, contract, storage, signal);
+  const registered = async () => {
+    const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
+    const plan = compileAwsTerraformTeardown(input, drain, retirement);
+    await storage.write(`${plan.planId}.json`, plan);
+    return plan;
+  };
   if (
     workflow !== undefined &&
     admission !== undefined &&
     ['network-pending', 'registration-pending'].includes(String(object(workflow).stage)) &&
-    Array.isArray(object(admission).admittedSites) &&
-    ((object(admission).admittedSites as unknown[]).length === 0 ||
-      // A launch checkpoint alone is not registration. Approval attempts retain
-      // the registered teardown contract; pending inventory rejects live registrations.
-      !(await readdir(storage.directory)).some((file) => file.startsWith('terraform-registration-')))
-  )
-    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
-  const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
-  const plan = compileAwsTerraformTeardown(input, drain, retirement);
-  await storage.write(`${plan.planId}.json`, plan);
-  return plan;
+    Array.isArray(object(admission).admittedSites)
+  ) {
+    if ((object(admission).admittedSites as unknown[]).length === 0)
+      return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+    if (!(await readdir(storage.directory)).some((file) => file.startsWith('terraform-registration-'))) {
+      // Launch does not establish registration, and registration can also occur
+      // without an approval journal. Qualify the existing registered contract first.
+      try {
+        return await registered();
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'Fresh platform teardown inventory is unavailable')
+          throw error;
+        // An unavailable registered inventory grants no deletion authority. The
+        // separate pending contract must prove every current pre-registration identity.
+        return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+      }
+    }
+  }
+  return registered();
 }

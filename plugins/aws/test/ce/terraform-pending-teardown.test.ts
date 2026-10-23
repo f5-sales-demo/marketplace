@@ -15,6 +15,7 @@ afterEach(async () => {
 });
 async function fixture() {
   const initial = foundationPlan();
+  initial.intent.routing.profile = 'direct-eni';
   initial.intent.topology = { nodeCount: 1, sites: [initial.intent.topology.sites[0]] };
   initial.intent.interfaces = initial.intent.interfaces.map((row) => ({ ...row, subnets: row.subnets.slice(0, 1) }));
   const { planId: _id, planSha256: _sha, ...draft } = initial;
@@ -23,6 +24,8 @@ async function fixture() {
     deploymentName: initial.intent.deploymentName,
     accountId: initial.intent.accountId,
     region: initial.intent.region,
+    routing: { profile: initial.intent.routing.profile },
+    actions: [],
   };
   const sha = canonicalSha256(normalized),
     base = { ...normalized, planId: `aws-ce-${sha.slice(0, 24)}`, planSha256: sha };
@@ -333,6 +336,16 @@ test('pending teardown preserves the single non-HA mutation boundary', async () 
     deploymentName: initial.intent.deploymentName,
     accountId: initial.intent.accountId,
     region: initial.intent.region,
+    routing: { profile: initial.intent.routing.profile },
+    actions: [0, 1].map((index) => ({
+      id: `peer-1-${index}`,
+      phase: 'routing' as const,
+      kind: 'tgw-connect-peer-create' as const,
+      description: 'peer',
+      node: 1,
+      mutates: true,
+      destructive: false,
+    })),
   };
   const sha = canonicalSha256(normalized),
     base = { ...normalized, planId: `aws-ce-${sha.slice(0, 24)}`, planSha256: sha };
@@ -714,4 +727,22 @@ test('launched pending retirement rechecks approval provenance and registration 
     expect(f.mutations).toHaveLength(0);
     await expect(f.storage.read('aws-terraform-lifecycle-retirement.json')).rejects.toMatchObject({ code: 'ENOENT' });
   }
+});
+
+test('launch completion without an approval journal preserves independently verified registered teardown', async () => {
+  const f = await launchedFixture();
+  const runtime = {
+    ...f.runtime,
+    teardownInventory: async () => ({
+      ...(await f.runtime.pendingAdmissionInventory()),
+      sites: [{ siteName: f.binding.siteName, siteUid: 'logical-uid', physicalSiteUid: 'physical-uid' }],
+    }),
+    ingress: () => ({}),
+    originTeardown: () => ({}),
+    preRegistrationInventory: async () => ({ status: 'unknown' }),
+  };
+  const plan = await prepareAwsTerraformTeardown(f.base, runtime as never, f.contract as never, f.storage);
+  expect(plan.kind).toBe('aws-ce-terraform-teardown');
+  expect(plan.retirement[0].physicalSiteUid).toBe('physical-uid');
+  expect(f.mutations).toHaveLength(0);
 });

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { resolveHistoricalEvidence } from './ce-uat-history';
 
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => {
@@ -67,6 +68,11 @@ export function ceUatReadiness(value: unknown) {
   );
   const blockers: string[] = [];
   for (const raw of ledger.rows) {
+    const historical = object(raw).historicalEvidence;
+    if (historical !== undefined) {
+      if (!Array.isArray(historical)) throw Error('Malformed historical evidence collection');
+      for (const entry of historical) resolveHistoricalEvidence(ledger, entry);
+    }
     const row = object(raw);
     if (typeof row.id !== 'string' || !expected.delete(row.id))
       throw Error('Duplicate or unexpected CE UAT feature row');

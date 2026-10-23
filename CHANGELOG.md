@@ -1,5 +1,10 @@
 # Changelog
 
+## CE suite UAT115
+
+- Preserve independently verified registered teardown when registration completes without an approval journal. If registered inventory is unavailable, the separate launched pre-registration contract still requires complete current evidence before retirement.
+- Advance the coordinated cohort after this selection regression; preserve UAT114 archive and installed receipts as history.
+
 ## CE suite UAT114
 
 - Prepare ownership-bound AWS Terraform retirement after a single-node launch and before registration, requiring exact launch and logical-site journals plus fresh pre-registration inventory.
