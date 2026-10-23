@@ -14,7 +14,7 @@
       "terraform": "2.3.1"
     },
     "runtimePeer": "23.8.0",
-    "testedRuntimeVersions": [],
+    "testedRuntimeVersions": ["23.8.0", "23.9.3"],
     "revision": 118,
     "versions": {
       "platform": "7.0.0-uat.118",
@@ -22,9 +22,38 @@
       "azure": "5.0.0-uat.118",
       "terraform": "3.0.0-uat.118"
     },
-    "sourceCommit": "pending-source-commit",
+    "sourceCommit": "e47d1057567a0d11440b762fa4fae91a87acac87",
     "deliverable": false,
-    "archives": [],
+    "archives": [
+      {
+        "plugin": "platform",
+        "version": "7.0.0-uat.118",
+        "archive": "platform-7.0.0-uat.118.tar.gz",
+        "archiveSha256": "75876650a2fa4944183fe060cea686348236e818f65edbd869a432ba40c35a73",
+        "receipt": "docs/receipts/ce-uat118-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "aws",
+        "version": "3.0.0-uat.118",
+        "archive": "aws-3.0.0-uat.118.tar.gz",
+        "archiveSha256": "ea850033f8d72454fb49ea48ffa52fdce4120876d4d5a76393ef6443a5208564",
+        "receipt": "docs/receipts/ce-uat118-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "azure",
+        "version": "5.0.0-uat.118",
+        "archive": "azure-5.0.0-uat.118.tar.gz",
+        "archiveSha256": "40617c182e345bb1735769bd16ee6d594aa972dac6e3228c3cc73aaebba28fc8",
+        "receipt": "docs/receipts/ce-uat118-archive-installed-evidence.json"
+      },
+      {
+        "plugin": "terraform",
+        "version": "3.0.0-uat.118",
+        "archive": "terraform-3.0.0-uat.118.tar.gz",
+        "archiveSha256": "96d131e34658c443350a85814740ee8a178280912113a2fa8ab8743b393f967d",
+        "receipt": "docs/receipts/ce-uat118-archive-installed-evidence.json"
+      }
+    ],
     "historicalCohort": {
       "stableBaseVersions": {
         "platform": "6.2.0",
