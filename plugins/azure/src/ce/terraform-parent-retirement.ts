@@ -162,6 +162,7 @@ export async function retireAzureTerraformParentArtifacts(
     'platform-drain-progress.json',
     'platform-drain-receipt.json',
     `site-binding-${base.siteName}.json`,
+    `public-site-${base.siteName}.json`,
   ]);
   const tokens = new Map(
     teardown.retirement.flatMap((site) =>
@@ -281,6 +282,23 @@ export async function retireAzureTerraformParentArtifacts(
         !/^terraform-(?:authorization-[a-f0-9]{64}|admission-plan-node-[1-3])\.json$/.test(name)
       )
         throw Error('Unknown Azure parent artifact blocks retirement');
+      if (name === `public-site-${base.siteName}.json`) {
+        // Public replacement journals belong to this exact site and owning store.
+        // External absence and runner retirement were verified before inventory.
+        const value = object(await store.read(name)),
+          record = object(value.record);
+        if (
+          JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(['planId', 'record']) ||
+          JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(['phase', 'resourceVersion', 'uid']) ||
+          typeof value.planId !== 'string' ||
+          !/^f5xc-ce-v2-[a-f0-9]{24}$/.test(value.planId) ||
+          !['replace-prepared', 'replace-observed'].includes(String(record.phase)) ||
+          record.uid !== teardown.retirement.find((site) => site.siteName === base.siteName)?.siteUid ||
+          typeof record.resourceVersion !== 'string' ||
+          !record.resourceVersion
+        )
+          throw Error('Azure public site replacement journal provenance differs');
+      }
       if (name === 'azure-terraform-cloud-destroy-reconciliation.json') {
         // Historical reconciliation is staging only; terminal cleanup separately requires fresh absence.
         const value = object(await store.read(name));

@@ -20,6 +20,11 @@ afterEach(async () => {
 for (const fault of [
   'none',
   'unknown',
+  'public-update',
+  'public-update-prepared',
+  'foreign-public-update',
+  'malformed-public-update',
+  'foreign-public-update-plan',
   'foreign-runner',
   'changed-artifact',
   'interrupted',
@@ -114,11 +119,29 @@ for (const fault of [
         observedAt: fault === 'malformed-reconciliation' ? 'invalid' : new Date().toISOString(),
       });
     }
+    if (fault.includes('public-update')) {
+      await store.write(`public-site-${base.siteName}.json`, {
+        planId: fault === 'foreign-public-update-plan' ? 'foreign-plan' : `f5xc-ce-v2-${'d'.repeat(24)}`,
+        record: {
+          phase:
+            fault === 'malformed-public-update'
+              ? 'unrecognized'
+              : fault === 'public-update-prepared'
+                ? 'replace-prepared'
+                : 'replace-observed',
+          uid: fault === 'foreign-public-update' ? 'foreign-site-uid' : 'site-uid',
+          resourceVersion: 'fixture-resource-version',
+        },
+      });
+    }
     if (fault === 'unknown') await store.write('foreign.json', { jwt: 'unowned' });
     const run = (signal?: AbortSignal) => retireAzureTerraformParentArtifacts(base, teardown, evidence, store, signal);
     if (
       [
         'unknown',
+        'foreign-public-update',
+        'malformed-public-update',
+        'foreign-public-update-plan',
         'foreign-runner',
         'foreign-reconciliation',
         'malformed-reconciliation',
@@ -146,6 +169,7 @@ for (const fault of [
     }
     const receipt = await run();
     expect(receipt.status).toBe('deployment-artifacts-retired');
+    expect(await readdir(store.directory)).not.toContain(`public-site-${base.siteName}.json`);
     expect(await readdir(store.directory)).not.toContain('terraform-workflow.json');
     expect(await readdir(store.directory)).not.toContain('token-one.json');
     expect(await readdir(store.directory)).not.toContain('azure-terraform-cloud-destroy-reconciliation.json');
