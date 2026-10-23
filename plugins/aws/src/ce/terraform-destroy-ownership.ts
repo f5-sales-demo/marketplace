@@ -117,6 +117,11 @@ export async function verifyAwsTerraformDestroyOwnership(
     receipt.backendIdentity !== `local:${intent.deploymentName}` ||
     (receipt.actionInvocations?.length ?? 0) > 0 ||
     !Array.isArray(receipt.changes) ||
+    (!receipt.changes.length &&
+      (receipt.noChanges !== true ||
+        [receipt.planSha256, receipt.configurationSha256, receipt.providerLockSha256].some(
+          (value) => typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value),
+        ))) ||
     receipt.changes.some(
       (change) =>
         change.actions.join(',') !== 'delete' ||
@@ -428,6 +433,19 @@ export async function verifyAwsTerraformDestroyOwnership(
     deploymentId: intent.deploymentName,
     sourcePlanSha256: plan.planSha256,
     terraformPlanSha256: receipt.planSha256,
+    ...(!states.length
+      ? {
+          emptyState: {
+            schemaVersion: 1 as const,
+            source: 'owning-empty-destroy-plan' as const,
+            terraformPlanSha256: receipt.planSha256,
+            configurationSha256: receipt.configurationSha256,
+            providerLockSha256: receipt.providerLockSha256,
+            backendIdentity: receipt.backendIdentity,
+            resourceProjectionSha256: canonicalSha256({ 'aws_vpc.ce': null }),
+          },
+        }
+      : {}),
     resources: [...live.entries()]
       .map(([id, row]) => ({ type: row.type, id }))
       .concat([...volumeIds].map((id) => ({ type: 'aws_ebs_volume', id }))),

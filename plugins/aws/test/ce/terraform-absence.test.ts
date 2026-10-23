@@ -336,3 +336,48 @@ test('absence collector recognizes deleted and retained NLB ARNs separately', as
   expect(expanded.status).toBe('pending');
   expect(expanded.remaining).toContain(unexpected);
 });
+
+function emptyFixture(mode = 'absent') {
+  const f = fixture(mode);
+  const { sha256: _sha, ...material } = f.inventory;
+  const emptyState = {
+    schemaVersion: 1 as const,
+    source: 'owning-empty-destroy-plan' as const,
+    terraformPlanSha256: material.terraformPlanSha256,
+    configurationSha256: 'b'.repeat(64),
+    providerLockSha256: 'c'.repeat(64),
+    backendIdentity: `local:${f.plan.intent.deploymentName}`,
+    resourceProjectionSha256: canonicalSha256({ 'aws_vpc.ce': null }),
+  };
+  const inventory = { ...material, resources: [], tgwEdges: [], emptyState };
+  return { ...f, inventory: { ...inventory, sha256: canonicalSha256(inventory) } };
+}
+test('verified empty destroy inventory still requires current account and deployment-wide absence', async () => {
+  for (const mode of ['absent', 'orphan', 'partial', 'forbidden', 'wrong-account']) {
+    const f = emptyFixture(mode);
+    const result = await collectAwsTerraformAbsence(f.plan, f.inventory, f.api);
+    expect(result.status).toBe(mode === 'absent' ? 'absent-or-retired' : mode === 'orphan' ? 'pending' : 'unknown');
+    if (mode === 'absent') {
+      expect(f.calls).toEqual(['get-caller-identity', 'describe-tags', 'get-resources']);
+      expect(result.resourceCount).toBe(0);
+    }
+  }
+});
+test('empty inventory provenance rejects missing, altered, extended and inconsistent bindings before reads', async () => {
+  const f = emptyFixture();
+  for (const emptyState of [
+    undefined,
+    { ...f.inventory.emptyState, terraformPlanSha256: 'd'.repeat(64) },
+    { ...f.inventory.emptyState, backendIdentity: 'local:other' },
+    { ...f.inventory.emptyState, configurationSha256: '' },
+    { ...f.inventory.emptyState, resourceProjectionSha256: 'd'.repeat(64) },
+    { ...f.inventory.emptyState, extra: true },
+  ]) {
+    const { sha256: _sha, ...material } = f.inventory;
+    const altered = { ...material, emptyState };
+    await expect(
+      collectAwsTerraformAbsence(f.plan, { ...altered, sha256: canonicalSha256(altered) }, f.api),
+    ).rejects.toThrow();
+  }
+  expect(f.calls).toEqual([]);
+});

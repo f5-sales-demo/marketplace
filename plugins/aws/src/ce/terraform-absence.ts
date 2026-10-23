@@ -112,6 +112,24 @@ const ec2ArnTypes: Record<string, string> = {
   'transit-gateway-connect-peer': 'aws_ec2_transit_gateway_connect_peer',
   'transit-gateway-route-table': 'aws_ec2_transit_gateway_route_table',
 };
+/** The owning saved destroy plan explicitly proved an empty original state. */
+function verifiedEmptyState(inventory: AwsTerraformRetirementInventory) {
+  const proof = inventory.emptyState;
+  return (
+    proof?.schemaVersion === 1 &&
+    proof.source === 'owning-empty-destroy-plan' &&
+    proof.terraformPlanSha256 === inventory.terraformPlanSha256 &&
+    proof.backendIdentity === `local:${inventory.deploymentId}` &&
+    [proof.configurationSha256, proof.providerLockSha256].every(
+      (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+    ) &&
+    proof.resourceProjectionSha256 === canonicalSha256({ 'aws_vpc.ce': null }) &&
+    Object.keys(proof).sort().join(',') ===
+      'backendIdentity,configurationSha256,providerLockSha256,resourceProjectionSha256,schemaVersion,source,terraformPlanSha256' &&
+    Array.isArray(inventory.tgwEdges) &&
+    inventory.tgwEdges.length === 0
+  );
+}
 /** Fresh cloud evidence for captured identities AND unexpected deployment-tagged resources.
  * Absence of a route table, subnet, or allocation proves its owned child route/association cannot remain.
  * Externally referenced TGW table edges are checked separately, including table absence.
@@ -138,7 +156,7 @@ export async function collectAwsTerraformAbsence(
     !/^[a-f0-9]{64}$/.test(inventory.terraformPlanSha256) ||
     canonicalSha256(material) !== sha256 ||
     !Array.isArray(inventory.resources) ||
-    !inventory.resources.length ||
+    (inventory.resources.length ? inventory.emptyState !== undefined : !verifiedEmptyState(inventory)) ||
     inventory.resources.length > 1000 ||
     !Array.isArray(inventory.tgwEdges) ||
     inventory.tgwEdges.length > 1000

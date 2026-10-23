@@ -14821,6 +14821,23 @@ var init_aws_ce_inventory = __esm(() => {
 });
 
 // src/ce/terraform-absence.ts
+function verifiedEmptyState(inventory) {
+  const proof = inventory.emptyState;
+  return (
+    proof?.schemaVersion === 1 &&
+    proof.source === 'owning-empty-destroy-plan' &&
+    proof.terraformPlanSha256 === inventory.terraformPlanSha256 &&
+    proof.backendIdentity === `local:${inventory.deploymentId}` &&
+    [proof.configurationSha256, proof.providerLockSha256].every(
+      (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+    ) &&
+    proof.resourceProjectionSha256 === canonicalSha256({ 'aws_vpc.ce': null }) &&
+    Object.keys(proof).sort().join(',') ===
+      'backendIdentity,configurationSha256,providerLockSha256,resourceProjectionSha256,schemaVersion,source,terraformPlanSha256' &&
+    Array.isArray(inventory.tgwEdges) &&
+    inventory.tgwEdges.length === 0
+  );
+}
 async function collectAwsTerraformAbsence(source, input, raw, signal) {
   const plan = structuredClone(source),
     inventory = structuredClone(input);
@@ -14838,7 +14855,7 @@ async function collectAwsTerraformAbsence(source, input, raw, signal) {
     !/^[a-f0-9]{64}$/.test(inventory.terraformPlanSha256) ||
     canonicalSha256(material) !== sha256 ||
     !Array.isArray(inventory.resources) ||
-    !inventory.resources.length ||
+    (inventory.resources.length ? inventory.emptyState !== undefined : !verifiedEmptyState(inventory)) ||
     inventory.resources.length > 1000 ||
     !Array.isArray(inventory.tgwEdges) ||
     inventory.tgwEdges.length > 1000
@@ -15254,6 +15271,11 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     receipt.backendIdentity !== `local:${intent.deploymentName}` ||
     (receipt.actionInvocations?.length ?? 0) > 0 ||
     !Array.isArray(receipt.changes) ||
+    (!receipt.changes.length &&
+      (receipt.noChanges !== true ||
+        [receipt.planSha256, receipt.configurationSha256, receipt.providerLockSha256].some(
+          (value) => typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value),
+        ))) ||
     receipt.changes.some(
       (change) =>
         change.actions.join(',') !== 'delete' ||
@@ -15567,6 +15589,19 @@ async function verifyAwsTerraformDestroyOwnership(plan, receipt, session, rawApi
     deploymentId: intent.deploymentName,
     sourcePlanSha256: plan.planSha256,
     terraformPlanSha256: receipt.planSha256,
+    ...(!states.length
+      ? {
+          emptyState: {
+            schemaVersion: 1,
+            source: 'owning-empty-destroy-plan',
+            terraformPlanSha256: receipt.planSha256,
+            configurationSha256: receipt.configurationSha256,
+            providerLockSha256: receipt.providerLockSha256,
+            backendIdentity: receipt.backendIdentity,
+            resourceProjectionSha256: canonicalSha256({ 'aws_vpc.ce': null }),
+          },
+        }
+      : {}),
     resources: [...live.entries()]
       .map(([id, row]) => ({ type: row.type, id }))
       .concat([...volumeIds].map((id) => ({ type: 'aws_ebs_volume', id }))),

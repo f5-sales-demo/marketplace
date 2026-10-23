@@ -358,3 +358,24 @@ it('captures exact resources and parent edges for independent post-destroy inven
   const { sha256, ...material } = proof.inventory;
   expect(sha256).toBe(canonicalSha256(material));
 });
+
+it('captures empty-state provenance only from an exact no-change destroy plan and null original projection', async () => {
+  const f = fixture();
+  f.receipt.changes = [];
+  f.receipt.noChanges = true;
+  f.receipt.providerLockSha256 = 'e'.repeat(64);
+  f.session.readPlannedResourceFields = async () => ({ 'aws_vpc.ce': null });
+  const result = await verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {});
+  expect(result.inventory.resources).toEqual([]);
+  expect(result.inventory.emptyState).toEqual({
+    schemaVersion: 1,
+    source: 'owning-empty-destroy-plan',
+    terraformPlanSha256: f.receipt.planSha256,
+    configurationSha256: f.receipt.configurationSha256,
+    providerLockSha256: f.receipt.providerLockSha256,
+    backendIdentity: f.receipt.backendIdentity,
+    resourceProjectionSha256: canonicalSha256({ 'aws_vpc.ce': null }),
+  });
+  f.receipt.noChanges = false;
+  await expect(verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow();
+});
