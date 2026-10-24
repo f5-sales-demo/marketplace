@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { createWireValidator } from './wire-schema';
 
@@ -14,6 +15,127 @@ export interface AwsGreBinding {
 export interface AzureSloBinding {
   node: string;
   interfaceName: string;
+}
+export interface AzureRelaySloBinding extends AzureSloBinding {
+  role: 'slo';
+}
+export interface AzureRelayPeer {
+  name: string;
+  address: string;
+  asn: number;
+}
+
+/** Translate observer-supplied SLO/relay identities into ordinary external BGP.
+ * Cloud ownership, current link evidence and FRR transit require separate runtime gates.
+ */
+export function buildAzureRelayRouting(
+  siteName: string,
+  localAsn: number,
+  bindings: AzureRelaySloBinding[],
+  relays: AzureRelayPeer[],
+  validate: (kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json) => void,
+) {
+  const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+  const interfaceName = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
+  const reserved = new Set([8074, 8075, 12076, 23456, 65515, 65517, 65518, 65519, 65520]);
+  const validAsn = (asn: number) =>
+    Number.isInteger(asn) && asn > 0 && asn < 65535 && !reserved.has(asn) && !(asn >= 64496 && asn <= 64511);
+  if (
+    typeof siteName !== 'string' ||
+    !name.test(siteName) ||
+    !validAsn(localAsn) ||
+    !Array.isArray(bindings) ||
+    ![1, 3].includes(bindings.length) ||
+    !Array.isArray(relays) ||
+    relays.length !== 2
+  )
+    throw new Error('Unsupported Azure CE-to-relay site or peer topology');
+  const nodes = new Set<string>();
+  const interfaces = new Set<string>();
+  for (const binding of bindings) {
+    if (
+      !binding ||
+      typeof binding.node !== 'string' ||
+      !name.test(binding.node) ||
+      nodes.has(binding.node) ||
+      binding.role !== 'slo' ||
+      typeof binding.interfaceName !== 'string' ||
+      !interfaceName.test(binding.interfaceName) ||
+      binding.interfaceName.includes('__') ||
+      interfaces.has(binding.interfaceName)
+    )
+      throw new Error('Explicit unique Azure SLO interface bindings are required');
+    nodes.add(binding.node);
+    interfaces.add(binding.interfaceName);
+  }
+  const relayNames = new Set<string>();
+  const addresses = new Set<string>();
+  for (const relay of relays) {
+    if (
+      !relay ||
+      typeof relay.name !== 'string' ||
+      !name.test(relay.name) ||
+      relayNames.has(relay.name) ||
+      typeof relay.address !== 'string' ||
+      isIP(relay.address) !== 4 ||
+      addresses.has(relay.address) ||
+      !validAsn(relay.asn) ||
+      relay.asn === localAsn
+    )
+      throw new Error('Two explicit distinct Azure relay peers and external ASNs are required');
+    const octets = relay.address.split('.').map(Number);
+    if (octets[0] === 0 || octets[0] === 127 || octets[0] >= 224 || (octets[0] === 169 && octets[1] === 254))
+      throw new Error('Azure relay peers require unicast NIC IPv4 addresses');
+    relayNames.add(relay.name);
+    addresses.add(relay.address);
+  }
+  const orderedBindings = bindings.toSorted((a, b) => (a.node < b.node ? -1 : a.node > b.node ? 1 : 0));
+  const orderedRelays = relays.toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const expectedPeers = orderedBindings.flatMap((binding) =>
+    orderedRelays.map((relay) => ({
+      node: binding.node,
+      interfaceName: binding.interfaceName,
+      peerAddress: relay.address,
+      peerAsn: relay.asn,
+      relayName: relay.name,
+    })),
+  );
+  const spec = {
+    where: {
+      site: {
+        network_type: 'VIRTUAL_NETWORK_SITE_LOCAL',
+        ref: [{ name: siteName, namespace: 'system' }],
+        disable_internet_vip: {},
+      },
+    },
+    bgp_parameters: { asn: localAsn, local_address: {} },
+    peers: orderedBindings.flatMap((binding, nodeIndex) =>
+      orderedRelays.map((relay, relayIndex) => ({
+        metadata: { name: `peer-${nodeIndex + 1}-${relayIndex + 1}` },
+        external: {
+          asn: relay.asn,
+          address: relay.address,
+          port: 179,
+          interface: { name: binding.interfaceName, namespace: 'system' },
+          disable_v6: {},
+        },
+        passive_mode_disabled: {},
+        bfd_disabled: {},
+      })),
+    ),
+  };
+  validate('bgp', spec);
+  const suffix = '-relay-bgp';
+  const resourceName =
+    siteName.length + suffix.length <= 63
+      ? siteName + suffix
+      : `${siteName.slice(0, 44)}-${createHash('sha256').update(siteName).digest('hex').slice(0, 8)}${suffix}`;
+  return {
+    bgp: { name: resourceName, spec },
+    expectedPeers,
+    expectedSessions: expectedPeers.length,
+    payloadNetwork: 'slo' as const,
+  };
 }
 
 /** Build one site-scoped BGP object from observed SLO objects and both Azure Route Server addresses. */

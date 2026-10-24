@@ -4,8 +4,11 @@ import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './
 import { projectReplaceSnapshot } from './wire-replace';
 import {
   type AwsGreBinding,
+  type AzureRelayPeer,
+  type AzureRelaySloBinding,
   type AzureSloBinding,
   buildAwsRouting,
+  buildAzureRelayRouting,
   buildAzureRouting,
   routingValidators,
 } from './wire-routing';
@@ -139,6 +142,15 @@ export class VerifiedCeContract {
   ) {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, this.#routing);
+  }
+  buildAzureRelayRouting(
+    siteName: string,
+    localAsn: number,
+    bindings: AzureRelaySloBinding[],
+    relays: AzureRelayPeer[],
+  ) {
+    if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
+    return buildAzureRelayRouting(siteName, localAsn, bindings, relays, this.#routing);
   }
   routingCreateRequest(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', metadata: Json, spec: Json): Json {
     if (!this.#routingSchemas) throw Error('Pinned routing creation contract is required');
