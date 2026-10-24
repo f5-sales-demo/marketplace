@@ -191,3 +191,33 @@ separate current evidence, original ownership and a reviewed delete-only plan.
 Full campaign, source/snapshot reconciliation, live journal mapping, broader
 lifecycle/network/traffic, review, publication and installed artifact gates remain
 open. All three fresh campaign allowances remain unused.
+
+## Current destroy planning boundary
+
+A private planning primitive now verifies an exact frozen Python journal and
+retained final-capture result before inspecting current resource state, then
+rechecks that proof before creating a destroy plan. It binds the terminal record
+to the original create and a later resolved capture stop. It verifies the original
+hash chain without changing Python floating-point timestamp representations.
+Completed and failed captures remain unaccepted; deadline loss stays explicit.
+
+The planner keeps original create and ownership anchors unchanged, retains later
+observations and returned plans separately, and records interrupted planning
+before refusing an unchanged retry. Current resource actions remain unsubmitted.
+Its separate CLI mode and owned-cleanup consumer are still held for qualification.
+Journal snapshots over the existing four-MiB read bound explicitly refuse.
+
+Seven focused tests include the actual Python journal and terminal writer, both
+capture outcomes, changed proof bytes, unresolved stops, planning interruption
+and rejected returned plans. Local verification passes 313 Python tests across
+28 suites, 136 Bun tests with 680 assertions and two generic skips, 14 bundles,
+typecheck, Ruff and scoped privacy. Both actual read modes parse with the changed
+executable inventory and refuse the retained source pin before authentication.
+Original preparation and saved-plan bytes remain unchanged.
+
+These private checks provide no fresh live cleanup or operational acceptance.
+Next qualify the distinct current-cleanup protocol and owned-cleanup integration,
+including reviewed delete-only submission and non-submitting recovery. The full
+campaign, source/snapshot reconciliation, live journal mapping, broader lifecycle,
+networking, traffic, review, publication and installed-artifact gates remain open.
+All three fresh campaign allowances remain unused.
