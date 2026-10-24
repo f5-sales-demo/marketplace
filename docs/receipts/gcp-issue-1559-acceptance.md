@@ -163,3 +163,31 @@ Next qualify current ownership joins and reviewed cleanup using separately bound
 current evidence, then final capture ordering and source/snapshot reconciliation.
 Live journal mapping, lifecycle/network/traffic, review, publication and installed
 artifact gates remain open. All three fresh campaign allowances remain unused.
+
+## Current ownership and final capture ordering
+
+A distinct private schema-v3 ownership join now binds actionable resource plans
+to immutable original ownership and separately observed current state. It accepts
+supported resource action summaries as read evidence, preserves the legacy
+schema-v2 no-change API, and refuses missing or replaced identities. Neither join
+rewrites historical receipts or authorizes cleanup.
+
+The private controller records original-bound start and terminal evidence for its
+independent final capture window before stopping capture and entering cleanup.
+Returned capture results remain private and hash-bound. Failed, interrupted,
+repeated, altered or inconsistently attributed capture remains unaccepted.
+A separate ordering guard requires terminal evidence and a later independently
+resolved stop. Late completion records deadline loss and grants no acceptance.
+Both executable inventories include the new helper.
+
+Qualification passes 313 Python tests across 28 selected suites, 129 Bun tests
+with 650 assertions and two generic fixture skips, 12 bundles, typecheck, Ruff,
+formatting and scoped privacy. These are private helper tests; source CI excludes
+them. Unchanged collector integration evidence is reused from the earlier run.
+No fresh live registration, health, traffic or cleanup claim is made.
+
+Current cleanup still needs explicit qualification using the final capture guard,
+separate current evidence, original ownership and a reviewed delete-only plan.
+Full campaign, source/snapshot reconciliation, live journal mapping, broader
+lifecycle/network/traffic, review, publication and installed artifact gates remain
+open. All three fresh campaign allowances remain unused.
