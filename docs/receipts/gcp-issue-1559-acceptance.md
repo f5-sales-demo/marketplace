@@ -138,3 +138,28 @@ An incoherent interrupted plan remains unresolved; this reader does not repair
 it or authorize cleanup. Source/snapshot reconciliation, final capture ordering,
 live journal mapping, lifecycle/network/traffic, review, publication and installed
 artifact acceptance remain open. All three fresh campaign allowances are unused.
+
+## Private current resource evidence
+
+The private bridge now has distinct current resource receipt and planned-state
+read modes. They validate a later resource-only plan against the original
+configuration, provider lock, backend and 21 resource addresses, then compare
+actual state identities with preserved original ownership anchors. Supported
+create, update, delete and replacement summaries remain read evidence. Neither
+mode plans nor submits infrastructure changes. Current bindings remain separate
+from the active historical receipt used by guest capture and cleanup.
+
+Local qualification passes 299 Python tests across 27 selected suites and 129 Bun
+tests with 650 assertions and two generic fixture skips. Twelve bundles,
+typecheck, Ruff and scoped privacy pass. Tests cover changed original anchors,
+stale/extra receipts, identity replacement, state/checkpoint movement, incoherent
+receipt recovery and concurrent process locks. Both actual Python-to-Bun request
+modes parse and refuse the retained source pin before authentication. Original
+preparation hashes are unchanged; no live current-state proof is claimed.
+
+Full campaign and cleanup consumers remain held. Missing original resources or
+incoherent saved plans explicitly refuse; no historical ownership is rewritten.
+Next qualify current ownership joins and reviewed cleanup using separately bound
+current evidence, then final capture ordering and source/snapshot reconciliation.
+Live journal mapping, lifecycle/network/traffic, review, publication and installed
+artifact gates remain open. All three fresh campaign allowances remain unused.
