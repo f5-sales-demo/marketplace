@@ -10,7 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`gcloud` 1.7.24 / `platform` 6.3.9** add the opt-in, versioned Site-level admin SSH profile for the two-interface Terraform HA candidate. The reviewed intent binds one Ed25519 public key; SSH is permitted on SLI and blocked on SLO, with local DNS and web UI blocked on both. Legacy configurations and cleanup fingerprints remain unchanged. Fresh guest access and full lifecycle acceptance remain unverified (#1559).
+- **`gcloud` 1.7.24 / `platform` 6.3.9** add the opt-in, versioned Site-level admin SSH profile for the two-interface
+  Terraform HA candidate. The reviewed intent binds one Ed25519 public key; SSH is permitted on SLI and blocked on SLO,
+  with local DNS and web UI blocked on both. Legacy configurations and cleanup fingerprints remain unchanged. Fresh
+  guest access and full lifecycle acceptance remain unverified (#1559).
 
 - **`gcloud` 1.7.23** declares the required Platform installation dependency, uses the installed shared Terraform runner on public paths, exposes scoped refusals for unqualified lifecycle operations, and measures recovery from disruption or restoration-command start without resetting the 120-second clock (#1559).
 
