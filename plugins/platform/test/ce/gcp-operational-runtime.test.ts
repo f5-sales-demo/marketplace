@@ -1,13 +1,14 @@
-import { expect, it } from 'bun:test';
+import { expect, it, spyOn } from 'bun:test';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import { operationalFixture } from '../../../gcloud/test/ce/operational-health.test';
 import { createGcpOperationalCommandPort } from '../../src/ce/gcp-operational-command';
 import {
   collectGcpOperationalRuntime,
   collectGcpOperationalRuntimeEvidence,
+  collectGcpOperationalRuntimeListing,
 } from '../../src/ce/gcp-operational-runtime';
 
-function fixture(omit?: string, duplicate?: string) {
+function fixture(omit?: string, duplicate?: string, withoutNamespace = false) {
   const f = operationalFixture();
   const rows = f.profile.roles.control.containers
     .filter((mapping) => mapping.service !== omit)
@@ -32,9 +33,12 @@ function fixture(omit?: string, duplicate?: string) {
       commands.push(command);
       const output =
         command[0] === 'crictl-ps-a'
-          ? 'CONTAINER IMAGE CREATED STATE NAME ATTEMPT POD ID POD NAMESPACE\n' +
+          ? `CONTAINER IMAGE CREATED STATE NAME ATTEMPT POD ID POD${withoutNamespace ? '' : ' NAMESPACE'}\n` +
             rows
-              .map((r) => `${r.id} image 2 hours ago Running ${r.name} 0 ${'a'.repeat(64)} ${r.pod} ${r.namespace}`)
+              .map(
+                (r) =>
+                  `${r.id} image 2 hours ago Running ${r.name} 0 ${'a'.repeat(64)} ${r.pod}${withoutNamespace ? '' : ` ${r.namespace}`}`,
+              )
               .join('\n')
           : (() => {
               const r = rows.find((r) => r.id === command[1]);
@@ -135,4 +139,65 @@ it('detects a running singleton on an unassigned original even if the expected m
   expect(result.placementState).toBe('drift');
   expect(result.containers).toHaveLength(f.profile.roles.control.containers.length);
   expect(f.commands.some((command) => command[1] === 'e'.repeat(64))).toBe(false);
+});
+
+it('resolves omitted namespaces through this original node fixed inspections before selection', async () => {
+  const f = fixture(undefined, undefined, true);
+  const listing = await collectGcpOperationalRuntimeListing(f.port, f.binding.nodes[0], f.binding.ownershipFingerprint);
+  expect(listing.nodeName).toBe(f.binding.nodes[0].nodeName);
+  expect(listing.instanceId).toBe(f.binding.nodes[0].instanceId);
+  expect(listing.ownershipFingerprint).toBe(f.binding.ownershipFingerprint);
+  expect(listing.containers.map((c) => c.namespace)).toEqual(f.rows.map((r) => r.namespace));
+  expect(f.requests()).toBe(f.rows.length + 1);
+  expect(f.commands.slice(1).map((c) => c[1])).toEqual(f.rows.map((r) => r.id));
+  const projected = await collectGcpOperationalRuntime(
+    f.port,
+    f.binding.nodes[0],
+    f.binding.ownershipFingerprint,
+    f.profile,
+    fingerprint(f.profile),
+  );
+  expect(projected).toHaveLength(f.profile.roles.control.containers.length);
+  expect(JSON.stringify(projected)).not.toContain('PRIVATE');
+});
+it('refuses unresolved namespace labels and aborted discovery rather than guessing placement', async () => {
+  for (const namespace of [undefined, '', 'foreign.namespace']) {
+    const f = fixture(undefined, undefined, true);
+    f.rows[0].namespace = namespace as string;
+    await expect(
+      collectGcpOperationalRuntimeListing(f.port, f.binding.nodes[0], f.binding.ownershipFingerprint),
+    ).rejects.toThrow();
+  }
+  const f = fixture(undefined, undefined, true);
+  await expect(
+    collectGcpOperationalRuntimeListing(
+      f.port,
+      f.binding.nodes[0],
+      f.binding.ownershipFingerprint,
+      AbortSignal.abort(),
+    ),
+  ).rejects.toThrow();
+  expect(f.requests()).toBe(0);
+});
+
+it('refuses namespace inspection when the original listing ages out during resolution', async () => {
+  const f = fixture(undefined, undefined, true);
+  let now = Date.now();
+  const clock = spyOn(Date, 'now').mockImplementation(() => now);
+  const delayed = {
+    ...f.port,
+    execute: async (...args: Parameters<typeof f.port.execute>) => {
+      const output = await f.port.execute(...args);
+      if (args[1].kind === 'list') now += 301_000;
+      return output;
+    },
+  };
+  try {
+    await expect(
+      collectGcpOperationalRuntimeListing(delayed, f.binding.nodes[0], f.binding.ownershipFingerprint),
+    ).rejects.toThrow();
+    expect(f.commands).toEqual([['crictl-ps-a']]);
+  } finally {
+    clock.mockRestore();
+  }
 });

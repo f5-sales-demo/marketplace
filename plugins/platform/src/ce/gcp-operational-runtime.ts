@@ -5,7 +5,42 @@ import {
   qualifiedOperationalProfile,
 } from '../../../gcloud/src/ce/operational-health';
 import type { createGcpOperationalCommandPort } from './gcp-operational-command';
-import { parseGcpRuntimeListing, projectGcpRuntimeInspection } from './gcp-runtime-diagnostics';
+import { type GcpRuntimeListing, parseGcpRuntimeListing, projectGcpRuntimeInspection } from './gcp-runtime-diagnostics';
+
+/** Resolve omitted namespaces only from fixed inspections of this original node's fresh listing. */
+export async function collectGcpOperationalRuntimeListing(
+  commands: ReturnType<typeof createGcpOperationalCommandPort>,
+  node: OperationalBinding['nodes'][number],
+  ownershipFingerprint: string,
+  signal?: AbortSignal,
+): Promise<GcpRuntimeListing> {
+  signal?.throwIfAborted();
+  node = structuredClone(node);
+  const observedAt = new Date().toISOString();
+  const containers = parseGcpRuntimeListing(await commands.execute(node, { kind: 'list' }, signal));
+  const listing: GcpRuntimeListing = {
+    nodeName: node.nodeName,
+    instanceId: node.instanceId,
+    ownershipFingerprint,
+    observedAt,
+    containers,
+  };
+  const resolved = [];
+  for (const container of containers) {
+    signal?.throwIfAborted();
+    if (container.namespace !== undefined) {
+      resolved.push(container);
+      continue;
+    }
+    const output = await commands.execute(node, { kind: 'inspect', containerId: container.id, listing }, signal);
+    signal?.throwIfAborted();
+    const projection = projectGcpRuntimeInspection(JSON.parse(output), container);
+    if (projection.namespace === undefined) throw new Error('gcp_runtime_listing_namespace_mapping_unavailable');
+    resolved.push({ ...container, namespace: projection.namespace });
+  }
+  signal?.throwIfAborted();
+  return { ...listing, containers: resolved };
+}
 
 /** Collect only frozen mappings from this original node's current listing. Ambiguous joins cannot be inspected. */
 async function collectRuntimeEvidence(
@@ -20,14 +55,8 @@ async function collectRuntimeEvidence(
   node = structuredClone(node);
   if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.roles[node.role])
     throw new Error('Frozen runtime placement required');
-  const containers = parseGcpRuntimeListing(await commands.execute(node, { kind: 'list' }, signal));
-  const listing = {
-    nodeName: node.nodeName,
-    instanceId: node.instanceId,
-    ownershipFingerprint,
-    observedAt: new Date().toISOString(),
-    containers,
-  };
+  const listing = await collectGcpOperationalRuntimeListing(commands, node, ownershipFingerprint, signal);
+  const { containers } = listing;
   const mappings = profile.roles[node.role].containers;
   const selected = mappings
     .map((mapping) => {

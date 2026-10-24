@@ -1464,7 +1464,7 @@ var operational_source_hashes_default = {
   'gcp-operational-diagnosis': 'sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1',
   'gcp-operational-site-status': 'sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d',
   'gcp-operational-observation': 'sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec',
-  'gcp-operational-runtime': 'sha256:86093df90f14194d94570773008203e0b5af2e8d041ccb21cce19459f2b2a4b8',
+  'gcp-operational-runtime': 'sha256:4dabd5a9ccbd264e2e578c0c64a0473d07ecc3821072eca74a43f3dd09a01825',
   'gcp-operational-binding': 'sha256:5241e6662bcad89e4ef3048b60005dbcfb333c692877b73348e3f3dcdf086a16',
   'gcp-operational-placement': 'sha256:6bdda37171ee119261cbe88a6959ebdd84bb21c5fd2aceb110de895016347e5f',
   evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
@@ -6351,19 +6351,41 @@ async function collectGcpOperationalHealth(port, expected, profile, pinnedFinger
 }
 
 // plugins/platform/src/ce/gcp-operational-runtime.ts
-async function collectRuntimeEvidence(commands, node, ownershipFingerprint, profile, pinnedFingerprint, signal) {
-  profile = structuredClone(profile);
+async function collectGcpOperationalRuntimeListing(commands, node, ownershipFingerprint, signal) {
+  signal?.throwIfAborted();
   node = structuredClone(node);
-  if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.roles[node.role])
-    throw new Error('Frozen runtime placement required');
+  const observedAt = new Date().toISOString();
   const containers = parseGcpRuntimeListing(await commands.execute(node, { kind: 'list' }, signal));
   const listing = {
     nodeName: node.nodeName,
     instanceId: node.instanceId,
     ownershipFingerprint,
-    observedAt: new Date().toISOString(),
+    observedAt,
     containers,
   };
+  const resolved = [];
+  for (const container of containers) {
+    signal?.throwIfAborted();
+    if (container.namespace !== undefined) {
+      resolved.push(container);
+      continue;
+    }
+    const output = await commands.execute(node, { kind: 'inspect', containerId: container.id, listing }, signal);
+    signal?.throwIfAborted();
+    const projection = projectGcpRuntimeInspection(JSON.parse(output), container);
+    if (projection.namespace === undefined) throw new Error('gcp_runtime_listing_namespace_mapping_unavailable');
+    resolved.push({ ...container, namespace: projection.namespace });
+  }
+  signal?.throwIfAborted();
+  return { ...listing, containers: resolved };
+}
+async function collectRuntimeEvidence(commands, node, ownershipFingerprint, profile, pinnedFingerprint, signal) {
+  profile = structuredClone(profile);
+  node = structuredClone(node);
+  if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.roles[node.role])
+    throw new Error('Frozen runtime placement required');
+  const listing = await collectGcpOperationalRuntimeListing(commands, node, ownershipFingerprint, signal);
+  const { containers } = listing;
   const mappings = profile.roles[node.role].containers;
   const selected = mappings
     .map((mapping) => {
