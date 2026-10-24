@@ -1,6 +1,6 @@
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 
-export const GCP_RUNTIME_PARSER_VERSION = 'crictl-table-and-inspect/v2';
+export const GCP_RUNTIME_PARSER_VERSION = 'crictl-table-and-inspect/v3';
 export interface GcpRuntimeContainer {
   id: string;
   name: string;
@@ -12,6 +12,7 @@ export interface GcpRuntimeContainer {
 }
 const ID = /^[a-f0-9]{12,64}$/;
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
+const NAMESPACE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const HEADER = /^CONTAINER\s+IMAGE\s+CREATED\s+STATE\s+NAME\s+ATTEMPT\s+POD ID\s+POD(?:\s+NAMESPACE)?$/;
 /** Parse the documented table strictly. Wrapped, truncated or ambiguous output requires requalification. */
 export function parseGcpRuntimeListing(value: unknown): GcpRuntimeContainer[] {
@@ -73,6 +74,9 @@ export function projectGcpRuntimeInspection(value: unknown, listed: GcpRuntimeCo
   const row = status as Record<string, unknown>;
   const metadata = row.metadata as { name?: unknown; attempt?: unknown } | undefined;
   const labels = row.labels as Record<string, unknown> | undefined;
+  const namespace = labels?.['io.kubernetes.pod.namespace'];
+  if (namespace !== undefined && (typeof namespace !== 'string' || !NAMESPACE.test(namespace)))
+    throw new Error('Malformed runtime namespace');
   if (
     typeof row.id !== 'string' ||
     !ID.test(row.id) ||
@@ -90,7 +94,7 @@ export function projectGcpRuntimeInspection(value: unknown, listed: GcpRuntimeCo
     containerIdentitySha256: fingerprint({ id: row.id }),
     name: listed.name,
     pod: listed.pod,
-    ...(listed.namespace !== undefined ? { namespace: listed.namespace } : {}),
+    ...(namespace !== undefined ? { namespace: namespace as string } : {}),
     attempt: listed.attempt,
     liveness: state === 'running' ? ('running' as const) : ('not-running' as const),
   };

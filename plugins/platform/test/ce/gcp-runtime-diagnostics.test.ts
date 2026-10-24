@@ -107,3 +107,74 @@ it('parses the live namespace column and requires that namespace in the inspecti
   expect(() => parseGcpRuntimeListing(table + ' kube-system')).toThrow();
   expect(() => parseGcpRuntimeListing(live.replace(' kube-system', ''))).toThrow();
 });
+
+it('derives a validated namespace from identity-matched inspection labels for older tables', () => {
+  const row = parseGcpRuntimeListing(table)[0];
+  const raw = {
+    status: {
+      id: 'abcdef1234567890',
+      state: 'CONTAINER_RUNNING',
+      metadata: { name: 'coredns', attempt: 0 },
+      labels: {
+        'io.kubernetes.pod.name': 'coredns-abc',
+        'io.kubernetes.pod.namespace': 'kube-system',
+        secret: 'PRIVATE',
+      },
+    },
+  };
+  const projected = projectGcpRuntimeInspection(raw, row);
+  expect(projected.namespace).toBe('kube-system');
+  expect(row.namespace).toBeUndefined();
+  expect(JSON.stringify(projected)).not.toContain('PRIVATE');
+  expect(JSON.stringify(projected)).not.toContain('abcdef123456');
+  expect(() => projectGcpRuntimeInspection({ status: { ...raw.status, id: '123456abcdef' } }, row)).toThrow();
+});
+it('refuses malformed inspection namespaces while preserving legacy missing namespace', () => {
+  const row = parseGcpRuntimeListing(table)[0];
+  const status = {
+    id: 'abcdef1234567890',
+    state: 'CONTAINER_RUNNING',
+    metadata: { name: 'coredns', attempt: 0 },
+    labels: { 'io.kubernetes.pod.name': 'coredns-abc' },
+  };
+  expect(projectGcpRuntimeInspection({ status }, row)).not.toHaveProperty('namespace');
+  for (const namespace of [
+    '',
+    'KUBE',
+    'kube.system',
+    'kube_system',
+    '-kube',
+    'kube-',
+    'a'.repeat(64),
+    'kube\n-system',
+    null,
+    42,
+    [],
+    {},
+  ]) {
+    expect(() =>
+      projectGcpRuntimeInspection(
+        {
+          status: {
+            ...status,
+            labels: { ...status.labels, 'io.kubernetes.pod.namespace': namespace },
+          },
+        },
+        row,
+      ),
+    ).toThrow();
+  }
+  for (const namespace of ['a', 'a'.repeat(63), 'kube-system']) {
+    expect(
+      projectGcpRuntimeInspection(
+        {
+          status: {
+            ...status,
+            labels: { ...status.labels, 'io.kubernetes.pod.namespace': namespace },
+          },
+        },
+        row,
+      ).namespace,
+    ).toBe(namespace);
+  }
+});

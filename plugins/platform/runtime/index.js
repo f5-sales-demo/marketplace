@@ -1460,7 +1460,7 @@ function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFi
 var operational_source_hashes_default = {
   'gcp-operational-source': 'sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9',
   'gcp-operational-command': 'sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846',
-  'gcp-runtime-diagnostics': 'sha256:ee99d0713c713cb2348020a3b3e152feff52caf15af612c5f65a5899a8ce9580',
+  'gcp-runtime-diagnostics': 'sha256:ec63c271c73991b8373d81397fe0077ee5569934afa0d288b17ddb1c49a7a2f8',
   'gcp-operational-diagnosis': 'sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1',
   'gcp-operational-site-status': 'sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d',
   'gcp-operational-observation': 'sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec',
@@ -5847,6 +5847,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
 // plugins/platform/src/ce/gcp-runtime-diagnostics.ts
 var ID = /^[a-f0-9]{12,64}$/;
 var NAME3 = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
+var NAMESPACE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var HEADER = /^CONTAINER\s+IMAGE\s+CREATED\s+STATE\s+NAME\s+ATTEMPT\s+POD ID\s+POD(?:\s+NAMESPACE)?$/;
 function parseGcpRuntimeListing(value) {
   if (
@@ -5906,6 +5907,9 @@ function projectGcpRuntimeInspection(value, listed) {
   const row = status;
   const metadata = row.metadata;
   const labels = row.labels;
+  const namespace = labels?.['io.kubernetes.pod.namespace'];
+  if (namespace !== undefined && (typeof namespace !== 'string' || !NAMESPACE.test(namespace)))
+    throw new Error('Malformed runtime namespace');
   if (
     typeof row.id !== 'string' ||
     !ID.test(row.id) ||
@@ -5923,7 +5927,7 @@ function projectGcpRuntimeInspection(value, listed) {
     containerIdentitySha256: fingerprint({ id: row.id }),
     name: listed.name,
     pod: listed.pod,
-    ...(listed.namespace !== undefined ? { namespace: listed.namespace } : {}),
+    ...(namespace !== undefined ? { namespace } : {}),
     attempt: listed.attempt,
     liveness: state === 'running' ? 'running' : 'not-running',
   };
