@@ -6,6 +6,7 @@ import {
   type ApplyAttemptResourceProjection,
   type ApplyCheckpoint,
   type Deployment,
+  type NoChangeResourceProjection,
   type PlanReceipt,
   type TerraformActionIntent,
   TerraformRunner,
@@ -41,6 +42,13 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<ApplyAttemptResourceProjection>;
+  /** Optional on older runtimes; a planned no-change receipt and stable nonsensitive state are required. */
+  readNoChangeResourceFields?(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<NoChangeResourceProjection>;
   readApplyCheckpoint?(receipt: PlanReceipt): Promise<ApplyCheckpoint>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
@@ -116,6 +124,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async readAppliedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readNoChangeResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readNoChangeResourceFields(receipt, selections, env, signal);
         },
         async readApplyCheckpoint(receipt) {
           await checkOwner();

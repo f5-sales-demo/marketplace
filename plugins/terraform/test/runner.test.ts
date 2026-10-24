@@ -1091,3 +1091,92 @@ test('stopped executor is killed before its process claim is released', async ()
   expect(await child.exited).toBeNumber();
   expect(await lstat(path).catch(() => undefined)).toBeUndefined();
 });
+
+test('no-change state inspection keeps planned authorization and never submits', async () => {
+  const resource = {
+    address: 'terraform_data.ce',
+    type: 'terraform_data',
+    mode: 'managed',
+    values: { id: 'owned', input: 'PRIVATE_NO_CHANGE' },
+    sensitive_values: { input: true },
+  };
+  const { runner, root, calls } = await fixture(
+    {
+      applyable: false,
+      resource_changes: [{ address: resource.address, type: resource.type, change: { actions: ['no-op'] } }],
+      output_changes: {},
+    },
+    {},
+    undefined,
+    undefined,
+    { values: { root_module: { resources: [resource] } } },
+  );
+  const receipt = await runner.plan({});
+  expect(receipt.noChanges).toBe(true);
+  await writeFile(
+    join(root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({ lineage: 'fixture-lineage', serial: 7 }),
+    { mode: 0o600 },
+  );
+  const result = await runner.readNoChangeResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {});
+  expect(result.applyState).toBe('planned');
+  expect(result.observation).toBe('no-change');
+  expect(result.resources).toEqual({ 'terraform_data.ce': { id: 'owned' } });
+  expect(result.serial).toBe(7);
+  expect(JSON.stringify(result)).not.toContain('PRIVATE_NO_CHANGE');
+  expect((await runner.readApplyCheckpoint(receipt)).state).toBe('planned');
+  expect(calls.filter((call) => call.args[0] === 'apply')).toHaveLength(0);
+  await expect(runner.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow();
+  await expect(runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow();
+  await expect(runner.readNoChangeResourceFields(receipt, { 'terraform_data.ce': ['input'] }, {})).rejects.toThrow(
+    /sensitive/,
+  );
+});
+
+test('no-change state inspection refuses actionable or superseded receipts and moving state', async () => {
+  const ordinary = await fixture();
+  const actionable = await ordinary.runner.plan({});
+  await expect(
+    ordinary.runner.readNoChangeResourceFields(actionable, { 'terraform_data.ce': ['id'] }, {}),
+  ).rejects.toThrow();
+  const resource = {
+    address: 'terraform_data.ce',
+    type: 'terraform_data',
+    mode: 'managed',
+    values: { id: 'owned' },
+    sensitive_values: {},
+  };
+  const f = await fixture(
+    {
+      applyable: false,
+      resource_changes: [{ address: resource.address, type: resource.type, change: { actions: ['no-op'] } }],
+      output_changes: {},
+    },
+    {},
+    undefined,
+    undefined,
+    { values: { root_module: { resources: [resource] } } },
+    async (cwd) => {
+      await writeFile(join(cwd, 'terraform.tfstate'), JSON.stringify({ lineage: 'fixture-lineage', serial: 8 }), {
+        mode: 0o600,
+      });
+    },
+  );
+  const receipt = await f.runner.plan({});
+  await writeFile(
+    join(f.root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({ lineage: 'fixture-lineage', serial: 7 }),
+    { mode: 0o600 },
+  );
+  await expect(
+    f.runner.readNoChangeResourceFields(
+      { ...receipt, planSha256: 'f'.repeat(64) },
+      { 'terraform_data.ce': ['id'] },
+      {},
+    ),
+  ).rejects.toThrow();
+  await expect(f.runner.readNoChangeResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /state changed/,
+  );
+  expect(f.calls.filter((call) => call.args[0] === 'apply')).toHaveLength(0);
+});

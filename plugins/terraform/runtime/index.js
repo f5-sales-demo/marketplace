@@ -1150,6 +1150,17 @@ class TerraformRunner {
   async readApplyAttemptResourceFields(receipt, selections, env, signal) {
     return this.#readApplyStateFields(receipt, selections, env, signal, ['applying', 'applied']);
   }
+  async readNoChangeResourceFields(receipt, selections, env, signal) {
+    if (
+      receipt.noChanges !== true ||
+      receipt.operation ||
+      receipt.actionInvocations?.length ||
+      receipt.changes.some((change) => change.actions.length !== 1 || change.actions[0] !== 'no-op')
+    )
+      throw new Error('Exact no-change Terraform receipt required for planned state inspection');
+    const projection = await this.#readApplyStateFields(receipt, selections, env, signal, ['planned']);
+    return { ...projection, observation: 'no-change' };
+  }
   async readApplyCheckpoint(receipt) {
     receipt = structuredClone(receipt);
     return this.#exclusive(async () => {
@@ -1334,6 +1345,10 @@ function createCeTerraformService(platform) {
         async readAppliedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readNoChangeResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readNoChangeResourceFields(receipt, selections, env, signal);
         },
         async readApplyCheckpoint(receipt) {
           await checkOwner();

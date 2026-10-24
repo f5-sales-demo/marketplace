@@ -45,6 +45,10 @@ export interface AppliedResourceProjection {
 export interface ApplyAttemptResourceProjection extends AppliedResourceProjection {
   applyState: 'applying' | 'applied';
 }
+export interface NoChangeResourceProjection extends AppliedResourceProjection {
+  applyState: 'planned';
+  observation: 'no-change';
+}
 export interface ApplyCheckpoint {
   schemaVersion: 1;
   planSha256: string;
@@ -1093,6 +1097,23 @@ export class TerraformRunner {
   ): Promise<ApplyAttemptResourceProjection> {
     return this.#readApplyStateFields(receipt, selections, env, signal, ['applying', 'applied']);
   }
+  /** Read current identities after a no-change plan; never authorizes apply or attests an applied checkpoint. */
+  async readNoChangeResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<NoChangeResourceProjection> {
+    if (
+      receipt.noChanges !== true ||
+      receipt.operation ||
+      receipt.actionInvocations?.length ||
+      receipt.changes.some((change) => change.actions.length !== 1 || change.actions[0] !== 'no-op')
+    )
+      throw new Error('Exact no-change Terraform receipt required for planned state inspection');
+    const projection = await this.#readApplyStateFields(receipt, selections, env, signal, ['planned']);
+    return { ...projection, observation: 'no-change' };
+  }
   async readApplyCheckpoint(receipt: PlanReceipt): Promise<ApplyCheckpoint> {
     receipt = structuredClone(receipt);
     return this.#exclusive(async () => {
@@ -1121,20 +1142,20 @@ export class TerraformRunner {
       throw new Error(`Exact ${states.join('/')} Terraform receipt required for state identity inspection`);
     return state;
   }
-  async #readApplyStateFields(
+  async #readApplyStateFields<S extends ApplyCheckpoint['state']>(
     receipt: PlanReceipt,
     selections: Record<string, string[]>,
     env: Record<string, string | undefined>,
     signal: AbortSignal | undefined,
-    states: Array<'applying' | 'applied'>,
-  ): Promise<ApplyAttemptResourceProjection> {
+    states: S[],
+  ): Promise<AppliedResourceProjection & { applyState: S }> {
     validateResourceSelections(selections);
     selections = structuredClone(selections);
     receipt = structuredClone(receipt);
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const applyState = (await this.#verifyApplyReceipt(receipt, states)) as 'applying' | 'applied';
+      const applyState = (await this.#verifyApplyReceipt(receipt, states)) as S;
       const statePath = join(directory, 'terraform.tfstate');
       const snapshot = await privateRead(statePath);
       const identity = decode(snapshot.toString());

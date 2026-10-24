@@ -93,3 +93,14 @@ The journal timestamp mapping still lacks verified Site CLI output and original
 bootstrap coverage. Full live lifecycle, networking, traffic, review, publication
 and installed artifact acceptance remain incomplete. Historical receipts, frozen
 collectors and immutable release assets are preserved.
+
+## Shared no-change state reader
+
+The shared Terraform service now offers optional, explicitly typed inspection of
+current nonsensitive state after an exact planned no-change receipt. It preserves
+the planned checkpoint and submits no actions. Existing applied and interrupted
+inspection still refuse planned checkpoints. Older installed runners do not gain
+this capability implicitly. Two failing-first regressions and the 53-test
+Terraform suite pass, including state drift, sensitive selections and stale
+receipts. The final campaign consumer and original/current ownership join remain
+unqualified; this upstream reader does not enable live campaign admission.
