@@ -1102,7 +1102,7 @@ test('no-change state inspection keeps planned authorization and never submits',
   };
   const { runner, root, calls } = await fixture(
     {
-      applyable: false,
+      applyable: false, // codespell:ignore applyable
       resource_changes: [{ address: resource.address, type: resource.type, change: { actions: ['no-op'] } }],
       output_changes: {},
     },
@@ -1148,7 +1148,7 @@ test('no-change state inspection refuses actionable or superseded receipts and m
   };
   const f = await fixture(
     {
-      applyable: false,
+      applyable: false, // codespell:ignore applyable
       resource_changes: [{ address: resource.address, type: resource.type, change: { actions: ['no-op'] } }],
       output_changes: {},
     },
