@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 109,
+  "sourceCommit": "372c62370b41652733c289c365437272c140ac68",
+  "cliVersion": "23.9.3",
+  "extensionCount": 4,
+  "registeredTools": [
+    "aws_ce_apply",
+    "aws_ce_diagnose",
+    "aws_ce_failover",
+    "aws_ce_inventory",
+    "aws_ce_plan",
+    "aws_ce_power",
+    "aws_ce_status",
+    "aws_ce_teardown",
+    "aws_ce_upgrade",
+    "aws_cloud_init_analyze",
+    "aws_compute_discover",
+    "aws_ec2_describe_instances",
+    "aws_exec",
+    "aws_help",
+    "aws_s3_ls",
+    "aws_sts_whoami",
+    "az_account_show",
+    "az_activity_log_list",
+    "az_exec",
+    "az_group_list",
+    "az_help",
+    "az_resource_graph_query",
+    "az_resource_list",
+    "az_vm_list",
+    "azure_ce_apply",
+    "azure_ce_diagnose",
+    "azure_ce_failover",
+    "azure_ce_inventory",
+    "azure_ce_plan",
+    "azure_ce_status",
+    "azure_ce_teardown",
+    "azure_ce_upgrade",
+    "azure_cloud_init_analyze",
+    "azure_compute_discover",
+    "f5xc_ce_v2_bootstrap",
+    "f5xc_ce_v2_capabilities",
+    "f5xc_ce_v2_site",
+    "f5xc_ce_v2_status"
+  ],
+  "resolvedPathsVerified": true,
+  "outcomes": [
+    {
+      "tool": "aws_ce_power",
+      "rejected": true
+    },
+    {
+      "tool": "aws_ce_apply",
+      "rejected": true
+    },
+    {
+      "tool": "azure_ce_apply",
+      "rejected": true
+    },
+    {
+      "tool": "f5xc_ce_v2_site",
+      "rejected": true
+    }
+  ],
+  "installedPublicExecution": true,
+  "cloudMutationPerformed": false,
+  "liveLifecycleQualified": false,
+  "fullCeAcceptance": false
+}

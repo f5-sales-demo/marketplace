@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 109,
+  "issue": 1840,
+  "sourceBaseCommit": "c4a1d19cba781c557d543f44da73a71e38aea6c4",
+  "observedAt": "2026-10-23T01:31:33.115402+00:00",
+  "implementation": {
+    "directRoutes": "owning Terraform saved-plan withdrawal/restoration and independent cloud reconciliation",
+    "brownfieldRunner": "reload existing placement with fresh scoped cloud reads before opening current owner runner",
+    "publicDriver": "direct component wired without unconditional rejection; original operational gates preserved",
+    "mutationScope": "single non-HA only"
+  },
+  "redRegression": {
+    "coordinatorFailuresBeforeWiring": 2,
+    "missingAdapterFailurePreserved": true
+  },
+  "validation": {
+    "fourPluginTests": 2261,
+    "assertions": 13280,
+    "fourTypeChecks": "passed",
+    "fourRuntimeBuilds": "passed",
+    "ledgerTests": 10,
+    "ledgerAssertions": 48
+  },
+  "installedQualification": "pending produced UAT109 archives",
+  "liveQualification": "pending; no new AWS mutation",
+  "historicalRecovery": {
+    "measuredMs": 212977,
+    "limitMs": 45000,
+    "status": "failed"
+  },
+  "interfaceDependency": {
+    "supportedSliControl": "unqualified",
+    "originalSampleFreshness": "unqualified"
+  },
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
