@@ -20,6 +20,7 @@ async function fixture(
   onApply?: () => void,
   stateJson: Record<string, unknown> | string = {},
   onStateShow?: (cwd: string) => Promise<void>,
+  onPlanShow?: (cwd: string) => Promise<void>,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
@@ -35,6 +36,7 @@ async function fixture(
       );
     }
     if (request.args[0] === 'show' && request.args[2] === 'terraform.tfstate') await onStateShow?.(request.cwd);
+    if (request.args[0] === 'show' && request.args[2] === 'saved.tfplan') await onPlanShow?.(request.cwd);
     if (request.args[0] === 'plan') await writeFile(join(request.cwd, 'saved.tfplan'), 'binary-plan', { mode: 0o600 });
     return {
       code: 0,
@@ -1179,4 +1181,110 @@ test('no-change state inspection refuses actionable or superseded receipts and m
     /state changed/,
   );
   expect(f.calls.filter((call) => call.args[0] === 'apply')).toHaveLength(0);
+});
+
+test('actionable planned state inspection reads current owned identities without accepting planned replacements', async () => {
+  const address = 'terraform_data.ce';
+  const state = {
+    values: {
+      root_module: {
+        resources: [
+          {
+            address,
+            type: 'terraform_data',
+            mode: 'managed',
+            values: { id: 'original', input: 'PRIVATE_PLANNED_STATE' },
+            sensitive_values: { input: true },
+          },
+        ],
+      },
+    },
+  };
+  const f = await fixture(
+    {
+      resource_changes: [
+        {
+          address,
+          type: 'terraform_data',
+          change: { actions: ['delete', 'create'], after: { id: 'replacement' }, after_sensitive: {} },
+        },
+      ],
+      output_changes: {},
+    },
+    {},
+    undefined,
+    undefined,
+    state,
+  );
+  const receipt = await f.runner.plan({});
+  await writeFile(
+    join(f.root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({ lineage: 'fixture-lineage', serial: 2 }),
+    { mode: 0o600 },
+  );
+  const result = await f.runner.readPlannedStateResourceFields(receipt, { [address]: ['id'] }, {});
+  expect(result.applyState).toBe('planned');
+  expect(result.observation).toBe('planned-state');
+  expect(result.resources).toEqual({ [address]: { id: 'original' } });
+  expect(JSON.stringify(result)).not.toContain('PRIVATE_PLANNED_STATE');
+  expect((await f.runner.readApplyCheckpoint(receipt)).state).toBe('planned');
+  expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  await expect(f.runner.readNoChangeResourceFields(receipt, { [address]: ['id'] }, {})).rejects.toThrow();
+  await expect(f.runner.readApplyAttemptResourceFields(receipt, { [address]: ['id'] }, {})).rejects.toThrow();
+  await expect(f.runner.readPlannedStateResourceFields(receipt, { [address]: ['input'] }, {})).rejects.toThrow(
+    /sensitive/,
+  );
+});
+
+test('current resource receipt inspection checks its saved plan and returns no private state', async () => {
+  const f = await fixture();
+  const receipt = await f.runner.plan({});
+  const result = await f.runner.readCurrentResourcePlanReceipt({});
+  expect(result.receipt).toEqual(receipt);
+  expect(result.checkpoint).toEqual({ schemaVersion: 1, planSha256: receipt.planSha256, state: 'planned' });
+  expect(JSON.stringify(result)).not.toContain('SENSITIVE_BOOTSTRAP');
+  expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  await writeFile(
+    join(f.root, 'ce-test', 'plan-receipt.json'),
+    JSON.stringify({ state: 'planned', receipt: { ...receipt, noChanges: true } }),
+    { mode: 0o600 },
+  );
+  await expect(f.runner.readCurrentResourcePlanReceipt({})).rejects.toThrow();
+});
+
+test('current receipt recovery refuses partial planning, extra private metadata and mismatched binary bytes', async () => {
+  for (const mutation of ['journal', 'private-field', 'binary', 'consumed'] as const) {
+    const f = await fixture();
+    const receipt = await f.runner.plan({});
+    const directory = join(f.root, 'ce-test');
+    if (mutation === 'journal') await writeFile(join(directory, 'plan-receipt.json'), '{', { mode: 0o600 });
+    if (mutation === 'private-field')
+      await writeFile(
+        join(directory, 'plan-receipt.json'),
+        JSON.stringify({ state: 'planned', receipt: { ...receipt, token: 'PRIVATE_RECEIPT_SENTINEL' } }),
+        { mode: 0o600 },
+      );
+    if (mutation === 'binary') await writeFile(join(directory, 'saved.tfplan'), 'partial-plan', { mode: 0o600 });
+    if (mutation === 'consumed')
+      await writeFile(join(directory, 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), {
+        mode: 0o600,
+      });
+    await expect(f.runner.readCurrentResourcePlanReceipt({})).rejects.toThrow();
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  }
+});
+
+test('current resource receipt recovery refuses journal or binary movement during saved-plan inspection', async () => {
+  for (const name of ['plan-receipt.json', 'saved.tfplan']) {
+    let shows = 0;
+    const f = await fixture({}, {}, undefined, undefined, {}, undefined, async (cwd) => {
+      if (++shows === 2) {
+        const path = join(cwd, name);
+        await writeFile(path, (await readFile(path, 'utf8')) + ' ', { mode: 0o600 });
+      }
+    });
+    await f.runner.plan({});
+    await expect(f.runner.readCurrentResourcePlanReceipt({})).rejects.toThrow();
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  }
 });

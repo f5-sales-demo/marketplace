@@ -121,3 +121,20 @@ state readers. The complete campaign consumer remains disabled. Local helper tes
 provide synthetic evidence; source CI excludes these private helpers. All three
 campaign allowances remain unused. Live journal mapping, broader lifecycle and
 networking, traffic, review, release and installed artifact gates remain open.
+
+## Shared planned-state and receipt inspection
+
+The shared Terraform runner now supports explicitly typed current-state inspection
+behind a resource-only planned receipt. It returns observed state identities,
+including original identities during replacement planning, and keeps the planned
+checkpoint. A separate current receipt reader reuses the plan parser to verify
+the stored receipt against its exact saved binary. It rejects consumed, partial,
+malformed, altered or moving receipts and binary plans, and exports no private
+state or bootstrap fields. Existing applied and no-change readers retain their
+original checkpoint rules. These optional source capabilities submit nothing.
+
+Private campaign recovery consumers remain disabled pending their qualification.
+An incoherent interrupted plan remains unresolved; this reader does not repair
+it or authorize cleanup. Source/snapshot reconciliation, final capture ordering,
+live journal mapping, lifecycle/network/traffic, review, publication and installed
+artifact acceptance remain open. All three fresh campaign allowances are unused.

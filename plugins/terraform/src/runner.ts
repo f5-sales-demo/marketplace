@@ -49,6 +49,15 @@ export interface NoChangeResourceProjection extends AppliedResourceProjection {
   applyState: 'planned';
   observation: 'no-change';
 }
+export interface PlannedStateResourceProjection extends AppliedResourceProjection {
+  applyState: 'planned';
+  observation: 'planned-state';
+}
+export interface CurrentResourcePlanSnapshot {
+  schemaVersion: 1;
+  receipt: PlanReceipt;
+  checkpoint: ApplyCheckpoint;
+}
 export interface ApplyCheckpoint {
   schemaVersion: 1;
   planSha256: string;
@@ -809,6 +818,53 @@ export class TerraformRunner {
     validateActionIntent(intent);
     return this.#plan(env, signal, intent);
   }
+  #inspectPlan(
+    plan: Json,
+    action?: TerraformActionIntent,
+    destroy = false,
+  ): Pick<PlanReceipt, 'changes' | 'noChanges'> & { actionInvocations: TerraformActionIntent[] } {
+    if (
+      !plan ||
+      typeof plan.format_version !== 'string' ||
+      !/^1\.\d+$/.test(plan.format_version) ||
+      plan.terraform_version !== this.#state().manifest.terraformVersion ||
+      plan.errored !== false ||
+      plan.complete !== true ||
+      typeof plan[['apply', 'able'].join('')] !== 'boolean' || // codespell:ignore applyable
+      !Array.isArray(plan.resource_changes ?? [])
+    )
+      throw new Error('Terraform plan JSON is malformed or unsupported');
+    const actionInvocations = inspectActionInvocations(plan, action);
+    const changes: PlanReceipt['changes'] = [];
+    for (const value of (plan.resource_changes ?? []) as unknown[]) {
+      const resource = object(value);
+      const actions = changeActions(object(resource.change).actions);
+      if (
+        typeof resource.address !== 'string' ||
+        typeof resource.type !== 'string' ||
+        changes.some((change) => change.address === resource.address)
+      )
+        throw new Error('Terraform resource change is malformed');
+      changes.push({ address: resource.address, type: resource.type, actions });
+    }
+    const outputs = Object.values(object(plan.output_changes ?? {})).map((output) =>
+      changeActions(object(output).actions, true),
+    );
+    const resourcesUnchanged =
+      changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
+    if (action && !resourcesUnchanged)
+      throw new Error('Terraform action plan contains unrelated resource or output changes');
+    if (
+      destroy &&
+      (changes.some((change) => !['delete', 'no-op'].includes(change.actions.join(','))) ||
+        outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
+    )
+      throw new Error('Terraform destroy plan contains non-delete changes');
+    const noChanges = resourcesUnchanged && actionInvocations.length === 0;
+    if (!noChanges && !plan[['apply', 'able'].join('')])
+      throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
+    return { changes, noChanges, actionInvocations };
+  }
   async #plan(
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
@@ -841,47 +897,7 @@ export class TerraformRunner {
         signal,
       );
       const raw = await this.#run(['show', '-json', 'saved.tfplan'], env, signal);
-      const plan = decode(raw);
-      if (
-        !plan ||
-        typeof plan.format_version !== 'string' ||
-        !/^1\.\d+$/.test(plan.format_version) ||
-        plan.terraform_version !== this.#state().manifest.terraformVersion ||
-        plan.errored !== false ||
-        plan.complete !== true ||
-        typeof plan[['apply', 'able'].join('')] !== 'boolean' || // codespell:ignore applyable
-        !Array.isArray(plan.resource_changes ?? [])
-      )
-        throw new Error('Terraform plan JSON is malformed or unsupported');
-      const actionInvocations = inspectActionInvocations(plan, action);
-      const changes: PlanReceipt['changes'] = [];
-      for (const value of (plan.resource_changes ?? []) as unknown[]) {
-        const resource = object(value);
-        const actions = changeActions(object(resource.change).actions);
-        if (
-          typeof resource.address !== 'string' ||
-          typeof resource.type !== 'string' ||
-          changes.some((change) => change.address === resource.address)
-        )
-          throw new Error('Terraform resource change is malformed');
-        changes.push({ address: resource.address, type: resource.type, actions });
-      }
-      const outputs = Object.values(object(plan.output_changes ?? {})).map((output) =>
-        changeActions(object(output).actions, true),
-      );
-      const resourcesUnchanged =
-        changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
-      if (action && !resourcesUnchanged)
-        throw new Error('Terraform action plan contains unrelated resource or output changes');
-      if (
-        destroy &&
-        (changes.some((change) => !['delete', 'no-op'].includes(change.actions.join(','))) ||
-          outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
-      )
-        throw new Error('Terraform destroy plan contains non-delete changes');
-      const noChanges = resourcesUnchanged && actionInvocations.length === 0;
-      if (!noChanges && !plan[['apply', 'able'].join('')])
-        throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
+      const { changes, noChanges, actionInvocations } = this.#inspectPlan(decode(raw), action, destroy);
       const manifest = this.#state().manifest;
       const receipt: PlanReceipt = {
         schemaVersion: 1,
@@ -1113,6 +1129,71 @@ export class TerraformRunner {
       throw new Error('Exact no-change Terraform receipt required for planned state inspection');
     const projection = await this.#readApplyStateFields(receipt, selections, env, signal, ['planned']);
     return { ...projection, observation: 'no-change' };
+  }
+  /** Current state behind an exact actionable planned receipt; never exports planned replacement identities. */
+  async readPlannedStateResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlannedStateResourceProjection> {
+    receipt = structuredClone(receipt);
+    if (
+      receipt.schemaVersion !== 1 ||
+      typeof receipt.noChanges !== 'boolean' ||
+      !Array.isArray(receipt.changes) ||
+      receipt.actionInvocations?.length ||
+      (receipt.operation && receipt.operation !== 'destroy')
+    )
+      throw new Error('Exact resource-only planned receipt required for state inspection');
+    const projection = await this.#readApplyStateFields(receipt, selections, env, signal, ['planned']);
+    return { ...projection, observation: 'planned-state' };
+  }
+  /** Recover only a coherent unconsumed resource receipt, independently checked against its saved binary. */
+  async readCurrentResourcePlanReceipt(
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<CurrentResourcePlanSnapshot> {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journalPath = join(directory, 'plan-receipt.json'),
+        planPath = join(directory, 'saved.tfplan');
+      const journalBytes = await privateRead(journalPath),
+        planBytes = await privateRead(planPath);
+      const journal = decode(journalBytes.toString()),
+        stored = object(journal.receipt);
+      if (journal.state !== 'planned' || (stored.operation && stored.operation !== 'destroy'))
+        throw new Error('Current resource plan is consumed or requires reconciliation');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const { changes, noChanges } = this.#inspectPlan(
+        decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal)),
+        undefined,
+        stored.operation === 'destroy',
+      );
+      const receipt: PlanReceipt = {
+        schemaVersion: 1,
+        deploymentId: manifest.deploymentId,
+        engine: 'terraform',
+        backendIdentity: manifest.backendIdentity,
+        configurationSha256: manifest.configurationSha256,
+        providerLockSha256: manifest.providerLockSha256,
+        planSha256: digest(planBytes),
+        changes,
+        noChanges,
+        ...(stored.operation === 'destroy' ? { operation: 'destroy' as const } : {}),
+      };
+      if (canonical(stored) !== canonical(receipt))
+        throw new Error('Current resource receipt differs from saved binary plan');
+      const state = await this.#verifyApplyReceipt(receipt, ['planned']);
+      if (
+        digest(journalBytes) !== digest(await privateRead(journalPath)) ||
+        digest(planBytes) !== digest(await privateRead(planPath))
+      )
+        throw new Error('Current receipt or binary changed during recovery');
+      return { schemaVersion: 1, receipt, checkpoint: { schemaVersion: 1, planSha256: receipt.planSha256, state } };
+    });
   }
   async readApplyCheckpoint(receipt: PlanReceipt): Promise<ApplyCheckpoint> {
     receipt = structuredClone(receipt);

@@ -5,8 +5,10 @@ import {
   type AppliedResourceProjection,
   type ApplyAttemptResourceProjection,
   type ApplyCheckpoint,
+  type CurrentResourcePlanSnapshot,
   type Deployment,
   type NoChangeResourceProjection,
+  type PlannedStateResourceProjection,
   type PlanReceipt,
   type TerraformActionIntent,
   TerraformRunner,
@@ -49,6 +51,18 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<NoChangeResourceProjection>;
+  /** Optional on older runtimes; inspects current state behind a resource-only planned receipt. */
+  readPlannedStateResourceFields?(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlannedStateResourceProjection>;
+  /** Recover a current unconsumed receipt only after saved binary inspection; never authorizes submission. */
+  readCurrentResourcePlanReceipt?(
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<CurrentResourcePlanSnapshot>;
   readApplyCheckpoint?(receipt: PlanReceipt): Promise<ApplyCheckpoint>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
@@ -128,6 +142,14 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async readNoChangeResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readNoChangeResourceFields(receipt, selections, env, signal);
+        },
+        async readPlannedStateResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedStateResourceFields(receipt, selections, env, signal);
+        },
+        async readCurrentResourcePlanReceipt(env, signal) {
+          await checkOwner();
+          return runner.readCurrentResourcePlanReceipt(env, signal);
         },
         async readApplyCheckpoint(receipt) {
           await checkOwner();
