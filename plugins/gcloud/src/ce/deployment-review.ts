@@ -19,6 +19,7 @@ import { type GcpPolicyReceipt, readGcpCePolicy } from './policy';
 import { collectGcpLaunchPreflight, type GcpLaunchPreflight } from './preflight';
 import { createGcpPreflightPort } from './preflight-port';
 import type { GcpQualificationGates } from './qualification-gates';
+import { assertGcpSiteAccessProfile } from './site-access';
 import { assertGcpTerraformHaProfile } from './terraform-ha-profile';
 import type { GcpCeDiscovery, GcpCeIntent } from './types';
 
@@ -86,6 +87,7 @@ export async function collectGcpDeploymentPrerequisites(
   engine: 'native' | 'terraform' = 'native',
 ) {
   signal?.throwIfAborted();
+  assertGcpSiteAccessProfile(intent);
   const boundary = await sources.contract(signal);
   if (engine === 'native') profile(intent, boundary, platform);
   else {

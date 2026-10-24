@@ -40,6 +40,7 @@ export interface GcpCeIntent {
   diskGiB: number;
   image: GcpCeImage;
   initialVersions?: { software: string; os: string };
+  initialAccess?: import('./site-access').GcpSiteAccess;
   ipForwarding: true;
   egress: { mode: 'external-ip' | 'cloud-nat' | 'firewall' | 'proxy'; resource?: string };
   ingress: { profile: 'none' | 'internal-passthrough-lb' };

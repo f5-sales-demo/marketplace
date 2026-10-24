@@ -1,4 +1,5 @@
 import { fingerprint } from './discovery';
+import { assertGcpSiteAccessProfile, gcpSiteAccessSpec } from './site-access';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
@@ -22,6 +23,7 @@ function assertComputeOnly(intent: GcpCeIntent): void {
 /** Candidate translation only. Execution requires immutable contract, approval and shared ledger. */
 export function translateGcpNativeCompute(intent: GcpCeIntent) {
   validateIntent(intent);
+  assertGcpSiteAccessProfile(intent);
   if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
@@ -201,6 +203,7 @@ export function translateGcpTerraformSiteCompute(
   for (const version of Object.values(versions))
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
   const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const access = gcpSiteAccessSpec(intent, versions.xcsh);
   const sites: Record<string, unknown> = {};
   const tokens: Record<string, unknown> = {};
   const instances = cloud.configuration.resource.google_compute_instance as Record<string, Record<string, unknown>>;
@@ -221,7 +224,7 @@ export function translateGcpTerraformSiteCompute(
         : {}),
       ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
       disable_management_network: {},
-      block_all_services: {},
+      ...(access ?? { block_all_services: {} }),
       no_network_policy: {},
       no_forward_proxy: {},
       f5_proxy: {},

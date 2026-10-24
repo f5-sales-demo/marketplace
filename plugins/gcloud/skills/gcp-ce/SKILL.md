@@ -66,6 +66,15 @@ Read [provider contract](references/provider-contract.md) before planning and
    without replay. Verified partial ownership requires a separate delete-only
    cleanup review. HA, upgrade and failover remain unavailable. Do not bypass an
    unavailable gate with generic CLI, Terraform or Platform tools.
+   For the two-interface external-IP Terraform HA candidate, optional
+   `initialAccess={schemaVersion:1,profile:"site-ssh-sli",publicKey:"ssh-ed25519 ..."}`
+   binds one canonical Ed25519 public key without options or comments to the Site's
+   admin credentials. It permits Site CLI SSH as `admin` on SLI, blocks SSH on SLO,
+   and blocks local DNS and web UI on both VRFs. Use a campaign-only key. Omitted
+   access retains the historical all-services-blocked configuration; native and
+   single-node access requests refuse before cloud calls. This provider-validated
+   configuration does not establish authenticated guest access or HA acceptance.
+   Do not place this key in CE VM metadata or create guest shell accounts.
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
    `platformContext` use the shared Platform service and exact ledger topology to

@@ -1037,6 +1037,53 @@ var GCP_CE_OPERATIONS = [
 // plugins/gcloud/src/gcloud/types.ts
 var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 
+// plugins/gcloud/src/ce/site-access.ts
+class GcpSiteAccessMappingUnavailable extends Error {
+  constructor() {
+    super('Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0 mapping');
+  }
+}
+function validateGcpSiteAccess(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
+  const access = value;
+  if (
+    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
+    access.schemaVersion !== 1 ||
+    access.profile !== 'site-ssh-sli' ||
+    typeof access.publicKey !== 'string' ||
+    access.publicKey.length > 8192
+  )
+    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
+  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
+  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (
+    bytes.length !== 51 ||
+    bytes.toString('base64') !== match[1] ||
+    bytes.readUInt32BE(0) !== 11 ||
+    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
+    bytes.readUInt32BE(15) !== 32
+  )
+    throw new Error('Site SSH public key wire format differs');
+}
+function assertGcpSiteAccessProfile(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  if (
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.sites[0].nodes.some(
+      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
+    ) ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new GcpSiteAccessMappingUnavailable();
+}
+
 // plugins/gcloud/src/ce/validation.ts
 var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 function validateScope(project, region) {
@@ -1099,6 +1146,7 @@ function validateIntent(intent) {
     'image',
     'ipForwarding',
     'initialVersions',
+    'initialAccess',
     'egress',
     'ingress',
     'routing',
@@ -1116,6 +1164,7 @@ function validateIntent(intent) {
   if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
   if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
   validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
   if (intent.initialVersions) {
     keys(intent.initialVersions, ['software', 'os']);
     if (
@@ -5223,6 +5272,7 @@ class GcpPlatformLifecycle {
     this.intent = structuredClone(intent);
     this.contract = structuredClone(contract);
     validateIntent(intent);
+    assertGcpSiteAccessProfile(intent);
     const profile = contract.singleNodeLifecycle;
     if (
       !profile?.site_create?.spec ||

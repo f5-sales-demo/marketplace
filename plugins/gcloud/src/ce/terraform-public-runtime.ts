@@ -2,6 +2,7 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { fingerprint } from './discovery';
+import { assertGcpSiteAccessProfile } from './site-access';
 import { publicTerraformContextHash } from './terraform-context';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from './terraform-public-artifacts';
 import { openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
@@ -15,6 +16,7 @@ export async function openPublicTerraformRuntime(
   signal?: AbortSignal,
   installedService?: CeTerraformService,
 ) {
+  assertGcpSiteAccessProfile(intent);
   if (
     intent.engine !== 'terraform' ||
     !GCP_PUBLIC_TERRAFORM_ARTIFACTS ||

@@ -2,6 +2,7 @@ import type { GcpBootstrapStore } from '../../../gcloud/src/ce/bootstrap-checkou
 import type { GcpBootstrapIssueDriver } from '../../../gcloud/src/ce/bootstrap-issue';
 import type { GcpCeContractBoundary } from '../../../gcloud/src/ce/contract';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
+import { assertGcpSiteAccessProfile } from '../../../gcloud/src/ce/site-access';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { validateIntent } from '../../../gcloud/src/ce/validation';
 import { initialSoftwareSettings } from './initial-versions';
@@ -26,6 +27,7 @@ export class GcpPlatformLifecycle {
     this.intent = structuredClone(intent);
     this.contract = structuredClone(contract);
     validateIntent(intent);
+    assertGcpSiteAccessProfile(intent);
     const profile = contract.singleNodeLifecycle as
       | { site_create?: { spec?: Json }; node_count?: number; interface_count?: number }
       | undefined;

@@ -25,6 +25,7 @@ import { readGcpCePolicy } from '../ce/policy';
 import { collectGcpLaunchPreflight, supportsGcpLaunchPreflight } from '../ce/preflight';
 import { createGcpPreflightPort } from '../ce/preflight-port';
 import { GcpTerraformSetupRequired, requestGcpTerraformService } from '../ce/runtime-prerequisites';
+import { assertGcpSiteAccessProfile, GcpSiteAccessMappingUnavailable } from '../ce/site-access';
 import { applyPublicTerraformDeployment, planPublicTerraformDeployment } from '../ce/terraform-public';
 import { openPublicTerraformRuntime } from '../ce/terraform-public-runtime';
 import { applyPublicTerraformTeardown, planPublicTerraformTeardown } from '../ce/terraform-public-teardown';
@@ -244,6 +245,7 @@ export function createGcpCeTools(
           )
             throw new Error('Explicit deployment intent scope required');
           validateIntent(intent);
+          assertGcpSiteAccessProfile(intent);
           if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
             throw new Error('Planning tool cannot apply authorization');
           if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
@@ -675,6 +677,22 @@ export function createGcpCeTools(
         );
       } catch (error) {
         signal?.throwIfAborted();
+        if (!mutationAttempted && error instanceof GcpSiteAccessMappingUnavailable)
+          return result(
+            tool,
+            {
+              availability: 'unavailable',
+              reason: 'gcp_site_access_mapping_unavailable',
+              engine: params.engine ?? 'native',
+              profile: 'site-ssh-sli',
+              required: [
+                'two-interface external-IP Terraform HA profile',
+                'published XC 15.13.0 Site admin key and SLI local-service mapping',
+              ],
+              mutationAttempted: false,
+            },
+            true,
+          );
         // Cloud errors and caller-controlled fields can contain private values.
         return result(
           tool,

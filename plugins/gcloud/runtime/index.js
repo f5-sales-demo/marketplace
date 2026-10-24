@@ -1153,6 +1153,88 @@ var init_types2 = __esm(() => {
   ];
 });
 
+// plugins/gcloud/src/ce/site-access.ts
+function validateGcpSiteAccess(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
+  const access = value;
+  if (
+    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
+    access.schemaVersion !== 1 ||
+    access.profile !== 'site-ssh-sli' ||
+    typeof access.publicKey !== 'string' ||
+    access.publicKey.length > 8192
+  )
+    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
+  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
+  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (
+    bytes.length !== 51 ||
+    bytes.toString('base64') !== match[1] ||
+    bytes.readUInt32BE(0) !== 11 ||
+    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
+    bytes.readUInt32BE(15) !== 32
+  )
+    throw new Error('Site SSH public key wire format differs');
+}
+function assertGcpSiteAccessProfile(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  if (
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.sites[0].nodes.some(
+      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
+    ) ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new GcpSiteAccessMappingUnavailable();
+}
+function gcpSiteAccessSpec(intent, providerVersion) {
+  if (intent.initialAccess === undefined) return;
+  assertGcpSiteAccessProfile(intent);
+  if (providerVersion !== GCP_SITE_ACCESS_MAPPING.version) throw new GcpSiteAccessMappingUnavailable();
+  return {
+    admin_user_credentials: { ssh_key: intent.initialAccess.publicKey },
+    blocked_services: {
+      blocked_service: [
+        { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', ssh: {} },
+        ...['VIRTUAL_NETWORK_SITE_LOCAL', 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE'].flatMap((network_type) => [
+          { network_type, dns: {} },
+          { network_type, web_user_interface: {} },
+        ]),
+      ],
+    },
+  };
+}
+function gcpSiteAccessFingerprint(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  return fingerprint({ mapping: GCP_SITE_ACCESS_MAPPING, access: intent.initialAccess });
+}
+var GCP_SITE_ACCESS_MAPPING, GcpSiteAccessMappingUnavailable;
+var init_site_access = __esm(() => {
+  init_discovery();
+  GCP_SITE_ACCESS_MAPPING = {
+    schemaVersion: 1,
+    provider: 'f5-sales-demo/xcsh',
+    version: '15.13.0',
+    credentials: 'admin_user_credentials.ssh_key',
+    blockedServices: 'blocked_services.blocked_service',
+    sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
+    user: 'admin',
+  };
+  GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
+    constructor() {
+      super('Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0 mapping');
+    }
+  };
+});
+
 // plugins/gcloud/src/ce/validation.ts
 function validateScope(project, region) {
   if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
@@ -1214,6 +1296,7 @@ function validateIntent(intent) {
     'image',
     'ipForwarding',
     'initialVersions',
+    'initialAccess',
     'egress',
     'ingress',
     'routing',
@@ -1231,6 +1314,7 @@ function validateIntent(intent) {
   if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
   if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
   validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
   if (intent.initialVersions) {
     keys(intent.initialVersions, ['software', 'os']);
     if (
@@ -1296,6 +1380,7 @@ function validateIntent(intent) {
 var NAME;
 var init_validation = __esm(() => {
   init_types();
+  init_site_access();
   init_types2();
   NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 });
@@ -2075,6 +2160,7 @@ function qualifiedGcpTerraformHaProfile(value) {
   );
 }
 function assertGcpTerraformHaProfile(intent, boundary, deployment = false) {
+  assertGcpSiteAccessProfile(intent);
   const p = boundary.terraformHaLifecycle;
   const contract = boundary.operationalHealthContract;
   const expected = boundary.operationalHealthExpected;
@@ -2110,8 +2196,10 @@ function assertGcpTerraformHaProfile(intent, boundary, deployment = false) {
 function gcpDeploymentLifecycleFingerprint(intent, boundary) {
   if (intent.sites[0]?.nodes.length !== 3) return fingerprint(boundary.singleNodeLifecycle);
   const profile = assertGcpTerraformHaProfile(intent, boundary);
+  const siteAccessFingerprint = gcpSiteAccessFingerprint(intent);
   return fingerprint({
     profile,
+    ...(siteAccessFingerprint ? { siteAccessFingerprint } : {}),
     operationalQualificationFingerprint:
       boundary.operationalHealthContract?.qualificationFingerprint ??
       boundary.operationalHealthExpected?.qualificationFingerprint,
@@ -2121,6 +2209,7 @@ var hash = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
 var init_terraform_ha_profile = __esm(() => {
   init_discovery();
   init_operational_health();
+  init_site_access();
 });
 
 // plugins/gcloud/src/ce/operational-release.ts
@@ -2472,6 +2561,7 @@ var init_gcp_http = __esm(() => {
 // plugins/platform/src/ce/gcp-lifecycle.ts
 var init_gcp_lifecycle = __esm(() => {
   init_discovery();
+  init_site_access();
   init_validation();
 });
 
@@ -2696,6 +2786,7 @@ function assertComputeOnly(intent) {
 }
 function translateGcpNativeCompute(intent) {
   validateIntent(intent);
+  assertGcpSiteAccessProfile(intent);
   if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
@@ -2868,6 +2959,7 @@ function translateGcpTerraformSiteCompute(intent, versions) {
   for (const version of Object.values(versions))
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
   const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const access = gcpSiteAccessSpec(intent, versions.xcsh);
   const sites = {};
   const tokens = {};
   const instances = cloud.configuration.resource.google_compute_instance;
@@ -2888,7 +2980,7 @@ function translateGcpTerraformSiteCompute(intent, versions) {
         : {}),
       ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
       disable_management_network: {},
-      block_all_services: {},
+      ...(access ?? { block_all_services: {} }),
       no_network_policy: {},
       no_forward_proxy: {},
       f5_proxy: {},
@@ -2998,6 +3090,7 @@ function translateGcpPublicTerraformSiteCompute(intent, versions) {
 }
 var init_compute_plan = __esm(() => {
   init_discovery();
+  init_site_access();
   init_validation();
 });
 
@@ -5661,6 +5754,7 @@ function fundingBinding(funding) {
 }
 async function collectGcpDeploymentPrerequisites(platform, intent, sources, signal, resume = false, engine = 'native') {
   signal?.throwIfAborted();
+  assertGcpSiteAccessProfile(intent);
   const boundary = await sources.contract(signal);
   if (engine === 'native') profile(intent, boundary, platform);
   else {
@@ -5919,6 +6013,7 @@ var init_deployment_review = __esm(() => {
   init_policy();
   init_preflight();
   init_preflight_port();
+  init_site_access();
   init_terraform_ha_profile();
 });
 
@@ -9356,6 +9451,7 @@ var init_terraform_session = __esm(() => {
 
 // plugins/gcloud/src/ce/terraform-public-runtime.ts
 async function openPublicTerraformRuntime(platform, api, intent, signal, installedService) {
+  assertGcpSiteAccessProfile(intent);
   if (
     intent.engine !== 'terraform' ||
     !GCP_PUBLIC_TERRAFORM_ARTIFACTS ||
@@ -9419,6 +9515,7 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
 }
 var init_terraform_public_runtime = __esm(() => {
   init_discovery();
+  init_site_access();
   init_terraform_context();
   init_terraform_public_artifacts();
   init_terraform_session();
@@ -9609,6 +9706,7 @@ function createGcpCeTools(
           )
             throw new Error('Explicit deployment intent scope required');
           validateIntent(intent);
+          assertGcpSiteAccessProfile(intent);
           if (tool === 'gcp_ce_plan' && params.approvedPlanHash)
             throw new Error('Planning tool cannot apply authorization');
           if (tool === 'gcp_ce_apply' && !params.approvedPlanHash)
@@ -10033,6 +10131,22 @@ function createGcpCeTools(
         );
       } catch (error) {
         signal?.throwIfAborted();
+        if (!mutationAttempted && error instanceof GcpSiteAccessMappingUnavailable)
+          return result(
+            tool,
+            {
+              availability: 'unavailable',
+              reason: 'gcp_site_access_mapping_unavailable',
+              engine: params.engine ?? 'native',
+              profile: 'site-ssh-sli',
+              required: [
+                'two-interface external-IP Terraform HA profile',
+                'published XC 15.13.0 Site admin key and SLI local-service mapping',
+              ],
+              mutationAttempted: false,
+            },
+            true,
+          );
         return result(
           tool,
           {
@@ -10085,6 +10199,7 @@ var init_gcp_ce = __esm(() => {
   init_preflight();
   init_preflight_port();
   init_runtime_prerequisites();
+  init_site_access();
   init_terraform_public();
   init_terraform_public_runtime();
   init_terraform_public_teardown();

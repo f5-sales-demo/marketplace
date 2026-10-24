@@ -1,6 +1,7 @@
 import type { GcpCeContractBoundary } from './contract';
 import { fingerprint } from './discovery';
 import { qualifiedOperationalRelease } from './operational-health';
+import { assertGcpSiteAccessProfile, gcpSiteAccessFingerprint } from './site-access';
 import type { GcpCeIntent } from './types';
 
 /** Sanitized lifecycle scope published with the independently qualified health receipt. */
@@ -42,6 +43,7 @@ export function qualifiedGcpTerraformHaProfile(value: unknown): value is GcpTerr
 }
 /** Cleanup requires the immutable lifecycle scope, independently of any live health reads. */
 export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCeContractBoundary, deployment = false) {
+  assertGcpSiteAccessProfile(intent);
   const p = boundary.terraformHaLifecycle;
   const contract = boundary.operationalHealthContract;
   const expected = boundary.operationalHealthExpected;
@@ -77,8 +79,10 @@ export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCe
 export function gcpDeploymentLifecycleFingerprint(intent: GcpCeIntent, boundary: GcpCeContractBoundary) {
   if (intent.sites[0]?.nodes.length !== 3) return fingerprint(boundary.singleNodeLifecycle);
   const profile = assertGcpTerraformHaProfile(intent, boundary);
+  const siteAccessFingerprint = gcpSiteAccessFingerprint(intent);
   return fingerprint({
     profile,
+    ...(siteAccessFingerprint ? { siteAccessFingerprint } : {}),
     operationalQualificationFingerprint:
       boundary.operationalHealthContract?.qualificationFingerprint ??
       boundary.operationalHealthExpected?.qualificationFingerprint,

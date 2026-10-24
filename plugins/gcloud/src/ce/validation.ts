@@ -1,4 +1,5 @@
 import { PROJECT_ID_PATTERN } from '../gcloud/types';
+import { validateGcpSiteAccess } from './site-access';
 import { GCP_CE_IMAGE_PROJECT, GCP_CE_OPERATIONS, type GcpCeImage, type GcpCeIntent } from './types';
 
 const NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
@@ -62,6 +63,7 @@ export function validateIntent(intent: GcpCeIntent) {
     'image',
     'ipForwarding',
     'initialVersions',
+    'initialAccess',
     'egress',
     'ingress',
     'routing',
@@ -79,6 +81,7 @@ export function validateIntent(intent: GcpCeIntent) {
   if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
   if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
   validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
   if (intent.initialVersions) {
     keys(intent.initialVersions, ['software', 'os']);
     if (
