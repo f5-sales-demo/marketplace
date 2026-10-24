@@ -1,0 +1,223 @@
+<!-- markdownlint-disable MD013 MD060 -->
+# GCP issue 1559 acceptance matrix
+
+Issue: <https://github.com/f5-sales-demo/marketplace/issues/1559>. Delivery: draft PR <https://github.com/f5-sales-demo/marketplace/pull/1698>.
+
+This continuation starts from candidate `66d48b9314cf6c6224078122e298b54821706920` and fetched main `687541f9`. The candidate has been reconciled in a fresh issue worktree. Full issue acceptance remains incomplete. Historical successes are attributed to their original receipts; they do not qualify this changed candidate.
+
+## Current implementation and verification
+
+GCloud 1.7.24 declares Platform as its required marketplace and integration setup dependency. Terraform remains optional. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
+
+Every declared operation appears in the plan/apply schema. Operations without qualified consumer mappings return a schema-v2 refusal with their owning engine, exact requested operation and unmet mapping, reviewed-plan, identity and restoration requirements before cloud reads. Upgrade and failover aliases use that same refusal boundary. This exposes availability; it does not implement those mutations.
+
+The schema-v2 recovery result measures failover from disruption start and repair from restoration-command start. Action completion cannot reset the clock. Route recovery, content-verified application recovery, outage duration and loss remain separate. The 120-second boundary is inclusive; missing traffic, content mismatch and a later failed observation invalidate recovery. Historical receipts and stored deployment intents are not rewritten.
+
+Failing-first dependency, dispatch, optional Terraform and timing regressions were retained privately before repair. Validation passed 561 lifecycle tests across 102 files and 75 shared/runtime/tracker tests, plus Platform, Terraform and focused GCloud typechecks, three runtime builds, catalog and lifecycle checks. The resolved merge passes pre-commit, changed JS/TS/JSON Biome (warnings retained), catalog consistency, staged Gitleaks and staged PII enforcement. The first hook run exposed catalog formatting; the catalog was formatted and the corrected run passed without changing its generated content.
+
+## Installation and normal development runtime
+
+The staging catalog is named `issue-1559-acceptance-staging`. It contains frozen plugin snapshots and is installed through the supported marketplace CLI into an isolated acceptance profile. GCloud installation also installed Platform; Terraform was initially absent. Qualified marketplace IDs passed disable, enable and upgrade. A second upgrade consumed a changed runtime snapshot. Initial attempts using bare IDs failed and were preserved; the CLI requires `name@marketplace` for those marketplace operations.
+
+Source-matched xcsh `33d1e443da267361b1be4af8936941b82a57198c`, Bun 1.4.2 and its existing native build were used. Ordinary `bun dev` loaded installed plugins without `--plugin-dir`, adapter replacement or fetch replacement. With the existing saved context, GCloud and Platform reported ready. Interactive setup reported ready with no setup required. The noninteractive `--json` setup attempt correctly refused the human-only interface.
+
+The configured `gpt-6.1-sol` model selected the installed GCP skill and executed registered wrapped `gcp_ce_upgrade` and `gcp_ce_failover` tools in separate ordinary RPC sessions. Results retained native default and explicit Terraform respectively, refused the unqualified operation and reported `mutationAttempted=false`. A 120-by-40 ordinary interactive terminal capture rendered the actual upgrade refusal and its unavailable state without truncation. This is a bounded rendering check, not full visual acceptance. A separate configured-model session executed registered `gcp_compute_discover` with an isolated unauthenticated GCloud configuration. Independent `gcloud auth list` returned zero accounts; the tool returned `validation_or_read_failed` and `mutationAttempted=false`, preserving the generic failure rather than inventing an authentication diagnosis. Doctor found the plugins directory and retained package-manifest/node_modules warnings. Supported `plugin uninstall` removed the three staging plugins; final list verified removal. The unsupported `plugin remove` attempt is retained. Raw model and terminal transcripts remain private.
+
+## Requirement matrix
+
+| ID | Issue requirement | Implementation and tests | Installed behavior | Fresh live evidence | Publication status / remaining gate |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Qualified site/bootstrap/registration/interface/health/routing/upgrade mappings and immutable API/policy binding | Existing pinned contract and ownership tests pass; broader routing/upgrade mappings remain unqualified | Installed skill and operation refusals exercised | Historical narrow boot/health receipts only | v12.1.3/v12.3.1 preserved; qualify missing mappings upstream before enabling consumers |
+| 2 | Skill, identity/discovery/inventory, versioned topology, plan/evidence and scoped tools | Existing schema-v1 topology preserved; all operations exposed with schema-v2 refusal evidence | Skill selection and real registered tool execution pass | No new deployment | Complete operation-specific executable intents and evidence before claiming parity |
+| 3 | Restricted shared storage, authorization, checkpoints and Terraform runner | Existing suites pass; public path now uses the installed shared runner | Required Platform installed; optional Terraform prerequisite retained | No new authorization/apply | Qualify operational mutation dispatch and installed saved-plan execution |
+| 4 | Async reconciliation, exact ownership, one-use bootstrap, engine persistence and restoration | Existing focused/shared tests cover narrow native/Terraform paths | Engine selection preserved in real model results | Historical narrow reconciliation/cleanup retained | Native HA and expanded recovery remain unqualified |
+| 5 | Exact image/license, funding/APIs/IAM/org policy/quotas, sizing and homogeneous one/three-node NIC/VRF topology | Existing validation and prerequisite tests pass | Existing authenticated context reports ready | No fresh capacity reservation or boot | Recheck exact billable plan and IT-funded association before each campaign |
+| 6 | External IP, Cloud NAT and explicit firewall/proxy egress | Narrow external-IP implementation; candidate NAT/firewall planners | Explicit unsupported paths retained | No fresh profile traffic | Qualify every requested profile on each engine |
+| 7 | Static insertion, separate ILB ingress/next-hop routing and supported NCC/Cloud Router BGP | Candidate planners do not grant execution admission | Unqualified operations refuse before cloud reads | No effective-route/BGP/return-path proof | Missing qualified F5 mappings and consumer execution/traffic evidence |
+| 8 | Verified CE-interface backend binding and symmetric content traffic | Interface/identity tests and narrow observation implementation | No traffic acceptance claim | None | Disposable clients/origins, health/backend joins and independent route/traffic receipts required |
+| 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
+| 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
+| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Current suites/builds/typechecks/catalog pass | Normal install/status/enable/disable/upgrade, configured-model skill/tool prompts pass | No cloud mutations in runtime probes | Generic unauthenticated discovery refusal and isolated removal pass; finish precise authentication classification, doctor warnings and published artifact smoke gates |
+| 12 | Fresh original-bound guest capture and Terraform HA acceptance | New private v8 live SSH adapter extends frozen v7; 34 distinct offline tests cover trust, framing, ownership/auth failure, retained evidence and truncation | No private PluginInterface used for runtime acceptance | Live guest access and bootstrap-period journals not demonstrated | Review/create/capture/cleanup a new 21-resource campaign; at most three sequential campaigns, independent cleanup before another |
+| 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
+| 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Conflicts reconciled; source acceptance receipt maintained | Isolated staging only | No publication or final user-scope installation | Keep PR draft; required review/CI, live gates, release and downloaded artifact acceptance remain |
+
+## Guest campaign boundary
+
+The new allowance is at most three fresh sequential campaigns, each with separate independent cleanup. No new cloud campaign has been submitted by this continuation. It does not extend or replay any historical campaign series.
+
+The new private collector launches real nested SSH with strict original-bound host trust, campaign-only keys, disabled forwarding, bounded PTY handling and durable partial receipts. Frozen v7, host-trust and v6 dependency bytes are now verified before loading and again at session validation. Capture requires fresh original runtime listings, listing-bound container IDs, retained inspections and logs for bootstrap, VPM and exited containers. The 34-test offline suite and isolated Ruff E4/E7/E9/F checks pass; this does not constitute fleet strict Python lint or live capture qualification. Its independent ownership verifier and fresh serial receipts remain prerequisites for live execution. Capture cannot pass from completeness booleans alone: retained original-attributed journal/container files and their hashes are required, and journal timestamps must cover the required bootstrap interval. Missing or truncated evidence fails closed. A real SSH/authenticated guest session is still unverified.
+
+A campaign must freeze observer image `ubuntu-2404-noble-amd64-v20261021`, numeric ID `4996011480491275419`, and give the observer no cloud service account. Review all 21 original resources, initial absences and the saved create plan; start capture before the single apply. Finish every outcome with the separate five-minute final-capture window, reviewed cleanup, 21 independent absences, empty destroy, stable state and two non-submitting resumes. Preserve unresolved executor locks. Do not submit an unchanged retry.
+
+q12 remains closed as presumed transient, with its exact cause unknown. No historical qualification verdict, collector or immutable v12.3.1 asset is changed. Coverage stays at 36 placement profiles, 24 component services, 30 runtime services and zero exclusions.
+
+## Documented Site access candidate
+
+The [Secure Mesh GCP guide](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-gcp-clickops) links token-only CE bootstrap to [Create Secure Mesh Site v2](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2). These document Site-level `admin_user_credentials.ssh_key`, with local services enabled for the chosen network. The published XC 15.13.0 provider binary was independently initialized using Terraform 1.16.6; its fresh schema confirms access as `admin` and per-VRF SSH/DNS/web UI blocking. The complete generated candidate validates with Google 8.7.0 and XC 15.13.0, with zero errors or warnings.
+
+GCloud 1.7.24 and Platform 6.3.9 add optional `initialAccess` schema version 1, profile `site-ssh-sli`. The two-interface, external-IP Terraform HA candidate binds one canonical Ed25519 public key without options or comments. It blocks SSH on SLO, permits SSH on SLI, and blocks local DNS and web UI on both. No CE VM metadata key, password, guest shell account or serial-login fallback is introduced. Unsupported engines/topologies/provider versions refuse; omitted access preserves historical configuration bytes and lifecycle fingerprints. Changed keys change intent, generated configuration and lifecycle bindings, invalidating saved authorization.
+
+Failing-first tests cover translation, wrong engine, malformed wire keys, high-bit algorithm bytes, injected key options, legacy fingerprints and cleanup without health. The exact-byte regression initially failed and was retained before correction. The focused suite passes 41 tests; the broader GCloud/Platform/Terraform suites pass 735 tests. Platform strict typecheck, runtime bundles, dependency and generated-catalog checks pass. The frozen 34-test private v8 collector suite also passes. These are source and offline evidence, not proof of authenticated guest access.
+
+Private preparation accounts for 18 CE resources plus observer VM, separately owned disk and narrowly scoped SSH firewall. Four failing-first preparation tests pass, checking all 21 objects, Site-level CE credentials, token-only CE metadata, distinct campaign keys, observer image pin, no configured service account, disabled IP forwarding and a single `/32` SSH source. The preparer has no submission entry point. Before apply, independent live checks must verify that the observer has no service account, all original numeric identities, 21 initial absences, the saved plan and capture readiness. No campaign has been submitted; all three first-stage allowances remain unused. Authenticated guest access, complete attributed bootstrap journals/container logs, HA health/traffic, independently reviewed cleanup and the broader issue gates remain open.
+
+## Durable diagnostic continuation
+
+All applicable CI checks passed for `6526957aded79d6b7c2911c64dbdb1d0400c3f08`; PR #1698 remains open and draft. Independent source comparison confirms that only CHANGELOG wrapping differs from the saved-plan implementation head `033b1ca8`. The original plan, prior failed CI evidence and runtime bytes remain preserved.
+
+New private v9 diagnostic helpers pass 39 offline tests for exclusive campaign writers, durable hash chains, one-use submission claims, interrupted submission without replay, original insert identities, complete serial offsets, token expiry and replacement, NIC/VRF joins, observer identity, bounded command output, endpoint corroboration, listing-derived container capture and owned delete-only cleanup. Callback completion alone cannot qualify capture or cleanup. A full 200-line container-log tail remains incomplete. The frozen v8 adapter and historical collectors remain unchanged.
+
+Fresh independent reads confirmed all 21 initial absences and the pinned observer image. Corporate funding and CE IAM, quotas, organization policy, image, NIC and zone checks passed. Observer-inclusive quotas and serial, logging and firewall permissions passed separately. A fresh BYOL review plan was retained without submitting consent or infrastructure. These time-bound reads must be refreshed and rebound at execution readiness.
+
+The v9 helpers are not an end-to-end campaign executor. Original-VM guest provisioning, continuously attributed bootstrap capture, shared-runner cleanup integration, interruption recovery and live proof that the observer has no service account remain required before the first apply. No campaign allowance was consumed. Broader lifecycle, networking, traffic, review, release and installed-publication gates remain incomplete.
+
+## Guarded execution qualification
+
+The private diagnostic execution library connects reviewed create submission,
+lazy original guest establishment, observations and independently recovered owned
+cleanup. Final cloud and serial capture also runs when submission or guest access
+fails. Original insert identities and stable independent state/live joins remain
+required; missing identities and same-name replacements cannot be adopted.
+Cleanup does not require registration or health. Unresolved readers, executors or
+guest sessions retain their locks and block deletion.
+
+Twenty-three synthetic orchestration tests cover ordering, startup failure, partial
+apply, missing original identities, replacement, state drift, altered reviews,
+interrupted observation and separate final capture. These tests provide local
+evidence. Production mapping admission still refuses; no campaign CLI is enabled.
+All three fresh campaign allowances remain unused.
+
+No-submission reconciliation and the final no-change receipt join remain open.
+The journal timestamp mapping still lacks verified Site CLI output and original
+bootstrap coverage. Full live lifecycle, networking, traffic, review, publication
+and installed artifact acceptance remain incomplete. Historical receipts, frozen
+collectors and immutable release assets are preserved.
+
+## Shared no-change state reader
+
+The shared Terraform service now offers optional, explicitly typed inspection of
+current nonsensitive state after an exact planned no-change receipt. It preserves
+the planned checkpoint and submits no actions. Existing applied and interrupted
+inspection still refuse planned checkpoints. Older installed runners do not gain
+this capability implicitly. Two failing-first regressions and the 53-test
+Terraform suite pass, including state drift, sensitive selections and stale
+receipts. The final campaign consumer and original/current ownership join remain
+unqualified; this upstream reader does not enable live campaign admission.
+
+## Current receipt and ownership qualification
+
+The private diagnostic bridge now has a separate read-only no-change state type.
+It binds the later planned receipt to a preserved original create anchor, checks
+unchanged resource identities and brackets the read with stable checkpoint/state
+evidence. A versioned current ownership join preserves the historical ownership
+receipt and refuses replacement, missing resources, stale bindings and rollback.
+Unsubmitted startup reconciliation is qualified locally and makes no cleanup claim.
+
+Later planning retains returned receipts before semantic acceptance. Interrupted
+planning retains an unresolved recovery requirement and refuses an unchanged retry.
+Actionable drift and interrupted current receipt recovery still require qualified
+state readers. The complete campaign consumer remains disabled. Local helper tests
+provide synthetic evidence; source CI excludes these private helpers. All three
+campaign allowances remain unused. Live journal mapping, broader lifecycle and
+networking, traffic, review, release and installed artifact gates remain open.
+
+## Shared planned-state and receipt inspection
+
+The shared Terraform runner now supports explicitly typed current-state inspection
+behind a resource-only planned receipt. It returns observed state identities,
+including original identities during replacement planning, and keeps the planned
+checkpoint. A separate current receipt reader reuses the plan parser to verify
+the stored receipt against its exact saved binary. It rejects consumed, partial,
+malformed, altered or moving receipts and binary plans, and exports no private
+state or bootstrap fields. Existing applied and no-change readers retain their
+original checkpoint rules. These optional source capabilities submit nothing.
+
+Private campaign recovery consumers remain disabled pending their qualification.
+An incoherent interrupted plan remains unresolved; this reader does not repair
+it or authorize cleanup. Source/snapshot reconciliation, final capture ordering,
+live journal mapping, lifecycle/network/traffic, review, publication and installed
+artifact acceptance remain open. All three fresh campaign allowances are unused.
+
+## Private current resource evidence
+
+The private bridge now has distinct current resource receipt and planned-state
+read modes. They validate a later resource-only plan against the original
+configuration, provider lock, backend and 21 resource addresses, then compare
+actual state identities with preserved original ownership anchors. Supported
+create, update, delete and replacement summaries remain read evidence. Neither
+mode plans nor submits infrastructure changes. Current bindings remain separate
+from the active historical receipt used by guest capture and cleanup.
+
+Local qualification passes 299 Python tests across 27 selected suites and 129 Bun
+tests with 650 assertions and two generic fixture skips. Twelve bundles,
+typecheck, Ruff and scoped privacy pass. Tests cover changed original anchors,
+stale/extra receipts, identity replacement, state/checkpoint movement, incoherent
+receipt recovery and concurrent process locks. Both actual Python-to-Bun request
+modes parse and refuse the retained source pin before authentication. Original
+preparation hashes are unchanged; no live current-state proof is claimed.
+
+Full campaign and cleanup consumers remain held. Missing original resources or
+incoherent saved plans explicitly refuse; no historical ownership is rewritten.
+Next qualify current ownership joins and reviewed cleanup using separately bound
+current evidence, then final capture ordering and source/snapshot reconciliation.
+Live journal mapping, lifecycle/network/traffic, review, publication and installed
+artifact gates remain open. All three fresh campaign allowances remain unused.
+
+## Current ownership and final capture ordering
+
+A distinct private schema-v3 ownership join now binds actionable resource plans
+to immutable original ownership and separately observed current state. It accepts
+supported resource action summaries as read evidence, preserves the legacy
+schema-v2 no-change API, and refuses missing or replaced identities. Neither join
+rewrites historical receipts or authorizes cleanup.
+
+The private controller records original-bound start and terminal evidence for its
+independent final capture window before stopping capture and entering cleanup.
+Returned capture results remain private and hash-bound. Failed, interrupted,
+repeated, altered or inconsistently attributed capture remains unaccepted.
+A separate ordering guard requires terminal evidence and a later independently
+resolved stop. Late completion records deadline loss and grants no acceptance.
+Both executable inventories include the new helper.
+
+Qualification passes 313 Python tests across 28 selected suites, 129 Bun tests
+with 650 assertions and two generic fixture skips, 12 bundles, typecheck, Ruff,
+formatting and scoped privacy. These are private helper tests; source CI excludes
+them. Unchanged collector integration evidence is reused from the earlier run.
+No fresh live registration, health, traffic or cleanup claim is made.
+
+Current cleanup still needs explicit qualification using the final capture guard,
+separate current evidence, original ownership and a reviewed delete-only plan.
+Full campaign, source/snapshot reconciliation, live journal mapping, broader
+lifecycle/network/traffic, review, publication and installed artifact gates remain
+open. All three fresh campaign allowances remain unused.
+
+## Current destroy planning boundary
+
+A private planning primitive now verifies an exact frozen Python journal and
+retained final-capture result before inspecting current resource state, then
+rechecks that proof before creating a destroy plan. It binds the terminal record
+to the original create and a later resolved capture stop. It verifies the original
+hash chain without changing Python floating-point timestamp representations.
+Completed and failed captures remain unaccepted; deadline loss stays explicit.
+
+The planner keeps original create and ownership anchors unchanged, retains later
+observations and returned plans separately, and records interrupted planning
+before refusing an unchanged retry. Current resource actions remain unsubmitted.
+Its separate CLI mode and owned-cleanup consumer are still held for qualification.
+Journal snapshots over the existing four-MiB read bound explicitly refuse.
+
+Seven focused tests include the actual Python journal and terminal writer, both
+capture outcomes, changed proof bytes, unresolved stops, planning interruption
+and rejected returned plans. Local verification passes 313 Python tests across
+28 suites, 136 Bun tests with 680 assertions and two generic skips, 14 bundles,
+typecheck, Ruff and scoped privacy. Both actual read modes parse with the changed
+executable inventory and refuse the retained source pin before authentication.
+Original preparation and saved-plan bytes remain unchanged.
+
+These private checks provide no fresh live cleanup or operational acceptance.
+Next qualify the distinct current-cleanup protocol and owned-cleanup integration,
+including reviewed delete-only submission and non-submitting recovery. The full
+campaign, source/snapshot reconciliation, live journal mapping, broader lifecycle,
+networking, traffic, review, publication and installed-artifact gates remain open.
+All three fresh campaign allowances remain unused.

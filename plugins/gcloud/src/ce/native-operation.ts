@@ -1,4 +1,5 @@
 import type { GcloudExecApi } from '../gcloud/exec';
+import { fingerprint } from './discovery';
 import type { GcpCeEngine } from './types';
 
 export interface GcpOperationStore {
@@ -7,7 +8,9 @@ export interface GcpOperationStore {
 }
 export interface GcpOperationBinding {
   project: string;
-  zone: string;
+  zone?: string;
+  region?: string;
+  global?: true;
   deploymentName: string;
   engine: GcpCeEngine;
   actionId: string;
@@ -21,10 +24,18 @@ interface Checkpoint {
 }
 function valid(binding: GcpOperationBinding) {
   if (binding.engine !== 'native') throw new Error('GCP native reconciliation requires owning engine native');
-  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(binding.project) || !/^[a-z]+(?:-[a-z]+)+\d-[a-z]$/.test(binding.zone))
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(binding.project) ||
+    [binding.zone !== undefined, binding.region !== undefined, binding.global === true].filter(Boolean).length !== 1 ||
+    (binding.zone !== undefined && !/^[a-z]+(?:-[a-z]+)+\d-[a-z]$/.test(binding.zone)) ||
+    (binding.region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(binding.region))
+  )
     throw new Error('Explicit GCP operation scope required');
   for (const name of [binding.deploymentName, binding.actionId])
     if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP operation binding');
+}
+function scopePath(binding: GcpOperationBinding): string {
+  return binding.zone ? `zones/${binding.zone}` : binding.region ? `regions/${binding.region}` : 'global';
 }
 function parseOperation(
   value: unknown,
@@ -32,7 +43,7 @@ function parseOperation(
 ): { name: string; status: string; errors: string[] } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed GCP operation');
   const row = value as Record<string, unknown>;
-  const prefix = `https://www.googleapis.com/compute/v1/projects/${binding.project}/zones/${binding.zone}/operations/`;
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${binding.project}/${scopePath(binding)}/operations/`;
   if (typeof row.name !== 'string' || !/^operation-[a-z0-9-]+$/.test(row.name) || row.selfLink !== prefix + row.name)
     throw new Error('GCP operation identity mismatch');
   if (!['PENDING', 'RUNNING', 'DONE'].includes(String(row.status))) throw new Error('Unknown GCP operation state');
@@ -63,6 +74,24 @@ export async function recordGcpOperation(
     state: operation.status === 'DONE' ? (operation.errors.length ? 'failed' : 'done') : 'pending',
     errorCodes: operation.errors,
   };
+  let previous: Checkpoint | undefined;
+  try {
+    previous = (await store.read(filename(binding))) as Checkpoint | undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (previous) {
+    if (
+      previous.schemaVersion !== 1 ||
+      fingerprint(previous.binding) !== fingerprint(binding) ||
+      previous.operationName !== checkpoint.operationName
+    )
+      throw new Error('Operation checkpoint identity cannot be overwritten');
+    if (!['pending', 'done', 'failed'].includes(previous.state))
+      throw new Error('Malformed operation checkpoint state');
+    if (previous.state !== 'pending' && fingerprint(previous) !== fingerprint(checkpoint))
+      throw new Error('Terminal operation evidence cannot change');
+  }
   await store.write(filename(binding), checkpoint);
   return checkpoint;
 }
@@ -78,7 +107,7 @@ export async function reconcileGcpOperation(
   const checkpoint = (await store.read(filename(binding))) as Checkpoint;
   if (
     checkpoint?.schemaVersion !== 1 ||
-    JSON.stringify(checkpoint.binding) !== JSON.stringify(binding) ||
+    fingerprint(checkpoint.binding) !== fingerprint(binding) ||
     !/^operation-[a-z0-9-]+$/.test(checkpoint.operationName)
   )
     throw new Error('Operation checkpoint ownership differs');
@@ -91,7 +120,7 @@ export async function reconcileGcpOperation(
     'describe',
     checkpoint.operationName,
     `--project=${binding.project}`,
-    `--zone=${binding.zone}`,
+    ...(binding.zone ? [`--zone=${binding.zone}`] : binding.region ? [`--region=${binding.region}`] : ['--global']),
     '--format=json(name,selfLink,status,error.errors.code)',
   ];
   const output = await api.exec('gcloud', args, { signal });
