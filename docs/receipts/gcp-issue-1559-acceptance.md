@@ -104,3 +104,20 @@ this capability implicitly. Two failing-first regressions and the 53-test
 Terraform suite pass, including state drift, sensitive selections and stale
 receipts. The final campaign consumer and original/current ownership join remain
 unqualified; this upstream reader does not enable live campaign admission.
+
+## Current receipt and ownership qualification
+
+The private diagnostic bridge now has a separate read-only no-change state type.
+It binds the later planned receipt to a preserved original create anchor, checks
+unchanged resource identities and brackets the read with stable checkpoint/state
+evidence. A versioned current ownership join preserves the historical ownership
+receipt and refuses replacement, missing resources, stale bindings and rollback.
+Unsubmitted startup reconciliation is qualified locally and makes no cleanup claim.
+
+Later planning retains returned receipts before semantic acceptance. Interrupted
+planning retains an unresolved recovery requirement and refuses an unchanged retry.
+Actionable drift and interrupted current receipt recovery still require qualified
+state readers. The complete campaign consumer remains disabled. Local helper tests
+provide synthetic evidence; source CI excludes these private helpers. All three
+campaign allowances remain unused. Live journal mapping, broader lifecycle and
+networking, traffic, review, release and installed artifact gates remain open.
