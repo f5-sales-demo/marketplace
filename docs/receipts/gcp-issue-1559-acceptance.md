@@ -71,3 +71,25 @@ New private v9 diagnostic helpers pass 39 offline tests for exclusive campaign w
 Fresh independent reads confirmed all 21 initial absences and the pinned observer image. Corporate funding and CE IAM, quotas, organization policy, image, NIC and zone checks passed. Observer-inclusive quotas and serial, logging and firewall permissions passed separately. A fresh BYOL review plan was retained without submitting consent or infrastructure. These time-bound reads must be refreshed and rebound at execution readiness.
 
 The v9 helpers are not an end-to-end campaign executor. Original-VM guest provisioning, continuously attributed bootstrap capture, shared-runner cleanup integration, interruption recovery and live proof that the observer has no service account remain required before the first apply. No campaign allowance was consumed. Broader lifecycle, networking, traffic, review, release and installed-publication gates remain incomplete.
+
+## Guarded execution qualification
+
+The private diagnostic execution library connects reviewed create submission,
+lazy original guest establishment, observations and independently recovered owned
+cleanup. Final cloud and serial capture also runs when submission or guest access
+fails. Original insert identities and stable independent state/live joins remain
+required; missing identities and same-name replacements cannot be adopted.
+Cleanup does not require registration or health. Unresolved readers, executors or
+guest sessions retain their locks and block deletion.
+
+Twenty-three synthetic orchestration tests cover ordering, startup failure, partial
+apply, missing original identities, replacement, state drift, altered reviews,
+interrupted observation and separate final capture. These tests provide local
+evidence. Production mapping admission still refuses; no campaign CLI is enabled.
+All three fresh campaign allowances remain unused.
+
+No-submission reconciliation and the final no-change receipt join remain open.
+The journal timestamp mapping still lacks verified Site CLI output and original
+bootstrap coverage. Full live lifecycle, networking, traffic, review, publication
+and installed artifact acceptance remain incomplete. Historical receipts, frozen
+collectors and immutable release assets are preserved.
