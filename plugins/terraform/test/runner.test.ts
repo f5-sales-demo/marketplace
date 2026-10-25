@@ -1288,3 +1288,89 @@ test('current resource receipt recovery refuses journal or binary movement durin
     expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
   }
 });
+
+test('destroy recovery reads the exact saved receipt and actual originals behind empty planned values', async () => {
+  const address = 'terraform_data.ce';
+  const state = {
+    values: {
+      root_module: {
+        resources: [
+          {
+            address,
+            mode: 'managed',
+            type: 'terraform_data',
+            values: { id: 'original', input: 'PRIVATE_DESTROY_STATE' },
+            sensitive_values: { input: true },
+          },
+        ],
+      },
+    },
+  };
+  const f = await fixture(
+    {
+      resource_changes: [
+        { address, type: 'terraform_data', change: { actions: ['delete'], before: { id: 'original' }, after: null } },
+      ],
+      planned_values: { root_module: { resources: [] } },
+      output_changes: {},
+    },
+    {},
+    undefined,
+    undefined,
+    state,
+  );
+  const receipt = await f.runner.planDestroy({});
+  await writeFile(
+    join(f.root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({ lineage: 'fixture-lineage', serial: 2 }),
+    { mode: 0o600 },
+  );
+  const saved = await readFile(join(f.root, 'ce-test', 'saved.tfplan'));
+  const recovered = await f.runner.readCurrentResourcePlanReceipt({});
+  expect(recovered.receipt).toEqual(receipt);
+  expect(recovered.receipt.operation).toBe('destroy');
+  expect(recovered.checkpoint).toEqual({ schemaVersion: 1, planSha256: receipt.planSha256, state: 'planned' });
+  const current = await f.runner.readPlannedStateResourceFields(receipt, { [address]: ['id'] }, {});
+  expect(current.resources).toEqual({ [address]: { id: 'original' } });
+  expect(current.observation).toBe('planned-state');
+  expect(current.applyState).toBe('planned');
+  expect(JSON.stringify({ recovered, current })).not.toContain('PRIVATE_DESTROY_STATE');
+  await expect(
+    f.runner.readPlannedStateResourceFields({ ...receipt, operation: undefined }, { [address]: ['id'] }, {}),
+  ).rejects.toThrow();
+  await expect(f.runner.readPlannedStateResourceFields(receipt, { [address]: ['input'] }, {})).rejects.toThrow(
+    /sensitive/,
+  );
+  await expect(f.runner.readApplyAttemptResourceFields(receipt, { [address]: ['id'] }, {})).rejects.toThrow();
+  expect(await readFile(join(f.root, 'ce-test', 'saved.tfplan'))).toEqual(saved);
+  expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+  expect(f.calls.filter((c) => c.args[0] === 'plan')).toHaveLength(1);
+});
+
+test('destroy receipt recovery refuses private metadata, changed binaries, consumed plans and changed actions', async () => {
+  for (const mutation of ['private-field', 'binary', 'consumed', 'actions'] as const) {
+    const change = { actions: ['delete'], after: null };
+    const f = await fixture({
+      resource_changes: [{ address: 'terraform_data.ce', type: 'terraform_data', change }],
+      output_changes: {},
+    });
+    const receipt = await f.runner.planDestroy({});
+    const directory = join(f.root, 'ce-test');
+    if (mutation === 'private-field')
+      await writeFile(
+        join(directory, 'plan-receipt.json'),
+        JSON.stringify({ state: 'planned', receipt: { ...receipt, token: 'PRIVATE_DESTROY_RECEIPT' } }),
+        { mode: 0o600 },
+      );
+    if (mutation === 'binary')
+      await writeFile(join(directory, 'saved.tfplan'), 'changed-destroy-plan', { mode: 0o600 });
+    if (mutation === 'consumed')
+      await writeFile(join(directory, 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), {
+        mode: 0o600,
+      });
+    if (mutation === 'actions') change.actions = ['create'];
+    await expect(f.runner.readCurrentResourcePlanReceipt({})).rejects.toThrow();
+    expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
+    expect(f.calls.filter((c) => c.args[0] === 'plan')).toHaveLength(1);
+  }
+});

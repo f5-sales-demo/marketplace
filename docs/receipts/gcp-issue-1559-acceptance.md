@@ -258,3 +258,40 @@ files changed since q23's original implementation; its source pin remains held.
 Live journal/runtime namespace mappings, lifecycle, networking/traffic, review,
 publication and installed-artifact smoke remain open. All three fresh campaign
 allowances are unused; frozen assets and historical partial cleanup are preserved.
+
+## Read-only retained current cleanup recovery
+
+The private bridge now has distinct schema-v2 destroy-receipt and actual-state
+read modes. Requests bind either the immutable original create or the exact
+recovered destroy receipt. Python retains destroy evidence separately from
+historical active receipts and current resource evidence. Strict result checks
+refuse wrong schemas, operations, private fields and missing identities.
+
+A separate inspection verifies the original journal and resolved executor,
+capture and guest barriers; exact retained proof, preparation and handoff request;
+frozen final-capture journal prefix; original/current ownership; reviewed
+delete-only receipt; actual state; and independent ownership. Consumed destroy
+claims, duplicate anchors, missing or replaced originals, rollback and evidence
+drift refuse. Changed executable hashes are reported without requalifying the
+review. Inspection never plans, recreates a handoff, adopts receipts, regenerates
+review or enables submission.
+
+Fresh local verification passes 344 Python tests across 30 suites, including
+10 offline collector integration tests in 585.733 seconds, 145 Bun tests with
+757 assertions and two generic skips, 14 bundles, typecheck, Ruff/format and
+scoped privacy. Five actual Python-to-Bun modes parse their exact inventories and
+refuse the historical source pin before authentication. Original preparation
+and saved-plan hashes remain unchanged. These are local fixtures; no live guest,
+ownership, cleanup, traffic or operational acceptance is claimed.
+
+Two additional shared Terraform regressions directly qualify destroy receipt
+recovery and actual original-state reads behind empty destroy planned values.
+They refuse removed operation bindings, sensitive fields, altered binaries,
+private receipt metadata, consumed plans and changed actions. The runner suite
+passes 52 tests with 343 assertions. Runtime code and artifacts are unchanged.
+
+Recovered submission authorization and executor recovery, source/snapshot and
+working-copy reconciliation, bootstrap journal timestamp and original runtime
+namespace mappings remain required. Full lifecycle, networking/traffic, review,
+publication and installed-artifact gates stay open. All three fresh campaign
+allowances remain unused, and the PR remains draft.
