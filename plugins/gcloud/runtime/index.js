@@ -4608,6 +4608,49 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
           : { global: true }),
     };
   };
+  const plannedLink = (action) => {
+    const { name } = admit(action);
+    if (action.kind === 'instance') throw new Error('Synchronous identity requires a network or subnetwork');
+    const scope = action.kind === 'subnetwork' ? `regions/${intent.region}/subnetworks` : 'global/networks';
+    return `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${name}`;
+  };
+  const completion = async (action, executionId) => {
+    const value = await store.read(`gcp-create-completed-${executionId}.json`);
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      value.actionFingerprint !== fingerprint(action) ||
+      value.completed !== true
+    )
+      throw new Error('Ambiguous creation requires a completed command receipt');
+    if (value.schemaVersion !== undefined && value.schemaVersion !== 2)
+      throw new Error('Unsupported creation completion receipt version');
+    if (value.schemaVersion === 2) {
+      const resource = value.resource;
+      if (!resource || typeof resource.id !== 'string' || typeof resource.selfLink !== 'string')
+        throw new Error('Original create identity is unavailable');
+      validateGcpResourceIdentity(resource);
+      if (
+        resource.project !== intent.project ||
+        resource.deploymentName !== intent.deploymentName ||
+        resource.engine !== 'native' ||
+        resource.kind !== action.kind ||
+        resource.selfLink !== plannedLink(action)
+      )
+        throw new Error('Original create identity differs from planned resource');
+    }
+    return value;
+  };
+  const assertCreatedIdentity = async (action, executionId, observed) => {
+    if (action.kind === 'instance') return;
+    const original = await completion(action, executionId);
+    if (
+      original.schemaVersion === 2 &&
+      (original.resource?.id !== observed.id || original.resource?.selfLink !== observed.selfLink)
+    )
+      throw new Error('Original create identity was replaced');
+  };
   const observe = async (action, signal) => {
     const { node, site, name } = admit(action);
     const args =
@@ -4657,6 +4700,7 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
   };
   return {
     observe,
+    assertCreatedIdentity,
     async submit(action, executionId, signal) {
       const { node, site } = admit(action);
       if (!/^create-[a-f0-9]{40}$/.test(executionId)) throw new Error('Exact creation execution ID required');
@@ -4713,9 +4757,24 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
         if (!row || typeof row !== 'object' || Array.isArray(row))
           throw new Error('Cloud creation returned a malformed result');
         if (action.kind !== 'instance') {
+          const created = row;
+          const { name } = admit(action);
+          if (typeof created.id !== 'string' || created.name !== name || created.selfLink !== plannedLink(action))
+            throw new Error('Synchronous create result lacks exact planned identity');
+          const resource = {
+            id: created.id,
+            selfLink: String(created.selfLink),
+            project: intent.project,
+            deploymentName: intent.deploymentName,
+            engine: 'native',
+            kind: action.kind,
+          };
+          validateGcpResourceIdentity(resource);
           await store.write(`gcp-create-completed-${executionId}.json`, {
+            schemaVersion: 2,
             actionFingerprint: fingerprint(action),
             completed: true,
+            resource,
           });
           return { completedCommand: true };
         }
@@ -4727,10 +4786,11 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
     },
     async reconcile(action, executionId, _receipt, signal) {
       if (action.kind !== 'instance') {
-        const completed = await store.read(`gcp-create-completed-${executionId}.json`);
-        if (completed.actionFingerprint !== fingerprint(action) || completed.completed !== true)
-          throw new Error('Ambiguous creation requires a completed command receipt');
-        return (await observe(action, signal)) ? 'done' : 'pending';
+        await completion(action, executionId);
+        const observed = await observe(action, signal);
+        if (!observed) return 'pending';
+        await assertCreatedIdentity(action, executionId, observed);
+        return 'done';
       }
       let recorded;
       try {
@@ -5060,6 +5120,7 @@ async function applyGcpNativeCreation(store, intent, reviewedHash, driver, signa
         `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${collection}/${resourceName}`
       )
         throw new Error('Created resource is not the exact planned identity');
+      await driver.assertCreatedIdentity?.(action, executionId, observed);
       await recordGcpResource(store, observed);
       current.state = 'done';
       await store.write(name, checkpoint);

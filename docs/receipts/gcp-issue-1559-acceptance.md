@@ -298,7 +298,7 @@ allowances remain unused, and the PR remains draft.
 
 ## Current installation and documented access contract
 
-The clean `f810a1df2cb6d1bb6642954f9199d5ceca3cde17` baseline has a fresh
+The clean `2927b96763d67714ab5130cab2f2584106e62315` baseline has a fresh
 supported isolated marketplace installation receipt. All 483 GCloud, Platform
 and Terraform files matched; Platform dependency installation, explicit
 Terraform installation, status, doctor, enable/disable, upgrade, ordinary
@@ -320,3 +320,17 @@ rejects empty or multiple result arrays and asynchronous non-operation replies
 before recording completion. Original checkpoints and cleanup receipts are
 preserved. Source tests and installed/live acceptance remain separate gates;
 full issue 1559, review, publication and published installation remain incomplete.
+
+## Native synchronous create identity recovery
+
+New network/subnet completion receipts use schema version 2 and retain only the
+exact original numeric identity and planned selfLink. Reconciliation and final
+ownership capture refuse a replacement resource at the same name. Unknown
+versions and malformed identities refuse before cloud observation. Legacy
+unversioned completion receipts remain readable without submission or rewrite;
+they do not acquire original-create identity evidence retroactively. Instance
+operation and disk recovery paths remain intact. Failing-first tests retain the
+original replacement failures and wrong-type stored identity failure. The
+321-test CE suite and targeted TypeScript checks pass. This changed payload
+still requires fresh installed and live acceptance; the preceding installation
+and 20-success/four-skip CI results belong to the stated baseline.

@@ -1,11 +1,16 @@
 # Issue 1559 deployment and qualification context
 
 Complete marketplace issue 1559 sequentially. The qualified installation baseline is
-`f810a1df2cb6d1bb6642954f9199d5ceca3cde17`; PR #1698 stays draft.
+`2927b96763d67714ab5130cab2f2584106e62315`; PR #1698 stays draft.
 The Platform unsigned-integer validation repair and subsequent tracker fixes
 are implemented. Native result framing now refuses ambiguous create/mutation
 arrays and asynchronous replies without a verifiable operation; this later
-source change needs its own runtime and live qualification. Source tests, installation, runtime execution, live behavior,
+payload passed isolated installation and registration with 20 successful CI
+checks and four skips. New synchronous network/subnet completion receipts retain
+the original numeric identity and reject replacement during reconciliation and
+final ownership capture. Legacy unversioned receipts recover without rewrite.
+This changed payload requires fresh installation and live qualification.
+Source tests, installation, runtime execution, live behavior,
 cleanup, CI, review, publication and published installation are separate gates.
 Do not infer any later gate from an earlier one.
 

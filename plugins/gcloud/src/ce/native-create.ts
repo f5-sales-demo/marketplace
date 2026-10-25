@@ -13,6 +13,8 @@ export interface GcpNativeCreateDriver {
     receipt: unknown,
     signal?: AbortSignal,
   ): Promise<'pending' | 'done' | 'failed'>;
+  /** New drivers bind final capture to the original create result; legacy drivers remain unchanged. */
+  assertCreatedIdentity?(action: GcpNativeAction, executionId: string, observed: GcpResourceIdentity): Promise<void>;
 }
 interface CreationCheckpoint {
   planHash: string;
@@ -105,6 +107,7 @@ export async function applyGcpNativeCreation(
         `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${collection}/${resourceName}`
       )
         throw new Error('Created resource is not the exact planned identity');
+      await driver.assertCreatedIdentity?.(action, executionId, observed);
       await recordGcpResource(store, observed);
       current.state = 'done';
       await store.write(name, checkpoint);
