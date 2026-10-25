@@ -62,6 +62,33 @@ export function requestSchema(schemas: Json, root: string): Json {
         else if (item === true) result[key] = source[key === 'exclusiveMinimum' ? 'minimum' : 'maximum'];
       }
     }
+    // Protobuf field bounds remain authoritative when the publication stores
+    // them as F5 annotations rather than standard JSON Schema keywords.
+    const rules = source['x-ves-validation-rules'];
+    if (rules !== undefined) {
+      const annotations = object(rules);
+      for (const [rule, keyword] of [
+        ['ves.io.schema.rules.uint32.gte', 'minimum'],
+        ['ves.io.schema.rules.uint32.lte', 'maximum'],
+      ] as const) {
+        const raw = annotations[rule];
+        if (raw === undefined) continue;
+        if (source.type !== 'integer' || typeof raw !== 'string' || !/^(?:0|[1-9][0-9]*)$/.test(raw))
+          throw new Error('Malformed published unsigned integer bound');
+        const bound = Number(raw);
+        if (!Number.isSafeInteger(bound) || bound > 4294967295)
+          throw new Error('Malformed published unsigned integer bound');
+        const standard = result[keyword];
+        result[keyword] =
+          typeof standard === 'number'
+            ? keyword === 'minimum'
+              ? Math.max(standard, bound)
+              : Math.min(standard, bound)
+            : bound;
+      }
+      if (typeof result.minimum === 'number' && typeof result.maximum === 'number' && result.minimum > result.maximum)
+        throw new Error('Conflicting published unsigned integer bounds');
+    }
     const exclusions: Json[] = [];
     for (const [key, item] of Object.entries(source)) {
       if (!key.startsWith('x-ves-oneof-field-')) continue;
