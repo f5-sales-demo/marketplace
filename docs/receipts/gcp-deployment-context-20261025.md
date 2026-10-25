@@ -1,6 +1,6 @@
 # Issue 1559 deployment and qualification context
 
-Complete marketplace issue 1559 sequentially. The qualified installation baseline is
+Complete marketplace issue 1559 sequentially. The historical attempt 189 installation baseline is
 `c177be807588b9e730138a8d3f561606afedcd79`; PR #1698 stays draft.
 The Platform unsigned-integer validation repair and subsequent tracker fixes
 are implemented. Native result framing now refuses ambiguous create/mutation
@@ -17,13 +17,24 @@ Source tests, installation, runtime execution, live behavior,
 cleanup, CI, review, publication and published installation are separate gates.
 Do not infer any later gate from an earlier one.
 
-The latest diagnostic used source `56efb044` and one of the three first-stage
-campaign allowances. [q24's receipt](gcp-q24-disposable-diagnostic-20261025.md)
-records complete 21-resource provisioning, original insert identities and
-independently verified cleanup. Guest context validation refused the provider's
-default attribution label before SSH. Two allowances remain; both GCP guest
-mapping holds remain active. The empty-state runner correction was separately
-qualified for cleanup recovery, with original receipts and source preserved.
+Current manifests are GCloud 1.7.25 and Platform 6.3.9. Attempt 215 independently
+verified that all 485 qualified installed plugin files still match their source
+bytes. This preservation check does not establish a new installed or live result.
+
+The latest diagnostic, [q27](gcp-q27-disposable-diagnostic-20261025.md), used
+source `7e4b7251` and the separately authorized fourth campaign allowance.
+It records complete 21-resource provisioning, four original VM insert identities
+and independent cleanup. The original observer Python read exited zero but
+its process-group completion remained unresolved; no CE capture was accepted.
+Four campaigns are used, the cap is four and none remain authorized. Both GCP
+guest mapping holds remain active. Earlier q24/provider-label and empty-state
+runner evidence remains attributed to its original source and receipts.
+
+The separate [attempt 215 receipt](gcp-process-completion-offline-20261025.md)
+qualifies bounded natural process completion with 464 final collector tests
+and 44 actual Python/Bun bridge tests. It preserves q27's verdict and all
+sealed files. New campaign preparation or submission requires a renewed
+allowance and fresh reviewed scope, pins and current prerequisites.
 
 Google's advertised Compute v1 discovery schema, revision `20261016`, defines
 operation `targetId` as the identity of a specific resource incarnation and
@@ -113,8 +124,9 @@ networking changes owned by this deployment.
 
 ## First-stage live campaign limits
 
-At most three fresh sequential campaigns are authorized at this stage. Clean
-up each independently before another. Preserve q12 as closed with its exact
+The original three-campaign limit was extended by one explicit allowance for
+q27. All four campaigns are used; no further campaign is authorized. After
+renewed allowance, clean up each independently before another. Preserve q12 as closed with its exact
 cause unknown, all frozen collectors, historical executor locks and immutable
 v12.3.1 artifacts. Both guest holds remain active:
 
@@ -160,6 +172,14 @@ missing or truncated captures remain incomplete.
 Keep command limits at 60 seconds, freshness at five minutes, rounds 45 seconds
 apart and startup at 15 seconds. Preserve existing apply/observation deadlines
 and reserve a separate five-minute final-capture window on every outcome.
+The qualified process-completion successor permits at most 500 milliseconds
+of natural group observation within the original command deadline, with
+current identity checks before and after signal-zero probes. A valid captured
+original identity is required; a reaped original PID may be absent while the
+group completes. Reused identity, failed lookup, permission failure and
+interruption retain incomplete captures.
+Verified termination uses a separate five-second closure budget, one absence
+probe and zero natural grace; closure cannot accept late output or reset time.
 Preserve 36 placement profiles, 24 component services, 30 runtime services
 and zero exclusions. Verify ownership, token and NIC joins and final native
 reconciliation or Terraform no-change planning.
@@ -174,7 +194,7 @@ or the campaign cap. A retry needs a concrete changed hypothesis and input.
 Finish with independently reviewed cleanup, all 21 absences, empty destroy,
 stable state and two resumes without submission. Retain unresolved locks.
 Further topology/profile campaigns beyond the first-stage cap need a new
-allowance; do not imply the initial three qualify the full acceptance matrix.
+allowance; do not imply the four used campaigns qualify the full acceptance matrix.
 
 ## Verified troubleshooting commands and placement prerequisites
 
@@ -248,6 +268,7 @@ and their sessions to that same original node. Qualify policy node selectors,
 owned import/export prefixes, replacement resource versions and restoration
 semantics, then verify effective routes, return paths and content traffic.
 These five mapping/evidence gaps keep the NCC consumer unavailable. Preserve
-the original guest journal and runtime namespace holds and all unused campaign
-allowances. No authenticated request, guest SSH or infrastructure was submitted
-by this contract review.
+the original guest journal and runtime namespace holds. This historical
+contract review submitted no authenticated request, guest SSH or infrastructure
+and consumed no allowance. Current accounting remains four used, cap four,
+zero remaining.

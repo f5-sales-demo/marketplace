@@ -23,6 +23,13 @@ model and existing authenticated contexts. Preserve the requested engine through
 Install Platform as GCloud's dependency; explicit Terraform also requires its
 installation and setup. Report concrete unavailable capabilities before execution.
 
+Four sequential diagnostic campaigns are used, the cap is four and none remain
+authorized. The fourth, q27, finished independent cleanup with failed guest
+capture. Continue offline qualification and source delivery. A new explicit
+allowance must precede successor campaign preparation or submission; historical
+launchers, plans, keys and authorization remain immutable and cannot be replayed.
+
+After renewed allowance, use the [qualified process-completion successor](gcp-process-completion-offline-20261025.md).
 Prepare a fresh owning-engine plan for the explicit scope. Bind current source,
 installed bytes, executables, configuration and credentials independently. Preserve
 historical plans, receipts and executor locks; do not repin a historical source
@@ -33,7 +40,7 @@ Apply requires that plan's exact durable reviewed authorization.
 
 For the first Terraform HA diagnostic profile, account for all 21 resources:
 18 CE resources plus observer VM, disk and narrowly scoped SSH firewall. Preserve
-the three-campaign limit and independent cleanup between campaigns. Pin the
+the explicitly renewed campaign limit and independent cleanup between campaigns. Pin the
 observer image and numeric ID from the linked context, without a service account.
 Use campaign-only SSH keys through Site admin credentials and token-only CE
 metadata. Verify original-VM serial host fingerprints before SSH and discover
@@ -58,7 +65,13 @@ new subnet. Its network-update command does not qualify CE role or VRF remapping
 report the missing guest mapping before planning that change.
 
 Retain bounded bootstrap/VPM journals and original-node container evidence, durable
-partial captures and a separate final-capture window. Measure failover and repair
+partial captures and a separate 300-second final-capture window. Bound natural
+original process-group completion to 500 milliseconds within the command deadline.
+Require a captured original identity and bracket signal-zero probes with current
+identity checks. Refuse reused identity, failed lookups and missing original
+identity. Preserve separate five-second termination closure with one
+absence probe and zero natural grace; resolving closure cannot accept late output.
+Measure failover and repair
 from the required disruption or restoration-command start; action completion
 cannot reset the 120-second clock. Record route recovery, application recovery,
 outage duration and loss separately. Do not infer guest, health or traffic evidence
