@@ -510,7 +510,8 @@ test('executor bounds output and kills a process that ignores cancellation', asy
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-executor-'));
   directories.push(root);
   const executable = join(root, 'terraform');
-  const executor = terraformExecutor({ timeoutMs: 1000, applyTimeoutMs: 1000, maxOutputBytes: 64, killAfterMs: 20 });
+  // Successful fixture startup must not race the assertion's deliberate deadline check.
+  const executor = terraformExecutor({ timeoutMs: 5000, applyTimeoutMs: 5000, maxOutputBytes: 64, killAfterMs: 20 });
   await writeFile(executable, '#!/bin/sh\nprintf "%0100d" 0\n', { mode: 0o700 });
   await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('size limit');
   await writeFile(executable, '#!/bin/sh\ntrap "" TERM\nwhile :; do :; done\n');
@@ -518,7 +519,13 @@ test('executor bounds output and kills a process that ignores cancellation', asy
   const running = executor({ cwd: root, args: [], env: { PATH: root }, signal: controller.signal });
   setTimeout(() => controller.abort(), 50);
   await expect(running).rejects.toThrow('cancelled');
-  await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
+  const deadlineExecutor = terraformExecutor({
+    timeoutMs: 50,
+    applyTimeoutMs: 50,
+    maxOutputBytes: 64,
+    killAfterMs: 20,
+  });
+  await expect(deadlineExecutor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
 });
 
 test('executor gives apply operations a dedicated cloud-convergence deadline', async () => {
@@ -528,7 +535,7 @@ test('executor gives apply operations a dedicated cloud-convergence deadline', a
   await writeFile(executable, '#!/bin/sh\n/bin/sleep 0.1\nprintf success\n', { mode: 0o700 });
   const executor = terraformExecutor({
     timeoutMs: 20,
-    applyTimeoutMs: 1_000,
+    applyTimeoutMs: 5_000,
     maxOutputBytes: 64,
     killAfterMs: 20,
   });

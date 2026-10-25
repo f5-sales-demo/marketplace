@@ -25,6 +25,31 @@ The configured `gpt-6.1-sol` model selected the installed GCP skill and executed
 
 ## Requirement matrix
 
+Fresh authenticated installed discovery now passes in an ordinary configured-model
+RPC session. The installed GCP skill selected exactly one registered discovery
+call for the explicit project and region. Five read-only receipts and matching
+rendered data returned 14 F5 image candidates, 763 regional machine-type entries,
+113 quota entries and 58 enabled APIs, with billing enabled. IAM, organization
+policy, capacity, NIC limits and license acceptance remain unknown. All 485
+installed files were retained before supported isolated removal. This qualifies
+discovery only; no guest or infrastructure operation was submitted.
+
+Network-change classification now retains schema-v2 interface deltas, explicitly
+refuses unqualified internal CE role/VRF remapping and requires original NIC/private
+IP allocation and restoration review for network/subnet changes. Google's current
+[interface update reference](https://docs.cloud.google.com/sdk/gcloud/reference/compute/instances/network-interfaces/update)
+supports network/subnet changes and documents possible private IP reassignment.
+The [multi-NIC reference](https://docs.cloud.google.com/vpc/docs/multiple-interfaces-concepts)
+does not qualify CE guest remapping. Five failing-first cases pass after repair;
+SLO replacement priority and existing engine/ownership refusal remain intact.
+These planner receipts remain nonexecutable, and historical receipts are preserved.
+
+A retained hermetic run exposed two Terraform test fixtures whose successful
+subprocess paths exceeded their one-second budgets. Their success budgets are
+now separate from deliberately short deadline assertions; output limits,
+cancellation and the dedicated apply deadline remain tested. Production timing
+policy is unchanged. The original failure remains private.
+
 | ID | Issue requirement | Implementation and tests | Installed behavior | Fresh live evidence | Publication status / remaining gate |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Qualified site/bootstrap/registration/interface/health/routing/upgrade mappings and immutable API/policy binding | Existing pinned contract and ownership tests pass; broader routing/upgrade mappings remain unqualified | Installed skill and operation refusals exercised | Historical narrow boot/health receipts only | v12.1.3/v12.3.1 preserved; qualify missing mappings upstream before enabling consumers |

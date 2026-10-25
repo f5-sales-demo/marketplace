@@ -46,6 +46,12 @@ Keep egress explicit, separate ILB ingress from next-hop routing, and bind NCC/B
 and load-balancer behavior to verified CE interfaces. Require independent effective
 routes, peer/session state, return-path symmetry and content-verified traffic.
 
+For an internal NIC network or subnet update, review the original numeric VM and
+NIC identity, private IP allocation and owned restoration inventory. Google may
+allocate a different private IP when the previous address is unavailable in the
+new subnet. Its network-update command does not qualify CE role or VRF remapping;
+report the missing guest mapping before planning that change.
+
 Retain bounded bootstrap/VPM journals and original-node container evidence, durable
 partial captures and a separate final-capture window. Measure failover and repair
 from the required disruption or restoration-command start; action completion
