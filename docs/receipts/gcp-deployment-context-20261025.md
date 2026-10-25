@@ -168,6 +168,12 @@ original bootstrap interval. The guide does not document `crictl` commands or
 runtime namespace selection. Both original guest holds therefore remain open;
 do not infer support from generic Linux documentation or manufacture mappings.
 
+The [fresh reference guest evidence](gcp-reference-command-contract-20261025.md)
+verifies bounded command options on an unchanged KVM original. Its systemd 252
+journal uses compact `+0000` offsets; preserve the separate tested dialect and
+the older parser. Reference syntax does not establish GCP command availability,
+SSH trust, omitted namespace resolution or original bootstrap coverage.
+
 F5's deployment checklist recommends SSD-backed storage, at least 500
 sequential IOPS, and low-latency multi-node placement on a single L2 in the same
 data center or host cluster, with etcd peer RTT p99 below 10 ms. Its diagnostic

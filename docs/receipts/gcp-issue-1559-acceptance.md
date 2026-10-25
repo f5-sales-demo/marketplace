@@ -404,3 +404,13 @@ scope and researched controls. It does not authorize apply or clear guest
 mapping, current-origin admission, lifecycle/network/traffic/recovery, cleanup,
 review, merge, publication or published installation gates. All three fresh
 campaign allowances remain unused.
+
+## Reference guest command evidence
+
+Attempt 191 verified bounded journal help/version/options and a fresh runtime
+listing with one original-bound inspection on the existing KVM reference.
+The [reference receipt](gcp-reference-command-contract-20261025.md) records the
+observed systemd 252 compact UTC dialect, nine failing-first parser tests and
+the existing shared parser's full container/namespace projection. Recent
+journals and a listing that already includes namespaces do not clear either
+GCP guest mapping hold. No infrastructure or guest configuration changed.
