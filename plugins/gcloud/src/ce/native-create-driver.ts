@@ -147,7 +147,11 @@ export function createGcpNativeCreationDriver(
         } catch {
           throw new Error('Creation operation receipt unavailable');
         }
+        if (Array.isArray(response) && response.length !== 1)
+          throw new Error('Cloud creation returned an ambiguous result count');
         const row = Array.isArray(response) ? response[0] : response;
+        if (!row || typeof row !== 'object' || Array.isArray(row))
+          throw new Error('Cloud creation returned a malformed result');
         if (action.kind !== 'instance') {
           await store.write(`gcp-create-completed-${executionId}.json`, {
             actionFingerprint: fingerprint(action),

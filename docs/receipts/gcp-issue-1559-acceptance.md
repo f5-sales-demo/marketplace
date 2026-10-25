@@ -295,3 +295,28 @@ working-copy reconciliation, bootstrap journal timestamp and original runtime
 namespace mappings remain required. Full lifecycle, networking/traffic, review,
 publication and installed-artifact gates stay open. All three fresh campaign
 allowances remain unused, and the PR remains draft.
+
+## Current installation and documented access contract
+
+The clean `f810a1df2cb6d1bb6642954f9199d5ceca3cde17` baseline has a fresh
+supported isolated marketplace installation receipt. All 483 GCloud, Platform
+and Terraform files matched; Platform dependency installation, explicit
+Terraform installation, status, doctor, enable/disable, upgrade, ordinary
+registered runtime state, byte retention and isolated removal passed. No model
+prompt was submitted. The prior configured-model upstream authentication failure
+still prevents model-backed skill/tool execution acceptance.
+
+Fresh official F5 GCP and Site v2 documentation agrees with the pinned XC
+15.13.0 schema: the SSH public key belongs in Site admin credentials and permits
+access as `admin`. The GCP metadata instructions specify `VmDnsSetting` and
+token-only `user-data`. This resolves the metadata-path documentation assumption;
+it does not prove original-node SSH access, bootstrap-period journal coverage or
+runtime namespace mapping. All three fresh campaign allowances remain unused.
+
+The [deployment context](gcp-deployment-context-20261025.md) includes this access
+contract, supported Google network constraints and the five remaining F5 NCC
+interface/session/policy/traffic joins. The later native result-framing repair
+rejects empty or multiple result arrays and asynchronous non-operation replies
+before recording completion. Original checkpoints and cleanup receipts are
+preserved. Source tests and installed/live acceptance remain separate gates;
+full issue 1559, review, publication and published installation remain incomplete.

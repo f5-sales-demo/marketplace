@@ -1,0 +1,165 @@
+# Issue 1559 deployment and qualification context
+
+Complete marketplace issue 1559 sequentially. The qualified installation baseline is
+`f810a1df2cb6d1bb6642954f9199d5ceca3cde17`; PR #1698 stays draft.
+The Platform unsigned-integer validation repair and subsequent tracker fixes
+are implemented. Native result framing now refuses ambiguous create/mutation
+arrays and asynchronous replies without a verifiable operation; this later
+source change needs its own runtime and live qualification. Source tests, installation, runtime execution, live behavior,
+cleanup, CI, review, publication and published installation are separate gates.
+Do not infer any later gate from an earlier one.
+
+Use Bun 1.4.2, xcsh source `33d1e443d`, its source-matched native build,
+Python 3.15 and `TMPDIR=/private/tmp`. Use isolated catalogs and configuration
+for candidate installation. Preserve user settings and unrelated plugins.
+GCloud depends on Platform. Terraform is optional; explicit Terraform requests
+must preserve that engine and report missing setup prerequisites. Use ordinary
+`bun dev` without `--plugin-dir`, the configured model and existing authenticated
+contexts. Never substitute a private runtime adapter for installed acceptance.
+
+The installed model probe failed upstream authentication before any tool ran.
+Preserve its transcript and negative classifier. Do not repeat the unchanged
+request or replace the configured provider. Restore or independently verify
+a changed upstream prerequisite before a fresh model-backed acceptance probe.
+Registered tools and a discoverable skill alone do not prove tool execution.
+
+## Recommended deployment controls
+
+Keep each deployment in its owning engine and exact resource scope. Use reviewed
+saved plans, durable authorization, single-use bootstrap, exact original
+numeric VM identities and independent ownership reads. Reconcile asynchronous
+operations before dependent steps. Interrupted creates, unresolved executor
+locks, ambiguous identities, changed credentials and restoration conflicts
+must refuse submission or require explicit reconciliation without replay.
+Preserve legacy deployment receipts and cleanup paths.
+
+Start with supported profiles whose F5 and GCP mappings are verified. Keep
+external-IP, Cloud NAT and explicit firewall/proxy egress choices explicit.
+Keep internal passthrough ingress separate from static ILB next-hop routing.
+Google permits explicit backend-service VPC network selectors for separate
+backend NICs, but actual CE interfaces and health behavior still need evidence.
+An ILB next-hop route forwards all ports and stays active when all backends
+are unhealthy. Do not use `L3_DEFAULT` or a shared forwarding-rule VIP as a
+static-route next hop. Symmetric paired load balancers require matching
+eligible backends, health, failover, affinity and connection tracking behavior.
+Verify effective routes, return paths and content independently.
+
+Google NCC router appliances require two Cloud Router interfaces and two BGP
+peers. The peer address must be the appliance VM's primary internal address
+on nic0. Do not assume an SLI address, transplant a Linux startup script into
+CE bootstrap or invent a Site CLI command. F5 CE VRF, interface, route-policy,
+NCC membership and session mappings remain unqualified until verified.
+
+For software or OS upgrades, inspect current supported targets and fresh
+owned-site versions and prechecks. The captured global software catalog is
+candidate information, not site eligibility or a recommendation. Perform
+serial upgrades, coupled replacement, targeted repair and reviewed failover
+only through the same durable reviewed-plan authorization. Restore only
+networking changes owned by this deployment.
+
+## First-stage live campaign limits
+
+At most three fresh sequential campaigns are authorized at this stage. Clean
+up each independently before another. Preserve q12 as closed with its exact
+cause unknown, all frozen collectors, historical executor locks and immutable
+v12.3.1 artifacts. Both guest holds remain active:
+
+- `gcp_bootstrap_journal_timestamp_mapping_unavailable`
+- `gcp_runtime_listing_namespace_mapping_unavailable`
+
+Account for 21 resources: 18 CE resources plus observer VM, disk and a narrowly
+scoped SSH firewall. Pin the observer to
+`ubuntu-2404-noble-amd64-v20261021`, numeric image ID
+`4996011480491275419`, with no cloud service account. Review initial absences
+and the saved create plan independently. Start cloud and serial capture before
+the single apply, and bind each original numeric VM as its insert appears.
+
+Use campaign-only SSH keys through the documented F5 Site admin credential
+path. Fresh official F5 GCP and Site v2 pages, captured in attempt 179, reconcile
+the original metadata-path assumption: the GCP guide sends SSH configuration
+to Site creation, where the public SSH key belongs in admin credentials. Its
+manual VM metadata contains `VmDnsSetting=ZonePreferred` and token-only
+`user-data`. The pinned XC 15.13.0 schema explicitly maps
+`admin_user_credentials.ssh_key` to access as `admin`.
+
+Use the opt-in `site-ssh-sli` candidate only within its supported two-interface,
+external-IP Terraform HA profile. Bind the exact campaign public key into the
+reviewed Site configuration. SSH is enabled on SLI, blocked on SLO, and local
+DNS and web UI are blocked on both VRFs. This is a documented and
+provider-validated configuration; original-node SSH access, serial host-key
+trust and bootstrap-period command coverage still require fresh live evidence.
+Do not put the CE public key into VM metadata. Preserve token-only CE cloud-init;
+do not create shell accounts, use password fallback or interactive serial access.
+Establish observer and CE access independently. Pin both SSH hosts from fresh,
+unambiguous original-VM serial fingerprints; reject changed or stale trust,
+and disable forwarding and agent forwarding.
+
+Discover supported commands through help and completion. Retain bounded VPM
+status and journals, health, diagnosis, clock, interfaces and routes, fresh
+runtime listings, inspections and bootstrap/VPM and exited-container logs.
+Derive container identities from that original node's fresh listing. Derive
+registration/proxy endpoints privately from its token and corroborate VPM
+output. Record unavailable Linux diagnostics without inventing a shell.
+Require attributed journals covering bootstrap and relevant container evidence;
+missing or truncated captures remain incomplete.
+
+Keep command limits at 60 seconds, freshness at five minutes, rounds 45 seconds
+apart and startup at 15 seconds. Preserve existing apply/observation deadlines
+and reserve a separate five-minute final-capture window on every outcome.
+Preserve 36 placement profiles, 24 component services, 30 runtime services
+and zero exclusions. Verify ownership, token and NIC joins and final native
+reconciliation or Terraform no-change planning.
+
+Measure failover from disruption start and repair from restoration-command
+start. Action completion cannot restart the 120-second clock. Record route
+recovery, application recovery, outage duration and loss separately. Use
+owned disposable clients and origins with content-verified traffic. Stop on
+a demonstrated failure mechanism, access/capture failure, cleanup failure
+or the campaign cap. A retry needs a concrete changed hypothesis and input.
+
+Finish with independently reviewed cleanup, all 21 absences, empty destroy,
+stable state and two resumes without submission. Retain unresolved locks.
+Further topology/profile campaigns beyond the first-stage cap need a new
+allowance; do not imply the initial three qualify the full acceptance matrix.
+
+## Delivery
+
+Run proportional checks and repair exact-head CI failures. Preserve prior
+receipts when source changes reopen acceptance. All GitHub writes execute
+through verified Ubuntu SSH. Keep the PR draft until applicable source and
+live gates pass. Publish only newly qualified immutable artifacts, verify
+downloaded hashes, then install published GCloud, Platform and explicit
+Terraform into the Mac user scope. Finish a fresh ordinary installed runtime
+smoke and sanitized acceptance receipt before marking issue 1559 complete.
+
+Official Google references retained by attempt 172:
+
+- <https://docs.cloud.google.com/load-balancing/docs/internal/ilb-next-hop-overview>
+- <https://docs.cloud.google.com/load-balancing/docs/internal/setting-up-ilb-next-hop>
+- <https://docs.cloud.google.com/network-connectivity/docs/network-connectivity-center/how-to/creating-router-appliances>
+
+F5 access references refreshed by attempt 179:
+
+- <https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-gcp-clickops>
+- <https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2>
+
+## Pinned F5 BGP contract review
+
+Attempt 181 verified the retained immutable API v7.0.1 schema against its
+publication receipt and unchanged loader. It inspected 20 schema definitions
+and six configuration and operational routes. BGP supports Site/virtual Site
+placement, the SLO network enum, external-peer interface object references,
+ordered import/export policies and peer/route observations. Its eight-peer
+limit accommodates six peers for three appliances only as a cardinality check.
+
+Do not infer original-node mapping from this schema. Interface references use
+tenant, namespace and name; they do not contain numeric GCP VM identity. Require
+an independent join from each original VM's nic0 ID/IP/MAC to the actual CE SLO
+interface object and observed BGP source address. Bind both Cloud Router peers
+and their sessions to that same original node. Qualify policy node selectors,
+owned import/export prefixes, replacement resource versions and restoration
+semantics, then verify effective routes, return paths and content traffic.
+These five mapping/evidence gaps keep the NCC consumer unavailable. Preserve
+the original guest journal and runtime namespace holds and all unused campaign
+allowances. No authenticated request, guest SSH or infrastructure was submitted
+by this contract review.

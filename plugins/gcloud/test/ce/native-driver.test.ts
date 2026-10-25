@@ -26,6 +26,61 @@ const action = {
   dependencies: [],
   resources: [resource],
 };
+for (const response of [[], [{ name: 'operation-123' }, { name: 'operation-456' }], {}, [{ id: '123' }]]) {
+  it(`rejects ambiguous asynchronous VM result ${JSON.stringify(response)} before checkpointing`, async () => {
+    const writes: unknown[] = [];
+    const driver = createGcpNativeVmDriver(
+      { exec: async () => ({ stdout: JSON.stringify(response), stderr: '', exitCode: 0 }) },
+      {
+        read: async () => undefined,
+        write: async (_name, value) => {
+          writes.push(value);
+        },
+        exclusive: async (fn) => fn(),
+      },
+    );
+    await expect(driver.submit(action)).rejects.toThrow('result');
+    expect(writes).toEqual([]);
+  });
+}
+it('retains a single asynchronous operation array and synchronous empty resize result', async () => {
+  const writes: unknown[] = [];
+  const driver = createGcpNativeVmDriver(
+    {
+      exec: async (_command, args) => ({
+        stdout: JSON.stringify(
+          args[2] === 'set-machine-type'
+            ? {}
+            : [
+                {
+                  kind: 'compute#operation',
+                  name: 'operation-123',
+                  selfLink: resource.selfLink.replace('instances/node-a', 'operations/operation-123'),
+                  status: 'RUNNING',
+                },
+              ],
+        ),
+        stderr: '',
+        exitCode: 0,
+      }),
+    },
+    {
+      read: async () => undefined,
+      write: async (_name, value) => {
+        writes.push(value);
+      },
+      exclusive: async (fn) => fn(),
+    },
+  );
+  expect(await driver.submit(action)).toEqual({ kind: 'operation', name: 'operation-123' });
+  const resize = {
+    ...action,
+    argv: action.argv.filter((arg) => arg !== '--async').map((arg) => (arg === 'stop' ? 'set-machine-type' : arg)),
+  };
+  resize.argv.push('--machine-type=n2-standard-16');
+  expect(await driver.submit(resize)).toEqual({ kind: 'completed-command' });
+  expect(writes).toHaveLength(1);
+});
 function fixture() {
   let vm = {
     id: '123',

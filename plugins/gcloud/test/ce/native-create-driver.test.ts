@@ -19,6 +19,23 @@ function store() {
     exclusive: async <T>(fn: () => Promise<T>) => fn(),
   };
 }
+for (const response of [[], [{ id: '123' }, { id: '456' }], null, 'unexpected']) {
+  it(`rejects ambiguous native create result ${JSON.stringify(response)} before completion`, async () => {
+    const i = intent();
+    i.routing.destinationCidrs = [];
+    const s = store();
+    const action = translateGcpNativeCompute(i).actions[0];
+    const executionId = `create-${'a'.repeat(40)}`;
+    const driver = createGcpNativeCreationDriver(
+      { exec: async () => ({ stdout: JSON.stringify(response), stderr: '', exitCode: 0 }) },
+      s,
+      '/private/tmp',
+      i,
+    );
+    await expect(driver.submit(action, executionId)).rejects.toThrow('result');
+    await expect(s.read(`gcp-create-completed-${executionId}.json`)).rejects.toThrow('missing');
+  });
+}
 it('native create driver rejects changed structured arguments before cloud execution', async () => {
   const i = intent();
   i.routing.destinationCidrs = [];
