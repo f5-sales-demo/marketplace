@@ -1,7 +1,7 @@
 # Issue 1559 deployment and qualification context
 
 Complete marketplace issue 1559 sequentially. The qualified installation baseline is
-`f867939c4dbf4fcb1254d5477a5f4663296a0b78`; PR #1698 stays draft.
+`055621514f35fcbb441d32747d4e20f83457092d`; PR #1698 stays draft.
 The Platform unsigned-integer validation repair and subsequent tracker fixes
 are implemented. Native result framing now refuses ambiguous create/mutation
 arrays and asynchronous replies without a verifiable operation; this later
@@ -9,7 +9,10 @@ payload passed isolated installation and registration with 20 successful CI
 checks and four skips. New synchronous network/subnet completion receipts retain
 the original numeric identity and reject replacement during reconciliation and
 final ownership capture. Legacy unversioned receipts recover without rewrite.
-This changed payload requires fresh installation and live qualification.
+Attempt 187 verified the current payload through supported installation,
+485-file parity, dependency and installation lifecycle checks, ordinary
+runtime registration, bounded interactive status/setup capture and removal.
+Exact-head CI passed 20 checks with four skips. Live qualification remains open.
 Source tests, installation, runtime execution, live behavior,
 cleanup, CI, review, publication and published installation are separate gates.
 Do not infer any later gate from an earlier one.
@@ -21,7 +24,8 @@ both fields and retain them through reconciliation, disk capture and final
 ownership capture. Missing or changed target identity refuses; documentation
 does not guarantee field availability for every outcome. Legacy operation
 receipts remain readable without rewrite or retroactive target evidence. This
-later repair requires fresh source, installed and live qualification.
+repair passed source checks and attempt 187 installation. Live qualification
+remains open; installation does not establish target-field availability in GCP.
 
 Use Bun 1.4.2, xcsh source `33d1e443d`, its source-matched native build,
 Python 3.15 and `TMPDIR=/private/tmp`. Use isolated catalogs and configuration
@@ -135,6 +139,34 @@ Finish with independently reviewed cleanup, all 21 absences, empty destroy,
 stable state and two resumes without submission. Retain unresolved locks.
 Further topology/profile campaigns beyond the first-stage cap need a new
 allowance; do not imply the initial three qualify the full acceptance matrix.
+
+## Verified troubleshooting commands and placement prerequisites
+
+Attempt 188 followed the Site v2 guide's troubleshooting link and retained the
+fresh official guide and exact command examples. It documents
+`execcli systemctl-status-vpm`, `status vpm` and
+`execcli journalctl -fu vpm`. The journal example follows output indefinitely;
+it is not a bounded capture command. Discover bounded options through supported
+help/completion before execution and retain their original-node evidence.
+
+The examples use journal prefixes such as `Aug 09 09:14:57`, without a year or
+timezone. They do not qualify the collector's required explicit timestamp or
+original bootstrap interval. The guide does not document `crictl` commands or
+runtime namespace selection. Both original guest holds therefore remain open;
+do not infer support from generic Linux documentation or manufacture mappings.
+
+F5's deployment checklist recommends SSD-backed storage, at least 500
+sequential IOPS, and low-latency multi-node placement on a single L2 in the same
+data center or host cluster, with etcd peer RTT p99 below 10 ms. Its diagnostic
+disk benchmark expects sync p99 below 10 ms.
+These are prerequisites to verify for the proposed topology, not measured
+properties of a three-zone plan. Do not silently change the reviewed placement.
+The documented `collect-database-stats` diagnostic can write temporary benchmark
+data; include that action in the reviewed diagnostic scope before execution.
+
+Official reference retained by attempt 188:
+
+- <https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/troubleshooting/troubleshoot-site-smsv2>
 
 ## Delivery
 

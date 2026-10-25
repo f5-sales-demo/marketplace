@@ -298,8 +298,8 @@ allowances remain unused, and the PR remains draft.
 
 ## Current installation and documented access contract
 
-The clean `f867939c4dbf4fcb1254d5477a5f4663296a0b78` baseline has a fresh
-supported isolated marketplace installation receipt. All 484 GCloud, Platform
+The clean `055621514f35fcbb441d32747d4e20f83457092d` baseline has a fresh
+attempt 187 supported isolated marketplace installation receipt. All 485 GCloud, Platform
 and Terraform files matched; Platform dependency installation, explicit
 Terraform installation, status, doctor, enable/disable, upgrade, ordinary
 registered runtime state, byte retention and isolated removal passed. No model
@@ -336,9 +336,10 @@ unversioned completion receipts remain readable without submission or rewrite;
 they do not acquire original-create identity evidence retroactively. Instance
 operation and disk recovery paths remain intact. Failing-first tests retain the
 original replacement failures and wrong-type stored identity failure. The
-321-test CE suite and targeted TypeScript checks pass. This changed payload
-still requires fresh installed and live acceptance; the preceding installation
-and 20-success/four-skip CI results belong to the stated baseline.
+321-test CE suite and targeted TypeScript checks passed at attempt 184. Attempt
+187 subsequently qualified installation of the current payload, including the
+later asynchronous target repair. Live acceptance remains open; the preceding
+installation and CI results belong to the explicitly stated current baseline.
 
 ## Native asynchronous operation target binding
 
@@ -360,3 +361,18 @@ or retroactive target evidence. No new engine or capability is enabled. Source
 regressions and fresh installation still do not qualify live behavior; original
 guest mappings, lifecycle/network traffic, recovery, cleanup, review and
 publication gates remain open.
+
+## Fresh guest troubleshooting contract review
+
+Attempt 188 retained the official Site v2 troubleshooting guide through its
+published link. It confirms VPM status and journal access, but its journal
+examples omit year/timezone and use an unbounded follow command. It does not
+document runtime namespace selection or `crictl` commands. The original journal
+timestamp and runtime namespace holds remain unresolved. No guest access or
+infrastructure submission occurred; all three campaign allowances remain unused.
+
+The deployment context now records F5's SSD, sequential IOPS and etcd latency
+recommendations. The proposed multi-zone topology still needs measured evidence
+against these prerequisites. The documented disk diagnostic writes temporary
+benchmark data and requires reviewed diagnostic scope. Documentation does not
+qualify guest capture, topology performance, health, routing or traffic.
