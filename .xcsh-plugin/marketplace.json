@@ -394,7 +394,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-      "version": "1.7.24",
+      "version": "1.7.25",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
@@ -528,7 +528,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.4.3",
+      "version": "2.4.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {

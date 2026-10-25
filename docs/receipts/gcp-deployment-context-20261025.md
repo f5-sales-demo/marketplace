@@ -17,6 +17,14 @@ Source tests, installation, runtime execution, live behavior,
 cleanup, CI, review, publication and published installation are separate gates.
 Do not infer any later gate from an earlier one.
 
+The latest diagnostic used source `56efb044` and one of the three first-stage
+campaign allowances. [q24's receipt](gcp-q24-disposable-diagnostic-20261025.md)
+records complete 21-resource provisioning, original insert identities and
+independently verified cleanup. Guest context validation refused the provider's
+default attribution label before SSH. Two allowances remain; both GCP guest
+mapping holds remain active. The empty-state runner correction was separately
+qualified for cleanup recovery, with original receipts and source preserved.
+
 Google's advertised Compute v1 discovery schema, revision `20261016`, defines
 operation `targetId` as the identity of a specific resource incarnation and
 `targetLink` as the modified resource URL. New native VM operation receipts bind
@@ -63,6 +71,21 @@ operations before dependent steps. Interrupted creates, unresolved executor
 locks, ambiguous identities, changed credentials and restoration conflicts
 must refuse submission or require explicit reconciliation without replay.
 Preserve legacy deployment receipts and cleanup paths.
+
+The supported compute translation uses `pd-balanced` disks. Google's
+[disk quota documentation](https://docs.cloud.google.com/compute/resource-usage#disk_quota)
+places zonal and regional Balanced Persistent Disk in the SSD-backed quota
+pool. Require `SSD_TOTAL_GB` headroom for every owned disk, including an observer;
+standard-disk quota cannot substitute for missing or insufficient SSD quota.
+For q24's three 80-GiB CE disks and 10-GiB observer disk, account for 250 GiB.
+
+The pinned [Google provider reference](https://github.com/hashicorp/terraform-provider-google/blob/v8.7.0/website/docs/guides/provider_reference.html.markdown)
+documents the default `goog-terraform-provisioned = true` label. Verify the
+reviewed required ownership labels, original numeric identity and documented
+provider attribution independently. Compare `labels`, `terraform_labels` and
+`effective_labels` against original state before accepting that extra label;
+do not ignore arbitrary extra labels or disable provider attribution to bypass
+the failed collector check. Preserve subsequent label-change detection.
 
 Start with supported profiles whose F5 and GCP mappings are verified. Keep
 external-IP, Cloud NAT and explicit firewall/proxy egress choices explicit.

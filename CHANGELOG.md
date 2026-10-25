@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.4** accepts Terraform's minimal empty-state summary only when stable private raw state proves
+  the pinned version, zero resources and zero outputs; ambiguous summaries still refuse (#1559).
+- **`gcloud` 1.7.25** checks SSD-backed quota for Balanced Persistent Disk and rejects missing, duplicate or
+  insufficient SSD quota without substituting standard-disk quota (#1559).
+
 - **`gcloud` 1.7.24 / `platform` 6.3.9** add the opt-in, versioned Site-level admin SSH profile for the two-interface
   Terraform HA candidate. The reviewed intent binds one Ed25519 public key; SSH is permitted on SLI and blocked on SLO,
   with local DNS and web UI blocked on both. Legacy configurations and cleanup fingerprints remain unchanged. Fresh

@@ -1265,7 +1265,21 @@ class TerraformRunner {
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
       const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
-      if (state.format_version !== '1.0' || state.terraform_version !== manifest.terraformVersion)
+      const minimalEmptyState =
+        Object.keys(state).length === 1 &&
+        state.format_version === '1.0' &&
+        identity.version === 4 &&
+        identity.terraform_version === manifest.terraformVersion &&
+        Array.isArray(identity.resources) &&
+        identity.resources.length === 0 &&
+        identity.outputs !== null &&
+        typeof identity.outputs === 'object' &&
+        !Array.isArray(identity.outputs) &&
+        Object.keys(identity.outputs).length === 0;
+      if (
+        state.format_version !== '1.0' ||
+        (state.terraform_version !== manifest.terraformVersion && !minimalEmptyState)
+      )
         throw new Error('Terraform state format or version changed');
       const module = object(object(state.values ?? {}).root_module ?? {});
       const resources = module.resources ?? [];

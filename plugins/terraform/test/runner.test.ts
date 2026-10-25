@@ -103,6 +103,81 @@ test('isolates CLI settings and exports only a sanitized saved-plan receipt', as
   expect(await readFile(plan.env.TF_CLI_CONFIG_FILE, 'utf8')).toContain('direct {}');
 });
 
+test('projects a minimal empty show response only from stable versioned empty raw state after destroy', async () => {
+  const f = await fixture(
+    {
+      resource_changes: [
+        { address: 'terraform_data.ce', mode: 'managed', type: 'terraform_data', change: { actions: ['delete'] } },
+      ],
+      output_changes: {},
+    },
+    {},
+    undefined,
+    undefined,
+    '{"format_version":"1.0"}',
+  );
+  const receipt = await f.runner.planDestroy({});
+  await f.runner.apply(receipt, {});
+  await writeFile(
+    join(f.root, 'ce-test', 'terraform.tfstate'),
+    JSON.stringify({
+      version: 4,
+      terraform_version: '1.14.0',
+      lineage: 'fixture-lineage',
+      serial: 2,
+      resources: [],
+      outputs: {},
+    }),
+    { mode: 0o600 },
+  );
+  const calls = f.calls.filter((call) => call.args[0] === 'apply').length;
+  for (let n = 0; n < 2; n++) {
+    const result = await f.runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {});
+    expect(result.resources).toEqual({ 'terraform_data.ce': null });
+    expect(result.serial).toBe(2);
+    expect(result.applyState).toBe('applied');
+  }
+  expect(f.calls.filter((call) => call.args[0] === 'apply')).toHaveLength(calls);
+});
+
+test('minimal empty show refuses wrong raw versions, hidden resources or outputs, and ambiguous summaries', async () => {
+  const empty = {
+    version: 4,
+    terraform_version: '1.14.0',
+    lineage: 'fixture-lineage',
+    serial: 2,
+    resources: [],
+    outputs: {},
+  };
+  for (const [raw, show] of [
+    [{ ...empty, terraform_version: '1.13.0' }, { format_version: '1.0' }],
+    [{ ...empty, version: 3 }, { format_version: '1.0' }],
+    [{ ...empty, resources: [{ mode: 'managed' }] }, { format_version: '1.0' }],
+    [{ ...empty, outputs: { hidden: { value: 'PRIVATE' } } }, { format_version: '1.0' }],
+    [empty, { format_version: '1.0', values: {} }],
+    [empty, { format_version: '1.0', terraform_version: '1.13.0' }],
+  ]) {
+    const f = await fixture(
+      {
+        resource_changes: [
+          { address: 'terraform_data.ce', mode: 'managed', type: 'terraform_data', change: { actions: ['delete'] } },
+        ],
+        output_changes: {},
+      },
+      {},
+      undefined,
+      undefined,
+      JSON.stringify(show),
+    );
+    const receipt = await f.runner.planDestroy({});
+    await f.runner.apply(receipt, {});
+    await writeFile(join(f.root, 'ce-test', 'terraform.tfstate'), JSON.stringify(raw), { mode: 0o600 });
+    await expect(
+      f.runner.readApplyAttemptResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {}),
+    ).rejects.toThrow();
+  }
+});
+
 test('reads only the exact private configuration revision for lifecycle translation', async () => {
   const configuration = '{"terraform":{"required_version":"= 1.14.0"}}';
   const { runner, calls, root } = await fixture({}, {}, configuration);
@@ -1287,7 +1362,7 @@ test('current resource receipt recovery refuses journal or binary movement durin
     const f = await fixture({}, {}, undefined, undefined, {}, undefined, async (cwd) => {
       if (++shows === 2) {
         const path = join(cwd, name);
-        await writeFile(path, (await readFile(path, 'utf8')) + ' ', { mode: 0o600 });
+        await writeFile(path, `${await readFile(path, 'utf8')} `, { mode: 0o600 });
       }
     });
     await f.runner.plan({});

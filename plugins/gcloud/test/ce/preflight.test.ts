@@ -1,13 +1,13 @@
 import { expect, it } from 'bun:test';
 import { planGcpCe } from '../../src/ce/planner';
-import { collectGcpLaunchPreflight, GCP_CREATE_PERMISSIONS } from '../../src/ce/preflight';
+import { collectGcpLaunchPreflight, GCP_CREATE_PERMISSIONS, type GcpPreflightPort } from '../../src/ce/preflight';
 import { discovery, intent } from './fixtures';
 
 function fixture() {
   const i = intent();
   i.routing.destinationCidrs = [];
   const reads: string[] = [];
-  const port = {
+  const port: GcpPreflightPort = {
     query: async (path: string) => {
       reads.push(path);
       if (path.endsWith(':testIamPermissions')) return { permissions: [...GCP_CREATE_PERMISSIONS], token: 'PRIVATE' };
@@ -17,7 +17,7 @@ function fixture() {
         return {
           quotas: [
             { metric: 'N2_CPUS', limit: 100, usage: 0 },
-            { metric: 'DISKS_TOTAL_GB', limit: 1000, usage: 0 },
+            { metric: 'SSD_TOTAL_GB', limit: 1000, usage: 0 },
             { metric: 'IN_USE_ADDRESSES', limit: 10, usage: 0 },
           ],
         };
@@ -57,6 +57,49 @@ function haFixture() {
   };
   return f;
 }
+
+it('balanced disks use SSD quota even when standard disk quota is exhausted', async () => {
+  const f = haFixture();
+  const query = f.port.query;
+  f.port.query = async (path) =>
+    path.endsWith('/regions/northamerica-northeast1')
+      ? {
+          quotas: [
+            { metric: 'N2_CPUS', limit: 24, usage: 0 },
+            { metric: 'SSD_TOTAL_GB', limit: 250, usage: 10 },
+            { metric: 'DISKS_TOTAL_GB', limit: 0, usage: 0 },
+            { metric: 'IN_USE_ADDRESSES', limit: 3, usage: 0 },
+          ],
+        }
+      : query(path);
+  expect((await collectGcpLaunchPreflight(f.i, f.port)).checks.quota).toBe('verified');
+});
+
+it('balanced disks cannot borrow standard quota when SSD quota is missing, ambiguous or insufficient', async () => {
+  for (const ssd of [
+    [],
+    [{ metric: 'SSD_TOTAL_GB', limit: 240, usage: 1 }],
+    [
+      { metric: 'SSD_TOTAL_GB', limit: 240, usage: 0 },
+      { metric: 'SSD_TOTAL_GB', limit: 240, usage: 0 },
+    ],
+  ]) {
+    const f = haFixture();
+    const query = f.port.query;
+    f.port.query = async (path) =>
+      path.endsWith('/regions/northamerica-northeast1')
+        ? {
+            quotas: [
+              { metric: 'N2_CPUS', limit: 24, usage: 0 },
+              { metric: 'DISKS_TOTAL_GB', limit: 1000, usage: 0 },
+              { metric: 'IN_USE_ADDRESSES', limit: 3, usage: 0 },
+              ...ssd,
+            ],
+          }
+        : query(path);
+    expect((await collectGcpLaunchPreflight(f.i, f.port)).checks.quota).toBe('unavailable');
+  }
+});
 it('collects read-only HA prerequisites from every zone and accounts for all nodes and shared VPCs', async () => {
   const f = haFixture();
   const query = f.port.query;
@@ -65,7 +108,7 @@ it('collects read-only HA prerequisites from every zone and accounts for all nod
       return {
         quotas: [
           { metric: 'N2_CPUS', limit: 24, usage: 0 },
-          { metric: 'DISKS_TOTAL_GB', limit: 240, usage: 0 },
+          { metric: 'SSD_TOTAL_GB', limit: 240, usage: 0 },
           { metric: 'IN_USE_ADDRESSES', limit: 3, usage: 0 },
         ],
       };
@@ -86,7 +129,7 @@ it('collects read-only HA prerequisites from every zone and accounts for all nod
   expect(result.intentFingerprint).toBeDefined();
 });
 it('cannot pass HA quota from headroom sufficient for only part of the deployment', async () => {
-  for (const scarce of ['N2_CPUS', 'DISKS_TOTAL_GB', 'IN_USE_ADDRESSES']) {
+  for (const scarce of ['N2_CPUS', 'SSD_TOTAL_GB', 'IN_USE_ADDRESSES']) {
     const f = haFixture();
     const query = f.port.query;
     f.port.query = async (path) =>
@@ -94,7 +137,7 @@ it('cannot pass HA quota from headroom sufficient for only part of the deploymen
         ? {
             quotas: [
               { metric: 'N2_CPUS', limit: scarce === 'N2_CPUS' ? 23 : 24, usage: 0 },
-              { metric: 'DISKS_TOTAL_GB', limit: scarce === 'DISKS_TOTAL_GB' ? 239 : 240, usage: 0 },
+              { metric: 'SSD_TOTAL_GB', limit: scarce === 'SSD_TOTAL_GB' ? 239 : 240, usage: 0 },
               { metric: 'IN_USE_ADDRESSES', limit: scarce === 'IN_USE_ADDRESSES' ? 2 : 3, usage: 0 },
             ],
           }
@@ -136,7 +179,7 @@ it('collects scoped prerequisites and leaves human legal acceptance and capacity
   expect(JSON.stringify(result)).not.toContain('PRIVATE');
 });
 it('missing permission, quota metric or read failure never becomes a passing gate', async () => {
-  for (const bad of ['iam', 'quota', 'transport']) {
+  for (const bad of ['iam', 'quota', 'transport'] as const) {
     const f = fixture();
     const query = f.port.query;
     f.port.query = async (path) => {

@@ -152,7 +152,7 @@ export async function collectGcpLaunchPreflight(intent: GcpCeIntent, port: GcpPr
     if (
       checks.machineNicLimit === 'verified' &&
       quota(region, 'N2_CPUS', nodes.length * 8) &&
-      quota(region, 'DISKS_TOTAL_GB', nodes.length * intent.diskGiB) &&
+      quota(region, 'SSD_TOTAL_GB', nodes.length * intent.diskGiB) &&
       quota(region, 'IN_USE_ADDRESSES', nodes.length) &&
       quota(project, 'NETWORKS', networks.size)
     )

@@ -42,6 +42,11 @@ remain active; do not enable a consumer or submit infrastructure by bypassing th
 
 Verify F5's SSD, sequential IOPS and etcd latency recommendations against the
 proposed placement. Keep SLO identity immutable and all node NIC layouts consistent.
+The supported `pd-balanced` profile consumes `SSD_TOTAL_GB`; account for every
+owned disk and reject missing, duplicate or insufficient SSD quota without
+falling back to standard-disk quota. Bind provider-added attribution labels to
+the pinned provider contract and original `terraform_labels`/`effective_labels`;
+retain every required ownership label and subsequent-change check.
 Keep egress explicit, separate ILB ingress from next-hop routing, and bind NCC/BGP
 and load-balancer behavior to verified CE interfaces. Require independent effective
 routes, peer/session state, return-path symmetry and content-verified traffic.
