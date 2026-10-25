@@ -1,7 +1,7 @@
 # Issue 1559 deployment and qualification context
 
 Complete marketplace issue 1559 sequentially. The qualified installation baseline is
-`055621514f35fcbb441d32747d4e20f83457092d`; PR #1698 stays draft.
+`c177be807588b9e730138a8d3f561606afedcd79`; PR #1698 stays draft.
 The Platform unsigned-integer validation repair and subsequent tracker fixes
 are implemented. Native result framing now refuses ambiguous create/mutation
 arrays and asynchronous replies without a verifiable operation; this later
@@ -9,7 +9,7 @@ payload passed isolated installation and registration with 20 successful CI
 checks and four skips. New synchronous network/subnet completion receipts retain
 the original numeric identity and reject replacement during reconciliation and
 final ownership capture. Legacy unversioned receipts recover without rewrite.
-Attempt 187 verified the current payload through supported installation,
+Attempt 189 verified the current payload through supported installation,
 485-file parity, dependency and installation lifecycle checks, ordinary
 runtime registration, bounded interactive status/setup capture and removal.
 Exact-head CI passed 20 checks with four skips. Live qualification remains open.
@@ -24,7 +24,7 @@ both fields and retain them through reconciliation, disk capture and final
 ownership capture. Missing or changed target identity refuses; documentation
 does not guarantee field availability for every outcome. Legacy operation
 receipts remain readable without rewrite or retroactive target evidence. This
-repair passed source checks and attempt 187 installation. Live qualification
+repair passed source checks and attempt 189 installation. Live qualification
 remains open; installation does not establish target-field availability in GCP.
 
 Use Bun 1.4.2, xcsh source `33d1e443d`, its source-matched native build,
@@ -35,11 +35,24 @@ must preserve that engine and report missing setup prerequisites. Use ordinary
 `bun dev` without `--plugin-dir`, the configured model and existing authenticated
 contexts. Never substitute a private runtime adapter for installed acceptance.
 
-The installed model probe failed upstream authentication before any tool ran.
-Preserve its transcript and negative classifier. Do not repeat the unchanged
-request or replace the configured provider. Restore or independently verify
-a changed upstream prerequisite before a fresh model-backed acceptance probe.
-Registered tools and a discoverable skill alone do not prove tool execution.
+The earlier attempt 175 model probe failed upstream authentication. Preserve its
+transcript and negative classifier. After the reported repair, attempt 189
+independently verified fresh configured-model inference without tool calls.
+Separate ordinary sessions selected the installed GCP skill and executed native
+upgrade and explicit Terraform failover tools. Both reported the typed
+unqualified-operation refusal with `mutationAttempted=false`. A bounded ordinary
+120-by-40 interactive capture rendered the actual native refusal. These checks
+qualify installed execution and refusal behavior; live operation remains open.
+Do not replace the configured provider or replay a failed request unchanged.
+
+An isolated GCloud configuration independently had zero active accounts.
+The installed discovery tool executed in a fresh model session and returned
+`validation_or_read_failed` with `mutationAttempted=false`. Retain that generic
+reason without inventing a more precise authentication diagnosis. Gateway
+authentication, GCloud authentication and F5 context credentials are separate.
+
+Use the [reviewed deployment prompt](gcp-reviewed-deployment-prompt.md) with
+explicit scope inputs and this context. The prompt grants no apply authority.
 
 ## Recommended deployment controls
 

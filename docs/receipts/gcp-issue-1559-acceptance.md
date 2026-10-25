@@ -298,18 +298,28 @@ allowances remain unused, and the PR remains draft.
 
 ## Current installation and documented access contract
 
-The clean `055621514f35fcbb441d32747d4e20f83457092d` baseline has a fresh
-attempt 187 supported isolated marketplace installation receipt. All 485 GCloud, Platform
+The clean `c177be807588b9e730138a8d3f561606afedcd79` baseline has a fresh
+attempt 189 supported isolated marketplace installation receipt. All 485 GCloud, Platform
 and Terraform files matched; Platform dependency installation, explicit
 Terraform installation, status, doctor, enable/disable, upgrade, ordinary
-registered runtime state, byte retention and isolated removal passed. No model
-prompt was submitted. The prior configured-model upstream authentication failure
-still prevents model-backed skill/tool execution acceptance.
+registered runtime state, byte retention and isolated removal passed. Fresh
+configured-model inference independently verified the repaired gateway
+authentication. Separate ordinary sessions selected the installed skill and
+executed native upgrade and explicit Terraform failover tools. Both returned
+`gcp_operation_not_qualified` with `mutationAttempted=false`. These are qualified
+refusal checks; the requested operations remain unavailable.
 
-A fresh 120-by-40 ordinary interactive session retained GCloud ready status and
-the setup-not-required result. No model prompt was submitted. This is bounded
-terminal text evidence; full visual and registered-tool execution acceptance
-remain separate. Exact-head CI passed 20 checks with four skips.
+A fresh 120-by-40 ordinary interactive session rendered the actual native
+upgrade refusal and mutation state without capture truncation. This is bounded
+terminal text evidence; full visual acceptance remains separate. Exact-head CI
+at the stated baseline passed 20 checks with four skips.
+
+A separate ordinary session executed the installed discovery tool against an
+isolated GCloud configuration with independently verified zero active accounts.
+It returned `validation_or_read_failed` and `mutationAttempted=false`. No
+credential fallback or cloud mutation occurred. The actual generic failure
+does not establish a more precise authentication diagnosis. The earlier gateway
+failure is preserved; subsequent evidence closes that specific prerequisite.
 
 Fresh official F5 GCP and Site v2 documentation agrees with the pinned XC
 15.13.0 schema: the SSH public key belongs in Site admin credentials and permits
@@ -376,3 +386,21 @@ recommendations. The proposed multi-zone topology still needs measured evidence
 against these prerequisites. The documented disk diagnostic writes temporary
 benchmark data and requires reviewed diagnostic scope. Documentation does not
 qualify guest capture, topology performance, health, routing or traffic.
+
+## Current runtime evidence boundary
+
+Attempt 189 sealed its installation, actual model/tool transcripts, interactive
+capture, negative discovery and removal receipts. The initial checker rejected
+the intentional typed tool error. One failing-first regression and seven checks
+qualified the retained refusal using exact call identity, project, engine,
+rendered content and nonmutation evidence, without replaying the prompt.
+The earlier broad-exception lint failure is retained; corrected capture helpers
+pass style and privacy checks. Raw transcripts, credentials and state remain
+private. The checkpoint SHA-256 is
+`fe0381f558ab5734cd644847fbc0bb378e4fdefae6f1aa6e7c4de3ac5ff68b69`.
+
+The [reviewed deployment prompt](gcp-reviewed-deployment-prompt.md) binds explicit
+scope and researched controls. It does not authorize apply or clear guest
+mapping, current-origin admission, lifecycle/network/traffic/recovery, cleanup,
+review, merge, publication or published installation gates. All three fresh
+campaign allowances remain unused.
