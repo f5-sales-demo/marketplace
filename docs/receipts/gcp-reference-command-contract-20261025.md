@@ -15,11 +15,11 @@ The fresh command catalog and successful help/version responses verified:
 
 The guest reported `systemd 252 (252-67.el9_8.6)`. Its bounded journal response
 contained 20 timestamped records using a compact UTC offset, for example
-`2026-10-25T13:36:24.326100+0000`, and one terminal blank line. The earlier
+`2026-10-25T13:36:24.326100+0000`, and one terminal empty line. The earlier
 source-backed systemd 258 parser requires colonated offsets and correctly
 refused this dialect. That parser and all frozen collectors remain unchanged.
 A separate private parser for the observed reference dialect passes nine
-failing-first tests for timestamps, version binding, blank lines, invalid
+failing-first tests for timestamps, version binding, empty lines, invalid
 offsets, calendar errors, backward clocks, truncation and control bytes.
 
 The existing shared runtime parser accepted the fresh 92-container listing and
