@@ -5,7 +5,12 @@ import type { GcpBootstrapStore } from './bootstrap-checkout';
 import { type GcpNativeAction, translateGcpNativeCompute } from './compute-plan';
 import { fingerprint } from './discovery';
 import type { GcpNativeCreateDriver } from './native-create';
-import { type GcpOperationBinding, reconcileGcpOperation, recordGcpOperation } from './native-operation';
+import {
+  type GcpOperationBinding,
+  readGcpOperationTarget,
+  reconcileGcpOperation,
+  recordGcpOperation,
+} from './native-operation';
 import { type GcpResourceIdentity, recordGcpResource, validateGcpResourceIdentity } from './ownership';
 import type { GcpCeIntent } from './types';
 
@@ -47,8 +52,11 @@ export function createGcpNativeCreationDriver(
     };
   };
   const plannedLink = (action: GcpNativeAction) => {
-    const { name } = admit(action);
-    if (action.kind === 'instance') throw new Error('Synchronous identity requires a network or subnetwork');
+    const { name, node } = admit(action);
+    if (action.kind === 'instance') {
+      if (!node) throw new Error('Exact node required for operation target');
+      return `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/${node.zone}/instances/${name}`;
+    }
     const scope = action.kind === 'subnetwork' ? `regions/${intent.region}/subnetworks` : 'global/networks';
     return `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${name}`;
   };
@@ -81,7 +89,12 @@ export function createGcpNativeCreationDriver(
     return value;
   };
   const assertCreatedIdentity = async (action: GcpNativeAction, executionId: string, observed: GcpResourceIdentity) => {
-    if (action.kind === 'instance') return;
+    if (action.kind === 'instance') {
+      const original = await readGcpOperationTarget(store, binding(action, executionId));
+      if (original && (original.id !== observed.id || original.selfLink !== observed.selfLink))
+        throw new Error('Original operation target identity was replaced');
+      return;
+    }
     const original = await completion(action, executionId);
     if (
       original.schemaVersion === 2 &&
@@ -225,7 +238,10 @@ export function createGcpNativeCreationDriver(
           });
           return { completedCommand: true };
         }
-        await recordGcpOperation(store, binding(action, executionId), row);
+        await recordGcpOperation(store, binding(action, executionId), row, {
+          id: (row as { targetId?: string }).targetId as string,
+          selfLink: plannedLink(action),
+        });
         return { operationRecorded: true };
       } finally {
         if (metadataPath) await rm(metadataPath, { force: true });
@@ -266,9 +282,12 @@ export function createGcpNativeCreationDriver(
         );
         if (vmResult.exitCode !== 0) throw new Error('Boot disk ownership observation unavailable');
         const vm = JSON.parse(vmResult.stdout) as {
+          id?: string;
           selfLink: string;
           disks?: Array<{ boot?: boolean; source?: string }>;
         };
+        if (outcome.target && (vm.id !== outcome.target.id || vm.selfLink !== outcome.target.selfLink))
+          throw new Error('Original operation target identity was replaced before disk capture');
         const boots = vm.disks?.filter((d) => d.boot === true) ?? [];
         if (
           vm.selfLink !== `${prefix}/instances/${node.name}` ||

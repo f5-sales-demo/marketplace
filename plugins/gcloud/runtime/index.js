@@ -4479,6 +4479,23 @@ var init_byol_terms = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/native-operation.ts
+function targetIdentity(value, binding) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed operation target identity');
+  const target = value;
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${binding.project}/${scopePath(binding)}/instances/`;
+  if (
+    !binding.zone ||
+    typeof target.id !== 'string' ||
+    !/^\d+$/.test(target.id) ||
+    typeof target.selfLink !== 'string' ||
+    !target.selfLink.startsWith(prefix) ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(target.selfLink.slice(prefix.length)) ||
+    Object.keys(target).some((key) => !['selfLink', 'id'].includes(key))
+  )
+    throw new Error('Invalid operation target identity');
+  return { selfLink: target.selfLink, id: target.id };
+}
 function valid(binding) {
   if (binding.engine !== 'native') throw new Error('GCP native reconciliation requires owning engine native');
   if (
@@ -4512,29 +4529,57 @@ function parseOperation(value, binding) {
 function filename(binding) {
   return `gcp-operation-${binding.actionId}.json`;
 }
-async function recordGcpOperation(store, binding, response) {
+async function readGcpOperationTarget(store, binding) {
+  valid(binding);
+  const checkpoint = await store.read(filename(binding));
+  if (
+    !checkpoint ||
+    ![1, 2].includes(checkpoint.schemaVersion) ||
+    fingerprint(checkpoint.binding) !== fingerprint(binding) ||
+    !/^operation-[a-z0-9-]+$/.test(checkpoint.operationName) ||
+    !['pending', 'done', 'failed'].includes(checkpoint.state)
+  )
+    throw new Error('Operation checkpoint ownership differs');
+  return checkpoint.schemaVersion === 2 ? targetIdentity(checkpoint.target, binding) : undefined;
+}
+async function recordGcpOperation(store, binding, response, expectedTarget) {
   valid(binding);
   const operation = parseOperation(response, binding);
-  const checkpoint = {
-    schemaVersion: 1,
-    binding: structuredClone(binding),
-    operationName: operation.name,
-    state: operation.status === 'DONE' ? (operation.errors.length ? 'failed' : 'done') : 'pending',
-    errorCodes: operation.errors,
-  };
   let previous;
   try {
     previous = await store.read(filename(binding));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  const expected =
+    expectedTarget ?? (previous?.schemaVersion === 2 ? targetIdentity(previous.target, binding) : undefined);
+  let target;
+  if (expected) {
+    const original = targetIdentity(expected, binding);
+    const row = response;
+    target = targetIdentity({ id: row.targetId, selfLink: row.targetLink }, binding);
+    if (target.id !== original.id || target.selfLink !== original.selfLink)
+      throw new Error('Operation target identity differs');
+  }
+  const checkpoint = {
+    schemaVersion: target ? 2 : 1,
+    binding: structuredClone(binding),
+    operationName: operation.name,
+    state: operation.status === 'DONE' ? (operation.errors.length ? 'failed' : 'done') : 'pending',
+    errorCodes: operation.errors,
+    ...(target ? { target } : {}),
+  };
   if (previous) {
     if (
-      previous.schemaVersion !== 1 ||
+      ![1, 2].includes(previous.schemaVersion) ||
       fingerprint(previous.binding) !== fingerprint(binding) ||
       previous.operationName !== checkpoint.operationName
     )
       throw new Error('Operation checkpoint identity cannot be overwritten');
+    if (previous.schemaVersion !== checkpoint.schemaVersion)
+      throw new Error('Legacy operation checkpoint cannot acquire new target evidence');
+    if (previous.schemaVersion === 2 && fingerprint(targetIdentity(previous.target, binding)) !== fingerprint(target))
+      throw new Error('Operation target identity changed');
     if (!['pending', 'done', 'failed'].includes(previous.state))
       throw new Error('Malformed operation checkpoint state');
     if (previous.state !== 'pending' && fingerprint(previous) !== fingerprint(checkpoint))
@@ -4547,11 +4592,12 @@ async function reconcileGcpOperation(store, api, binding, signal) {
   valid(binding);
   const checkpoint = await store.read(filename(binding));
   if (
-    checkpoint?.schemaVersion !== 1 ||
+    ![1, 2].includes(checkpoint?.schemaVersion) ||
     fingerprint(checkpoint.binding) !== fingerprint(binding) ||
     !/^operation-[a-z0-9-]+$/.test(checkpoint.operationName)
   )
     throw new Error('Operation checkpoint ownership differs');
+  if (checkpoint.schemaVersion === 2) targetIdentity(checkpoint.target, binding);
   if (checkpoint.state === 'done' || checkpoint.state === 'failed') return checkpoint;
   if (checkpoint.state !== 'pending') throw new Error('Malformed operation checkpoint state');
   if (signal?.aborted) throw new Error('GCP operation observation cancelled');
@@ -4562,7 +4608,7 @@ async function reconcileGcpOperation(store, api, binding, signal) {
     checkpoint.operationName,
     `--project=${binding.project}`,
     ...(binding.zone ? [`--zone=${binding.zone}`] : binding.region ? [`--region=${binding.region}`] : ['--global']),
-    '--format=json(name,selfLink,status,error.errors.code)',
+    '--format=json(name,selfLink,status,error.errors.code,targetId,targetLink)',
   ];
   const output = await api.exec('gcloud', args, { signal });
   if (output.exitCode !== 0) throw new Error('GCP operation observation failed');
@@ -4609,8 +4655,11 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
     };
   };
   const plannedLink = (action) => {
-    const { name } = admit(action);
-    if (action.kind === 'instance') throw new Error('Synchronous identity requires a network or subnetwork');
+    const { name, node } = admit(action);
+    if (action.kind === 'instance') {
+      if (!node) throw new Error('Exact node required for operation target');
+      return `https://www.googleapis.com/compute/v1/projects/${intent.project}/zones/${node.zone}/instances/${name}`;
+    }
     const scope = action.kind === 'subnetwork' ? `regions/${intent.region}/subnetworks` : 'global/networks';
     return `https://www.googleapis.com/compute/v1/projects/${intent.project}/${scope}/${name}`;
   };
@@ -4643,7 +4692,12 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
     return value;
   };
   const assertCreatedIdentity = async (action, executionId, observed) => {
-    if (action.kind === 'instance') return;
+    if (action.kind === 'instance') {
+      const original = await readGcpOperationTarget(store, binding(action, executionId));
+      if (original && (original.id !== observed.id || original.selfLink !== observed.selfLink))
+        throw new Error('Original operation target identity was replaced');
+      return;
+    }
     const original = await completion(action, executionId);
     if (
       original.schemaVersion === 2 &&
@@ -4778,7 +4832,10 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
           });
           return { completedCommand: true };
         }
-        await recordGcpOperation(store, binding(action, executionId), row);
+        await recordGcpOperation(store, binding(action, executionId), row, {
+          id: row.targetId,
+          selfLink: plannedLink(action),
+        });
         return { operationRecorded: true };
       } finally {
         if (metadataPath) await rm2(metadataPath, { force: true });
@@ -4819,6 +4876,8 @@ function createGcpNativeCreationDriver(api, store, privateDirectory, intent) {
         );
         if (vmResult.exitCode !== 0) throw new Error('Boot disk ownership observation unavailable');
         const vm = JSON.parse(vmResult.stdout);
+        if (outcome.target && (vm.id !== outcome.target.id || vm.selfLink !== outcome.target.selfLink))
+          throw new Error('Original operation target identity was replaced before disk capture');
         const boots = vm.disks?.filter((d) => d.boot === true) ?? [];
         if (
           vm.selfLink !== `${prefix}/instances/${node.name}` ||

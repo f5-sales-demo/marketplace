@@ -57,6 +57,8 @@ it('retains a single asynchronous operation array and synchronous empty resize r
                   name: 'operation-123',
                   selfLink: resource.selfLink.replace('instances/node-a', 'operations/operation-123'),
                   status: 'RUNNING',
+                  targetId: resource.id,
+                  targetLink: resource.selfLink,
                 },
               ],
         ),
@@ -110,6 +112,8 @@ function fixture() {
           name: 'operation-123',
           selfLink: resource.selfLink.replace('instances/node-a', 'operations/operation-123'),
           status: 'DONE',
+          targetId: resource.id,
+          targetLink: resource.selfLink,
         };
       else if (args[2] === 'stop')
         value = {
@@ -117,6 +121,8 @@ function fixture() {
           name: 'operation-123',
           selfLink: resource.selfLink.replace('instances/node-a', 'operations/operation-123'),
           status: 'RUNNING',
+          targetId: resource.id,
+          targetLink: resource.selfLink,
         };
       else if (args[1] === 'machine-types') value = { name: 'n2-standard-16', guestCpus: 16, memoryMb: 65536 };
       return { stdout: JSON.stringify(value), stderr: '', exitCode: 0 };

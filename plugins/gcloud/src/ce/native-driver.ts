@@ -138,7 +138,10 @@ export function createGcpNativeVmDriver(api: GcloudExecApi, store: GcpBootstrapS
       if (Array.isArray(value) && value.length !== 1) throw new Error('VM mutation returned an ambiguous result count');
       const row = object(Array.isArray(value) ? value[0] : value);
       if (row.kind === 'compute#operation' || (typeof row.name === 'string' && row.name.startsWith('operation-'))) {
-        await recordGcpOperation(store, operationBinding(action), row);
+        await recordGcpOperation(store, operationBinding(action), row, {
+          id: action.resources[0].id,
+          selfLink: action.resources[0].selfLink,
+        });
         return { kind: 'operation', name: row.name };
       }
       if (action.argv.includes('--async')) throw new Error('Asynchronous VM result lacks a verifiable operation');

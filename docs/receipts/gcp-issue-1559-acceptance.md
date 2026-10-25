@@ -298,13 +298,18 @@ allowances remain unused, and the PR remains draft.
 
 ## Current installation and documented access contract
 
-The clean `2927b96763d67714ab5130cab2f2584106e62315` baseline has a fresh
-supported isolated marketplace installation receipt. All 483 GCloud, Platform
+The clean `f867939c4dbf4fcb1254d5477a5f4663296a0b78` baseline has a fresh
+supported isolated marketplace installation receipt. All 484 GCloud, Platform
 and Terraform files matched; Platform dependency installation, explicit
 Terraform installation, status, doctor, enable/disable, upgrade, ordinary
 registered runtime state, byte retention and isolated removal passed. No model
 prompt was submitted. The prior configured-model upstream authentication failure
 still prevents model-backed skill/tool execution acceptance.
+
+A fresh 120-by-40 ordinary interactive session retained GCloud ready status and
+the setup-not-required result. No model prompt was submitted. This is bounded
+terminal text evidence; full visual and registered-tool execution acceptance
+remain separate. Exact-head CI passed 20 checks with four skips.
 
 Fresh official F5 GCP and Site v2 documentation agrees with the pinned XC
 15.13.0 schema: the SSH public key belongs in Site admin credentials and permits
@@ -334,3 +339,24 @@ original replacement failures and wrong-type stored identity failure. The
 321-test CE suite and targeted TypeScript checks pass. This changed payload
 still requires fresh installed and live acceptance; the preceding installation
 and 20-success/four-skip CI results belong to the stated baseline.
+
+## Native asynchronous operation target binding
+
+The official Google discovery directory advertised Compute v1 revision
+`20261016`. Its Operation schema defines `targetId` as a string uint64 that
+identifies a specific incarnation of the target resource, and `targetLink` as
+the modified resource URL. VM insert, start, stop and resize return Operation.
+Two guessed documentation locations returned 404 and remain failed evidence;
+the successful directory and advertised schema are retained separately.
+
+New native VM operation receipts use schema version 2 and retain only the
+original target ID and exact scoped selfLink alongside operation evidence.
+Mutation submission checks the reviewed VM identity. Creation binds the
+insert-operation target, then rejects replacement before boot-disk capture and
+final ownership insertion. Async reconciliation retains and checks the original
+target; missing or changed fields refuse. Field availability is not assumed
+from the schema. Version 1 operation receipts remain readable without rewrite
+or retroactive target evidence. No new engine or capability is enabled. Source
+regressions and fresh installation still do not qualify live behavior; original
+guest mappings, lifecycle/network traffic, recovery, cleanup, review and
+publication gates remain open.
