@@ -5,23 +5,45 @@ Issue: <https://github.com/f5-sales-demo/marketplace/issues/1559>. Delivery: dra
 
 This continuation starts from candidate `66d48b9314cf6c6224078122e298b54821706920` and fetched main `687541f9`. The candidate has been reconciled in a fresh issue worktree. Full issue acceptance remains incomplete. Historical successes are attributed to their original receipts; they do not qualify this changed candidate.
 
-Six diagnostic campaigns have been submitted. The user removed the numerical campaign cap; cloud budget is not a campaign-count gate. q28 closed without submission. [q30](gcp-q30-disposable-diagnostic-20261026.md) completed independently verified cleanup after a host-trust refusal and separate read-only cleanup recovery. Its original stopped serial reader and failed capture remain unresolved. Historical preparation sections retain their original versions, counts and evidence attribution; those statements do not describe current authorization.
+Seven diagnostic campaigns have been submitted. The user removed the numerical campaign cap; cloud budget is not a campaign-count gate. q28 closed without submission. [q30](gcp-q30-disposable-diagnostic-20261026.md) completed independently verified cleanup after a host-trust refusal and separate read-only cleanup recovery. Its original stopped serial reader and failed capture remain unresolved. [q31](gcp-q31-installed-runtime-and-diagnostic-20261026.md) completed independently verified cleanup after a CE SSH host-algorithm negotiation failure. Historical preparation sections retain their original versions, counts and evidence attribution; those statements do not describe current authorization.
 
 The [session construction qualification](gcp-session-boundary-offline-20261026.md)
 passes 30 current regressions, including actual routed PTY classes with explicit
 local children. It preserves both ownership checks and the frozen 15-second SSH
 prompt within a 60-second complete construction operation. The fresh source
 also replaces one synthetic URL test literal; its credential refusal behavior
-passes. Historical installed bytes remain preserved, and this successor still
-requires a fresh installed snapshot and live GCP guest evidence.
+passes. Attempt 235 qualified the current plugin bytes through normal marketplace
+installation and ordinary configured-model runtime. Live GCP guest evidence
+remains incomplete after q31.
 
 The [v15 host trust successor](gcp-keygen-host-trust-offline-20261026.md)
 passes 137 offline parser and consumer tests for documented cloud-init 24.4
 generation output, independent wire-key and randomart verification, legacy final
 sections and conflicting evidence. All nine frozen v14 files are unchanged.
-A new campaign still requires fresh installed bytes, reviewed scope and plan,
-current prerequisites and original ownership. Both guest mappings remain held;
-q30's stopped reader and unresolved locks remain isolated.
+Attempt 236 preserved that parser in the v16 campaign successor and qualified
+current admission and collector tests. Every successor still requires verified
+installed-byte provenance, fresh scope, keys, reviewed plan, current prerequisites
+and original ownership. Both guest mappings remain held; q30's stopped reader
+and unresolved locks remain isolated.
+
+Attempt 235 retained 485 installed files and verified automatic Platform
+installation, explicit Terraform installation, setup/status, doctor,
+disable/enable, upgrade, actual registered operation refusals, ordinary terminal
+rendering and isolated removal. GCloud 1.7.25, Platform 6.3.9 and Terraform 2.4.4
+were exercised with source-matched xcsh `33d1e443d` and Bun 1.4.2. The configured
+model authentication passed. This qualifies staging installation and the bounded
+runtime checks; publication and published user-scope installation remain open.
+
+q31 created the reviewed 21 resources once, started capture before create and
+bound all four original numeric VMs. Observer provisioning and four serial-bound
+Ed25519 pins passed. The CE a session failed because its SSH offer contained only
+`rsa-sha2-512,rsa-sha2-256`. The earlier Ed25519 scan had succeeded; the reason
+for the difference is unknown. No CE session or complete guest capture was
+accepted. A separate 300-second final capture completed, followed by one reviewed
+delete-only apply, 21 independent absences, empty destroy, stable state and two
+resumes without submission. The original controller and process group are absent.
+The successor will select fresh serial-verified RSA CE keys with modern SHA-2
+signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
 ## Current implementation and verification
 
@@ -71,17 +93,17 @@ policy is unchanged. The original failure remains private.
 | ID | Issue requirement | Implementation and tests | Installed behavior | Fresh live evidence | Publication status / remaining gate |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Qualified site/bootstrap/registration/interface/health/routing/upgrade mappings and immutable API/policy binding | Existing pinned contract and ownership tests pass; broader routing/upgrade mappings remain unqualified | Installed skill and operation refusals exercised | Historical narrow boot/health receipts only | v12.1.3/v12.3.1 preserved; qualify missing mappings upstream before enabling consumers |
-| 2 | Skill, identity/discovery/inventory, versioned topology, plan/evidence and scoped tools | Existing schema-v1 topology preserved; all operations exposed with schema-v2 refusal evidence | Skill selection and real registered tool execution pass | q30 diagnostic provisioning and independently verified cleanup; guest capture failed before CE acceptance | Complete operation-specific executable intents and evidence before claiming parity |
+| 2 | Skill, identity/discovery/inventory, versioned topology, plan/evidence and scoped tools | Existing schema-v1 topology preserved; all operations exposed with schema-v2 refusal evidence | Attempt 235 skill selection and real registered tool execution pass | q31 diagnostic provisioning and independently verified cleanup; guest capture failed before CE acceptance | Complete operation-specific executable intents and evidence before claiming parity |
 | 3 | Restricted shared storage, authorization, checkpoints and Terraform runner | Existing suites pass; public path now uses the installed shared runner | Required Platform installed; optional Terraform prerequisite retained | One reviewed diagnostic create and delete-only cleanup; installed apply remains open | Qualify operational mutation dispatch and installed saved-plan execution |
 | 4 | Async reconciliation, exact ownership, one-use bootstrap, engine persistence and restoration | Existing focused/shared tests cover narrow native/Terraform paths | Engine selection preserved in real model results | Historical narrow reconciliation/cleanup retained | Native HA and expanded recovery remain unqualified |
-| 5 | Exact image/license, funding/APIs/IAM/org policy/quotas, sizing and homogeneous one/three-node NIC/VRF topology | Existing validation and prerequisite tests pass | Existing authenticated context reports ready | q30 fresh prerequisites, 21-resource provisioning and four original VM insert identities; capacity remains unreserved | Recheck exact billable plan and IT-funded association before each newly authorized campaign |
+| 5 | Exact image/license, funding/APIs/IAM/org policy/quotas, sizing and homogeneous one/three-node NIC/VRF topology | Existing validation and prerequisite tests pass | Existing authenticated context reports ready | q31 fresh prerequisites, 21-resource provisioning and four original VM insert identities; those prerequisite reads are now historical | Recheck exact billable plan, quotas and IT-funded association before each campaign |
 | 6 | External IP, Cloud NAT and explicit firewall/proxy egress | Narrow external-IP implementation; candidate NAT/firewall planners | Explicit unsupported paths retained | No fresh profile traffic | Qualify every requested profile on each engine |
 | 7 | Static insertion, separate ILB ingress/next-hop routing and supported NCC/Cloud Router BGP | Candidate planners do not grant execution admission | Unqualified operations refuse before cloud reads | No effective-route/BGP/return-path proof | Missing qualified F5 mappings and consumer execution/traffic evidence |
 | 8 | Verified CE-interface backend binding and symmetric content traffic | Interface/identity tests and narrow observation implementation | No traffic acceptance claim | None | Disposable clients/origins, health/backend joins and independent route/traffic receipts required |
 | 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
 | 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
 | 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Current suites/builds/typechecks/catalog pass | Normal install/status/enable/disable/upgrade, configured-model skill/tool prompts pass | No cloud mutations in runtime probes | Generic unauthenticated discovery refusal and isolated removal pass; finish precise authentication classification, doctor warnings and published artifact smoke gates |
-| 12 | Fresh original-bound guest capture and Terraform HA acceptance | Historical process and Python/Bun bridge qualification preserved; v15 documented generation trust passes 137 offline parser/consumer tests | No private PluginInterface used for runtime acceptance; changed snapshot remains required | q30 created and independently cleaned 21 resources; its retained CE c generation frame qualifies grammar only | Prepare a fresh reviewed successor; both guest mappings remain held; original reader and capture locks stay unresolved |
+| 12 | Fresh original-bound guest capture and Terraform HA acceptance | Attempt 236 passes 467 collector, 198 trust, 167 admission, 25 focused Python and 166 Bun tests; two conditional fixtures exercised through Python | Attempt 235 normal installed runtime passed without a private PluginInterface | q31 created and independently cleaned 21 resources; CE host-algorithm negotiation failed; no accepted guest capture | Prepare fresh serial-verified RSA CE trust; both guest mappings remain held; q30 reader and locks stay unresolved |
 | 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
 | 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Conflicts reconciled; source acceptance receipt maintained | Isolated staging only | No publication or final user-scope installation | Keep PR draft; required review/CI, live gates, release and downloaded artifact acceptance remain |
 
@@ -89,7 +111,7 @@ The balanced-disk preflight now checks `SSD_TOTAL_GB`, with failing-first cases 
 
 ## Guest campaign boundary
 
-The original three-campaign allowance covered q24, q25 and q26. The user then authorized q27 and subsequently removed the numerical cap. q30 is the sixth submitted campaign; q28's unused plan remains sealed and must never be submitted. The [q30 diagnostic receipt](gcp-q30-disposable-diagnostic-20261026.md) records the serial trust refusal, isolated read-only child and independently completed cleanup. Continue changed successors within the existing task authorization, with fresh scope, executable bindings, current prerequisites and independent plan review. Complete cleanup before another campaign. No historical launcher, plan or authorization may be replayed.
+The original three-campaign allowance covered q24, q25 and q26. The user then authorized q27 and subsequently removed the numerical cap. q31 is the seventh submitted campaign; q28's unused plan remains sealed and must never be submitted. The [q30 diagnostic receipt](gcp-q30-disposable-diagnostic-20261026.md) records the serial trust refusal, isolated read-only child and independently completed cleanup. The [q31 receipt](gcp-q31-installed-runtime-and-diagnostic-20261026.md) records the different CE SSH negotiation failure and completed cleanup. Continue changed successors within the existing task authorization, with fresh scope, executable bindings, current prerequisites and independent plan review. Complete cleanup before another campaign. No historical launcher, plan or authorization may be replayed.
 
 The [offline process-completion receipt](gcp-process-completion-offline-20261025.md) qualifies the concrete separate transport and native identity-reader change after q27. The final full collector suite passes 464 tests with zero skips; the actual Python/Bun bridge passes 44 tests. All 24,324 sealed q27 files and 485 qualified plugin files remain unchanged. Selected lint retains inherited findings, and required private route/path findings remain private enforcement failures. Neither result qualifies live guest behavior or clears either mapping hold.
 
