@@ -15,6 +15,14 @@ also replaces one synthetic URL test literal; its credential refusal behavior
 passes. Historical installed bytes remain preserved, and this successor still
 requires a fresh installed snapshot and live GCP guest evidence.
 
+The [v15 host trust successor](gcp-keygen-host-trust-offline-20261026.md)
+passes 137 offline parser and consumer tests for documented cloud-init 24.4
+generation output, independent wire-key and randomart verification, legacy final
+sections and conflicting evidence. All nine frozen v14 files are unchanged.
+A new campaign still requires fresh installed bytes, reviewed scope and plan,
+current prerequisites and original ownership. Both guest mappings remain held;
+q30's stopped reader and unresolved locks remain isolated.
+
 ## Current implementation and verification
 
 GCloud 1.7.25 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.9. Terraform remains optional. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
@@ -73,7 +81,7 @@ policy is unchanged. The original failure remains private.
 | 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
 | 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
 | 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Current suites/builds/typechecks/catalog pass | Normal install/status/enable/disable/upgrade, configured-model skill/tool prompts pass | No cloud mutations in runtime probes | Generic unauthenticated discovery refusal and isolated removal pass; finish precise authentication classification, doctor warnings and published artifact smoke gates |
-| 12 | Fresh original-bound guest capture and Terraform HA acceptance | Historical process and Python/Bun bridge qualification preserved; session-boundary checks and 40 new private empty-state/closure regressions pass | No private PluginInterface used for runtime acceptance | q30 created and independently cleaned 21 resources; four original numeric VM identities captured; CE c lacked the required final serial host-fingerprint section | Qualify a supported alternate trust format and changed reviewed successor; both guest mappings remain held; original reader and capture locks stay unresolved |
+| 12 | Fresh original-bound guest capture and Terraform HA acceptance | Historical process and Python/Bun bridge qualification preserved; v15 documented generation trust passes 137 offline parser/consumer tests | No private PluginInterface used for runtime acceptance; changed snapshot remains required | q30 created and independently cleaned 21 resources; its retained CE c generation frame qualifies grammar only | Prepare a fresh reviewed successor; both guest mappings remain held; original reader and capture locks stay unresolved |
 | 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
 | 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Conflicts reconciled; source acceptance receipt maintained | Isolated staging only | No publication or final user-scope installation | Keep PR draft; required review/CI, live gates, release and downloaded artifact acceptance remain |
 

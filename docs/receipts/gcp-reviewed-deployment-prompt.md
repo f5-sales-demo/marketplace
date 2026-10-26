@@ -39,8 +39,10 @@ absences, corporate funding, BYOL authorization and original resource identities
 Return a concrete plan, full inventory, supported mappings and unresolved gates.
 Apply requires that plan's exact durable reviewed authorization.
 
-Before another guest campaign, qualify a supported cloud-init 24.4/OpenSSH
-key-generation trust format in a changed collector. Preserve frozen v14 and
+Use the [qualified v15 host trust successor](gcp-keygen-host-trust-offline-20261026.md)
+for documented cloud-init 24.4/OpenSSH generation evidence. Its 137 offline
+parser/consumer tests do not qualify current guest access. Bind its exact bytes
+and fresh campaign scope before another guest campaign. Preserve frozen v14 and
 q30's stopped reader, failed capture and unresolved locks. Retain exact original
 serial provenance and reject changed, missing, ambiguous, truncated or stale
 host evidence. The MDM MacBook cannot use sudo; keep its authoritative Terraform
