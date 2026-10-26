@@ -21,17 +21,23 @@ Current manifests are GCloud 1.7.25 and Platform 6.3.9. Attempt 215 independentl
 verified that all 485 qualified installed plugin files still match their source
 bytes. This preservation check does not establish a new installed or live result.
 
-The latest diagnostic, [q29](gcp-q29-disposable-diagnostic-20261025.md), used
-source `08ce9726` in Toronto after invalid Montréal SSD quota counters refused
-q28 before submission. All 21 resources were created and independently removed;
-four original numeric VM identities have cloud and serial evidence. The first
-CE session exhausted its construction deadline before creating an SSH child.
-The original cleanup response timeout and successful read-only recovery remain
-separate receipts. No guest capture or operational acceptance passed.
-Five diagnostic campaigns have been submitted. The user removed the numerical
+The latest diagnostic, [q30](gcp-q30-disposable-diagnostic-20261026.md), used
+source `eb643ddf` in Montréal. All 21 resources were created and independently
+removed; four original numeric VM identities have cloud and serial evidence.
+CE c's serial lacked the final host-fingerprint section required by frozen v14.
+Its original stopped read-only serial child and failed capture remain unresolved.
+One reviewed destroy, stable empty state and two observational resumes passed
+with two independent 21-object absence rounds. The initial empty-plan selection
+failure and corrected read-only recovery remain separate receipts.
+No guest capture or operational acceptance passed.
+Six diagnostic campaigns have been submitted. The user removed the numerical
 campaign cap; continue corrected successors with independent cleanup between
-campaigns. Both guest mapping holds remain active. Toronto diagnosis does not
-satisfy the issue's Montréal acceptance requirement.
+campaigns. Both guest mapping holds remain active. Earlier Toronto diagnosis does
+not satisfy the issue's Montréal acceptance requirement. Research and test the
+documented cloud-init 24.4/OpenSSH host-key generation block before a changed
+trust collector; preserve frozen v14 and all original capture locks. The MDM
+MacBook cannot use sudo. Keep its existing Terraform backend authoritative and
+use verified Ubuntu SSH for independent cloud reads when needed.
 
 The separate [attempt 215 receipt](gcp-process-completion-offline-20261025.md)
 qualifies bounded natural process completion with 464 final collector tests

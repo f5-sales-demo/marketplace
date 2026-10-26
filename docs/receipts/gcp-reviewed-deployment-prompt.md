@@ -23,13 +23,13 @@ model and existing authenticated contexts. Preserve the requested engine through
 Install Platform as GCloud's dependency; explicit Terraform also requires its
 installation and setup. Report concrete unavailable capabilities before execution.
 
-The user removed the numerical campaign cap. Five diagnostic campaigns have
-been submitted; q28 closed without submission and q29 finished independently
-verified cleanup after its first-session deadline refusal. Continue sequentially
+The user removed the numerical campaign cap. Six diagnostic campaigns have
+been submitted; q28 closed without submission and q30 finished independently
+verified cleanup after its original serial trust refusal. Continue sequentially
 through the acceptance matrix. Historical launchers, plans, keys and
 authorization remain immutable and cannot be replayed.
 
-Use the [q29 evidence and changed session boundary](gcp-q29-disposable-diagnostic-20261025.md)
+Use the [q30 evidence and preserved capture boundary](gcp-q30-disposable-diagnostic-20261026.md)
 alongside the [qualified process-completion successor](gcp-process-completion-offline-20261025.md).
 Prepare a fresh owning-engine plan for the explicit scope. Bind current source,
 installed bytes, executables, configuration and credentials independently. Preserve
@@ -38,6 +38,13 @@ guard or transfer its authorization. Verify fresh prerequisites, exact initial
 absences, corporate funding, BYOL authorization and original resource identities.
 Return a concrete plan, full inventory, supported mappings and unresolved gates.
 Apply requires that plan's exact durable reviewed authorization.
+
+Before another guest campaign, qualify a supported cloud-init 24.4/OpenSSH
+key-generation trust format in a changed collector. Preserve frozen v14 and
+q30's stopped reader, failed capture and unresolved locks. Retain exact original
+serial provenance and reject changed, missing, ambiguous, truncated or stale
+host evidence. The MDM MacBook cannot use sudo; keep its authoritative Terraform
+backend in place and route independent cloud reads through verified Ubuntu SSH.
 
 For the first Terraform HA diagnostic profile, account for all 21 resources:
 18 CE resources plus observer VM, disk and narrowly scoped SSH firewall. Preserve
