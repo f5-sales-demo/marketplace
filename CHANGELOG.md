@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce` 2.3.16** verifies visible progress through bounded render callbacks when timer delivery
+  is delayed, while retaining completion, cancellation and late-update assertions (#1559).
+
 - **`terraform` 2.4.4** accepts Terraform's minimal empty-state summary only when stable private raw state proves
   the pinned version, zero resources and zero outputs; ambiguous summaries still refuse (#1559).
 - **`gcloud` 1.7.25** checks SSD-backed quota for Balanced Persistent Disk and rejects missing, duplicate or
