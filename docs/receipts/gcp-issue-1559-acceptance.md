@@ -5,7 +5,24 @@ Issue: <https://github.com/f5-sales-demo/marketplace/issues/1559>. Delivery: dra
 
 This continuation starts from candidate `66d48b9314cf6c6224078122e298b54821706920` and fetched main `687541f9`. The candidate has been reconciled in a fresh issue worktree. Full issue acceptance remains incomplete. Historical successes are attributed to their original receipts; they do not qualify this changed candidate.
 
-Seven diagnostic campaigns have been submitted. The user removed the numerical campaign cap; cloud budget is not a campaign-count gate. q28 closed without submission. [q30](gcp-q30-disposable-diagnostic-20261026.md) completed independently verified cleanup after a host-trust refusal and separate read-only cleanup recovery. Its original stopped serial reader and failed capture remain unresolved. [q31](gcp-q31-installed-runtime-and-diagnostic-20261026.md) completed independently verified cleanup after a CE SSH host-algorithm negotiation failure. Historical preparation sections retain their original versions, counts and evidence attribution; those statements do not describe current authorization.
+Diagnostic campaigns have been submitted. The user removed the numerical campaign cap; cloud budget is not a campaign-count gate. q28 closed without submission. [q30](gcp-q30-disposable-diagnostic-20261026.md) completed independently verified cleanup after a host-trust refusal and separate read-only cleanup recovery. Its original stopped serial reader and failed capture remain unresolved. [q31](gcp-q31-installed-runtime-and-diagnostic-20261026.md) completed independently verified cleanup after a CE SSH host-algorithm negotiation failure. Historical preparation sections retain their original versions, counts and evidence attribution; those statements do not describe current authorization.
+
+The [q35 disposition and TLS reader qualification](gcp-q35-disposition-and-tls-reader-20261026.md)
+closes q35 without an infrastructure submission. Fresh independent reads verified
+all 21 resources absent, all 42 original process identities and descendant groups
+absent, and the preserved writer lock unheld. The original launcher failed during
+prerequisite inventory with a TLS handshake EOF before an HTTP request. Its exact
+cause remains unknown; the original plan and failed execution remain preserved.
+
+Attempt 250 qualifies a version 2 consumer using the independently verified
+explicit TLS 1.3 profile. All 50 reader and consumer tests pass. Eleven current
+sources compiled and their actual scanner inputs were verified. Four fresh live
+Platform reads negotiated TLS 1.3 and returned verified NOT_FOUND bodies. This
+qualifies the read transport and campaign disposition. The next disposable
+campaign requires fresh q36 scope, keys, configuration, plan and admission.
+GCP guest mappings, lifecycle and traffic acceptance, review, publication and
+published user-scope runtime acceptance remain open. The managed Mac requires
+ordinary user privileges; sudo and MDM changes are outside this workflow.
 
 The [session construction qualification](gcp-session-boundary-offline-20261026.md)
 passes 30 current regressions, including actual routed PTY classes with explicit
