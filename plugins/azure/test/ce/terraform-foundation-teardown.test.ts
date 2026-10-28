@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as typebox from '@sinclair/typebox';
+import * as typebox from '/data/robin-GIT/worktrees/marketplace-1856-azure-relay-runtime/plugins/azure/node_modules/@sinclair/typebox/build/cjs/index.js';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
@@ -65,7 +65,7 @@ async function fixture(version = '1.16.5') {
     stage: 'network-pending',
   });
   let observations = 0;
-  const runtime = {
+  const runtimeFixture = {
     engine: 'terraform',
     contract: { fingerprint: `sha256:${'a'.repeat(64)}` },
     async teardownInventory() {
@@ -81,7 +81,8 @@ async function fixture(version = '1.16.5') {
         observedAt: new Date().toISOString(),
       };
     },
-  } as unknown as CeRuntime;
+  };
+  const runtime = runtimeFixture as unknown as CeRuntime;
   const api: AzExecApi = {
     async exec(_command, args) {
       return {
@@ -171,15 +172,18 @@ test('rejects admission artifacts and unauthorized cloud absence reads', async (
   const f = await fixture();
   await f.store.write('terraform-site.json', { siteUid: 'generated-site' });
   await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow('admission');
-  const receipt = {
+  const receipt: PlanReceipt = {
     schemaVersion: 1,
     engine: 'terraform',
     deploymentId: f.plan.deploymentName,
     backendIdentity: `local:${f.plan.deploymentName}`,
     operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('synthetic-destroy-plan'),
     changes: [],
     noChanges: true,
-  } as PlanReceipt;
+  };
   await expect(
     verifyAzureTerraformDestroyOwnership(
       f.plan,
@@ -192,20 +196,24 @@ test('rejects admission artifacts and unauthorized cloud absence reads', async (
 });
 test('rejects nonempty or malformed state projections when the Azure group is absent', async () => {
   const f = await fixture();
-  const receipt = {
+  const receipt: PlanReceipt = {
     schemaVersion: 1,
     engine: 'terraform',
     deploymentId: f.plan.deploymentName,
     backendIdentity: `local:${f.plan.deploymentName}`,
     operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('synthetic-destroy-plan'),
     changes: [],
     noChanges: true,
-  } as PlanReceipt;
-  for (const fields of [
+  };
+  const fieldCases: Record<string, Record<string, unknown> | null>[] = [
     { 'azurerm_resource_group.ce': { id: 'foreign-id' } },
     {},
     { 'azurerm_resource_group.ce': null, extra: null },
-  ])
+  ];
+  for (const fields of fieldCases)
     await expect(
       verifyAzureTerraformDestroyOwnership(
         f.plan,
@@ -371,7 +379,20 @@ test('public teardown prepares and applies frozen 1.16.1 foundation while preser
       return f.session;
     },
   } as CeTerraformService;
-  const tool = createAzureCeTeardownTool({ typebox } as PluginInterface, {
+  const pi: PluginInterface = {
+    typebox: {
+      Type: new Proxy<Record<string, (...args: unknown[]) => unknown>>(
+        {},
+        {
+          get:
+            (_target, name) =>
+            (...args: unknown[]) =>
+              Reflect.apply(Reflect.get(typebox.Type, name), typebox.Type, args),
+        },
+      ),
+    },
+  };
+  const tool = createAzureCeTeardownTool(pi, {
     platform: async () => platform,
     terraform: async () => terraform,
     contract: async () => contract,
@@ -416,6 +437,7 @@ test('public apply rejects retirement before cloud discovery and shares the tear
   const ctx: AzureCeToolContext = {
     cwd: f.store.directory,
     hasUI: false,
+    ui: { confirm: async () => false },
     sessionManager: {
       getSessionId: () => f.store.directory,
       getArtifactsDir: () => null,

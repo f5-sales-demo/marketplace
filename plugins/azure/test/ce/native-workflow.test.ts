@@ -3,8 +3,9 @@ import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../../src/az/exec';
+import { persistAzureNativeSource } from '../../src/ce/native-action-evidence';
 import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
@@ -172,13 +173,24 @@ test('reconciles reservation, checkpoints bootstrap before launch and reuses it 
     requireBootstrapContract(provider: string) {
       expect(provider).toBe('azure');
     },
+    requireRoutingContract() {
+      throw Error('unexpected routing contract');
+    },
+    requireAzureRelayRoutingContract() {
+      throw Error('unexpected relay contract');
+    },
     async reserveSite(actual: unknown) {
       expect(actual).toEqual(binding);
       reservations++;
     },
-    async bootstrap(_binding: unknown, node: string, _token: string, persist: (value: unknown) => Promise<void>) {
+    async bootstrap(
+      _binding: SiteBinding,
+      node: string,
+      tokenName: string,
+      persist: Parameters<CeRuntime['bootstrap']>[3],
+    ) {
       bootstraps++;
-      await persist({ node, jwt: 'restricted-fixture' });
+      await persist({ tokenName, siteName: _binding.siteName, node, jwt: 'restricted-fixture' });
       return '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n';
     },
   };
@@ -202,6 +214,14 @@ test('reconciles reservation, checkpoints bootstrap before launch and reuses it 
 });
 
 test('persists coupled VM and logical-site replacement evidence before deletion', async () => {
+  const original = compileAzureCePlan(
+    {
+      ...intent,
+      engine: 'native',
+      routing: { mode: 'route-server', destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+    },
+    observation,
+  );
   const observed = structuredClone(observation);
   observed.resources = [
     {
@@ -214,7 +234,7 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
         'xcsh-managed-by': 'azure-ce',
         'xcsh-deployment-id': intent.deploymentName,
         'xcsh-execution-engine': 'native',
-        'xcsh-plan-sha256': 'a'.repeat(64),
+        'xcsh-plan-sha256': original.planSha256,
       },
     },
   ];
@@ -230,6 +250,17 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
   const root = await mkdtemp(join(tmpdir(), 'azure-native-replacement-'));
   directories.push(root);
   const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(plan).owner);
+  await persistAzureNativeSource(original, storage);
+  await storage.write(`native-admission-${original.planSha256}.json`, {
+    schemaVersion: 1,
+    engine: 'native',
+    planSha256: original.planSha256,
+    siteReserved: true,
+    bootstrapByNode: {
+      '1': '#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    content: |\n      token: synthetic.payload.signature\n',
+    },
+    launchedAtByNode: { '1': '2026-01-01T00:00:00Z' },
+  });
   const site = {
     metadata: { name: plan.siteName, namespace: 'system' },
     system_metadata: { uid: 'site-uid' },
@@ -239,6 +270,9 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
     engine: 'native' as const,
     requireBootstrapContract() {},
     requireRoutingContract() {},
+    requireAzureRelayRoutingContract() {
+      throw Error('unexpected relay contract');
+    },
     async reserveSite() {
       throw new Error('replacement must not reserve a new site');
     },
@@ -249,16 +283,30 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
       return { metadata: site.metadata, spec: site.spec };
     },
     async approveRegistrations() {
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
     async observeHealth() {
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
     async observeRegistrations() {
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
-    async observeRegisteredConfiguration() {
-      return { status: 'configured' };
+    async observeRegisteredConfiguration(
+      binding: SiteBinding,
+      _instances: unknown,
+      expected: Parameters<CeRuntime['observeRegisteredConfiguration']>[2],
+    ) {
+      return {
+        status: 'configured' as const,
+        siteUid: site.system_metadata.uid,
+        configurationSource: 'fixture',
+        observedAt: '2026-01-01T00:00:00Z',
+        interfaces: expected.map((row) => ({ ...row, device: row.role === 'slo' ? 'eth0' : 'eth1' })),
+        owner: binding.owner,
+        siteName: binding.siteName,
+        source: 'fixture',
+        evidenceKind: 'registration-hardware-inventory' as const,
+      };
     },
   };
   const checkpoint = await prepareAzureNativeAdmission(plan, runtime, storage);
@@ -279,7 +327,7 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
               vmId,
               tags: {
                 ...observed.resources[0].tags,
-                'xcsh-plan-sha256': replaced ? plan.planSha256 : 'a'.repeat(64),
+                'xcsh-plan-sha256': replaced ? plan.planSha256 : original.planSha256,
               },
             },
           ]),
@@ -310,19 +358,29 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
                   'xcsh-managed-by': 'azure-ce',
                   'xcsh-execution-engine': 'native',
                   'xcsh-deployment-id': plan.deploymentName,
-                  'xcsh-plan-sha256': 'b'.repeat(64),
+                  'xcsh-plan-sha256': original.planSha256,
                 },
               }),
             };
       }
       if (args.slice(0, 3).join(' ') === 'network nic show') {
-        const name = args[args.indexOf('--name') + 1];
+        const name = args.includes('--ids')
+          ? args[args.indexOf('--ids') + 1].split('/').at(-1)
+          : args[args.indexOf('--name') + 1];
         return {
           exitCode: 0,
           stderr: '',
           stdout: JSON.stringify({
             id: `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${name}`,
             macAddress: '00-11-22-33-44-55',
+            location: plan.region,
+            ipConfigurations: [
+              {
+                privateIPAddressVersion: 'IPv4',
+                privateIPAddress: '10.20.0.5',
+                subnet: { id: original.actions.find((row) => row.kind === 'subnet-create')?.resourceId },
+              },
+            ],
             provisioningState: 'Succeeded',
             virtualMachine: { id: observed.resources[0].id },
             tags: observed.resources[0].tags,
@@ -338,14 +396,19 @@ test('persists coupled VM and logical-site replacement evidence before deletion'
     siteUid: 'site-uid',
     status: 'prepared',
     oldVmIds: { 'ce-demo-1': '00000000-0000-4000-8000-000000000001' },
-    ownerPlanSha256ByNode: { 'ce-demo-1': 'a'.repeat(64) },
+    ownerPlanSha256ByNode: { 'ce-demo-1': original.planSha256 },
     routeServer: {
-      ownerPlanSha256: 'b'.repeat(64),
+      ownerPlanSha256: original.planSha256,
       peerIds: {
         '1': `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs/bgpConnections/${plan.deploymentName}-1`,
       },
     },
   });
+  const action = plan.actions.find((row) => row.requiresBootstrap);
+  if (!action) throw Error('Native replacement test bootstrap action missing');
+  checkpoint.bootstrapByNode['1'] =
+    '#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    content: |\n      token: synthetic.payload.signature\n';
+  await recordAzureNativeLaunch(plan, 1, checkpoint, storage);
   replaced = true;
   vmId = '00000000-0000-4000-8000-000000000101';
   expect(await collectAzureNativeAdmissionHealth(plan, 1, api, runtime, storage, undefined, checkpoint)).toMatchObject({
@@ -422,14 +485,14 @@ test('approves and observes cumulative HA registrations against Azure VM UUIDs',
       const admitted = expectedNodes.slice(0, Object.keys(instances).length);
       expect(instances).toEqual(Object.fromEntries(admitted.map((node, index) => [node, ids[index]])));
       expect(admittedNodes).toEqual(admitted);
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
     async observeHealth() {
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
     async observeRegistrations(_binding: unknown, _instances: unknown, _signal: unknown, admittedNodes: string[]) {
       expect(admittedNodes).toEqual(expectedNodes.slice(0, admittedNodes.length));
-      return { status: 'healthy' };
+      return { status: 'healthy' as const };
     },
     async observeRegisteredConfiguration(
       _binding: unknown,

@@ -1,10 +1,28 @@
+import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
-import { loadDiscoveryArtifact, savePlanArtifact } from '../ce/artifacts';
+import { loadDiscoveryArtifact, loadPlanArtifact, savePlanArtifact } from '../ce/artifacts';
+import { canonicalSha256 } from '../ce/canonical';
+import { compileAzureNativeNetworkUpdatePlan, verifyAzureNativeNetworkProfile } from '../ce/native-network-plan';
+import { compileAzureNativeNetworkReplacementPlan } from '../ce/native-network-replacement';
 import { compileAzureCePlan } from '../ce/planner';
+import { resolveAzureRelayCatalog } from '../ce/relay-catalog';
+import { compileAzureRelayDeploymentPlan } from '../ce/relay-deployment-plan';
+import type { AzureRelaySelection } from '../ce/relay-plan';
+import { compileAzureRelayReplacementPlan } from '../ce/relay-replacement-plan';
+import {
+  compileAzureTerraformNetworkUpdatePlan,
+  verifyAzureTerraformNetworkProfile,
+} from '../ce/terraform-network-plan';
+import {
+  compileAzureTerraformNetworkReplacementPlan,
+  verifyAzureTerraformNetworkReplacementProfile,
+} from '../ce/terraform-network-replacement-plan';
 import type { AzureCeIntent } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { compileAzureWorkloadDeploymentPlan, resolveAzureWorkloadCatalog } from '../ce/workload-plan';
+import { makeExecApi } from './shared';
 
-export function createAzureCePlanTool(pi: PluginInterface) {
+export function createAzureCePlanTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
   const subnet = Type.Object({
     mode: Type.Union([Type.Literal('greenfield'), Type.Literal('brownfield')]),
@@ -26,6 +44,32 @@ export function createAzureCePlanTool(pi: PluginInterface) {
       'Compile normalized natural-language intent and a live discovery artifact into a canonical, immutable, secret-free Azure Customer Edge plan. Users never need to author YAML.',
     parameters: Type.Object({
       discoveryArtifactId: Type.String(),
+      retainedDeployment: Type.Optional(
+        Type.Object({ planId: Type.String(), planSha256: Type.String() }, { additionalProperties: false }),
+      ),
+      originalDeployment: Type.Optional(
+        Type.Object({ planId: Type.String(), planSha256: Type.String() }, { additionalProperties: false }),
+      ),
+      relay: Type.Optional(
+        Type.Object(
+          {
+            vmSize: Type.String(),
+            hostImage: Type.Object(
+              { publisher: Type.String(), offer: Type.String(), sku: Type.String(), version: Type.String() },
+              { additionalProperties: false },
+            ),
+            frr: Type.Object({ version: Type.String(), image: Type.String() }, { additionalProperties: false }),
+            docker: Type.Object({ version: Type.String(), sha256: Type.String() }, { additionalProperties: false }),
+            relays: Type.Array(
+              Type.Object({ asn: Type.Integer(), privateAddress: Type.String() }, { additionalProperties: false }),
+              { minItems: 2, maxItems: 2 },
+            ),
+            vipPrefixes: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+            returnPrefixes: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
       intent: Type.Object({
         schemaVersion: Type.Literal(AZURE_CE_SCHEMA_VERSION),
         platformContext: Type.Optional(Type.String()),
@@ -58,6 +102,21 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         routing: Type.Object({
           mode: Type.Union(['auto', 'udr', 'route-server'].map((value) => Type.Literal(value))),
           destinationCidrs: Type.Array(Type.String()),
+          udr: Type.Optional(
+            Type.Object(
+              {
+                subnetNames: Type.Array(Type.String(), { minItems: 1, uniqueItems: true }),
+                nextHop: Type.Object(
+                  {
+                    node: Type.Integer({ minimum: 1, maximum: 3 }),
+                    nicIndex: Type.Integer({ minimum: 0, maximum: 7 }),
+                  },
+                  { additionalProperties: false },
+                ),
+              },
+              { additionalProperties: false },
+            ),
+          ),
           localAsn: Type.Optional(
             Type.Number({ description: 'CE local ASN; Route Server requires an unreserved 16-bit value.' }),
           ),
@@ -118,6 +177,7 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         }),
         workloadFixture: Type.Optional(
           Type.Object({
+            imageVersion: Type.String(),
             subnetName: Type.String(),
             cidr: Type.String(),
             privateIp: Type.String(),
@@ -129,15 +189,164 @@ export function createAzureCePlanTool(pi: PluginInterface) {
     }),
     async execute(
       _id: string,
-      params: { discoveryArtifactId: string; intent: AzureCeIntent },
-      _signal: AbortSignal | undefined,
+      request: {
+        discoveryArtifactId: string;
+        intent: AzureCeIntent;
+        relay?: AzureRelaySelection;
+        retainedDeployment?: { planId: string; planSha256: string };
+        originalDeployment?: { planId: string; planSha256: string };
+      },
+      signal: AbortSignal | undefined,
       _update: unknown,
-      ctx: { sessionManager: Parameters<typeof loadDiscoveryArtifact>[0] },
+      ctx: { cwd?: string; sessionManager: Parameters<typeof loadDiscoveryArtifact>[0] },
     ) {
       try {
-        const observation = await loadDiscoveryArtifact(ctx.sessionManager, params.discoveryArtifactId);
-        const plan = compileAzureCePlan(params.intent, observation);
-        const artifactId = await savePlanArtifact(ctx.sessionManager, plan, observation);
+        const params = structuredClone(request),
+          requestDigest = canonicalSha256(request);
+        const session = ctx.sessionManager,
+          cwd = ctx.cwd,
+          sessionId = session.getSessionId(),
+          directory = session.getArtifactsDir();
+        const callbacks = [
+          session.getSessionId,
+          session.getArtifactsDir,
+          session.getArtifactPath,
+          session.saveArtifact,
+        ];
+        const seal = () => {
+          signal?.throwIfAborted();
+          if (
+            canonicalSha256(request) !== requestDigest ||
+            ctx.sessionManager !== session ||
+            ctx.cwd !== cwd ||
+            session.getSessionId() !== sessionId ||
+            session.getArtifactsDir() !== directory ||
+            callbacks.some(
+              (callback, index) =>
+                callback !==
+                [session.getSessionId, session.getArtifactsDir, session.getArtifactPath, session.saveArtifact][index],
+            )
+          )
+            throw Error('Azure CE planning request or session changed during execution');
+        };
+        const observation = await loadDiscoveryArtifact(session, params.discoveryArtifactId);
+        seal();
+        signal?.throwIfAborted();
+        let plan = compileAzureCePlan(params.intent, observation);
+        if (
+          params.originalDeployment !== undefined &&
+          (plan.engine !== 'terraform' ||
+            !['update-network', 'replace-node'].includes(plan.intent.operation) ||
+            !params.retainedDeployment ||
+            Object.keys(params.originalDeployment).sort().join(',') !== 'planId,planSha256')
+        )
+          throw Error('Original deployment selector requires an exact retained Terraform network plan');
+        if (params.retainedDeployment !== undefined) {
+          if (
+            params.relay !== undefined ||
+            Object.keys(params.retainedDeployment).sort().join(',') !== 'planId,planSha256'
+          )
+            throw Error('Relay replacement requires the exact retained plan; relay reselection is forbidden');
+          const { plan: retained } = await loadPlanArtifact(
+            ctx.sessionManager,
+            params.retainedDeployment.planId,
+            params.retainedDeployment.planSha256,
+          );
+          seal();
+          if (
+            plan.engine === 'terraform' &&
+            (plan.intent.operation === 'update-network' ||
+              (plan.intent.operation === 'replace-node' &&
+                (retained.terraformNetworkProfile || retained.terraformNetworkReplacementProfile)))
+          ) {
+            const originalSha =
+              retained.intent.operation === 'deploy'
+                ? retained.planSha256
+                : (params.originalDeployment?.planSha256 ??
+                  (retained.terraformNetworkReplacementProfile
+                    ? verifyAzureTerraformNetworkReplacementProfile(retained).originalPlanSha256
+                    : verifyAzureTerraformNetworkProfile(retained).originalPlanSha256));
+            const original = params.originalDeployment
+              ? (
+                  await loadPlanArtifact(
+                    ctx.sessionManager,
+                    params.originalDeployment.planId,
+                    params.originalDeployment.planSha256,
+                  )
+                ).plan
+              : retained.intent.operation === 'deploy'
+                ? retained
+                : (await loadPlanArtifact(ctx.sessionManager, `azure-ce-${originalSha.slice(0, 24)}`, originalSha))
+                    .plan;
+            seal();
+            plan =
+              plan.intent.operation === 'replace-node'
+                ? compileAzureTerraformNetworkReplacementPlan(plan, retained, original)
+                : compileAzureTerraformNetworkUpdatePlan(plan, retained, original);
+          } else if (plan.engine === 'native' && plan.intent.operation === 'update-network') {
+            const original =
+              retained.intent.operation === 'deploy'
+                ? retained
+                : (
+                    await loadPlanArtifact(
+                      ctx.sessionManager,
+                      `azure-ce-${(
+                        retained.networkReplacementProfile
+                          ? retained.networkReplacementProfile.originalPlanSha256
+                          : verifyAzureNativeNetworkProfile(retained).originalPlanSha256
+                      ).slice(0, 24)}`,
+                      retained.networkReplacementProfile
+                        ? retained.networkReplacementProfile.originalPlanSha256
+                        : verifyAzureNativeNetworkProfile(retained).originalPlanSha256,
+                    )
+                  ).plan;
+            plan = compileAzureNativeNetworkUpdatePlan(plan, retained, original);
+          } else if (
+            plan.engine === 'native' &&
+            plan.intent.operation === 'replace-node' &&
+            (retained.networkProfile || retained.networkReplacementProfile)
+          ) {
+            const originalSha =
+              retained.networkReplacementProfile?.originalPlanSha256 ??
+              verifyAzureNativeNetworkProfile(retained).originalPlanSha256;
+            const { plan: original } = await loadPlanArtifact(
+              ctx.sessionManager,
+              `azure-ce-${originalSha.slice(0, 24)}`,
+              originalSha,
+            );
+            plan = compileAzureNativeNetworkReplacementPlan(plan, retained, original);
+          } else {
+            if (params.originalDeployment !== undefined)
+              throw Error('Original selector requires the owning Terraform network generation');
+            plan = compileAzureRelayReplacementPlan(plan, retained, observation);
+          }
+        }
+        if (plan.engine === 'terraform' && plan.intent.operation === 'update-network' && !plan.terraformNetworkProfile)
+          throw Error('Terraform network planning requires the exact retained deployment plan identity');
+        if (plan.engine === 'native' && plan.intent.operation === 'update-network' && !plan.networkProfile)
+          throw Error('Native network planning requires the exact retained deployment plan identity');
+        if (plan.intent.workloadFixture && params.retainedDeployment === undefined) {
+          if (!ctx.cwd) throw Error('Workload planning requires a catalog execution directory');
+          const catalog = await resolveAzureWorkloadCatalog(plan, makeApi(ctx.cwd), signal);
+          plan = compileAzureWorkloadDeploymentPlan(plan, catalog);
+        }
+        if (params.relay !== undefined) {
+          if (
+            !ctx.cwd ||
+            Object.keys(params.relay).sort().join(',') !==
+              'docker,frr,hostImage,relays,returnPrefixes,vipPrefixes,vmSize'
+          )
+            throw new Error(
+              'Relay selection requires an execution directory and exact selectors; catalog receipts are collected by the tool',
+            );
+          const selection = structuredClone(params.relay);
+          const catalog = await resolveAzureRelayCatalog(plan, selection, makeApi(ctx.cwd), signal);
+          plan = compileAzureRelayDeploymentPlan(plan, selection, catalog);
+        }
+        signal?.throwIfAborted();
+        seal();
+        const artifactId = await savePlanArtifact(session, plan, observation);
+        seal();
         const warnings = plan.warnings.length
           ? `\nWarnings:\n${plan.warnings.map((warning) => `- ${warning}`).join('\n')}`
           : '';

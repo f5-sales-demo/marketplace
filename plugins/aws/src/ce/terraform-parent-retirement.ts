@@ -146,6 +146,7 @@ async function inventory(
     'terraform-cloud-teardown-inventory.json',
     'aws-terraform-teardown-cloud-absence.json',
     'aws-terraform-terminal-cleanup.json',
+    'aws-terraform-metadata-retirement.json',
     `${teardown.planId}.json`,
     `${teardown.planId}-authorization.json`,
   ]);

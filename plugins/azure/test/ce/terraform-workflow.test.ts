@@ -16,6 +16,32 @@ afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true });
 });
 
+// These admission fixtures exercise registration without relay or learned-prefix routing.
+// Fail immediately if production starts requesting an operational routing capability here.
+const unexpectedRouting = () => {
+  throw Error('Unexpected operational routing request in registration fixture');
+};
+const unrequestedRouting = {
+  requireRoutingContract: unexpectedRouting,
+  requireAzureRelayRoutingContract: unexpectedRouting,
+  ensureAzureRelayRouting: unexpectedRouting,
+  observeOwnedSite: unexpectedRouting,
+  observeAzureInterfaces: unexpectedRouting,
+  ensureAzureRouting: unexpectedRouting,
+  observeBgpSessions: unexpectedRouting,
+  observeBgpRoutes: unexpectedRouting,
+} satisfies Pick<
+  Parameters<typeof runAzureTerraformAdmission>[2],
+  | 'requireRoutingContract'
+  | 'requireAzureRelayRoutingContract'
+  | 'ensureAzureRelayRouting'
+  | 'observeOwnedSite'
+  | 'observeAzureInterfaces'
+  | 'ensureAzureRouting'
+  | 'observeBgpSessions'
+  | 'observeBgpRoutes'
+>;
+
 test('applies foundation and admission exactly once and resumes from collected Azure identities', async () => {
   const plan = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
   const binding = azureUpgradeBinding(plan);
@@ -123,6 +149,7 @@ test('applies foundation and admission exactly once and resumes from collected A
     nodes: [{ node: binding.nodes[0], status: 'healthy' }],
   };
   const runtime = {
+    ...unrequestedRouting,
     engine: 'terraform' as const,
     requireBootstrapContract(provider: string) {
       expect(provider).toBe('azure');
@@ -151,16 +178,7 @@ test('applies foundation and admission exactly once and resumes from collected A
       );
       return { status: 'configured' };
     },
-  } as unknown as Pick<
-    CeRuntime,
-    | 'engine'
-    | 'requireBootstrapContract'
-    | 'reserveSite'
-    | 'bootstrap'
-    | 'approveRegistrations'
-    | 'observeRegistrations'
-    | 'observeRegisteredConfiguration'
-  >;
+  } as unknown as Parameters<typeof runAzureTerraformAdmission>[2];
   let revalidations = 0;
   const run = () =>
     runAzureTerraformAdmission(
@@ -332,6 +350,7 @@ test('resumes interrupted three-node Azure HA admission through durable serial b
     nodes: binding.nodes.map((node) => ({ node, status: 'healthy' })),
   };
   const runtime = {
+    ...unrequestedRouting,
     engine: 'terraform' as const,
     requireBootstrapContract() {},
     async reserveSite() {},
@@ -355,16 +374,7 @@ test('resumes interrupted three-node Azure HA admission through durable serial b
       );
       return { status: 'configured' };
     },
-  } as unknown as Pick<
-    CeRuntime,
-    | 'engine'
-    | 'requireBootstrapContract'
-    | 'reserveSite'
-    | 'bootstrap'
-    | 'approveRegistrations'
-    | 'observeRegistrations'
-    | 'observeRegisteredConfiguration'
-  >;
+  } as unknown as Parameters<typeof runAzureTerraformAdmission>[2];
   const terraform = {
     open: async () => session,
   } as unknown as CeTerraformService;
@@ -629,4 +639,47 @@ test('accepts platform ingress and traffic before the final refresh no-change pl
   );
   expect(result).toMatchObject({ status: 'accepted', traffic: { status: 'healthy' }, terraformNoChanges: true });
   expect(events).toEqual(['ingress-traffic', 'final-plan']);
+});
+
+test('rejects a saved Terraform workflow missing launch boundaries without reconstructing them', async () => {
+  const plan = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
+  const root = await mkdtemp(join(tmpdir(), 'azure-no-workflow-migration-'));
+  directories.push(root);
+  const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(plan).owner);
+  await storage.write('terraform-workflow.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    planSha256: plan.planSha256,
+    configurationSha256: 'a'.repeat(64),
+    bootstrapByNode: {},
+    stage: 'network-pending',
+  });
+  let opened = 0,
+    bootstraps = 0;
+  const terraform = {
+    open: async () => {
+      opened++;
+      throw Error('unexpected Terraform open');
+    },
+  } as unknown as CeTerraformService;
+  const runtime = {
+    engine: 'terraform',
+    requireBootstrapContract() {},
+    requireRoutingContract() {},
+    bootstrap: async () => {
+      bootstraps++;
+      throw Error('unexpected bootstrap');
+    },
+  } as unknown as CeRuntime;
+  const api = {
+    exec: async () => {
+      throw Error('unexpected cloud call');
+    },
+  } as AzExecApi;
+  await expect(runAzureTerraformAdmission(plan, terraform, runtime, storage, api, async () => {}, {})).rejects.toThrow(
+    /checkpoint differs/,
+  );
+  expect(opened).toBe(0);
+  expect(bootstraps).toBe(0);
+  expect(((await storage.read('terraform-workflow.json')) as Record<string, unknown>).launchedAtByNode).toBeUndefined();
 });

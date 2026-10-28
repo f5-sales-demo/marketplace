@@ -1,4 +1,6 @@
 import type { InitialSiteVersions } from '../../../platform/src/ce/initial-versions';
+import type { AzureNativeNetworkUpdateCheckpoint } from './network-update';
+import type { AzureRelayDeploymentProfile } from './relay-deployment-plan';
 export const AZURE_CE_SCHEMA_VERSION = 3 as const;
 export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
@@ -17,6 +19,12 @@ export type AzureCeOperation =
 
 export type AzureCeEgressMode = 'public-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AzureCeRoutingMode = 'auto' | 'udr' | 'route-server';
+
+/** Explicit associations for subnets created by this deployment; exact node/NIC next hop. */
+export interface AzureCeGreenfieldUdr {
+  subnetNames: string[];
+  nextHop: { node: number; nicIndex: number };
+}
 
 export type AzureCeIngress =
   | { mode: 'none' }
@@ -72,6 +80,7 @@ export interface AzureCeBrownfieldRouteChange {
 
 /** Explicit, private workload used to prove a Route Server learned prefix. */
 export interface AzureCeWorkloadFixture {
+  imageVersion: string;
   subnetName: string;
   cidr: string;
   privateIp: string;
@@ -92,7 +101,13 @@ export interface AzureCeIntent {
   topology: { ha: boolean };
   nics: AzureCeNicIntent[];
   egress: { mode: AzureCeEgressMode; resourceId?: string };
-  routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
+  routing: {
+    mode: AzureCeRoutingMode;
+    destinationCidrs: string[];
+    localAsn?: number;
+    peerAsn?: number;
+    udr?: AzureCeGreenfieldUdr;
+  };
   ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
   initialVersions?: InitialSiteVersions;
@@ -183,6 +198,7 @@ export type AzureCeActionKind =
   | 'route-table-create'
   | 'route-create'
   | 'route-association-update'
+  | 'relay-provision'
   | 'route-server-create'
   | 'route-server-peer-create'
   | 'route-server-peer-update'
@@ -212,6 +228,12 @@ export interface AzureCeAction {
 }
 
 export interface AzureCePlanDraft {
+  terraformNetworkReplacementProfile?: import('./terraform-network-replacement-plan').AzureTerraformNetworkReplacementProfile;
+  terraformNetworkProfile?: import('./terraform-network-plan').AzureTerraformNetworkProfile;
+  networkReplacementProfile?: import('./native-network-replacement').AzureNativeNetworkReplacementProfile;
+  networkProfile?: import('./native-network-plan').AzureNativeNetworkProfile;
+  workloadProfile?: import('./workload-plan').AzureWorkloadDeploymentProfile;
+  relayProfile?: AzureRelayDeploymentProfile | import('./relay-replacement-plan').AzureRelayReplacementProfile;
   engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   intent: AzureCeIntent;
@@ -223,10 +245,17 @@ export interface AzureCePlanDraft {
   topology: { ha: boolean; nodeCount: 1 | 3; zones: string[] };
   nics: Array<AzureCeNicIntent & { index: number }>;
   egress: AzureCeIntent['egress'];
-  routing: { mode: Exclude<AzureCeRoutingMode, 'auto'>; destinationCidrs: string[]; localAsn: number; peerAsn: number };
+  routing: {
+    mode: Exclude<AzureCeRoutingMode, 'auto'>;
+    destinationCidrs: string[];
+    localAsn: number;
+    peerAsn: number;
+    udr?: AzureCeGreenfieldUdr;
+  };
   securityRules: AzureCeSecurityRuleIntent[];
   image: AzureCeObservation['image'];
   vm: AzureCeIntent['vm'];
+  computeCapacity: { ceVcpus: number; workloadVcpus: number; quotaAvailable: number };
   warnings: string[];
   billableResources: Array<{ type: string; count: number }>;
   actions: AzureCeAction[];
@@ -271,22 +300,9 @@ export interface AzureCeCheckpoint {
     resourceId: string;
     requestSha256: string;
   };
+  networkUpdate?: AzureNativeNetworkUpdateCheckpoint;
   failedActionId?: string;
   observationFingerprint?: string;
   observationSnapshot?: AzureCeObservation;
   state: 'running' | 'partial' | 'complete';
 }
-
-export interface AzureCeLegacyCheckpoint {
-  authorization?: AzureCeCheckpoint['authorization'];
-  engine: AzureCeCheckpoint['engine'];
-  schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
-  planId: string;
-  planSha256: string;
-  completedActionIds: string[];
-  failedActionId?: string;
-  observationFingerprint?: string;
-  state: AzureCeCheckpoint['state'];
-}
-
-export type AzureCeStoredCheckpoint = AzureCeCheckpoint | AzureCeLegacyCheckpoint;

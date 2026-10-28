@@ -80,6 +80,11 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
         const platform = await dependencies.platform(pi, signal);
         const storage = await platform.storage(azureUpgradeBinding(plan).owner);
+        if (
+          plan.engine === 'native' &&
+          (await optional(storage, 'azure-native-lifecycle-retirement.json')) !== undefined
+        )
+          throw Error('Azure native lifecycle is retired; upgrade cannot prepare or execute');
         const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {

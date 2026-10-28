@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm, stat, symlink } from 'node:fs/promises';
+import { mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../src/ce/deployment-store';
@@ -29,4 +29,19 @@ test('deployment storage survives a new service instance and rejects engine migr
   await expect(store.read('../escape')).rejects.toThrow('Invalid');
   await symlink('owner.json', join(store.directory, 'link.json'));
   await expect(store.read('link.json')).rejects.toThrow('ownership');
+});
+
+test('private deployment JSON diagnostics do not expose malformed enrollment material', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-store-private-json-'));
+  dirs.push(root);
+  const store = await CeDeploymentStore.open(root, owner);
+  const secret = 'opaque-ce-private-material';
+  await writeFile(join(store.directory, 'enrollment.json'), `{"jwt":"${secret}", broken-json}`, { mode: 0o600 });
+  await expect(store.read('enrollment.json')).rejects.toThrow('Malformed CE deployment artifact');
+  try {
+    await store.read('enrollment.json');
+  } catch (error) {
+    expect(String(error)).not.toContain(secret);
+  }
+  await expect(store.read('missing.json')).rejects.toMatchObject({ code: 'ENOENT' });
 });

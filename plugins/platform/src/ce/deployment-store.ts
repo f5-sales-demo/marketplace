@@ -80,20 +80,30 @@ export class CeDeploymentStore {
     if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
       throw new Error('CE deployment belongs to another execution engine or scope');
   }
-  async write(name: string, value: unknown): Promise<void> {
+  async write(name: string, value: unknown, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
+    signal?.throwIfAborted();
     const temporary = this.#path(`tmp-${randomUUID()}`);
     try {
-      await writeFile(temporary, JSON.stringify(value), { flag: 'wx', mode: 0o600 });
+      await writeFile(temporary, JSON.stringify(value), { flag: 'wx', mode: 0o600, signal });
+      signal?.throwIfAborted();
       await rename(temporary, this.#path(name));
+      signal?.throwIfAborted();
     } finally {
       await rm(temporary, { force: true });
     }
   }
   async read(name: string): Promise<unknown> {
     await this.verify();
-    return JSON.parse((await this.#read(name)).toString());
+    const bytes = await this.#read(name);
+    try {
+      return JSON.parse(bytes.toString());
+    } catch {
+      // Runtime parser diagnostics may include private enrollment material.
+      throw new Error('Malformed CE deployment artifact');
+    }
   }
   async remove(name: string): Promise<void> {
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');

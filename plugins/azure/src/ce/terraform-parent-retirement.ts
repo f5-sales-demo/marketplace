@@ -1,11 +1,25 @@
 import { createHash } from 'node:crypto';
-import { lstat, readdir, readFile, realpath, unlink } from 'node:fs/promises';
+import { lstat, readdir, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
 import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
 import { canonicalSha256 } from './canonical';
+import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
+import {
+  isAzureFailoverHistoricalArtifact,
+  verifyAzureFailoverHistoricalArtifacts,
+} from './failover-artifact-provenance';
+import { isAzureIngressHistoricalArtifact, verifyAzureIngressHistoricalArtifacts } from './ingress-artifact-provenance';
+import { azureRelayHistoricalArtifacts, verifyAzureRelayHistoricalArtifacts } from './relay-artifact-provenance';
+import { azureTerraformFailoverDeployment, validateAzureTerraformFailoverRetirement } from './terraform-failover';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
+import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
+import {
+  isAzureTerraformReplacementHistoricalArtifact,
+  verifyAzureTerraformReplacementHistoricalArtifacts,
+} from './terraform-replacement-artifact-provenance';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -16,6 +30,13 @@ const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed Azure parent retirement');
   return value as Record<string, unknown>;
 };
+const parseArtifact = (bytes: Uint8Array): unknown => {
+  try {
+    return JSON.parse(Buffer.from(bytes).toString());
+  } catch {
+    throw Error('Malformed Azure parent artifact');
+  }
+};
 interface Teardown {
   kind: string;
   sourcePlanSha256: string;
@@ -25,6 +46,7 @@ interface Teardown {
   retirement: Array<{ siteName: string; siteUid: string; tokens: Array<{ node: string; name: string }> }>;
 }
 interface Item {
+  identity: string;
   path: string;
   sha256: string;
   preserve: boolean;
@@ -36,6 +58,7 @@ export async function retireAzureTerraformParentArtifacts(
   evidenceSha256: string,
   store: CeDeploymentStore,
   signal?: AbortSignal,
+  ingressContract?: VerifiedIngressContract,
 ) {
   const binding = azureUpgradeBinding(base);
   if (
@@ -66,9 +89,22 @@ export async function retireAzureTerraformParentArtifacts(
     terminal.phase !== 'retired' ||
     terminal.sourcePlanSha256 !== base.planSha256 ||
     terminal.teardownPlanSha256 !== teardown.planSha256 ||
-    terminal.retirementEvidenceSha256 !== evidenceSha256
+    terminal.retirementEvidenceSha256 !== evidenceSha256 ||
+    !terminal.retirementEvidence ||
+    typeof terminal.retirementEvidence !== 'object' ||
+    Array.isArray(terminal.retirementEvidence) ||
+    canonicalSha256(terminal.retirementEvidence) !== evidenceSha256
   )
     throw Error('Azure parent retirement authorization or terminal evidence differs');
+  const terminalSha256 = canonicalSha256(terminal);
+  const verifyTerminal = async () => {
+    signal?.throwIfAborted();
+    await store.verify();
+    if (canonicalSha256(await store.read('azure-terraform-terminal-cleanup.json')) !== terminalSha256)
+      throw Error('Azure parent terminal evidence changed');
+    signal?.throwIfAborted();
+  };
+  await verifyTerminal();
   const directory = async (path: string) => {
     const stat = await lstat(path);
     if (
@@ -79,17 +115,13 @@ export async function retireAzureTerraformParentArtifacts(
     )
       throw Error('Azure parent directory differs');
   };
+  const fileIdentities = new Map<string, string>();
   const file = async (path: string) => {
-    const stat = await lstat(path);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.nlink !== 1 ||
-      stat.uid !== process.getuid?.() ||
-      stat.mode & 0o077
-    )
-      throw Error('Azure parent file differs');
-    return readFile(path);
+    const current = await readAzureTerraformParentPrivateFile(path, signal);
+    if (fileIdentities.has(path) && fileIdentities.get(path) !== current.identity)
+      throw Error('Azure parent file inode changed');
+    fileIdentities.set(path, current.identity);
+    return current.bytes;
   };
   const deployment = await azureTerraformCurrentDeployment(base),
     { configuration, providerLock, ...rest } = deployment;
@@ -139,6 +171,16 @@ export async function retireAzureTerraformParentArtifacts(
     )
       throw Error('Azure serial upgrade provenance differs');
   }
+  const failovers = new Map<string, Record<string, unknown>>();
+  const failoverJournals = (await readdir(store.directory)).filter(isAzureFailoverHistoricalArtifact);
+  for (const name of failoverJournals.filter((name) => /^azure-ce-failover-[a-f0-9]{24}\.json$/.test(name))) {
+    const source = (await store.read(name)) as AzureCeFailoverPlan;
+    verifyAzureCeFailoverPlan(base, source);
+    if (name !== `${source.planId}.json`) throw Error('Failover source filename differs');
+    const deployment = await azureTerraformFailoverDeployment(base, source, 'release');
+    if (failovers.has(String(deployment.stage))) throw Error('Duplicate failover stage source');
+    failovers.set(String(deployment.stage), { ...source, deployment });
+  }
   const preserve = new Set([
     'owner.json',
     'azure-terraform-lifecycle-retirement.json',
@@ -147,7 +189,11 @@ export async function retireAzureTerraformParentArtifacts(
     `${teardown.planId}.json`,
     `${teardown.planId}-authorization.json`,
   ]);
-  for (const name of upgradeJournals) preserve.add(name);
+  for (const name of [...upgradeJournals, ...failoverJournals]) preserve.add(name);
+  if (failoverJournals.length) {
+    preserve.add('platform-routing.json');
+    for (const name of azureRelayHistoricalArtifacts) preserve.add(name);
+  }
   if (upgrades.size) preserve.add('terraform-ce-upgrade-serial.json');
   const allowed = new Set([
     'terraform-workflow.json',
@@ -177,11 +223,30 @@ export async function retireAzureTerraformParentArtifacts(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   const inventory = async (recorded?: Map<string, Item>) => {
+    await verifyTerminal();
     await directory(store.directory);
     const items: Item[] = [];
+    const relayRecords = new Map<string, unknown>();
+    const replacementRecords = new Map<string, unknown>();
+    const ingressRecords = new Map<string, unknown>();
+    const failoverRecords = new Map<string, unknown>();
     let runner = false;
-    const add = async (path: string, keep: boolean) =>
-      items.push({ path, preserve: keep, sha256: hash(await file(join(store.directory, path))) });
+    const add = async (path: string, keep: boolean) => {
+      const bytes = await file(join(store.directory, path));
+      const identity = fileIdentities.get(join(store.directory, path));
+      if (!identity) throw Error('Azure parent file identity missing');
+      items.push({ path, preserve: keep, sha256: hash(bytes), identity });
+      if (azureRelayHistoricalArtifacts.has(path)) relayRecords.set(path, parseArtifact(bytes));
+      if (isAzureTerraformReplacementHistoricalArtifact(path) || tokens.has(path))
+        replacementRecords.set(path, parseArtifact(bytes));
+      if (isAzureIngressHistoricalArtifact(path)) ingressRecords.set(path, parseArtifact(bytes));
+      if (
+        isAzureFailoverHistoricalArtifact(path) ||
+        azureRelayHistoricalArtifacts.has(path) ||
+        path === 'platform-routing.json'
+      )
+        failoverRecords.set(path, parseArtifact(bytes));
+    };
     for (const name of (await readdir(store.directory)).sort()) {
       if (name === markerName || name === '.azure-terraform-lifecycle-lock') continue;
       if (name === base.deploymentName) {
@@ -231,7 +296,8 @@ export async function retireAzureTerraformParentArtifacts(
         const stagesRoot = join(store.directory, name);
         await directory(stagesRoot);
         for (const stage of (await readdir(stagesRoot)).sort()) {
-          const upgrade = upgrades.get(stage);
+          const upgrade = upgrades.get(stage) ?? failovers.get(stage);
+          const failover = failovers.has(stage);
           if (!upgrade) throw Error('Unqualified Azure stage blocks parent retirement');
           const stagePath = join(stagesRoot, stage);
           await directory(stagePath);
@@ -250,6 +316,26 @@ export async function retireAzureTerraformParentArtifacts(
           const manifest = object(JSON.parse((await file(join(path, 'deployment.json'))).toString()));
           const marker = object(JSON.parse((await file(join(path, 'artifact-retirement.json'))).toString()));
           const retirement = object(await store.read(`${upgrade.planId}-stage-retirement.json`));
+          if (failover) {
+            const { deployment: _deployment, ...source } = upgrade;
+            await validateAzureTerraformFailoverRetirement(
+              base,
+              source as unknown as AzureCeFailoverPlan,
+              retirement,
+              evidenceSha256,
+            );
+            const result = object(retirement.result);
+            for (const key of [
+              'manifestSha256',
+              'evidenceSha256',
+              'finalPlanSha256',
+              'inventorySha256',
+              'independentCleanupSha256',
+            ])
+              if (result[key] !== marker[key]) throw Error('Failover stage and runner retirement receipts differ');
+            if (!Array.isArray(marker.artifacts) || result.retiredArtifacts !== marker.artifacts.length)
+              throw Error('Failover runner artifact count differs');
+          }
           const final = object(retirement.receipt);
           if (
             typeof configuration !== 'string' ||
@@ -264,7 +350,7 @@ export async function retireAzureTerraformParentArtifacts(
             retirement.status !== 'retired' ||
             canonicalSha256(retirement.owner) !== canonicalSha256(binding.owner) ||
             retirement.sourcePlanSha256 !== base.planSha256 ||
-            retirement.upgradePlanSha256 !== upgrade.planSha256 ||
+            (failover ? retirement.failoverPlanSha256 : retirement.upgradePlanSha256) !== upgrade.planSha256 ||
             retirement.deploymentSha256 !== canonicalSha256(deployment) ||
             retirement.evidenceSha256 !== evidenceSha256 ||
             retirement.receiptSha256 !== canonicalSha256(final) ||
@@ -300,6 +386,9 @@ export async function retireAzureTerraformParentArtifacts(
       if (
         !preserve.has(name) &&
         !allowed.has(name) &&
+        !azureRelayHistoricalArtifacts.has(name) &&
+        !isAzureIngressHistoricalArtifact(name) &&
+        !isAzureTerraformReplacementHistoricalArtifact(name) &&
         !tokens.has(name) &&
         !checkout &&
         !/^terraform-(?:authorization-[a-f0-9]{64}|admission-plan-node-[1-3])\.json$/.test(name)
@@ -344,7 +433,9 @@ export async function retireAzureTerraformParentArtifacts(
           value.tokenName !== token.name ||
           value.siteName !== token.siteName ||
           value.node !== token.node ||
-          typeof value.jwt !== 'string'
+          Object.keys(value).sort().join(',') !== 'jwt,node,siteName,tokenName' ||
+          typeof value.jwt !== 'string' ||
+          !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value.jwt)
         )
           throw Error('Azure parent token identity differs');
       }
@@ -371,12 +462,34 @@ export async function retireAzureTerraformParentArtifacts(
       await add(name, preserve.has(name) || checkout);
     }
     if (!runner) throw Error('Azure owning runner retirement missing');
+    if (!recorded && [...replacementRecords.keys()].some(isAzureTerraformReplacementHistoricalArtifact))
+      verifyAzureTerraformReplacementHistoricalArtifacts(
+        base,
+        teardown.retirement,
+        replacementRecords,
+        expectedManifest.providerLockSha256,
+      );
+    if (!recorded && relayRecords.size) {
+      const sites = teardown.retirement.filter((site) => site.siteName === base.siteName);
+      if (sites.length !== 1) throw Error('Azure relay retirement logical site is ambiguous');
+      verifyAzureRelayHistoricalArtifacts(base, sites[0].siteUid, relayRecords);
+    }
+    if (failoverJournals.length) {
+      const sites = teardown.retirement.filter((site) => site.siteName === base.siteName);
+      if (sites.length !== 1) throw Error('Failover retirement site is ambiguous');
+      await verifyAzureFailoverHistoricalArtifacts(base, sites[0].siteUid, failoverRecords);
+    }
+    if (!recorded && ingressRecords.size) {
+      if (!ingressContract) throw Error('Verified ingress contract is required for parent history retirement');
+      verifyAzureIngressHistoricalArtifacts(base, teardown.drain, ingressContract, ingressRecords);
+    }
+    await verifyTerminal();
     return items.sort((a, b) => a.path.localeCompare(b.path));
   };
   if (!saved) {
     const artifacts = await inventory();
     saved = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: 'retiring',
       owner: binding.owner,
       sourcePlanSha256: base.planSha256,
@@ -388,7 +501,7 @@ export async function retireAzureTerraformParentArtifacts(
     await store.write(markerName, saved);
   }
   if (
-    saved.schemaVersion !== 1 ||
+    saved.schemaVersion !== 2 ||
     !['retiring', 'deployment-artifacts-retired'].includes(String(saved.status)) ||
     canonicalSha256(saved.owner) !== canonicalSha256(binding.owner) ||
     saved.sourcePlanSha256 !== base.planSha256 ||
@@ -405,6 +518,8 @@ export async function retireAzureTerraformParentArtifacts(
       typeof item.path !== 'string' ||
       item.path.split('/').some((part) => !part || part === '.' || part === '..') ||
       !sha(item.sha256) ||
+      typeof item.identity !== 'string' ||
+      !item.identity ||
       typeof item.preserve !== 'boolean' ||
       expected.has(item.path)
     )
@@ -421,7 +536,9 @@ export async function retireAzureTerraformParentArtifacts(
   for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
     signal?.throwIfAborted();
     const value = object(await store.read(item.path));
+    await verifyTerminal();
     await retireBootstrapToken(value.checkout as unknown as BootstrapCheckoutBinding, evidenceSha256, signal);
+    await verifyTerminal();
   }
   for (const item of current.filter((item) => !item.preserve)) {
     signal?.throwIfAborted();
@@ -430,9 +547,14 @@ export async function retireAzureTerraformParentArtifacts(
     if (hash(await file(join(store.directory, item.path))) !== item.sha256)
       throw Error('Azure parent artifact changed before deletion');
     signal?.throwIfAborted();
+    await verifyTerminal();
+    if (hash(await file(join(store.directory, item.path))) !== item.sha256)
+      throw Error('Azure parent artifact changed after terminal verification');
+    signal?.throwIfAborted();
     await unlink(join(store.directory, item.path));
   }
   signal?.throwIfAborted();
+  await verifyTerminal();
   await store.write(markerName, { ...saved, status: 'deployment-artifacts-retired' });
   return {
     status: 'deployment-artifacts-retired' as const,

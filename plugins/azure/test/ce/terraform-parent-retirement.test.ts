@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -19,6 +19,11 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 for (const fault of [
+  'missing-terminal-payload',
+  'changed-terminal-payload',
+  'rehashed-terminal-payload',
+  'interrupted-terminal-payload',
+  'terminal-changed-after-read',
   'none',
   'missing-independent',
   'unknown',
@@ -29,6 +34,7 @@ for (const fault of [
   'foreign-public-update-plan',
   'foreign-runner',
   'changed-artifact',
+  'identical-byte-artifact',
   'interrupted',
   'reconciliation',
   'foreign-reconciliation',
@@ -61,7 +67,8 @@ for (const fault of [
       mutations: true,
     });
     await beginAzureTerraformRetirement(base, teardown, store);
-    const evidence = 'b'.repeat(64),
+    const retirementEvidence = { platform: { status: 'absent', owner: binding.owner }, cloud: { status: 'absent' } };
+    const evidence = canonicalSha256(retirementEvidence),
       finalPlan = 'c'.repeat(64),
       deployment = await azureTerraformCurrentDeployment(base);
     const { configuration, providerLock, ...rest } = deployment,
@@ -95,20 +102,31 @@ for (const fault of [
       phase: 'retired',
       sourcePlanSha256: base.planSha256,
       teardownPlanSha256: teardown.planSha256,
+      retirementEvidence,
       retirementEvidenceSha256: evidence,
       final: { planSha256: finalPlan },
       artifacts: { ...marker, retiredArtifacts: 0 },
     });
-    await store.write('terraform-workflow.json', { bootstrapByNode: { [binding.nodes[0]]: 'fixture-secret' } });
+    await store.write('terraform-workflow.json', {
+      bootstrapByNode: {
+        [binding.nodes[0]]: [{}, { sub: 'fixture' }, 'signature']
+          .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+          .join('.'),
+      },
+    });
     await store.write('token-one.json', {
       tokenName: 'token-one',
       siteName: base.siteName,
       node: binding.nodes[0],
-      jwt: 'fixture-secret',
+      jwt: [{}, { sub: 'fixture' }, 'signature']
+        .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+        .join('.'),
     });
     await storeBootstrapToken({
       sessionId: 'session-one',
-      token: 'fixture-secret',
+      token: [{}, { sub: 'fixture' }, 'signature']
+        .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+        .join('.'),
       expiresInSeconds: 60,
       root: join(root, 'checkout'),
       onPrepared: async (checkout) => {
@@ -148,9 +166,33 @@ for (const fault of [
       });
     }
     if (fault === 'unknown') await store.write('foreign.json', { jwt: 'unowned' });
+    if (['missing-terminal-payload', 'changed-terminal-payload', 'rehashed-terminal-payload'].includes(fault)) {
+      const terminal = (await store.read('azure-terraform-terminal-cleanup.json')) as Record<string, unknown>;
+      if (fault === 'missing-terminal-payload') delete terminal.retirementEvidence;
+      else terminal.retirementEvidence = { cloud: { status: 'present' } };
+      if (fault === 'rehashed-terminal-payload')
+        terminal.retirementEvidenceSha256 = canonicalSha256(terminal.retirementEvidence);
+      await store.write('azure-terraform-terminal-cleanup.json', terminal);
+    }
+    if (fault === 'terminal-changed-after-read') {
+      const read = store.read.bind(store);
+      let changed = false;
+      store.read = async (name) => {
+        const value = await read(name);
+        if (name === 'azure-terraform-terminal-cleanup.json' && !changed) {
+          changed = true;
+          await store.write(name, { ...(value as object), retirementEvidence: { cloud: { status: 'present' } } });
+        }
+        return value;
+      };
+    }
     const run = (signal?: AbortSignal) => retireAzureTerraformParentArtifacts(base, teardown, evidence, store, signal);
     if (
       [
+        'missing-terminal-payload',
+        'changed-terminal-payload',
+        'rehashed-terminal-payload',
+        'terminal-changed-after-read',
         'unknown',
         'missing-independent',
         'foreign-public-update',
@@ -166,7 +208,12 @@ for (const fault of [
       expect(await store.read('terraform-workflow.json')).toBeDefined();
       return;
     }
-    if (fault === 'interrupted' || fault === 'changed-artifact') {
+    if (
+      fault === 'interrupted' ||
+      fault === 'changed-artifact' ||
+      fault === 'identical-byte-artifact' ||
+      fault === 'interrupted-terminal-payload'
+    ) {
       const controller = new AbortController();
       const write = store.write.bind(store);
       store.write = async (name, value) => {
@@ -175,6 +222,26 @@ for (const fault of [
       };
       await expect(run(controller.signal)).rejects.toThrow();
       store.write = write;
+      if (fault === 'interrupted-terminal-payload') {
+        const terminal = (await store.read('azure-terraform-terminal-cleanup.json')) as Record<string, unknown>;
+        delete terminal.retirementEvidence;
+        await store.write('azure-terraform-terminal-cleanup.json', terminal);
+        await expect(run()).rejects.toThrow('terminal evidence');
+        expect(await store.read('terraform-workflow.json')).toBeDefined();
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
+      if (fault === 'identical-byte-artifact') {
+        const path = join(store.directory, 'terraform-workflow.json'),
+          bytes = await readFile(path);
+        const backupRoot = await mkdtemp(join(tmpdir(), 'azure-parent-original-inode-'));
+        roots.push(backupRoot);
+        await rename(path, join(backupRoot, 'original.json'));
+        await writeFile(path, bytes, { mode: 0o600 });
+        await expect(run()).rejects.toThrow('changed');
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
       if (fault === 'changed-artifact') {
         await store.write('terraform-workflow.json', { changed: true });
         await expect(run()).rejects.toThrow('changed');

@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 import type { AzureCeObservation } from './types';
 
 function canonicalize(value: unknown): unknown {
@@ -100,4 +101,73 @@ export function fingerprintDeploymentObservation(
       },
     },
   });
+}
+
+/** Compare fresh ordinary JSON values without allocating canonical strings.
+ * Exotic values retain canonicalSha256 semantics, including its errors.
+ * This is equality only; cryptographic receipt and witness hashes are unchanged.
+ */
+export function canonicalEqual(left: unknown, right: unknown): boolean {
+  const ordinary = (value: unknown, ancestry: Set<object>): boolean => {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value !== 'object' || utilTypes.isProxy(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    if (Array.isArray(value) ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null)
+      return false;
+    if (ancestry.has(value) || 'toJSON' in value || Object.getOwnPropertySymbols(value).length) return false;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Object.hasOwn(descriptors, '__proto__')) return false;
+    for (const descriptor of Object.values(descriptors)) {
+      if (!Object.hasOwn(descriptor, 'value')) return false;
+    }
+    ancestry.add(value);
+    let valid = true;
+    if (Array.isArray(value)) {
+      // map overrides and inherited array entries change the legacy serializer.
+      for (const key of Object.keys(descriptors)) {
+        if (key !== 'length' && !/^(0|[1-9][0-9]*)$/.test(key)) valid = false;
+      }
+      for (let index = 0; index < value.length; index++) {
+        const descriptor = descriptors[String(index)];
+        if (!descriptor && index in value) valid = false;
+        if (descriptor?.value !== undefined && !ordinary(descriptor.value, ancestry)) valid = false;
+      }
+    } else {
+      for (const descriptor of Object.values(descriptors)) {
+        if (descriptor.enumerable && descriptor.value !== undefined && !ordinary(descriptor.value, ancestry))
+          valid = false;
+      }
+    }
+    ancestry.delete(value);
+    return valid;
+  };
+  // Inspect both complete operands before any mismatch can select the fast path.
+  const leftOrdinary = ordinary(left, new Set());
+  const rightOrdinary = ordinary(right, new Set());
+  if (!leftOrdinary || !rightOrdinary) return canonicalSha256(left) === canonicalSha256(right);
+  const equal = (a: unknown, b: unknown): boolean => {
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b;
+    if (Array.isArray(a)) {
+      if (!Array.isArray(b) || a.length !== b.length) return false;
+      for (let index = 0; index < a.length; index++) {
+        if (!equal(a[index] === undefined ? null : a[index], b[index] === undefined ? null : b[index])) return false;
+      }
+      return true;
+    }
+    if (Array.isArray(b)) return false;
+    const aObject = a as Record<string, unknown>;
+    const bObject = b as Record<string, unknown>;
+    let aCount = 0;
+    for (const key of Object.keys(aObject)) {
+      if (aObject[key] === undefined) continue;
+      aCount++;
+      if (!Object.hasOwn(bObject, key) || bObject[key] === undefined || !equal(aObject[key], bObject[key]))
+        return false;
+    }
+    let bCount = 0;
+    for (const key of Object.keys(bObject)) if (bObject[key] !== undefined) bCount++;
+    return aCount === bCount;
+  };
+  return equal(left, right);
 }

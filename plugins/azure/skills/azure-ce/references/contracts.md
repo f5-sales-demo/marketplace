@@ -40,6 +40,15 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   platform-connectivity NSG rules. Surface broad CIDRs and management exposure.
 - For single-node insertion, create explicit UDRs whose next hop is the CE data-plane
   private address.
+  Greenfield insertion uses `routing.udr` with an explicit `subnetNames` list and
+  `nextHop: { node, nicIndex }`. Targets must name subnets created by this deployment.
+  Both engines preserve the selected physical NIC index; no SLI/data substitution is made.
+  Terraform emits the owned route table, each destination route, and the selected subnet
+  associations. Native execution verifies current VNet/table ownership before association,
+  including recovery from a lost response. Unassociated destinations remain rejected.
+  This translates configuration; effective forwarding, traffic, interface state and original
+  publication freshness require separate operational evidence. Address-changing network updates
+  still need the separately qualified dependent-routing stage before admission.
 - Route Server peering uses the observed SLO address. Explicit Route Server selection supports
   a single CE as well as the planner's HA topology; Route Server redundancy does not require
   selecting a three-node XC cluster. Use a dedicated `/26` `RouteServerSubnet` without an NSG

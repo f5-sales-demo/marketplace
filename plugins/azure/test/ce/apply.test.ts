@@ -381,6 +381,8 @@ describe('Azure CE apply protections', () => {
   });
 
   it('normalizes quota consumed by the exact plan-owned Terraform workload fixture VM', () => {
+    const baseline = structuredClone(observation);
+    baseline.regions[0].quotaAvailable = 9;
     const fixturePlan = compileAzureCePlan(
       {
         ...intent,
@@ -392,15 +394,16 @@ describe('Azure CE apply protections', () => {
           peerAsn: 64512,
         },
         workloadFixture: {
+          imageVersion: '22.04.202610010',
           subnetName: 'workload',
           cidr: '10.30.0.0/24',
           privateIp: '10.30.0.4',
           port: 8080,
         },
       },
-      observation,
+      baseline,
     );
-    const current = structuredClone(observation);
+    const current = structuredClone(baseline);
     current.regions[0].quotaAvailable--;
     current.resources.push({
       id: `/subscriptions/${fixturePlan.subscription.id}/resourceGroups/${fixturePlan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${fixturePlan.deploymentName}-workload`,
@@ -731,7 +734,7 @@ it('does not promote apply authorization into an ad hoc Marketplace terms action
     actions: [
       {
         id: 'terms',
-        phase: 'preflight' as const,
+        phase: 'terms' as const,
         kind: 'marketplace-terms-accept' as const,
         description: 'terms',
         mutates: true,

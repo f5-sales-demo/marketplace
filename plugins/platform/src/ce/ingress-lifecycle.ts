@@ -50,6 +50,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 const hash = (value: unknown) => createHash('sha256').update(canonical(value)).digest('hex');
+export const hashCeIngressPlan = hash;
 const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 const uid = (value: Json) => {
   const result = object(value.system_metadata).uid;
@@ -83,6 +84,212 @@ function matches(actual: unknown, expected: unknown): boolean {
   return actual === expected;
 }
 
+export interface CeIngressSourceBinding {
+  schemaVersion: 1;
+  kind: 'azure-ce-source';
+  sourcePlanSha256: string;
+  sourceArtifactSha256: string;
+}
+interface IngressBuilder {
+  readonly fingerprint: string;
+  build: VerifiedIngressContract['build'];
+  buildOrigin: VerifiedIngressContract['buildOrigin'];
+}
+export interface CeIngressPlan {
+  schemaVersion: 1;
+  kind: 'ce-inside-http-ingress';
+  observedAt: string;
+  id: string;
+  sha256: string;
+  source?: CeIngressSourceBinding;
+  request: {
+    metadata: { name: string; namespace: string; labels: Record<string, string> };
+    spec: ReturnType<VerifiedIngressContract['build']>['spec'];
+  };
+  material: {
+    owner: SiteBinding['owner'];
+    contractFingerprint: string;
+    siteFingerprint: string;
+    intent: Intent;
+    selections: Selection[];
+    placements: { siteName: string; siteUid: string; interface: ObservedCeInterface; insideAddress: string }[];
+    request: CeIngressPlan['request'];
+    originRequest: {
+      metadata: { name: string; namespace: string; labels: Record<string, string> };
+      spec: ReturnType<VerifiedIngressContract['buildOrigin']>['spec'];
+    };
+  };
+}
+function fields(value: Json, names: string[]) {
+  if (Object.keys(value).sort().join(',') !== names.toSorted().join(','))
+    throw new Error('Ingress historical fields differ');
+}
+function text(value: unknown) {
+  if (typeof value !== 'string' || !value || value.length > 512) throw new Error('Ingress historical identity missing');
+  return value;
+}
+/** Recompile saved request and identity joins; historical collection time never establishes live acceptance. */
+export function validateCeIngressHistoricalPlan(
+  value: unknown,
+  owner: SiteBinding['owner'],
+  contract: IngressBuilder,
+  siteFingerprint: string,
+): CeIngressPlan {
+  const raw = object(value);
+  fields(raw, [
+    'schemaVersion',
+    'kind',
+    'observedAt',
+    'material',
+    'id',
+    'sha256',
+    'request',
+    ...(raw.source !== undefined ? ['source'] : []),
+  ]);
+  const plan = raw as unknown as CeIngressPlan;
+  const { id, sha256, request, ...draft } = plan;
+  if (
+    draft.schemaVersion !== 1 ||
+    draft.kind !== 'ce-inside-http-ingress' ||
+    typeof id !== 'string' ||
+    !/^[a-f0-9]{24}$/.test(id) ||
+    hash(draft) !== sha256 ||
+    sha256.slice(0, 24) !== id ||
+    typeof draft.observedAt !== 'string' ||
+    !Number.isFinite(Date.parse(draft.observedAt)) ||
+    Date.parse(draft.observedAt) > Date.now()
+  )
+    throw new Error('Obsolete, forged or foreign ingress plan');
+  if (raw.source !== undefined) {
+    const source = object(raw.source);
+    fields(source, ['schemaVersion', 'kind', 'sourcePlanSha256', 'sourceArtifactSha256']);
+    if (
+      owner.provider !== 'azure' ||
+      source.schemaVersion !== 1 ||
+      source.kind !== 'azure-ce-source' ||
+      typeof source.sourcePlanSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(source.sourcePlanSha256) ||
+      typeof source.sourceArtifactSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(source.sourceArtifactSha256)
+    )
+      throw new Error('Ingress source binding differs');
+  }
+  const material = object(plan.material);
+  fields(material, [
+    'owner',
+    'contractFingerprint',
+    'siteFingerprint',
+    'intent',
+    'selections',
+    'placements',
+    'originRequest',
+    'request',
+  ]);
+  if (
+    !same(material.owner, owner) ||
+    material.contractFingerprint !== contract.fingerprint ||
+    material.siteFingerprint !== siteFingerprint ||
+    !Array.isArray(material.selections) ||
+    !Array.isArray(material.placements) ||
+    material.selections.length < 1 ||
+    material.selections.length > 32 ||
+    material.placements.length !== material.selections.length
+  )
+    throw new Error('Ingress historical owner or placement differs');
+  const sites = new Set<string>(),
+    nodes = new Set<string>(),
+    macs = new Set<string>(),
+    uids = new Set<string>(),
+    addresses = new Set<string>();
+  for (let i = 0; i < plan.material.selections.length; i++) {
+    const selected = plan.material.selections[i],
+      placement = plan.material.placements[i];
+    fields(object(selected), [
+      'binding',
+      'node',
+      'mac',
+      ...(selected.insideAddress !== undefined ? ['insideAddress'] : []),
+    ]);
+    fields(object(placement), ['siteName', 'siteUid', 'interface', 'insideAddress']);
+    const binding = selected.binding;
+    fields(object(binding), ['owner', 'siteName', 'nodes']);
+    if (
+      !same(binding.owner, owner) ||
+      !['aws', 'azure'].includes(owner.provider) ||
+      !Array.isArray(binding.nodes) ||
+      new Set(binding.nodes).size !== binding.nodes.length ||
+      (owner.provider === 'aws' ? binding.nodes.length !== 1 : ![1, 3].includes(binding.nodes.length)) ||
+      !binding.nodes.includes(selected.node) ||
+      binding.siteName !== placement.siteName ||
+      sites.has(binding.siteName) ||
+      nodes.has(selected.node) ||
+      macs.has(selected.mac.toLowerCase()) ||
+      uids.has(placement.siteUid) ||
+      !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(selected.mac) ||
+      isIP(placement.insideAddress) !== 4 ||
+      addresses.has(placement.insideAddress)
+    )
+      throw new Error('Ingress historical selection identity differs');
+    text(binding.siteName);
+    text(selected.node);
+    text(placement.siteUid);
+    const iface = placement.interface;
+    fields(object(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
+    if (
+      iface.node !== selected.node ||
+      iface.role !== 'sli' ||
+      iface.mac !== selected.mac.toLowerCase() ||
+      iface.linkUp !== true ||
+      !Number.isInteger(iface.mtu) ||
+      (iface.mtu !== 0 && (iface.mtu < 576 || iface.mtu > 9000)) ||
+      !iface.ipv4
+    )
+      throw new Error('Ingress historical SLI identity differs');
+    text(iface.device);
+    text(iface.interfaceName);
+    fields(object(iface.ipv4), ['address', 'prefixLength']);
+    if (
+      isIP(iface.ipv4.address) !== 4 ||
+      !Number.isInteger(iface.ipv4.prefixLength) ||
+      iface.ipv4.prefixLength < 0 ||
+      iface.ipv4.prefixLength > 32 ||
+      placement.insideAddress !== (selected.insideAddress ?? iface.ipv4.address)
+    )
+      throw new Error('Ingress historical inside address differs');
+    sites.add(binding.siteName);
+    nodes.add(selected.node);
+    macs.add(selected.mac.toLowerCase());
+    uids.add(placement.siteUid);
+    addresses.add(placement.insideAddress);
+  }
+  const labels = {
+    'xcsh-ce-deployment': owner.deploymentId,
+    'xcsh-ce-engine': owner.engine,
+    'xcsh-ce-provider': owner.provider,
+    'xcsh-ce-account': owner.account,
+    'xcsh-ce-region': owner.region,
+  };
+  const { originAddress, ...intent } = plan.material.intent;
+  const built = contract.build({
+    ...intent,
+    sites: plan.material.placements.map((row) => ({ name: row.siteName, insideAddress: row.insideAddress })),
+  });
+  const origin = contract.buildOrigin({
+    name: plan.material.intent.originPool.name,
+    namespace: plan.material.intent.originPool.namespace,
+    originAddress,
+    port: plan.material.intent.port,
+    siteNames: plan.material.placements.map((row) => row.siteName),
+  });
+  if (
+    !same(request, material.request) ||
+    !same(request, { metadata: { ...built.metadata, labels }, spec: built.spec }) ||
+    !same(material.originRequest, { metadata: { ...origin.metadata, labels }, spec: origin.spec })
+  )
+    throw new Error('Ingress historical request differs from exact contract compilation');
+  return plan;
+}
+
 /** Stored ingress plans supplement the immutable site plan. No caller-provided health is admitted. */
 export class CeIngressLifecycle {
   constructor(
@@ -107,7 +314,7 @@ export class CeIngressLifecycle {
       await release();
     }
   }
-  #labels(): Json {
+  #labels(): Record<string, string> {
     const owner = this.storage.owner;
     return {
       'xcsh-ce-deployment': owner.deploymentId,
@@ -117,7 +324,12 @@ export class CeIngressLifecycle {
       'xcsh-ce-region': owner.region,
     };
   }
-  async #material(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async #material(
+    provider: 'aws' | 'azure',
+    intent: Intent,
+    selections: Selection[],
+    signal?: AbortSignal,
+  ): Promise<CeIngressPlan['material']> {
     const deadline = AbortSignal.timeout(60_000);
     signal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     signal.throwIfAborted();
@@ -176,7 +388,7 @@ export class CeIngressLifecycle {
         siteName: binding.siteName,
         siteUid: uid(after),
         interface: inside[0],
-        insideAddress: selected.insideAddress ?? inside[0].ipv4?.address,
+        insideAddress: selected.insideAddress ?? inside[0].ipv4.address,
       });
     }
     const { originAddress, ...listenerIntent } = intent;
@@ -210,13 +422,24 @@ export class CeIngressLifecycle {
       request: { metadata: { ...built.metadata, labels: this.#labels() }, spec: built.spec },
     };
   }
-  async planAws(intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async planAws(intent: Intent, selections: Selection[], signal?: AbortSignal): Promise<CeIngressPlan> {
     return this.#plan('aws', intent, selections, signal);
   }
-  async planAzure(intent: Intent, selections: Selection[], signal?: AbortSignal) {
-    return this.#plan('azure', intent, selections, signal);
+  async planAzure(
+    intent: Intent,
+    selections: Selection[],
+    signal?: AbortSignal,
+    source?: CeIngressSourceBinding,
+  ): Promise<CeIngressPlan> {
+    return this.#plan('azure', intent, selections, signal, source);
   }
-  async #plan(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async #plan(
+    provider: 'aws' | 'azure',
+    intent: Intent,
+    selections: Selection[],
+    signal?: AbortSignal,
+    source?: CeIngressSourceBinding,
+  ): Promise<CeIngressPlan> {
     return this.#locked(async () => {
       const material = await this.#material(provider, intent, selections, signal);
       const draft = {
@@ -224,32 +447,25 @@ export class CeIngressLifecycle {
         kind: 'ce-inside-http-ingress' as const,
         observedAt: new Date().toISOString(),
         material,
+        ...(source ? { source: structuredClone(source) } : {}),
       };
       const sha256 = hash(draft);
       const id = sha256.slice(0, 24);
       const plan = { ...draft, id, sha256, request: material.request };
+      validateCeIngressHistoricalPlan(plan, this.storage.owner, this.contract, this.port.siteFingerprint);
       await this.storage.write(`ingress-plan-${id}.json`, plan);
       return plan;
     });
   }
   async #load(id: string) {
     if (!/^[0-9a-f]{24}$/.test(id)) throw new Error('Invalid ingress plan identity');
-    const plan = (await this.storage.read(`ingress-plan-${id}.json`)) as Awaited<
-      ReturnType<CeIngressLifecycle['planAws']>
-    >;
-    const { id: savedId, sha256, request, ...draft } = plan;
-    if (
-      savedId !== id ||
-      draft.schemaVersion !== 1 ||
-      draft.kind !== 'ce-inside-http-ingress' ||
-      hash(draft) !== sha256 ||
-      sha256.slice(0, 24) !== id ||
-      !same(request, draft.material.request) ||
-      !same(draft.material.owner, this.storage.owner) ||
-      draft.material.contractFingerprint !== this.contract.fingerprint ||
-      draft.material.siteFingerprint !== this.port.siteFingerprint
-    )
-      throw new Error('Obsolete, forged or foreign ingress plan');
+    const plan = validateCeIngressHistoricalPlan(
+      await this.storage.read(`ingress-plan-${id}.json`),
+      this.storage.owner,
+      this.contract,
+      this.port.siteFingerprint,
+    );
+    if (plan.id !== id) throw new Error('Ingress plan filename identity differs');
     return plan;
   }
   /** Recollect Azure placement identity without mutating platform resources. */
@@ -285,7 +501,7 @@ export class CeIngressLifecycle {
       throw error;
     }
   }
-  #owned(actual: Json, plan: Awaited<ReturnType<CeIngressLifecycle['planAws']>>, expectedUid?: unknown) {
+  #owned(actual: Json, plan: CeIngressPlan, expectedUid?: unknown) {
     const metadata = object(actual.metadata);
     const labels = object(metadata.labels);
     if (
@@ -298,7 +514,7 @@ export class CeIngressLifecycle {
     )
       throw new Error('Live listener ownership, UID or configuration differs from saved ingress plan');
   }
-  #ownedOrigin(actual: Json, plan: Awaited<ReturnType<CeIngressLifecycle['planAws']>>, expectedUid?: unknown) {
+  #ownedOrigin(actual: Json, plan: CeIngressPlan, expectedUid?: unknown) {
     const metadata = object(actual.metadata);
     const labels = object(metadata.labels);
     const expected = plan.material.originRequest;

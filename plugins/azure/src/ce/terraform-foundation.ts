@@ -1,8 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
+import { assertAzureCeRoutingExecutable } from './apply';
 import { verifyAzureCePlan } from './artifacts';
+import { azureRelayPlanForDeployment } from './relay-deployment-plan';
+import { type AzureRelayPlan, verifyAzureRelayPlan } from './relay-plan';
+import { renderAzureRelayTerraformResources } from './relay-terraform';
 import type { AzureCePlan } from './types';
-import { AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE } from './workload-fixture';
+import { AZURE_CE_WORKLOAD_FIXTURE_IMAGE, AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE } from './workload-fixture';
 
 export const AZURE_CE_TERRAFORM_VERSION = '1.16.5';
 export const AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0';
@@ -19,8 +23,14 @@ const literal = (value: string) => value.replaceAll('${', '$${').replaceAll('%{'
 export function renderAzureTerraformFoundation(
   plan: AzureCePlan,
   bootstrapByNode: Record<string, string> = {},
+  relayPlan?: AzureRelayPlan,
 ): string {
   verifyAzureCePlan(plan);
+  if (plan.routing.mode === 'udr') assertAzureCeRoutingExecutable(plan);
+  relayPlan ??= plan.relayProfile ? azureRelayPlanForDeployment(plan) : undefined;
+  if (relayPlan) verifyAzureRelayPlan(plan, relayPlan);
+  if (plan.intent.workloadFixture && !plan.workloadProfile)
+    throw new Error('Azure workload execution requires the collected exact image and regional SKU profile');
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Azure Terraform foundation requires a Terraform deployment plan');
   const allowedTrafficSource =
@@ -187,10 +197,8 @@ export function renderAzureTerraformFoundation(
       network_interface_ids: [ref('azurerm_network_interface.workload.id')],
       admin_ssh_key: [{ username: 'xcsh', public_key: ref('tls_private_key.workload.public_key_openssh') }],
       source_image_reference: {
-        publisher: 'Canonical',
-        offer: '0001-com-ubuntu-server-jammy',
-        sku: '22_04-lts',
-        version: 'latest',
+        ...AZURE_CE_WORKLOAD_FIXTURE_IMAGE,
+        version: fixture.imageVersion,
       },
       os_disk: [{ caching: 'ReadWrite', storage_account_type: 'Standard_LRS', disk_size_gb: 30 }],
       custom_data: Buffer.from(
@@ -198,6 +206,35 @@ export function renderAzureTerraformFoundation(
       ).toString('base64'),
       tags: { ...tags(), 'xcsh-workload-fixture': 'route-server' },
     });
+  }
+  if (plan.routing.udr) {
+    const selected = plan.routing.udr;
+    add('azurerm_route_table', 'ce', {
+      name: literal(`${plan.deploymentName}-rt`),
+      resource_group_name: group,
+      location: plan.region,
+      tags: tags(),
+    });
+    for (const [index, destination] of plan.routing.destinationCidrs.entries())
+      add('azurerm_route', `route_${index}`, {
+        name: `ce-route-${index + 1}`,
+        resource_group_name: group,
+        route_table_name: ref('azurerm_route_table.ce.name'),
+        address_prefix: destination,
+        next_hop_type: 'VirtualAppliance',
+        next_hop_in_ip_address: ref(
+          `azurerm_network_interface.node_${selected.nextHop.node}_nic_${selected.nextHop.nicIndex}.private_ip_address`,
+        ),
+      });
+    for (const [index, name] of selected.subnetNames.entries()) {
+      const subnet = subnetRefs.get(name);
+      if (!subnet) throw Error('Greenfield UDR association subnet is unavailable');
+      add('azurerm_subnet_route_table_association', `udr_${index}`, {
+        subnet_id: subnet,
+        route_table_id: ref('azurerm_route_table.ce.id'),
+        depends_on: plan.routing.destinationCidrs.map((_, route) => `azurerm_route.route_${route}`),
+      });
+    }
   }
   if (plan.routing.mode === 'route-server') {
     const routeServerSubnet = subnetRefs.get('RouteServerSubnet');
@@ -300,7 +337,7 @@ export function renderAzureTerraformFoundation(
       };
     }
     if (!admitted.includes(String(node))) continue;
-    if (plan.routing.mode === 'route-server') {
+    if (plan.routing.mode === 'route-server' && !relayPlan) {
       const slo = plan.nics.find((nic) => nic.role === 'slo');
       if (!slo) throw new Error('Route Server peering requires the explicit SLO interface');
       add('azurerm_route_server_bgp_connection', `node_${node}`, {
@@ -366,6 +403,19 @@ export function renderAzureTerraformFoundation(
       hostname: nodeName,
     };
   }
+  const relayResources = relayPlan
+    ? renderAzureRelayTerraformResources(
+        plan,
+        relayPlan,
+        subnetRefs.get(plan.nics.find((nic) => nic.role === 'slo')?.subnet.name ?? '') ?? '',
+      )
+    : undefined;
+  if (relayResources)
+    for (const [type, entries] of Object.entries(relayResources.resource))
+      for (const [name, value] of Object.entries(entries)) {
+        if (resource[type]?.[name]) throw Error('Azure Terraform relay resource conflicts with foundation');
+        add(type, name, value);
+      }
   return JSON.stringify({
     terraform: {
       required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
@@ -388,6 +438,7 @@ export function renderAzureTerraformFoundation(
     ...(Object.keys(data).length ? { data } : {}),
     resource,
     output: {
+      ...(relayResources?.output ?? {}),
       ce_interfaces: { value: interfaceOutputs },
       ce_instances: { value: instanceOutputs },
       ce_vnet_id: { value: ref('azurerm_virtual_network.ce.id') },
@@ -402,7 +453,7 @@ export function renderAzureTerraformFoundation(
             },
             ce_route_server_peers: {
               value: Object.fromEntries(
-                admitted.map((node) => [
+                (relayPlan ? [] : admitted).map((node) => [
                   node,
                   {
                     id: ref(`azurerm_route_server_bgp_connection.node_${node}.id`),
@@ -424,8 +475,9 @@ export function renderAzureTerraformFoundation(
 export async function azureTerraformFoundationDeployment(
   plan: AzureCePlan,
   bootstrapByNode: Record<string, string> = {},
+  relayPlan?: AzureRelayPlan,
 ): Promise<Deployment> {
-  const configuration = renderAzureTerraformFoundation(plan, bootstrapByNode);
+  const configuration = renderAzureTerraformFoundation(plan, bootstrapByNode, relayPlan);
   const providerLock = await readFile(new URL('../../terraform/provider-lock.hcl', import.meta.url), 'utf8');
   return {
     schemaVersion: 1,

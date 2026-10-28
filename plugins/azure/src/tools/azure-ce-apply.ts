@@ -4,39 +4,69 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
+import {
+  captureAzureCeApplyCallbacks,
+  captureAzureCeApplyRequest,
+  guardAzureCeApplyObject,
+  guardAzureCeApplyServices,
+} from '../ce/apply-request';
 import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
-import { safeHexEqual } from '../ce/canonical';
+import { canonicalSha256, safeHexEqual } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
-import { resolveInterfaceAddress } from '../ce/interface-address';
+import { resolveAzureNicAddress, resolveInterfaceAddress } from '../ce/interface-address';
+import { persistAzureNativeActionEvidence, persistAzureNativeSource } from '../ce/native-action-evidence';
 import {
   azureNativePendingActionConverged,
   buildAzureNativePendingAction,
   validateAzureNativePendingAction,
 } from '../ce/native-action-recovery';
+import { persistAzureNativeNetworkCheckpointHistory } from '../ce/native-network-checkpoint-history';
+import { persistAzureNativeNetworkGenerationCompletion } from '../ce/native-network-generation';
+import { persistAzureNativeNetworkHistory } from '../ce/native-network-history';
+import { verifyAzureNativeNetworkReplacementExecution } from '../ce/native-network-replacement-execution';
+import { requireAzureNativePriorGenerationExecution } from '../ce/native-replacement-source';
 import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
   collectAzureNativeVmState,
+  type NativeWorkflowCheckpoint,
   prepareAzureNativeAdmission,
   prepareAzureNativeReplacement,
   recordAzureNativeLaunch,
+  validateAzureNativeAdmissionCheckpoint,
   withAzureNativeBootstrapFile,
 } from '../ce/native-workflow';
+import {
+  type AzureNativeNetworkUpdateCheckpoint,
+  azureNetworkUpdateAppliedNics,
+  captureAzureNetworkUpdateInventory,
+  validateAzureNativeNetworkUpdateCheckpoint,
+  verifyAzureNetworkUpdateProgress,
+} from '../ce/network-update';
+import {
+  qualifyAzureNativeNetworkUpdateSource,
+  verifyAzureNativeNetworkUpdateSite,
+} from '../ce/network-update-native-source';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import { ensureAzurePlatformIngress } from '../ce/platform-ingress';
 import {
   collectAzureAbsentDeletionTail,
   fingerprintCheckpointObservation,
   reconcileAzureNativeDeletionPrefix,
-  upgradeAzureCeCheckpoint,
   validateAzureDeletionTail,
 } from '../ce/recovery';
+import { azureRelayHistoricalArtifacts, requireAzureRelayHistoricalAcceptance } from '../ce/relay-artifact-provenance';
+import { executeAzureRelayProvisionAction } from '../ce/relay-native-execution';
+import { reconcileAzureNativeRelayProvision } from '../ce/relay-native-recovery';
+import { assertAzureNativeActive } from '../ce/relay-retirement';
+import { configureAzureSelectedRelayRouting } from '../ce/relay-routing-dispatch';
 import { configureAzureRouteServerRouting } from '../ce/routing-workflow';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
+import { azureUpgradeBinding } from '../ce/terraform-upgrade';
 import { collectAzureTrafficProbe } from '../ce/traffic-probe';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
-import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
 
 interface TerraformDependencies {
@@ -66,26 +96,65 @@ async function replacementsFor(
   api: AzExecApi,
   plan: AzureCePlan,
   ownerPlanSha256 = plan.planSha256,
+  networkUpdate?: AzureNativeNetworkUpdateCheckpoint,
+  signal?: AbortSignal,
 ): Promise<Record<string, string>> {
   const replacements: Record<string, string> = {};
   for (const arg of args) {
+    const configuration = /^__NODE_(\d+)_NIC_(\d+)_IPCONFIG_NAME__$/.exec(arg);
+    if (configuration) {
+      const nic = networkUpdate?.before.nodes[configuration[1]]?.nics[configuration[2]];
+      if (!nic) throw Error('Azure network update execution configuration identity is unresolved');
+      replacements[arg] = nic.ipConfigurationName;
+      continue;
+    }
+    const exactNic = /^__NODE_(\d+)_NIC_(\d+)_PRIVATE_IP__$/.exec(arg);
+    if (exactNic) {
+      replacements[arg] = await resolveAzureNicAddress(
+        api,
+        plan,
+        Number(exactNic[1]),
+        Number(exactNic[2]),
+        ownerPlanSha256,
+        signal,
+      );
+      continue;
+    }
     const match = /^__NODE_(\d+)_(SLO|SLI|DATA)_PRIVATE_IP__$/.exec(arg);
     if (!match || replacements[arg]) continue;
     const role = match[2] === 'SLO' || (match[2] === 'DATA' && plan.nics.length === 1) ? 'slo' : 'sli';
-    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role, ownerPlanSha256);
+    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role, ownerPlanSha256, signal);
   }
   return replacements;
 }
 
 export async function executeAzureCeNativeApply(
-  params: ApplyParams,
-  ctx: AzureCeToolContext,
-  api: AzExecApi,
-  platformFactory: () => Promise<CePlatformService>,
+  requestParams: ApplyParams,
+  requestContext: AzureCeToolContext,
+  requestApi: AzExecApi,
+  requestPlatformFactory: () => Promise<CePlatformService>,
   signal?: AbortSignal,
-  dependencies: NativeApplyDependencies = {},
+  requestDependencies: NativeApplyDependencies = {},
 ) {
+  const request = captureAzureCeApplyRequest(requestParams, requestContext),
+    seal = () => {
+      signal?.throwIfAborted();
+      request.assertUnchanged();
+    },
+    params = request.input,
+    ctx = request.context,
+    api = guardAzureCeApplyObject(requestApi, seal),
+    dependencies = guardAzureCeApplyObject(requestDependencies, seal),
+    platformFactory = async () => {
+      seal();
+      const platform = await requestPlatformFactory();
+      seal();
+      return guardAzureCeApplyServices(seal, api, platform).platform;
+    };
+  seal();
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+  request.bindPlatformContext(plan.intent.platformContext);
+  seal();
   if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
   let existing = await loadCheckpoint(ctx.sessionManager, plan);
@@ -97,6 +166,51 @@ export async function executeAzureCeNativeApply(
     env: process.env,
     authorization: existing?.authorization,
   });
+  if (
+    plan.relayProfile?.schemaVersion === 2 &&
+    plan.relayProfile.retainedDeploymentPlan.relayProfile?.schemaVersion === 2
+  ) {
+    const predecessor = await loadCheckpoint(ctx.sessionManager, plan.relayProfile.retainedDeploymentPlan);
+    if (predecessor?.state !== 'complete')
+      throw Error('Azure relay replacement predecessor has not completed its public execution contract');
+  }
+  let relayRecoveryPlatform: CePlatformService | undefined;
+  if (plan.intent.operation !== 'teardown' && (plan.relayProfile || !existing)) {
+    relayRecoveryPlatform = await platformFactory();
+    const relayStore = await relayRecoveryPlatform.storage({
+      deploymentId: plan.deploymentName,
+      engine: 'native',
+      provider: 'azure',
+      account: plan.subscription.id,
+      region: plan.region,
+    });
+    await assertAzureNativeActive(relayStore);
+  }
+  let qualifiedNetworkReplacement: Awaited<ReturnType<typeof verifyAzureNativeNetworkReplacementExecution>> | undefined;
+  const verifyNetworkReplacement = async (checkpoint: AzureCeCheckpoint | undefined) => {
+    if (!plan.networkReplacementProfile) return;
+    relayRecoveryPlatform ??= await platformFactory();
+    const store = await relayRecoveryPlatform.storage(azureUpgradeBinding(plan).owner);
+    await assertAzureNativeActive(store);
+    let admission: NativeWorkflowCheckpoint | undefined;
+    try {
+      admission = (await store.read(`native-admission-${plan.planSha256}.json`)) as NativeWorkflowCheckpoint;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (admission) validateAzureNativeAdmissionCheckpoint(plan, admission);
+    qualifiedNetworkReplacement = await verifyAzureNativeNetworkReplacementExecution(
+      plan,
+      admission,
+      store,
+      (source) => loadCheckpoint(ctx.sessionManager, source),
+      api,
+      await relayRecoveryPlatform.runtime('native', plan.intent.platformContext),
+      checkpoint,
+      signal,
+    );
+  };
+  await verifyNetworkReplacement(existing);
   const observe =
     dependencies.observe ??
     (() =>
@@ -124,6 +238,50 @@ export async function executeAzureCeNativeApply(
     validateAzureDeletionTail(plan, existing.completedActionIds);
   }
   let current = await observe();
+  let networkUpdate: AzureNativeNetworkUpdateCheckpoint | undefined;
+  let networkHistoryStore: Awaited<ReturnType<CePlatformService['storage']>> | undefined;
+  if (plan.intent.operation === 'update-network') {
+    if (existing && (existing.completedActionIds.length || existing.pendingAction) && !existing.networkUpdate)
+      throw Error('Azure network update recovery requires its original complete interface inventory');
+    const inventory = await captureAzureNetworkUpdateInventory(plan, api, signal);
+    networkUpdate = existing?.networkUpdate
+      ? { ...existing.networkUpdate, current: inventory }
+      : { before: inventory, current: inventory };
+    validateAzureNativeNetworkUpdateCheckpoint(
+      plan,
+      networkUpdate,
+      existing?.completedActionIds ?? [],
+      existing?.pendingAction?.actionId,
+    );
+    relayRecoveryPlatform ??= await platformFactory();
+    const networkStore = await relayRecoveryPlatform.storage(azureUpgradeBinding(plan).owner);
+    networkHistoryStore = networkStore;
+    const networkRuntime = await relayRecoveryPlatform.runtime('native', plan.intent.platformContext);
+    const source = await qualifyAzureNativeNetworkUpdateSource(plan, networkUpdate.before, networkStore, (prior) =>
+      loadCheckpoint(ctx.sessionManager, prior),
+    );
+    if (existing && (existing.completedActionIds.length || existing.pendingAction) && !existing.networkUpdate?.source)
+      throw Error('Azure network update recovery requires completed original source provenance');
+    if (networkUpdate.source && canonicalSha256(networkUpdate.source) !== canonicalSha256(source))
+      throw Error('Azure network update original source binding changed');
+    networkUpdate.source = source;
+    await verifyAzureNativeNetworkUpdateSite(plan, source, networkRuntime, signal);
+  }
+  const finalize = async (checkpoint: AzureCeCheckpoint) => {
+    if (plan.networkReplacementProfile) {
+      const producer = relayRecoveryPlatform ?? (await platformFactory());
+      await persistAzureNativeNetworkGenerationCompletion(
+        plan,
+        checkpoint,
+        await producer.storage(azureUpgradeBinding(plan).owner),
+      );
+    }
+    if (networkUpdate && networkHistoryStore) {
+      await persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, networkHistoryStore);
+      await persistAzureNativeNetworkHistory(plan, checkpoint, networkHistoryStore);
+    }
+    return { plan, checkpoint };
+  };
   let currentFingerprint = fingerprintCheckpointObservation(current);
   const existingSnapshot =
     existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.observationSnapshot : undefined;
@@ -136,18 +294,6 @@ export async function executeAzureCeNativeApply(
     reconcileAzureNativeDeletionPrefix(plan, existing?.completedActionIds ?? [], observation, current, []);
   }
   const mayRecoverDeletion = existingSnapshot !== undefined;
-  if (existing?.schemaVersion === AZURE_CE_SCHEMA_VERSION) {
-    if (existing.completedActionIds.length === 0) assertObservationFresh(plan, current);
-    if (
-      plan.intent.operation === 'teardown' &&
-      hasImmutableDeleteTail &&
-      (await collectAzureAbsentDeletionTail(plan, existing.completedActionIds, api, signal)).length > 0
-    ) {
-      throw new Error('Stale incomplete legacy Azure teardown checkpoint cannot be recovered safely');
-    }
-    existing = upgradeAzureCeCheckpoint(plan, existing, current);
-    await saveCheckpoint(ctx.sessionManager, plan, existing);
-  }
   if (
     mayRecoverDeletion &&
     existing?.observationSnapshot &&
@@ -183,14 +329,44 @@ export async function executeAzureCeNativeApply(
           : existing.state,
       };
       await saveCheckpoint(ctx.sessionManager, plan, existing);
-      if (existing.state === 'complete') return { plan, checkpoint: existing };
+      if (existing.state === 'complete') return finalize(existing);
     }
   }
-  if (existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION && existing.pendingAction) {
+  // Relay inspection needs the owned store but must precede admission, writes and the outer stale gate.
+  if (
+    existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION &&
+    existing.pendingAction?.kind === 'relay-provision'
+  ) {
+    validateAzureNativePendingAction(plan, existing.completedActionIds, existing.pendingAction);
+    relayRecoveryPlatform ??= await platformFactory();
+    const relayStorage = await relayRecoveryPlatform.storage({
+      deploymentId: plan.deploymentName,
+      engine: 'native',
+      provider: 'azure',
+      account: plan.subscription.id,
+      region: plan.region,
+    });
+    existing = await reconcileAzureNativeRelayProvision(plan, existing, current, relayStorage, api, signal);
+    currentFingerprint = fingerprintCheckpointObservation(current);
+    await saveCheckpoint(ctx.sessionManager, plan, existing);
+    if (existing.state === 'complete') return finalize(existing);
+  }
+  if (
+    existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION &&
+    existing.pendingAction &&
+    existing.pendingAction.kind !== 'relay-provision'
+  ) {
     const action = plan.actions[existing.completedActionIds.length];
     if (!action) throw new Error('Pending Azure native mutation has no next immutable action');
     validateAzureNativePendingAction(plan, existing.completedActionIds, existing.pendingAction);
-    const replacements = await replacementsFor(action.args ?? [], api, plan, action.expectedOwnerPlanSha256);
+    const replacements = await replacementsFor(
+      action.args ?? [],
+      api,
+      plan,
+      action.expectedOwnerPlanSha256,
+      networkUpdate,
+      signal,
+    );
     const resolvedAction = {
       ...action,
       args: resolveActionArgs(action.args ?? [], plan.planSha256, replacements),
@@ -204,12 +380,13 @@ export async function executeAzureCeNativeApply(
         completedActionIds: [...existing.completedActionIds, action.id],
         failedActionId: existing.failedActionId === action.id ? undefined : existing.failedActionId,
         pendingAction: undefined,
+        networkUpdate,
         observationFingerprint: currentFingerprint,
         observationSnapshot: structuredClone(current),
         state: existing.completedActionIds.length + 1 === plan.actions.length ? 'complete' : 'running',
       };
       await saveCheckpoint(ctx.sessionManager, plan, existing);
-      if (existing.state === 'complete') return { plan, checkpoint: existing };
+      if (existing.state === 'complete') return finalize(existing);
     }
   }
   if (existing?.observationFingerprint) {
@@ -219,7 +396,7 @@ export async function executeAzureCeNativeApply(
   } else {
     assertObservationFresh(plan, current);
   }
-  if (existing?.state === 'complete') return { plan, checkpoint: existing };
+  if (existing?.state === 'complete') return finalize(existing);
   const completed = new Set(existing?.completedActionIds ?? []);
 
   const authorization = {
@@ -261,11 +438,11 @@ export async function executeAzureCeNativeApply(
     observationFingerprint: existing?.observationFingerprint ?? currentFingerprint,
     observationSnapshot: structuredClone(current),
     pendingAction: existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.pendingAction : undefined,
+    networkUpdate,
     state: 'running',
   };
   await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
-  const platform = await platformFactory();
-  const runtime = await platform.runtime('native', plan.intent.platformContext);
+  const platform = relayRecoveryPlatform ?? (await platformFactory());
   const storage = await platform.storage({
     deploymentId: plan.deploymentName,
     engine: 'native',
@@ -273,26 +450,73 @@ export async function executeAzureCeNativeApply(
     account: plan.subscription.id,
     region: plan.region,
   });
+  if (plan.intent.operation !== 'teardown') await assertAzureNativeActive(storage);
+  const runtime = await platform.runtime('native', plan.intent.platformContext);
+  if (
+    plan.relayProfile?.schemaVersion === 2 &&
+    plan.relayProfile.retainedDeploymentPlan.relayProfile?.schemaVersion === 2
+  ) {
+    const predecessor = plan.relayProfile.retainedDeploymentPlan;
+    const admission = (await storage.read(
+      `native-admission-${predecessor.planSha256}.json`,
+    )) as NativeWorkflowCheckpoint;
+    validateAzureNativeAdmissionCheckpoint(predecessor, admission);
+    if (admission.replacement?.status !== 'registered')
+      throw Error('Azure relay replacement predecessor registration history is unavailable');
+    const history = new Map<string, unknown>();
+    for (const name of azureRelayHistoricalArtifacts)
+      history.set(name, await storage.read(`${predecessor.planId}-replacement-${name}`));
+    requireAzureRelayHistoricalAcceptance(predecessor, admission.replacement.siteUid, history);
+  }
   const ingressContract =
     plan.intent.ingress?.mode === 'platform-http'
       ? await (dependencies.ingressContract?.() ?? VerifiedIngressContract.release(undefined, signal))
       : undefined;
+  await persistAzureNativeSource(plan, storage);
   const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
   if (recoveredNativeLaunchNode) await recordAzureNativeLaunch(plan, recoveredNativeLaunchNode, native, storage);
-  if (plan.intent.operation === 'replace-node')
-    await prepareAzureNativeReplacement(plan, native, api, runtime, storage, signal);
+  if (plan.intent.operation === 'replace-node') {
+    await prepareAzureNativeReplacement(plan, native, api, runtime, storage, signal, qualifiedNetworkReplacement);
+    if (!plan.relayProfile && !plan.networkReplacementProfile)
+      await requireAzureNativePriorGenerationExecution(native, storage, (source) =>
+        loadCheckpoint(ctx.sessionManager, source),
+      );
+  }
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
+    await verifyNetworkReplacement(checkpoint);
     const preActionFingerprint = checkpoint.observationFingerprint;
     const preActionSnapshot = checkpoint.observationSnapshot;
+    let durableActionPending = checkpoint.pendingAction;
     try {
       let postMutationObservation: Awaited<ReturnType<typeof observe>> | undefined;
-      await assertActionOwnership(plan, action, api);
+      if (networkUpdate && action.mutates) {
+        if (!networkUpdate.source) throw Error('Azure network update source binding is missing');
+        await verifyAzureNativeNetworkUpdateSite(plan, networkUpdate.source, runtime, signal);
+        networkUpdate.current = await captureAzureNetworkUpdateInventory(plan, api, signal);
+        validateAzureNativeNetworkUpdateCheckpoint(
+          plan,
+          networkUpdate,
+          [...completed],
+          checkpoint.pendingAction?.actionId,
+        );
+      }
+      await assertActionOwnership(plan, action, api, signal);
+      if (action.kind === 'relay-provision') {
+        if (checkpoint.pendingAction) {
+          validateAzureNativePendingAction(plan, checkpoint.completedActionIds, checkpoint.pendingAction);
+        } else {
+          checkpoint.pendingAction = buildAzureNativePendingAction(plan, action);
+          await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+        }
+        const evidence = await executeAzureRelayProvisionAction(plan, action, storage, api, signal);
+        await persistAzureNativeActionEvidence(plan, action, evidence, storage);
+      }
       if (action.kind === 'vm-state-gate') {
         const deadline = Date.now() + 15 * 60_000;
         while (true) {
           const evidence = await collectAzureNativeVmState(plan, action, api, signal);
-          await storage.write(`${action.id}-evidence.json`, evidence);
+          await persistAzureNativeActionEvidence(plan, action, evidence, storage);
           if (evidence.status === 'healthy') break;
           if (Date.now() >= deadline) throw new Error('Observed Azure VM power state has not converged');
           await new Promise<void>((resolve, reject) => {
@@ -315,7 +539,7 @@ export async function executeAzureCeNativeApply(
         while (true) {
           evidence = await collectAzureNativeAdmissionHealth(
             plan,
-            plan.intent.operation === 'replace-node'
+            ['replace-node', 'update-network'].includes(plan.intent.operation)
               ? plan.topology.nodeCount
               : (action.node ?? plan.topology.nodeCount),
             api,
@@ -324,11 +548,12 @@ export async function executeAzureCeNativeApply(
             signal,
             native,
           );
-          await storage.write(`${action.id}-evidence.json`, {
-            ...evidence,
-            planId: plan.planId,
-            planSha256: plan.planSha256,
-          });
+          await persistAzureNativeActionEvidence(
+            plan,
+            action,
+            { ...evidence, planId: plan.planId, planSha256: plan.planSha256 },
+            storage,
+          );
           if (evidence.status === 'healthy') break;
           if (Date.now() >= deadline)
             throw new Error(
@@ -369,15 +594,25 @@ export async function executeAzureCeNativeApply(
         }));
         const deadline = Date.now() + 15 * 60_000;
         while (true) {
-          const evidence = await configureAzureRouteServerRouting(
-            plan,
-            expectedInterfaces,
-            runtime,
-            storage,
-            api,
-            signal,
-            native.replacement?.routeServer,
-          );
+          const evidence = plan.relayProfile
+            ? await configureAzureSelectedRelayRouting(plan, expectedInterfaces, runtime, storage, api, signal)
+            : await configureAzureRouteServerRouting(
+                plan,
+                expectedInterfaces,
+                runtime,
+                storage,
+                api,
+                signal,
+                native.replacement?.routeServer,
+              );
+          await persistAzureNativeActionEvidence(plan, action, evidence, storage);
+          if (
+            'observation' in evidence &&
+            (evidence.observation.ceRouteScope === 'unqualified' || evidence.observation.freshness === 'unqualified')
+          )
+            throw Error(
+              'Azure relay evidence was collected; CE route scope and publication freshness remain unqualified',
+            );
           if (evidence.status === 'healthy') break;
           if (Date.now() >= deadline) throw new Error('Azure Route Server BGP and learned routes have not converged');
           await new Promise<void>((resolve, reject) => {
@@ -405,7 +640,7 @@ export async function executeAzureCeNativeApply(
           signal,
         );
         if (evidence?.listener !== 'configured') throw new Error('Observed Azure platform ingress has not converged');
-        await storage.write(`${action.id}-evidence.json`, evidence);
+        await persistAzureNativeActionEvidence(plan, action, evidence, storage);
       }
       if (action.kind === 'traffic-gate') {
         if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
@@ -425,11 +660,18 @@ export async function executeAzureCeNativeApply(
           signal,
           `${plan.planId}-${action.id}-traffic-probe`,
         );
-        await storage.write(`${action.id}-evidence.json`, evidence);
+        await persistAzureNativeActionEvidence(plan, action, evidence, storage);
         if (evidence.status !== 'healthy') throw new Error('Observed end-to-end Azure traffic has not converged');
       }
       if (action.command && action.args) {
-        const replacements = await replacementsFor(action.args, api, plan, action.expectedOwnerPlanSha256);
+        const replacements = await replacementsFor(
+          action.args,
+          api,
+          plan,
+          action.expectedOwnerPlanSha256,
+          networkUpdate,
+          signal,
+        );
         const execute = (bootstrapFile?: string) =>
           api.exec(
             action.command as 'az',
@@ -501,9 +743,21 @@ export async function executeAzureCeNativeApply(
         if (action.kind === 'vm-create' && action.node)
           await recordAzureNativeLaunch(plan, action.node, native, storage);
       }
+      if (networkUpdate && action.mutates) {
+        const observed = await captureAzureNetworkUpdateInventory(plan, api, signal);
+        verifyAzureNetworkUpdateProgress(
+          plan,
+          networkUpdate.before,
+          observed,
+          azureNetworkUpdateAppliedNics(plan, [...completed, action.id], observed),
+        );
+        networkUpdate.current = observed;
+        checkpoint.networkUpdate = networkUpdate;
+      }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
+      durableActionPending = checkpoint.pendingAction;
       checkpoint.pendingAction = undefined;
       checkpoint.state = completed.size === plan.actions.length ? 'complete' : 'running';
       const changesFingerprint = action.mutates;
@@ -513,20 +767,24 @@ export async function executeAzureCeNativeApply(
         checkpoint.observationSnapshot = structuredClone(checkpointObservation);
       }
       await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+      if (networkUpdate && checkpoint.state !== 'complete')
+        await persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, storage);
     } catch (error) {
       completed.delete(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.observationFingerprint = preActionFingerprint;
       checkpoint.observationSnapshot = preActionSnapshot;
+      checkpoint.pendingAction = durableActionPending ?? checkpoint.pendingAction;
       checkpoint.state = 'partial';
       checkpoint.failedActionId = action.id;
       await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+      if (networkUpdate) await persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, storage);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
       );
     }
   }
-  return { plan, checkpoint };
+  return finalize(checkpoint);
 }
 
 export function createAzureCeApplyTool(
@@ -540,10 +798,7 @@ export function createAzureCeApplyTool(
     label: 'Apply Azure Customer Edge Plan',
     description:
       'Apply or resume only an exact persisted Azure CE plan ID and SHA-256 after stale-state, ownership, image, networking, quota, terms, and security-gate revalidation.',
-    parameters: Type.Object({
-      planId: Type.String(),
-      planSha256: Type.String(),
-    }),
+    parameters: Type.Object({ planId: Type.String(), planSha256: Type.String() }),
     async execute(
       _id: string,
       params: ApplyParams,
@@ -551,35 +806,97 @@ export function createAzureCeApplyTool(
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
+      const originalPlanId = params?.planId;
       try {
-        const envelope = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+        const request = captureAzureCeApplyRequest(params, ctx),
+          serviceCallbacks = captureAzureCeApplyCallbacks(terraformDependencies, ['platform', 'terraform']),
+          bus = pi.events,
+          busCallbacks = bus && typeof bus === 'object' ? captureAzureCeApplyCallbacks(bus, ['emit']) : undefined;
+        const seal = () => {
+          signal?.throwIfAborted();
+          request.assertUnchanged();
+          serviceCallbacks();
+          if (pi.events !== bus) throw Error('Azure CE apply event bus changed during execution');
+          busCallbacks?.();
+        };
+        seal();
+        const envelope = await loadPlanArtifact(
+          request.context.sessionManager,
+          request.input.planId,
+          request.input.planSha256,
+        );
+        seal();
+        request.bindPlatformContext(envelope.plan.intent.platformContext);
         if (envelope.plan.engine === 'terraform') {
           const platform = await terraformDependencies.platform(pi, signal);
+          seal();
+          const platformCallbacks = captureAzureCeApplyCallbacks(platform, [
+            'storage',
+            'runtime',
+            'providerEnvironment',
+            'siteBinding',
+            'capabilities',
+          ]);
+          const terraform = await terraformDependencies.terraform(pi, signal);
+          seal();
+          platformCallbacks();
+          const terraformCallbacks = captureAzureCeApplyCallbacks(terraform, ['open']);
+          const api = withAzureCeExecution(makeApi(request.context.cwd), signal);
+          seal();
+          platformCallbacks();
+          const guarded = guardAzureCeApplyServices(seal, api, platform, terraform);
+          if (!guarded.terraform) throw Error('Azure CE Terraform service was not acquired');
           const result = await executeAzureCeTerraformApply(
-            params,
-            ctx,
-            withAzureCeExecution(makeApi(ctx.cwd), signal),
-            platform,
-            await terraformDependencies.terraform(pi, signal),
+            request.input,
+            request.context,
+            guarded.api,
+            guarded.platform,
+            guarded.terraform,
             signal,
           );
+          seal();
+          platformCallbacks();
+          terraformCallbacks();
+          const returned: Record<string, unknown> = result;
+          if (
+            returned.engine !== 'terraform' ||
+            returned.planId !== request.input.planId ||
+            returned.planSha256 !== request.input.planSha256
+          )
+            throw Error('Azure CE Terraform result differs from the original persisted plan identity');
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `Azure CE Terraform plan ${envelope.plan.planId}: ${result.status}. Routing and traffic remain separate collected evidence.`,
+                text: `Azure CE Terraform plan ${request.input.planId}: ${result.status}. Routing and traffic remain separate collected evidence.`,
               },
             ],
-            details: { tool: 'azure_ce_apply', ...result },
+            details: { tool: 'azure_ce_apply', ...result, engine: 'terraform' as const, ...request.input },
           };
         }
+        const api = withAzureCeExecution(makeApi(request.context.cwd), signal);
+        seal();
         const { plan, checkpoint } = await executeAzureCeNativeApply(
-          params,
-          ctx,
-          withAzureCeExecution(makeApi(ctx.cwd), signal),
-          () => terraformDependencies.platform(pi, signal),
+          request.input,
+          request.context,
+          api,
+          async () => {
+            seal();
+            const platform = await terraformDependencies.platform(pi, signal);
+            seal();
+            return guardAzureCeApplyServices(seal, api, platform).platform;
+          },
           signal,
         );
+        seal();
+        if (
+          plan.engine !== 'native' ||
+          plan.planId !== request.input.planId ||
+          plan.planSha256 !== request.input.planSha256 ||
+          checkpoint.planId !== request.input.planId ||
+          checkpoint.planSha256 !== request.input.planSha256
+        )
+          throw Error('Azure CE native result differs from the original persisted plan identity');
         return {
           content: [
             {
@@ -598,7 +915,7 @@ export function createAzureCeApplyTool(
             },
           ],
           isError: true,
-          details: { tool: 'azure_ce_apply', planId: params.planId },
+          details: { tool: 'azure_ce_apply', planId: originalPlanId },
         };
       }
     },

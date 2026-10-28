@@ -1,0 +1,417 @@
+import { afterEach, expect, test } from 'bun:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { canonicalSha256 } from '../../src/ce/canonical';
+import { verifyAwsTerraformDestroyOwnership } from '../../src/ce/terraform-destroy-ownership';
+import { retireAwsTerraformMetadata } from '../../src/ce/terraform-metadata-retirement';
+import { siteBindings } from '../../src/ce/topology';
+import { foundationPlan } from './terraform-fixtures';
+
+const roots: string[] = [];
+function instanceTags(current: Map<string, { Key: string; Value: string }[]>) {
+  const tags = current.get('i-12345678');
+  if (!tags?.length) throw Error('Original test instance tags unavailable');
+  return tags;
+}
+afterEach(async () => {
+  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+});
+
+async function fixture() {
+  const initial = foundationPlan();
+  const { planId: _id, planSha256: _sha, ...draft } = initial;
+  const normalized = {
+    ...draft,
+    deploymentName: initial.intent.deploymentName,
+    accountId: initial.intent.accountId,
+    region: initial.intent.region,
+  };
+  const hash = canonicalSha256(normalized);
+  const plan = { ...normalized, planId: `aws-ce-${hash.slice(0, 24)}`, planSha256: hash };
+  const profile = plan.intent.awsProfile;
+  if (typeof profile !== 'string') throw Error('Original test profile unavailable');
+  const root = await mkdtemp(join(tmpdir(), 'aws-metadata-retirement-'));
+  roots.push(root);
+  const store = await CeDeploymentStore.open(root, siteBindings(plan)[0].binding.owner);
+  const tags = Object.entries({
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'terraform',
+    'xcsh-deployment-id': plan.intent.deploymentName,
+    'xcsh-plan-sha256': plan.planSha256,
+    'xcsh-node-index': '1',
+  })
+    .map(([Key, Value]) => ({ Key, Value }))
+    .sort((a, b) => a.Key.localeCompare(b.Key));
+  const material = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    accountId: plan.intent.accountId,
+    region: plan.intent.region,
+    deploymentId: plan.intent.deploymentName,
+    sourcePlanSha256: plan.planSha256,
+    terraformPlanSha256: 'd'.repeat(64),
+    resources: [
+      { type: 'aws_instance', id: 'i-12345678' },
+      { type: 'aws_subnet', id: 'subnet-12345678' },
+    ],
+    tgwEdges: [],
+    metadata: [
+      { type: 'aws_instance', id: 'i-12345678', address: 'aws_instance.node_1', tags },
+      {
+        type: 'aws_subnet',
+        id: 'subnet-12345678',
+        address: 'aws_subnet.node_1_nic_1',
+        tags: [...tags, { Key: 'xcsh-interface-index', Value: '1' }].sort((a, b) => a.Key.localeCompare(b.Key)),
+      },
+    ],
+  };
+  const inventory = { ...material, sha256: canonicalSha256(material) };
+  await store.write('terraform-cloud-teardown-inventory.json', inventory);
+  await store.write('terraform-cloud-teardown.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    sourcePlanSha256: plan.planSha256,
+    phase: 'retired',
+  });
+  const current = new Map(inventory.metadata.map((row) => [row.id, structuredClone(row.tags)]));
+  let account = plan.intent.accountId,
+    state = 'terminated',
+    error = '',
+    pagination = false;
+  let failure: 'none' | 'after-delete' | 'before-delete' | 'ack-only' = 'none';
+  const mutations: unknown[] = [],
+    reads: string[] = [];
+  const api = {
+    async exec(command: string, argv: string[], options?: { signal?: AbortSignal }) {
+      expect(command).toBe('aws');
+      expect(argv[argv.indexOf('--profile') + 1]).toBe(profile);
+      expect(argv[argv.indexOf('--region') + 1]).toBe(plan.intent.region);
+      options?.signal?.throwIfAborted();
+      const op = argv[1];
+      reads.push(op);
+      const input = argv.includes('--cli-input-json') ? JSON.parse(argv[argv.indexOf('--cli-input-json') + 1]) : {};
+      if (error) return { exitCode: 1, stdout: '', stderr: error };
+      let response: unknown;
+      if (op === 'get-caller-identity') response = { Account: account };
+      else if (op === 'describe-instances')
+        response = { Reservations: [{ Instances: [{ InstanceId: 'i-12345678', State: { Name: state } }] }] };
+      else if (op === 'describe-subnets') response = { Subnets: [] };
+      else if (op === 'get-resources') response = { ResourceTagMappingList: [] };
+      else if (op === 'describe-tags') {
+        const selected = input.Filters?.find((f: { Name: string }) => f.Name === 'resource-id')?.Values;
+        const rows = [...current]
+          .filter(([id]) => !selected || selected.includes(id))
+          .flatMap(([ResourceId, values]) =>
+            values.map((tag) => ({
+              ResourceId,
+              ResourceType: ResourceId.startsWith('i-') ? 'instance' : 'subnet',
+              ...tag,
+            })),
+          );
+        const deployment = input.Filters?.some((f: { Name: string }) => f.Name === 'key');
+        response = {
+          Tags: deployment
+            ? rows.filter((row) => row.Key === 'xcsh-deployment-id' && row.Value === plan.intent.deploymentName)
+            : rows,
+          ...(pagination ? { NextToken: 13 } : {}),
+        };
+      } else if (op === 'delete-tags') {
+        mutations.push(structuredClone(input));
+        const id = input.Resources[0];
+        if (failure === 'before-delete') {
+          failure = 'none';
+          return { exitCode: 1, stdout: '', stderr: 'request timed out' };
+        }
+        if (failure !== 'ack-only')
+          current.set(
+            id,
+            (current.get(id) ?? []).filter(
+              (tag) =>
+                !input.Tags.some(
+                  (target: { Key: string; Value: string }) => target.Key === tag.Key && target.Value === tag.Value,
+                ),
+            ),
+          );
+        if (failure === 'after-delete') {
+          failure = 'none';
+          return { exitCode: 1, stdout: '', stderr: 'request timed out' };
+        }
+        response = {};
+      } else throw Error(`Unexpected operation ${op}`);
+      return { exitCode: 0, stdout: JSON.stringify(response), stderr: '' };
+    },
+  };
+  return {
+    plan,
+    store,
+    inventory,
+    current,
+    mutations,
+    reads,
+    api,
+    setAccount: (value: string) => {
+      account = value;
+    },
+    setState: (value: string) => {
+      state = value;
+    },
+    setError: (value: string) => {
+      error = value;
+    },
+    setFailure: (value: typeof failure) => {
+      failure = value;
+    },
+    setPagination: () => {
+      pagination = true;
+    },
+    run: (signal?: AbortSignal) => retireAwsTerraformMetadata(plan, store, api, signal),
+  };
+}
+
+test('retires exact conditional ownership tags only after resource retirement and verifies replay without mutation', async () => {
+  const f = await fixture();
+  f.current.get('i-12345678')?.push({ Key: 'customer-label', Value: 'preserve' });
+  const result = await f.run();
+  expect(result.status).toBe('metadata-retired');
+  expect(f.mutations).toHaveLength(2);
+  expect(f.current.get('i-12345678')).toEqual([{ Key: 'customer-label', Value: 'preserve' }]);
+  const original = await f.store.read('aws-terraform-metadata-retirement.json');
+  const mutations = f.mutations.length;
+  await f.run();
+  expect(f.mutations).toHaveLength(mutations);
+  expect(await f.store.read('aws-terraform-metadata-retirement.json')).toEqual(original);
+});
+
+for (const mode of [
+  'running',
+  'foreign-account',
+  'foreign-tags',
+  'duplicate-tags',
+  'unknown-origin',
+  'missing-origin',
+  'partial',
+  'unauthorized',
+  'phase',
+  'cancelled',
+]) {
+  test(`refuses ${mode} before metadata mutation`, async () => {
+    const f = await fixture();
+    if (mode === 'running') f.setState('running');
+    if (mode === 'foreign-account') f.setAccount('000000000000');
+    if (mode === 'foreign-tags') instanceTags(f.current)[0].Value = 'foreign';
+    if (mode === 'duplicate-tags') instanceTags(f.current).push({ ...instanceTags(f.current)[0] });
+    if (mode === 'unknown-origin') f.current.set('subnet-87654321', structuredClone(f.inventory.metadata[0].tags));
+    if (mode === 'missing-origin') {
+      const { sha256: _sha, metadata: _metadata, ...material } = f.inventory;
+      await f.store.write('terraform-cloud-teardown-inventory.json', {
+        ...material,
+        sha256: canonicalSha256(material),
+      });
+    }
+    if (mode === 'partial') f.setPagination();
+    if (mode === 'unauthorized') f.setError('UnauthorizedOperation');
+    if (mode === 'phase') await f.store.write('terraform-cloud-teardown.json', { phase: 'destroy-pending' });
+    await expect(f.run(mode === 'cancelled' ? AbortSignal.abort() : undefined)).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+  });
+}
+
+for (const mode of ['after-delete', 'before-delete'] as const) {
+  test(`resolves ${mode} ambiguity from durable original intent and fresh resource/tag reads`, async () => {
+    const f = await fixture();
+    f.setFailure(mode);
+    await expect(f.run()).rejects.toThrow();
+    const pending = (await f.store.read('aws-terraform-metadata-retirement.json')) as { pending: unknown };
+    expect(pending.pending).not.toBeNull();
+    expect((await f.run()).status).toBe('metadata-retired');
+    expect(f.mutations).toHaveLength(mode === 'after-delete' ? 2 : 3);
+  });
+}
+
+test('does not treat a successful DeleteTags acknowledgement as retirement', async () => {
+  const f = await fixture();
+  f.setFailure('ack-only');
+  await expect(f.run()).rejects.toThrow();
+  expect(f.mutations).toHaveLength(1);
+  expect(
+    ((await f.store.read('aws-terraform-metadata-retirement.json')) as { pending: unknown }).pending,
+  ).not.toBeNull();
+});
+
+test('refuses foreign tags and forged intent after ambiguous submission', async () => {
+  for (const mode of ['tag', 'intent']) {
+    const f = await fixture();
+    f.setFailure('before-delete');
+    await expect(f.run()).rejects.toThrow();
+    if (mode === 'tag') instanceTags(f.current)[0].Value = 'foreign';
+    else {
+      const checkpoint = (await f.store.read('aws-terraform-metadata-retirement.json')) as Record<string, unknown>;
+      await f.store.write('aws-terraform-metadata-retirement.json', { ...checkpoint, inventorySha256: 'f'.repeat(64) });
+    }
+    await expect(f.run()).rejects.toThrow();
+    expect(f.mutations).toHaveLength(1);
+  }
+});
+
+test('persists original intent before mutation and rejects interrupted intent storage', async () => {
+  const f = await fixture();
+  const write = f.store.write.bind(f.store);
+  f.store.write = async (name, value) => {
+    if (name === 'aws-terraform-metadata-retirement.json' && Reflect.get(value as object, 'pending'))
+      throw Error('intent storage interrupted');
+    return write(name, value);
+  };
+  await expect(f.run()).rejects.toThrow('intent storage interrupted');
+  expect(f.mutations).toHaveLength(0);
+});
+
+test('resumes a partially committed ambiguous request using its exact original conditional values', async () => {
+  const f = await fixture();
+  f.setFailure('before-delete');
+  await expect(f.run()).rejects.toThrow();
+  f.current.set(
+    'i-12345678',
+    instanceTags(f.current).filter((tag) => tag.Key === 'xcsh-node-index'),
+  );
+  expect((await f.run()).status).toBe('metadata-retired');
+  const requests = f.mutations as { Resources: string[]; Tags: unknown[] }[];
+  expect(requests[0]).toEqual(requests[1]);
+});
+
+test('rejects a substituted tag resource type even when its ID and values match', async () => {
+  const f = await fixture();
+  const exec = f.api.exec.bind(f.api);
+  f.api.exec = async (command, argv, options) => {
+    const result = await exec(command, argv, options);
+    if (argv[1] === 'describe-tags') {
+      const body = JSON.parse(result.stdout);
+      body.Tags = body.Tags.map((row: object) => ({ ...row, ResourceType: 'security-group' }));
+      return { ...result, stdout: JSON.stringify(body) };
+    }
+    return result;
+  };
+  await expect(f.run()).rejects.toThrow();
+  expect(f.mutations).toHaveLength(0);
+});
+
+test('rejects foreign node/interface projection with a recomputed local inventory digest', async () => {
+  const f = await fixture();
+  const { sha256: _sha, ...material } = structuredClone(f.inventory);
+  material.metadata[1].address = 'aws_subnet.node_2_nic_1';
+  await f.store.write('terraform-cloud-teardown-inventory.json', { ...material, sha256: canonicalSha256(material) });
+  await expect(f.run()).rejects.toThrow('projection differs');
+  expect(f.mutations).toHaveLength(0);
+});
+
+test('captures live subnet metadata against the original destroy projection and rejects a changed node before destruction', async () => {
+  const f = await fixture();
+  const tags = structuredClone(f.inventory.metadata[1].tags);
+  const receipt = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    operation: 'destroy',
+    deploymentId: f.plan.intent.deploymentName,
+    backendIdentity: `local:${f.plan.intent.deploymentName}`,
+    planSha256: 'd'.repeat(64),
+    configurationSha256: 'c'.repeat(64),
+    noChanges: false,
+    changes: [{ address: 'aws_subnet.node_1_nic_1', type: 'aws_subnet', actions: ['delete'] }],
+  };
+  const session = {
+    readPlannedResourceFields: async () => ({
+      'aws_subnet.node_1_nic_1': { id: 'subnet-12345678', region: f.plan.intent.region },
+    }),
+  };
+  const api = {
+    exec: async (_command: string, args: string[]) => {
+      if (!['get-caller-identity', 'describe-subnets'].includes(args[1]))
+        throw Error('Unexpected pre-destroy mutation');
+      return {
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          args[1] === 'get-caller-identity'
+            ? { Account: f.plan.intent.accountId }
+            : { Subnets: [{ SubnetId: 'subnet-12345678', Tags: tags }] },
+        ),
+      };
+    },
+  };
+  const run = () => verifyAwsTerraformDestroyOwnership(f.plan, receipt as never, session as never, api, {});
+  const original = await run();
+  expect(original.inventory.metadata).toEqual([
+    { type: 'aws_subnet', id: 'subnet-12345678', address: 'aws_subnet.node_1_nic_1', tags },
+  ]);
+  const node = tags.find((tag) => tag.Key === 'xcsh-node-index');
+  if (!node) throw Error('Original test node metadata unavailable');
+  node.Value = '2';
+  await expect(run()).rejects.toThrow('projection differs');
+});
+
+test('captures an attached volume through its original instance and refuses duplicate attachment provenance', async () => {
+  const f = await fixture();
+  const tags = f.inventory.metadata[0].tags;
+  const disks = [{ Ebs: { VolumeId: 'vol-12345678' } }];
+  const values = {
+    'aws_instance.node_1': { id: 'i-12345678', region: f.plan.intent.region },
+    'aws_network_interface.node_1_nic_0': { id: 'eni-12345678', region: f.plan.intent.region },
+  };
+  const receipt = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    operation: 'destroy',
+    deploymentId: f.plan.intent.deploymentName,
+    backendIdentity: `local:${f.plan.intent.deploymentName}`,
+    planSha256: 'd'.repeat(64),
+    configurationSha256: 'c'.repeat(64),
+    noChanges: false,
+    changes: Object.keys(values).map((address) => ({ address, type: address.split('.')[0], actions: ['delete'] })),
+  };
+  const session = { readPlannedResourceFields: async () => values };
+  const responses: Record<string, unknown> = {
+    'get-caller-identity': { Account: f.plan.intent.accountId },
+    'describe-instances': {
+      Reservations: [
+        {
+          Instances: [
+            {
+              InstanceId: 'i-12345678',
+              Tags: tags,
+              NetworkInterfaces: [{ NetworkInterfaceId: 'eni-12345678' }],
+              BlockDeviceMappings: disks,
+            },
+          ],
+        },
+      ],
+    },
+    'describe-network-interfaces': {
+      NetworkInterfaces: [
+        { NetworkInterfaceId: 'eni-12345678', TagSet: [...tags, { Key: 'xcsh-interface-index', Value: '0' }] },
+      ],
+    },
+    'describe-volumes': { Volumes: [{ VolumeId: 'vol-12345678', Tags: tags }] },
+  };
+  const api = {
+    exec: async (_command: string, args: string[]) => {
+      if (!Object.hasOwn(responses, args[1])) throw Error('Unexpected pre-destroy mutation');
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify(responses[args[1]]) };
+    },
+  };
+  const run = () => verifyAwsTerraformDestroyOwnership(f.plan, receipt as never, session as never, api, {});
+  const original = await run();
+  expect(original.inventory.metadata).toEqual(
+    expect.arrayContaining([
+      {
+        type: 'aws_ebs_volume',
+        id: 'vol-12345678',
+        address: 'aws_instance.node_1',
+        parentInstanceId: 'i-12345678',
+        tags,
+      },
+    ]),
+  );
+  disks.push({ Ebs: { VolumeId: 'vol-12345678' } });
+  await expect(run()).rejects.toThrow('Ambiguous attached volume');
+});

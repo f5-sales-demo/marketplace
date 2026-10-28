@@ -158,8 +158,8 @@ async function fixture() {
       return session;
     },
   };
-  const run = () =>
-    retireAzureTerraformUpgradeStage(base, upgrade, contract, terraform as never, store, 'b'.repeat(64), {});
+  const run = (evidence = 'b'.repeat(64)) =>
+    retireAzureTerraformUpgradeStage(base, upgrade, contract, terraform as never, store, evidence, {});
   return {
     base,
     upgrade,
@@ -319,8 +319,9 @@ test('stage discovery joins exact source identity and rejects absent or forged s
 
 test('Azure parent preserves exact retired upgrade provenance and rejects changed stage markers', async () => {
   const f = await fixture();
-  await f.run();
-  const evidence = 'b'.repeat(64);
+  const retirementEvidence = { platform: { status: 'absent' }, cloud: { status: 'absent' } };
+  const evidence = canonicalSha256(retirementEvidence);
+  await f.run(evidence);
   const teardown = {
     kind: 'azure-ce-terraform-teardown',
     sourcePlanSha256: f.base.planSha256,
@@ -394,6 +395,7 @@ test('Azure parent preserves exact retired upgrade provenance and rejects change
     phase: 'retired',
     sourcePlanSha256: f.base.planSha256,
     teardownPlanSha256: teardown.planSha256,
+    retirementEvidence,
     retirementEvidenceSha256: evidence,
     final: { planSha256: 'c'.repeat(64) },
     artifacts: rootMarker,

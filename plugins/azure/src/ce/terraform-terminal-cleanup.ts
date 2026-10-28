@@ -1,21 +1,35 @@
 import { createHash } from 'node:crypto';
-import { lstat, readdir, realpath } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
-import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { ArtifactRetirementReceipt } from '../../../terraform/src/artifact-retirement';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
+import { observeAzureRelayRetirementAbsence } from './relay-retirement';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
+import { retireAzureTerraformFailoverStage } from './terraform-failover-retirement';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
+import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
+import { qualifyAzureTerraformNetworkFreshParentAbsence } from './terraform-network-fresh-parent-absence';
+import { retireAzureTerraformNetworkOpaqueCheckouts } from './terraform-network-opaque-checkout-retirement';
+import {
+  retireAzureTerraformNetworkBootstrapPackets,
+  retireAzureTerraformNetworkSensitivePackets,
+} from './terraform-network-sensitive-packet-retirement';
+import { retireAzureTerraformNetworkTerminalMain } from './terraform-network-terminal-main-retirement';
+import { retireAzureTerraformNetworkTerminalPlaintext } from './terraform-network-terminal-plaintext-retirement';
+import { prepareAzureTerraformNetworkTerminalPlanning } from './terraform-network-terminal-planning';
 import { retireAzureTerraformParentArtifacts } from './terraform-parent-retirement';
 import type { AzureTerraformTeardownPlan } from './terraform-teardown';
+import {
+  qualifyAzureTerraformTeardownStageHistory,
+  recheckAzureTerraformTeardownStageHistory,
+} from './terraform-teardown-stage-history';
+import { sealAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
 import { azureUpgradeBinding } from './terraform-upgrade';
-import { qualifiedAzureTerraformUpgradeStages, retireAzureTerraformUpgradeStage } from './terraform-upgrade-retirement';
+import { finalizeAzureTerraformUpgradeStageRetirement } from './terraform-upgrade-retirement';
 import type { AzureCePlan } from './types';
 
 const name = 'azure-terraform-terminal-cleanup.json';
@@ -38,8 +52,12 @@ interface Checkpoint {
   checkpointSha256: string;
   phase: 'cancelling' | 'planning' | 'retiring' | 'retired';
   final?: PlanReceipt;
+  retirementEvidence?: unknown;
   retirementEvidenceSha256?: string;
   artifacts?: ArtifactRetirementReceipt;
+  retainedDestroyConfiguration?: string;
+  retainedNetworkCustody?: unknown;
+  retainedTerminalNetworkCustody?: unknown;
 }
 export async function hasAzureTerraformTerminalCleanup(store: CeDeploymentStore) {
   try {
@@ -62,6 +80,11 @@ export async function finalizeAzureTerraformRunnerCleanup(
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
   terraform?: CeTerraformService,
+  networkContext?: AzureTerraformNetworkDestroyJournalContext,
+  stageAdmission?: {
+    history: Awaited<ReturnType<typeof qualifyAzureTerraformTeardownStageHistory>>;
+    context: Parameters<typeof qualifyAzureTerraformTeardownStageHistory>[3];
+  },
 ) {
   const binding = azureUpgradeBinding(base);
   const deployment = await azureTerraformCurrentDeployment(base);
@@ -79,8 +102,8 @@ export async function finalizeAzureTerraformRunnerCleanup(
       throw Error('Azure terminal namespace differs');
     namespaces.add(value);
   }
-  const fresh = async () => {
-    signal?.throwIfAborted();
+  const fresh = async (active = signal) => {
+    active?.throwIfAborted();
     await store.verify();
     if (
       runtime.engine !== 'terraform' ||
@@ -92,7 +115,7 @@ export async function finalizeAzureTerraformRunnerCleanup(
     )
       throw Error('Azure terminal owner or contracts differ');
     const start = Date.now();
-    const platform = await runtime.unregisteredAbsence([binding], [...namespaces].sort(), contract, signal);
+    const platform = await runtime.unregisteredAbsence([binding], [...namespaces].sort(), contract, active);
     const at = Date.parse(platform.observedAt),
       began = Date.parse(platform.startedAt);
     if (
@@ -110,38 +133,57 @@ export async function finalizeAzureTerraformRunnerCleanup(
       !platform.sources.length
     )
       throw Error('Fresh complete Azure platform absence unavailable');
-    const cloud = await observeAzureTerraformDestroyBoundary(base, api, signal);
+    const cloud = base.relayProfile
+      ? await observeAzureRelayRetirementAbsence(base, api, active)
+      : await observeAzureTerraformDestroyBoundary(base, api, active);
     if (cloud.status !== 'absent') throw Error('Fresh Azure cloud absence unavailable');
     return { platform, cloud };
   };
-  let stages: string[] = [];
-  const stagesRoot = join(store.directory, 'terraform-stages');
-  try {
-    const stat = await lstat(stagesRoot);
-    if (
-      !stat.isDirectory() ||
-      stat.isSymbolicLink() ||
-      stat.uid !== process.getuid?.() ||
-      (await realpath(stagesRoot)) !== stagesRoot
-    )
-      throw Error('Azure upgrade stage directory ownership differs');
-    stages = (await readdir(stagesRoot)).sort();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-  if (stages.some((stage) => !/^upgrade-(?:software|os)-[a-f0-9]{24}$/.test(stage)))
-    throw Error('Unqualified Azure stage blocks terminal cleanup');
-  if (stages.length && !terraform) throw Error('Owning Azure upgrade retirement service unavailable');
-  const upgradeContract = stages.length ? await VerifiedUpgradeContract.release(fetch, signal) : undefined;
-  const upgrades = upgradeContract
-    ? await qualifiedAzureTerraformUpgradeStages(base, store, stages, upgradeContract)
-    : [];
   let checkpoint: Checkpoint | undefined;
   try {
     checkpoint = (await store.read(name)) as Checkpoint;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  if (
+    networkContext &&
+    (networkContext.terraform !== terraform ||
+      canonicalSha256(networkContext.destroyTeardown) !== canonicalSha256(teardown))
+  )
+    throw Error('Azure terminal owning network context differs');
+  const stageContext =
+    networkContext && checkpoint
+      ? { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint) }
+      : networkContext;
+  if (stageAdmission) {
+    const admitted = stageAdmission.context;
+    if (
+      !networkContext ||
+      !admitted ||
+      stageAdmission.history.failovers.length ||
+      stageAdmission.history.upgrades.length ||
+      (!stageAdmission.history.network && !stageAdmission.history.retiredNetwork) ||
+      canonicalSha256({ value: admitted }) !== canonicalSha256({ value: stageContext }) ||
+      admitted.publicSession !== networkContext.publicSession ||
+      admitted.terraform !== networkContext.terraform ||
+      admitted.loaders !== networkContext.loaders ||
+      admitted.site !== networkContext.site ||
+      admitted.verifier !== networkContext.verifier ||
+      admitted.replacementVerifier !== networkContext.replacementVerifier
+    )
+      throw Error('Azure terminal stage history admission differs');
+  }
+  const history = stageAdmission
+    ? await recheckAzureTerraformTeardownStageHistory(
+        stageAdmission.history,
+        base,
+        store,
+        signal,
+        stageAdmission.context,
+      )
+    : await qualifyAzureTerraformTeardownStageHistory(base, store, signal, stageContext);
+  const { stages, failovers, upgrades, upgradeContract } = history;
+  if (stages.length && !terraform) throw Error('Owning Azure upgrade retirement service unavailable');
   const validFinal = (final: PlanReceipt | undefined) =>
     !!final &&
     final.schemaVersion === 1 &&
@@ -159,6 +201,17 @@ export async function finalizeAzureTerraformRunnerCleanup(
     !final.imports &&
     !final.relinquishments;
   await fresh();
+  if (networkContext && (!checkpoint || ['cancelling', 'planning'].includes(checkpoint.phase))) {
+    const prepared = await prepareAzureTerraformNetworkTerminalPlanning(
+      base,
+      store,
+      networkContext,
+      (active) => fresh(active),
+      env,
+      signal,
+    );
+    checkpoint = prepared.checkpoint as unknown as Checkpoint;
+  }
   if (!checkpoint) {
     if (!session.readConfigurationSha256 || !session.cancelUnsubmittedPlan || !session.retireArtifacts)
       throw Error('Azure owning runner cleanup unavailable');
@@ -219,7 +272,10 @@ export async function finalizeAzureTerraformRunnerCleanup(
     checkpoint.emptyConfigurationSha256 !== identity.configurationSha256 ||
     !['cancelling', 'planning', 'retiring', 'retired'].includes(checkpoint.phase) ||
     (['retiring', 'retired'].includes(checkpoint.phase) &&
-      (!validFinal(checkpoint.final) || !sha(checkpoint.retirementEvidenceSha256)))
+      (!validFinal(checkpoint.final) ||
+        !sha(checkpoint.retirementEvidenceSha256) ||
+        !checkpoint.retirementEvidence ||
+        checkpoint.retirementEvidenceSha256 !== canonicalSha256(checkpoint.retirementEvidence)))
   )
     throw Error('Azure terminal checkpoint differs');
   if (checkpoint.phase === 'cancelling') {
@@ -240,11 +296,26 @@ export async function finalizeAzureTerraformRunnerCleanup(
     const final = await session.plan(env, signal);
     if (!validFinal(final)) throw Error('Azure final ordinary refresh-enabled plan differs');
     checkpoint.final = final;
-    checkpoint.retirementEvidenceSha256 = canonicalSha256(await fresh());
+    checkpoint.retirementEvidence = await fresh();
+    checkpoint.retirementEvidenceSha256 = canonicalSha256(checkpoint.retirementEvidence);
     checkpoint.phase = 'retiring';
     await store.write(name, checkpoint);
   }
-  if (checkpoint.phase === 'retiring') {
+  if (networkContext && ['retiring', 'retired'].includes(checkpoint.phase)) {
+    if (checkpoint.phase === 'retiring' || Object.hasOwn(checkpoint, 'retainedDestroyConfiguration')) {
+      const retired = await retireAzureTerraformNetworkTerminalMain(
+        base,
+        store,
+        { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint) },
+        async (active) => {
+          await fresh(active);
+        },
+        env,
+        signal,
+      );
+      checkpoint = retired.checkpoint as unknown as Checkpoint;
+    }
+  } else if (checkpoint.phase === 'retiring') {
     await fresh();
     if (!session.retireArtifacts || !checkpoint.final || !checkpoint.retirementEvidenceSha256)
       throw Error('Azure owning runner retirement unavailable');
@@ -287,7 +358,7 @@ export async function finalizeAzureTerraformRunnerCleanup(
   for (const upgrade of upgrades) {
     await fresh();
     if (!terraform || !upgradeContract) throw Error('Owning Azure upgrade retirement service unavailable');
-    await retireAzureTerraformUpgradeStage(
+    await finalizeAzureTerraformUpgradeStageRetirement(
       base,
       upgrade,
       upgradeContract,
@@ -299,12 +370,107 @@ export async function finalizeAzureTerraformRunnerCleanup(
     );
     await fresh();
   }
+  for (const failover of failovers) {
+    await fresh();
+    if (!terraform) throw Error('Owning Azure failover retirement service unavailable');
+    const sites = teardown.retirement.filter((site) => site.siteName === base.siteName);
+    if (sites.length !== 1) throw Error('Failover retirement site is ambiguous');
+    await retireAzureTerraformFailoverStage(
+      base,
+      failover,
+      sites[0].siteUid,
+      terraform,
+      store,
+      checkpoint.retirementEvidenceSha256,
+      env,
+      signal,
+    );
+    await fresh();
+  }
+  if (networkContext) {
+    const parentContracts = { ingress: contract, ...(upgradeContract ? { upgrade: upgradeContract } : {}) };
+    if (Object.hasOwn(checkpoint, 'retainedDestroyConfiguration')) {
+      const transformed = await retireAzureTerraformNetworkTerminalPlaintext(
+        base,
+        store,
+        { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint), parentContracts },
+        async (active) => {
+          await fresh(active);
+        },
+        signal,
+      );
+      checkpoint = transformed.checkpoint as unknown as Checkpoint;
+    }
+    const postContext = {
+      ...networkContext,
+      terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint),
+      parentContracts,
+    };
+    const absence = await qualifyAzureTerraformNetworkFreshParentAbsence(
+      base,
+      store,
+      postContext,
+      runtime,
+      contract,
+      api,
+      signal,
+    );
+    let bootstrapProgress: unknown;
+    try {
+      bootstrapProgress = await store.read('azure-terraform-network-bootstrap-packet-retirement.json');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    // A bootstrap marker selects its native replay reader; it never grants authority.
+    // That reader independently requires the completed non-bootstrap checkpoint.
+    if (bootstrapProgress === undefined)
+      await retireAzureTerraformNetworkSensitivePackets(base, store, postContext, signal);
+    await retireAzureTerraformNetworkBootstrapPackets(
+      base,
+      store,
+      postContext,
+      absence,
+      runtime,
+      contract,
+      api,
+      signal,
+    );
+    const checkoutRetirement = await retireAzureTerraformNetworkOpaqueCheckouts(
+      base,
+      store,
+      postContext,
+      absence,
+      runtime,
+      contract,
+      api,
+      signal,
+    );
+    const parent = checkoutRetirement.parent;
+    if (!checkpoint.final) throw Error('Azure network final receipt missing after packet retirement');
+    return {
+      parent,
+      checkoutRetirement,
+      status: 'network-parent-packets-retired' as const,
+      sourcePlanSha256: base.planSha256,
+      teardownPlanSha256: teardown.planSha256,
+      finalPlanSha256: checkpoint.final.planSha256,
+      artifacts: value,
+      cloud: 'absent' as const,
+      sites: 'deleted' as const,
+      completeCleanup: false as const,
+      parentRetirementQualified: false as const,
+      interfaceAbsenceQualified: false as const,
+      opaqueCheckoutRetirementQualified: true as const,
+      fullExternalCleanupQualified: false as const,
+    };
+  }
   const parent = await retireAzureTerraformParentArtifacts(
     base,
     teardown,
     checkpoint.retirementEvidenceSha256,
     store,
     signal,
+    contract,
   );
   return {
     parent,

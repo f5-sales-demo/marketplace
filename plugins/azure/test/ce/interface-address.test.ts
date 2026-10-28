@@ -8,6 +8,7 @@ const nicId = `${root}/Microsoft.Network/networkInterfaces/ce-1-nic0`;
 const vmId = `${root}/Microsoft.Compute/virtualMachines/ce-1`;
 const plan = {
   engine: 'native',
+  topology: { nodeCount: 1 },
   subscription: { id: subscriptionId },
   intent: { resourceGroup: 'ce-rg' },
   deploymentName: 'ce',

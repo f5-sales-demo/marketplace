@@ -10,6 +10,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { collectAwsTerraformAbsence } from './terraform-absence';
+import { retireAwsTerraformMetadata } from './terraform-metadata-retirement';
 import { retireAwsTerraformParentArtifacts } from './terraform-parent-retirement';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import { qualifiedAwsTerraformUpgradeStages, retireAwsTerraformUpgradeStage } from './terraform-upgrade-retirement';
@@ -168,6 +169,7 @@ export async function finalizeAwsTerraformCleanup(
   };
   let checkpoint = await optional(store, checkpointName);
   let current = await fresh();
+  await retireAwsTerraformMetadata(base, store, api, signal);
   if (checkpoint === undefined) {
     const phase = object(await store.read('terraform-cloud-teardown.json'));
     if (
