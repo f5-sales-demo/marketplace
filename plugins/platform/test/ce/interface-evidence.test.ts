@@ -308,3 +308,16 @@ test('node creator cannot bypass exact physical reference and publisher node ide
     expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
   }
 });
+
+test('rejects generated-object MTUs that exceed the owning site schema', () => {
+  for (const mtu of [8001, 9000]) {
+    const f = fixture();
+    f.configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = mtu;
+    f.objects.items[0].get_spec.ethernet_interface.mtu = mtu;
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow('MTU');
+  }
+  const f = fixture();
+  f.configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 8000;
+  f.objects.items[0].get_spec.ethernet_interface.mtu = 8000;
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].mtu).toBe(8000);
+});

@@ -241,7 +241,7 @@ export function validateCeIngressHistoricalPlan(
       iface.mac !== selected.mac.toLowerCase() ||
       iface.linkUp !== true ||
       !Number.isInteger(iface.mtu) ||
-      (iface.mtu !== 0 && (iface.mtu < 576 || iface.mtu > 9000)) ||
+      (iface.mtu !== 0 && (iface.mtu < 576 || iface.mtu > 8000)) ||
       !iface.ipv4
     )
       throw new Error('Ingress historical SLI identity differs');

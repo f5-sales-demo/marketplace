@@ -672,7 +672,7 @@ export class CeRuntime {
     const request = this.ownedSiteConfiguration(binding, before);
     const interfaces = devices.interfaces.map((device) => {
       const desired = expected.find((item) => item.node === device.node && item.mac.toLowerCase() === device.mac);
-      if (!desired || !Number.isInteger(desired.mtu) || desired.mtu < 576 || desired.mtu > 9000)
+      if (!desired || !Number.isInteger(desired.mtu) || desired.mtu < 576 || desired.mtu > 8000)
         throw new Error('Replacement interface MTU is invalid');
       return { ...device, mtu: desired.mtu };
     });
@@ -747,7 +747,7 @@ export class CeRuntime {
           !expected ||
           !Number.isInteger(expected.mtu) ||
           expected.mtu < 576 ||
-          expected.mtu > 9000 ||
+          expected.mtu > 8000 ||
           iface.mtu !== expected.mtu
         )
           throw new Error('Prepared MTU differs from the replacement requirement');
@@ -983,7 +983,7 @@ export class CeRuntime {
     signal?: AbortSignal,
   ): Promise<void> {
     this.#binding(binding, true);
-    if (expected.some((item) => !Number.isInteger(item.mtu) || item.mtu < 576 || item.mtu > 9000))
+    if (expected.some((item) => !Number.isInteger(item.mtu) || item.mtu < 576 || item.mtu > 8000))
       throw new Error('Explicit supported interface MTU is required');
     const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
     if (devices.status !== 'observed') throw new Error('Guest interface inventory has not converged');

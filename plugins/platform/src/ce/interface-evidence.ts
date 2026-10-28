@@ -91,7 +91,7 @@ export function correlateCeInterfaces(
         if (
           slo === sli ||
           !Number.isInteger(iface.mtu) ||
-          (Number(iface.mtu) !== 0 && (Number(iface.mtu) < 576 || Number(iface.mtu) > 9000))
+          (Number(iface.mtu) !== 0 && (Number(iface.mtu) < 576 || Number(iface.mtu) > 8000))
         )
           throw new Error('Ambiguous interface role or MTU');
         return {

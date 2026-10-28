@@ -962,6 +962,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     for (const attachment of attachments) {
       const gate = attachmentGates.find((action) => action.resourceId === attachment.capture?.placeholder);
       expect(gate).toBeDefined();
+      if (!gate) throw new Error('Expected attachment gate');
       expect(plan.actions.indexOf(gate)).toBeGreaterThan(plan.actions.indexOf(attachment));
       for (const peer of actions.filter((action) => action.args?.includes(attachment.capture?.placeholder ?? ''))) {
         expect(plan.actions.indexOf(gate)).toBeLessThan(plan.actions.indexOf(peer));
@@ -1064,7 +1065,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
   const admitted = JSON.parse(renderAwsTerraformFoundation(valid, { 1: bootstrap, 2: bootstrap, 3: bootstrap }));
   for (let node = 1; node <= 3; node++) {
     const action = valid.actions.find(
-      (action) => action.kind === 'eni-create' && action.node === node && action.resourceId.endsWith(`-${node}-1`),
+      (action) => action.kind === 'eni-create' && action.node === node && action.resourceId?.endsWith(`-${node}-1`),
     );
     expect(action).toBeDefined();
     if (!action?.args) throw new Error('Expected the planned SLI ENI action');
@@ -1183,11 +1184,11 @@ it('pins the deliberate MTU default and validates an explicit MTU in the immutab
   const first = compileAwsCePlan(intent(), observation());
   expect(first.interfaces.every((item) => item.mtu === 1500)).toBe(true);
   const jumbo = intent();
-  jumbo.interfaces = jumbo.interfaces.map((item) => ({ ...item, mtu: 9000 }));
+  jumbo.interfaces = jumbo.interfaces.map((item) => ({ ...item, mtu: 8000 }));
   const second = compileAwsCePlan(jumbo, observation());
-  expect(second.interfaces.every((item) => item.mtu === 9000)).toBe(true);
+  expect(second.interfaces.every((item) => item.mtu === 8000)).toBe(true);
   expect(second.planSha256).not.toBe(first.planSha256);
-  for (const mtu of [0, 1499, 9001, 1500.5]) {
+  for (const mtu of [0, 1499, 8001, 9000, 9001, 1500.5]) {
     const invalid = intent();
     invalid.interfaces[0].mtu = mtu;
     expect(() => compileAwsCePlan(invalid, observation())).toThrow('MTU');

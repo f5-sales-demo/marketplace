@@ -178,7 +178,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       item.guestDevice === undefined ? undefined : safeString(item.guestDevice, `interfaces[${index}].guestDevice`);
     if (guestDevice !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(guestDevice))
       fail('interface guest device identity is invalid');
-    if (!Number.isInteger(mtu) || mtu < 1500 || mtu > 9000) fail('interface MTU must be an integer from 1500 to 9000');
+    if (!Number.isInteger(mtu) || mtu < 1500 || mtu > 8000) fail('interface MTU must be an integer from 1500 to 8000');
     const vrf = name(item.vrf, `interfaces[${index}].vrf`);
     if (item.subnets.length !== input.topology.nodeCount) fail('interfaces must be symmetric across every node');
     const subnets = item.subnets.map((subnet, node) => {

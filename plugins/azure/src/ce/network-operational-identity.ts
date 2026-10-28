@@ -138,7 +138,7 @@ export async function collectAzureNetworkOperationalIdentity(
           /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(row.interfaceName) &&
           typeof row.linkUp === 'boolean' &&
           Number.isInteger(row.mtu) &&
-          (row.mtu === 0 || (row.mtu >= 576 && row.mtu <= 9000)) &&
+          (row.mtu === 0 || (row.mtu >= 576 && row.mtu <= 8000)) &&
           !devices.has(`${row.node}/${row.device}`) &&
           !objects.has(row.interfaceName), 'incomplete or duplicate device/object identity');
         require(row.ipv4 === null ||
