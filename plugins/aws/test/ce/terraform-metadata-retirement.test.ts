@@ -138,7 +138,7 @@ async function fixture() {
           failure = 'none';
           return { exitCode: 1, stdout: '', stderr: 'request timed out' };
         }
-        response = {};
+        return { exitCode: 0, stdout: '', stderr: '' };
       } else throw Error(`Unexpected operation ${op}`);
       return { exitCode: 0, stdout: JSON.stringify(response), stderr: '' };
     },
@@ -170,7 +170,7 @@ async function fixture() {
   };
 }
 
-test('retires exact conditional ownership tags only after resource retirement and verifies replay without mutation', async () => {
+test('retires exact conditional ownership tags with empty DeleteTags stdout and verifies replay without mutation', async () => {
   const f = await fixture();
   f.current.get('i-12345678')?.push({ Key: 'customer-label', Value: 'preserve' });
   const result = await f.run();
@@ -233,12 +233,33 @@ for (const mode of ['after-delete', 'before-delete'] as const) {
 test('does not treat a successful DeleteTags acknowledgement as retirement', async () => {
   const f = await fixture();
   f.setFailure('ack-only');
-  await expect(f.run()).rejects.toThrow();
+  await expect(f.run()).rejects.toThrow('Metadata deletion acknowledged without verified retirement');
   expect(f.mutations).toHaveLength(1);
   expect(
     ((await f.store.read('aws-terraform-metadata-retirement.json')) as { pending: unknown }).pending,
   ).not.toBeNull();
 });
+
+for (const body of ['', '{', 'null', '[]']) {
+  for (const phase of ['before-delete', 'after-delete']) {
+    test(`rejects invalid observation JSON ${JSON.stringify(body)} ${phase}`, async () => {
+      const f = await fixture();
+      const exec = f.api.exec.bind(f.api);
+      f.api.exec = async (command, argv, options) => {
+        const result = await exec(command, argv, options);
+        if (argv[1] === 'describe-tags' && (phase === 'before-delete' || f.mutations.length > 0))
+          return { ...result, stdout: body };
+        return result;
+      };
+      await expect(f.run()).rejects.toThrow();
+      expect(f.mutations).toHaveLength(phase === 'before-delete' ? 0 : 1);
+      if (phase === 'after-delete')
+        expect(
+          ((await f.store.read('aws-terraform-metadata-retirement.json')) as { pending: unknown }).pending,
+        ).not.toBeNull();
+    });
+  }
+}
 
 test('refuses foreign tags and forged intent after ambiguous submission', async () => {
   for (const mode of ['tag', 'intent']) {

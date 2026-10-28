@@ -204,7 +204,7 @@ export async function retireAwsTerraformMetadata(
       throw Error('Cloud teardown has not converged before metadata retirement');
   }
   const api = scopedAwsApi(raw, plan.intent.awsProfile, signal);
-  const request = async (service: string, operation: string, args: Json = {}) => {
+  const execute = async (service: string, operation: string, args: Json = {}) => {
     await store.verify();
     signal?.throwIfAborted();
     const response = await api.exec('aws', [
@@ -220,8 +220,10 @@ export async function retireAwsTerraformMetadata(
     ]);
     signal?.throwIfAborted();
     if (response.exitCode !== 0) throw detectAwsError(response.stderr, response.exitCode);
-    return object(JSON.parse(response.stdout));
+    return response;
   };
+  const request = async (service: string, operation: string, args: Json = {}) =>
+    object(JSON.parse((await execute(service, operation, args)).stdout));
   const tags = async (filters: Json[]) => {
     const result: Json[] = [],
       tokens = new Set<string>();
@@ -417,7 +419,8 @@ export async function retireAwsTerraformMetadata(
       }
       await retiredIdentity(row);
       await currentTags(row);
-      await request('ec2', 'delete-tags', args);
+      // EC2 DeleteTags has no output shape. Only subsequent reads prove retirement.
+      await execute('ec2', 'delete-tags', args);
       if ((await currentTags(row)).length) throw Error('Metadata deletion acknowledged without verified retirement');
     }
     checkpoint.completed.push(row.id);
