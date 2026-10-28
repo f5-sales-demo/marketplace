@@ -4,6 +4,8 @@ export interface ExpectedCeInterface {
   node: string;
   role: 'slo' | 'data' | 'sli';
   mac: string;
+  /** Optional planned or previously bound device; the observed MAC must resolve to it. */
+  device?: string;
   /** Desired configuration only; this does not establish operational link or freshness. */
   staticIp?: { ip_address: string; default_gw?: string; dns_server?: string };
 }
@@ -113,6 +115,8 @@ export function correlateCeInterfaces(
     const candidates = configured.filter((item) => item.node === binding.node && item.mac === normalized);
     if (candidates.length !== 1 || candidates[0].outside !== (binding.role === 'slo'))
       throw new Error('Configured MAC binding differs');
+    if (binding.device !== undefined && binding.device !== candidates[0].device)
+      throw new Error('Planned guest device differs from configured MAC identity');
     const { outside: _outside, ...configuredInterface } = candidates[0];
     const iface = { ...configuredInterface, role: binding.role };
     const matches = realized.filter((item) => {
