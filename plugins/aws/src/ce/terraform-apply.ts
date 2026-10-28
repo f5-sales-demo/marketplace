@@ -420,9 +420,24 @@ async function executeAwsCeTerraformApplyUnlocked(
       };
     }
   }
+  // Initial replacement can return a pending result without its own plan fields.
+  // Bind both the saved receipt and public result to the admitted immutable plan.
+  for (const [key, expected] of Object.entries({
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    engine: 'terraform',
+  }))
+    if (result[key] !== undefined && result[key] !== expected)
+      throw new Error('Terraform outcome identity differs from the owning plan');
+  result = { ...result, planId: plan.planId, planSha256: plan.planSha256, engine: 'terraform' };
   const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-terraform-checkpoint');
   if (!artifactId) throw new Error('Terraform outcome artifact persistence failed; deployment checkpoint is retained');
-  return { ...result, status: String(result.status), artifactId };
+  const outcome: Record<string, unknown> & { status: string; artifactId: string } = {
+    ...result,
+    status: String(result.status),
+    artifactId,
+  };
+  return outcome;
 }
 
 export function awsTerraformService(pi: { [key: string]: unknown }, signal?: AbortSignal): Promise<CeTerraformService> {

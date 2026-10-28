@@ -74,7 +74,8 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
       ]),
     ),
   });
-  const session: TerraformSession = {
+  // Omitted lifecycle readers remain unavailable in this admission fixture.
+  const session: Pick<TerraformSession, 'readOutputs' | 'reviseConfiguration' | 'plan' | 'apply'> = {
     async readOutputs() {
       if (!applied) throw new Error('Terraform outputs require an applied or converged current configuration');
       return outputs();
@@ -197,7 +198,7 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
   return {
     plan,
     brownfieldObservation: brownfieldFixture?.observation,
-    session,
+    session: session as TerraformSession,
     storage,
     api,
     runtime,
