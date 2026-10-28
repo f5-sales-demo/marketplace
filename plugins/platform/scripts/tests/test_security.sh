@@ -23,6 +23,22 @@ test_no_hardcoded_api_tokens() {
   fi
 }
 
+# All assistant-owned environment variables use the XCSH_ namespace.
+test_no_removed_environment_namespace() {
+  local removed_prefix matches
+  removed_prefix=$(printf '%s%s_' 'F5' 'XC')
+  matches=$(grep -rIlnE "(^|[^A-Z0-9_])${removed_prefix}" "$MARKETPLACE_ROOT/plugins" \
+    --exclude-dir=node_modules \
+    --include='*.md' --include='*.json' --include='*.ts' --include='*.sh' ||
+    true)
+
+  if [ -n "$matches" ]; then
+    echo "Removed environment namespace found:"
+    echo "$matches"
+    return 1
+  fi
+}
+
 # T1.14 — CE bootstrap references use the session-owned single-use store
 test_ce_bootstrap_secret_boundary() {
   grep -q 'mode: 0o600' "$PLUGIN_ROOT/src/ce/token-store.ts" || {
