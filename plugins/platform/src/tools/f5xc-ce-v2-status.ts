@@ -10,7 +10,7 @@ export function createF5xcCeV2StatusTool(
     name: 'f5xc_ce_v2_status',
     label: 'F5 CE v2 Status',
     description:
-      'Observe interfaces using the active tenant and trusted deployment/MAC bindings. Explicit down differs from unavailable evidence. Fetch time is not a CE heartbeat timestamp.',
+      'Observe interfaces using the active tenant and trusted deployment/MAC bindings. Published link state and evidence freshness are separate. Fetch time is not a CE heartbeat timestamp.',
     parameters: Type.Object({
       namespace: Type.String(),
       siteName: Type.String(),
@@ -28,7 +28,7 @@ export function createF5xcCeV2StatusTool(
         if (params.namespace !== 'system') throw new Error('namespace');
         const service = makeService(ctx);
         const known = await service.siteBinding?.(params.siteName, params.platformContext);
-        if (!known || !known.expectedInterfaces.length) throw new Error('missing binding');
+        if (!known?.expectedInterfaces.length) throw new Error('missing binding');
         const runtime = await service.runtime(known.binding.owner.engine, params.platformContext);
         if (runtime.contract.fingerprint !== known.contractFingerprint) throw new Error('stale binding');
         const site = await runtime.observeOwnedSite(known.binding, signal);
@@ -50,16 +50,22 @@ export function createF5xcCeV2StatusTool(
           known.binding.owner.provider === 'aws'
             ? await runtime.observeAwsInterfaces(known.binding, known.expectedInterfaces, signal)
             : await runtime.observeAzureInterfaces(known.binding, known.expectedInterfaces, signal);
+        // The observer preserves explicit published link values, but its fetch time
+        // does not qualify original sample age. A down acceptance needs that contract.
+        const status = evidence.status === 'down' ? 'unknown' : evidence.status;
+        const reportedLinkState = evidence.status === 'observed' ? 'up' : evidence.status;
         return {
           content: [
             {
               type: 'text' as const,
-              text: `CE ${params.siteName} interfaces: ${evidence.status}. CE sample age remains unqualified.`,
+              text: `CE ${params.siteName} interfaces: ${status}.${evidence.status === 'down' ? ' Published link state reports down.' : ''} CE sample age remains unqualified.`,
             },
           ],
           details: {
             tool: 'f5xc_ce_v2_status',
-            status: evidence.status,
+            status,
+            reportedLinkState,
+            reason: evidence.status === 'down' ? 'interface-sample-freshness-unqualified' : undefined,
             siteUid: known.siteUid,
             interfaces: evidence.interfaces,
             fetchedAt: evidence.observedAt,
