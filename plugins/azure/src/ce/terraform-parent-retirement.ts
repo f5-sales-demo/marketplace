@@ -16,6 +16,7 @@ import { isAzureIngressHistoricalArtifact, verifyAzureIngressHistoricalArtifacts
 import { azureRelayHistoricalArtifacts, verifyAzureRelayHistoricalArtifacts } from './relay-artifact-provenance';
 import { azureTerraformFailoverDeployment, validateAzureTerraformFailoverRetirement } from './terraform-failover';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
+import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
 import {
   isAzureTerraformReplacementHistoricalArtifact,
@@ -251,6 +252,66 @@ export async function retireAzureTerraformParentArtifacts(
     };
     for (const name of (await readdir(store.directory)).sort()) {
       if (name === markerName || name === '.azure-terraform-lifecycle-lock') continue;
+      if (
+        name === 'terraform-original-deployment-receipts' ||
+        name === 'terraform-original-deployment-publication-fragments'
+      ) {
+        const path = join(store.directory, name);
+        await directory(path);
+        if (((await lstat(path)).mode & 0o077) !== 0)
+          throw Error('Azure original receipt metadata directory ownership differs');
+        const names = (await readdir(path)).sort();
+        if (recorded) {
+          // Retained metadata has no enrollment body. Replay checks the exact
+          // original file custody after the workflow's secret staging is gone.
+          const expectedNames = [...recorded.values()]
+            .filter((item) => item.path.startsWith(`${name}/`) && item.preserve)
+            .map((item) => item.path.slice(name.length + 1))
+            .sort();
+          if (canonicalSha256(names) !== canonicalSha256(expectedNames))
+            throw Error('Azure original receipt metadata namespace changed');
+        } else {
+          const workflow = object(await store.read('terraform-workflow.json'));
+          if (
+            workflow.schemaVersion !== 1 ||
+            workflow.engine !== 'terraform' ||
+            workflow.planSha256 !== base.planSha256
+          )
+            throw Error('Azure original receipt metadata workflow owner differs');
+          const prefix = object(workflow.bootstrapByNode) as Record<string, string>;
+          const original = await readAzureTerraformOriginalReceiptInventory(base, prefix, store, signal);
+          if (
+            original.status !== 'complete' ||
+            original.records.length === 0 ||
+            (name === 'terraform-original-deployment-receipts' &&
+              canonicalSha256(original.records.map((row) => row.name).sort()) !== canonicalSha256(names)) ||
+            (workflow.originalReceiptInventorySha256 !== undefined &&
+              workflow.originalReceiptInventorySha256 !== canonicalSha256(original))
+          )
+            throw Error('Azure original receipt metadata inventory is incomplete or changed');
+        }
+        for (const entry of names) {
+          if (name === 'terraform-original-deployment-receipts') {
+            if (!/^[a-f0-9]{64}\.json$/.test(entry)) throw Error('Azure original receipt metadata entry differs');
+          } else {
+            const match = /^([a-f0-9]{64})-[a-f0-9-]{36}\.pending\.([a-f0-9]{64})\.fragment$/.exec(entry);
+            if (!match) throw Error('Azure original receipt metadata fragment name differs');
+            const fragment = await file(join(path, entry)),
+              publication = await file(
+                join(store.directory, 'terraform-original-deployment-receipts', `${match[1]}.json`),
+              );
+            if (
+              hash(fragment) !== match[2] ||
+              fragment.length >= publication.length ||
+              !publication.subarray(0, fragment.length).equals(fragment) ||
+              canonicalSha256(parseArtifact(publication)) !== match[1]
+            )
+              throw Error('Azure original receipt metadata fragment provenance differs');
+          }
+          await add(`${name}/${entry}`, true);
+        }
+        continue;
+      }
       if (name === base.deploymentName) {
         runner = true;
         const path = join(store.directory, name);
