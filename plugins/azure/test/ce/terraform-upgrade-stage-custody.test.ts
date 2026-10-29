@@ -23,12 +23,12 @@ const contract = {
   fingerprint: `sha256:${'a'.repeat(64)}`,
   build: (input: Parameters<typeof buildSiteUpgradeRequest>[0]) => buildSiteUpgradeRequest(input, () => {}),
 } as unknown as VerifiedUpgradeContract;
-async function fixture() {
+async function fixture(kind: 'software' | 'os' = 'software', installedSoftware = 'crt-20260201-0178') {
   const base = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
   const binding = azureUpgradeBinding(base);
   const upgrade = await prepareAzureTerraformUpgrade(
     base,
-    { kind: 'software', version: 'crt-20260201-0179' },
+    { kind, version: kind === 'software' ? 'crt-20260201-0179' : '9.2026.17' },
     {
       observeUpgrade: async () => ({
         owner: binding.owner,
@@ -42,11 +42,11 @@ async function fixture() {
         status: 'observed' as const,
         startedAt: new Date().toISOString(),
         observedAt: new Date().toISOString(),
-        targetSoftware: 'crt-20260201-0179',
+        targetSoftware: kind === 'software' ? 'crt-20260201-0179' : installedSoftware,
         online: true,
         siteState: 'ONLINE',
         software: {
-          installed: 'crt-20260201-0178',
+          installed: installedSoftware,
           available: 'crt-20260201-0179',
           phase: 'UPGRADE_COMPLETED',
           result: 'Completed',
@@ -55,7 +55,7 @@ async function fixture() {
         targets: ['crt-20260201-0179'],
         targetSoftwareListed: true,
         prechecks: { checks: [{ name: 'nodes', status: 'CHECKLIST_PASSED' }], passing: true },
-        progress: { status: 'COMPLETED', version: 'crt-20260201-0178' },
+        progress: { status: 'COMPLETED', version: installedSoftware },
         sources: { site: '', targets: '', precheck: '', progress: '' },
         nodeHealth: 'unknown' as const,
         routing: 'unknown' as const,
@@ -178,8 +178,12 @@ async function fixture() {
     },
   };
 }
-async function custodyFixture(fault: 'none' | 'partial' | 'response-loss' = 'none') {
-  const f = await fixture();
+async function custodyFixture(
+  fault: 'none' | 'partial' | 'response-loss' = 'none',
+  kind: 'software' | 'os' = 'software',
+  installedSoftware = 'crt-20260201-0178',
+) {
+  const f = await fixture(kind, installedSoftware);
   const { configuration, providerLock, ...identity } = f.upgrade.deployment;
   const manifestSha256 = canonicalSha256({
     ...identity,
@@ -356,4 +360,48 @@ test('upgrade stage rejects root mutation during custody publication before any 
   };
   await expect(f.run()).rejects.toThrow('owning witness or root custody changed');
   expect(f.counts().retires).toBe(0);
+});
+
+test('serial software and OS completion retains both original stage envelopes through teardown and replay', async () => {
+  const software = await custodyFixture(),
+    os = await custodyFixture('none', 'os', 'crt-20260201-0179');
+  expect(os.base.planSha256).toBe(software.base.planSha256);
+  expect(os.upgrade.planId).not.toBe(software.upgrade.planId);
+  expect(os.upgrade.expectation.before.software).toBe(software.upgrade.expectation.target.version);
+  for (const suffix of ['', '-authorization', '-checkpoint', '-action-plan', '-receipt'])
+    await software.store.write(
+      `${os.upgrade.planId}${suffix}.json`,
+      await os.store.read(`${os.upgrade.planId}${suffix}.json`),
+    );
+  // Both public version upgrades finish before parent teardown starts. Stage
+  // retirement never grants authority to start an upgrade on a retired parent.
+  await software.store.write(
+    'terraform-ce-upgrade-serial.json',
+    await os.store.read('terraform-ce-upgrade-serial.json'),
+  );
+  await software.run();
+  const first = await software.checkpoint();
+  const service = { open: async () => os.session };
+  const retireOs = () =>
+    retireAzureTerraformUpgradeStage(
+      software.base,
+      os.upgrade,
+      contract,
+      service as never,
+      software.store,
+      'c'.repeat(64),
+      {},
+    );
+  expect((await retireOs()).status).toBe('runner-artifacts-retired');
+  const second = await software.store.read(`${os.upgrade.planId}-stage-retirement.json`);
+  software.disableHistory();
+  os.disableHistory();
+  expect((await software.run()).status).toBe('runner-artifacts-retired');
+  expect((await retireOs()).status).toBe('runner-artifacts-retired');
+  expect(await software.checkpoint()).toEqual(first);
+  expect(await software.store.read(`${os.upgrade.planId}-stage-retirement.json`)).toEqual(second);
+  expect(software.counts().plans).toBe(1);
+  expect(software.counts().retires).toBe(1);
+  expect(os.counts().plans).toBe(1);
+  expect(os.counts().retires).toBe(1);
 });
