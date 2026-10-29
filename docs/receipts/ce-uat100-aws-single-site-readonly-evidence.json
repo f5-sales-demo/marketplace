@@ -1,0 +1,83 @@
+{
+  "observedAt": "2026-10-22T08:32:04.990546+00:00",
+  "candidateRevision": 100,
+  "sourceCommit": "16b4f5a04c54aa9915cc3a59bead3ff6a6907c71",
+  "cliVersion": "23.9.3",
+  "sanitized": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "8057d507087209ff3434d8afc7542da21be71fa76cf628c4ee96a2d7874e325c"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "b320e69dbacf63589c873c474ca2a117f6941df87ddb0097d0e10b294c7b38d9"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6"
+    }
+  ],
+  "discovery": {
+    "passed": true,
+    "regionCount": 34,
+    "eligibleRegions": 8
+  },
+  "planning": {
+    "passed": true,
+    "profile": "single-site",
+    "plans": [
+      {
+        "engine": "terraform",
+        "planId": "aws-ce-78404822f3b3dd7c17b4aebd",
+        "planSha256": "78404822f3b3dd7c17b4aebd911fb319d74f0cc8fe31a9b49b1c347a4d7e8ce5",
+        "nodeCount": 1
+      },
+      {
+        "engine": "native",
+        "planId": "aws-ce-d2d676036153bae1fb753ce5",
+        "planSha256": "d2d676036153bae1fb753ce53fc257af40339eaed84bef31803997f962012909",
+        "nodeCount": 1
+      }
+    ]
+  },
+  "cloudMutationPerformed": false,
+  "liveLifecycleAcceptance": false,
+  "fullCeAcceptance": false,
+  "trace": [
+    {
+      "tool": "aws_sts_whoami",
+      "startedAt": "2026-10-22T08:25:23.615Z",
+      "completedAt": "2026-10-22T08:25:24.204Z",
+      "isError": false
+    },
+    {
+      "tool": "f5xc_ce_v2_capabilities",
+      "startedAt": "2026-10-22T08:25:24.204Z",
+      "completedAt": "2026-10-22T08:25:36.144Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_compute_discover",
+      "startedAt": "2026-10-22T08:25:36.144Z",
+      "completedAt": "2026-10-22T08:27:11.327Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T08:31:24.454Z",
+      "completedAt": "2026-10-22T08:31:24.479Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T08:33:07.500Z",
+      "completedAt": "2026-10-22T08:33:07.517Z",
+      "isError": false
+    }
+  ]
+}
