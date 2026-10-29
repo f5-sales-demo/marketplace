@@ -5,6 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
 import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
+import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalSha256 } from './canonical';
 import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
 import {
@@ -21,6 +22,7 @@ import {
   verifyAzureTerraformReplacementHistoricalArtifacts,
 } from './terraform-replacement-artifact-provenance';
 import { azureUpgradeBinding } from './terraform-upgrade';
+import { verifyAzureTerraformUpgradeAppliedJournalHistory } from './terraform-upgrade-applied-journal';
 import type { AzureCePlan } from './types';
 
 const markerName = 'azure-terraform-parent-artifact-retirement.json';
@@ -337,6 +339,162 @@ export async function retireAzureTerraformParentArtifacts(
               throw Error('Failover runner artifact count differs');
           }
           const final = object(retirement.receipt);
+          // Upgrade stages retain their original custody envelope, independently of
+          // the later parent's absence evidence. Failover retains its own contract.
+          const stageEvidenceSha256 = failover ? evidenceSha256 : retirement.evidenceSha256;
+          if (!failover) {
+            const exactKeys = (value: unknown, names: string[]) => {
+              if (canonicalSha256(Object.keys(object(value)).sort()) !== canonicalSha256(names.toSorted()))
+                throw Error('Azure upgrade retained checkpoint provenance differs');
+            };
+            exactKeys(retirement, [
+              'schemaVersion',
+              'status',
+              'owner',
+              'sourcePlanSha256',
+              'upgradePlanSha256',
+              'deploymentSha256',
+              'externalEvidenceSha256',
+              'receipt',
+              'receiptSha256',
+              'appliedJournal',
+              'appliedJournalSha256',
+              'retirementEvidence',
+              'evidenceSha256',
+              'result',
+            ]);
+            exactKeys(final, [
+              'schemaVersion',
+              'engine',
+              'deploymentId',
+              'backendIdentity',
+              'configurationSha256',
+              'providerLockSha256',
+              'planSha256',
+              'changes',
+              'noChanges',
+            ]);
+            if (
+              final.schemaVersion !== 1 ||
+              final.engine !== 'terraform' ||
+              final.deploymentId !== deployment.deploymentId ||
+              !sha(final.planSha256) ||
+              !Array.isArray(final.changes) ||
+              final.changes.length !== 0
+            )
+              throw Error('Azure upgrade final plan provenance differs');
+            const proof = object(retirement.appliedJournal),
+              action = object(await store.read(`${upgrade.planId}-action-plan.json`)),
+              envelope = {
+                schemaVersion: 2,
+                kind: 'azure-terraform-upgrade-stage-retirement',
+                externalEvidenceSha256: retirement.externalEvidenceSha256,
+                sourcePlanSha256: base.planSha256,
+                upgradePlanSha256: upgrade.planSha256,
+                deploymentSha256: canonicalSha256(deployment),
+                appliedJournalSha256: canonicalSha256(proof),
+                receiptSha256: canonicalSha256(final),
+              };
+            exactKeys(proof, [
+              'schemaVersion',
+              'scope',
+              'sourcePlanSha256',
+              'upgradePlanSha256',
+              'site',
+              'contractFingerprint',
+              'actionReceiptSha256',
+              'manifestSha256',
+              'files',
+              'rootIdentity',
+              'history',
+              'historySha256',
+              'journalCustodyQualified',
+              'applicationOutcomeQualified',
+              'retirementQualified',
+              'currentOperationalAcceptanceQualified',
+            ]);
+            if (
+              !sha(retirement.externalEvidenceSha256) ||
+              retirement.appliedJournalSha256 !== canonicalSha256(proof) ||
+              canonicalSha256(retirement.retirementEvidence) !== canonicalSha256(envelope) ||
+              stageEvidenceSha256 !== canonicalSha256(envelope) ||
+              proof.schemaVersion !== 1 ||
+              proof.scope !== 'azure-terraform-upgrade-applied-journal-custody' ||
+              proof.sourcePlanSha256 !== base.planSha256 ||
+              proof.upgradePlanSha256 !== upgrade.planSha256 ||
+              canonicalSha256(proof.site) !==
+                canonicalSha256({
+                  siteUid: object(upgrade.expectation).siteUid,
+                  physicalSiteUid: object(upgrade.expectation).physicalSiteUid,
+                  siteContractFingerprint: object(upgrade.expectation).siteContractFingerprint,
+                }) ||
+              proof.contractFingerprint !== object(upgrade.expectation).contractFingerprint ||
+              proof.manifestSha256 !== canonicalSha256(manifest) ||
+              proof.actionReceiptSha256 !== canonicalSha256(action) ||
+              proof.historySha256 !== canonicalSha256(proof.history) ||
+              proof.journalCustodyQualified !== true ||
+              proof.applicationOutcomeQualified !== false ||
+              proof.retirementQualified !== false ||
+              proof.currentOperationalAcceptanceQualified !== false ||
+              !Array.isArray(proof.files)
+            )
+              throw Error('Azure upgrade retained custody provenance differs');
+            verifyAzureTerraformUpgradeAppliedJournalHistory(
+              proof.history,
+              action as unknown as PlanReceipt,
+              canonicalSha256(manifest),
+            );
+            const root = await lstat(store.directory),
+              names = (await readdir(store.directory))
+                .filter(
+                  (name) =>
+                    (name.startsWith('azure-ce-upgrade-') || name === 'terraform-ce-upgrade-serial.json') &&
+                    !name.endsWith('-stage-retirement.json'),
+                )
+                .sort();
+            if (
+              proof.rootIdentity !== `${root.dev}:${root.ino}:${root.birthtimeMs}` ||
+              canonicalSha256(proof.files.map((raw) => object(raw).path).sort()) !== canonicalSha256(names)
+            )
+              throw Error('Azure upgrade retained root provenance differs');
+            for (const raw of proof.files) {
+              const retained = object(raw);
+              exactKeys(retained, ['path', 'identity', 'bytesSha256', 'packetSha256']);
+              if (typeof retained.path !== 'string' || !names.includes(retained.path))
+                throw Error('Azure upgrade retained file provenance differs');
+              const native = await readAzureTerraformParentPrivateFile(join(store.directory, retained.path), signal);
+              if (
+                native.identity !== retained.identity ||
+                hash(native.bytes) !== retained.bytesSha256 ||
+                canonicalSha256(parseArtifact(native.bytes)) !== retained.packetSha256
+              )
+                throw Error('Azure upgrade retained file provenance differs');
+            }
+            const result = object(retirement.result);
+            exactKeys(result, [
+              'status',
+              'manifestSha256',
+              'evidenceSha256',
+              'finalPlanSha256',
+              'inventorySha256',
+              'retiredArtifacts',
+              'independentCleanupSha256',
+            ]);
+            for (const key of [
+              'manifestSha256',
+              'evidenceSha256',
+              'finalPlanSha256',
+              'inventorySha256',
+              'independentCleanupSha256',
+            ])
+              if (result[key] !== marker[key]) throw Error('Azure upgrade runner retirement provenance differs');
+            if (
+              result.status !== 'runner-artifacts-retired' ||
+              !Array.isArray(marker.artifacts) ||
+              result.retiredArtifacts !== marker.artifacts.length
+            )
+              throw Error('Azure upgrade runner retirement provenance differs');
+          }
           if (
             typeof configuration !== 'string' ||
             typeof providerLock !== 'string' ||
@@ -346,13 +504,13 @@ export async function retireAzureTerraformParentArtifacts(
                 configurationSha256: hash(configuration),
                 providerLockSha256: hash(providerLock),
               }) ||
-            retirement.schemaVersion !== 1 ||
+            retirement.schemaVersion !== (failover ? 1 : 2) ||
             retirement.status !== 'retired' ||
             canonicalSha256(retirement.owner) !== canonicalSha256(binding.owner) ||
             retirement.sourcePlanSha256 !== base.planSha256 ||
             (failover ? retirement.failoverPlanSha256 : retirement.upgradePlanSha256) !== upgrade.planSha256 ||
             retirement.deploymentSha256 !== canonicalSha256(deployment) ||
-            retirement.evidenceSha256 !== evidenceSha256 ||
+            retirement.evidenceSha256 !== stageEvidenceSha256 ||
             retirement.receiptSha256 !== canonicalSha256(final) ||
             final.noChanges !== true ||
             final.backendIdentity !== manifest.backendIdentity ||
@@ -361,7 +519,7 @@ export async function retireAzureTerraformParentArtifacts(
             marker.schemaVersion !== 1 ||
             marker.status !== 'runner-artifacts-retired' ||
             marker.manifestSha256 !== canonicalSha256(manifest) ||
-            marker.evidenceSha256 !== evidenceSha256 ||
+            marker.evidenceSha256 !== stageEvidenceSha256 ||
             marker.finalPlanSha256 !== final.planSha256 ||
             marker.planReceiptSha256 !== canonicalSha256(final) ||
             !Array.isArray(marker.artifacts) ||
@@ -372,7 +530,7 @@ export async function retireAzureTerraformParentArtifacts(
             marker.independentCleanup,
             {
               manifestSha256: canonicalSha256(manifest),
-              evidenceSha256,
+              evidenceSha256: String(stageEvidenceSha256),
               finalPlanSha256: String(final.planSha256),
               planReceiptSha256: canonicalSha256(final),
             },
