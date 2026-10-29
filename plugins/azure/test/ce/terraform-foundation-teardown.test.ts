@@ -24,6 +24,7 @@ import {
   type AzureFoundationTeardownPlan,
   runAzureFoundationTeardown,
 } from '../../src/ce/terraform-foundation-teardown';
+import { publishAzureTerraformOriginalReceipt } from '../../src/ce/terraform-original-receipt-inventory';
 import { assertAzureTerraformDeploymentActive } from '../../src/ce/terraform-retirement';
 import { prepareAzureTerraformTeardown, runAzureTerraformTeardown } from '../../src/ce/terraform-teardown';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
@@ -103,6 +104,50 @@ async function fixture(version = '1.16.5') {
   };
   return { plan, store, deployment, runner, runtime, api, observations: () => observations };
 }
+async function originalFoundationReceipt(f: Awaited<ReturnType<typeof fixture>>) {
+  return publishAzureTerraformOriginalReceipt(
+    {
+      plan: f.plan,
+      bootstrapByNode: {},
+      stage: { kind: 'foundation' },
+      receipt: {
+        schemaVersion: 1,
+        engine: 'terraform',
+        deploymentId: f.plan.deploymentName,
+        backendIdentity: `local:${f.plan.deploymentName}`,
+        configurationSha256: hash(f.deployment.configuration),
+        providerLockSha256: hash(f.deployment.providerLock),
+        planSha256: hash('failed-foundation-native-plan'),
+        changes: [{ address: 'azurerm_resource_group.ce', type: 'azurerm_resource_group', actions: ['create'] }],
+        noChanges: false,
+      },
+    },
+    f.store,
+  );
+}
+test('retires pre-admission foundation with authenticated original receipt metadata', async () => {
+  const f = await fixture();
+  await originalFoundationReceipt(f);
+  const teardown = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
+  expect(teardown.kind).toBe('azure-ce-terraform-foundation-teardown');
+  expect(teardown.retirement).toEqual([]);
+  expect(f.observations()).toBeGreaterThanOrEqual(2);
+});
+test('rejects incomplete original receipt namespace before foundation retirement', async () => {
+  const f = await fixture();
+  await originalFoundationReceipt(f);
+  await Bun.write(join(f.store.directory, 'terraform-original-deployment-receipts', 'incomplete.pending'), 'partial');
+  await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+});
+test('rejects foreign original receipt metadata before foundation retirement', async () => {
+  const f = await fixture();
+  const receipt = await originalFoundationReceipt(f);
+  const path = join(f.store.directory, 'terraform-original-deployment-receipts', receipt.name);
+  const record = await Bun.file(path).json();
+  record.ownerSha256 = hash('foreign-owner');
+  await Bun.write(path, JSON.stringify(record));
+  await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+});
 test('prepares exact pre-admission Azure retirement without a registered site', async () => {
   const f = await fixture();
   const teardown = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
