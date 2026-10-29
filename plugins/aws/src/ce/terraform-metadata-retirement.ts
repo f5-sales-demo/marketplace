@@ -112,6 +112,7 @@ interface Checkpoint {
   completed: string[];
   pending: { id: string; tags: Tag[]; requestSha256: string } | null;
   phase: 'retiring' | 'retired';
+  regional?: { completed: string[]; pending: { id: string; tags: Tag[]; requestSha256: string } | null };
 }
 type Store = Pick<CeDeploymentStore, 'owner' | 'verify' | 'read' | 'write'>;
 async function optional(store: Store, name: string): Promise<unknown> {
@@ -138,6 +139,7 @@ export async function retireAwsTerraformMetadata(
   await store.verify();
   if (
     plan.engine !== 'terraform' ||
+    !['aws', 'aws-us-gov', 'aws-cn'].includes(plan.intent.partition) ||
     canonicalSha256(store.owner) !== canonicalSha256(siteBindings(plan)[0].binding.owner)
   )
     throw Error('Metadata retirement owner or engine differs');
@@ -297,6 +299,92 @@ export async function retireAwsTerraformMetadata(
     for (const row of metadata) result.set(row.id, await currentTags(row, found));
     return result;
   };
+  const regionalArn = (row: AwsTerraformMetadataIdentity) =>
+    `arn:${plan.intent.partition}:ec2:${plan.intent.region}:${plan.intent.accountId}:${resourceTypes[row.type]}/${row.id}`;
+  const regionalByArn = new Map(metadata.map((row) => [regionalArn(row), row]));
+  const regionalPages = async (args: Json, paginate: boolean) => {
+    const result: Json[] = [],
+      seen = new Set<string>();
+    let token: string | undefined;
+    do {
+      const page = await request('resourcegroupstaggingapi', 'get-resources', {
+        ...args,
+        ...(token ? { PaginationToken: token } : {}),
+      });
+      if (
+        ['NextToken', 'NextMarker', 'nextToken', 'Marker', 'nextLink', 'errors', 'error'].some(
+          (key) => page[key] !== undefined && page[key] !== null && page[key] !== '',
+        )
+      )
+        throw Error('Incomplete regional metadata response');
+      result.push(...rows(page.ResourceTagMappingList));
+      if (result.length > 10000) throw Error('Regional metadata evidence exceeds bound');
+      const next = page.PaginationToken;
+      if (next === undefined || next === null || next === '') token = undefined;
+      else {
+        if (!paginate || typeof next !== 'string' || seen.has(next) || seen.size >= 1000)
+          throw Error('Incomplete regional metadata pagination');
+        seen.add(next);
+        token = next;
+      }
+    } while (token);
+    return result;
+  };
+  const regionalProjection = (values: Json[], selected?: Set<string>) => {
+    const result = new Map<string, Tag[]>();
+    for (const value of values) {
+      const original = typeof value.ResourceARN === 'string' ? regionalByArn.get(value.ResourceARN) : undefined;
+      if (!original || (selected && !selected.has(value.ResourceARN as string)) || result.has(original.id))
+        throw Error('Regional metadata has unknown, substituted or duplicate original identity');
+      const seen = new Set<string>(),
+        projection: Tag[] = [];
+      for (const tag of rows(value.Tags)) {
+        if (typeof tag.Key !== 'string' || typeof tag.Value !== 'string' || seen.has(tag.Key))
+          throw Error('Malformed or duplicate regional metadata tags');
+        seen.add(tag.Key);
+        if (keys.has(tag.Key)) {
+          if (!original.tags.some((expected) => expected.Key === tag.Key && expected.Value === tag.Value))
+            throw Error('Regional ownership metadata is foreign to original intent');
+          projection.push({ Key: tag.Key, Value: tag.Value });
+        }
+      }
+      result.set(
+        original.id,
+        projection.sort((a, b) => a.Key.localeCompare(b.Key)),
+      );
+    }
+    return result;
+  };
+  // The original authenticated inventory defines expected coverage. Filtered discovery only
+  // detects foreign/unknown origins; per-original-ARN reads also catch partially removed tags.
+  const allRegionalTags = async () => {
+    const filtered = regionalProjection(
+      await regionalPages(
+        {
+          TagFilters: [{ Key: 'xcsh-deployment-id', Values: [plan.intent.deploymentName] }],
+        },
+        true,
+      ),
+    );
+    for (const tags of filtered.values())
+      if (!tags.some((tag) => tag.Key === 'xcsh-deployment-id' && tag.Value === plan.intent.deploymentName))
+        throw Error('Regional ownership filter returned incomplete identity');
+    const result = new Map<string, Tag[]>(metadata.map((row) => [row.id, []]));
+    const arns = [...regionalByArn.keys()];
+    for (let index = 0; index < arns.length; index += 100) {
+      const selected = arns.slice(index, index + 100);
+      const captured = regionalProjection(await regionalPages({ ResourceARNList: selected }, false), new Set(selected));
+      for (const [id, tags] of captured) result.set(id, tags);
+    }
+    for (const [id, tags] of filtered)
+      if (canonicalSha256(tags) !== canonicalSha256(result.get(id)))
+        throw Error('Regional metadata changed or discovery was partial');
+    return result;
+  };
+  const regionalRequest = (row: AwsTerraformMetadataIdentity, tags: Tag[]) => ({
+    ResourceARNList: [regionalArn(row)],
+    TagKeys: tags.map((tag) => tag.Key).sort(),
+  });
   const absent = async () => {
     const result = await collectAwsTerraformAbsence(plan, inventory, raw, signal);
     if (result.status !== 'absent-or-retired') throw Error('Current complete cloud retirement unavailable');
@@ -364,6 +452,7 @@ export async function retireAwsTerraformMetadata(
   await knownDeploymentTags();
   // Validate every current identity before the first mutation, including foreign/duplicate tags.
   const initialTags = await allCurrentTags();
+  await allRegionalTags();
   const binding = {
     schemaVersion: 1 as const,
     engine: 'terraform' as const,
@@ -399,6 +488,38 @@ export async function retireAwsTerraformMetadata(
     )
       throw Error('Original pending metadata request differs');
   }
+  if (checkpoint.regional === undefined) {
+    if (checkpoint.phase === 'retired') throw Error('Retired metadata checkpoint lacks original regional proof');
+    checkpoint.regional = { completed: [], pending: null };
+    await store.write(checkpointName, checkpoint);
+  }
+  const regional = checkpoint.regional;
+  if (
+    !regional ||
+    Object.keys(regional).sort().join(',') !== 'completed,pending' ||
+    !Array.isArray(regional.completed) ||
+    new Set(regional.completed).size !== regional.completed.length ||
+    regional.completed.some((id) => !ids.has(id)) ||
+    (checkpoint.phase === 'retired' && (regional.pending !== null || regional.completed.length !== metadata.length))
+  )
+    throw Error('Original regional metadata checkpoint differs');
+  if (regional.pending !== null) {
+    const pending = regional.pending,
+      original = metadata.find((row) => row.id === pending?.id);
+    if (
+      !original ||
+      regional.completed.includes(pending.id) ||
+      Object.keys(pending).sort().join(',') !== 'id,requestSha256,tags' ||
+      !Array.isArray(pending.tags) ||
+      !pending.tags.length ||
+      new Set(pending.tags.map((tag) => tag.Key)).size !== pending.tags.length ||
+      pending.tags.some(
+        (tag) => !original.tags.some((expected) => canonicalSha256(expected) === canonicalSha256(tag)),
+      ) ||
+      pending.requestSha256 !== canonicalSha256(regionalRequest(original, pending.tags))
+    )
+      throw Error('Original pending regional metadata request differs');
+  }
   const save = () => store.write(checkpointName, checkpoint);
   for (const row of metadata) {
     const remaining = initialTags.get(row.id);
@@ -427,6 +548,42 @@ export async function retireAwsTerraformMetadata(
     checkpoint.pending = null;
     await save();
   }
+  let regionalCurrent = await allRegionalTags();
+  for (const row of metadata) {
+    const remaining = regionalCurrent.get(row.id);
+    if (!remaining) throw Error('Original regional batch identity unavailable');
+    if (regional.completed.includes(row.id)) {
+      if (remaining.length) throw Error('Previously retired regional metadata has reappeared');
+      continue;
+    }
+    if (regional.pending && regional.pending.id !== row.id) throw Error('Regional metadata replay order differs');
+    if (remaining.length) {
+      const submitted = regional.pending?.tags ?? remaining;
+      const args = regionalRequest(row, submitted);
+      if (!regional.pending) {
+        regional.pending = { id: row.id, tags: submitted, requestSha256: canonicalSha256(args) };
+        await save();
+      }
+      await absent();
+      await retiredIdentity(row);
+      regionalCurrent = await allRegionalTags();
+      // UntagResources has no value-conditional write. Use it only after the original
+      // resource is absent/terminal and every fresh ownership value matches custody.
+      if (regionalCurrent.get(row.id)?.length) {
+        const response = await request('resourcegroupstaggingapi', 'untag-resources', args);
+        const failed = object(response.FailedResourcesMap);
+        if (Object.keys(failed).length) throw Error('Regional metadata untagging reported failed resources');
+        regionalCurrent = await allRegionalTags();
+        if (regionalCurrent.get(row.id)?.length)
+          throw Error('Regional metadata deletion acknowledged without verified retirement');
+      }
+    }
+    regional.completed.push(row.id);
+    regional.pending = null;
+    await save();
+  }
+  if ([...(await allRegionalTags()).values()].some((tags) => tags.length))
+    throw Error('Regional ownership metadata remains');
   await absent();
   if ((await knownDeploymentTags()).length) throw Error('Ownership metadata inventory remains');
   if ([...(await allCurrentTags())].some(([, tags]) => tags.length)) throw Error('Ownership metadata remains');

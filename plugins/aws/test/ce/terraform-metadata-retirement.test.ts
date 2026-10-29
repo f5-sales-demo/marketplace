@@ -24,6 +24,7 @@ async function fixture() {
   const { planId: _id, planSha256: _sha, ...draft } = initial;
   const normalized = {
     ...draft,
+    intent: { ...draft.intent, partition: 'aws' as const },
     deploymentName: initial.intent.deploymentName,
     accountId: initial.intent.accountId,
     region: initial.intent.region,
@@ -76,6 +77,12 @@ async function fixture() {
     phase: 'retired',
   });
   const current = new Map(inventory.metadata.map((row) => [row.id, structuredClone(row.tags)]));
+  const regional = new Map<string, { Key: string; Value: string }[]>();
+  const regionalMutations: { ResourceARNList: string[]; TagKeys: string[] }[] = [];
+  let regionalFailure: 'none' | 'before' | 'after' | 'ack-only' | 'failed-map' = 'none';
+  let regionalPage: unknown;
+  const arn = (id: string) =>
+    `arn:aws:ec2:${plan.intent.region}:${plan.intent.accountId}:${id.startsWith('i-') ? 'instance' : 'subnet'}/${id}`;
   let account = plan.intent.accountId,
     state = 'terminated',
     error = '',
@@ -96,10 +103,52 @@ async function fixture() {
       let response: unknown;
       if (op === 'get-caller-identity') response = { Account: account };
       else if (op === 'describe-instances')
-        response = { Reservations: [{ Instances: [{ InstanceId: 'i-12345678', State: { Name: state } }] }] };
+        response = {
+          Reservations:
+            state === 'absent' ? [] : [{ Instances: [{ InstanceId: 'i-12345678', State: { Name: state } }] }],
+        };
       else if (op === 'describe-subnets') response = { Subnets: [] };
-      else if (op === 'get-resources') response = { ResourceTagMappingList: [] };
-      else if (op === 'describe-tags') {
+      else if (op === 'get-resources')
+        response = regionalPage ?? {
+          ResourceTagMappingList: [...regional]
+            .filter(([id, tags]) =>
+              input.ResourceARNList
+                ? input.ResourceARNList.includes(arn(id))
+                : tags.some((tag) => tag.Key === 'xcsh-deployment-id' && tag.Value === plan.intent.deploymentName),
+            )
+            .map(([id, Tags]) => ({ ResourceARN: arn(id), Tags })),
+        };
+      else if (op === 'untag-resources') {
+        regionalMutations.push(structuredClone(input));
+        if (regionalFailure === 'before') {
+          regionalFailure = 'none';
+          return { exitCode: 1, stdout: '', stderr: 'request timed out' };
+        }
+        if (regionalFailure === 'failed-map')
+          response = {
+            FailedResourcesMap: {
+              [input.ResourceARNList[0]]: {
+                StatusCode: 403,
+                ErrorCode: 'AccessDeniedException',
+                ErrorMessage: 'denied',
+              },
+            },
+          };
+        else {
+          if (regionalFailure !== 'ack-only')
+            for (const [id, tags] of regional)
+              if (input.ResourceARNList.includes(arn(id)))
+                regional.set(
+                  id,
+                  tags.filter((tag) => !input.TagKeys.includes(tag.Key)),
+                );
+          if (regionalFailure === 'after') {
+            regionalFailure = 'none';
+            return { exitCode: 1, stdout: '', stderr: 'request timed out' };
+          }
+          response = { FailedResourcesMap: {} };
+        }
+      } else if (op === 'describe-tags') {
         const selected = input.Filters?.find((f: { Name: string }) => f.Name === 'resource-id')?.Values;
         const rows = [...current]
           .filter(([id]) => !selected || selected.includes(id))
@@ -148,6 +197,15 @@ async function fixture() {
     store,
     inventory,
     current,
+    regional,
+    regionalMutations,
+    arn,
+    setRegionalFailure: (value: typeof regionalFailure) => {
+      regionalFailure = value;
+    },
+    setRegionalPage: (value: unknown) => {
+      regionalPage = value;
+    },
     mutations,
     reads,
     api,
@@ -436,3 +494,207 @@ test('captures an attached volume through its original instance and refuses dupl
   disks.push({ Ebs: { VolumeId: 'vol-12345678' } });
   await expect(run()).rejects.toThrow('Ambiguous attached volume');
 });
+
+test('retires a stale regional entry for the original absent instance and preserves unrelated keys', async () => {
+  const f = await fixture();
+  f.current.clear();
+  f.setState('absent');
+  f.regional.set('i-12345678', [
+    ...structuredClone(f.inventory.metadata[0].tags),
+    { Key: 'customer-label', Value: 'preserve' },
+  ]);
+  expect((await f.run()).status).toBe('metadata-retired');
+  expect(f.mutations).toHaveLength(0);
+  expect(f.regionalMutations).toEqual([
+    { ResourceARNList: [f.arn('i-12345678')], TagKeys: f.inventory.metadata[0].tags.map((t) => t.Key).sort() },
+  ]);
+  expect(f.regional.get('i-12345678')).toEqual([{ Key: 'customer-label', Value: 'preserve' }]);
+  const count = f.regionalMutations.length;
+  const checkpoint = await f.store.read('aws-terraform-metadata-retirement.json');
+  await f.run();
+  expect(f.regionalMutations).toHaveLength(count);
+  expect(await f.store.read('aws-terraform-metadata-retirement.json')).toEqual(checkpoint);
+});
+
+for (const scenario of [
+  'unknown-id',
+  'foreign-account',
+  'foreign-region',
+  'wrong-type',
+  'duplicate-row',
+  'duplicate-key',
+  'foreign-value',
+  'malformed',
+  'partial',
+  'missing-map',
+]) {
+  test(`refuses regional ${scenario} before any metadata mutation`, async () => {
+    const f = await fixture();
+    const row = { ResourceARN: f.arn('i-12345678'), Tags: structuredClone(f.inventory.metadata[0].tags) };
+    if (scenario === 'unknown-id') row.ResourceARN = f.arn('i-87654321');
+    if (scenario === 'foreign-account')
+      row.ResourceARN = row.ResourceARN.replace(f.plan.intent.accountId, '000000000000');
+    if (scenario === 'foreign-region') row.ResourceARN = row.ResourceARN.replace(f.plan.intent.region, 'us-west-2');
+    if (scenario === 'wrong-type') row.ResourceARN = row.ResourceARN.replace(':instance/', ':subnet/');
+    if (scenario === 'duplicate-key') row.Tags.push({ ...row.Tags[0] });
+    if (scenario === 'foreign-value') row.Tags[0].Value = 'foreign';
+    const page: Record<string, unknown> = { ResourceTagMappingList: scenario === 'duplicate-row' ? [row, row] : [row] };
+    if (scenario === 'malformed') page.ResourceTagMappingList = null;
+    if (scenario === 'partial') page.PaginationToken = 13;
+    if (scenario === 'missing-map') delete page.ResourceTagMappingList;
+    f.setRegionalPage(page);
+    await expect(f.run()).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+    expect(f.regionalMutations).toHaveLength(0);
+  });
+}
+
+for (const mode of ['before', 'after'] as const)
+  test(`replays regional ${mode} ambiguity from durable original intent`, async () => {
+    const f = await fixture();
+    f.current.clear();
+    f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+    f.setRegionalFailure(mode);
+    await expect(f.run()).rejects.toThrow();
+    const pending = (await f.store.read('aws-terraform-metadata-retirement.json')) as {
+      regional?: { pending: unknown };
+    };
+    expect(pending.regional?.pending).not.toBeNull();
+    expect((await f.run()).status).toBe('metadata-retired');
+    expect(f.regionalMutations).toHaveLength(mode === 'after' ? 1 : 2);
+    if (mode === 'before') expect(f.regionalMutations[0]).toEqual(f.regionalMutations[1]);
+  });
+
+for (const mode of ['ack-only', 'failed-map'] as const)
+  test(`regional ${mode} cannot qualify retirement`, async () => {
+    const f = await fixture();
+    f.current.clear();
+    f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+    f.setRegionalFailure(mode);
+    await expect(f.run()).rejects.toThrow();
+    expect(f.regionalMutations).toHaveLength(1);
+    const saved = (await f.store.read('aws-terraform-metadata-retirement.json')) as {
+      phase: string;
+      regional?: { pending: unknown };
+    };
+    expect(saved.phase).toBe('retiring');
+    expect(saved.regional?.pending).not.toBeNull();
+  });
+
+test('rejects changed regional ownership after an interrupted submission', async () => {
+  const f = await fixture();
+  f.current.clear();
+  f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+  f.setRegionalFailure('before');
+  await expect(f.run()).rejects.toThrow();
+  const current = f.regional.get('i-12345678');
+  if (!current?.length) throw Error('Original regional test tags unavailable');
+  current[0].Value = 'foreign';
+  await expect(f.run()).rejects.toThrow();
+  expect(f.regionalMutations).toHaveLength(1);
+});
+
+test('stores regional intent before submission and rejects failed persistence', async () => {
+  const f = await fixture();
+  f.current.clear();
+  f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+  const write = f.store.write.bind(f.store);
+  f.store.write = async (name, value) => {
+    if (
+      name === 'aws-terraform-metadata-retirement.json' &&
+      (value as { regional?: { pending: unknown } }).regional?.pending
+    )
+      throw Error('regional intent interrupted');
+    return write(name, value);
+  };
+  await expect(f.run()).rejects.toThrow('regional intent interrupted');
+  expect(f.regionalMutations).toHaveLength(0);
+});
+
+for (const body of [null, [], undefined])
+  test(`rejects invalid failed-resource map ${String(body)}`, async () => {
+    const f = await fixture();
+    f.current.clear();
+    f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+    const exec = f.api.exec.bind(f.api);
+    f.api.exec = async (command, args, options) => {
+      if (args[1] === 'untag-resources')
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(body === undefined ? {} : { FailedResourcesMap: body }),
+          stderr: '',
+        };
+      return exec(command, args, options);
+    };
+    await expect(f.run()).rejects.toThrow();
+    expect(((await f.store.read('aws-terraform-metadata-retirement.json')) as { phase: string }).phase).toBe(
+      'retiring',
+    );
+  });
+
+test('rejects repeated regional pagination tokens before mutation', async () => {
+  const f = await fixture();
+  f.setRegionalPage({ ResourceTagMappingList: [], PaginationToken: 'repeated' });
+  await expect(f.run()).rejects.toThrow();
+  expect(f.mutations).toHaveLength(0);
+  expect(f.regionalMutations).toHaveLength(0);
+});
+
+test('rejects a partial original-ARN batch before mutation', async () => {
+  const f = await fixture();
+  const exec = f.api.exec.bind(f.api);
+  f.api.exec = async (command, args, options) => {
+    const result = await exec(command, args, options);
+    if (args[1] === 'get-resources' && JSON.parse(args[args.indexOf('--cli-input-json') + 1]).ResourceARNList)
+      return { ...result, stdout: JSON.stringify({ ResourceTagMappingList: [], PaginationToken: 'partial' }) };
+    return result;
+  };
+  await expect(f.run()).rejects.toThrow();
+  expect(f.mutations).toHaveLength(0);
+  expect(f.regionalMutations).toHaveLength(0);
+});
+
+test('rejects a forged regional request digest on replay', async () => {
+  const f = await fixture();
+  f.current.clear();
+  f.regional.set('i-12345678', structuredClone(f.inventory.metadata[0].tags));
+  f.setRegionalFailure('before');
+  await expect(f.run()).rejects.toThrow();
+  const saved = (await f.store.read('aws-terraform-metadata-retirement.json')) as {
+    regional: { pending: { requestSha256: string } };
+  };
+  saved.regional.pending.requestSha256 = 'f'.repeat(64);
+  await f.store.write('aws-terraform-metadata-retirement.json', saved);
+  await expect(f.run()).rejects.toThrow('pending regional');
+  expect(f.regionalMutations).toHaveLength(1);
+});
+
+test('unresolved execution partition cannot mutate metadata', async () => {
+  const f = await fixture();
+  const { planId: _id, planSha256: _sha, ...base } = structuredClone(f.plan);
+  const input = { ...base, intent: { ...base.intent, partition: undefined } };
+  const hash = canonicalSha256(input);
+  const plan = { ...input, planId: `aws-ce-${hash.slice(0, 24)}`, planSha256: hash };
+  await expect(retireAwsTerraformMetadata(plan as unknown as typeof f.plan, f.store, f.api)).rejects.toThrow();
+  expect(f.mutations).toHaveLength(0);
+  expect(f.regionalMutations).toHaveLength(0);
+});
+
+for (const kind of ['missing', 'partial'])
+  test(`retired regional ${kind} proof cannot be repaired by mutating sealed custody`, async () => {
+    const f = await fixture();
+    await f.run();
+    const saved = (await f.store.read('aws-terraform-metadata-retirement.json')) as {
+      regional?: { completed: string[]; pending: unknown };
+    };
+    if (kind === 'missing') delete saved.regional;
+    else {
+      if (!saved.regional) throw Error('Original regional custody missing');
+      saved.regional.completed = [];
+    }
+    await f.store.write('aws-terraform-metadata-retirement.json', saved);
+    const count = f.mutations.length;
+    await expect(f.run()).rejects.toThrow();
+    expect(f.mutations).toHaveLength(count);
+    expect(await f.store.read('aws-terraform-metadata-retirement.json')).toEqual(saved);
+  });
