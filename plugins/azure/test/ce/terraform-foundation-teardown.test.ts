@@ -183,6 +183,31 @@ test('accepts independently absent Azure group only for an exact empty destroy p
   ).toMatchObject({ resourceCount: 0 });
 });
 
+test('accepts an output-only destroy without treating it as a no-change plan', async () => {
+  const f = await fixture();
+  const receipt: PlanReceipt = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    deploymentId: f.plan.deploymentName,
+    backendIdentity: `local:${f.plan.deploymentName}`,
+    operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('output-only-destroy'),
+    changes: [],
+    noChanges: false,
+  };
+  expect(
+    await verifyAzureTerraformDestroyOwnership(
+      f.plan,
+      receipt,
+      { readPlannedResourceFields: async () => ({ 'azurerm_resource_group.ce': null }) },
+      f.api,
+      {},
+    ),
+  ).toMatchObject({ resourceCount: 0 });
+  expect(receipt.noChanges).toBe(false);
+});
 for (const [label, change] of [
   ['unknown', { status: 'unknown' }],
   ['foreign owner', { owner: { deploymentId: 'foreign' } }],
