@@ -832,6 +832,7 @@ try {
     const invoke = async (bootstrap = false) => {
       const root = original.storage.directory.slice(0, original.storage.directory.lastIndexOf('/'));
       const child = Bun.spawn([process.execPath, '--eval', worker], {
+        cwd: import.meta.dir,
         stdin: new Blob([
           JSON.stringify({
             root,

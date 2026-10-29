@@ -1,4 +1,4 @@
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureNetworkUpdateInventory } from './network-update';
 import { validateAzureNetworkUpdateInventory } from './network-update';
 import type { observeAzureTerraformNetworkPower } from './terraform-network-power';
@@ -9,7 +9,7 @@ import {
 import type { collectAzureTerraformNetworkRoutingConfiguration } from './terraform-network-routing-observation';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network routing observation validation: ${message}`);
 }

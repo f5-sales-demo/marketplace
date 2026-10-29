@@ -1,5 +1,5 @@
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { verifyAzureTerraformNetworkReplacementProfile } from './terraform-network-replacement-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -16,7 +16,7 @@ export interface AzureTerraformNetworkProfile {
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network plan: ${message}`);
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 /** Explicitly permit subnet selection changes while retaining all other CE/provider intent. */

@@ -61,7 +61,7 @@ export async function collectAzureNetworkOperationalIdentity(
     instances[name] = vm.vmId;
     for (const [index, nic] of Object.entries(vm.nics)) {
       const role = plan.nics.find((n) => n.index === Number(index))?.role;
-      require(role === 'slo' || role === 'sli', 'complete SLO/SLI role scope required');
+      require(role === 'slo' || role === 'data' || role === 'sli', 'complete configured interface role scope required');
       interfaces.push({ node: name, role, mac: nic.mac });
     }
   }

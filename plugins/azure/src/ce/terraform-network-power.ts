@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { renderTerraformConfigurationJson } from '../../../terraform/src/configuration-json';
 import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   captureAzureNetworkUpdateInventory,
@@ -18,7 +18,7 @@ type Operation = 'deallocate' | 'start';
 type Phase = 'mutation' | 'release' | 'final';
 const address = 'azapi_resource_action.ce_network';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network power: ${message}`);
 }

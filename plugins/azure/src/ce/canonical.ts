@@ -115,26 +115,38 @@ export function canonicalEqual(left: unknown, right: unknown): boolean {
     const prototype = Object.getPrototypeOf(value);
     if (Array.isArray(value) ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null)
       return false;
-    if (ancestry.has(value) || 'toJSON' in value || Object.getOwnPropertySymbols(value).length) return false;
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    if (Object.hasOwn(descriptors, '__proto__')) return false;
-    for (const descriptor of Object.values(descriptors)) {
-      if (!Object.hasOwn(descriptor, 'value')) return false;
+    if (ancestry.has(value) || 'toJSON' in value) return false;
+    const array = Array.isArray(value);
+    const descriptors: PropertyDescriptor[] = [];
+    let arrayDescriptors: Record<string, PropertyDescriptor> | undefined;
+    if (array) {
+      if (Object.getOwnPropertySymbols(value).length) return false;
+      arrayDescriptors = Object.getOwnPropertyDescriptors(value);
+      if (Object.hasOwn(arrayDescriptors, '__proto__')) return false;
+      for (const descriptor of Object.values(arrayDescriptors)) {
+        if (!Object.hasOwn(descriptor, 'value')) return false;
+      }
+    } else {
+      for (const key of Reflect.ownKeys(value)) {
+        if (typeof key === 'symbol' || key === '__proto__') return false;
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !Object.hasOwn(descriptor, 'value')) return false;
+        descriptors.push(descriptor);
+      }
     }
     ancestry.add(value);
     let valid = true;
-    if (Array.isArray(value)) {
-      // map overrides and inherited array entries change the legacy serializer.
-      for (const key of Object.keys(descriptors)) {
+    if (array) {
+      for (const key of Object.keys(arrayDescriptors as Record<string, PropertyDescriptor>)) {
         if (key !== 'length' && !/^(0|[1-9][0-9]*)$/.test(key)) valid = false;
       }
       for (let index = 0; index < value.length; index++) {
-        const descriptor = descriptors[String(index)];
+        const descriptor = (arrayDescriptors as Record<string, PropertyDescriptor>)[String(index)];
         if (!descriptor && index in value) valid = false;
         if (descriptor?.value !== undefined && !ordinary(descriptor.value, ancestry)) valid = false;
       }
     } else {
-      for (const descriptor of Object.values(descriptors)) {
+      for (const descriptor of descriptors) {
         if (descriptor.enumerable && descriptor.value !== undefined && !ordinary(descriptor.value, ancestry))
           valid = false;
       }

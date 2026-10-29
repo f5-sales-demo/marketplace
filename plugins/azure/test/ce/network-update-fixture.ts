@@ -11,11 +11,18 @@ export function networkUpdateFixture(
   move = true,
   fakeReplacementOwner = true,
   routing?: AzureCeIntent['routing'],
+  threeNics = false,
 ) {
   const initial = structuredClone(intent);
   initial.engine = engine;
   initial.routing = routing ? structuredClone(routing) : { ...initial.routing, mode: 'udr' };
   initial.topology.ha = ha;
+  if (threeNics)
+    initial.nics.push({
+      name: 'data',
+      role: 'data',
+      subnet: { mode: 'greenfield', name: 'data', cidr: '10.20.3.0/24' },
+    });
   initial.nics.push({ name: 'sli', role: 'sli', subnet: { mode: 'greenfield', name: 'sli', cidr: '10.20.1.0/24' } });
   const observed = structuredClone(observation);
   observed.regions[0].quotaAvailable = 32;
@@ -44,13 +51,15 @@ export function networkUpdateFixture(
   for (let node = 1; node <= nodes.length; node++)
     for (const nic of original.nics) {
       const id = `/subscriptions/${original.subscription.id}/resourceGroups/${initial.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${nodes[node - 1]}-nic${nic.index}`;
+      const sourceSubnetCidr = nic.subnet.cidr;
+      if (!sourceSubnetCidr) throw Error('Synthetic NIC subnet CIDR is missing');
       const name = engine === 'terraform' ? 'primary' : 'ipconfig1';
       nics.set(id, {
         id,
         location: original.region,
         provisioningState: 'Succeeded',
         virtualMachine: { id: vmId(node) },
-        macAddress: `02:00:00:00:00:${(node * 2 + nic.index).toString(16).padStart(2, '0')}`,
+        macAddress: `02:00:00:00:00:${(node * original.nics.length + nic.index).toString(16).padStart(2, '0')}`,
         tags: tags(original.planSha256),
         ipConfigurations: [
           {
@@ -60,7 +69,7 @@ export function networkUpdateFixture(
             provisioningState: 'Succeeded',
             privateIPAddressVersion: 'IPv4',
             privateIPAllocationMethod: 'Dynamic',
-            privateIPAddress: `10.20.${nic.index}.${node + 4}`,
+            privateIPAddress: `${sourceSubnetCidr.split('.').slice(0, 3).join('.')}.${node + 4}`,
             subnet: { id: `${vnetId}/subnets/${nic.subnet.name}` },
           },
         ],
@@ -106,7 +115,14 @@ export function networkUpdateFixture(
     });
   const update = structuredClone(initial);
   update.operation = 'update-network';
-  if (move) update.nics[1].subnet = { mode: 'greenfield', name: 'updated-sli', cidr: '10.20.2.0/24' };
+  const movedSli = update.nics.find((nic) => nic.role === 'sli');
+  if (!movedSli) throw Error('Synthetic SLI fixture is missing');
+  if (move)
+    movedSli.subnet = {
+      mode: 'greenfield',
+      name: 'updated-sli',
+      cidr: '10.20.2.0/24',
+    };
   const plan = compileAzureCePlan(update, current);
   let cloudCalls = 0,
     mutations = 0;
@@ -137,7 +153,12 @@ export function networkUpdateFixture(
     },
   };
   const firstNic = nics.values().next().value as Record<string, unknown>;
-  const sliNic = [...nics.values()].find((nic) => String(nic.id).endsWith('-1-nic1')) as Record<string, unknown>;
+  const sliIndex = original.nics.find((nic) => nic.role === 'sli')?.index;
+  if (sliIndex === undefined) throw Error('Synthetic SLI index is missing');
+  const sliNic = [...nics.values()].find((nic) => String(nic.id).endsWith(`-1-nic${sliIndex}`)) as Record<
+    string,
+    unknown
+  >;
   const config = (nic: Record<string, unknown>) => (nic.ipConfigurations as Record<string, unknown>[])[0];
   const source = () => {
     if (engine !== 'terraform') throw Error('Terraform fixture source requires Terraform engine');

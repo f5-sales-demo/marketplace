@@ -15,8 +15,8 @@ type TestSite = {
   spec: Record<string, unknown>;
 };
 type Runtime = Parameters<typeof collectAzureNetworkOperationalIdentity>[2];
-async function fixture(ha = false) {
-  const f = networkUpdateFixture(ha, 'terraform', true, false);
+async function fixture(ha = false, threeNics = false) {
+  const f = networkUpdateFixture(ha, 'terraform', true, false, undefined, threeNics);
   const inventory = await captureAzureNetworkUpdateInventory(f.plan, f.api);
   const binding = azureUpgradeBinding(f.plan);
   const spec = { azure: { synthetic: true } };
@@ -80,7 +80,7 @@ async function fixture(ha = false) {
     },
     async observeAzureInterfaces(_binding: unknown, expected: ExpectedCeInterface[]) {
       state.calls.push('interfaces');
-      expect(expected).toHaveLength((ha ? 3 : 1) * 2);
+      expect(expected).toHaveLength((ha ? 3 : 1) * (threeNics ? 3 : 2));
       const value = {
         status: state.unknownLinks ? 'unknown' : state.down ? 'down' : 'observed',
         observedAt: '2020-01-01T00:00:00Z',
@@ -88,7 +88,7 @@ async function fixture(ha = false) {
           ? []
           : expected.map((row) => ({
               ...row,
-              device: row.role === 'slo' ? 'eth0' : 'eth1',
+              device: row.role === 'slo' ? 'eth0' : row.role === 'data' ? 'eth1' : threeNics ? 'eth2' : 'eth1',
               interfaceName: `${row.node}-${row.role}`,
               mtu: 1500,
               linkUp: !(state.down && row.role === 'sli' && row.node === binding.nodes[0]),
@@ -123,6 +123,50 @@ for (const ha of [false, true])
     expect(JSON.stringify(result)).not.toContain('2020-01-01');
     expect(f.mutations()).toBe(0);
   });
+for (const ha of [false, true])
+  test(`network identity retains all ${ha ? 'nine' : 'three'} MAC-bound interfaces in the Marketplace SLO/data/SLI layout`, async () => {
+    const f = await fixture(ha, true),
+      result = await f.run();
+    expect(result.status).toBe('observed');
+    expect(result.interfaces).toHaveLength((ha ? 3 : 1) * 3);
+    for (const node of f.nodes) {
+      const rows = result.interfaces.filter((row) => row.node === node);
+      expect(rows.map((row) => row.role)).toEqual(['slo', 'data', 'sli']);
+      expect(new Set(rows.map((row) => row.mac)).size).toBe(3);
+      expect(new Set(rows.map((row) => row.device)).size).toBe(3);
+    }
+    expect(result).toMatchObject({
+      operationalAcceptance: 'unknown',
+      freshness: 'unqualified',
+      nodeHealth: 'unknown',
+      routing: 'unknown',
+      traffic: 'unknown',
+    });
+    expect(JSON.stringify(result)).not.toContain('SECRET_SENTINEL');
+    expect(f.mutations()).toBe(0);
+  });
+test('three-NIC identity requires the data interface publication and preserves its explicit down state', async () => {
+  const f = await fixture(true, true);
+  f.state.linkMutate = (value) => {
+    value.status = 'down';
+    const data = value.interfaces.find((row) => row.role === 'data');
+    if (!data) throw Error('Synthetic data interface is missing');
+    data.linkUp = false;
+  };
+  const down = await f.run();
+  expect(down).toMatchObject({
+    status: 'down',
+    interfaceState: 'down',
+    operationalAcceptance: 'unknown',
+    freshness: 'unqualified',
+  });
+  expect(down.interfaces).toHaveLength(9);
+  f.state.linkMutate = (value) => {
+    value.interfaces = value.interfaces.filter((row) => row.role !== 'data');
+  };
+  expect(await f.run()).toMatchObject({ status: 'unknown', interfaceState: 'unknown', interfaces: [] });
+  expect(f.mutations()).toBe(0);
+});
 test('same SLI up/down/restored-up observations retain device/MAC/object identity and never qualify operational acceptance', async () => {
   const f = await fixture(true),
     up = await f.run();

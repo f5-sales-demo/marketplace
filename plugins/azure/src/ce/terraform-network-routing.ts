@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   validateAzureNetworkUpdateInventory,
@@ -37,7 +37,7 @@ export interface AzureTerraformNetworkRoutingStage {
   dependencies: AzureTerraformNetworkRoutingDependency[];
 }
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network dependent routing: ${message}`);
