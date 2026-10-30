@@ -259,7 +259,7 @@ export function renderAwsTerraformFoundation(
       add('aws_lb_target_group_attachment', `node_${node}`, {
         target_group_arn: ref('aws_lb_target_group.ce.arn'),
         target_id:
-          intent.ingress?.mode === 'nlb'
+          intent.ingress?.mode === 'nlb' && intent.ingress.listener.usePrimaryInterfaceAddress !== true
             ? intent.ingress.listener.privateAddresses?.[node - 1]
             : ref(`aws_network_interface.node_${node}_nic_${inside.index}.private_ip`),
         port: ingress.port,

@@ -10,9 +10,11 @@ import { type AwsCeToolContext, saveAwsCheckpoint, saveAwsPlan } from '../../src
 import { canonicalSha256, sha256Hex } from '../../src/ce/canonical';
 import { renderAwsTerraformConnect } from '../../src/ce/terraform-connect';
 import type { AwsTerraformFailover } from '../../src/ce/terraform-failover';
+import { siteForNode } from '../../src/ce/topology';
 import { createAwsCeFailoverTool } from '../../src/tools/aws-ce-failover';
 import { connectFixture } from '../ce/terraform-connect-fixture';
 
+type ToolResponse = { isError?: boolean; details: Record<string, unknown> };
 const directories: string[] = [];
 afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true });
@@ -117,7 +119,19 @@ test('public failover prepares a private plan and applies it with one durable au
     platform: async () => platform,
     terraform: async () => terraform,
     makeApi: () => ({ exec: async () => ({ exitCode: 0, stdout: '{}', stderr: '' }) }),
-    collect: async () => ({ acceptance: 'passed' }),
+    collect: async (base, _checkpoint, nodeIndex, phase) => ({
+      planId: base.planId,
+      planSha256: base.planSha256,
+      nodeIndex,
+      nodeName: `${base.deploymentName}-${nodeIndex}`,
+      selectedSiteName: siteForNode(base.intent, nodeIndex).name,
+      phase,
+      expectedEstablishedSessions:
+        (base.actions ?? []).filter(
+          (action) => action.kind === 'tgw-connect-peer-create' && (phase !== 'outage' || action.node !== nodeIndex),
+        ).length * 2,
+      acceptance: 'passed' as const,
+    }),
     runNative: async () => {
       throw new Error('unexpected native failover');
     },
@@ -162,121 +176,216 @@ test('public failover prepares a private plan and applies it with one durable au
     failoverPlanId: prepared.details.planId,
     failoverPlanSha256: prepared.details.planSha256,
   };
-  expect((await tool.execute('2', input, undefined, undefined, ctx)).isError).toBeUndefined();
-  expect((await tool.execute('3', input, undefined, undefined, ctx)).isError).toBeUndefined();
+  expect(((await tool.execute('2', input, undefined, undefined, ctx)) as ToolResponse).isError).toBeUndefined();
+  expect(((await tool.execute('3', input, undefined, undefined, ctx)) as ToolResponse).isError).toBeUndefined();
   expect(confirms).toBe(1);
   expect(runs).toBe(2);
   acceptance = 'failed';
-  const failed = await tool.execute('4', input, undefined, undefined, ctx);
+  const failed = (await tool.execute('4', input, undefined, undefined, ctx)) as ToolResponse;
   expect(failed.isError).toBe(true);
   expect(failed.details.status).toBe('failover-acceptance-failed');
   expect(artifacts.at(-1)).toContain('"acceptance":"failed"');
   expect(confirms).toBe(1);
 });
 
-test('public failover routes native ownership without opening Terraform', async () => {
-  const fixture = connectFixture();
-  const { planId: _id, planSha256: _sha, ...draft } = fixture.plan;
-  draft.engine = 'native';
-  draft.intent = { ...draft.intent, engine: 'native' };
-  Object.assign(draft, {
-    accountId: draft.intent.accountId,
-    region: draft.intent.region,
-    deploymentName: draft.intent.deploymentName,
-    routing: structuredClone(draft.intent.routing),
-  });
-  const planSha256 = canonicalSha256(draft);
-  const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
-  const directory = await mkdtemp(join(tmpdir(), 'aws-ce-native-failover-tool-'));
-  directories.push(directory);
-  const storage = await CeDeploymentStore.open(directory, {
-    deploymentId: plan.deploymentName,
-    engine: 'native',
-    provider: 'aws',
-    account: plan.accountId,
-    region: plan.region,
-  });
-  let artifactCount = 0;
-  const artifacts: string[] = [];
-  const ctx = {
-    cwd: '/tmp',
-    hasUI: false,
-    ui: { confirm: async () => true },
-    sessionManager: {
-      getSessionId: () => 'native-failover-tool-test',
-      getArtifactsDir: () => directory,
-      getArtifactPath: async () => null,
-      async saveArtifact(value: string, type: string) {
-        artifacts.push(value);
-        const id = String(++artifactCount);
-        await writeFile(join(directory, `${id}.${type}.log`), value);
-        return id;
-      },
-    },
-  } satisfies AwsCeToolContext;
-  await saveAwsPlan(ctx.sessionManager, plan, fixture.observation);
-  await saveAwsCheckpoint(ctx.sessionManager, {
-    schemaVersion: 2,
-    engine: 'native',
-    planId: plan.planId,
-    planSha256: plan.planSha256,
-    completedActionIds: [],
-    resolvedValues: { __INSTANCE_1__: 'i-0123456789abcdef0' },
-    state: 'complete',
-  });
-  let nativeRuns = 0;
-  const tool = createAwsCeFailoverTool({ typebox } as PluginInterface, {
-    platform: async () => ({ storage: async () => storage }) as unknown as CePlatformService,
-    terraform: async () => {
-      throw new Error('Terraform must not open for native ownership');
-    },
-    makeApi: () => ({ exec: async () => ({ exitCode: 0, stdout: '{}', stderr: '' }) }),
-    collect: async () => ({ acceptance: 'passed' }),
-    run: async () => {
-      throw new Error('Terraform failover must not run for native ownership');
-    },
-    observeNative: async () => 'running',
-    async runNative(_base, failover, authorized) {
-      nativeRuns++;
-      expect(authorized).toBe(failover.planSha256);
-      return {
-        status: 'failover-complete' as const,
-        engine: 'native' as const,
-        planId: failover.planId,
-        planSha256: failover.planSha256,
-        nodeIndex: failover.nodeIndex,
-        observedAt: new Date().toISOString(),
-        traffic: 'unknown' as const,
-        originControl: 'unknown' as const,
+for (const trafficMode of ['unconfigured', 'healthy', 'failed', 'stale'] as const)
+  test(`public native failover collects fresh recovered and final traffic: ${trafficMode}`, async () => {
+    const fixture = connectFixture();
+    const { planId: _id, planSha256: _sha, ...draft } = fixture.plan;
+    draft.engine = 'native';
+    draft.intent = { ...draft.intent, engine: 'native' };
+    Object.assign(draft, {
+      accountId: draft.intent.accountId,
+      region: draft.intent.region,
+      deploymentName: draft.intent.deploymentName,
+      routing: structuredClone(draft.intent.routing),
+    });
+    const source = 'i-0feedface12345678';
+    const arn = `arn:aws:elasticloadbalancing:${draft.intent.region}:${draft.intent.accountId}:loadbalancer/net/demo/abcdef12`;
+    if (trafficMode !== 'unconfigured') {
+      draft.partition = 'aws';
+      draft.ownershipInventory = [{ resourceId: source, owned: false, action: 'modify-approved' }];
+      draft.intent.brownfield = { resourceIds: [source], routeTableIds: [], transitGatewayRouteTableIds: [] };
+      draft.intent.ingress = {
+        mode: 'nlb',
+        port: 8443,
+        scheme: 'internal',
+        loadBalancer: {
+          vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+          subnetIds: ['subnet-0cccccccccccccccc'],
+          privateAddresses: ['10.9.0.10'],
+        },
+        listener: {
+          name: 'ce-listener',
+          namespace: 'default',
+          domain: 'ce.example.invalid',
+          privateAddresses: ['10.0.4.10', '10.0.5.10', '10.0.6.10'],
+          originPool: { name: 'ce-origin', namespace: 'default' },
+        },
+        probe: { sourceInstanceId: source, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
       };
-    },
+    }
+    const planSha256 = canonicalSha256(draft);
+    const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+    const directory = await mkdtemp(join(tmpdir(), 'aws-ce-native-failover-tool-'));
+    directories.push(directory);
+    const storage = await CeDeploymentStore.open(directory, {
+      deploymentId: plan.deploymentName,
+      engine: 'native',
+      provider: 'aws',
+      account: plan.accountId,
+      region: plan.region,
+    });
+    let artifactCount = 0;
+    const artifacts: string[] = [];
+    const ctx = {
+      cwd: '/tmp',
+      hasUI: false,
+      ui: { confirm: async () => true },
+      sessionManager: {
+        getSessionId: () => 'native-failover-tool-test',
+        getArtifactsDir: () => directory,
+        getArtifactPath: async () => null,
+        async saveArtifact(value: string, type: string) {
+          artifacts.push(value);
+          const id = String(++artifactCount);
+          await writeFile(join(directory, `${id}.${type}.log`), value);
+          return id;
+        },
+      },
+    } satisfies AwsCeToolContext;
+    await saveAwsPlan(ctx.sessionManager, plan, fixture.observation);
+    await saveAwsCheckpoint(ctx.sessionManager, {
+      schemaVersion: 2,
+      engine: 'native',
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [],
+      resolvedValues: { __INSTANCE_1__: 'i-0123456789abcdef0', __NLB_ARN__: arn },
+      state: 'complete',
+    });
+    let nativeRuns = 0;
+    let sends = 0;
+    let recoveryCollections = 0;
+    const tool = createAwsCeFailoverTool({ typebox } as PluginInterface, {
+      platform: async () => ({ storage: async () => storage }) as unknown as CePlatformService,
+      terraform: async () => {
+        throw new Error('Terraform must not open for native ownership');
+      },
+      makeApi: () => ({
+        async exec(_command, args) {
+          const operation = `${args[0]}:${args[1]}`;
+          let value: unknown = {};
+          if (operation === 'sts:get-caller-identity') value = { Account: plan.accountId };
+          if (operation === 'ec2:describe-instances')
+            value = { Reservations: [{ Instances: [{ InstanceId: source, State: { Name: 'running' } }] }] };
+          if (operation === 'ssm:describe-instance-information')
+            value = { InstanceInformationList: [{ InstanceId: source, PingStatus: 'Online', PlatformType: 'Linux' }] };
+          if (operation === 'elbv2:describe-load-balancers')
+            value = {
+              LoadBalancers: [{ LoadBalancerArn: arn, Scheme: 'internal', DNSName: 'internal-ce.example.aws' }],
+            };
+          if (operation === 'ssm:send-command')
+            value = { Command: { CommandId: `12345678-1234-1234-1234-123456789ab${++sends}` } };
+          if (operation === 'ssm:get-command-invocation') {
+            const offset = trafficMode === 'stale' ? 60000 : 0;
+            value = {
+              CommandId: args[args.indexOf('--command-id') + 1],
+              InstanceId: source,
+              DocumentName: 'AWS-RunShellScript',
+              DocumentVersion: '1',
+              ExecutionStartDateTime: new Date(Date.now() - offset - 1000).toISOString(),
+              ExecutionEndDateTime: new Date(Date.now() - offset).toISOString(),
+              Status: trafficMode === 'failed' ? 'Failed' : 'Success',
+              ResponseCode: trafficMode === 'failed' ? 1 : 0,
+              StandardOutputContent: `200 10.9.0.10 ${'4'.repeat(64)}\n`,
+              StandardErrorContent: trafficMode === 'failed' ? 'synthetic outage' : '',
+            };
+          }
+          return { exitCode: 0, stdout: JSON.stringify(value), stderr: '' };
+        },
+      }),
+      collect: async (base, _checkpoint, nodeIndex, phase) => ({
+        planId: base.planId,
+        planSha256: base.planSha256,
+        nodeIndex,
+        nodeName: `${base.deploymentName}-${nodeIndex}`,
+        selectedSiteName: siteForNode(base.intent, nodeIndex).name,
+        phase,
+        expectedEstablishedSessions:
+          (base.actions ?? []).filter(
+            (action) => action.kind === 'tgw-connect-peer-create' && (phase !== 'outage' || action.node !== nodeIndex),
+          ).length * 2,
+        acceptance: 'passed' as const,
+      }),
+      run: async () => {
+        throw new Error('Terraform failover must not run for native ownership');
+      },
+      observeNative: async () => 'running',
+      async runNative(_base, failover, authorized, _storage, _observe, _mutate, collect) {
+        nativeRuns++;
+        expect(authorized).toBe(failover.planSha256);
+        expect((await collect('outage')).acceptance).toBe('passed');
+        const recovered = await collect('recovered');
+        expect(recovered.acceptance).toBe('passed');
+        recoveryCollections++;
+        return {
+          status: 'failover-complete' as const,
+          engine: 'native' as const,
+          planId: failover.planId,
+          planSha256: failover.planSha256,
+          nodeIndex: failover.nodeIndex,
+          observedAt: new Date().toISOString(),
+          traffic: 'unknown' as const,
+          originControl: 'unknown' as const,
+        };
+      },
+    });
+    const prepared = (await tool.execute(
+      '1',
+      { operation: 'prepare', basePlanId: plan.planId, basePlanSha256: plan.planSha256, nodeIndex: 1 },
+      undefined,
+      undefined,
+      ctx,
+    )) as { isError?: boolean; details: { planId: string; planSha256: string } };
+    if (prepared.isError)
+      throw new Error((prepared as unknown as { content: Array<{ text: string }> }).content[0].text);
+    expect(prepared.isError).toBeUndefined();
+    const applied = (await tool.execute(
+      '2',
+      {
+        operation: 'apply',
+        basePlanId: plan.planId,
+        basePlanSha256: plan.planSha256,
+        failoverPlanId: prepared.details.planId,
+        failoverPlanSha256: prepared.details.planSha256,
+      },
+      undefined,
+      undefined,
+      ctx,
+    )) as ToolResponse;
+    expect(nativeRuns).toBe(1);
+    if (trafficMode === 'failed' || trafficMode === 'stale') {
+      expect(applied.isError).toBe(true);
+      expect(sends).toBe(1);
+      expect(recoveryCollections).toBe(0);
+      return;
+    }
+    expect(applied.isError).toBeUndefined();
+    expect(recoveryCollections).toBe(1);
+    if (trafficMode === 'healthy') {
+      expect(applied.details.traffic).toBe('healthy');
+      expect(sends).toBe(2);
+      const receipt = (await storage.read('aws-traffic-probe.json')) as { receipts: unknown[]; phase: string };
+      expect(receipt.phase).toBe('complete');
+      expect(receipt.receipts).toHaveLength(1);
+      expect(artifacts.at(-1)).toContain('aws:ssm:get-command-invocation');
+    } else {
+      expect(applied.details.traffic).toBe('unknown');
+      expect(sends).toBe(0);
+    }
+    expect(artifacts.some((value) => value.includes('aws-ce-native-failover'))).toBe(true);
   });
-  const prepared = (await tool.execute(
-    '1',
-    { operation: 'prepare', basePlanId: plan.planId, basePlanSha256: plan.planSha256, nodeIndex: 1 },
-    undefined,
-    undefined,
-    ctx,
-  )) as { isError?: boolean; details: { planId: string; planSha256: string } };
-  if (prepared.isError) throw new Error((prepared as unknown as { content: Array<{ text: string }> }).content[0].text);
-  expect(prepared.isError).toBeUndefined();
-  const applied = await tool.execute(
-    '2',
-    {
-      operation: 'apply',
-      basePlanId: plan.planId,
-      basePlanSha256: plan.planSha256,
-      failoverPlanId: prepared.details.planId,
-      failoverPlanSha256: prepared.details.planSha256,
-    },
-    undefined,
-    undefined,
-    ctx,
-  );
-  expect(applied.isError).toBeUndefined();
-  expect(nativeRuns).toBe(1);
-  expect(artifacts.some((value) => value.includes('aws-ce-native-failover'))).toBe(true);
-});
 
 for (const marker of ['aws-terraform-lifecycle-retirement.json', 'terraform-f5-cancellation-pending.json'])
   test(`public Terraform failover rejects ${marker} before provider access`, async () => {

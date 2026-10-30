@@ -127,9 +127,16 @@ export function awsCeInterfacePrivateAddresses(intent: AwsCeIntent, node: number
   if (!item) fail('NLB interface binding is missing');
   const staticIp = awsCeStaticIp(intent, node, interfaceIndex);
   if (item.role !== 'sli' || intent.ingress?.mode !== 'nlb') return staticIp ? [staticIp.ip_address.split('/')[0]] : [];
+  const subnet = item.subnets[node - 1]?.cidr;
+  if (intent.ingress.listener.usePrimaryInterfaceAddress === true) {
+    if (!subnet || !item.guestDevice || intent.ingress.listener.privateAddresses !== undefined)
+      fail('Primary-interface ingress requires exact SLI subnet and device identities without aliases');
+    const primary = staticIp?.ip_address.split('/')[0] ?? cidrHost(subnet, 5);
+    if (!usableSubnetAddress(primary, subnet)) fail('Primary SLI address is not usable in its node subnet');
+    return [primary];
+  }
   const siteIndex = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
   const listener = siteIndex < 0 ? undefined : intent.ingress.listener.privateAddresses?.[siteIndex];
-  const subnet = item.subnets[node - 1]?.cidr;
   if (!listener || !subnet) fail('NLB SLI subnet or site listener binding is missing');
   const primary = staticIp?.ip_address.split('/')[0] ?? cidrHost(subnet, 5);
   if (!usableSubnetAddress(listener, subnet) || listener === primary)
@@ -376,13 +383,18 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     if (!['none', 'nlb'].includes(input.ingress.mode)) fail('Ingress mode is invalid');
     if (input.ingress.mode === 'nlb' && input.topology.nodeCount !== 3)
       fail('NLB ingress requires a three-node, three-zone topology');
-    if (input.ingress.mode === 'nlb' && sites.some((site) => site.nodeIndexes.length !== 1))
+    if (
+      input.ingress.mode === 'nlb' &&
+      input.ingress.listener?.usePrimaryInterfaceAddress !== true &&
+      sites.some((site) => site.nodeIndexes.length !== 1)
+    )
       fail('NLB ingress requires three independent one-node sites');
     if (input.ingress.mode === 'nlb' && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
     if (input.ingress.mode === 'nlb') {
       nlbSettings(input);
       const listener = input.ingress.listener;
+      const primary = listener?.usePrimaryInterfaceAddress === true;
       const loadBalancer = input.ingress.loadBalancer;
       const probe = input.ingress.probe;
       const listenerKeys = Object.keys(listener ?? {})
@@ -406,7 +418,9 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
             !Array.isArray(loadBalancer.privateAddresses) ||
             loadBalancer.privateAddresses.length !== loadBalancer.subnetIds.length ||
             loadBalancer.privateAddresses.some((address) => isIP(address) !== 4))) ||
-        (listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
+        (primary
+          ? listenerKeys !== 'domain,name,namespace,originPool,usePrimaryInterfaceAddress'
+          : listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
         Object.keys(listener.originPool ?? {})
           .sort()
           .join(',') !== 'name,namespace' ||
@@ -417,6 +431,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
           listener.originPool.namespace ||
         listener.originPool.namespace !== listener.namespace ||
         (input.operation !== 'teardown' &&
+          !primary &&
           (!Array.isArray(listener.privateAddresses) ||
             listener.privateAddresses.length !== sites.length ||
             new Set(listener.privateAddresses).size !== listener.privateAddresses.length ||
@@ -444,6 +459,14 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         !/^[a-f0-9]{64}$/.test(probe.expectedBodySha256)
       )
         fail('NLB ingress requires exact listener and allowlisted traffic-probe identities');
+      if (primary && input.operation !== 'teardown') {
+        const addresses = Array.from(
+          { length: input.topology.nodeCount },
+          (_, index) => awsCeInterfacePrivateAddresses(input, index + 1, 1)[0],
+        );
+        if (new Set(addresses).size !== input.topology.nodeCount)
+          fail('Primary-interface ingress requires distinct primary SLI addresses for every node');
+      }
     }
   }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])
@@ -1765,7 +1788,12 @@ function compileActions(
         '__NLB_TARGET_GROUP_ARN__',
         '--targets',
         ...(intent.ingress?.mode === 'nlb'
-          ? (intent.ingress.listener.privateAddresses?.map((address) => `Id=${address},AvailabilityZone=all`) ?? [])
+          ? intent.ingress.listener.usePrimaryInterfaceAddress === true
+            ? Array.from(
+                { length: intent.topology.nodeCount },
+                (_, index) => `Id=__NODE_${index + 1}_SLI_IP__,AvailabilityZone=all`,
+              )
+            : (intent.ingress.listener.privateAddresses?.map((address) => `Id=${address},AvailabilityZone=all`) ?? [])
           : ['Id=__NODE_1_SLI_IP__', 'Id=__NODE_2_SLI_IP__', 'Id=__NODE_3_SLI_IP__']),
         ...base,
       ],
