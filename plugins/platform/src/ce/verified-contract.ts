@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 import { componentCatalogPath, componentCatalogRequest } from './component-catalog';
 import { componentStatusPath, componentStatusRequest } from './component-status';
 import { forwardingRoutePath, forwardingRouteRequest, forwardingRouteSchemas } from './forwarding-route';
+import {
+  type ExpectedCeNodeHealth,
+  nodeHealthPath,
+  nodeHealthRequest,
+  nodeHealthSchemaClosure,
+  parseNodeHealthResponse,
+} from './node-health';
 import { parseKvmImageResolution, type Smsv2KvmImageResolution } from './release-contract';
 import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
@@ -129,6 +136,7 @@ export class VerifiedCeContract {
           [componentStatusPath]: object(api.paths)[componentStatusPath],
           [componentCatalogPath]: object(api.paths)[componentCatalogPath],
           [forwardingRoutePath]: object(api.paths)[forwardingRoutePath],
+          [nodeHealthPath]: object(api.paths)[nodeHealthPath],
         },
         components: {
           schemas: {
@@ -137,6 +145,7 @@ export class VerifiedCeContract {
             debugListServicesResponse: schemas.debugListServicesResponse,
             debugStatusResponse: schemas.debugStatusResponse,
             ...Object.fromEntries(forwardingRouteSchemas.map((name) => [name, schemas[name]])),
+            ...nodeHealthSchemaClosure(schemas),
           },
         },
       },
@@ -144,6 +153,12 @@ export class VerifiedCeContract {
   }
   componentCatalogRequest(site: string) {
     return componentCatalogRequest(this.#readOnlyOperationalApi, site);
+  }
+  nodeHealthRequest(site: string, node: string) {
+    return nodeHealthRequest(this.#readOnlyOperationalApi, site, node);
+  }
+  parseNodeHealthResponse(response: unknown, expected: ExpectedCeNodeHealth) {
+    return parseNodeHealthResponse(this.#readOnlyOperationalApi, response, expected);
   }
   componentStatusRequest(site: string, namespace: string) {
     return componentStatusRequest(this.#readOnlyOperationalApi, site, namespace);

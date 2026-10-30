@@ -19,6 +19,7 @@ import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
+import { type ExpectedCeNodeHealth, parseNodeHealthJson, validateExpectedNodeHealth } from './node-health';
 import { readCeObservation } from './observation-deadline';
 import { CeOriginTeardown } from './origin-teardown';
 import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
@@ -155,7 +156,12 @@ export class CeRuntime {
       throw new Error('Explicit HTTPS tenant and credential required');
     this.#credential = credential;
   }
-  async #request(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Json> {
+  async #request(
+    path: string,
+    init: RequestInit = {},
+    signal?: AbortSignal,
+    parser?: (text: string) => Json,
+  ): Promise<Json> {
     const url = new URL(path, this.#base);
     if (!path.startsWith('/api/') || url.origin !== this.#base.origin)
       throw new Error('F5 request escaped tenant scope');
@@ -222,7 +228,7 @@ export class CeRuntime {
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text) return {};
       try {
-        return object(JSON.parse(text));
+        return parser ? parser(text) : object(JSON.parse(text));
       } catch {
         throw new CeApiError('malformed');
       }
@@ -2615,6 +2621,95 @@ export class CeRuntime {
         ...base,
         status: 'unknown',
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
+      };
+    }
+  }
+  /** Selected-node built-in VPM readiness, under lower-privilege ExecUser. The FQDN and
+   * complete instance map come from a separately acquired trusted deployment binding.
+   * A successful command is neither original interface freshness nor all-node acceptance.
+   */
+  async observeNodeHealth(binding: SiteBinding, expected: ExpectedCeNodeHealth, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      node: expected.node,
+      contractFingerprint: this.contract.fingerprint,
+      scope: 'selected-node-vpm-readiness' as const,
+      originalSampleFreshness: 'unqualified' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+      allNodeHealthQualified: false as const,
+      routingTrafficQualified: false as const,
+      startedAt: new Date().toISOString(),
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    const observeSite = this.observeOwnedSite,
+      observeRegistrations = this.observeRegistrations;
+    try {
+      this.#binding(binding);
+      if (binding.owner.engine !== this.engine) throw Error('Node health owning engine differs');
+      validateExpectedNodeHealth(expected, binding.nodes);
+      const request = this.contract.nodeHealthRequest(binding.siteName, expected.node);
+      const boundary = async () => {
+        if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+          throw Error('Node health observer changed');
+        const site = await readCeObservation(deadline, () => observeSite.call(this, binding, deadline));
+        if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
+        const registration = await readCeObservation(deadline, () =>
+          observeRegistrations.call(this, binding, expected.instances, deadline),
+        );
+        if (
+          registration.status !== 'healthy' ||
+          !Array.isArray(registration.nodes) ||
+          registration.nodes.length !== binding.nodes.length
+        )
+          throw Error('Node health registrations unavailable');
+        const selected = registration.nodes.filter((row) => row.node === expected.node);
+        if (
+          selected.length !== 1 ||
+          selected[0].instanceId !== expected.instances[expected.node] ||
+          selected[0].state !== 'ONLINE' ||
+          typeof selected[0].registration !== 'string'
+        )
+          throw Error('Node health selected registration differs');
+        if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+          throw Error('Node health observer changed');
+        return { siteUid: expected.siteUid, nodes: registration.nodes, selected: selected[0] };
+      };
+      const before = await boundary();
+      const commandDeadline = AbortSignal.any([deadline, AbortSignal.timeout(request.timeoutMs)]);
+      const response = await readCeObservation(commandDeadline, () =>
+        this.#request(
+          request.path,
+          { method: request.method, body: JSON.stringify(request.body) },
+          commandDeadline,
+          parseNodeHealthJson,
+        ),
+      );
+      const reading = this.contract.parseNodeHealthResponse(response, expected),
+        after = await boundary();
+      if (JSON.stringify(before) !== JSON.stringify(after)) throw Error('Node health registration changed');
+      deadline.throwIfAborted();
+      return {
+        ...base,
+        ...reading,
+        instanceId: before.selected.instanceId,
+        registration: before.selected.registration,
+        source: request.path,
+        outputSha256: createHash('sha256').update(String(response.output)).digest('hex'),
+        completedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      signal?.throwIfAborted();
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        reason: error instanceof CeApiError ? error.category : 'node-health-schema-identity-or-evidence-unverified',
+        completedAt: new Date().toISOString(),
       };
     }
   }
