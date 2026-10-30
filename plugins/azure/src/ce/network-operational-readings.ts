@@ -1,9 +1,15 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import {
+  type ExpectedCeForwardingRoutes,
+  validateExpectedForwardingRoutes,
+} from '../../../platform/src/ce/forwarding-route';
 import { validateExpectedNodeHealth } from '../../../platform/src/ce/node-health';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
 import { canonicalSha256 } from './canonical';
+import { collectAzureNetworkEffectiveRoutes } from './effective-route';
+import { collectAzureNetworkForwardingReading } from './network-forwarding-readings';
 import { collectAzureNetworkOperationalIdentity } from './network-operational-identity';
 import { collectAzureRouteServerHealth } from './route-server-health';
 import type { AzureTerraformNetworkAcceptanceIdentity } from './terraform-network-checkpoint';
@@ -12,7 +18,10 @@ import { collectAzureCurrentTrafficProbe } from './traffic-probe';
 import type { AzureCePlan } from './types';
 
 type Runtime = Parameters<typeof collectAzureNetworkOperationalIdentity>[2] &
-  Pick<CeRuntime, 'observeHealth' | 'observeNodeReadiness' | 'observeBgpSessions' | 'observeBgpRoutes'>;
+  Pick<
+    CeRuntime,
+    'observeHealth' | 'observeNodeReadiness' | 'observeBgpSessions' | 'observeBgpRoutes' | 'observeForwardingRoutes'
+  >;
 type Json = Record<string, unknown>;
 const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
 function object(value: unknown): Json {
@@ -36,6 +45,7 @@ export async function collectAzureNetworkOperationalReadings(
   storage: CeDeploymentStore,
   signal?: AbortSignal,
   collectTraffic = false,
+  reviewedForwarding?: ExpectedCeForwardingRoutes,
 ) {
   const plan = structuredClone(request),
     identity = structuredClone(expected),
@@ -43,7 +53,9 @@ export async function collectAzureNetworkOperationalReadings(
     identitySha256 = canonicalSha256(expected),
     binding = azureUpgradeBinding(plan),
     deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]),
-    startedAt = new Date().toISOString();
+    startedAt = new Date().toISOString(),
+    reviewed = reviewedForwarding === undefined ? undefined : structuredClone(reviewedForwarding),
+    reviewedSha256 = reviewedForwarding === undefined ? undefined : canonicalSha256(reviewedForwarding);
   const collaborators = [
     [
       transport,
@@ -56,6 +68,7 @@ export async function collectAzureNetworkOperationalReadings(
         'observeNodeReadiness',
         'observeBgpSessions',
         'observeBgpRoutes',
+        'observeForwardingRoutes',
       ],
     ],
     [cloud, ['exec']],
@@ -80,6 +93,9 @@ export async function collectAzureNetworkOperationalReadings(
         canonicalSha256(expected) === identitySha256 &&
         canonicalSha256(plan) === requestSha256 &&
         canonicalSha256(identity) === identitySha256 &&
+        (reviewedForwarding === undefined
+          ? reviewed === undefined
+          : canonicalSha256(reviewedForwarding) === reviewedSha256 && canonicalSha256(reviewed) === reviewedSha256) &&
         storage.directory === directory &&
         callbacks.every(({ object, name, callback }) => object[name] === callback),
     );
@@ -300,6 +316,70 @@ export async function collectAzureNetworkOperationalReadings(
       seal();
     }
   }
+  let forwarding: Json = unknown('reviewed-forwarding-expectations-unavailable');
+  if (reviewed !== undefined) {
+    try {
+      require(initial.status !== 'unknown' && reviewed.siteUid === identity.siteUid);
+      validateExpectedForwardingRoutes(reviewed, binding.nodes);
+      const physical = initial.interfaces.filter((row) => row.role === 'slo' || row.role === 'sli');
+      require(
+        physical.length === reviewed.interfaces.length &&
+          reviewed.interfaces.every(
+            (wanted) =>
+              physical.filter(
+                (row) =>
+                  row.node === wanted.node &&
+                  row.role === wanted.role &&
+                  row.mac === wanted.mac &&
+                  row.device === wanted.device &&
+                  row.interfaceName === wanted.interfaceName,
+              ).length === 1,
+          ),
+      );
+      forwarding = await bounded(() => collectAzureNetworkForwardingReading(binding, reviewed, runtime, deadline));
+    } catch {
+      seal();
+      forwarding = unknown('reviewed-forwarding-evidence-unverified');
+    }
+  }
+  const effectiveNics = [];
+  for (const nic of plan.nics) {
+    const reading = await bounded(() =>
+      collectAzureNetworkEffectiveRoutes(
+        plan,
+        identity.inventory,
+        { node: identity.node, index: nic.index },
+        api,
+        deadline,
+      ),
+    );
+    effectiveNics.push({
+      index: nic.index,
+      role: nic.role,
+      status: reading.status,
+      resourceId: reading.nic.resourceId,
+      mac: reading.nic.mac,
+      ownerPlanSha256: reading.nic.ownerPlanSha256,
+      ...(reading.status === 'observed'
+        ? {
+            evidenceSha256: canonicalSha256(reading.routes),
+            routeCount: reading.routes.length,
+            activeRoutes: reading.routes.filter((row) => row.state === 'Active').length,
+            invalidRoutes: reading.routes.filter((row) => row.state === 'Invalid').length,
+          }
+        : { reason: reading.reason }),
+    });
+  }
+  const effectiveRoutes = {
+    status: effectiveNics.every((row) => row.status === 'observed') ? ('observed' as const) : ('unknown' as const),
+    scope: 'selected-node-azure-effective-route-inventories' as const,
+    node: identity.node,
+    instanceId: identity.inventory.nodes[String(identity.node)].vmId,
+    nics: effectiveNics,
+    forwarding: 'unknown' as const,
+    freshness: 'unqualified' as const,
+    interfaceState: 'unknown' as const,
+  };
   let traffic: Json = unknown(
     !collectTraffic
       ? 'active-probe-not-requested'
@@ -352,6 +432,8 @@ export async function collectAzureNetworkOperationalReadings(
     routeExchange,
     sessions,
     routes,
+    forwarding,
+    effectiveRoutes,
     traffic,
     startedAt,
     completedAt: new Date().toISOString(),

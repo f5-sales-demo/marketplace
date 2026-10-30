@@ -3,10 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { ExpectedCeForwardingRoutes } from '../../../platform/src/ce/forwarding-route';
 import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import type { ExpectedCeNodeHealthIdentity } from '../../../platform/src/ce/node-health';
 import { CeRuntime } from '../../../platform/src/ce/runtime';
 import { VerifiedCeContract } from '../../../platform/src/ce/verified-contract';
+import forwardingApi from '../../../platform/test/fixtures/forwarding-route-schema.json';
 import nodeApi from '../../../platform/test/fixtures/node-health-schema.json';
 import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
 import smsContract from '../../../platform/test/fixtures/smsv2-contract-v7.json';
@@ -71,6 +73,10 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
     bgpCalls: 0,
     nodeCalls: 0,
     nodeFault: '',
+    forwardingCalls: 0,
+    forwardingFault: '',
+    effectiveCalls: 0,
+    effectiveFault: '',
   };
   const exec = f.api.exec;
   if (routeServer)
@@ -115,6 +121,36 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
       } else return exec.call(f.api, command, args, options);
       return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
     };
+  const cloudExec = f.api.exec;
+  f.api.exec = async (command, args, options) => {
+    if (args.includes('show-effective-route-table')) {
+      state.effectiveCalls++;
+      const resourceId = args[args.indexOf('--ids') + 1];
+      expect(command).toBe('az');
+      expect(
+        Object.values(identity.inventory.nodes[String(identity.node)].nics).some(
+          (nic) => nic.resourceId === resourceId,
+        ),
+      ).toBe(true);
+      if (state.effectiveFault === 'service') return { exitCode: 1, stdout: '', stderr: 'SECRET_SENTINEL' };
+      return {
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify({
+          value: [
+            {
+              source: 'User',
+              state: state.effectiveFault === 'invalid' ? 'Invalid' : 'Active',
+              addressPrefix: ['10.253.0.0/24'],
+              nextHopIpAddress: ['10.20.1.5'],
+              nextHopType: 'VirtualAppliance',
+            },
+          ],
+        }),
+      };
+    }
+    return cloudExec.call(f.api, command, args, options);
+  };
   const write = store.write.bind(store);
   store.write = async (...args) => {
     state.writes++;
@@ -231,6 +267,66 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
         privateRaw: 'SECRET_SENTINEL',
       };
     },
+    async observeForwardingRoutes(_binding: unknown, wanted: ExpectedCeForwardingRoutes) {
+      state.forwardingCalls++;
+      if (state.forwardingFault === 'service') throw Error('SECRET_SENTINEL');
+      const routes = wanted.routes.map((row) => {
+        const iface = wanted.interfaces.find((v) => v.node === row.node && v.role === row.role);
+        if (!iface) throw Error('Forwarding fixture interface missing');
+        return {
+          ...row,
+          flags: [] as string[],
+          interfaces: [
+            {
+              ...iface,
+              kind: 'local',
+              reportedInterface: iface.device,
+              matchedFields: ['device'],
+              privateRaw: 'SECRET_SENTINEL',
+            },
+          ],
+          privateRaw: 'SECRET_SENTINEL',
+        };
+      });
+      const reads = wanted.interfaces.map((v) => ({
+        method: 'POST',
+        path: `/api/operate/namespaces/system/sites/${binding.siteName}/ver/simplified_routes`,
+        body: { namespace: 'system', site: binding.siteName, node: v.node, family: 'INET4', [v.role]: {} },
+      }));
+      const value = {
+        owner: binding.owner,
+        siteName: binding.siteName,
+        siteUid: wanted.siteUid,
+        contractFingerprint: `sha256:${'f'.repeat(64)}`,
+        status: 'observed',
+        scope: 'reported-forwarding-interface',
+        interfaceNamespace: 'unqualified',
+        freshness: 'unqualified',
+        operationalAcceptance: 'unknown',
+        collectedAt: '2020-01-01T00:00:00Z',
+        routes,
+        reads,
+        privateRaw: 'SECRET_SENTINEL',
+      };
+      const fault = state.forwardingFault;
+      if (fault === 'owner') value.owner = { ...binding.owner, account: 'example-foreign-account' };
+      if (fault === 'uid') value.siteUid = 'foreign';
+      if (fault === 'fingerprint') value.contractFingerprint = 'not-a-digest';
+      if (fault === 'scope') value.scope = 'qualified-forwarding';
+      if (fault === 'namespace') value.interfaceNamespace = 'verified';
+      if (fault === 'freshness') value.freshness = 'verified';
+      if (fault === 'acceptance') value.operationalAcceptance = 'verified';
+      if (fault === 'partial') value.routes.pop();
+      if (fault === 'duplicate') value.routes[1] = value.routes[0];
+      if (['node', 'role', 'prefix', 'routeType'].includes(fault))
+        Object.assign(value.routes[0], { [fault]: 'foreign' });
+      if (['mac', 'device', 'interfaceName', 'reportedInterface', 'kind'].includes(fault))
+        Object.assign(value.routes[0].interfaces[0], { [fault]: 'foreign' });
+      if (fault === 'matchedFields') value.routes[0].interfaces[0].matchedFields = ['interfaceName'];
+      if (fault === 'request') value.reads[0].body.node = 'foreign';
+      if (fault === 'change' && state.forwardingCalls > 1) value.routes[0].flags = ['changed'];
+      return value;
+    },
     async observeBgpRoutes() {
       return {
         owner: binding.owner,
@@ -246,9 +342,30 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
       };
     },
   } as unknown as Runtime;
-  const run = (active = false, signal?: AbortSignal) =>
-    collectAzureNetworkOperationalReadings(plan, identity, runtime, f.api, store, signal, active);
-  return { ...f, plan, identity, runtime, store, state, run };
+  const forwarding = (): ExpectedCeForwardingRoutes => {
+    const interfaces = binding.nodes.flatMap((node, index) =>
+      (['slo', 'sli'] as const).map((role, nicIndex) => ({
+        node,
+        role,
+        mac: identity.inventory.nodes[String(index + 1)].nics[String(nicIndex)].mac,
+        device: nicIndex ? 'eth1' : 'eth0',
+        interfaceName: `${node}-${role}`,
+      })),
+    );
+    return {
+      siteUid: identity.siteUid,
+      interfaces,
+      routes: interfaces.map((v, index) => ({
+        node: v.node,
+        role: v.role,
+        prefix: `10.${index + 1}.0.0/16`,
+        routeType: 'STATIC_ROUTE',
+      })),
+    };
+  };
+  const run = (active = false, signal?: AbortSignal, reviewed?: ExpectedCeForwardingRoutes) =>
+    collectAzureNetworkOperationalReadings(plan, identity, runtime, f.api, store, signal, active, reviewed);
+  return { ...f, plan, identity, runtime, store, state, run, forwarding };
 }
 
 for (const ha of [false, true])
@@ -489,3 +606,209 @@ test('changed runtime callbacks during collection reject before active traffic o
   expect(f.state.writes).toBe(0);
   expect(f.mutations()).toBe(0);
 });
+
+for (const ha of [false, true])
+  test(`operational readings acquire ${ha ? 'six' : 'two'} reviewed CE forwarding identities and selected-node NIC route inventories without qualifying forwarding`, async () => {
+    const f = await fixture(ha),
+      result = await f.run(false, undefined, f.forwarding());
+    expect(result.forwarding).toMatchObject({
+      status: 'observed',
+      scope: 'reported-forwarding-interface',
+      interfaceNamespace: 'unqualified',
+      freshness: 'unqualified',
+      operationalAcceptance: 'unknown',
+      routeCount: ha ? 6 : 2,
+    });
+    expect(result.effectiveRoutes).toMatchObject({
+      status: 'observed',
+      scope: 'selected-node-azure-effective-route-inventories',
+      node: 1,
+      forwarding: 'unknown',
+      freshness: 'unqualified',
+    });
+    expect(result.effectiveRoutes.nics).toHaveLength(2);
+    expect(f.state.forwardingCalls).toBe(2);
+    expect(f.state.effectiveCalls).toBe(4);
+    expect(result.nodeHealth).toBe('unknown');
+    expect(JSON.stringify(result)).not.toContain('SECRET_SENTINEL');
+    expect(JSON.stringify(result)).not.toContain('2020-01-01');
+    expect(f.state.writes).toBe(0);
+    expect(f.mutations()).toBe(0);
+  });
+for (const fault of [
+  'owner',
+  'uid',
+  'scope',
+  'namespace',
+  'fingerprint',
+  'freshness',
+  'acceptance',
+  'partial',
+  'duplicate',
+  'node',
+  'role',
+  'prefix',
+  'routeType',
+  'mac',
+  'device',
+  'interfaceName',
+  'reportedInterface',
+  'kind',
+  'matchedFields',
+  'request',
+  'service',
+  'change',
+])
+  test(`operational readings reject ${fault} forwarding evidence independently of NIC inventory`, async () => {
+    const f = await fixture(true);
+    f.state.forwardingFault = fault;
+    const result = await f.run(false, undefined, f.forwarding());
+    expect(result.forwarding.status).toBe('unknown');
+    expect(result.effectiveRoutes.status).toBe('observed');
+    expect(JSON.stringify(result)).not.toContain('SECRET_SENTINEL');
+    expect(f.state.writes).toBe(0);
+    expect(f.mutations()).toBe(0);
+  });
+test('missing reviewed route expectations cannot be synthesized from returned routes', async () => {
+  const f = await fixture(true),
+    result = await f.run();
+  expect(result.forwarding).toEqual({ status: 'unknown', reason: 'reviewed-forwarding-expectations-unavailable' });
+  expect(f.state.forwardingCalls).toBe(0);
+  expect(result.effectiveRoutes.status).toBe('observed');
+});
+for (const fault of ['siteUid', 'mac', 'partial'])
+  test(`reviewed ${fault} scope must match complete current interfaces before any forwarding request`, async () => {
+    const f = await fixture(true),
+      reviewed = f.forwarding();
+    if (fault === 'siteUid') reviewed.siteUid = 'foreign';
+    else if (fault === 'mac') reviewed.interfaces[0].mac = '02:00:00:00:00:99';
+    else reviewed.interfaces.pop();
+    expect((await f.run(false, undefined, reviewed)).forwarding.status).toBe('unknown');
+    expect(f.state.forwardingCalls).toBe(0);
+  });
+for (const fault of ['service', 'invalid'])
+  test(`effective-route ${fault} stays distinct from CE forwarding and link state`, async () => {
+    const f = await fixture();
+    f.state.effectiveFault = fault;
+    const result = await f.run(false, undefined, f.forwarding());
+    expect(result.forwarding.status).toBe('observed');
+    expect(result.effectiveRoutes.status).toBe(fault === 'service' ? 'unknown' : 'observed');
+    if (fault === 'invalid')
+      expect(
+        result.effectiveRoutes.nics.every(
+          (row) => 'invalidRoutes' in row && row.invalidRoutes === 1 && row.activeRoutes === 0,
+        ),
+      ).toBe(true);
+    expect(result.identity.status).toBe('observed');
+    expect(result.nodeHealth).toBe('unknown');
+  });
+test('Azure forwarding readings execute the actual mapped public CE observation requests', async () => {
+  const f = await fixture(true),
+    expected = f.forwarding(),
+    binding = azureUpgradeBinding(f.plan),
+    schema = resolveCeSchemaFixture(compactSchema);
+  const C = VerifiedCeContract as unknown as new (...args: unknown[]) => VerifiedCeContract;
+  const contract = new C(
+    schema.provenance.commit,
+    `sha256:${'f'.repeat(64)}`,
+    smsContract,
+    schema.schemas,
+    undefined,
+    'published-release',
+    undefined,
+    forwardingApi,
+  );
+  const requests: unknown[] = [];
+  const real = new CeRuntime(
+    contract,
+    'terraform',
+    'https://tenant.example.test',
+    'fixture-credential',
+    async (url, init) => {
+      const path = new URL(url).pathname;
+      if (path.includes('securemesh_site_v2s'))
+        return Response.json({
+          metadata: {
+            name: binding.siteName,
+            namespace: 'system',
+            labels: {
+              'xcsh-ce-deployment': binding.owner.deploymentId,
+              'xcsh-ce-engine': 'terraform',
+              'xcsh-ce-provider': 'azure',
+              'xcsh-ce-account': binding.owner.account,
+              'xcsh-ce-region': binding.owner.region,
+            },
+          },
+          system_metadata: { uid: expected.siteUid },
+        });
+      expect(init?.method).toBe('POST');
+      expect(path).toBe(`/api/operate/namespaces/system/sites/${binding.siteName}/ver/simplified_routes`);
+      const body = JSON.parse(String(init?.body));
+      requests.push(body);
+      const role = body.slo ? 'slo' : 'sli',
+        wanted = expected.routes.find((row) => row.node === body.node && row.role === role),
+        iface = expected.interfaces.find((row) => row.node === body.node && row.role === role);
+      if (!wanted || !iface) throw Error('Forwarding fixture route or interface missing');
+      return Response.json({
+        ver_routes: [
+          {
+            node: body.node,
+            route: [
+              {
+                prefix: wanted.prefix,
+                route_type: wanted.routeType,
+                flags: [],
+                nexthop: { local: { interface: iface.device } },
+              },
+            ],
+          },
+        ],
+      });
+    },
+  );
+  f.runtime.observeForwardingRoutes = real.observeForwardingRoutes.bind(real);
+  const result = await f.run(false, undefined, expected);
+  expect(result.forwarding.status).toBe('observed');
+  expect(requests).toHaveLength(12);
+  expect(result.forwarding.operationalAcceptance).toBe('unknown');
+  expect(f.mutations()).toBe(0);
+});
+
+test('changed reviewed route expectations reject before traffic or storage writes', async () => {
+  const f = await fixture(false, true),
+    reviewed = f.forwarding(),
+    observe = f.runtime.observeForwardingRoutes.bind(f.runtime);
+  f.state.qualified = true;
+  f.runtime.observeForwardingRoutes = async (...args) => {
+    const result = await observe(...args);
+    reviewed.routes[0].prefix = '10.99.0.0/16';
+    return result;
+  };
+  await expect(f.run(true, undefined, reviewed)).rejects.toThrow('Operational reading identity differs');
+  expect(f.state.writes).toBe(0);
+});
+for (const component of ['forwarding', 'effective-routes'])
+  test(`caller cancellation bounds a ${component} transport that ignores cancellation`, async () => {
+    const f = await fixture(),
+      controller = new AbortController();
+    if (component === 'forwarding')
+      f.runtime.observeForwardingRoutes = () => {
+        controller.abort(Error('cancel-forwarding'));
+        return new Promise(() => {});
+      };
+    else {
+      const exec = f.api.exec;
+      f.api.exec = (command, args, options) => {
+        if (args.includes('show-effective-route-table')) {
+          controller.abort(Error('cancel-effective'));
+          return new Promise(() => {});
+        }
+        return exec.call(f.api, command, args, options);
+      };
+    }
+    await expect(f.run(false, controller.signal, f.forwarding())).rejects.toThrow(
+      component === 'forwarding' ? 'cancel-forwarding' : 'cancel-effective',
+    );
+    expect(f.state.writes).toBe(0);
+    expect(f.mutations()).toBe(0);
+  });
