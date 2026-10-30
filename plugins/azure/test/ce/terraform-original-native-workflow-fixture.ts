@@ -36,6 +36,7 @@ export async function originalNativeWorkflowFixture(
   selectedNics?: typeof intent.nics,
   selectedQuota?: number,
   retirementReady = false,
+  ingressPrivateAddress = '10.20.1.10',
 ) {
   const selected = structuredClone(intent);
   selected.engine = 'terraform';
@@ -67,7 +68,7 @@ export async function originalNativeWorkflowFixture(
         name: 'ce-listener',
         namespace: 'system',
         domain: 'ce.example.invalid',
-        privateAddress: '10.20.1.10',
+        privateAddress: ingressPrivateAddress,
         originPool: { name: 'ce-origin', namespace: 'system' },
       },
       probe: { sourceVmResourceId, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },

@@ -13,7 +13,11 @@ import { savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { executeAzureCeTerraformApply } from '../../src/ce/terraform-apply';
 import { azureTerraformCurrentDeployment, renderAzureTerraformFoundation } from '../../src/ce/terraform-foundation';
-import { loadAzureTerraformOutcome, saveAzureTerraformOutcome } from '../../src/ce/terraform-outcome';
+import {
+  AzureTerraformOutcomeAbsent,
+  loadAzureTerraformOutcome,
+  saveAzureTerraformOutcome,
+} from '../../src/ce/terraform-outcome';
 import { qualifyAzureTerraformReplacementPublicSource } from '../../src/ce/terraform-replacement-public-source';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import { historicalFixture } from './terraform-generation-fixture';
@@ -485,7 +489,7 @@ for (const ha of [false, true])
             { observe: async () => f.third.observation },
           );
         if (mode === 'missing') {
-          await expect(run()).rejects.toThrow(/prior public execution outcome is unavailable/);
+          await expect(run()).rejects.toBeInstanceOf(AzureTerraformOutcomeAbsent);
           expect(bootstraps).toBe(0);
           expect(applyCount).toBe(0);
         } else {

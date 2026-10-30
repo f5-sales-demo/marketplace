@@ -10,389 +10,69 @@ import { compileAzureCePlan } from '../../src/ce/planner';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import { runAzureTerraformAdmission } from '../../src/ce/terraform-workflow';
 import { intent, observation } from './fixtures';
+import { originalNativeWorkflowFixture } from './terraform-original-native-workflow-fixture';
 
+const threeNics: typeof intent.nics = (['slo', 'data', 'sli'] as const).map((role, index) => ({
+  name: ['mgmt', 'external', 'internal'][index],
+  role,
+  subnet: { mode: 'greenfield', name: `nic${index}`, cidr: `10.20.${index}.0/24` },
+}));
 const directories: string[] = [];
 afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true });
 });
 
-// These admission fixtures exercise registration without relay or learned-prefix routing.
-// Fail immediately if production starts requesting an operational routing capability here.
-const unexpectedRouting = () => {
-  throw Error('Unexpected operational routing request in registration fixture');
-};
-const unrequestedRouting = {
-  requireRoutingContract: unexpectedRouting,
-  requireAzureRelayRoutingContract: unexpectedRouting,
-  ensureAzureRelayRouting: unexpectedRouting,
-  observeOwnedSite: unexpectedRouting,
-  observeAzureInterfaces: unexpectedRouting,
-  ensureAzureRouting: unexpectedRouting,
-  observeBgpSessions: unexpectedRouting,
-  observeBgpRoutes: unexpectedRouting,
-} satisfies Pick<
-  Parameters<typeof runAzureTerraformAdmission>[2],
-  | 'requireRoutingContract'
-  | 'requireAzureRelayRoutingContract'
-  | 'ensureAzureRelayRouting'
-  | 'observeOwnedSite'
-  | 'observeAzureInterfaces'
-  | 'ensureAzureRouting'
-  | 'observeBgpSessions'
-  | 'observeBgpRoutes'
->;
-
 test('applies foundation and admission exactly once and resumes from collected Azure identities', async () => {
-  const plan = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
-  const binding = azureUpgradeBinding(plan);
-  const vm = plan.actions.find((action) => action.kind === 'vm-create');
-  const nic = plan.actions.find((action) => action.kind === 'nic-create');
-  if (!vm?.resourceId || !nic?.resourceId) throw new Error('fixture resource identities are missing');
-  const vmId = '00000000-0000-4000-8000-000000000003';
-  const mac = '00:11:22:33:44:01';
-  const subnetId =
-    plan.nics[0].subnet.resourceId ?? plan.actions.find((action) => action.kind === 'subnet-create')?.resourceId;
-  if (!subnetId) throw new Error('fixture subnet identity is missing');
-  const tags = {
-    'xcsh-managed-by': 'azure-ce',
-    'xcsh-execution-engine': 'terraform',
-    'xcsh-deployment-id': plan.deploymentName,
-    'xcsh-plan-sha256': plan.planSha256,
-  };
-  const outputs = {
-    ce_instances: {
-      '1': {
-        id: vm.resourceId,
-        vm_id: vmId,
-        site_name: plan.siteName,
-        hostname: `${plan.deploymentName}-1`,
-      },
-    },
-    ce_interfaces: {
-      '1:0': {
-        id: nic.resourceId,
-        subnet_id: subnetId,
-        site_name: plan.siteName,
-        node: 1,
-        index: 0,
-        role: 'slo',
-      },
-    },
-  };
-  const live: Record<string, unknown> = {
-    [vm.resourceId]: {
-      id: vm.resourceId,
-      vmId,
-      location: plan.region,
-      tags,
-      provisioningState: 'Succeeded',
-      networkProfile: { networkInterfaces: [{ id: nic.resourceId }] },
-    },
-    [nic.resourceId]: {
-      id: nic.resourceId,
-      location: plan.region,
-      tags,
-      provisioningState: 'Succeeded',
-      virtualMachine: { id: vm.resourceId },
-      macAddress: mac.replaceAll(':', '-'),
-      ipConfigurations: [
-        {
-          primary: true,
-          privateIPAddressVersion: 'IPv4',
-          privateIPAddress: '10.20.0.4',
-          subnet: { id: subnetId },
-        },
-      ],
-    },
-  };
-  const api: AzExecApi = {
-    async exec(_command, args) {
-      const value =
-        args[0] === 'account'
-          ? {
-              id: plan.subscription.id,
-              tenantId: plan.subscription.tenantId,
-              environmentName: plan.subscription.cloud,
-              state: 'Enabled',
-            }
-          : live[args[args.indexOf('--ids') + 1]];
-      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
-    },
-  };
-  const path = await mkdtemp(join(tmpdir(), 'azure-tf-workflow-'));
-  directories.push(path);
-  const storage = await CeDeploymentStore.open(path, binding.owner);
-  let applies = 0;
-  let revisions = 0;
-  let bootstrap = 0;
-  let reservations = 0;
-  const session = {
-    async plan() {
-      return { changes: [], configurationSha256: 'c'.repeat(64) };
-    },
-    async apply() {
-      applies++;
-    },
-    async reviseConfiguration() {
-      revisions++;
-      return 'd'.repeat(64);
-    },
-    async readOutputs() {
-      return outputs;
-    },
-  } as unknown as TerraformSession;
-  const terraform = {
-    open: async () => session,
-  } as unknown as CeTerraformService;
-  const healthy = {
-    status: 'healthy',
-    nodes: [{ node: binding.nodes[0], status: 'healthy' }],
-  };
-  const runtime = {
-    ...unrequestedRouting,
-    engine: 'terraform' as const,
-    requireBootstrapContract(provider: string) {
-      expect(provider).toBe('azure');
-    },
-    async reserveSite() {
-      reservations++;
-    },
-    async bootstrap(_binding: unknown, node: string) {
-      bootstrap++;
-      expect(node).toBe(binding.nodes[0]);
-      return '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n';
-    },
-    async approveRegistrations() {
-      return healthy;
-    },
-    async observeRegistrations() {
-      return healthy;
-    },
-    async observeRegisteredConfiguration(
-      _binding: unknown,
-      _instances: unknown,
-      interfaces: Array<{ node: string; role: string }>,
-    ) {
-      expect(interfaces.map((item) => `${item.node}/${item.role}`)).toEqual(
-        binding.nodes.flatMap((node) => plan.nics.map((nic) => `${node}/${nic.role}`)),
-      );
-      return { status: 'configured' };
-    },
-  } as unknown as Parameters<typeof runAzureTerraformAdmission>[2];
-  let revalidations = 0;
-  const run = () =>
-    runAzureTerraformAdmission(
-      plan,
-      terraform,
-      runtime,
-      storage,
-      api,
-      async () => {
-        revalidations++;
-      },
-      {},
-    );
-  expect((await run()).status).toBe('registered');
-  expect((await run()).status).toBe('registered');
-  expect({ applies, revisions, bootstrap, reservations }).toEqual({
-    applies: 2,
-    revisions: 1,
-    bootstrap: 1,
-    reservations: 1,
-  });
-  expect(revalidations).toBe(7);
-  const checkpoint = (await storage.read('terraform-workflow.json')) as Record<string, unknown>;
-  expect(checkpoint.stage).toBe('registered');
-  expect(JSON.stringify(checkpoint)).toContain('/etc/vpm/user_data');
-  expect(await storage.read('terraform-registration-observation.json')).toEqual(healthy);
-  expect(await storage.read('terraform-registration-configuration.json')).toEqual({ status: 'configured' });
+  const f = await originalNativeWorkflowFixture();
+  try {
+    expect((await f.run()).status).toBe('registered');
+    const commands = [...f.commands];
+    expect((await f.run()).status).toBe('registered');
+    expect(f.counts()).toEqual({ applies: 2, revisions: 1, bootstrap: 1, reservations: 1 });
+    expect(f.commands.filter((command) => command === 'apply')).toHaveLength(2);
+    expect(f.commands.slice(commands.length)).not.toContain('plan');
+    const checkpoint = (await f.storage.read('terraform-workflow.json')) as {
+      stage: string;
+      admissionReceiptSha256ByNode: Record<string, string>;
+    };
+    expect(checkpoint.stage).toBe('registered');
+    expect(Object.keys(checkpoint.admissionReceiptSha256ByNode)).toEqual(['1']);
+    expect(JSON.stringify(checkpoint)).toContain('/etc/vpm/user_data');
+    expect(await f.storage.read('terraform-registration-configuration.json')).toEqual({ status: 'configured' });
+  } finally {
+    await f.close();
+  }
 });
 
 test('resumes interrupted three-node Azure HA admission through durable serial boundaries', async () => {
-  const selected = structuredClone(intent);
-  selected.engine = 'terraform';
-  selected.topology.ha = true;
-  selected.routing = { mode: 'udr', destinationCidrs: [] };
-  selected.nics = ['slo', 'data', 'sli'].map((role, index) => ({
-    name: ['mgmt', 'external', 'internal'][index],
-    role: role as 'slo' | 'data' | 'sli',
-    subnet: {
-      mode: 'greenfield',
-      name: `nic${index}`,
-      cidr: `10.20.${index}.0/24`,
-    },
-  }));
-  const observed = structuredClone(observation);
-  observed.regions[0].quotaAvailable = 24;
-  const plan = compileAzureCePlan(selected, observed);
-  const binding = azureUpgradeBinding(plan);
-  const tags = {
-    'xcsh-managed-by': 'azure-ce',
-    'xcsh-execution-engine': 'terraform',
-    'xcsh-deployment-id': plan.deploymentName,
-    'xcsh-plan-sha256': plan.planSha256,
-  };
-  const ce_instances: Record<string, unknown> = {};
-  const ce_interfaces: Record<string, unknown> = {};
-  const live: Record<string, unknown> = {};
-  for (let node = 1; node <= 3; node++) {
-    const vm = plan.actions.find((action) => action.kind === 'vm-create' && action.node === node);
-    if (!vm?.resourceId) throw new Error('HA fixture VM identity is missing');
-    const vmId = `00000000-0000-4000-8000-${String(node).padStart(12, '0')}`;
-    const attachments: Array<{ id: string }> = [];
-    ce_instances[String(node)] = {
-      id: vm.resourceId,
-      vm_id: vmId,
-      site_name: plan.siteName,
-      hostname: `${plan.deploymentName}-${node}`,
+  const f = await originalNativeWorkflowFixture(true, false, threeNics);
+  try {
+    const write = f.storage.write.bind(f.storage);
+    f.storage.write = async (name, value) => {
+      await write(name, value);
+      if (
+        name === 'terraform-workflow.json' &&
+        (value as { launchedAtByNode?: Record<string, string> }).launchedAtByNode?.['1']
+      )
+        throw Error('applied checkpoint response lost');
     };
-    for (const nic of plan.nics) {
-      const action = plan.actions.find(
-        (item) =>
-          item.kind === 'nic-create' &&
-          item.node === node &&
-          item.args?.[item.args.indexOf('--name') + 1] === `${plan.deploymentName}-${node}-nic${nic.index}`,
-      );
-      const subnet = plan.actions.find(
-        (item) =>
-          item.kind === 'subnet-create' &&
-          item.args?.includes('--name') &&
-          item.args[item.args.indexOf('--name') + 1] === nic.subnet.name,
-      );
-      if (!action?.resourceId || !subnet?.resourceId) throw new Error('HA fixture NIC identity is missing');
-      attachments.push({ id: action.resourceId });
-      ce_interfaces[`${node}:${nic.index}`] = {
-        id: action.resourceId,
-        subnet_id: subnet.resourceId,
-        site_name: plan.siteName,
-        node,
-        index: nic.index,
-        role: nic.role,
-      };
-      live[action.resourceId] = {
-        id: action.resourceId,
-        location: plan.region,
-        tags,
-        provisioningState: 'Succeeded',
-        virtualMachine: { id: vm.resourceId },
-        macAddress: `00-11-22-33-${String(node).padStart(2, '0')}-${String(nic.index).padStart(2, '0')}`,
-        ipConfigurations: [
-          {
-            primary: true,
-            privateIPAddressVersion: 'IPv4',
-            privateIPAddress: `10.20.${nic.index}.${node + 3}`,
-            subnet: { id: subnet.resourceId },
-          },
-        ],
-      };
-    }
-    live[vm.resourceId] = {
-      id: vm.resourceId,
-      vmId,
-      location: plan.region,
-      tags,
-      provisioningState: 'Succeeded',
-      networkProfile: { networkInterfaces: attachments },
+    await expect(f.run()).rejects.toThrow('applied checkpoint response lost');
+    f.storage.write = write;
+    expect((await f.run()).status).toBe('registered');
+    expect(f.counts()).toEqual({ applies: 4, revisions: 3, bootstrap: 3, reservations: 2 });
+    const checkpoint = (await f.storage.read('terraform-workflow.json')) as {
+      launchedAtByNode: Record<string, string>;
+      admissionReceiptSha256ByNode: Record<string, string>;
     };
+    expect(Object.keys(checkpoint.launchedAtByNode)).toEqual(['1', '2', '3']);
+    expect(Object.keys(checkpoint.admissionReceiptSha256ByNode)).toEqual(['1', '2', '3']);
+    const commands = [...f.commands];
+    expect((await f.run()).status).toBe('registered');
+    expect(f.counts().applies).toBe(4);
+    expect(f.commands.slice(commands.length)).not.toContain('plan');
+  } finally {
+    await f.close();
   }
-  const api: AzExecApi = {
-    async exec(_command, args) {
-      const value =
-        args[0] === 'account'
-          ? {
-              id: plan.subscription.id,
-              tenantId: plan.subscription.tenantId,
-              environmentName: plan.subscription.cloud,
-              state: 'Enabled',
-            }
-          : live[args[args.indexOf('--ids') + 1]];
-      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
-    },
-  };
-  const path = await mkdtemp(join(tmpdir(), 'azure-tf-ha-workflow-'));
-  directories.push(path);
-  const storage = await CeDeploymentStore.open(path, binding.owner);
-  let applies = 0;
-  let foundationApplied = false;
-  let desiredNodes = 0;
-  let appliedNodes = 0;
-  let interruptAfterNodeOne = true;
-  const admittedCounts: number[] = [];
-  const session = {
-    async plan() {
-      return {
-        changes: [],
-        configurationSha256: 'c'.repeat(64),
-        noChanges: foundationApplied && desiredNodes === appliedNodes,
-      };
-    },
-    async apply() {
-      applies++;
-      foundationApplied = true;
-      appliedNodes = desiredNodes;
-      if (desiredNodes === 1 && interruptAfterNodeOne) {
-        interruptAfterNodeOne = false;
-        throw new Error('simulated interruption after Azure VM creation');
-      }
-    },
-    async reviseConfiguration(_expected: string, configuration: string) {
-      const parsed = JSON.parse(configuration);
-      desiredNodes = Object.keys(parsed.resource.azurerm_linux_virtual_machine ?? {}).length;
-      admittedCounts.push(desiredNodes);
-    },
-    async readOutputs() {
-      return { ce_instances, ce_interfaces };
-    },
-  } as unknown as TerraformSession;
-  const bootstrapped: string[] = [];
-  const healthy = {
-    status: 'healthy',
-    nodes: binding.nodes.map((node) => ({ node, status: 'healthy' })),
-  };
-  const runtime = {
-    ...unrequestedRouting,
-    engine: 'terraform' as const,
-    requireBootstrapContract() {},
-    async reserveSite() {},
-    async bootstrap(_binding: unknown, node: string) {
-      bootstrapped.push(node);
-      return '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n';
-    },
-    async approveRegistrations() {
-      return healthy;
-    },
-    async observeRegistrations() {
-      return healthy;
-    },
-    async observeRegisteredConfiguration(
-      _binding: unknown,
-      _instances: unknown,
-      interfaces: Array<{ node: string; role: string }>,
-    ) {
-      expect(interfaces.map((item) => `${item.node}/${item.role}`)).toEqual(
-        binding.nodes.flatMap((node) => [`${node}/slo`, `${node}/data`, `${node}/sli`]),
-      );
-      return { status: 'configured' };
-    },
-  } as unknown as Parameters<typeof runAzureTerraformAdmission>[2];
-  const terraform = {
-    open: async () => session,
-  } as unknown as CeTerraformService;
-  await expect(
-    runAzureTerraformAdmission(plan, terraform, runtime, storage, api, async () => {}, {}, undefined, 0),
-  ).rejects.toThrow('simulated interruption');
-  expect(
-    (await runAzureTerraformAdmission(plan, terraform, runtime, storage, api, async () => {}, {}, undefined, 0)).status,
-  ).toBe('registered');
-  expect({ applies, admittedCounts, bootstrapped }).toEqual({
-    applies: 4,
-    admittedCounts: [1, 2, 3],
-    bootstrapped: ['ce-demo-1', 'ce-demo-2', 'ce-demo-3'],
-  });
-  const checkpoint = (await storage.read('terraform-workflow.json')) as {
-    launchedAtByNode: Record<string, string>;
-  };
-  expect(Object.keys(checkpoint.launchedAtByNode)).toEqual(['1', '2', '3']);
 });
 
 test('rejects unavailable Azure bootstrap before opening Terraform or calling Azure', async () => {
@@ -482,163 +162,25 @@ test('rejects Route Server admission without an expected route before Terraform,
 });
 
 test('accepts platform ingress and traffic before the final refresh no-change plan', async () => {
-  const sourceVmResourceId =
-    `/subscriptions/${intent.subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
-  const selected = structuredClone(intent);
-  selected.engine = 'terraform';
-  selected.routing = { mode: 'udr', destinationCidrs: [] };
-  selected.nics = ['slo', 'data', 'sli'].map((role, index) => ({
-    name: ['mgmt', 'external', 'internal'][index],
-    role: role as 'slo' | 'data' | 'sli',
-    subnet: { mode: 'greenfield', name: `nic${index}`, cidr: `10.20.${index}.0/24` },
-  }));
-  selected.ingress = {
-    mode: 'platform-http',
-    port: 8080,
-    listener: {
-      name: 'ce-listener',
-      namespace: 'system',
-      domain: 'ce.example.invalid',
-      privateAddress: '10.20.2.10',
-      originPool: { name: 'ce-origin', namespace: 'system' },
-    },
-    probe: { sourceVmResourceId, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
-  };
-  selected.brownfield.resourceIds = [sourceVmResourceId];
-  const observed = structuredClone(observation);
-  observed.resources = [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }];
-  const plan = compileAzureCePlan(selected, observed);
-  const binding = azureUpgradeBinding(plan);
-  const vm = plan.actions.find((action) => action.kind === 'vm-create');
-  if (!vm?.resourceId) throw new Error('fixture VM identity is missing');
-  const tags = {
-    'xcsh-managed-by': 'azure-ce',
-    'xcsh-execution-engine': 'terraform',
-    'xcsh-deployment-id': plan.deploymentName,
-    'xcsh-plan-sha256': plan.planSha256,
-  };
-  const ce_interfaces: Record<string, unknown> = {};
-  const live: Record<string, unknown> = {};
-  const attachments: Array<{ id: string }> = [];
-  for (const nic of plan.nics) {
-    const action = plan.actions.find(
-      (item) => item.kind === 'nic-create' && item.node === 1 && item.resourceId?.endsWith(`-nic${nic.index}`),
-    );
-    const subnet = plan.actions.find(
-      (item) => item.kind === 'subnet-create' && item.resourceId?.endsWith(`/subnets/${nic.subnet.name}`),
-    );
-    if (!action?.resourceId || !subnet?.resourceId) throw new Error('fixture NIC identity is missing');
-    attachments.push({ id: action.resourceId });
-    ce_interfaces[`1:${nic.index}`] = {
-      id: action.resourceId,
-      subnet_id: subnet.resourceId,
-      site_name: plan.siteName,
-      node: 1,
-      index: nic.index,
-      role: nic.role,
-    };
-    live[action.resourceId] = {
-      id: action.resourceId,
-      location: plan.region,
-      tags,
-      provisioningState: 'Succeeded',
-      virtualMachine: { id: vm.resourceId },
-      macAddress: `00-11-22-33-44-0${nic.index}`,
-      ipConfigurations: [
-        {
-          primary: true,
-          privateIPAddressVersion: 'IPv4',
-          privateIPAddress: `10.20.${nic.index}.4`,
-          subnet: { id: subnet.resourceId },
-        },
-      ],
-    };
-  }
-  live[vm.resourceId] = {
-    id: vm.resourceId,
-    vmId: '00000000-0000-4000-8000-000000000003',
-    location: plan.region,
-    tags,
-    provisioningState: 'Succeeded',
-    networkProfile: { networkInterfaces: attachments },
-  };
-  const api: AzExecApi = {
-    async exec(_command, args) {
-      const value =
-        args[0] === 'account'
-          ? {
-              id: plan.subscription.id,
-              tenantId: plan.subscription.tenantId,
-              environmentName: plan.subscription.cloud,
-              state: 'Enabled',
-            }
-          : live[args[args.indexOf('--ids') + 1]];
-      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
-    },
-  };
-  const path = await mkdtemp(join(tmpdir(), 'azure-tf-ingress-order-'));
-  directories.push(path);
-  const storage = await CeDeploymentStore.open(path, binding.owner);
-  await storage.write('terraform-workflow.json', {
-    schemaVersion: 1,
-    engine: 'terraform',
-    planSha256: plan.planSha256,
-    configurationSha256: 'a'.repeat(64),
-    bootstrapByNode: { '1': '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n' },
-    launchedAtByNode: { '1': '2026-09-10T12:00:00Z' },
-    stage: 'registered',
-  });
-  const events: string[] = [];
-  const session = {
-    async readOutputs() {
-      return {
-        ce_instances: {
-          '1': {
-            id: vm.resourceId,
-            vm_id: '00000000-0000-4000-8000-000000000003',
-            site_name: plan.siteName,
-            hostname: `${plan.deploymentName}-1`,
-          },
-        },
-        ce_interfaces,
-      };
-    },
-    async plan() {
-      events.push('final-plan');
-      return { noChanges: true, changes: [] };
-    },
-  } as unknown as TerraformSession;
-  const healthy = { status: 'healthy', nodes: [{ node: binding.nodes[0], status: 'healthy' }] };
-  const runtime = {
-    engine: 'terraform' as const,
-    requireBootstrapContract() {},
-    async approveRegistrations() {
-      return healthy;
-    },
-    async observeRegistrations() {
-      return healthy;
-    },
-    async observeRegisteredConfiguration() {
-      return { status: 'configured' };
-    },
-  } as never;
-  const result = await runAzureTerraformAdmission(
-    plan,
-    { open: async () => session } as unknown as CeTerraformService,
-    runtime,
-    storage,
-    api,
-    async () => {},
-    {},
-    undefined,
-    0,
-    async () => {
+  const f = await originalNativeWorkflowFixture(false, true, threeNics, undefined, false, '10.20.2.10');
+  try {
+    const events: string[] = [];
+    const result = await f.run(async (session) => {
+      expect(session).toBe(f.runner);
       events.push('ingress-traffic');
-      return { ingress: { listener: 'configured' }, traffic: { status: 'healthy' } };
-    },
-  );
-  expect(result).toMatchObject({ status: 'accepted', traffic: { status: 'healthy' }, terraformNoChanges: true });
-  expect(events).toEqual(['ingress-traffic', 'final-plan']);
+      const plan = f.runner.plan.bind(f.runner);
+      f.runner.plan = async (...args) => {
+        events.push('final-plan');
+        return plan(...args);
+      };
+      return { ingress: { synthetic: true }, traffic: { status: 'healthy' } };
+    });
+    expect(result).toMatchObject({ status: 'accepted', traffic: { status: 'healthy' }, terraformNoChanges: true });
+    expect(events).toEqual(['ingress-traffic', 'final-plan']);
+    expect(f.counts().applies).toBe(2);
+  } finally {
+    await f.close();
+  }
 });
 
 test('rejects a saved Terraform workflow missing launch boundaries without reconstructing them', async () => {
