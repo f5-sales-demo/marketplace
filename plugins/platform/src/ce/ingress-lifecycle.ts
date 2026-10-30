@@ -11,7 +11,47 @@ import type { SiteLocalHttpOrigin } from './wire-origin';
 
 type Json = Record<string, unknown>;
 type Selection = { binding: SiteBinding; node: string; mac: string; insideAddress?: string };
-type Intent = Omit<InsideHttpListener, 'sites'> & { originAddress: string };
+type Intent = Omit<InsideHttpListener, 'sites'> & { originAddress: string; usePrimaryInterfaceAddress?: true };
+/** Primary-interface advertisements require a complete bijection to every node in each site. */
+function validatePrimarySelections(intent: Intent, selections: Selection[], provider: string): boolean {
+  if (intent.usePrimaryInterfaceAddress === undefined) return false;
+  if (intent.usePrimaryInterfaceAddress !== true || provider !== 'aws')
+    throw new Error('Primary-interface ingress mode or provider differs');
+  const groups = new Map<string, { binding: SiteBinding; nodes: Set<string> }>();
+  for (const selected of selections) {
+    const binding = selected.binding;
+    if (
+      !binding ||
+      !Array.isArray(binding.nodes) ||
+      ![1, 3].includes(binding.nodes.length) ||
+      new Set(binding.nodes).size !== binding.nodes.length ||
+      !binding.nodes.includes(selected.node) ||
+      selected.insideAddress !== undefined
+    )
+      throw new Error('Primary-interface ingress requires exact site and node bindings');
+    const group = groups.get(binding.siteName);
+    if (group) {
+      if (!same(group.binding, binding) || group.nodes.has(selected.node))
+        throw new Error('Primary-interface ingress site bindings conflict');
+      group.nodes.add(selected.node);
+    } else groups.set(binding.siteName, { binding, nodes: new Set([selected.node]) });
+  }
+  for (const { binding, nodes } of groups.values())
+    if (nodes.size !== binding.nodes.length || binding.nodes.some((node) => !nodes.has(node)))
+      throw new Error('Primary-interface ingress requires every site node');
+  return true;
+}
+function listenerPlacements(
+  intent: Intent,
+  placements: CeIngressPlan['material']['placements'],
+): InsideHttpListener['sites'] {
+  return intent.usePrimaryInterfaceAddress === true
+    ? [...new Set(placements.map((row) => row.siteName))].map((name) => ({
+        name,
+        usePrimaryInterfaceAddress: true as const,
+      }))
+    : placements.map((row) => ({ name: row.siteName, insideAddress: row.insideAddress }));
+}
 interface Port {
   readonly engine: 'native' | 'terraform';
   readonly siteFingerprint: string;
@@ -196,6 +236,9 @@ export function validateCeIngressHistoricalPlan(
     material.placements.length !== material.selections.length
   )
     throw new Error('Ingress historical owner or placement differs');
+  const primary = validatePrimarySelections(plan.material.intent, plan.material.selections, owner.provider);
+  const uidSites = new Map<string, string>();
+  const siteIds = new Map<string, string>();
   const sites = new Set<string>(),
     nodes = new Set<string>(),
     macs = new Set<string>(),
@@ -218,13 +261,14 @@ export function validateCeIngressHistoricalPlan(
       !['aws', 'azure'].includes(owner.provider) ||
       !Array.isArray(binding.nodes) ||
       new Set(binding.nodes).size !== binding.nodes.length ||
-      (owner.provider === 'aws' ? binding.nodes.length !== 1 : ![1, 3].includes(binding.nodes.length)) ||
+      (owner.provider === 'aws' ? !primary && binding.nodes.length !== 1 : ![1, 3].includes(binding.nodes.length)) ||
       !binding.nodes.includes(selected.node) ||
       binding.siteName !== placement.siteName ||
-      sites.has(binding.siteName) ||
+      (!primary && sites.has(binding.siteName)) ||
       nodes.has(selected.node) ||
       macs.has(selected.mac.toLowerCase()) ||
-      uids.has(placement.siteUid) ||
+      (uids.has(placement.siteUid) && (!primary || uidSites.get(placement.siteUid) !== binding.siteName)) ||
+      (siteIds.has(binding.siteName) && siteIds.get(binding.siteName) !== placement.siteUid) ||
       !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(selected.mac) ||
       isIP(placement.insideAddress) !== 4 ||
       addresses.has(placement.insideAddress)
@@ -256,6 +300,8 @@ export function validateCeIngressHistoricalPlan(
       placement.insideAddress !== (selected.insideAddress ?? iface.ipv4.address)
     )
       throw new Error('Ingress historical inside address differs');
+    uidSites.set(placement.siteUid, binding.siteName);
+    siteIds.set(binding.siteName, placement.siteUid);
     sites.add(binding.siteName);
     nodes.add(selected.node);
     macs.add(selected.mac.toLowerCase());
@@ -269,17 +315,17 @@ export function validateCeIngressHistoricalPlan(
     'xcsh-ce-account': owner.account,
     'xcsh-ce-region': owner.region,
   };
-  const { originAddress, ...intent } = plan.material.intent;
+  const { originAddress, usePrimaryInterfaceAddress: _primary, ...intent } = plan.material.intent;
   const built = contract.build({
     ...intent,
-    sites: plan.material.placements.map((row) => ({ name: row.siteName, insideAddress: row.insideAddress })),
+    sites: listenerPlacements(plan.material.intent, plan.material.placements),
   });
   const origin = contract.buildOrigin({
     name: plan.material.intent.originPool.name,
     namespace: plan.material.intent.originPool.namespace,
     originAddress,
     port: plan.material.intent.port,
-    siteNames: plan.material.placements.map((row) => row.siteName),
+    siteNames: [...new Set(plan.material.placements.map((row) => row.siteName))],
   });
   if (
     !same(request, material.request) ||
@@ -335,22 +381,26 @@ export class CeIngressLifecycle {
     signal.throwIfAborted();
     if (!Array.isArray(selections) || selections.length < 1 || selections.length > 32)
       throw new Error('Ingress site selections required');
+    const primary = validatePrimarySelections(intent, selections, provider);
     const names = new Set<string>();
     const nodes = new Set<string>();
     const macs = new Set<string>();
     const addresses = new Set<string>();
-    const siteUids = new Set<string>();
+    const siteUids = new Map<string, string>();
+    const siteIds = new Map<string, string>();
     const placements = [];
     for (const selected of selections) {
       const { binding } = selected;
       if (
         !same(binding.owner, this.storage.owner) ||
         binding.owner.provider !== provider ||
-        names.has(binding.siteName) ||
+        (!primary && names.has(binding.siteName)) ||
         nodes.has(selected.node) ||
         macs.has(selected.mac.toLowerCase()) ||
         (provider === 'aws'
-          ? binding.nodes.length !== 1 || binding.nodes[0] !== selected.node
+          ? primary
+            ? !binding.nodes.includes(selected.node)
+            : binding.nodes.length !== 1 || binding.nodes[0] !== selected.node
           : ![1, 3].includes(binding.nodes.length) || !binding.nodes.includes(selected.node)) ||
         !/^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(selected.mac) ||
         (selected.insideAddress !== undefined &&
@@ -382,8 +432,17 @@ export class CeIngressLifecycle {
         throw new Error('Fresh inside interface address evidence is unavailable');
       const after = await this.port.observeOwnedSite(binding, signal);
       if (uid(before) !== uid(after)) throw new Error('Site replaced during ingress discovery');
-      if (siteUids.has(uid(after))) throw new Error('Duplicate physical deployment identity');
-      siteUids.add(uid(after));
+      if (siteUids.has(uid(after)) && (!primary || siteUids.get(uid(after)) !== binding.siteName))
+        throw new Error('Duplicate physical deployment identity');
+      if (siteIds.has(binding.siteName) && siteIds.get(binding.siteName) !== uid(after))
+        throw new Error('Site replaced during ingress discovery');
+      siteUids.set(uid(after), binding.siteName);
+      siteIds.set(binding.siteName, uid(after));
+      if (primary) {
+        if (isIP(inside[0].ipv4.address) !== 4 || addresses.has(inside[0].ipv4.address))
+          throw new Error('Primary interface address is invalid or duplicated');
+        addresses.add(inside[0].ipv4.address);
+      }
       placements.push({
         siteName: binding.siteName,
         siteUid: uid(after),
@@ -391,21 +450,17 @@ export class CeIngressLifecycle {
         insideAddress: selected.insideAddress ?? inside[0].ipv4.address,
       });
     }
-    const { originAddress, ...listenerIntent } = intent;
+    const { originAddress, usePrimaryInterfaceAddress: _primary, ...listenerIntent } = intent;
     const built = this.contract.build({
       ...listenerIntent,
-      sites: placements.map((p) => {
-        const insideAddress = p.insideAddress;
-        if (!insideAddress) throw new Error('Inside address became unavailable');
-        return { name: p.siteName, insideAddress };
-      }),
+      sites: listenerPlacements(intent, placements),
     });
     const origin = this.contract.buildOrigin({
       name: intent.originPool.name,
       namespace: intent.originPool.namespace,
       originAddress,
       port: intent.port,
-      siteNames: placements.map((placement) => placement.siteName),
+      siteNames: [...new Set(placements.map((placement) => placement.siteName))],
     } satisfies SiteLocalHttpOrigin);
     signal.throwIfAborted();
     return {
