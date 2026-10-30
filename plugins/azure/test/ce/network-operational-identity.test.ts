@@ -354,3 +354,40 @@ test('network identity rejects foreign expected owner and out-of-range selected 
   await expect(f.run()).rejects.toThrow(/owning resolved/);
   expect(f.state.calls).toEqual([]);
 });
+
+test('network identity preserves trusted complete up freshness and admission without widening node health', async () => {
+  const f = await fixture(true);
+  f.state.linkMutate = (value) =>
+    Object.assign(value, { freshness: 'verified', canSatisfyInterfaceMutationGate: true });
+  const result = await f.run();
+  expect(result).toMatchObject({
+    status: 'observed',
+    freshness: 'verified',
+    canSatisfyInterfaceMutationGate: true,
+    nodeHealth: 'unknown',
+    operationalAcceptance: 'unknown',
+  });
+  expect(f.mutations()).toBe(0);
+});
+test('network identity never admits down or unqualified up despite a trusted admission flag', async () => {
+  for (const down of [false, true]) {
+    const f = await fixture(true);
+    f.state.down = down;
+    f.state.linkMutate = (value) =>
+      Object.assign(value, {
+        freshness: down ? 'verified' : 'unqualified',
+        canSatisfyInterfaceMutationGate: true,
+      });
+    expect(await f.run()).toMatchObject({ status: down ? 'down' : 'observed', canSatisfyInterfaceMutationGate: false });
+    expect(f.mutations()).toBe(0);
+  }
+});
+test('network identity rejects changed final freshness qualification instead of admitting an inconsistent sample', async () => {
+  const f = await fixture();
+  f.state.linkMutate = (value, call) =>
+    Object.assign(value, {
+      freshness: call === 1 ? 'verified' : 'unqualified',
+      canSatisfyInterfaceMutationGate: true,
+    });
+  expect(await f.run()).toMatchObject({ status: 'unknown', interfaces: [], canSatisfyInterfaceMutationGate: false });
+});

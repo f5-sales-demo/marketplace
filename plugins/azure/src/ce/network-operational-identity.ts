@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
 import type { ExpectedCeInterface, ObservedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
@@ -122,7 +123,13 @@ export async function collectAzureNetworkOperationalIdentity(
       const value = await bounded(() => runtime.observeAzureInterfaces(binding, structuredClone(interfaces), deadline));
       require(['observed', 'down', 'unknown'].includes(value.status) &&
         Array.isArray(value.interfaces), 'malformed interface observation');
-      if (value.status === 'unknown') return { status: 'unknown' as const, interfaces: [] as ObservedCeInterface[] };
+      if (value.status === 'unknown')
+        return {
+          status: 'unknown' as const,
+          interfaces: [] as ObservedCeInterface[],
+          freshness: 'unqualified' as const,
+          canSatisfyInterfaceMutationGate: false,
+        };
       require(value.interfaces.length === interfaces.length, 'partial interface observation');
       const devices = new Set<string>(),
         objects = new Set<string>();
@@ -154,8 +161,17 @@ export async function collectAzureNetworkOperationalIdentity(
         (value.interfaces.every((row) => row.linkUp)
           ? 'observed'
           : 'down'), 'interface state disagrees with explicit links');
+      let canSatisfyInterfaceMutationGate = false;
+      try {
+        requireQualifiedUpInterfaceEvidence(value, interfaces);
+        canSatisfyInterfaceMutationGate = true;
+      } catch {
+        // Readable interface state alone cannot authorize a mutation or an active probe.
+      }
       return {
         status: value.status,
+        freshness: value.freshness === 'verified' ? ('verified' as const) : ('unqualified' as const),
+        canSatisfyInterfaceMutationGate,
         interfaces: interfaces.map((wanted) => {
           const row = value.interfaces.find(
             (v) => v.node === wanted.node && v.role === wanted.role,
@@ -217,6 +233,8 @@ export async function collectAzureNetworkOperationalIdentity(
       ...base,
       status: registered.status === 'observed' ? finalLinks.status : ('unknown' as const),
       interfaceState: finalLinks.status,
+      freshness: finalLinks.freshness,
+      canSatisfyInterfaceMutationGate: registered.status === 'observed' && finalLinks.canSatisfyInterfaceMutationGate,
       cloudEvidenceSha256: cloudSha256,
       registrations: registered,
       interfaces: finalLinks.interfaces,
@@ -225,7 +243,9 @@ export async function collectAzureNetworkOperationalIdentity(
           ? 'registrations-unverified'
           : finalLinks.status === 'unknown'
             ? 'interfaces-unverified'
-            : 'operational-health-and-publication-freshness-unqualified',
+            : finalLinks.freshness === 'verified'
+              ? 'node-health-routing-and-traffic-unqualified'
+              : 'operational-health-and-publication-freshness-unqualified',
     };
   } catch {
     deadline.throwIfAborted();
@@ -233,6 +253,7 @@ export async function collectAzureNetworkOperationalIdentity(
       ...base,
       status: 'unknown' as const,
       interfaceState: 'unknown' as const,
+      canSatisfyInterfaceMutationGate: false,
       interfaces: [] as ObservedCeInterface[],
       reason: `${phase}-unverified`,
     };
