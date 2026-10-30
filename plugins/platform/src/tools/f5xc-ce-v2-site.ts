@@ -151,7 +151,26 @@ export function createF5xcCeV2SiteTool(
           );
         } else {
           if (!params.expectedUid) throw new PublicCeError('Exact deletion UID is required');
-          await runtime.deleteSiteExact(params.binding, params.expectedUid, signal);
+          const deletion = await runtime.deleteSiteExact(params.binding, params.expectedUid, signal);
+          await checkpoint({ phase: 'delete-observed', ...deletion });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text:
+                  deletion.status === 'pending'
+                    ? `Logical site deletion is pending for ${params.siteName}.`
+                    : `Logical site deletion completed for ${params.siteName}.`,
+              },
+            ],
+            details: {
+              tool: 'f5xc_ce_v2_site',
+              planId: plan.planId,
+              status: deletion.status,
+              scope: 'logical-site' as const,
+              deletion,
+            },
+          };
         }
         return {
           content: [{ type: 'text' as const, text: `${params.action} completed for ${params.siteName}.` }],
