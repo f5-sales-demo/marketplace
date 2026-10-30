@@ -30,11 +30,29 @@ afterEach(() => {
 });
 
 type Mode = 'pending' | 'deleted' | 'lost-response' | 'foreign-uid' | 'foreign-owner' | 'forbidden';
-function fixture(provider: 'aws' | 'azure', engine: 'native' | 'terraform', mode: Mode) {
+function fixture(
+  provider: 'aws' | 'azure',
+  engine: 'native' | 'terraform',
+  mode: Mode,
+  readOptions: {
+    uid?: unknown;
+    version?: unknown;
+    status?: number;
+    malformed?: boolean;
+    siteName?: string;
+    ha?: boolean;
+  } = {},
+) {
   const binding: SiteBinding = {
-    owner: { deploymentId: 'ce-example', engine, provider, account: 'example-account', region: 'example-region' },
-    siteName: 'ce-example',
-    nodes: ['node-example'],
+    owner: {
+      deploymentId: readOptions.siteName ?? 'ce-example',
+      engine,
+      provider,
+      account: 'example-account',
+      region: 'example-region',
+    },
+    siteName: readOptions.siteName ?? 'ce-example',
+    nodes: readOptions.ha ? ['node-example-one', 'node-example-two', 'node-example-three'] : ['node-example'],
   };
   const labels = Object.fromEntries(
     Object.entries(binding.owner).map(([key, value]) => [
@@ -63,10 +81,20 @@ function fixture(provider: 'aws' | 'azure', engine: 'native' | 'terraform', mode
       return new Response('{}', { status: mode === 'lost-response' ? 503 : 200 });
     }
     if (!present) return new Response('{}', { status: 404 });
+    if (readOptions.status) return new Response('{}', { status: readOptions.status });
+    if (readOptions.malformed) return new Response('{', { status: 200 });
     return Response.json({
       metadata: { name: binding.siteName, namespace: 'system', labels },
-      system_metadata: { uid: mode === 'foreign-uid' ? 'example-other-uid' : 'example-site-uid' },
-      resource_version: 'example-version',
+      system_metadata: {
+        uid: Object.hasOwn(readOptions, 'uid')
+          ? readOptions.uid
+          : mode === 'foreign-uid'
+            ? 'example-other-uid'
+            : readOptions.siteName
+              ? `${readOptions.siteName}-uid`
+              : 'example-site-uid',
+      },
+      resource_version: Object.hasOwn(readOptions, 'version') ? readOptions.version : 'example-version',
     });
   };
   const runtime = new CeRuntime(
@@ -108,7 +136,7 @@ function fixture(provider: 'aws' | 'azure', engine: 'native' | 'terraform', mode
     namespace: 'system',
     siteName: binding.siteName,
     binding,
-    expectedUid: 'example-site-uid',
+    expectedUid: readOptions.siteName ? `${readOptions.siteName}-uid` : 'example-site-uid',
   };
   const context = {
     hasUI: false,
@@ -171,3 +199,68 @@ for (const provider of ['aws', 'azure'] as const)
         } else expect(result.content[0].text).toContain('Logical site deletion');
       });
   }
+
+for (const provider of ['aws', 'azure'] as const)
+  for (const engine of ['native', 'terraform'] as const)
+    for (const profile of ['single-site', 'independent-sites', 'three-node-ha'] as const)
+      for (const state of [
+        'healthy',
+        'missing-site',
+        'foreign-owner',
+        'missing-uid',
+        'empty-uid',
+        'whitespace-uid',
+        'malformed-uid',
+        'unexpected-uid',
+        'malformed-version',
+        'forbidden',
+        'unavailable',
+        'malformed-payload',
+      ] as const)
+        test(`public read preserves owned identity and rejects ${state} (${provider}/${engine}/${profile})`, async () => {
+          const components = profile === 'independent-sites' ? [1, 2, 3] : [1];
+          const observedUids: unknown[] = [];
+          for (const component of components) {
+            const readOptions: {
+              uid?: unknown;
+              version?: unknown;
+              status?: number;
+              malformed?: boolean;
+              siteName: string;
+              ha: boolean;
+            } = {
+              siteName: `ce-example-${component}`,
+              ha: profile === 'three-node-ha',
+            };
+            if (state === 'missing-uid') readOptions.uid = undefined;
+            if (state === 'empty-uid') readOptions.uid = '';
+            if (state === 'whitespace-uid') readOptions.uid = '   ';
+            if (state === 'malformed-uid') readOptions.uid = { value: 'example-uid' };
+            if (state === 'unexpected-uid') readOptions.uid = 'example-replaced-uid';
+            if (state === 'malformed-version') readOptions.version = { value: 'example-untrusted-version' };
+            if (state === 'forbidden') readOptions.status = 403;
+            if (state === 'unavailable') readOptions.status = 503;
+            if (state === 'malformed-payload') readOptions.malformed = true;
+            const f = fixture(provider, engine, state === 'foreign-owner' ? 'foreign-owner' : 'deleted', readOptions);
+            if (state === 'missing-site') f.release();
+            delete process.env.XCSH_CE_HEADLESS_MUTATIONS;
+            delete process.env.XCSH_CE_ALLOW_DESTROY;
+            const result = await f.tool.execute('id', { ...f.params, action: 'read' }, undefined, undefined, f.context);
+            expect(f.calls).toHaveLength(1);
+            expect(f.calls[0]).toMatchObject({ method: 'GET', transport: 'rest' });
+            expect(f.calls[0].path).toContain(f.binding.siteName);
+            expect(f.records).toHaveLength(0);
+            if (state === 'healthy') {
+              expect(result.isError).toBeUndefined();
+              const details = result.details as Record<string, unknown>;
+              expect(details.siteUid).toBe(f.params.expectedUid);
+              expect(details.resourceVersion).toBe('example-version');
+              observedUids.push(details.siteUid);
+            } else {
+              expect(result.isError).toBe(true);
+              expect(result.content[0].text).not.toContain('Read ');
+              expect((result.details as Record<string, unknown>).siteUid).toBeUndefined();
+            }
+          }
+          if (state === 'healthy') expect(new Set(observedUids).size).toBe(components.length);
+        });

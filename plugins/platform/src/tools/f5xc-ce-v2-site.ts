@@ -100,12 +100,25 @@ export function createF5xcCeV2SiteTool(
         if (params.config) runtime.contract.buildSite(params.config);
         if (params.action === 'read') {
           const site = await runtime.observeOwnedSite(params.binding, signal);
+          const siteUid = (site.system_metadata as Record<string, unknown> | undefined)?.uid;
+          if (typeof siteUid !== 'string' || !siteUid.trim() || siteUid !== siteUid.trim())
+            throw new PublicCeError('The owned site UID is missing or malformed');
+          if (params.expectedUid !== undefined && siteUid !== params.expectedUid)
+            throw new PublicCeError('The owned site UID changed; replan required');
+          const resourceVersion = site.resource_version;
+          if (
+            resourceVersion !== undefined &&
+            (typeof resourceVersion !== 'string' ||
+              !resourceVersion.trim() ||
+              resourceVersion !== resourceVersion.trim())
+          )
+            throw new PublicCeError('The owned site resource version is malformed');
           return {
             content: [{ type: 'text' as const, text: `Read ${params.siteName}.` }],
             details: {
               tool: 'f5xc_ce_v2_site',
-              siteUid: (site.system_metadata as Record<string, unknown>).uid,
-              resourceVersion: site.resource_version,
+              siteUid,
+              resourceVersion,
             },
           };
         }
