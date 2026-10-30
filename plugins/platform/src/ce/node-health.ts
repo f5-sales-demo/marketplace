@@ -2,11 +2,13 @@ import { createWireValidator } from './wire-schema';
 
 type Json = Record<string, unknown>;
 export const nodeHealthPath = '/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug/{node}/exec-user';
-export interface ExpectedCeNodeHealth {
+export interface ExpectedCeNodeHealthIdentity {
   siteUid: string;
   node: string;
-  expectedFqdn: string;
   instances: Record<string, string>;
+}
+export interface ExpectedCeNodeHealth extends ExpectedCeNodeHealthIdentity {
+  expectedFqdn: string;
 }
 export function nodeHealthSchemaClosure(schemas: Json): Json {
   const selected: Json = {};
@@ -203,15 +205,11 @@ export function nodeHealthRequest(document: unknown, site: string, node: string)
     timeoutMs: 15000,
   };
 }
-export function validateExpectedNodeHealth(expected: ExpectedCeNodeHealth, nodes: string[]) {
+export function validateExpectedNodeHealthIdentity(expected: ExpectedCeNodeHealthIdentity, nodes: string[]) {
   require(
     text(expected.siteUid) &&
       name(expected.node) &&
       nodes.includes(expected.node) &&
-      text(expected.expectedFqdn) &&
-      expected.expectedFqdn.length <= 253 &&
-      expected.expectedFqdn.startsWith(`${expected.node}.`) &&
-      expected.expectedFqdn.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) &&
       [1, 3].includes(nodes.length) &&
       new Set(nodes).size === nodes.length,
   );
@@ -221,6 +219,39 @@ export function validateExpectedNodeHealth(expected: ExpectedCeNodeHealth, nodes
       nodes.every((node) => text(instances[node])) &&
       new Set(Object.values(instances)).size === nodes.length,
   );
+}
+export function validateExpectedNodeHealth(expected: ExpectedCeNodeHealth, nodes: string[]) {
+  validateExpectedNodeHealthIdentity(expected, nodes);
+  require(
+    text(expected.expectedFqdn) &&
+      expected.expectedFqdn.length <= 253 &&
+      expected.expectedFqdn.startsWith(`${expected.node}.`) &&
+      expected.expectedFqdn.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)),
+  );
+}
+
+/** Acquire the reported registration FQDN from the selected, owned node's command response.
+ * This validates the full response and expected hostname; no readiness claim is returned.
+ * A subsequent independent command must verify this acquired identity before use.
+ */
+export function parseNodeHealthBindingResponse(
+  document: unknown,
+  value: unknown,
+  expected: ExpectedCeNodeHealthIdentity,
+  nodes: string[],
+) {
+  validateExpectedNodeHealthIdentity(expected, nodes);
+  const schemas = object(responseSchemas(object(object(object(document).components).schemas))),
+    response = object(value);
+  createWireValidator(schemas, 'debugExecResponse')(response);
+  require(response.return_code === 0 && typeof response.output === 'string' && response.output.length <= 65536);
+  const health = parseNodeHealthJson(response.output);
+  createWireValidator(schemas, 'debugHealthResponse')(health);
+  require(typeof health.fqdn === 'string' && health.hostname === expected.node);
+  const binding = { ...structuredClone(expected), expectedFqdn: health.fqdn };
+  validateExpectedNodeHealth(binding, nodes);
+  parseNodeHealthResponse(document, value, binding);
+  return binding;
 }
 export function parseNodeHealthResponse(document: unknown, value: unknown, expected: ExpectedCeNodeHealth) {
   const schemas = object(responseSchemas(object(object(object(document).components).schemas))),

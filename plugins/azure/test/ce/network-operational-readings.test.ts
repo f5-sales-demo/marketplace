@@ -4,6 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evidence';
+import type { ExpectedCeNodeHealthIdentity } from '../../../platform/src/ce/node-health';
+import { CeRuntime } from '../../../platform/src/ce/runtime';
+import { VerifiedCeContract } from '../../../platform/src/ce/verified-contract';
+import nodeApi from '../../../platform/test/fixtures/node-health-schema.json';
+import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
+import smsContract from '../../../platform/test/fixtures/smsv2-contract-v7.json';
+import compactSchema from '../../../platform/test/fixtures/smsv2-create-schema.json';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { collectAzureNetworkOperationalReadings } from '../../src/ce/network-operational-readings';
 import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update';
@@ -62,6 +69,8 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
     routeFault: false,
     sessionsFault: false,
     bgpCalls: 0,
+    nodeCalls: 0,
+    nodeFault: '',
   };
   const exec = f.api.exec;
   if (routeServer)
@@ -166,6 +175,38 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
         privateRaw: 'SECRET_SENTINEL',
       };
     },
+    async observeNodeReadiness(_binding: unknown, expected: ExpectedCeNodeHealthIdentity) {
+      state.nodeCalls++;
+      if (!state.nodeFault) return { status: 'unknown', readiness: 'unknown' };
+      if (state.nodeFault === 'service') throw Error('SECRET_SENTINEL');
+      return {
+        status: 'observed',
+        readiness: state.nodeFault === 'not-ready' ? 'not-ready' : 'ready',
+        state: state.nodeFault === 'not-ready' ? 'FAILED' : 'PROVISIONED',
+        owner: state.nodeFault === 'owner' ? { ...binding.owner, account: 'example-foreign-account' } : binding.owner,
+        siteName: binding.siteName,
+        siteUid: state.nodeFault === 'uid' ? 'foreign' : expected.siteUid,
+        node: state.nodeFault === 'node' ? 'foreign' : expected.node,
+        instanceId: state.nodeFault === 'instance' ? 'foreign' : expected.instances[expected.node],
+        registration: state.nodeFault === 'registration' ? 'foreign' : `r-${binding.nodes.indexOf(expected.node)}`,
+        scope: state.nodeFault === 'scope' ? 'every-node' : 'selected-node-vpm-readiness',
+        fqdn: `${expected.node}.ce.example.test`,
+        roles: ['k8s-master-primary'],
+        softwareVersion: 'software-example',
+        osVersion: 'os-example',
+        vpmVersion: 'vpm-example',
+        originalSampleFreshness: state.nodeFault === 'freshness' ? 'verified' : 'unqualified',
+        allNodeHealthQualified: false,
+        routingTrafficQualified: false,
+        canSatisfyInterfaceMutationGate: state.nodeFault === 'gate',
+        source: `/api/operate/namespaces/system/sites/${binding.siteName}/vpm/debug/${expected.node}/exec-user`,
+        outputSha256: 'c'.repeat(64),
+        bindingOutputSha256: 'd'.repeat(64),
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        privateRaw: 'SECRET_SENTINEL',
+      };
+    },
     async observeBgpSessions(
       _binding: unknown,
       expected: Array<{ node: string; interfaceName: string; peerAddress: string }>,
@@ -209,6 +250,99 @@ async function fixture(ha = false, ingress = false, routeServer = false) {
     collectAzureNetworkOperationalReadings(plan, identity, runtime, f.api, store, signal, active);
   return { ...f, plan, identity, runtime, store, state, run };
 }
+
+for (const ha of [false, true])
+  test(`Azure selected-node readiness joins ${ha ? 'HA' : 'single'} current VM/registration identity without promoting whole-site acceptance`, async () => {
+    const f = await fixture(ha);
+    f.state.nodeFault = 'ready';
+    const result = await f.run();
+    expect(result.nodeReadiness).toMatchObject({
+      status: 'observed',
+      readiness: 'ready',
+      node: `${f.plan.deploymentName}-1`,
+      scope: 'selected-node-vpm-readiness',
+    });
+    expect(result.nodeHealth).toBe('unknown');
+    expect(f.state.nodeCalls).toBe(1);
+    expect(f.state.writes).toBe(0);
+    expect(f.mutations()).toBe(0);
+    expect(JSON.stringify(result)).not.toContain('SECRET_SENTINEL');
+  });
+
+for (const fault of ['owner', 'uid', 'node', 'instance', 'registration', 'scope', 'freshness', 'gate', 'service'])
+  test(`Azure ${fault} selected-node evidence remains unknown and cannot authorize traffic`, async () => {
+    const f = await fixture(true, true);
+    f.state.nodeFault = fault;
+    const result = await f.run(true);
+    expect(result.nodeReadiness.status).toBe('unknown');
+    expect(result.traffic.status).toBe('unknown');
+    expect(f.state.writes).toBe(0);
+    expect(f.mutations()).toBe(0);
+  });
+
+test('Azure explicit selected-node not-ready state is preserved separately from interface state', async () => {
+  const f = await fixture();
+  f.state.nodeFault = 'not-ready';
+  const result = await f.run();
+  expect(result.nodeReadiness).toMatchObject({ status: 'observed', readiness: 'not-ready', state: 'FAILED' });
+  expect(result.identity.status).toBe('observed');
+  expect(result.nodeHealth).toBe('unknown');
+});
+
+test('Azure readings execute the real two-command node readiness observer with current inventory and registration bindings', async () => {
+  const f = await fixture(true);
+  const C = VerifiedCeContract as unknown as new (...args: unknown[]) => VerifiedCeContract;
+  const schema = resolveCeSchemaFixture(compactSchema);
+  const contract = new C(
+    schema.provenance.commit,
+    `sha256:${'f'.repeat(64)}`,
+    smsContract,
+    schema.schemas,
+    undefined,
+    'published-release',
+    undefined,
+    nodeApi,
+  );
+  const commands: unknown[] = [];
+  const node = `${f.plan.deploymentName}-1`;
+  const runtime = new CeRuntime(contract, 'terraform', 'https://tenant.test', 'test-credential', async (url, init) => {
+    expect(new URL(url).pathname).toBe(
+      `/api/operate/namespaces/system/sites/${f.plan.siteName}/vpm/debug/${node}/exec-user`,
+    );
+    expect(init?.method).toBe('POST');
+    const command = JSON.parse(String(init?.body));
+    expect(command).toEqual({ command: ['health'] });
+    commands.push(command);
+    return Response.json({
+      return_code: 0,
+      output: JSON.stringify({
+        hostname: node,
+        fqdn: `${node}.ce.example.test`,
+        state: 'PROVISIONED',
+        roles: ['k8s-master-primary'],
+        software_version: 'software-example',
+        os_version: 'os-example',
+        version: 'vpm-example',
+      }),
+    });
+  });
+  runtime.observeOwnedSite = f.runtime.observeOwnedSite.bind(f.runtime);
+  runtime.observeRegistrations = f.runtime.observeRegistrations.bind(f.runtime);
+  f.runtime.observeNodeReadiness = runtime.observeNodeReadiness.bind(runtime);
+  const result = await f.run();
+  expect(commands).toHaveLength(2);
+  expect(result.nodeReadiness).toMatchObject({
+    status: 'observed',
+    readiness: 'ready',
+    node,
+    instanceId: f.identity.inventory.nodes['1'].vmId,
+    registration: 'r-0',
+    fqdn: `${node}.ce.example.test`,
+  });
+  expect(result.nodeHealth).toBe('unknown');
+  expect(f.state.writes).toBe(0);
+  expect(f.mutations()).toBe(0);
+});
 for (const ha of [false, true])
   test(`operational readings retain ${ha ? 'six' : 'two'} interfaces and genuine site-global scope without cloud or storage mutation`, async () => {
     const f = await fixture(ha),

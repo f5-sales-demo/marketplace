@@ -19,7 +19,13 @@ import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
-import { type ExpectedCeNodeHealth, parseNodeHealthJson, validateExpectedNodeHealth } from './node-health';
+import {
+  type ExpectedCeNodeHealth,
+  type ExpectedCeNodeHealthIdentity,
+  parseNodeHealthJson,
+  validateExpectedNodeHealth,
+  validateExpectedNodeHealthIdentity,
+} from './node-health';
 import { readCeObservation } from './observation-deadline';
 import { CeOriginTeardown } from './origin-teardown';
 import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
@@ -2628,6 +2634,55 @@ export class CeRuntime {
    * complete instance map come from a separately acquired trusted deployment binding.
    * A successful command is neither original interface freshness nor all-node acceptance.
    */
+  async #readNodeHealthCommand(binding: SiteBinding, expected: ExpectedCeNodeHealthIdentity, deadline: AbortSignal) {
+    this.#binding(binding);
+    if (binding.owner.engine !== this.engine) throw Error('Node health owning engine differs');
+    validateExpectedNodeHealthIdentity(expected, binding.nodes);
+    const observeSite = this.observeOwnedSite,
+      observeRegistrations = this.observeRegistrations;
+    const request = this.contract.nodeHealthRequest(binding.siteName, expected.node);
+    const boundary = async () => {
+      if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+        throw Error('Node health observer changed');
+      const site = await readCeObservation(deadline, () => observeSite.call(this, binding, deadline));
+      if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
+      const registration = await readCeObservation(deadline, () =>
+        observeRegistrations.call(this, binding, expected.instances, deadline),
+      );
+      if (
+        registration.status !== 'healthy' ||
+        !Array.isArray(registration.nodes) ||
+        registration.nodes.length !== binding.nodes.length
+      )
+        throw Error('Node health registrations unavailable');
+      const selected = registration.nodes.filter((row) => row.node === expected.node);
+      if (
+        selected.length !== 1 ||
+        selected[0].instanceId !== expected.instances[expected.node] ||
+        selected[0].state !== 'ONLINE' ||
+        typeof selected[0].registration !== 'string'
+      )
+        throw Error('Node health selected registration differs');
+      if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+        throw Error('Node health observer changed');
+      return { siteUid: expected.siteUid, nodes: registration.nodes, selected: selected[0] };
+    };
+    const before = await boundary();
+    const commandDeadline = AbortSignal.any([deadline, AbortSignal.timeout(request.timeoutMs)]);
+    const response = await readCeObservation(commandDeadline, () =>
+      this.#request(
+        request.path,
+        { method: request.method, body: JSON.stringify(request.body) },
+        commandDeadline,
+        parseNodeHealthJson,
+      ),
+    );
+
+    const after = await boundary();
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw Error('Node health registration changed');
+    deadline.throwIfAborted();
+    return { response, request, before };
+  }
   async observeNodeHealth(binding: SiteBinding, expected: ExpectedCeNodeHealth, signal?: AbortSignal) {
     signal?.throwIfAborted();
     binding = structuredClone(binding);
@@ -2646,58 +2701,17 @@ export class CeRuntime {
       startedAt: new Date().toISOString(),
     };
     const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
-    const observeSite = this.observeOwnedSite,
-      observeRegistrations = this.observeRegistrations;
     try {
-      this.#binding(binding);
-      if (binding.owner.engine !== this.engine) throw Error('Node health owning engine differs');
       validateExpectedNodeHealth(expected, binding.nodes);
-      const request = this.contract.nodeHealthRequest(binding.siteName, expected.node);
-      const boundary = async () => {
-        if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
-          throw Error('Node health observer changed');
-        const site = await readCeObservation(deadline, () => observeSite.call(this, binding, deadline));
-        if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
-        const registration = await readCeObservation(deadline, () =>
-          observeRegistrations.call(this, binding, expected.instances, deadline),
-        );
-        if (
-          registration.status !== 'healthy' ||
-          !Array.isArray(registration.nodes) ||
-          registration.nodes.length !== binding.nodes.length
-        )
-          throw Error('Node health registrations unavailable');
-        const selected = registration.nodes.filter((row) => row.node === expected.node);
-        if (
-          selected.length !== 1 ||
-          selected[0].instanceId !== expected.instances[expected.node] ||
-          selected[0].state !== 'ONLINE' ||
-          typeof selected[0].registration !== 'string'
-        )
-          throw Error('Node health selected registration differs');
-        if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
-          throw Error('Node health observer changed');
-        return { siteUid: expected.siteUid, nodes: registration.nodes, selected: selected[0] };
-      };
-      const before = await boundary();
-      const commandDeadline = AbortSignal.any([deadline, AbortSignal.timeout(request.timeoutMs)]);
-      const response = await readCeObservation(commandDeadline, () =>
-        this.#request(
-          request.path,
-          { method: request.method, body: JSON.stringify(request.body) },
-          commandDeadline,
-          parseNodeHealthJson,
-        ),
-      );
-      const reading = this.contract.parseNodeHealthResponse(response, expected),
-        after = await boundary();
-      if (JSON.stringify(before) !== JSON.stringify(after)) throw Error('Node health registration changed');
+      const { response, request, before } = await this.#readNodeHealthCommand(binding, expected, deadline);
+      const reading = this.contract.parseNodeHealthResponse(response, expected);
       deadline.throwIfAborted();
       return {
         ...base,
         ...reading,
         instanceId: before.selected.instanceId,
         registration: before.selected.registration,
+        registrationIdentitySha256: createHash('sha256').update(JSON.stringify(before.nodes)).digest('hex'),
         source: request.path,
         outputSha256: createHash('sha256').update(String(response.output)).digest('hex'),
         completedAt: new Date().toISOString(),
@@ -2709,6 +2723,70 @@ export class CeRuntime {
         status: 'unknown' as const,
         readiness: 'unknown' as const,
         reason: error instanceof CeApiError ? error.category : 'node-health-schema-identity-or-evidence-unverified',
+        completedAt: new Date().toISOString(),
+      };
+    }
+  }
+  /** Acquire the selected node's registration FQDN from its current authenticated command,
+   * then verify readiness in a separate request. The route, complete registrations and site
+   * UID authorize discovery; the acquired FQDN is never fabricated from cloud-provider domain.
+   * The two collection intervals do not establish original interface heartbeat freshness.
+   */
+  async observeNodeReadiness(binding: SiteBinding, expected: ExpectedCeNodeHealthIdentity, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      node: expected.node,
+      scope: 'selected-node-vpm-readiness' as const,
+      originalSampleFreshness: 'unqualified' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+      allNodeHealthQualified: false as const,
+      routingTrafficQualified: false as const,
+      startedAt: new Date().toISOString(),
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    const observer = this.observeNodeHealth,
+      ownedSite = this.observeOwnedSite,
+      registrations = this.observeRegistrations;
+    try {
+      const first = await this.#readNodeHealthCommand(binding, expected, deadline);
+      const resolved = this.contract.parseNodeHealthBindingResponse(first.response, expected, binding.nodes);
+      const bindingObservedAt = new Date().toISOString();
+      if (
+        this.observeNodeHealth !== observer ||
+        this.observeOwnedSite !== ownedSite ||
+        this.observeRegistrations !== registrations
+      )
+        throw Error('Node readiness acquisition observer changed');
+      const value = await readCeObservation(deadline, () => observer.call(this, binding, resolved, deadline));
+      if (
+        this.observeNodeHealth !== observer ||
+        this.observeOwnedSite !== ownedSite ||
+        this.observeRegistrations !== registrations ||
+        value.status !== 'observed' ||
+        value.fqdn !== resolved.expectedFqdn ||
+        value.registrationIdentitySha256 !==
+          createHash('sha256').update(JSON.stringify(first.before.nodes)).digest('hex')
+      )
+        throw Error('Node readiness acquisition or verification identity changed');
+      deadline.throwIfAborted();
+      return {
+        ...value,
+        startedAt: base.startedAt,
+        bindingObservedAt,
+        bindingOutputSha256: createHash('sha256').update(String(first.response.output)).digest('hex'),
+      };
+    } catch (error) {
+      signal?.throwIfAborted();
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        reason: error instanceof CeApiError ? error.category : 'node-readiness-binding-or-evidence-unverified',
         completedAt: new Date().toISOString(),
       };
     }

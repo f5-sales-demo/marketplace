@@ -1,4 +1,5 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { validateExpectedNodeHealth } from '../../../platform/src/ce/node-health';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
@@ -11,7 +12,7 @@ import { collectAzureCurrentTrafficProbe } from './traffic-probe';
 import type { AzureCePlan } from './types';
 
 type Runtime = Parameters<typeof collectAzureNetworkOperationalIdentity>[2] &
-  Pick<CeRuntime, 'observeHealth' | 'observeBgpSessions' | 'observeBgpRoutes'>;
+  Pick<CeRuntime, 'observeHealth' | 'observeNodeReadiness' | 'observeBgpSessions' | 'observeBgpRoutes'>;
 type Json = Record<string, unknown>;
 const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
 function object(value: unknown): Json {
@@ -52,6 +53,7 @@ export async function collectAzureNetworkOperationalReadings(
         'observeRegistrations',
         'observeAzureInterfaces',
         'observeHealth',
+        'observeNodeReadiness',
         'observeBgpSessions',
         'observeBgpRoutes',
       ],
@@ -126,6 +128,81 @@ export async function collectAzureNetworkOperationalReadings(
       siteUid: health.siteUid,
       representativeNode: health.representativeNode,
       state: health.state,
+    };
+  } catch {
+    seal();
+  }
+  let nodeReadiness: Json = unknown('selected-node-readiness-unavailable');
+  try {
+    const node = `${plan.deploymentName}-${identity.node}`;
+    const instances = Object.fromEntries(
+      Object.entries(identity.inventory.nodes).map(([index, vm]) => [`${plan.deploymentName}-${index}`, vm.vmId]),
+    );
+    require('registrations' in initial && initial.registrations.status === 'observed');
+    const selectedRegistrations = initial.registrations.nodes.filter((row) => row.node === node);
+    require(selectedRegistrations.length === 1);
+    const selected = selectedRegistrations[0];
+    const value = object(
+      await bounded(() =>
+        runtime.observeNodeReadiness(binding, { siteUid: identity.siteUid, node, instances }, deadline),
+      ),
+    );
+    require(
+      value.status === 'observed' &&
+        same(value.owner, binding.owner) &&
+        value.siteName === binding.siteName &&
+        value.siteUid === identity.siteUid &&
+        value.node === node &&
+        value.instanceId === instances[node] &&
+        value.instanceId === selected.instanceId &&
+        value.registration === selected.registration &&
+        value.scope === 'selected-node-vpm-readiness' &&
+        value.originalSampleFreshness === 'unqualified' &&
+        value.canSatisfyInterfaceMutationGate === false &&
+        value.allNodeHealthQualified === false &&
+        value.routingTrafficQualified === false &&
+        value.source === `/api/operate/namespaces/system/sites/${binding.siteName}/vpm/debug/${node}/exec-user` &&
+        typeof value.outputSha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(value.outputSha256) &&
+        typeof value.bindingOutputSha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(value.bindingOutputSha256) &&
+        ['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
+          String(value.state),
+        ) &&
+        value.readiness === (value.state === 'PROVISIONED' ? 'ready' : 'not-ready') &&
+        Array.isArray(value.roles) &&
+        value.roles.length > 0 &&
+        value.roles.length <= 32 &&
+        new Set(value.roles).size === value.roles.length &&
+        [value.softwareVersion, value.osVersion, value.vpmVersion, ...value.roles].every(
+          (text) => typeof text === 'string' && text.trim() && text.length <= 256,
+        ),
+    );
+    validateExpectedNodeHealth(
+      { siteUid: identity.siteUid, node, instances, expectedFqdn: value.fqdn as string },
+      binding.nodes,
+    );
+    nodeReadiness = {
+      status: 'observed',
+      readiness: value.readiness,
+      state: value.state,
+      scope: 'selected-node-vpm-readiness',
+      node,
+      siteUid: identity.siteUid,
+      instanceId: instances[node],
+      registration: selected.registration,
+      fqdn: value.fqdn,
+      softwareVersion: value.softwareVersion,
+      osVersion: value.osVersion,
+      vpmVersion: value.vpmVersion,
+      roles: [...value.roles],
+      source: value.source,
+      outputSha256: value.outputSha256,
+      bindingOutputSha256: value.bindingOutputSha256,
+      originalSampleFreshness: 'unqualified',
+      canSatisfyInterfaceMutationGate: false,
+      allNodeHealthQualified: false,
+      routingTrafficQualified: false,
     };
   } catch {
     seal();
@@ -271,6 +348,7 @@ export async function collectAzureNetworkOperationalReadings(
     identity: final,
     siteHealth,
     nodeHealth: 'unknown' as const,
+    nodeReadiness,
     routeExchange,
     sessions,
     routes,

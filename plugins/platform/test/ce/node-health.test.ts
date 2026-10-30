@@ -98,6 +98,113 @@ function harness(engine: 'native' | 'terraform', ha = false) {
   return { binding, expected, site, health, registrations, calls, state, runtime, run };
 }
 
+for (const engine of ['native', 'terraform'] as const)
+  for (const ha of [false, true])
+    test(`${engine} acquires a current ${ha ? 'HA' : 'single'} selected-node FQDN before a separate readiness request`, async () => {
+      const f = harness(engine, ha);
+      const { expectedFqdn: _fqdn, ...identity } = f.expected;
+      const value = await f.runtime.observeNodeReadiness(f.binding, identity);
+      expect(value).toMatchObject({
+        status: 'observed',
+        readiness: 'ready',
+        fqdn: f.expected.expectedFqdn,
+        instanceId: 'vm-0',
+        registration: 'r-node-0',
+        scope: 'selected-node-vpm-readiness',
+        allNodeHealthQualified: false,
+        canSatisfyInterfaceMutationGate: false,
+        originalSampleFreshness: 'unqualified',
+      });
+      const commands = f.calls.filter((row) => row.path.endsWith('/exec-user'));
+      expect(commands).toHaveLength(2);
+      expect(commands.every((row) => JSON.stringify(row.body) === JSON.stringify({ command: ['health'] }))).toBe(true);
+      expect(value).toHaveProperty('bindingOutputSha256');
+      expect(f.calls.some((row) => row.path.includes('/global/'))).toBe(false);
+    });
+
+for (const fault of ['foreign-host', 'foreign-fqdn', 'malformed-fqdn', 'missing-fqdn', 'duplicate', 'command-failure'])
+  test(`FQDN acquisition rejects ${fault} without executing readiness`, async () => {
+    const f = harness('terraform', true);
+    const { expectedFqdn: _fqdn, ...identity } = f.expected;
+    if (fault === 'foreign-host') f.health.hostname = 'foreign-node';
+    if (fault === 'foreign-fqdn') f.health.fqdn = 'foreign-node.ce.example.test';
+    if (fault === 'malformed-fqdn') f.health.fqdn = 'node-one.bad;command';
+    if (fault === 'missing-fqdn') delete f.health.fqdn;
+    if (fault === 'duplicate') f.state.output = JSON.stringify(f.health).replace('"fqdn":', '"fqdn":"foreign","fqdn":');
+    if (fault === 'command-failure') f.state.returnCode = 1;
+    expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+      status: 'unknown',
+      readiness: 'unknown',
+    });
+    expect(f.calls.filter((row) => row.path.endsWith('/exec-user'))).toHaveLength(1);
+  });
+
+for (const fault of ['fqdn', 'registration', 'site', 'service'])
+  test(`selected-node acquisition cannot authorize readiness after ${fault} drift`, async () => {
+    const f = harness('native', true);
+    const { expectedFqdn: _fqdn, ...identity } = f.expected;
+    let commands = 0;
+    f.state.onExec = () => {
+      if (++commands !== 2) return;
+      if (fault === 'fqdn') f.health.fqdn = 'node-one.other.example.test';
+      if (fault === 'registration') f.registrations.items[0].name = 'replacement-registration';
+      if (fault === 'site') f.site.system_metadata.uid = 'replacement-site';
+      if (fault === 'service') f.state.code = 503;
+    };
+    expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+      status: 'unknown',
+      readiness: 'unknown',
+    });
+  });
+
+test('node readiness acquisition keeps explicit not-ready state and rejects incomplete current instance bindings', async () => {
+  const f = harness('terraform', true);
+  const { expectedFqdn: _fqdn, ...identity } = f.expected;
+  f.health.state = 'FAILED';
+  expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+    status: 'observed',
+    readiness: 'not-ready',
+    state: 'FAILED',
+  });
+  f.calls.splice(0);
+  delete identity.instances['node-three'];
+  expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+    status: 'unknown',
+    readiness: 'unknown',
+  });
+  expect(f.calls).toHaveLength(0);
+});
+
+test('HA acquisition targets the selected second node and detects another node registration replacement between commands', async () => {
+  const f = harness('terraform', true);
+  const { expectedFqdn: _fqdn, ...identity } = f.expected;
+  identity.node = 'node-two';
+  f.health.hostname = 'node-two';
+  f.health.fqdn = 'node-two.ce.example.test';
+  expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+    status: 'observed',
+    node: 'node-two',
+    instanceId: 'vm-1',
+  });
+  const original = f.runtime.observeNodeHealth.bind(f.runtime);
+  f.runtime.observeNodeHealth = async (...args) => {
+    f.registrations.items[2].name = 'replacement-third-node';
+    return original(...args);
+  };
+  expect(await f.runtime.observeNodeReadiness(f.binding, identity)).toMatchObject({
+    status: 'unknown',
+    readiness: 'unknown',
+  });
+});
+
+test('acquisition cancellation bounds a transport ignoring AbortSignal without a second command', async () => {
+  const f = harness('terraform', true);
+  const { expectedFqdn: _fqdn, ...identity } = f.expected;
+  f.state.hanging = true;
+  await expect(f.runtime.observeNodeReadiness(f.binding, identity, AbortSignal.timeout(20))).rejects.toThrow();
+  expect(f.calls.filter((row) => row.path.endsWith('/exec-user'))).toHaveLength(1);
+});
+
 test('node health builds only the exact lower-privilege built-in command from mapped schemas', () => {
   expect(nodeHealthRequest(api, 'ce-one', 'node-one')).toEqual({
     method: 'POST',

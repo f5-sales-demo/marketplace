@@ -4,9 +4,11 @@ import { componentStatusPath, componentStatusRequest } from './component-status'
 import { forwardingRoutePath, forwardingRouteRequest, forwardingRouteSchemas } from './forwarding-route';
 import {
   type ExpectedCeNodeHealth,
+  type ExpectedCeNodeHealthIdentity,
   nodeHealthPath,
   nodeHealthRequest,
   nodeHealthSchemaClosure,
+  parseNodeHealthBindingResponse,
   parseNodeHealthResponse,
 } from './node-health';
 import { parseKvmImageResolution, type Smsv2KvmImageResolution } from './release-contract';
@@ -159,6 +161,9 @@ export class VerifiedCeContract {
   }
   parseNodeHealthResponse(response: unknown, expected: ExpectedCeNodeHealth) {
     return parseNodeHealthResponse(this.#readOnlyOperationalApi, response, expected);
+  }
+  parseNodeHealthBindingResponse(response: unknown, expected: ExpectedCeNodeHealthIdentity, nodes: string[]) {
+    return parseNodeHealthBindingResponse(this.#readOnlyOperationalApi, response, expected, nodes);
   }
   componentStatusRequest(site: string, namespace: string) {
     return componentStatusRequest(this.#readOnlyOperationalApi, site, namespace);
