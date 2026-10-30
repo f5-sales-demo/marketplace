@@ -9,21 +9,19 @@ const mac = (v: unknown): string | undefined =>
     ? v.toLowerCase()
     : undefined;
 
-/** Accept only a trusted observer's qualified, complete up evidence. The caller acquires the
- * observer from the owned runtime; qualification is not accepted from public tool arguments.
- * Neither an up status nor fetch time establishes original sample freshness.
+/** Require a complete identity-verified interface set with internally consistent explicit links.
+ * This validates reported state only; it does not qualify original sample freshness or mutation.
  */
-export function requireQualifiedUpInterfaceEvidence(
+export function requireCompleteInterfaceEvidence(
   observation: CeInterfaceObservation,
   expected: ExpectedCeInterface[],
 ): void {
   const fail = () => {
-    throw Error('Qualified current up interface evidence is required before routing mutation');
+    throw Error('Complete identity-verified interface evidence is required');
   };
   if (
-    observation?.status !== 'observed' ||
-    observation.freshness !== 'verified' ||
-    observation.canSatisfyInterfaceMutationGate !== true ||
+    !observation ||
+    !['observed', 'down'].includes(observation.status) ||
     !Array.isArray(observation.interfaces) ||
     !Array.isArray(expected) ||
     expected.length === 0 ||
@@ -54,7 +52,7 @@ export function requireQualifiedUpInterfaceEvidence(
     const row = matches[0],
       deviceKey = `${row.node}/${row.device}`;
     if (
-      row.linkUp !== true ||
+      typeof row.linkUp !== 'boolean' ||
       !name(row.device) ||
       !name(row.interfaceName) ||
       (wanted.device !== undefined && row.device !== wanted.device) ||
@@ -66,5 +64,30 @@ export function requireQualifiedUpInterfaceEvidence(
       fail();
     devices.add(deviceKey);
     objects.add(row.interfaceName);
+  }
+  if (observation.status !== (observation.interfaces.every((row) => row.linkUp) ? 'observed' : 'down')) fail();
+}
+
+/** Accept only a trusted observer's qualified, complete up evidence. The caller acquires the
+ * observer from the owned runtime; qualification is not accepted from public tool arguments.
+ * Neither an up status nor fetch time establishes original sample freshness.
+ */
+export function requireQualifiedUpInterfaceEvidence(
+  observation: CeInterfaceObservation,
+  expected: ExpectedCeInterface[],
+): void {
+  const fail = () => {
+    throw Error('Qualified current up interface evidence is required before routing mutation');
+  };
+  if (
+    observation?.status !== 'observed' ||
+    observation.freshness !== 'verified' ||
+    observation.canSatisfyInterfaceMutationGate !== true
+  )
+    fail();
+  try {
+    requireCompleteInterfaceEvidence(observation, expected);
+  } catch {
+    fail();
   }
 }
