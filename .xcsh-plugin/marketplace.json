@@ -149,7 +149,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.8.0",
+      "minimumRuntimeVersion": "23.10.3",
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -318,7 +318,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.8.0",
+      "minimumRuntimeVersion": "23.10.3",
       "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
@@ -343,7 +343,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.8.0",
+      "minimumRuntimeVersion": "23.10.3",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
@@ -532,7 +532,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "23.8.0",
+      "minimumRuntimeVersion": "23.10.3",
       "source": "./plugins/terraform",
       "category": "development",
       "keywords": ["terraform", "hcl", "iac", "devops", "hashicorp", "testing", "troubleshooting"],

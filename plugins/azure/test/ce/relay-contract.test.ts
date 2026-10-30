@@ -1726,7 +1726,13 @@ function relayWorkflowFixture(engine: 'native' | 'terraform' = 'native', ha = fa
       return { system_metadata: { uid: siteUid } };
     },
     async observeAzureInterfaces() {
-      return { status: interfaceStatus, interfaces: structuredClone(observed), observedAt: new Date().toISOString() };
+      return {
+        status: interfaceStatus,
+        freshness: 'verified' as const,
+        canSatisfyInterfaceMutationGate: true,
+        interfaces: structuredClone(observed),
+        observedAt: new Date().toISOString(),
+      };
     },
     async ensureAzureRelayRouting(
       _binding: unknown,
@@ -2527,6 +2533,8 @@ async function relayOperationalFixture(
     async observeAzureInterfacesForNodes(_binding: unknown, _complete: unknown, nodes: string[]) {
       return {
         status: 'observed' as const,
+        freshness: 'verified' as const,
+        canSatisfyInterfaceMutationGate: true,
         interfaces: structuredClone(f.observed.filter((row) => nodes.includes(row.node))),
         observedAt: new Date().toISOString(),
       };
@@ -5322,6 +5330,8 @@ async function relayOutageIdentityFixture(engine: 'native' | 'terraform') {
       scopes.push(nodes);
       return {
         status: 'observed' as const,
+        freshness: 'verified' as const,
+        canSatisfyInterfaceMutationGate: true,
         interfaces: structuredClone(f.observed.filter((row) => nodes.includes(row.node))),
         observedAt: new Date().toISOString(),
       };
@@ -5411,6 +5421,8 @@ for (const mode of [
     if (mode === 'selected-reappears')
       f.runtime.observeAzureInterfacesForNodes = async () => ({
         status: 'observed',
+        freshness: 'verified',
+        canSatisfyInterfaceMutationGate: true,
         interfaces: structuredClone(f.observed),
         observedAt: new Date().toISOString(),
       });
@@ -7838,3 +7850,39 @@ test('private replacement configuration diagnostics do not expose malformed enro
     await f.dispose();
   }
 });
+
+for (const engine of ['native', 'terraform'] as const)
+  for (const ha of [false, true])
+    for (const kind of [
+      'unqualified',
+      'missing-freshness',
+      'missing-eligibility',
+      'closed-eligibility',
+      'forged-eligibility',
+    ] as const)
+      test(`relay interface eligibility gate rejects ${engine}/${ha}/${kind} before routing or guest mutation`, async () => {
+        const f = relayWorkflowFixture(engine, ha),
+          original = f.runtime.observeAzureInterfaces;
+        f.runtime.observeAzureInterfaces = async () => {
+          const observed = await original();
+          const result: Omit<Awaited<ReturnType<typeof original>>, 'freshness' | 'canSatisfyInterfaceMutationGate'> & {
+            freshness?: 'verified' | 'unqualified';
+            canSatisfyInterfaceMutationGate?: boolean;
+          } = { ...observed, freshness: 'verified', canSatisfyInterfaceMutationGate: true };
+          if (kind === 'unqualified') {
+            result.freshness = 'unqualified';
+            result.canSatisfyInterfaceMutationGate = false;
+          }
+          if (kind === 'missing-freshness') delete result.freshness;
+          if (kind === 'missing-eligibility') delete result.canSatisfyInterfaceMutationGate;
+          if (kind === 'closed-eligibility') result.canSatisfyInterfaceMutationGate = false;
+          if (kind === 'forged-eligibility') result.freshness = 'unqualified';
+          return result as Awaited<ReturnType<typeof original>>;
+        };
+        await expect(
+          ensureAzureRelayRoutingWorkflow(f.source, f.expected, f.runtime, f.storage, f.api),
+        ).rejects.toThrow();
+        expect(f.routing).toBe(0);
+        expect(f.mutations).toBe(0);
+        expect(f.saved.has('relay-routing-workflow.json')).toBe(false);
+      });

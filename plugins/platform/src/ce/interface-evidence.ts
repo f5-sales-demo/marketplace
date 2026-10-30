@@ -16,6 +16,16 @@ export interface ObservedCeInterface extends ExpectedCeInterface {
   linkUp: boolean;
   ipv4: { address: string; prefixLength: number } | null;
 }
+/** Reported link values are distinct from permission to use them at a mutation boundary.
+ * Missing qualification is unqualified. Collection time is never original CE sample time.
+ */
+export interface CeInterfaceObservation {
+  status: 'observed' | 'down' | 'unknown';
+  interfaces: ObservedCeInterface[];
+  observedAt: string;
+  freshness?: 'verified' | 'unqualified';
+  canSatisfyInterfaceMutationGate?: boolean;
+}
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed interface evidence');

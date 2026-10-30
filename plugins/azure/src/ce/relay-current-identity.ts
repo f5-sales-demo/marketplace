@@ -1,4 +1,5 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
 import type { ExpectedCeInterface, ObservedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
@@ -175,6 +176,7 @@ export async function azureRelayCurrentIdentityContext(
         (row) =>
           row.linkUp === true && currentExpected.some((wanted) => wanted.node === row.node && wanted.role === row.role),
       ), 'complete verified up CE evidence required');
+    requireQualifiedUpInterfaceEvidence(platform, currentExpected);
     const cloud = [];
     const slo: ObservedCeInterface[] = [];
     const endpoints: Array<{ node: number; address: string }> = [];

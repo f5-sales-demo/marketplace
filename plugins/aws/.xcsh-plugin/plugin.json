@@ -31,5 +31,5 @@
     "collectedData": ["accounts"],
     "pluginDependencies": []
   },
-  "minimumRuntimeVersion": "23.8.0"
+  "minimumRuntimeVersion": "23.10.3"
 }

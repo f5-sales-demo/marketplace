@@ -18,7 +18,7 @@ import {
 import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
-import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
+import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
 import { readCeObservation } from './observation-deadline';
 import { CeOriginTeardown } from './origin-teardown';
 import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
@@ -1048,7 +1048,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'aws') throw new Error('AWS interface observation requires AWS ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
@@ -1056,7 +1056,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
@@ -1176,7 +1176,7 @@ export class CeRuntime {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
     persistBinding = true,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<CeInterfaceObservation> {
     this.#binding(binding);
     const observedAt = new Date().toISOString();
     try {
@@ -1212,10 +1212,18 @@ export class CeRuntime {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
         interfaces,
         observedAt,
+        freshness: 'unqualified',
+        canSatisfyInterfaceMutationGate: false,
       };
     } catch (error) {
       if (signal?.aborted) throw error;
-      return { status: 'unknown', interfaces: [], observedAt };
+      return {
+        status: 'unknown',
+        interfaces: [],
+        observedAt,
+        freshness: 'unqualified',
+        canSatisfyInterfaceMutationGate: false,
+      };
     }
   }
   async ensureAwsRouting(

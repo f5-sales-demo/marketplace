@@ -95,6 +95,8 @@ test('discovers SLO objects and Route Server addresses before durable BGP creati
       events.push('interfaces');
       return {
         status: 'observed',
+        freshness: 'verified',
+        canSatisfyInterfaceMutationGate: true,
         observedAt: '2026-09-10T12:00:00Z',
         interfaces: expected.map((item) => ({
           ...item,
@@ -215,7 +217,13 @@ test('proves exact three-node Route Server withdrawal and restoration from both 
               primary: true,
               privateIPAddressVersion: 'IPv4',
               privateIPAddress: peerIp,
-              subnet: { id: plan.nics[0].subnet.resourceId },
+              subnet: {
+                id:
+                  plan.nics[0].subnet.resourceId ??
+                  plan.actions.find(
+                    (action) => action.kind === 'subnet-create' && action.resourceId?.endsWith('/subnets/slo'),
+                  )?.resourceId,
+              },
             },
           ],
         };
