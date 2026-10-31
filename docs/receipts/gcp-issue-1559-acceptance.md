@@ -546,3 +546,17 @@ Google 8.7.0 and xcsh 15.13.0 Darwin ARM64 packages, plus 16 passing source and
 shared-service tests with 62 assertions. No external provider execution or
 production cloud consumer was enabled. Credential, configuration, saved-plan,
 production process closure, bridge, guard and all live gates remain open.
+
+Attempt 304 repairs the canonical presentation fingerprints after the shared
+provider verifier changed their inputs. Twelve tracker and ownership tests
+passed with 509 assertions. Exactly 59 rows reopened; prior evidence, receipts,
+scopes and retirements were preserved. The PR remains draft.
+
+Attempt 305 adds a private admission-only q39 successor. The
+[input admission receipt](gcp-q39-input-admission-offline-20261030.md) records
+exact frozen configuration and lock bindings, reviewed credential freshness and
+lifetime checks, and exact saved create-plan identities. Synthetic offline
+fixtures do not qualify live credential or plan evidence. No executor or cloud
+consumer is enabled. Trusted live snapshot production, Platform workspace and
+provider joins, independent absence and review, production deadlines, bridge,
+guard, installation and all live and publication gates remain open.
