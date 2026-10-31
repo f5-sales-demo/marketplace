@@ -513,11 +513,18 @@ source tests, two bundle checks and the retained failing-first results.
 | Requirement | Implementation and tests | Installed and live evidence | Publication |
 | --- | --- | --- | --- |
 | Shared runner execution policy | Hook qualified offline | New bytes await normal installation | Held |
-| Durable ownership and no replay | Service and runner regressions pass | Fresh q39 executor evidence pending | Held |
-| Signal-free campaign execution | Executor qualification remains open | Bridge and guard pending | Held |
+| Durable ownership and no replay | Service, runner and durable journal tests pass | Local interruption and two resumes pass; Terraform pending | Held |
+| Signal-free campaign execution | Local gate and transport composition pass | Terraform transport, bridge and guard pending | Held |
 | Guest, lifecycle and traffic acceptance | Existing holds preserved | Fresh campaign evidence pending | Held |
 
 The user removed the campaign-count allowance. Earlier allowance statements
 remain historical evidence. Independent cleanup and a concrete qualified change
 are still required before another campaign. Historical capture and reader
 closure remain unresolved. Issue #1559 is incomplete.
+
+Attempts 294 through 297 qualify the policy, durable journal, actual local gate
+and their local transport composition. The
+[local transport receipt](gcp-q39-local-transport-offline-20261030.md) records
+21 policy, 12 journal, 20 gate and three integration tests. Real Terraform
+admission remains disabled. These results do not qualify installed runtime,
+live deployment or publication.
