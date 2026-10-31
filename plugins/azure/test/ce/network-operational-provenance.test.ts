@@ -1,6 +1,6 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { chmod, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -380,12 +380,189 @@ test('reopened historical authentication needs a retained original pin and does 
   expect(f.state.calls).toBe(calls);
   expect(f.mutations()).toBe(0);
 });
-test('missing retained issuer cannot be replaced during collection or key retirement', async () => {
+test('missing retained original issuer publication cannot be replaced during collection or key retirement', async () => {
   const f = await fixture(),
     reference = await f.collector.collect(f.identity, 'preflight');
   await f.store.remove('azure-network-observer-issuer.json');
+  await f.store.remove(`azure-network-issuer-${reference.issuerSha256}.json`);
   const reopened = f.open(reference.issuerSha256);
-  await expect(reopened.collect(f.identity, 'preflight')).rejects.toThrow('retained issuer publication missing');
-  await expect(reopened.retireSigningMaterial()).rejects.toThrow('retained issuer publication missing');
+  await expect(reopened.collect(f.identity, 'preflight')).rejects.toThrow();
+  await expect(reopened.retireSigningMaterial()).rejects.toThrow();
   expect((await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).length).toBeGreaterThan(0);
+});
+async function publicSessionFixture() {
+  const f = await fixture(),
+    directory = await mkdtemp(join(tmpdir(), 'operational-public-session-'));
+  roots.push(directory);
+  let next = 0;
+  const paths = new Map<string, string>();
+  const session = {
+    getSessionId: () => directory,
+    getArtifactsDir: () => directory,
+    getArtifactPath: async (id: string) => paths.get(id) ?? null,
+    async saveArtifact(content: string, type: string) {
+      const id = String(++next),
+        path = join(directory, `${id}.${type}.log`);
+      await writeFile(path, content, { mode: 0o600 });
+      paths.set(id, path);
+      return id;
+    },
+  };
+  await (await import('../../src/ce/artifacts')).savePlanArtifact(
+    session,
+    f.plan,
+    (await import('./fixtures')).observation,
+  );
+  return { ...f, directory, session, paths };
+}
+function publicIssuerArtifact(f: Awaited<ReturnType<typeof publicSessionFixture>>) {
+  const paths = [...f.paths.values()].filter((path) => path.endsWith('.azure-ce-network-operational-issuer.log'));
+  if (paths.length !== 1 || typeof paths[0] !== 'string')
+    throw Error('fixture issuer publication is missing or ambiguous');
+  return paths[0];
+}
+async function openPublicAcquisition(f: Awaited<ReturnType<typeof publicSessionFixture>>) {
+  const factory = (await import('../../src/ce/network-operational-session')).createAzureOperationalAcquisitionSession;
+  return factory(f.plan, f.runtime, f.api, f.store, f.session);
+}
+test('owning native session retains the actual issuer before acknowledgement and reopens its original history', async () => {
+  const f = await publicSessionFixture(),
+    collect = await openPublicAcquisition(f);
+  const reference = await collect.collect(f.identity, 'preflight');
+  const files = [...f.paths.values()].filter((p) => p.endsWith('.azure-ce-network-operational-issuer.log'));
+  expect(files).toHaveLength(1);
+  const record = JSON.parse(await readFile(files[0], 'utf8'));
+  expect(record).toMatchObject({
+    owner: f.store.owner,
+    planSha256: f.plan.planSha256,
+    issuerSha256: reference.issuerSha256,
+  });
+  expect(JSON.stringify(record)).not.toContain('signingMaterial');
+  const reopened = await openPublicAcquisition(f);
+  expect((await reopened.authenticate(reference, f.identity, 'preflight', 'historical')).status).toBe('authenticated');
+  await expect(reopened.authenticate(reference, f.identity, 'preflight', 'current')).rejects.toThrow(
+    'current acquisition unavailable',
+  );
+  expect(f.mutations()).toBe(0);
+});
+test('owning public pin survives private signing-key retirement', async () => {
+  const f = await publicSessionFixture(),
+    collect = await openPublicAcquisition(f),
+    reference = await collect.collect(f.identity, 'preflight');
+  await collect.retireSigningMaterial();
+  expect(
+    (await (await openPublicAcquisition(f)).authenticate(reference, f.identity, 'preflight', 'historical')).status,
+  ).toBe('authenticated');
+  await expect(readFile(join(f.store.directory, 'azure-network-observer-key.json'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+});
+test('native session conflicts and unsafe issuer artifacts reject before collector work', async () => {
+  const f = await publicSessionFixture(),
+    collect = await openPublicAcquisition(f);
+  await collect.collect(f.identity, 'preflight');
+  const path = publicIssuerArtifact(f);
+  const record = JSON.parse(await readFile(path, 'utf8')),
+    calls = f.state.calls;
+  await writeFile(
+    join(f.directory, 'conflict.azure-ce-network-operational-issuer.log'),
+    JSON.stringify({ ...record, issuerSha256: 'e'.repeat(64) }),
+    { mode: 0o600 },
+  );
+  await expect(openPublicAcquisition(f)).rejects.toThrow();
+  expect(f.state.calls).toBe(calls);
+});
+test('unpinned private issuer is not enrolled from storage or a supplied reference', async () => {
+  const f = await publicSessionFixture(),
+    reference = await f.collector.collect(f.identity, 'preflight');
+  const calls = f.state.calls;
+  await expect(openPublicAcquisition(f)).rejects.toThrow('original public issuer pin unavailable');
+  expect(reference.issuerSha256).toHaveLength(64);
+  expect(f.state.calls).toBe(calls);
+});
+test('headless native session must persist its issuer rather than succeeding in memory', async () => {
+  const f = await publicSessionFixture();
+  f.session.getArtifactsDir = () => null as unknown as string;
+  await expect(openPublicAcquisition(f)).rejects.toThrow('persistent native session required');
+  await expect(readFile(join(f.store.directory, 'azure-network-observer-key.json'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  expect(f.mutations()).toBe(0);
+});
+test('interruption after public issuer publication resumes its original key and pin before private pointer creation', async () => {
+  const f = await publicSessionFixture(),
+    write = f.store.write.bind(f.store);
+  let failed = false;
+  f.store.write = async (name, value, signal) => {
+    if (name === 'azure-network-observer-issuer.json' && !failed) {
+      failed = true;
+      throw Error('injected-pointer-interruption');
+    }
+    return write(name, value, signal);
+  };
+  const collect = await openPublicAcquisition(f);
+  await expect(collect.collect(f.identity, 'preflight')).rejects.toThrow('injected-pointer-interruption');
+  const key = await readFile(join(f.store.directory, 'azure-network-observer-key.json'));
+  const reopened = await openPublicAcquisition(f),
+    reference = await reopened.collect(f.identity, 'preflight');
+  expect(await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).toEqual(key);
+  expect((await reopened.authenticate(reference, f.identity, 'preflight', 'current')).status).toBe('authenticated');
+  expect([...f.paths.values()].filter((p) => p.endsWith('.azure-ce-network-operational-issuer.log'))).toHaveLength(1);
+});
+test('changing the public issuer bytes after factory construction blocks current authentication', async () => {
+  const f = await publicSessionFixture(),
+    collect = await openPublicAcquisition(f),
+    reference = await collect.collect(f.identity, 'preflight');
+  const path = publicIssuerArtifact(f);
+  const original = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, JSON.stringify({ ...original, issuerSha256: 'e'.repeat(64) }));
+  await expect(collect.authenticate(reference, f.identity, 'preflight', 'current')).rejects.toThrow();
+});
+for (const fault of ['mode', 'symlink', 'duplicate-json', 'unresolved-source', 'wrong-engine'] as const)
+  test(`public issuer pin rejects ${fault} before collector activity`, async () => {
+    const f = await publicSessionFixture(),
+      collect = await openPublicAcquisition(f);
+    await collect.collect(f.identity, 'preflight');
+    const path = publicIssuerArtifact(f);
+    const raw = await readFile(path, 'utf8'),
+      row = JSON.parse(raw),
+      calls = f.state.calls;
+    if (fault === 'mode') await chmod(path, 0o644);
+    if (fault === 'symlink') {
+      const target = join(f.directory, 'example-issuer-target.json');
+      await writeFile(target, raw, { mode: 0o600 });
+      await rm(path);
+      await symlink(target, path);
+    }
+    if (fault === 'duplicate-json')
+      await writeFile(path, raw.replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1'));
+    if (fault === 'unresolved-source') await writeFile(path, JSON.stringify({ ...row, planSha256: 'e'.repeat(64) }));
+    if (fault === 'wrong-engine') await writeFile(path, JSON.stringify({ ...row, engine: 'native' }));
+    await expect(openPublicAcquisition(f)).rejects.toThrow();
+    expect(f.state.calls).toBe(calls);
+    expect(f.mutations()).toBe(0);
+  });
+test('issuer publication order is native and an unacknowledged publication cannot return an acquisition', async () => {
+  const f = await publicSessionFixture(),
+    save = f.session.saveArtifact.bind(f.session);
+  let issuerWrites = 0;
+  f.session.saveArtifact = async (content, type) => {
+    if (type === 'azure-ce-network-operational-issuer') {
+      issuerWrites++;
+      await expect(f.store.read('azure-network-observer-issuer.json')).rejects.toMatchObject({ code: 'ENOENT' });
+      await save(content, type);
+      return undefined as unknown as string;
+    }
+    return save(content, type);
+  };
+  const collect = await openPublicAcquisition(f);
+  await expect(collect.collect(f.identity, 'preflight')).rejects.toThrow(
+    'original issuer publication not acknowledged',
+  );
+  expect(issuerWrites).toBe(1);
+  await expect(f.store.read('azure-network-observer-issuer.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  const reopened = await openPublicAcquisition(f),
+    reference = await reopened.collect(f.identity, 'preflight');
+  expect((await reopened.authenticate(reference, f.identity, 'preflight', 'current')).status).toBe('authenticated');
+  expect(issuerWrites).toBe(1);
 });

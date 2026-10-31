@@ -76,6 +76,7 @@ export function createAzureOperationalAcquisitionCollector(
   storage: CeDeploymentStore,
   forwarding?: ExpectedCeForwardingRoutes,
   trustedIssuerSha256?: string,
+  originalIssuerPublication?: (issuerSha256: string, signal: AbortSignal) => Promise<void>,
 ) {
   const plan = structuredClone(request),
     owner = structuredClone(storage.owner),
@@ -84,6 +85,8 @@ export function createAzureOperationalAcquisitionCollector(
     requestSha = canonicalSha256(request),
     reviewedSha = forwarding === undefined ? undefined : canonicalSha256(forwarding);
   require(trustedIssuerSha256 === undefined || digest(trustedIssuerSha256), 'retained issuer pin malformed');
+  require(originalIssuerPublication === undefined ||
+    typeof originalIssuerPublication === 'function', 'owning issuer publisher malformed');
   verifyAzureCePlan(plan);
   require(plan.engine === 'terraform' &&
     plan.intent.operation === 'update-network' &&
@@ -145,10 +148,12 @@ export function createAzureOperationalAcquisitionCollector(
     let pointer = await optional(store, anchorName);
     signal.throwIfAborted();
     const initializing = pointer === undefined && create && anchored === undefined;
-    require(pointer !== undefined || anchored === undefined, 'retained issuer publication missing');
+    if (pointer === undefined && !create && anchored !== undefined)
+      pointer = { schemaVersion: 1, owner, issuerSha256: anchored };
     if (pointer === undefined && create) {
       let secret = await optional(store, keyName);
       if (secret === undefined) {
+        require(anchored === undefined, 'original retained signing material missing');
         signal.throwIfAborted();
         const pair = generateKeyPairSync('ed25519', {
           publicKeyEncoding: { type: 'spki', format: 'der' },
@@ -171,7 +176,13 @@ export function createAzureOperationalAcquisitionCollector(
           .export({ type: 'spki', format: 'der' })
           .equals(bytes(value.publicKey)), 'private signing key differs');
       const record = { schemaVersion: 1, kind: 'azure-network-operational-issuer', owner, publicKey: value.publicKey };
+      require(anchored === undefined || canonicalSha256(record) === anchored, 'retained issuer private key differs');
+      if (anchored !== undefined) await readImmutableCeReceipt(store, 'azure-network-issuer', anchored, signal);
       const publication = await publishImmutableCeReceipt(store, 'azure-network-issuer', record, signal);
+      if (originalIssuerPublication) {
+        await originalIssuerPublication(publication.publicationSha256, signal);
+        signal.throwIfAborted();
+      }
       pointer = { schemaVersion: 1, owner, issuerSha256: publication.publicationSha256 };
       await store.write(anchorName, pointer, signal);
     }
