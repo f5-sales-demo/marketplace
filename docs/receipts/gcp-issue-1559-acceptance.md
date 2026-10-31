@@ -588,3 +588,12 @@ and fresh independent absence checks for three original subjects. The
 five-minute reserve is tested as a deadline contract; production final capture,
 refreshable credentials, bridge, guard and all installed, live and publication
 gates remain open.
+
+Attempt 310 verifies the existing refreshable ADC path independently of CLI
+authentication. The [ADC receipt](gcp-q39-adc-verification-20261031.md) records
+seven passing guard and principal tests, verified server principal, audience,
+scope and expiry, exact project access and four independent original read
+group absences. The original credential file remained unchanged. Production
+admission still needs an explicit ADC successor, exact workspace and environment
+bindings and qualification of refresh during long execution. All subsequent
+installed, live, cleanup, review and publication gates remain open.
