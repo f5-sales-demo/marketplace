@@ -371,6 +371,33 @@ async function inventory(
       await add(name, true);
       continue;
     }
+    const publicSite = siteBindings(base).find(({ binding }) => name === 'public-site-' + binding.siteName + '.json');
+    if (publicSite) {
+      // External absence and runner retirement precede this inventory. Retain
+      // only an exact public replacement journal joined to the saved teardown UID.
+      const value = object(await store.read(name)),
+        record = object(value.record),
+        retirement = object(teardown).retirement;
+      const sites = Array.isArray(retirement)
+        ? retirement.map(object).filter((site) => site.siteName === publicSite.binding.siteName)
+        : [];
+      if (
+        JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(['planId', 'record']) ||
+        JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(['phase', 'resourceVersion', 'uid']) ||
+        typeof value.planId !== 'string' ||
+        !/^f5xc-ce-v2-[a-f0-9]{24}$/.test(value.planId) ||
+        !['replace-prepared', 'replace-observed'].includes(String(record.phase)) ||
+        sites.length !== 1 ||
+        typeof sites[0].siteUid !== 'string' ||
+        !sites[0].siteUid ||
+        record.uid !== sites[0].siteUid ||
+        typeof record.resourceVersion !== 'string' ||
+        !record.resourceVersion
+      )
+        throw Error('AWS public site replacement journal provenance differs');
+      await add(name, true);
+      continue;
+    }
     if (
       !preserve.has(name) &&
       !drainJournals.has(name) &&
