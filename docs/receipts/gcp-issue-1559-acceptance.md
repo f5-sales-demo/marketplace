@@ -513,8 +513,8 @@ source tests, two bundle checks and the retained failing-first results.
 | Requirement | Implementation and tests | Installed and live evidence | Publication |
 | --- | --- | --- | --- |
 | Shared runner execution policy | Hook qualified offline | New bytes await normal installation | Held |
-| Durable ownership and no replay | Service, runner and durable journal tests pass | Local interruption and two resumes pass; Terraform pending | Held |
-| Signal-free campaign execution | Local gate and transport composition pass | Terraform transport, bridge and guard pending | Held |
+| Durable ownership and no replay | Service, runner and durable journal tests pass | Local interruption and real Terraform resumes pass; GCP pending | Held |
+| Signal-free campaign execution | Local gate and saved-plan transport pass | GCP admission, bridge and guard pending | Held |
 | Guest, lifecycle and traffic acceptance | Existing holds preserved | Fresh campaign evidence pending | Held |
 
 The user removed the campaign-count allowance. Earlier allowance statements
@@ -528,3 +528,13 @@ and their local transport composition. The
 21 policy, 12 journal, 20 gate and three integration tests. Real Terraform
 admission remains disabled. These results do not qualify installed runtime,
 live deployment or publication.
+
+Attempt 301 qualifies actual Terraform 1.16.6 planning, single-use apply,
+no-change reconciliation and typed teardown through the shared service with a
+strictly local built-in resource. The
+[local saved-plan receipt](gcp-q39-local-saved-plan-20261030.md) records 46 passing
+tests and 194 assertions, exact admitted file hashes, original shared-workspace
+claim binding and two resumes without execution after empty teardown. GCP
+provider and credential admission, production orchestration, installed runtime
+and every outstanding live or publication gate remain open. Reported CI checks
+passed at predecessor `f7e60b79`; the PR remains draft.
