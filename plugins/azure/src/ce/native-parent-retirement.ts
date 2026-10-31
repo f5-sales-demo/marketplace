@@ -10,7 +10,7 @@ import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../pl
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   isAzureFailoverHistoricalArtifact,
   verifyAzureFailoverHistoricalArtifacts,
@@ -52,7 +52,7 @@ const markerName = 'azure-native-parent-artifact-retirement.json';
 const lockName = '.azure-relay-native-mutation-lock';
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
 const sha = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const require = (condition: unknown, message: string) => {
   if (!condition) throw Error(`Native parent retirement: ${message}`);
 };

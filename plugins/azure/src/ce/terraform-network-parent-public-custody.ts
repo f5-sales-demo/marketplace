@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { readAzureCePlanInventory, type SessionManagerLike } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type {
   AzureNetworkParentPublicOutcomeRead,
   AzureNetworkParentPublicSourceRead,
@@ -22,7 +22,7 @@ interface Binding {
   };
 }
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure network parent public custody: ${message}`);
 }

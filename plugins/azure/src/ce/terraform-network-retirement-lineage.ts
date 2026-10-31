@@ -6,7 +6,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import { type SessionManagerLike, verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import {
@@ -27,7 +27,7 @@ import { readAzureTerraformOriginalReceiptProvenance } from './terraform-origina
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network retirement lineage: ${message}`);
 }

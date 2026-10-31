@@ -1,5 +1,5 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureNetworkUpdateInventory } from './network-update';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -11,7 +11,7 @@ const object = (value: unknown): Record<string, unknown> => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed provenance record');
   return value as Record<string, unknown>;
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 
 /** Historical final public health evidence binds birth/generation UUIDs and registered MAC/device identities.

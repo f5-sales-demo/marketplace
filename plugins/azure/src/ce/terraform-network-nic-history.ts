@@ -1,7 +1,7 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   validateAzureNetworkUpdateInventory,
@@ -16,7 +16,7 @@ import { buildAzureTerraformNetworkPinnedNicStage } from './terraform-network-ro
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network NIC history: ${message}`);
 }

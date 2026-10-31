@@ -6,7 +6,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { type BootstrapCheckoutBinding, retireBootstrapToken } from '../../../platform/src/ce/token-store';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import { recheckAzureTerraformNetworkFreshParentAbsence } from './terraform-network-fresh-parent-absence';
 import type { readAzureTerraformNetworkParentInventory } from './terraform-network-parent-inventory';
@@ -20,7 +20,7 @@ import type { AzureCePlan } from './types';
 
 type Inventory = Awaited<ReturnType<typeof readAzureTerraformNetworkParentInventory>>;
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure network opaque checkout retirement: ${message}`);
 }

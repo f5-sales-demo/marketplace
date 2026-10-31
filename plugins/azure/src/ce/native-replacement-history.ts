@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { verifyAzureNativeNetworkReplacementOriginalSource } from './native-network-replacement';
 import { verifyAzureNativeNetworkReplacementRetirementNicBridge } from './native-network-replacement-retirement';
 import { verifyAzureNativeReplacementOriginalSource } from './native-replacement-source';
@@ -16,7 +16,7 @@ type Json = Record<string, unknown>;
 const require = (condition: unknown, message: string): void => {
   if (!condition) throw Error(`Azure native replacement history: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const object = (value: unknown): Json => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
   return value as Json;

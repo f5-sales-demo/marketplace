@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import {
   qualifyAzureTerraformNetworkCancelledMainBinding,
@@ -17,7 +17,7 @@ import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
 const name = 'azure-terraform-terminal-cleanup.json';
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 function require(v: unknown, message: string): asserts v {
   if (!v) throw Error(`Azure network terminal planning: ${message}`);

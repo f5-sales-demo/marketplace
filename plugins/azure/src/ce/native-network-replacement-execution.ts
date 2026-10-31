@@ -1,7 +1,7 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { validateAzureNativePendingAction } from './native-action-recovery';
 import { validateAzureNativeNetworkGenerationInventory } from './native-network-generation';
 import {
@@ -23,7 +23,7 @@ import type { AzureCeCheckpoint, AzureCePlan } from './types';
 function require(condition: unknown, message: string): asserts condition {
   if (!condition) throw Error(`Azure native network replacement execution: ${message}`);
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 const object = (value: unknown): Record<string, unknown> => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed cloud identity');

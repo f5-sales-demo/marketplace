@@ -1,6 +1,6 @@
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { validateCeIngressHistoricalPlan } from '../../../platform/src/ce/ingress-lifecycle';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { validateAzureIngressSource } from './ingress-source';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import {
@@ -14,7 +14,7 @@ type Json = Record<string, unknown>;
 const require = (value: unknown, message: string) => {
   if (!value) throw new Error(`Azure ingress history: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const object = (value: unknown): Json => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
   return value as Json;

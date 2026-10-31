@@ -2,7 +2,7 @@ import { parseBgpSessions } from '../../../platform/src/ce/bgp-evidence';
 import { parseBgpRoutes } from '../../../platform/src/ce/bgp-route-evidence';
 import { buildAzureRelayRouting } from '../../../platform/src/ce/wire-routing';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { azureRelayCurrentIdentityContext } from './relay-current-identity';
 import { azureRelayPlanForDeployment } from './relay-deployment-plan';
 import {
@@ -45,7 +45,7 @@ const timestamp = (value: unknown) =>
   require(typeof value === 'string' &&
     Number.isFinite(Date.parse(value)) &&
     Date.parse(value) <= Date.now(), 'historical collection timestamp differs');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const rawResult = (marker: string, nonce: string, payload: unknown) => ({
   value: [
     {

@@ -5,7 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import { recheckAzureTerraformNetworkFreshParentAbsence } from './terraform-network-fresh-parent-absence';
 import {
@@ -20,7 +20,7 @@ import type { AzureCePlan } from './types';
 const nonBootstrapMarkerName = 'azure-terraform-network-packet-retirement.json';
 const bootstrapMarkerName = 'azure-terraform-network-bootstrap-packet-retirement.json';
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const safe = (path: string) =>
   path !== '' && path.split('/').every((part) => /^[a-zA-Z0-9_.-]+$/.test(part) && part !== '.' && part !== '..');
 function require(value: unknown, message: string): asserts value {

@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   captureAzureNetworkUpdateInventory,
@@ -28,7 +28,7 @@ export interface AzureTerraformNetworkRoutingConfigurationRow {
   nextHopType?: 'VirtualAppliance';
   peerAsn?: number;
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform routing configuration: ${message}`);

@@ -4,7 +4,7 @@ import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   captureAzureNetworkUpdateInventory,
@@ -33,7 +33,7 @@ export interface AzureTerraformNetworkSourceBinding {
   qualification: Awaited<ReturnType<typeof qualifyAzureTerraformNetworkGenerationSource>>;
 }
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network source binding: ${message}`);
 }

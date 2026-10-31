@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { qualifyAzureNativeNetworkGenerationBoundary } from './native-network-generation';
 import {
   azureNativeNetworkHistoryName,
@@ -20,7 +20,7 @@ import type { AzureCePlan } from './types';
 const require = (condition: unknown, message: string): void => {
   if (!condition) throw Error(`Azure native network replacement retirement: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 
 /** Offline provenance after cloud/site absence. Historical configuration is identity evidence, never link freshness. */
 export async function verifyAzureNativeNetworkReplacementRetirementSource(

@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureNetworkParentTerminalProjection } from './terraform-network-parent-inventory';
 
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (left: unknown, right: unknown) => canonicalSha256({ value: left }) === canonicalSha256({ value: right });
+const same = (left: unknown, right: unknown) => canonicalEqual({ value: left }, { value: right });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure terminal staging projection: ${message}`);
 }

@@ -1,5 +1,5 @@
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureNetworkUpdateInventory } from './network-update';
 import {
   validateAzureTerraformNetworkPowerPlan,
@@ -7,7 +7,7 @@ import {
 } from './terraform-network-power';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network power cancellation: ${message}`);
 }

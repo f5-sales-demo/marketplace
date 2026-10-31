@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import type { readAzureTerraformNetworkParentInventory } from './terraform-network-parent-inventory';
 import { recheckAzureTerraformNetworkRetiredMainNativeCustody } from './terraform-network-retired-main-custody';
@@ -11,7 +11,7 @@ import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snap
 import type { AzureCePlan } from './types';
 
 const hash = (v: Uint8Array) => createHash('sha256').update(v).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const safe = (v: string) =>
   v !== '' && v.split('/').every((part) => /^[a-zA-Z0-9_.-]+$/.test(part) && part !== '.' && part !== '..');
 function require(v: unknown, message: string): asserts v {

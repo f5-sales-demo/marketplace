@@ -5,14 +5,14 @@ import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { SessionManagerLike } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
 import type { AzureTerraformNetworkReplacementCompletedVerifier } from './terraform-network-replacement-completion';
 import { readAzureTerraformNetworkAllOriginalCustody } from './terraform-network-retirement-lineage';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform all-network custody preparation: ${message}`);
 }

@@ -4,12 +4,12 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform original receipt provenance: ${message}`);
 }

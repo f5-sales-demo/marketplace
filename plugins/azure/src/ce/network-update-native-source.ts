@@ -1,7 +1,7 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { readAzureNativeNetworkGenerationCompletion } from './native-network-generation';
 import { qualifyAzureNativeNetworkHistories } from './native-network-history';
 import { azureNativeNetworkScope as scope, verifyAzureNativeNetworkProfile } from './native-network-plan';
@@ -19,7 +19,7 @@ const object = (value: unknown): Record<string, unknown> => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed provenance record');
   return value as Record<string, unknown>;
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 
 /** Qualify completed creation and all prior VM generations before accepting cloud tags as execution provenance. */

@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
 import type { AzureTerraformNetworkReplacementCompletedVerifier } from './terraform-network-replacement-completion';
@@ -12,7 +12,7 @@ import { readAzureTerraformNetworkRetirementGraph } from './terraform-network-re
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const identity = (stat: { dev: number; ino: number; birthtimeMs: number }) =>
   `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;

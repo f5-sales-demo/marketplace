@@ -3,7 +3,7 @@ import { isIP } from 'node:net';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
 import {
   isAzureFailoverHistoricalArtifact,
@@ -36,7 +36,7 @@ import { readAzureTerraformUpgradeStageRetirement } from './terraform-upgrade-re
 import type { AzureCePlan } from './types';
 
 const hash = (input: string | Uint8Array) => createHash('sha256').update(input).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure parent disposition: ${message}`);

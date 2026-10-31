@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import { validateAzureNetworkUpdateInventory } from './network-update';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
@@ -135,12 +135,12 @@ export async function readAzureTerraformNetworkRetirementGraph(
     loadOutcome = loaders.loadOutcome;
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   // Internal readers clone these request snapshots before invoking external dependencies.
-  const requestSnapshotSha256 = canonicalSha256(plan),
-    siteSnapshotSha256 = canonicalSha256(site);
+  const requestMatches = canonicalSnapshot(plan),
+    siteMatches = canonicalSnapshot(site);
   const seal = () => {
     deadline.throwIfAborted();
-    require(canonicalSha256(request) === requestSnapshotSha256 &&
-      canonicalSha256(siteRequest) === siteSnapshotSha256 &&
+    require(requestMatches(request) &&
+      siteMatches(siteRequest) &&
       same(store.owner, owner) &&
       store.directory === directory &&
       store.read === read &&
@@ -529,6 +529,7 @@ export async function readAzureTerraformNetworkRetirementGraphPrefix(
     !Array.isArray(originalRequest), 'original graph witness required');
   const original = structuredClone(originalRequest),
     originalSha256 = canonicalSha256(original),
+    originalMatches = canonicalSnapshot(original),
     plan = structuredClone(request),
     ownedSite = structuredClone(site),
     owner = structuredClone(store.owner),
@@ -540,7 +541,7 @@ export async function readAzureTerraformNetworkRetirementGraphPrefix(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require(canonicalSha256(originalRequest) === originalSha256 &&
+    require(originalMatches(originalRequest) &&
       same(request, plan) &&
       same(site, ownedSite) &&
       same(store.owner, owner) &&

@@ -1,5 +1,5 @@
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { verifyAzureNativeNetworkReplacementProfile } from './native-network-replacement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -19,7 +19,7 @@ export type AzureNativeNetworkProfile =
 const require = (condition: unknown, message: string): void => {
   if (!condition) throw Error(`Azure native network plan: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 
 /** Compare only explicitly permitted subnet changes; retain all other CE intent and provider scope. */
 export function azureNativeNetworkScope(plan: AzureCePlan, permitSubnetChange: boolean) {

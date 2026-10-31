@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { type NativeWorkflowCheckpoint, validateAzureNativeAdmissionCheckpoint } from './native-workflow';
 import type { AzureRelayRetainedNic } from './relay-replacement-identity';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -9,7 +9,7 @@ import type { AzureCePlan } from './types';
 const require = (condition: unknown, message: string): void => {
   if (!condition) throw Error(`Azure native replacement source: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const scope = (plan: AzureCePlan) => {
   const { operation: _operation, replacementNode: _node, ...intent } = plan.intent;
   const { termsAccepted: _terms, ...image } = plan.image;

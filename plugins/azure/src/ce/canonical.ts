@@ -27,6 +27,19 @@ export function canonicalSha256(value: unknown): string {
   return sha256Hex(canonicalStringify(value));
 }
 
+/** Capture immutable canonical request bytes and compare every later boundary.
+ * This never caches mutable observations or changes a receipt's cryptographic hash.
+ */
+export function canonicalSnapshot(value: unknown): (current: unknown) => boolean {
+  const serialized = (input: unknown): string => {
+    const text = canonicalStringify(input);
+    if (typeof text !== 'string') throw new TypeError('Canonical value is not serializable');
+    return text;
+  };
+  const expected = serialized(value);
+  return (current: unknown): boolean => serialized(current) === expected;
+}
+
 export function safeHexEqual(left: string, right: string): boolean {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
   return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
@@ -170,16 +183,16 @@ export function canonicalEqual(left: unknown, right: unknown): boolean {
     if (Array.isArray(b)) return false;
     const aObject = a as Record<string, unknown>;
     const bObject = b as Record<string, unknown>;
-    let aCount = 0;
+    let leftPropertyCount = 0;
     for (const key of Object.keys(aObject)) {
       if (aObject[key] === undefined) continue;
-      aCount++;
+      leftPropertyCount++;
       if (!Object.hasOwn(bObject, key) || bObject[key] === undefined || !equal(aObject[key], bObject[key]))
         return false;
     }
-    let bCount = 0;
-    for (const key of Object.keys(bObject)) if (bObject[key] !== undefined) bCount++;
-    return aCount === bCount;
+    let rightPropertyCount = 0;
+    for (const key of Object.keys(bObject)) if (bObject[key] !== undefined) rightPropertyCount++;
+    return leftPropertyCount === rightPropertyCount;
   };
   return equal(left, right);
 }

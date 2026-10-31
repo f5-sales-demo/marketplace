@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { readAzureCePlanInventory, type SessionManagerLike, verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
 import { AzureTerraformOutcomeAbsent, loadAzureTerraformOutcome } from './terraform-outcome';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -21,7 +21,7 @@ export async function createAzureTerraformPublicHistoryLoaders(
   const callbacks = [session.getSessionId, session.getArtifactsDir, session.getArtifactPath, session.saveArtifact],
     sessionId = session.getSessionId(),
     publicDirectory = session.getArtifactsDir();
-  const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+  const same = canonicalEqual;
   verifyAzureCePlan(source);
   if (
     source.engine !== 'terraform' ||

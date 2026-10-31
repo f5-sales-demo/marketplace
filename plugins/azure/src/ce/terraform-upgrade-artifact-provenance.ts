@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { type AzureTerraformUpgrade, verifyAzureTerraformUpgrade } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -10,7 +10,7 @@ const artifactPattern =
 const serialName = 'terraform-ce-upgrade-serial.json';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const same = (left: unknown, right: unknown) => canonicalSha256({ value: left }) === canonicalSha256({ value: right });
+const same = (left: unknown, right: unknown) => canonicalEqual({ value: left }, { value: right });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Terraform upgrade history: ${message}`);
 }

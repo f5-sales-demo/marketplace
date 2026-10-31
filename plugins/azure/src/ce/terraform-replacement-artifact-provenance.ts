@@ -1,6 +1,6 @@
 import { bindAwsCloudInit } from '../../../platform/src/ce/bootstrap';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import {
   azureRelayHistoricalArtifacts,
   isAzureRelayReplacementHistoricalArtifact,
@@ -34,7 +34,7 @@ const object = (value: unknown): Json => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
   return value as Json;
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 const uuid = (value: unknown) =>
   typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);

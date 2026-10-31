@@ -1,7 +1,7 @@
 import { isIP } from 'node:net';
 import { parseBgpSessions } from '../../../platform/src/ce/bgp-evidence';
 import { parseBgpRoutePaths, parseBgpRoutes } from '../../../platform/src/ce/bgp-route-evidence';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import {
   type AzureCeFailoverPlan,
   buildAzureCeFailoverPlan,
@@ -33,7 +33,7 @@ const object = (input: unknown): Json => {
 const keys = (value: Json, required: string[], optional: string[] = []) =>
   require(required.every((key) => key in value) &&
     Object.keys(value).every((key) => [...required, ...optional].includes(key)), 'record fields differ');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const timestamp = (value: unknown): number => {
   require(typeof value === 'string' &&
     Number.isFinite(Date.parse(value)) &&

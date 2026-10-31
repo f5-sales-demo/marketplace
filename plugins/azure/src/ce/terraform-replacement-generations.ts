@@ -1,5 +1,5 @@
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { validAzureRetainedNicsForSource } from './relay-replacement-identity';
 import { type ReplacementCheckpoint, validateAzureTerraformReplacementCheckpoint } from './terraform-replacement';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -8,7 +8,7 @@ import type { AzureCePlan } from './types';
 const require = (condition: unknown, message: string): void => {
   if (!condition) throw Error(`Azure Terraform generation provenance: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const scope = (plan: AzureCePlan) => {
   const { operation: _operation, replacementNode: _node, ...intent } = plan.intent;
   const { termsAccepted: _terms, ...image } = plan.image;

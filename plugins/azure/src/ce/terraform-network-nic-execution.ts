@@ -3,7 +3,7 @@ import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   captureAzureNetworkUpdateInventory,
@@ -21,7 +21,7 @@ import { buildAzureTerraformNetworkPinnedNicStage } from './terraform-network-ro
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: string) => value.toLowerCase();
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network NIC execution: ${message}`);

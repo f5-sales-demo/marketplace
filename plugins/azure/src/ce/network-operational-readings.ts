@@ -7,7 +7,7 @@ import { validateExpectedNodeHealth } from '../../../platform/src/ce/node-health
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { collectAzureNetworkEffectiveRoutes } from './effective-route';
 import { collectAzureNetworkForwardingReading } from './network-forwarding-readings';
 import { collectAzureNetworkOperationalIdentity } from './network-operational-identity';
@@ -23,7 +23,7 @@ type Runtime = Parameters<typeof collectAzureNetworkOperationalIdentity>[2] &
     'observeHealth' | 'observeNodeReadiness' | 'observeBgpSessions' | 'observeBgpRoutes' | 'observeForwardingRoutes'
   >;
 type Json = Record<string, unknown>;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function object(value: unknown): Json {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed operational reading');
   return value as Json;

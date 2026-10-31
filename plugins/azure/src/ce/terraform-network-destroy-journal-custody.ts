@@ -4,7 +4,7 @@ import { lstat, open as openFile, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import {
   type AzureTerraformNetworkEmptyMainAdmission,
@@ -23,7 +23,7 @@ import type { AzureCePlan } from './types';
 export type AzureTerraformNetworkDestroyJournalContext = AzureTerraformNetworkTeardownAdmissionContext & {
   destroyTeardown: AzureTerraformTeardownPlan;
 };
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function require(value: unknown, message: string): asserts value {

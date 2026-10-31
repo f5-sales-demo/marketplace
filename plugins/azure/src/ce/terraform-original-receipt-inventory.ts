@@ -5,14 +5,14 @@ import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt, TerraformRunner } from '../../../terraform/src/runner';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from './terraform-foundation';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform original receipt inventory: ${message}`);
 }

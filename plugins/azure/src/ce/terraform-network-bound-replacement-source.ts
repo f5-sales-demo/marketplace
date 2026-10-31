@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { type AzureNetworkUpdateInventory, validateAzureNetworkUpdateInventory } from './network-update';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import { readAzureTerraformNetworkCompletionOne } from './terraform-network-completion-history';
@@ -30,7 +30,7 @@ export interface AzureTerraformNetworkBoundReplacementInput {
   providerLockSha256: string;
   site: { siteUid: string; siteConfigurationSha256: string };
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network-bound replacement source: ${message}`);
 }

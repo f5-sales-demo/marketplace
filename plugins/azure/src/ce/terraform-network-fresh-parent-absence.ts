@@ -2,7 +2,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { observeAzureCeRetirementAbsence } from './relay-retirement';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import {
@@ -14,7 +14,7 @@ import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snap
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure fresh parent absence: ${message}`);
 }

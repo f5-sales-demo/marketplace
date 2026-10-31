@@ -4,7 +4,7 @@ import type { ExpectedCeInterface, ObservedCeInterface } from '../../../platform
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { captureAzureNetworkUpdateInventory, validateAzureNetworkUpdateInventory } from './network-update';
 import type { AzureTerraformNetworkAcceptanceIdentity } from './terraform-network-checkpoint';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -15,7 +15,7 @@ type Runtime = Pick<
   'engine' | 'observeOwnedSite' | 'ownedSiteConfiguration' | 'observeRegistrations' | 'observeAzureInterfaces'
 >;
 type Json = Record<string, unknown>;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure network operational identity: ${message}`);
 }

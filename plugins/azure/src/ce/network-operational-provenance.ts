@@ -15,7 +15,7 @@ import { parseNodeHealthJson } from '../../../platform/src/ce/node-health';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { guardAzureCeApplyObject } from './apply-request';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256, canonicalStringify } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot, canonicalStringify } from './canonical';
 import { publishImmutableCeReceipt, readImmutableCeReceipt } from './immutable-receipt-publication';
 import { collectAzureNetworkOperationalReadings } from './network-operational-readings';
 import type { AzureTerraformNetworkAcceptanceIdentity } from './terraform-network-checkpoint';
@@ -32,7 +32,7 @@ const keyName = 'azure-network-observer-key.json';
 const anchorName = 'azure-network-observer-issuer.json';
 const retiredName = 'azure-network-observer-retired.json';
 const publicationPrefix = 'azure-network-observation';
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const digest = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(value: unknown, reason: string): asserts value {
   if (!value) throw Error(`Azure operational acquisition provenance: ${reason}`);
@@ -95,8 +95,8 @@ export function createAzureOperationalAcquisitionCollector(
     owner = structuredClone(storage.owner),
     directory = storage.directory,
     reviewed = forwarding === undefined ? undefined : structuredClone(forwarding),
-    requestSha = canonicalSha256(request),
-    reviewedSha = forwarding === undefined ? undefined : canonicalSha256(forwarding);
+    requestMatches = canonicalSnapshot(request),
+    reviewedMatches = forwarding === undefined ? undefined : canonicalSnapshot(forwarding);
   require(trustedIssuerSha256 === undefined || digest(trustedIssuerSha256), 'retained issuer pin malformed');
   require(originalIssuerPublication === undefined ||
     typeof originalIssuerPublication === 'function', 'owning issuer publisher malformed');
@@ -105,15 +105,14 @@ export function createAzureOperationalAcquisitionCollector(
     plan.intent.operation === 'update-network' &&
     same(owner, azureUpgradeBinding(plan).owner), 'owning Terraform network plan required');
   const seal = () => {
-    require(canonicalSha256(request) === requestSha &&
-      canonicalSha256(plan) === requestSha &&
+    require(requestMatches(request) &&
+      requestMatches(plan) &&
       storage.directory === directory &&
       same(storage.owner, owner) &&
       transport.engine === 'terraform' &&
       (forwarding === undefined
         ? reviewed === undefined
-        : canonicalSha256(forwarding) === reviewedSha &&
-          canonicalSha256(reviewed) === reviewedSha), 'owning collector context changed');
+        : reviewedMatches?.(forwarding) && reviewedMatches?.(reviewed)), 'owning collector context changed');
   };
   const runtime = guardAzureCeApplyObject(transport, seal, {}, ['engine']),
     api = guardAzureCeApplyObject(cloud, seal),

@@ -3,10 +3,10 @@ import {
   validateExpectedForwardingRoutes,
 } from '../../../platform/src/ce/forwarding-route';
 import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 
 type Json = Record<string, unknown>;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown): asserts value {
   if (!value) throw Error('Forwarding reading identity differs');
 }

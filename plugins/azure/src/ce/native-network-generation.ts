@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureNativeNetworkHistoryName, validateAzureNativeNetworkHistory } from './native-network-history';
 import {
   verifyAzureNativeNetworkReplacementOriginalSource,
@@ -33,7 +33,7 @@ interface AzureNativeNetworkGenerationCompletion {
 function require(condition: unknown, message: string): asserts condition {
   if (!condition) throw Error(`Azure native network generation: ${message}`);
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const object = (value: unknown): Record<string, unknown> => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed generation record');
   return value as Record<string, unknown>;

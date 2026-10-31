@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { type AzureNetworkUpdateInventory, validateAzureNetworkUpdateInventory } from './network-update';
 import type { AzureCePlan } from './types';
 
@@ -21,7 +21,7 @@ const object = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>;
 };
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 
 /** Transform only one node's NIC subnet references and corresponding identity outputs.
  * The executor must separately qualify the complete original/network/replacement source history before using it.

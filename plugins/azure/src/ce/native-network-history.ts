@@ -1,6 +1,6 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNativeNetworkCheckpointHistory,
   azureNativeNetworkCheckpointHistoryName,
@@ -30,7 +30,7 @@ const object = (value: unknown): Record<string, unknown> => {
   require(value && typeof value === 'object' && !Array.isArray(value), 'malformed history record');
   return value as Record<string, unknown>;
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 export const azureNativeNetworkHistoryName = (plan: AzureCePlan) => `native-network-history-${plan.planSha256}.json`;
 export const isAzureNativeNetworkHistory = (name: string) => /^native-network-history-[a-f0-9]{64}\.json$/.test(name);
 

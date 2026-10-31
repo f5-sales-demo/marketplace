@@ -1,5 +1,5 @@
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import { type AzureNetworkUpdateInventory, validateAzureNetworkUpdateInventory } from './network-update';
 import {
   type AzureNetworkUpdateTerraformStage,
@@ -37,7 +37,7 @@ const ipFields = [
   'subnet_id',
 ];
 const ip = (field: string) => `ip_configuration.0.${field}`;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network NIC projection: ${message}`);

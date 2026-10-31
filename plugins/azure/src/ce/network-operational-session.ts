@@ -3,14 +3,14 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { parseNodeHealthJson } from '../../../platform/src/ce/node-health';
 import { loadPlanArtifact, type SessionManagerLike } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { createAzureOperationalAcquisitionCollector } from './network-operational-provenance';
 import { azureUpgradeBinding } from './terraform-upgrade';
 
 type Arguments = Parameters<typeof createAzureOperationalAcquisitionCollector>;
 const toolType = 'azure-ce-network-operational-issuer';
 const suffix = `.${toolType}.log`;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(value: unknown, reason: string): asserts value {
   if (!value) throw Error(`Azure operational issuer session: ${reason}`);

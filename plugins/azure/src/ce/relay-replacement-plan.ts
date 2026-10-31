@@ -1,6 +1,6 @@
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { compileAzureCePlan } from './planner';
 import type { AzureRelayDeploymentProfile } from './relay-deployment-plan';
 import { azureRelayPlanForDeployment } from './relay-deployment-plan';
@@ -17,7 +17,7 @@ export interface AzureRelayReplacementProfile extends Omit<AzureRelayDeploymentP
 const require = (value: unknown, message: string): void => {
   if (!value) throw Error(`Azure relay replacement plan: ${message}`);
 };
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (value: string) => value.toLowerCase();
 
 /** Relay resources keep their original creation owner, even after a CE VM replacement. */

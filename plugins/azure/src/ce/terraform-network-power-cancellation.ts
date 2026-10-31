@@ -3,7 +3,7 @@ import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeTerraformService } from '../../../terraform/src/service';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
 import {
@@ -18,7 +18,7 @@ import { readAzureTerraformNetworkRetirementGraph } from './terraform-network-re
 import type { AzureCePlan } from './types';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network power cancellation: ${message}`);
 }

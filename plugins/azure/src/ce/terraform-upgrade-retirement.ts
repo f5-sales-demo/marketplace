@@ -7,7 +7,7 @@ import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-c
 import type { ArtifactRetirementReceipt } from '../../../terraform/src/artifact-retirement';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService } from '../../../terraform/src/service';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
 import { type AzureTerraformUpgrade, azureUpgradeBinding, verifyAzureTerraformUpgrade } from './terraform-upgrade';
 import {
@@ -19,7 +19,7 @@ import { verifyAzureTerraformUpgradeHistoricalArtifacts } from './terraform-upgr
 import type { AzureCePlan } from './types';
 
 const hash = (v: string | Uint8Array) => createHash('sha256').update(v).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(v: unknown, message: string): asserts v {
   if (!v) throw Error(`Azure upgrade stage retirement: ${message}`);

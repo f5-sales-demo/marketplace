@@ -5,7 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
 import { type AzureTerraformUpgrade, azureUpgradeBinding } from './terraform-upgrade';
 import {
@@ -15,7 +15,7 @@ import {
 import type { AzureCePlan } from './types';
 
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(v: unknown, message: string): asserts v {
   if (!v) throw Error(`Azure upgrade applied journal: ${message}`);

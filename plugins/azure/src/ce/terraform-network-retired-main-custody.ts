@@ -4,7 +4,7 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import { readAzureTerraformNetworkPowerRunnerHistory } from './terraform-network-power-runner-history';
@@ -16,7 +16,7 @@ import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snap
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const hash = (v: string | Uint8Array) => createHash('sha256').update(v).digest('hex');
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(v: unknown, message: string): asserts v {

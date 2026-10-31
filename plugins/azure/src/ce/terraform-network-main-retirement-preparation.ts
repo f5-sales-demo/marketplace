@@ -2,7 +2,7 @@ import { lstat, readdir, realpath } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import { type SessionManagerLike, verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import type { AzureTerraformNetworkHistoryLoaders } from './terraform-network-generation-history';
 import { readAzureTerraformNetworkMainRunnerHistory } from './terraform-network-main-runner-history';
@@ -16,7 +16,7 @@ import { readAzureTerraformNetworkRetirementRequests } from './terraform-network
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network main retirement preparation: ${message}`);
 }

@@ -2,7 +2,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { qualifyAzureNativeNetworkGenerationBoundary } from './native-network-generation';
 import {
   azureNativeNetworkHistoryName,
@@ -34,7 +34,7 @@ export type AzureNativeNetworkReplacementProfile =
 function require(condition: unknown, message: string): asserts condition {
   if (!condition) throw Error(`Azure native network replacement: ${message}`);
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 
 /** Structural plan binding only. Every execution needs independent completed history and current identity checks. */
 export function verifyAzureNativeNetworkReplacementProfile(plan: AzureCePlan): AzureNativeNetworkReplacementProfile {

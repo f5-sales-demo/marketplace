@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import {
   qualifyAzureTerraformNetworkRetiredMainCustody,
@@ -15,7 +15,7 @@ import type { AzureCePlan } from './types';
 
 const name = 'azure-terraform-terminal-cleanup.json';
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-const same = (left: unknown, right: unknown) => canonicalSha256({ value: left }) === canonicalSha256({ value: right });
+const same = (left: unknown, right: unknown) => canonicalEqual({ value: left }, { value: right });
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure terminal plaintext retirement: ${message}`);
 }

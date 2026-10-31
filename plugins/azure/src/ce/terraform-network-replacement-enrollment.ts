@@ -3,13 +3,13 @@ import { bindAwsCloudInit } from '../../../platform/src/ce/bootstrap';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { verifyAzureTerraformNetworkReplacementProfile } from './terraform-network-replacement-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
 const digest = (v: string) => createHash('sha256').update(v).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 function require(v: unknown, message: string): asserts v {
   if (!v) throw Error(`Azure Terraform network replacement enrollment: ${message}`);
 }

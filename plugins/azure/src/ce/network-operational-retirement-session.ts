@@ -6,7 +6,7 @@ import { parseNodeHealthJson } from '../../../platform/src/ce/node-health';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { guardAzureCeApplyObject } from './apply-request';
 import { loadPlanArtifact, type SessionManagerLike, verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import { createAzureOperationalAcquisitionSession } from './network-operational-session';
 import { azureTerraformNetworkScope } from './terraform-network-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -27,7 +27,7 @@ export interface AzureOperationalRetirementSession {
     artifactInventory: AzureOperationalRetirementInventory;
   }>;
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const suffix = '.azure-ce-network-operational-issuer.log';
 const observerName = (name: string) =>
@@ -61,6 +61,7 @@ export async function createAzureOperationalRetirementSession(
   signal?: AbortSignal,
 ): Promise<AzureOperationalRetirementSession> {
   const original = structuredClone(request),
+    requestMatches = canonicalSnapshot(original),
     owner = structuredClone(storage.owner),
     directory = storage.directory;
   verifyAzureCePlan(original);
@@ -80,7 +81,8 @@ export async function createAzureOperationalRetirementSession(
   const storeCallbacks = [storage.verify, storage.read, storage.write, storage.remove];
   const seal = () => {
     signal?.throwIfAborted();
-    require(same(request, original) &&
+    require(requestMatches(request) &&
+      requestMatches(original) &&
       same(storage.owner, owner) &&
       storage.directory === directory &&
       transport.engine === 'terraform' &&

@@ -1,6 +1,6 @@
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { type AzureNetworkUpdateNic, usableAzureNetworkAddress } from './network-update';
 import { verifyAzureTerraformNetworkReplacementProfile } from './terraform-network-replacement-plan';
 import {
@@ -27,7 +27,7 @@ export interface AzureTerraformNetworkReplacementCurrentNode {
   ownerPlanSha256: string | null;
   nics: Record<string, AzureNetworkUpdateNic & { attachment: string | null }>;
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const lower = (v: unknown) => (typeof v === 'string' ? v.toLowerCase() : '');
 const uuid = (v: unknown): v is string =>
   typeof v === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);

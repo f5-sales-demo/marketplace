@@ -6,7 +6,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureOperationalRetirementSession } from './network-operational-retirement-session';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
@@ -24,7 +24,7 @@ export type AzureTerraformNetworkEmptyMainBindingContext = AzureTerraformNetwork
     observer?: AzureOperationalRetirementSession;
   };
 };
-const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
+const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(v: unknown, message: string): asserts v {

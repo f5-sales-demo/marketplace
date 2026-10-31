@@ -1,5 +1,5 @@
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { azureTerraformNetworkScope, verifyAzureTerraformNetworkProfile } from './terraform-network-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -13,7 +13,7 @@ export interface AzureTerraformNetworkReplacementProfile {
   originalPlanSha256: string;
   retainedPlanSha256: string;
 }
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network replacement plan: ${message}`);

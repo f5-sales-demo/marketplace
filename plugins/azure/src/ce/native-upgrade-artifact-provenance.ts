@@ -4,7 +4,7 @@ import {
   validateNativeUpgradeSerial,
 } from '../../../platform/src/ce/native-upgrade';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual } from './canonical';
 import type { AzureNativeTeardownPlan } from './native-teardown';
 import { type AzureNativeUpgrade, verifyAzureNativeUpgrade } from './native-upgrade';
 import type { AzureCePlan } from './types';
@@ -13,7 +13,7 @@ const sourcePattern = /^azure-ce-native-upgrade-[a-f0-9]{24}\.json$/;
 const artifactPattern = /^azure-ce-native-upgrade-[a-f0-9]{24}(?:-(?:authorization|checkpoint|receipt))?\.json$/;
 export const isAzureNativeUpgradeHistoricalArtifact = (name: string) =>
   name === 'native-ce-upgrade-serial.json' || artifactPattern.test(name);
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const require = (condition: unknown, message: string) => {
   if (!condition) throw Error(`Native upgrade history: ${message}`);
 };

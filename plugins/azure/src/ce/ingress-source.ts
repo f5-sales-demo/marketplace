@@ -1,14 +1,14 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeOwner } from '../../../platform/src/ce/runtime';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import { validateAzureIngressInterfaceIdentity } from './ingress-interface-identity';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import { validateAzureTrafficSourceIdentity } from './traffic-source';
 import type { AzureCePlan } from './types';
 
 type Json = Record<string, unknown>;
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 /** Saved before platform planning, so a response-loss orphan plan can still be qualified offline. */
 export function validateAzureIngressSource(value: unknown, owner: CeOwner, contractFingerprint: string) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Azure ingress source');

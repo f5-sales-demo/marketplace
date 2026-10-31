@@ -3,7 +3,7 @@ import { readdir } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256 } from './canonical';
 import {
   type AzureNetworkUpdateInventory,
   validateAzureNetworkUpdateInventory,
@@ -73,7 +73,7 @@ interface Checkpoint {
   lastTransition: Transition | null;
 }
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
-const same = (a: unknown, b: unknown) => canonicalSha256(a) === canonicalSha256(b);
+const same = canonicalEqual;
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(value: unknown, message: string): asserts value {
   if (!value) throw Error(`Azure Terraform network checkpoint: ${message}`);
