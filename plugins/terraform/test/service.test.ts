@@ -1,12 +1,13 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import { type CePlatformService, registerCePlatformService } from '../../platform/src/ce/service';
 import factory from '../src/index';
-import type { Deployment, PlanReceipt } from '../src/runner';
+import type { Deployment, Executor, Invocation, PlanReceipt } from '../src/runner';
 import { type CeTerraformService, createCeTerraformService, TERRAFORM_SERVICE_CHANNEL } from '../src/service';
 
 const directories: string[] = [];
@@ -36,6 +37,162 @@ async function fixture() {
   const platform = { storage: (identity: CeOwner) => CeDeploymentStore.open(root, identity) } as CePlatformService;
   return { root, platform, service: createCeTerraformService(async () => platform) };
 }
+
+test('shared service selects its executor once and preserves isolated invocation settings', async () => {
+  const { platform } = await fixture();
+  const calls: Invocation[] = [];
+  const failure = new Error('reviewed executor unavailable');
+  const options = {
+    execute: async (request: Invocation) => {
+      calls.push(request);
+      throw failure;
+    },
+  };
+  const service = createCeTerraformService(async () => platform, options);
+  options.execute = async () => {
+    throw new Error('substituted executor');
+  };
+  const session = await service.open(owner, deployment, false);
+  const controller = new AbortController();
+  await expect(session.plan({ TF_CLI_ARGS: '-lock=false', AWS_PROFILE: 'fixture' }, controller.signal)).rejects.toBe(
+    failure,
+  );
+  const store = await platform.storage(owner);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({
+    cwd: join(store.directory, owner.deploymentId),
+    args: ['version', '-json'],
+    signal: controller.signal,
+    env: {
+      AWS_PROFILE: 'fixture',
+      TF_CLI_CONFIG_FILE: join(store.directory, owner.deploymentId, 'deployment.tfrc'),
+      TF_INPUT: '0',
+    },
+  });
+  expect(calls[0].env.TF_CLI_ARGS).toBeUndefined();
+  const resumed = await service.open(owner, deployment, true);
+  await expect(resumed.plan({})).rejects.toBe(failure);
+  expect(calls).toHaveLength(2);
+});
+
+test('executor selection cannot bypass engine, deployment, cloud, account or region admission', async () => {
+  const { platform } = await fixture();
+  let storageCalls = 0;
+  let executionCalls = 0;
+  const service = createCeTerraformService(
+    async () => ({
+      ...platform,
+      storage: async (identity: CeOwner) => {
+        storageCalls++;
+        return platform.storage(identity);
+      },
+    }),
+    {
+      execute: async () => {
+        executionCalls++;
+        throw new Error('must not execute');
+      },
+    },
+  );
+  for (const changed of [
+    { ...owner, engine: 'native' as const },
+    { ...owner, deploymentId: 'foreign' },
+    { ...owner, provider: 'gcp' as const },
+    { ...owner, account: '000000000000' },
+    { ...owner, region: 'foreign' },
+  ])
+    await expect(service.open(changed, deployment, false)).rejects.toThrow('ownership differ');
+  await expect(service.open(owner, { ...deployment, engine: 'native' } as never, false)).rejects.toThrow(
+    'ownership differ',
+  );
+  expect(storageCalls).toBe(0);
+  expect(executionCalls).toBe(0);
+});
+
+test('custom executor still rechecks durable ownership on every session operation', async () => {
+  const { platform } = await fixture();
+  let executionCalls = 0;
+  const service = createCeTerraformService(async () => platform, {
+    execute: async () => {
+      executionCalls++;
+      throw new Error('must not execute');
+    },
+  });
+  const session = await service.open(owner, deployment, false);
+  const store = await platform.storage(owner);
+  await writeFile(
+    join(store.directory, 'owner.json'),
+    JSON.stringify({ schemaVersion: 2, owner: { ...owner, account: '000000000000' } }),
+  );
+  await expect(session.plan({})).rejects.toThrow();
+  await expect(session.planDestroy({})).rejects.toThrow();
+  await expect(session.apply({} as PlanReceipt, {})).rejects.toThrow();
+  await expect(session.readOutputs([], {})).rejects.toThrow();
+  await expect(session.readApplyCheckpoint?.({} as PlanReceipt)).rejects.toThrow();
+  expect(executionCalls).toBe(0);
+});
+
+test('interrupted custom execution retains its claim and consumed apply across two resumes', async () => {
+  const { platform } = await fixture();
+  const calls: Invocation[] = [];
+  let release: (() => Promise<void>) | undefined;
+  let claimPath = '';
+  const execute: Executor = async (request) => {
+    calls.push(request);
+    if (request.args[0] === 'plan')
+      await writeFile(join(request.cwd, 'saved.tfplan'), 'reviewed-binary-fixture', { mode: 0o600 });
+    if (request.args[0] === 'apply') {
+      claimPath = join(request.cwd, '.terraform-executor-lock', 'claim.json');
+      release = await acquireProcessLock(join(request.cwd, '.terraform-executor-lock'));
+      throw new Error('executor outcome unresolved');
+    }
+    return {
+      code: 0,
+      stdout: JSON.stringify(
+        request.args[0] === 'version'
+          ? { terraform_version: deployment.terraformVersion }
+          : request.args[0] === 'show'
+            ? {
+                format_version: '1.2',
+                terraform_version: deployment.terraformVersion,
+                errored: false,
+                complete: true,
+                applyable: true,
+                resource_changes: [
+                  {
+                    address: 'terraform_data.ce',
+                    mode: 'managed',
+                    type: 'terraform_data',
+                    change: { actions: ['create'] },
+                  },
+                ],
+              }
+            : {},
+      ),
+    };
+  };
+  const service = createCeTerraformService(async () => platform, { execute });
+  const session = await service.open(owner, deployment, false);
+  const receipt = await session.plan({});
+  try {
+    await expect(session.apply(receipt, {})).rejects.toThrow('outcome unresolved');
+    const originalClaim = await readFile(claimPath, 'utf8');
+    const submittedCalls = calls.length;
+    for (let n = 0; n < 2; n++) {
+      await expect(service.open(owner, deployment, true)).rejects.toThrow('live process');
+      await expect(session.plan({})).rejects.toThrow('live process');
+      await expect(session.apply(receipt, {})).rejects.toThrow('live process');
+      expect(await readFile(claimPath, 'utf8')).toBe(originalClaim);
+    }
+    expect(calls).toHaveLength(submittedCalls);
+  } finally {
+    await release?.();
+  }
+  const resumed = await service.open(owner, deployment, true);
+  await expect(resumed.apply(receipt, {})).rejects.toThrow('consumed');
+  expect(await resumed.readApplyCheckpoint?.(receipt)).toMatchObject({ state: 'applying' });
+  expect(calls.filter((call) => call.args[0] === 'apply')).toHaveLength(1);
+});
 test('Terraform refuses native ownership and mismatched resume configuration', async () => {
   const { platform, service } = await fixture();
   await platform.storage({ ...owner, engine: 'native' });

@@ -502,3 +502,22 @@ observed systemd 252 compact UTC dialect, nine failing-first parser tests and
 the existing shared parser's full container/namespace projection. Recent
 journals and a listing that already includes namespaces do not clear either
 GCP guest mapping hold. No infrastructure or guest configuration changed.
+
+## Current q39 shared executor prerequisite
+
+Attempt 293 reconciles the retained candidate with current main and adds a
+trusted executor option to the shared Terraform service. The
+[offline receipt](gcp-q39-shared-executor-offline-20261030.md) records 87 passing
+source tests, two bundle checks and the retained failing-first results.
+
+| Requirement | Implementation and tests | Installed and live evidence | Publication |
+| --- | --- | --- | --- |
+| Shared runner execution policy | Hook qualified offline | New bytes await normal installation | Held |
+| Durable ownership and no replay | Service and runner regressions pass | Fresh q39 executor evidence pending | Held |
+| Signal-free campaign execution | Executor qualification remains open | Bridge and guard pending | Held |
+| Guest, lifecycle and traffic acceptance | Existing holds preserved | Fresh campaign evidence pending | Held |
+
+The user removed the campaign-count allowance. Earlier allowance statements
+remain historical evidence. Independent cleanup and a concrete qualified change
+are still required before another campaign. Historical capture and reader
+closure remain unresolved. Issue #1559 is incomplete.

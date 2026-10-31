@@ -10,7 +10,7 @@ export interface Invocation {
   env: Record<string, string | undefined>;
   signal?: AbortSignal;
 }
-type Executor = (
+export type Executor = (
   request: Invocation,
 ) => Promise<{ code: number; stdout: string; failureCategory?: TerraformFailureCategory }>;
 export interface Deployment {

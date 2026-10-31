@@ -8236,7 +8236,8 @@ var init_runner = __esm(() => {
 // plugins/terraform/src/service.ts
 import { join as join9 } from 'node:path';
 
-function createCeTerraformService(platform) {
+function createCeTerraformService(platform, options = {}) {
+  const execute = options.execute;
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -8256,6 +8257,7 @@ function createCeTerraformService(platform) {
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
         deployment.stage ? join9(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+        execute,
       );
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);

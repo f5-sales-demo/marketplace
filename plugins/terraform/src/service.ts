@@ -7,6 +7,7 @@ import {
   type ApplyCheckpoint,
   type CurrentResourcePlanSnapshot,
   type Deployment,
+  type Executor,
   type NoChangeResourceProjection,
   type PlannedStateResourceProjection,
   type PlanReceipt,
@@ -90,9 +91,18 @@ export interface TerraformSession {
 export interface CeTerraformService {
   open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
 }
+export interface CeTerraformServiceOptions {
+  /** Trusted execution policy; the runner retains ownership, saved-plan and recovery checks. */
+  readonly execute?: Executor;
+}
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
-export function createCeTerraformService(platform: () => Promise<CePlatformService>): CeTerraformService {
+export function createCeTerraformService(
+  platform: () => Promise<CePlatformService>,
+  options: CeTerraformServiceOptions = {},
+): CeTerraformService {
+  // Capture the policy once so mutation of the options object cannot redirect later sessions.
+  const execute = options.execute;
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -112,6 +122,7 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
         deployment.stage ? join(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+        execute,
       );
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
