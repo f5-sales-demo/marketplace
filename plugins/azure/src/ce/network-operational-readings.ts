@@ -9,6 +9,7 @@ import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
 import { canonicalEqual, canonicalSha256 } from './canonical';
 import { collectAzureNetworkEffectiveRoutes } from './effective-route';
+import { resolveAzureForwardingExpectations } from './network-forwarding-expectations';
 import { collectAzureNetworkForwardingReading } from './network-forwarding-readings';
 import { collectAzureNetworkOperationalIdentity } from './network-operational-identity';
 import { collectAzureRouteServerHealth } from './route-server-health';
@@ -46,6 +47,7 @@ export async function collectAzureNetworkOperationalReadings(
   signal?: AbortSignal,
   collectTraffic = false,
   reviewedForwarding?: ExpectedCeForwardingRoutes,
+  purpose: 'preflight' | 'restored' | 'final' = 'preflight',
 ) {
   const plan = structuredClone(request),
     identity = structuredClone(expected),
@@ -317,7 +319,15 @@ export async function collectAzureNetworkOperationalReadings(
     }
   }
   let forwarding: Json = unknown('reviewed-forwarding-expectations-unavailable');
-  if (reviewed !== undefined) {
+  let expectedForwarding = reviewed;
+  try {
+    expectedForwarding ??= resolveAzureForwardingExpectations(plan, identity, initial.interfaces, purpose);
+  } catch {
+    seal();
+    forwarding = unknown('plan-forwarding-identity-unverified');
+  }
+  if (expectedForwarding !== undefined) {
+    const reviewed = expectedForwarding;
     try {
       require(initial.status !== 'unknown' && reviewed.siteUid === identity.siteUid);
       validateExpectedForwardingRoutes(reviewed, binding.nodes);

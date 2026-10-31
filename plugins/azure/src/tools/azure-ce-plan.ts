@@ -102,6 +102,49 @@ export function createAzureCePlanTool(pi: PluginInterface, makeApi: (cwd: string
         routing: Type.Object({
           mode: Type.Union(['auto', 'udr', 'route-server'].map((value) => Type.Literal(value))),
           destinationCidrs: Type.Array(Type.String()),
+          forwardingRoutes: Type.Optional(
+            Type.Object(
+              {
+                before: Type.Array(
+                  Type.Object(
+                    {
+                      node: Type.Integer({ minimum: 1, maximum: 3 }),
+                      role: Type.Union([Type.Literal('slo'), Type.Literal('sli')]),
+                      prefix: Type.String(),
+                      routeType: Type.Union(
+                        ['REMOTE_SITE_ROUTE', 'LOCAL_ROUTE', 'STATIC_ROUTE', 'BGP_ROUTE'].map((value) =>
+                          Type.Literal(value),
+                        ),
+                      ),
+                    },
+                    { additionalProperties: false },
+                  ),
+                  { minItems: 2, maxItems: 1024 },
+                ),
+                after: Type.Array(
+                  Type.Object(
+                    {
+                      node: Type.Integer({ minimum: 1, maximum: 3 }),
+                      role: Type.Union([Type.Literal('slo'), Type.Literal('sli')]),
+                      prefix: Type.String(),
+                      routeType: Type.Union(
+                        ['REMOTE_SITE_ROUTE', 'LOCAL_ROUTE', 'STATIC_ROUTE', 'BGP_ROUTE'].map((value) =>
+                          Type.Literal(value),
+                        ),
+                      ),
+                    },
+                    { additionalProperties: false },
+                  ),
+                  { minItems: 2, maxItems: 1024 },
+                ),
+              },
+              {
+                additionalProperties: false,
+                description:
+                  'Expected CE SLO and SLI routes before and after the network change; route observations alone do not authorize interruption.',
+              },
+            ),
+          ),
           udr: Type.Optional(
             Type.Object(
               {

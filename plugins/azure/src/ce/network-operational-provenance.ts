@@ -440,6 +440,7 @@ export function createAzureOperationalAcquisitionCollector(
           deadline,
           collectTraffic,
           reviewed,
+          purpose,
         );
         require(canonicalSha256(identity) === expectedSha &&
           same(readings.owner, owner) &&

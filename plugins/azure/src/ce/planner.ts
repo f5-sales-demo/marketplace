@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
+import { normalizeAzureForwardingExpectations } from './network-forwarding-expectations';
 import type {
   AzureCeAction,
   AzureCeIntent,
@@ -265,6 +266,15 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
     routing: {
       ...input.routing,
       ...(udr ? { udr } : {}),
+      ...(input.routing.forwardingRoutes === undefined
+        ? {}
+        : {
+            forwardingRoutes: normalizeAzureForwardingExpectations(
+              input.routing.forwardingRoutes,
+              input.topology.ha ? 3 : 1,
+              nics.map((nic) => nic.role),
+            ),
+          }),
       destinationCidrs: input.routing.destinationCidrs.map((cidr) => validateCidr('routing destination', cidr)).sort(),
     },
     ingress,
@@ -1852,6 +1862,9 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     routing: {
       mode: routingMode,
       ...(intent.routing.udr ? { udr: intent.routing.udr } : {}),
+      ...(intent.routing.forwardingRoutes
+        ? { forwardingRoutes: structuredClone(intent.routing.forwardingRoutes) }
+        : {}),
       destinationCidrs: intent.routing.destinationCidrs,
       localAsn: intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010,
       peerAsn: intent.routing.peerAsn ?? intent.routing.localAsn ?? 65010,

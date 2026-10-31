@@ -1,5 +1,6 @@
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256 } from './canonical';
+import { verifyAzureForwardingPredecessor } from './network-forwarding-expectations';
 import { verifyAzureTerraformNetworkReplacementProfile } from './terraform-network-replacement-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -23,12 +24,19 @@ const sha = (value: unknown): value is string => typeof value === 'string' && /^
 export function azureTerraformNetworkScope(plan: AzureCePlan, permitSubnetChange: boolean) {
   const { operation: _operation, replacementNode: _node, nics, ...intent } = plan.intent;
   const { termsAccepted: _terms, ...image } = plan.image;
+  // Route expectations select read-only comparisons; they do not alter provider configuration.
+  const { forwardingRoutes: _forwarding, ...configurationRouting } = plan.routing;
+  const { forwardingRoutes: _intentForwarding, ...configurationIntentRouting } = intent.routing;
   const nicScope = (nic: Record<string, unknown>) => {
     const { subnet: _subnet, ...rest } = nic;
     return permitSubnetChange ? rest : nic;
   };
   return {
-    intent: { ...intent, nics: nics.map((nic) => nicScope(nic as unknown as Record<string, unknown>)) },
+    intent: {
+      ...intent,
+      routing: permitSubnetChange ? configurationIntentRouting : intent.routing,
+      nics: nics.map((nic) => nicScope(nic as unknown as Record<string, unknown>)),
+    },
     image,
     subscription: plan.subscription,
     namespace: plan.namespace,
@@ -36,7 +44,7 @@ export function azureTerraformNetworkScope(plan: AzureCePlan, permitSubnetChange
     topology: plan.topology,
     nics: plan.nics.map((nic) => nicScope(nic as unknown as Record<string, unknown>)),
     vm: plan.vm,
-    routing: plan.routing,
+    routing: permitSubnetChange ? configurationRouting : plan.routing,
     egress: plan.egress,
     workloadProfile: plan.workloadProfile ?? null,
   };
@@ -105,6 +113,7 @@ export function compileAzureTerraformNetworkUpdatePlan(
       azureTerraformNetworkScope(retained, true),
       azureTerraformNetworkScope(original, true),
     ), 'creation scope differs beyond permitted subnet changes');
+  verifyAzureForwardingPredecessor(base, retained);
   if (retained.intent.operation === 'update-network') {
     require(verifyAzureTerraformNetworkProfile(retained).originalPlanSha256 ===
       original.planSha256, 'retained network original differs');

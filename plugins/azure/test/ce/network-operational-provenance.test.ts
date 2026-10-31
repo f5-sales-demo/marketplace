@@ -4,11 +4,13 @@ import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { ExpectedCeForwardingRoutes } from '../../../platform/src/ce/forwarding-route';
 import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import { canonicalSha256, canonicalStringify } from '../../src/ce/canonical';
 import { publishImmutableCeReceipt, readImmutableCeReceipt } from '../../src/ce/immutable-receipt-publication';
 import { createAzureOperationalAcquisitionCollector } from '../../src/ce/network-operational-provenance';
 import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update';
+import { compileAzureCePlan } from '../../src/ce/planner';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import { networkUpdateFixture } from './network-update-fixture';
 
@@ -16,15 +18,34 @@ const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
-async function fixture(ha = false) {
-  const f = networkUpdateFixture(ha, 'terraform', true, false),
-    binding = azureUpgradeBinding(f.plan),
+async function fixture(ha = false, forwarding = false) {
+  const f = networkUpdateFixture(ha, 'terraform', true, false);
+  if (forwarding) {
+    const routes = (after: boolean) =>
+      f.nodes.flatMap((_node, i) => [
+        { node: i + 1, role: 'slo' as const, prefix: '10.20.0.0/24', routeType: 'LOCAL_ROUTE' as const },
+        {
+          node: i + 1,
+          role: 'sli' as const,
+          prefix: after ? '10.20.2.0/24' : '10.20.1.0/24',
+          routeType: 'LOCAL_ROUTE' as const,
+        },
+      ]);
+    f.plan = compileAzureCePlan(
+      {
+        ...f.plan.intent,
+        routing: { ...f.plan.intent.routing, forwardingRoutes: { before: routes(false), after: routes(true) } },
+      },
+      f.current,
+    );
+  }
+  const binding = azureUpgradeBinding(f.plan),
     inventory = await captureAzureNetworkUpdateInventory(f.plan, f.api),
     root = await mkdtemp(join(tmpdir(), 'operational-acquisition-'));
   roots.push(root);
   const store = await CeDeploymentStore.open(root, binding.owner),
     spec = { azure: { fixture: true } },
-    state = { calls: 0, down: false };
+    state = { calls: 0, down: false, forwarding: [] as ExpectedCeForwardingRoutes[], foreignForwarding: false };
   const identity = {
     owner: binding.owner,
     planSha256: f.plan.planSha256,
@@ -85,8 +106,39 @@ async function fixture(ha = false) {
     async observeBgpRoutes() {
       return { status: 'unknown' };
     },
-    async observeForwardingRoutes() {
-      return { status: 'unknown' };
+    async observeForwardingRoutes(_binding: unknown, expected: ExpectedCeForwardingRoutes) {
+      if (!forwarding) return { status: 'unknown' };
+      state.forwarding.push(structuredClone(expected));
+      // Explicit synthetic transport substrate. No live namespace or freshness is asserted.
+      return {
+        status: 'observed',
+        owner: binding.owner,
+        siteName: f.plan.siteName,
+        siteUid: identity.siteUid,
+        scope: 'reported-forwarding-interface',
+        interfaceNamespace: 'unqualified',
+        freshness: 'unqualified',
+        operationalAcceptance: 'unknown',
+        contractFingerprint: `sha256:${'a'.repeat(64)}`,
+        reads: expected.interfaces.map((row) => ({
+          method: 'POST',
+          path: `/api/operate/namespaces/system/sites/${f.plan.siteName}/ver/simplified_routes`,
+          body: { namespace: 'system', site: f.plan.siteName, node: row.node, family: 'INET4', [row.role]: {} },
+        })),
+        routes: expected.routes.map((route) => ({
+          ...route,
+          flags: [],
+          interfaces: expected.interfaces
+            .filter((iface) => iface.node === route.node && iface.role === route.role)
+            .map((iface) => ({
+              ...iface,
+              mac: state.foreignForwarding ? '02:00:00:ff:00:99' : iface.mac,
+              kind: 'local',
+              reportedInterface: iface.device,
+              matchedFields: ['device'],
+            })),
+        })),
+      };
     },
   } as unknown as Parameters<typeof createAzureOperationalAcquisitionCollector>[1];
   const exec = f.api.exec;
@@ -390,8 +442,8 @@ test('missing retained original issuer publication cannot be replaced during col
   await expect(reopened.retireSigningMaterial()).rejects.toThrow();
   expect((await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).length).toBeGreaterThan(0);
 });
-async function publicSessionFixture() {
-  const f = await fixture(),
+async function publicSessionFixture(ha = false, forwarding = false) {
+  const f = await fixture(ha, forwarding),
     directory = await mkdtemp(join(tmpdir(), 'operational-public-session-'));
   roots.push(directory);
   let next = 0;
@@ -957,5 +1009,45 @@ test('actual operational acceptance adapter preserves explicit down and rejects 
   const foreign = structuredClone(receipt);
   foreign.identitySha256 = 'e'.repeat(64);
   await expect(adapter.qualifyAcceptance(foreign, f.identity, 'historical')).rejects.toThrow();
+  expect(f.mutations()).toBe(0);
+});
+
+for (const purpose of ['preflight', 'restored', 'final'] as const)
+  test(`public signed HA ${purpose} acquisition resolves saved forwarding intent without external expectations`, async () => {
+    const f = await publicSessionFixture(true, true);
+    f.identity.node = 2;
+    const acquisition = await openPublicAcquisition(f);
+    const reference = await acquisition.collect(f.identity, purpose);
+    const value = await acquisition.authenticate(reference, f.identity, purpose, 'current');
+    expect(f.state.forwarding).toHaveLength(2);
+    expect(f.state.forwarding[0].interfaces).toHaveLength(6);
+    expect(f.state.forwarding[0].routes.filter((row) => row.role === 'sli').map((row) => row.prefix)).toEqual(
+      purpose === 'preflight'
+        ? ['10.20.2.0/24', '10.20.1.0/24', '10.20.1.0/24']
+        : ['10.20.2.0/24', '10.20.2.0/24', '10.20.1.0/24'],
+    );
+    expect(value.readings.forwarding).toMatchObject({
+      status: 'observed',
+      routeCount: 6,
+      observationRequests: 12,
+      freshness: 'unqualified',
+      interfaceNamespace: 'unqualified',
+      operationalAcceptance: 'unknown',
+    });
+    expect(value.operationalAcceptance).toBe('unknown');
+    expect(value.canSatisfyInterfaceMutationGate).toBe(false);
+    const history = await (await openPublicAcquisition(f)).authenticate(reference, f.identity, purpose, 'historical');
+    expect(history.readings.forwarding).toEqual(value.readings.forwarding);
+    expect(f.state.forwarding).toHaveLength(2);
+    expect(f.mutations()).toBe(0);
+  });
+test('public signed acquisition retains unknown for a foreign reported forwarding identity', async () => {
+  const f = await publicSessionFixture(true, true);
+  f.state.foreignForwarding = true;
+  const acquisition = await openPublicAcquisition(f),
+    reference = await acquisition.collect(f.identity, 'preflight');
+  const value = await acquisition.authenticate(reference, f.identity, 'preflight', 'current');
+  expect(value.readings.forwarding.status).toBe('unknown');
+  expect(value.operationalAcceptance).toBe('unknown');
   expect(f.mutations()).toBe(0);
 });

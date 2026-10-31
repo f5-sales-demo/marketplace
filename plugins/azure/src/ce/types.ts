@@ -20,6 +20,18 @@ export type AzureCeOperation =
 export type AzureCeEgressMode = 'public-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AzureCeRoutingMode = 'auto' | 'udr' | 'route-server';
 
+/** Desired routes for read-only comparisons; runtime interface identities come from observations. */
+export interface AzureCeForwardingRouteExpectation {
+  node: number;
+  role: 'slo' | 'sli';
+  prefix: string;
+  routeType: import('../../../platform/src/ce/forwarding-route').ForwardingRouteType;
+}
+export interface AzureCeForwardingExpectations {
+  before: AzureCeForwardingRouteExpectation[];
+  after: AzureCeForwardingRouteExpectation[];
+}
+
 /** Explicit associations for subnets created by this deployment; exact node/NIC next hop. */
 export interface AzureCeGreenfieldUdr {
   subnetNames: string[];
@@ -107,6 +119,7 @@ export interface AzureCeIntent {
     localAsn?: number;
     peerAsn?: number;
     udr?: AzureCeGreenfieldUdr;
+    forwardingRoutes?: AzureCeForwardingExpectations;
   };
   ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
@@ -251,6 +264,7 @@ export interface AzureCePlanDraft {
     localAsn: number;
     peerAsn: number;
     udr?: AzureCeGreenfieldUdr;
+    forwardingRoutes?: AzureCeForwardingExpectations;
   };
   securityRules: AzureCeSecurityRuleIntent[];
   image: AzureCeObservation['image'];
