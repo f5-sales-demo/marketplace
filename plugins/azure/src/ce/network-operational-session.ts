@@ -69,7 +69,7 @@ export async function createAzureOperationalAcquisitionSession(
       ), 'owning session changed');
   };
   const identities = new Map<string, string>();
-  let rootIdentity: string | undefined, retained: string | undefined;
+  let rootIdentity: string | undefined, privateIdentity: string | undefined, retained: string | undefined;
   const bounded = async <T>(work: (active: AbortSignal) => Promise<T>, parent?: AbortSignal) => {
     const active = AbortSignal.any([
       AbortSignal.timeout(180000),
@@ -93,15 +93,29 @@ export async function createAzureOperationalAcquisitionSession(
     };
     return step(() => work(active));
   };
-  const readPins = async (active: AbortSignal) => {
-    active.throwIfAborted();
-    seal();
-    await store.verify();
-    const root = await lstat(directory);
+  const verifyPrivateDirectory = async () => {
+    const root = await lstat(privateDirectory);
     require(root.isDirectory() &&
       !root.isSymbolicLink() &&
       root.uid === process.getuid?.() &&
       (root.mode & 0o077) === 0 &&
+      (await realpath(privateDirectory)) === privateDirectory, 'private signing directory custody differs');
+    const identity = `${root.dev}:${root.ino}:${root.birthtimeMs}`;
+    require(privateIdentity === undefined || privateIdentity === identity, 'private signing directory replaced');
+    privateIdentity = identity;
+  };
+  const readPins = async (active: AbortSignal) => {
+    active.throwIfAborted();
+    seal();
+    await verifyPrivateDirectory();
+    await store.verify();
+    // Native CLI artifacts are public provenance: readability is permitted, non-owner writes are not.
+    // Private signing material remains confined by the separate deployment-store custody contract.
+    const root = await lstat(directory);
+    require(root.isDirectory() &&
+      !root.isSymbolicLink() &&
+      root.uid === process.getuid?.() &&
+      (root.mode & 0o022) === 0 &&
       (await realpath(directory)) === directory, 'native session directory custody differs');
     const identity = `${root.dev}:${root.ino}:${root.birthtimeMs}`;
     require(rootIdentity === undefined || rootIdentity === identity, 'native session directory replaced');
@@ -121,7 +135,7 @@ export async function createAzureOperationalAcquisitionSession(
         require(before.isFile() &&
           before.uid === process.getuid?.() &&
           before.nlink === 1 &&
-          (before.mode & 0o077) === 0 &&
+          (before.mode & 0o022) === 0 &&
           before.size <= 131072, 'issuer artifact custody differs');
         raw = await file.readFile('utf8');
         const after = await file.stat(),
@@ -162,10 +176,15 @@ export async function createAzureOperationalAcquisitionSession(
       (await readdir(directory)).filter((n) => n.endsWith(suffix)).sort(),
     ), 'issuer namespace changed while read');
     const final = await lstat(directory);
-    require(`${final.dev}:${final.ino}:${final.birthtimeMs}` === rootIdentity &&
+    require(final.isDirectory() &&
+      !final.isSymbolicLink() &&
+      final.uid === process.getuid?.() &&
+      (final.mode & 0o022) === 0 &&
+      `${final.dev}:${final.ino}:${final.birthtimeMs}` === rootIdentity &&
       (await realpath(directory)) === directory, 'native session directory changed');
     active.throwIfAborted();
     seal();
+    await verifyPrivateDirectory();
     const pins = [...new Set(observed)];
     require(pins.length <= 1, 'conflicting original issuer pins');
     return pins[0];

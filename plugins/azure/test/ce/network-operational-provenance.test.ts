@@ -1,6 +1,6 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -216,7 +216,7 @@ for (const fault of ['mode', 'symlink'])
     const f = await fixture();
     await f.collector.collect(f.identity, 'preflight');
     const path = join(f.store.directory, 'azure-network-observer-key.json');
-    if (fault === 'mode') await chmod(path, 0o644);
+    if (fault === 'mode') await chmod(path, 0o664);
     else {
       const bytes = await readFile(path),
         target = join(f.store.directory, 'example-key-target.json');
@@ -527,7 +527,7 @@ for (const fault of ['mode', 'symlink', 'duplicate-json', 'unresolved-source', '
     const raw = await readFile(path, 'utf8'),
       row = JSON.parse(raw),
       calls = f.state.calls;
-    if (fault === 'mode') await chmod(path, 0o644);
+    if (fault === 'mode') await chmod(path, 0o664);
     if (fault === 'symlink') {
       const target = join(f.directory, 'example-issuer-target.json');
       await writeFile(target, raw, { mode: 0o600 });
@@ -565,4 +565,63 @@ test('issuer publication order is native and an unacknowledged publication canno
     reference = await reopened.collect(f.identity, 'preflight');
   expect((await reopened.authenticate(reference, f.identity, 'preflight', 'current')).status).toBe('authenticated');
   expect(issuerWrites).toBe(1);
+});
+
+for (const [directoryMode, fileMode] of [
+  [0o755, 0o644],
+  [0o750, 0o640],
+])
+  test(`owning public artifacts may be readable without permitting writes ${directoryMode}/${fileMode}`, async () => {
+    const f = await publicSessionFixture();
+    await chmod(f.directory, directoryMode);
+    const writer = f.session.saveArtifact.bind(f.session);
+    f.session.saveArtifact = async (content, type) => {
+      const id = await writer(content, type),
+        path = await f.session.getArtifactPath(id);
+      if (!path) throw Error('missing original publication');
+      await chmod(path, fileMode);
+      return id;
+    };
+    const collector = await openPublicAcquisition(f),
+      reference = await collector.collect(f.identity, 'preflight');
+    const reopened = await openPublicAcquisition(f);
+    expect((await reopened.authenticate(reference, f.identity, 'preflight', 'historical')).status).toBe(
+      'authenticated',
+    );
+    expect((await lstat(publicIssuerArtifact(f))).mode & 0o777).toBe(fileMode);
+    expect((await lstat(f.store.directory)).mode & 0o777).toBe(0o700);
+    expect((await lstat(join(f.store.directory, 'azure-network-observer-key.json'))).mode & 0o777).toBe(0o600);
+    await reopened.retireSigningMaterial();
+    expect((await reopened.authenticate(reference, f.identity, 'preflight', 'historical')).status).toBe(
+      'authenticated',
+    );
+    expect(f.mutations()).toBe(0);
+  });
+for (const directoryMode of [0o775, 0o777])
+  test(`public native directory rejects non-owner write permission ${directoryMode}`, async () => {
+    const f = await publicSessionFixture();
+    await chmod(f.directory, directoryMode);
+    await expect(openPublicAcquisition(f)).rejects.toThrow('native session directory custody differs');
+    expect(f.state.calls).toBe(0);
+    expect(f.mutations()).toBe(0);
+  });
+test('public-read permission never permits readable private signing storage', async () => {
+  const f = await publicSessionFixture();
+  await chmod(f.directory, 0o755);
+  await chmod(f.store.directory, 0o755);
+  await expect(openPublicAcquisition(f)).rejects.toThrow();
+  expect(f.state.calls).toBe(0);
+  expect(f.mutations()).toBe(0);
+});
+test('public directory permission drift blocks an existing acquisition session', async () => {
+  const f = await publicSessionFixture(),
+    collector = await openPublicAcquisition(f);
+  const reference = await collector.collect(f.identity, 'preflight');
+  const calls = f.state.calls;
+  await chmod(f.directory, 0o775);
+  await expect(collector.authenticate(reference, f.identity, 'preflight', 'current')).rejects.toThrow(
+    'native session directory custody differs',
+  );
+  expect(f.state.calls).toBe(calls);
+  expect(f.mutations()).toBe(0);
 });
