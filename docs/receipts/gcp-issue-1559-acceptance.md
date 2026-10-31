@@ -597,3 +597,11 @@ group absences. The original credential file remained unchanged. Production
 admission still needs an explicit ADC successor, exact workspace and environment
 bindings and qualification of refresh during long execution. All subsequent
 installed, live, cleanup, review and publication gates remain open.
+
+Attempt 311 adds an explicit schema-two ADC admission successor. The
+[ADC admission receipt](gcp-q39-adc-admission-offline-20261031.md) records
+19 passing combined regressions and 11 passing final successor tests. Original
+credential files, audience, environment and all saved-plan gates remain bound.
+Long apply still requires separately reviewed refresh qualification and full
+XCSH lifetime. No executor or cloud consumer is enabled; production snapshot,
+workspace, bridge, guard and all subsequent acceptance gates remain open.
