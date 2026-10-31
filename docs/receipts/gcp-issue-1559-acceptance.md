@@ -570,3 +570,12 @@ initial trace-size checker refusal is preserved and repaired by a separate
 reader without execution replay. Production provider birth identities,
 deadlines, live credential integration, bridge, guard and all live and
 publication gates remain open.
+
+Attempts 307 and 308 reverify current GCP account and project access, then
+qualify original provider birth attribution in the credential-free fixture.
+The [provider birth receipt](gcp-q39-provider-birth-offline-20261030.md) records
+five Python tests, two actual validation tests with 24 assertions, seven
+sampling rounds, independent birth reconstruction for both providers and fresh
+absence checks. Historical closure flags remain false. Production deadline and
+credential integration, bridge, guard, installed runtime, all live behavior,
+cleanup, review and publication remain open.
