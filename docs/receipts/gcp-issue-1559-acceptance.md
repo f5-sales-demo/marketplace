@@ -579,3 +579,12 @@ sampling rounds, independent birth reconstruction for both providers and fresh
 absence checks. Historical closure flags remain false. Production deadline and
 credential integration, bridge, guard, installed runtime, all live behavior,
 cleanup, review and publication remain open.
+
+Attempt 309 adds the shared immutable execution deadline component and a
+versioned credential-free transport fixture. The
+[deadline receipt](gcp-q39-deadlines-offline-20261030.md) records 57 passing
+shared tests with 380 assertions, a real child running beyond sixty seconds,
+and fresh independent absence checks for three original subjects. The
+five-minute reserve is tested as a deadline contract; production final capture,
+refreshable credentials, bridge, guard and all installed, live and publication
+gates remain open.
