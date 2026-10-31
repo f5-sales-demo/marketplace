@@ -130,19 +130,26 @@ export async function readAzureTerraformNetworkParentInventory(
     })),
   ];
   const parentContracts = context.parentContracts;
-  const contracts = { ingress: parentContracts?.ingress, upgrade: parentContracts?.upgrade };
+  const contracts = {
+    ingress: parentContracts?.ingress,
+    upgrade: parentContracts?.upgrade,
+    observer: parentContracts?.observer,
+  };
   const contractBindings = Object.entries(contracts).flatMap(([kind, contract]) =>
     contract
-      ? [
-          'identity',
-          'publication',
-          'releaseTag',
-          'commit',
-          'fingerprint',
-          ...(kind === 'upgrade'
-            ? ['build', 'observationPaths']
-            : ['build', 'buildOrigin', 'projectObserved', 'projectOriginObserved']),
-        ].map((key) => ({
+      ? (kind === 'observer'
+          ? ['authenticateRetirementInventory', 'retireSigningMaterial']
+          : [
+              'identity',
+              'publication',
+              'releaseTag',
+              'commit',
+              'fingerprint',
+              ...(kind === 'upgrade'
+                ? ['build', 'observationPaths']
+                : ['build', 'buildOrigin', 'projectObserved', 'projectOriginObserved']),
+            ]
+        ).map((key) => ({
           target: contract,
           key,
           value: Reflect.get(contract, key),
@@ -153,6 +160,7 @@ export async function readAzureTerraformNetworkParentInventory(
     require(current.parentContracts === parentContracts &&
       current.parentContracts?.ingress === contracts.ingress &&
       current.parentContracts?.upgrade === contracts.upgrade &&
+      current.parentContracts?.observer === contracts.observer &&
       contractBindings.every(
         ({ target, key, value }) => Reflect.get(target, key) === value,
       ), 'owning parent contract changed');

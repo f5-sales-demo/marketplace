@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { createAzureOperationalRetirementSession } from '../../src/ce/network-operational-retirement-session';
 import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update';
 import { collectAzureHistoricalEnrollmentTokens } from '../../src/ce/terraform-enrollment-history';
 import {
@@ -348,7 +349,32 @@ test('parent publication authenticates original metadata, six children, exact en
     const planningCommands = original.commands.slice(beforePlanning);
     expect(planningCommands.filter((command) => command === 'plan')).toHaveLength(1);
     expect(planningCommands.some((command) => command === 'apply')).toBe(false);
-    const context = { ...networkContext, terminalCleanup: prepared.checkpoint };
+    const observer = await createAzureOperationalRetirementSession(
+      original.plan,
+      {
+        ...original.runtime,
+        async observeForwardingRoutes() {
+          throw Error('Retirement must not observe forwarding routes');
+        },
+        async observeHealth() {
+          throw Error('Retirement must not observe health');
+        },
+        async observeNodeReadiness() {
+          throw Error('Retirement must not observe readiness');
+        },
+        ownedSiteConfiguration(_binding, value) {
+          return { metadata: value.metadata, spec: value.spec };
+        },
+      },
+      api,
+      original.storage,
+      session,
+    );
+    expect(await observer.retireSigningMaterial()).toMatchObject({
+      status: 'absent',
+      artifactInventory: { observerState: 'absent', operationalAcceptance: 'unknown' },
+    });
+    const context = { ...networkContext, terminalCleanup: prepared.checkpoint, parentContracts: { observer } };
     const terminal = await qualifyAzureTerraformNetworkTerminalJournalCustody(original.plan, original.storage, context);
     const authenticate = (witness: unknown = terminal, originalContext = context, signal?: AbortSignal) =>
       authenticateAzureTerraformNetworkDestroyJournalCustody(
@@ -387,6 +413,13 @@ test('parent publication authenticates original metadata, six children, exact en
       terminal,
     );
     expect(parentInventory.children).toHaveLength(6);
+    const originalObserver = context.parentContracts.observer;
+    context.parentContracts.observer = { ...originalObserver };
+    await expect(
+      recheckAzureTerraformNetworkParentInventory(parentInventory, original.plan, original.storage, context),
+    ).rejects.toThrow('owning parent contract changed');
+    context.parentContracts.observer = originalObserver;
+    await recheckAzureTerraformNetworkParentInventory(parentInventory, original.plan, original.storage, context);
     expect(parentInventory.parentRetirementQualified).toBe(false);
     expect(parentInventory.networkPacketNames.length).toBeGreaterThan(0);
     expect(new Set(parentInventory.files.map((row) => row.path)).size).toBe(parentInventory.files.length);

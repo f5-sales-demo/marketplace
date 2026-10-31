@@ -7,6 +7,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
+import { createAzureOperationalRetirementSession } from './network-operational-retirement-session';
 import { observeAzureRelayRetirementAbsence } from './relay-retirement';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
 import { retireAzureTerraformFailoverStage } from './terraform-failover-retirement';
@@ -201,6 +202,19 @@ export async function finalizeAzureTerraformRunnerCleanup(
     !final.imports &&
     !final.relinquishments;
   await fresh();
+  // Reopen the actual public original-source observer only after independently observed
+  // cloud/platform absence. This retires signing material without a new observation or
+  // healthy operational claim. The same genuine instance follows every native snapshot.
+  const observer = networkContext
+    ? await createAzureOperationalRetirementSession(base, runtime, api, store, networkContext.publicSession, signal)
+    : undefined;
+  if (observer) await observer.retireSigningMaterial(signal);
+  const parentContracts = Object.freeze({
+    ingress: contract,
+    ...(upgradeContract ? { upgrade: upgradeContract } : {}),
+    ...(observer ? { observer } : {}),
+  });
+  await fresh();
   if (networkContext && (!checkpoint || ['cancelling', 'planning'].includes(checkpoint.phase))) {
     const prepared = await prepareAzureTerraformNetworkTerminalPlanning(
       base,
@@ -306,7 +320,7 @@ export async function finalizeAzureTerraformRunnerCleanup(
       const retired = await retireAzureTerraformNetworkTerminalMain(
         base,
         store,
-        { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint) },
+        { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(checkpoint), parentContracts },
         async (active) => {
           await fresh(active);
         },
@@ -388,7 +402,6 @@ export async function finalizeAzureTerraformRunnerCleanup(
     await fresh();
   }
   if (networkContext) {
-    const parentContracts = { ingress: contract, ...(upgradeContract ? { upgrade: upgradeContract } : {}) };
     if (Object.hasOwn(checkpoint, 'retainedDestroyConfiguration')) {
       const transformed = await retireAzureTerraformNetworkTerminalPlaintext(
         base,

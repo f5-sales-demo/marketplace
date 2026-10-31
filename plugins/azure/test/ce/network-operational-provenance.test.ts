@@ -755,3 +755,174 @@ for (const purpose of ['preflight', 'restored', 'final'] as const)
     expect(historical.canSatisfyInterfaceMutationGate).toBe(false);
     expect(f.mutations()).toBe(0);
   });
+
+async function retirementFixture() {
+  const f = await publicSessionFixture();
+  await (await import('../../src/ce/artifacts')).savePlanArtifact(
+    f.session,
+    f.original,
+    (await import('./fixtures')).observation,
+  );
+  const open = () =>
+    import('../../src/ce/network-operational-retirement-session').then((module) =>
+      module.createAzureOperationalRetirementSession(f.original, f.runtime, f.api, f.store, f.session),
+    );
+  return { ...f, openRetirement: open };
+}
+test('deployment teardown reopens the original public collector and retires unknown proof without another observation', async () => {
+  const f = await retirementFixture(),
+    acquisition = await openPublicAcquisition(f);
+  const reference = await acquisition.collect(f.identity, 'preflight'),
+    calls = f.state.calls;
+  const result = await (await f.openRetirement()).retireSigningMaterial();
+  expect(result.status).toBe('retired');
+  expect(result.artifactInventory).toMatchObject({
+    observerState: 'present',
+    signingMaterialPresent: false,
+    operationalAcceptance: 'unknown',
+    canSatisfyInterfaceMutationGate: false,
+  });
+  expect(f.state.calls).toBe(calls);
+  expect(f.mutations()).toBe(0);
+  expect(reference.issuerSha256).toHaveLength(64);
+});
+async function retiredPublicFixture() {
+  const f = await retirementFixture(),
+    acquisition = await openPublicAcquisition(f);
+  const reference = await acquisition.collect(f.identity, 'preflight');
+  const retired = await acquisition.retireSigningMaterial();
+  return { ...f, reference, retired: retired.artifactInventory };
+}
+test('original public acquisition authenticates history after actual teardown retirement', async () => {
+  const f = await retirementFixture(),
+    acquisition = await openPublicAcquisition(f);
+  const reference = await acquisition.collect(f.identity, 'preflight');
+  await (await f.openRetirement()).retireSigningMaterial();
+  const historical = await acquisition.authenticate(reference, f.identity, 'preflight', 'historical');
+  expect(historical.status).toBe('authenticated');
+  expect(historical.operationalAcceptance).toBe('unknown');
+});
+test('actual original retirement session resumes already retired proof', async () => {
+  const f = await retiredPublicFixture(),
+    calls = f.state.calls;
+  const result = await (await f.openRetirement()).retireSigningMaterial();
+  expect(result.status).toBe('retired');
+  expect(result.artifactInventory.signingMaterialPresent).toBe(false);
+  expect(f.state.calls).toBe(calls);
+});
+test('an unused owned observer family is independently absent and does not create keys, pins or cloud calls', async () => {
+  const f = await retirementFixture(),
+    calls = f.cloudCalls();
+  const retirement = await f.openRetirement();
+  const result = await retirement.retireSigningMaterial();
+  expect(result).toMatchObject({
+    status: 'absent',
+    artifactInventory: {
+      observerState: 'absent',
+      issuerSha256: null,
+      artifacts: [],
+      signingMaterialPresent: false,
+      operationalAcceptance: 'unknown',
+    },
+  });
+  expect(f.state.calls).toBe(0);
+  expect(f.cloudCalls()).toBe(calls);
+  expect(f.mutations()).toBe(0);
+  await expect(f.store.read('azure-network-observer-key.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(
+    [...f.paths.values()].filter((path) => path.endsWith('.azure-ce-network-operational-issuer.log')),
+  ).toHaveLength(0);
+});
+for (const fault of [
+  'unbound-private-family',
+  'lost-original',
+  'lost-network-source',
+  'conflicting-public-pin',
+] as const)
+  test(`teardown preserves signing material for ${fault}`, async () => {
+    const f = await retirementFixture(),
+      acquisition = await openPublicAcquisition(f);
+    await acquisition.collect(f.identity, 'preflight');
+    const key = await readFile(join(f.store.directory, 'azure-network-observer-key.json'));
+    if (fault === 'unbound-private-family') await rm(publicIssuerArtifact(f));
+    else if (fault === 'lost-original' || fault === 'lost-network-source') {
+      const digest = fault === 'lost-original' ? f.original.planSha256 : f.plan.planSha256;
+      for (const path of f.paths.values()) {
+        if (path.endsWith('.azure-ce-plan.log') && JSON.parse(await readFile(path, 'utf8')).plan.planSha256 === digest)
+          await rm(path);
+      }
+    } else {
+      const source = JSON.parse(await readFile(publicIssuerArtifact(f), 'utf8'));
+      await f.session.saveArtifact(
+        JSON.stringify({ ...source, issuerSha256: 'e'.repeat(64) }),
+        'azure-ce-network-operational-issuer',
+      );
+    }
+    await expect(f.openRetirement()).rejects.toThrow();
+    expect(await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).toEqual(key);
+  });
+test('retirement absence cannot hide a late private observer family', async () => {
+  const f = await retirementFixture(),
+    retirement = await f.openRetirement();
+  await f.store.write('azure-network-observer-unclassified.json', { unknown: true });
+  await expect(retirement.retireSigningMaterial()).rejects.toThrow('no original public issuer');
+  expect(await f.store.read('azure-network-observer-unclassified.json')).toEqual({ unknown: true });
+});
+test('typed parent enrollment rejects a real original session while its signing key is live', async () => {
+  const f = await retirementFixture(),
+    acquisition = await openPublicAcquisition(f);
+  await acquisition.collect(f.identity, 'preflight');
+  const live = await acquisition.authenticateRetirementInventory();
+  const retirement = await f.openRetirement();
+  const collect = (await import('../../src/ce/network-operational-parent-disposition'))
+    .collectAzureOperationalParentDispositions;
+  await expect(collect(f.original, f.store, f.session, live.artifacts, retirement)).rejects.toThrow(
+    'signing material still present',
+  );
+  expect(await f.store.read('azure-network-observer-key.json')).toBeDefined();
+});
+test('typed parent enrollment preserves exact retired native file identities without operational acceptance', async () => {
+  const f = await retiredPublicFixture(),
+    retirement = await f.openRetirement();
+  const collect = (await import('../../src/ce/network-operational-parent-disposition'))
+    .collectAzureOperationalParentDispositions;
+  const calls = f.state.calls,
+    decisions = await collect(f.original, f.store, f.session, f.retired.artifacts, retirement);
+  expect(decisions).toHaveLength(f.retired.artifacts.length);
+  expect(decisions.every((file) => file.action === 'preserve')).toBe(true);
+  expect(decisions.map((file) => file.semanticProvenanceSha256)).toEqual(
+    f.retired.artifacts.map((file) => file.semanticProvenanceSha256),
+  );
+  expect(f.state.calls).toBe(calls);
+  expect(f.mutations()).toBe(0);
+});
+for (const fault of ['fake-session', 'missing', 'duplicate', 'identity', 'bytes', 'packet', 'unclassified'] as const)
+  test(`typed parent enrollment rejects ${fault} against actual original retired proof`, async () => {
+    const f = await retiredPublicFixture(),
+      retirement = await f.openRetirement();
+    const collect = (await import('../../src/ce/network-operational-parent-disposition'))
+      .collectAzureOperationalParentDispositions;
+    const files = structuredClone(f.retired.artifacts);
+    if (fault === 'missing') files.shift();
+    else if (fault === 'duplicate') files.push(structuredClone(files[0]));
+    else if (fault === 'identity') files[0].identity = 'foreign';
+    else if (fault === 'bytes') files[0].sha256 = 'e'.repeat(64);
+    else if (fault === 'packet') files[0].packetSha256 = 'e'.repeat(64);
+    else if (fault === 'unclassified') files.push({ ...files[0], path: 'azure-network-observer-unclassified.json' });
+    await expect(
+      collect(f.original, f.store, f.session, files, fault === 'fake-session' ? { ...retirement } : retirement),
+    ).rejects.toThrow();
+    expect(f.mutations()).toBe(0);
+  });
+test('forged retirement-session methods cannot supply typed parent disposition authority', async () => {
+  const f = await retirementFixture();
+  const collect = (await import('../../src/ce/network-operational-parent-disposition'))
+    .collectAzureOperationalParentDispositions;
+  const counterfeit = {
+    authenticateRetirementInventory: async () => ({ artifacts: [], signingMaterialPresent: false }),
+    retireSigningMaterial: async () => ({ status: 'retired' }),
+  };
+  await expect(
+    collect(f.original, f.store, f.session, [], counterfeit as unknown as Parameters<typeof collect>[4]),
+  ).rejects.toThrow('genuine owning retirement session');
+});

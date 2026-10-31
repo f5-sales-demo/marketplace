@@ -7,6 +7,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalSha256 } from './canonical';
+import type { AzureOperationalRetirementSession } from './network-operational-retirement-session';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
 import { compileAzureTerraformTeardown } from './terraform-teardown';
@@ -17,7 +18,11 @@ import type { AzureCePlan } from './types';
 export type AzureTerraformNetworkEmptyMainBindingContext = AzureTerraformNetworkDestroyJournalContext & {
   terminalCleanup: unknown;
   /** Internal instances from verified producer loading, never serialized caller contracts. */
-  parentContracts?: { ingress?: VerifiedIngressContract; upgrade?: VerifiedUpgradeContract };
+  parentContracts?: {
+    ingress?: VerifiedIngressContract;
+    upgrade?: VerifiedUpgradeContract;
+    observer?: AzureOperationalRetirementSession;
+  };
 };
 const same = (a: unknown, b: unknown) => canonicalSha256({ value: a }) === canonicalSha256({ value: b });
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');

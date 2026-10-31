@@ -2,8 +2,6 @@ import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
-import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import { verifyRetainedCleanup } from '../../../terraform/src/independent-cleanup';
 import { canonicalSha256 } from './canonical';
 import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
@@ -12,6 +10,7 @@ import {
   verifyAzureFailoverHistoricalArtifacts,
 } from './failover-artifact-provenance';
 import { isAzureIngressHistoricalArtifact, verifyAzureIngressHistoricalArtifacts } from './ingress-artifact-provenance';
+import { collectAzureOperationalParentDispositions } from './network-operational-parent-disposition';
 import { azureRelayHistoricalArtifacts, verifyAzureRelayHistoricalArtifacts } from './relay-artifact-provenance';
 import { azureTerraformFailoverDeployment, validateAzureTerraformFailoverRetirement } from './terraform-failover';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
@@ -121,7 +120,7 @@ export async function collectAzureTerraformParentDispositions(
   },
   authority: AzureParentDispositionAuthority,
   signal?: AbortSignal,
-  contracts: { ingress?: VerifiedIngressContract; upgrade?: VerifiedUpgradeContract } = {},
+  contracts: NonNullable<AzureTerraformNetworkEmptyMainBindingContext['parentContracts']> = {},
 ) {
   signal?.throwIfAborted();
   const teardown = context.destroyTeardown,
@@ -179,6 +178,22 @@ export async function collectAzureTerraformParentDispositions(
     rootGeneric.add(path);
     decide(path, action, schema, provenance, payload);
   };
+  if (contracts.observer) {
+    const observer = await collectAzureOperationalParentDispositions(
+      base,
+      store,
+      context.publicSession,
+      files,
+      contracts.observer,
+      signal,
+    );
+    for (const file of observer) {
+      generic(file.path, file.action, file.schema, { observer: file.semanticProvenanceSha256 });
+      const decision = decisions.get(file.path);
+      require(decision, 'owning observer decision missing');
+      decision.semanticProvenanceSha256 = file.semanticProvenanceSha256;
+    }
+  }
   const record = (name: string) => object(records.get(name));
   keys(record('owner.json'), ['schemaVersion', 'owner']);
   require(same(record('owner.json'), { schemaVersion: 2, owner }), 'owner manifest differs');
