@@ -21593,7 +21593,7 @@ var init_network_forwarding_readings = __esm(() => {
   same21 = canonicalEqual;
 });
 
-// plugins/azure/src/ce/network-operational-identity.ts
+// plugins/azure/src/ce/operational-identity-joins.ts
 import { isIP as isIP20 } from 'node:net';
 
 function require43(value, message) {
@@ -21603,61 +21603,16 @@ function object41(value) {
   require43(value && typeof value === 'object' && !Array.isArray(value), 'malformed evidence');
   return value;
 }
-async function collectAzureNetworkOperationalIdentity(source, expected, runtime, api, signal) {
-  signal?.throwIfAborted();
-  const plan = structuredClone(source),
-    identity = structuredClone(expected);
-  verifyAzureCePlan(plan);
-  validateAzureNetworkUpdateInventory(plan, identity.inventory);
-  const binding = azureUpgradeBinding(plan);
-  require43(
-    plan.engine === 'terraform' &&
-      plan.intent.operation === 'update-network' &&
-      runtime.engine === plan.engine &&
-      same22(identity.owner, binding.owner) &&
-      identity.planSha256 === plan.planSha256 &&
-      identity.siteName === plan.siteName &&
-      typeof identity.siteUid === 'string' &&
-      identity.siteUid.trim() &&
-      Number.isInteger(identity.node) &&
-      identity.node >= 1 &&
-      identity.node <= plan.topology.nodeCount &&
-      sha6(identity.configurationSha256) &&
-      sha6(identity.siteConfigurationSha256),
-    'owning resolved node/site identity required',
-  );
-  const instances = {},
-    interfaces = [];
-  for (const [node, vm] of Object.entries(identity.inventory.nodes)) {
-    const name = `${plan.deploymentName}-${node}`;
-    instances[name] = vm.vmId;
-    for (const [index, nic] of Object.entries(vm.nics)) {
-      const role = plan.nics.find((n) => n.index === Number(index))?.role;
-      require43(
-        role === 'slo' || role === 'data' || role === 'sli',
-        'complete configured interface role scope required',
-      );
-      interfaces.push({ node: name, role, mac: nic.mac });
-    }
-  }
-  const base = {
-    schemaVersion: 1,
-    scope: 'node-registration-interface-identity',
-    owner: identity.owner,
-    planSha256: identity.planSha256,
-    node: identity.node,
-    siteName: identity.siteName,
-    siteUid: identity.siteUid,
-    siteConfigurationSha256: identity.siteConfigurationSha256,
-    configurationSha256: identity.configurationSha256,
-    expectedInventorySha256: canonicalSha256(identity.inventory.nodes),
-    collectedAt: new Date().toISOString(),
-    operationalAcceptance: 'unknown',
-    nodeHealth: 'unknown',
-    freshness: 'unqualified',
-    routing: 'unknown',
-    traffic: 'unknown',
-  };
+async function collectAzureOperationalIdentityJoins(
+  base,
+  binding,
+  identity,
+  instances,
+  interfaces,
+  runtime,
+  observeCloud,
+  signal,
+) {
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const bounded = async (task) => {
     deadline.throwIfAborted();
@@ -21674,17 +21629,13 @@ async function collectAzureNetworkOperationalIdentity(source, expected, runtime,
   };
   let phase = 'cloud-identity';
   try {
-    const cloud = async () => {
-      const inventory = await bounded(() => captureAzureNetworkUpdateInventory(plan, api, deadline));
-      require43(same22(inventory.nodes, identity.inventory.nodes), 'current cloud identity differs');
-      return canonicalSha256(inventory.nodes);
-    };
+    const cloud = () => bounded(() => observeCloud(deadline));
     const site = async () => {
       const value = object41(await bounded(() => runtime.observeOwnedSite(binding, deadline)));
       const metadata = object41(value.metadata),
         system = object41(value.system_metadata);
       require43(
-        metadata.name === plan.siteName &&
+        metadata.name === binding.siteName &&
           metadata.namespace === 'system' &&
           system.uid === identity.siteUid &&
           canonicalSha256(runtime.ownedSiteConfiguration(binding, value)) === identity.siteConfigurationSha256,
@@ -21847,37 +21798,118 @@ async function collectAzureNetworkOperationalIdentity(source, expected, runtime,
     };
   }
 }
-var same22,
+var same22;
+var init_operational_identity_joins = __esm(() => {
+  init_canonical();
+  same22 = canonicalEqual;
+});
+
+// plugins/azure/src/ce/network-operational-identity.ts
+function require44(value, message) {
+  if (!value) throw Error(`Azure network operational identity: ${message}`);
+}
+async function collectAzureNetworkOperationalIdentity(source, expected, runtime, api, signal) {
+  signal?.throwIfAborted();
+  const plan = structuredClone(source),
+    identity = structuredClone(expected);
+  verifyAzureCePlan(plan);
+  validateAzureNetworkUpdateInventory(plan, identity.inventory);
+  const binding = azureUpgradeBinding(plan);
+  require44(
+    plan.engine === 'terraform' &&
+      plan.intent.operation === 'update-network' &&
+      runtime.engine === plan.engine &&
+      same23(identity.owner, binding.owner) &&
+      identity.planSha256 === plan.planSha256 &&
+      identity.siteName === plan.siteName &&
+      typeof identity.siteUid === 'string' &&
+      identity.siteUid.trim() &&
+      Number.isInteger(identity.node) &&
+      identity.node >= 1 &&
+      identity.node <= plan.topology.nodeCount &&
+      sha6(identity.configurationSha256) &&
+      sha6(identity.siteConfigurationSha256),
+    'owning resolved node/site identity required',
+  );
+  const instances = {},
+    interfaces = [];
+  for (const [node, vm] of Object.entries(identity.inventory.nodes)) {
+    const name = `${plan.deploymentName}-${node}`;
+    instances[name] = vm.vmId;
+    for (const [index, nic] of Object.entries(vm.nics)) {
+      const role = plan.nics.find((n) => n.index === Number(index))?.role;
+      require44(
+        role === 'slo' || role === 'data' || role === 'sli',
+        'complete configured interface role scope required',
+      );
+      interfaces.push({ node: name, role, mac: nic.mac });
+    }
+  }
+  const base = {
+    schemaVersion: 1,
+    scope: 'node-registration-interface-identity',
+    owner: identity.owner,
+    planSha256: identity.planSha256,
+    node: identity.node,
+    siteName: identity.siteName,
+    siteUid: identity.siteUid,
+    siteConfigurationSha256: identity.siteConfigurationSha256,
+    configurationSha256: identity.configurationSha256,
+    expectedInventorySha256: canonicalSha256(identity.inventory.nodes),
+    collectedAt: new Date().toISOString(),
+    operationalAcceptance: 'unknown',
+    nodeHealth: 'unknown',
+    freshness: 'unqualified',
+    routing: 'unknown',
+    traffic: 'unknown',
+  };
+  return collectAzureOperationalIdentityJoins(
+    base,
+    binding,
+    identity,
+    instances,
+    interfaces,
+    runtime,
+    async (deadline) => {
+      const inventory = await captureAzureNetworkUpdateInventory(plan, api, deadline);
+      require44(same23(inventory.nodes, identity.inventory.nodes), 'current cloud identity differs');
+      return canonicalSha256(inventory.nodes);
+    },
+    signal,
+  );
+}
+var same23,
   sha6 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_network_operational_identity = __esm(() => {
   init_artifacts();
   init_canonical();
   init_network_update();
+  init_operational_identity_joins();
   init_terraform_upgrade();
-  same22 = canonicalEqual;
+  same23 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/traffic-artifact-provenance.ts
-function require44(condition) {
+function require45(condition) {
   if (!condition) throw new Error('Persisted Azure traffic evidence checkpoint differs from the owning plan');
 }
 function object42(value) {
-  require44(value && typeof value === 'object' && !Array.isArray(value));
+  require45(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
 function keys2(value, required, optional = []) {
-  require44(
+  require45(
     required.every((key) => key in value) &&
       Object.keys(value).every((key) => required.includes(key) || optional.includes(key)),
   );
 }
 function time(value) {
-  require44(typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now());
+  require45(typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now());
   return Date.parse(String(value));
 }
 function validateAzureTrafficCheckpoint(plan, input) {
   verifyAzureCePlan(plan);
-  require44(plan.intent.ingress?.mode === 'platform-http');
+  require45(plan.intent.ingress?.mode === 'platform-http');
   const probe = plan.intent.ingress?.mode === 'platform-http' ? plan.intent.ingress.probe : undefined;
   const state = object42(input);
   keys2(
@@ -21896,14 +21928,14 @@ function validateAzureTrafficCheckpoint(plan, input) {
     ],
     ['attempts', 'evidence'],
   );
-  require44(
+  require45(
     state.schemaVersion === 2 &&
       state.engine === plan.engine &&
       state.planSha256 === plan.planSha256 &&
       ['ready', 'complete'].includes(String(state.phase)),
   );
   const source = validateAzureTrafficSourceIdentity(plan, state.sourceIdentity);
-  require44(
+  require45(
     state.sourceVmResourceId === source.resourceId &&
       state.sourceVmId === source.vmId &&
       state.sourceNicResourceId === source.nicResourceId &&
@@ -21911,27 +21943,27 @@ function validateAzureTrafficCheckpoint(plan, input) {
   );
   let previous = time(state.sourceObservedAt);
   if (state.attempts !== undefined) {
-    require44(Array.isArray(state.attempts) && state.attempts.length > 0 && state.attempts.length <= 40);
+    require45(Array.isArray(state.attempts) && state.attempts.length > 0 && state.attempts.length <= 40);
     for (const raw of state.attempts) {
       const attempt = object42(raw);
       keys2(attempt, ['stderrPresent', 'observedAt'], ['httpStatus', 'bodySha256']);
-      require44(
+      require45(
         typeof attempt.stderrPresent === 'boolean' &&
           ((attempt.httpStatus === undefined && attempt.bodySha256 === undefined) ||
             ((attempt.httpStatus === 0 || status(attempt.httpStatus)) && digest4(attempt.bodySha256))),
       );
-      require44(
+      require45(
         attempt.stderrPresent ||
           attempt.httpStatus !== probe?.expectedStatus ||
           attempt.bodySha256 !== probe?.expectedBodySha256,
       );
       const collected = time(attempt.observedAt);
-      require44(collected >= previous);
+      require45(collected >= previous);
       previous = collected;
     }
   }
   if (state.phase === 'ready') {
-    require44(state.evidence === undefined);
+    require45(state.evidence === undefined);
     return;
   }
   const evidence = object42(state.evidence);
@@ -21947,7 +21979,7 @@ function validateAzureTrafficCheckpoint(plan, input) {
     'expectedBodySha256',
     'observedAt',
   ]);
-  require44(
+  require45(
     probe &&
       evidence.status === 'healthy' &&
       evidence.source === 'azure:vm-run-command' &&
@@ -21968,7 +22000,7 @@ function azureCurrentTrafficArtifactIdentity(name) {
 }
 function validateAzureCurrentTrafficHistory(plan, checkpointKey, checkpoint, input) {
   const name = azureCurrentTrafficArtifactIdentity(`${checkpointKey}-current-sample.json`);
-  require44(name?.receipt);
+  require45(name?.receipt);
   const evidence = validateAzureTrafficCheckpoint(plan, checkpoint),
     state = object42(checkpoint),
     receipt = object42(input);
@@ -21986,7 +22018,7 @@ function validateAzureCurrentTrafficHistory(plan, checkpointKey, checkpoint, inp
     'completedAt',
     'evidence',
   ]);
-  require44(
+  require45(
     evidence &&
       receipt.schemaVersion === 1 &&
       receipt.status === 'healthy' &&
@@ -22010,7 +22042,7 @@ function validateAzureCurrentTrafficHistory(plan, checkpointKey, checkpoint, inp
     completed = time(receipt.completedAt),
     source = time(state.sourceObservedAt),
     observed = time(evidence?.observedAt);
-  require44(
+  require45(
     new Date(started).toISOString() === receipt.startedAt &&
       new Date(completed).toISOString() === receipt.completedAt &&
       completed >= started &&
@@ -22306,7 +22338,7 @@ function object44(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed operational reading');
   return value;
 }
-function require45(value) {
+function require46(value) {
   if (!value) throw Error('Operational reading identity differs');
 }
 async function collectAzureNetworkOperationalReadings(
@@ -22351,16 +22383,16 @@ async function collectAzureNetworkOperationalReadings(
     names.map((name) => {
       const object = target;
       const callback = object[name];
-      require45(typeof callback === 'function');
+      require46(typeof callback === 'function');
       return { object, name, callback };
     }),
   );
   const directory = storage.directory;
   const seal = () => {
     deadline.throwIfAborted();
-    require45(
-      same23(storage.owner, identity.owner) &&
-        same23(storage.owner, binding.owner) &&
+    require46(
+      same24(storage.owner, identity.owner) &&
+        same24(storage.owner, binding.owner) &&
         transport.engine === 'terraform' &&
         canonicalSha256(request) === requestSha256 &&
         canonicalSha256(expected) === identitySha256 &&
@@ -22396,8 +22428,8 @@ async function collectAzureNetworkOperationalReadings(
   let siteHealth = unknown('site-global-health-unavailable');
   try {
     const health = object44(await bounded(() => runtime.observeHealth(binding, deadline)));
-    require45(
-      same23(health.owner, binding.owner) &&
+    require46(
+      same24(health.owner, binding.owner) &&
         health.siteName === binding.siteName &&
         health.siteUid === identity.siteUid &&
         health.scope === 'site-global-only' &&
@@ -22427,18 +22459,18 @@ async function collectAzureNetworkOperationalReadings(
     const instances = Object.fromEntries(
       Object.entries(identity.inventory.nodes).map(([index, vm]) => [`${plan.deploymentName}-${index}`, vm.vmId]),
     );
-    require45('registrations' in initial && initial.registrations.status === 'observed');
+    require46('registrations' in initial && initial.registrations.status === 'observed');
     const selectedRegistrations = initial.registrations.nodes.filter((row) => row.node === node);
-    require45(selectedRegistrations.length === 1);
+    require46(selectedRegistrations.length === 1);
     const selected = selectedRegistrations[0];
     const value = object44(
       await bounded(() =>
         runtime.observeNodeReadiness(binding, { siteUid: identity.siteUid, node, instances }, deadline),
       ),
     );
-    require45(
+    require46(
       value.status === 'observed' &&
-        same23(value.owner, binding.owner) &&
+        same24(value.owner, binding.owner) &&
         value.siteName === binding.siteName &&
         value.siteUid === identity.siteUid &&
         value.node === node &&
@@ -22499,7 +22531,7 @@ async function collectAzureNetworkOperationalReadings(
   if (routeExchange.status === 'healthy' && initial.status !== 'unknown') {
     const slo = initial.interfaces.filter((row) => row.role === 'slo'),
       serviceAddresses = routeExchange.serviceAddresses;
-    require45(
+    require46(
       slo.length === binding.nodes.length &&
         binding.nodes.every((node) => slo.filter((row) => row.node === node).length === 1),
     );
@@ -22508,8 +22540,8 @@ async function collectAzureNetworkOperationalReadings(
     );
     try {
       const value = await bounded(() => runtime.observeBgpSessions(binding, expectedSessions, deadline));
-      require45(
-        same23(value.owner, binding.owner) &&
+      require46(
+        same24(value.owner, binding.owner) &&
           value.siteName === binding.siteName &&
           value.expectedSessions === expectedSessions.length &&
           value.sessions.length === expectedSessions.length,
@@ -22521,9 +22553,9 @@ async function collectAzureNetworkOperationalReadings(
             row.interfaceName === wanted.interfaceName &&
             row.peerAddress === wanted.peerAddress,
         );
-        require45(matches.length === 1);
+        require46(matches.length === 1);
         const row = matches[0];
-        require45(
+        require46(
           [
             'Unknown',
             'Idle',
@@ -22551,7 +22583,7 @@ async function collectAzureNetworkOperationalReadings(
         };
       });
       const establishedSessions = rows.filter((row) => row.state === 'Established').length;
-      require45(
+      require46(
         value.establishedSessions === establishedSessions &&
           value.status === (establishedSessions === expectedSessions.length ? 'healthy' : 'degraded'),
       );
@@ -22567,10 +22599,10 @@ async function collectAzureNetworkOperationalReadings(
     }
     try {
       const value = await bounded(() => runtime.observeBgpRoutes(binding, deadline));
-      require45(
-        same23(value.owner, binding.owner) && value.siteName === binding.siteName && value.status === 'observed',
+      require46(
+        same24(value.owner, binding.owner) && value.siteName === binding.siteName && value.status === 'observed',
       );
-      require45(
+      require46(
         Array.isArray(value.nodes) &&
           value.nodes.length === binding.nodes.length &&
           binding.nodes.every((node) => value.nodes.filter((row) => row.node === node).length === 1),
@@ -22597,10 +22629,10 @@ async function collectAzureNetworkOperationalReadings(
   if (expectedForwarding !== undefined) {
     const reviewed = expectedForwarding;
     try {
-      require45(initial.status !== 'unknown' && reviewed.siteUid === identity.siteUid);
+      require46(initial.status !== 'unknown' && reviewed.siteUid === identity.siteUid);
       validateExpectedForwardingRoutes(reviewed, binding.nodes);
       const physical = initial.interfaces.filter((row) => row.role === 'slo' || row.role === 'sli');
-      require45(
+      require46(
         physical.length === reviewed.interfaces.length &&
           reviewed.interfaces.every(
             (wanted) =>
@@ -22694,7 +22726,7 @@ async function collectAzureNetworkOperationalReadings(
       const { collectedAt: _collectedAt, ...facts } = reading;
       return facts;
     };
-  require45(same23(boundary(initial), boundary(final)));
+  require46(same24(boundary(initial), boundary(final)));
   seal();
   return {
     schemaVersion: 1,
@@ -22717,7 +22749,7 @@ async function collectAzureNetworkOperationalReadings(
     completedAt: new Date().toISOString(),
   };
 }
-var same23;
+var same24;
 var init_network_operational_readings = __esm(() => {
   init_forwarding_route();
   init_node_health();
@@ -22730,7 +22762,7 @@ var init_network_operational_readings = __esm(() => {
   init_route_server_health();
   init_terraform_upgrade();
   init_traffic_probe();
-  same23 = canonicalEqual;
+  same24 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-parent-file-custody.ts
@@ -22738,7 +22770,7 @@ import { constants as constants2 } from 'node:fs';
 import { lstat as lstat4, open as open2, realpath as realpath3 } from 'node:fs/promises';
 import { dirname as dirname4, isAbsolute } from 'node:path';
 
-function require46(value, message) {
+function require47(value, message) {
   if (!value) throw Error(`Azure parent private file: ${message}`);
 }
 async function readAzureTerraformParentPrivateFile(path, signal) {
@@ -22756,10 +22788,10 @@ async function readAzureTerraformParentPrivateFile(path, signal) {
       active.removeEventListener('abort', onAbort);
     }
   };
-  require46(isAbsolute(path), 'absolute path required');
+  require47(isAbsolute(path), 'absolute path required');
   const parent = dirname4(path),
     directory = await step(() => lstat4(parent));
-  require46(
+  require47(
     directory.isDirectory() &&
       !directory.isSymbolicLink() &&
       directory.uid === process.getuid?.() &&
@@ -22768,7 +22800,7 @@ async function readAzureTerraformParentPrivateFile(path, signal) {
     'private parent directory differs',
   );
   const namedBefore = await step(() => lstat4(path));
-  require46(
+  require47(
     namedBefore.isFile() &&
       !namedBefore.isSymbolicLink() &&
       namedBefore.nlink === 1 &&
@@ -22790,7 +22822,7 @@ async function readAzureTerraformParentPrivateFile(path, signal) {
       after = await step(() => handle.stat()),
       named = await step(() => lstat4(path)),
       parentAfter = await step(() => lstat4(parent));
-    require46(
+    require47(
       first.isFile() &&
         first.uid === process.getuid?.() &&
         first.nlink === 1 &&
@@ -22838,23 +22870,23 @@ import {
 import { lstat as lstat5, readdir as readdir3 } from 'node:fs/promises';
 import { join as join8 } from 'node:path';
 
-function require47(value, reason) {
+function require48(value, reason) {
   if (!value) throw Error(`Azure operational acquisition provenance: ${reason}`);
 }
 function object45(value) {
-  require47(value && typeof value === 'object' && !Array.isArray(value), 'malformed private record');
+  require48(value && typeof value === 'object' && !Array.isArray(value), 'malformed private record');
   return value;
 }
 function keys3(value, names) {
-  require47(same24(Object.keys(object45(value)).sort(), names.toSorted()), 'private schema differs');
+  require48(same25(Object.keys(object45(value)).sort(), names.toSorted()), 'private schema differs');
 }
 function bytes(value, size) {
-  require47(
+  require48(
     typeof value === 'string' && value.length <= 4096 && /^[A-Za-z0-9_-]+$/.test(value),
     'key or signature encoding differs',
   );
   const raw = Buffer.from(value, 'base64url');
-  require47(
+  require48(
     raw.toString('base64url') === value && (size === undefined || raw.length === size),
     'key or signature bytes differ',
   );
@@ -22883,24 +22915,24 @@ function createAzureOperationalAcquisitionCollector(
     reviewed = forwarding === undefined ? undefined : structuredClone(forwarding),
     requestMatches = canonicalSnapshot(request),
     reviewedMatches = forwarding === undefined ? undefined : canonicalSnapshot(forwarding);
-  require47(trustedIssuerSha256 === undefined || digest5(trustedIssuerSha256), 'retained issuer pin malformed');
-  require47(
+  require48(trustedIssuerSha256 === undefined || digest5(trustedIssuerSha256), 'retained issuer pin malformed');
+  require48(
     originalIssuerPublication === undefined || typeof originalIssuerPublication === 'function',
     'owning issuer publisher malformed',
   );
   verifyAzureCePlan(plan);
-  require47(
+  require48(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
-      same24(owner, azureUpgradeBinding(plan).owner),
+      same25(owner, azureUpgradeBinding(plan).owner),
     'owning Terraform network plan required',
   );
   const seal = () => {
-    require47(
+    require48(
       requestMatches(request) &&
         requestMatches(plan) &&
         storage.directory === directory &&
-        same24(storage.owner, owner) &&
+        same25(storage.owner, owner) &&
         transport.engine === 'terraform' &&
         (forwarding === undefined
           ? reviewed === undefined
@@ -22957,7 +22989,7 @@ function createAzureOperationalAcquisitionCollector(
     if (pointer === undefined && create) {
       let secret = await optional5(store, keyName);
       if (secret === undefined) {
-        require47(anchored === undefined, 'original retained signing material missing');
+        require48(anchored === undefined, 'original retained signing material missing');
         signal.throwIfAborted();
         const pair = generateKeyPairSync2('ed25519', {
           publicKeyEncoding: { type: 'spki', format: 'der' },
@@ -22973,15 +23005,15 @@ function createAzureOperationalAcquisitionCollector(
       }
       keys3(secret, ['schemaVersion', 'owner', 'publicKey', 'signingMaterial']);
       const value = object45(secret);
-      require47(value.schemaVersion === 1 && same24(value.owner, owner), 'private signing owner differs');
+      require48(value.schemaVersion === 1 && same25(value.owner, owner), 'private signing owner differs');
       const privateKey = createPrivateKey2({ key: bytes(value.signingMaterial), type: 'pkcs8', format: 'der' });
-      require47(
+      require48(
         privateKey.asymmetricKeyType === 'ed25519' &&
           createPublicKey2(privateKey).export({ type: 'spki', format: 'der' }).equals(bytes(value.publicKey)),
         'private signing key differs',
       );
       const record = { schemaVersion: 1, kind: 'azure-network-operational-issuer', owner, publicKey: value.publicKey };
-      require47(anchored === undefined || canonicalSha256(record) === anchored, 'retained issuer private key differs');
+      require48(anchored === undefined || canonicalSha256(record) === anchored, 'retained issuer private key differs');
       if (anchored !== undefined) await readImmutableCeReceipt(store, 'azure-network-issuer', anchored, signal);
       const publication = await publishImmutableCeReceipt(store, 'azure-network-issuer', record, signal);
       if (originalIssuerPublication) {
@@ -22993,9 +23025,9 @@ function createAzureOperationalAcquisitionCollector(
     }
     keys3(pointer, ['schemaVersion', 'owner', 'issuerSha256']);
     const anchor = object45(pointer);
-    require47(
+    require48(
       anchor.schemaVersion === 1 &&
-        same24(anchor.owner, owner) &&
+        same25(anchor.owner, owner) &&
         digest5(anchor.issuerSha256) &&
         (initializing || (anchored !== undefined && anchored === anchor.issuerSha256)),
       'pinned issuer differs',
@@ -23003,24 +23035,24 @@ function createAzureOperationalAcquisitionCollector(
     const publication = await readImmutableCeReceipt(store, 'azure-network-issuer', anchor.issuerSha256, signal);
     const record = object45(publication.record);
     keys3(record, ['schemaVersion', 'kind', 'owner', 'publicKey']);
-    require47(
-      record.schemaVersion === 1 && record.kind === 'azure-network-operational-issuer' && same24(record.owner, owner),
+    require48(
+      record.schemaVersion === 1 && record.kind === 'azure-network-operational-issuer' && same25(record.owner, owner),
       'issuer ownership differs',
     );
     const publicKey = createPublicKey2({ key: bytes(record.publicKey), type: 'spki', format: 'der' });
-    require47(publicKey.asymmetricKeyType === 'ed25519', 'issuer algorithm differs');
+    require48(publicKey.asymmetricKeyType === 'ed25519', 'issuer algorithm differs');
     anchored = anchor.issuerSha256;
     return { digest: anchored, publicKey, record };
   };
   const signingKey = async (record) => {
     const raw = object45(await store.read(keyName));
     keys3(raw, ['schemaVersion', 'owner', 'publicKey', 'signingMaterial']);
-    require47(
-      raw.schemaVersion === 1 && same24(raw.owner, owner) && raw.publicKey === record.publicKey,
+    require48(
+      raw.schemaVersion === 1 && same25(raw.owner, owner) && raw.publicKey === record.publicKey,
       'signing owner or issuer differs',
     );
     const key = createPrivateKey2({ key: bytes(raw.signingMaterial), type: 'pkcs8', format: 'der' });
-    require47(
+    require48(
       key.asymmetricKeyType === 'ed25519' &&
         createPublicKey2(key).export({ type: 'spki', format: 'der' }).equals(bytes(record.publicKey)),
       'signing material differs',
@@ -23036,12 +23068,12 @@ function createAzureOperationalAcquisitionCollector(
     keys3(payload, ['schemaVersion', 'kind', 'issuerSha256', 'invocationId', 'purpose', 'identity', 'readings']);
     const identity = object45(payload.identity),
       readings = object45(payload.readings);
-    require47(
+    require48(
       source.engine === 'terraform' &&
         source.intent.operation === 'update-network' &&
-        same24(binding.owner, owner) &&
+        same25(binding.owner, owner) &&
         identity.planSha256 === source.planSha256 &&
-        same24(identity.owner, owner) &&
+        same25(identity.owner, owner) &&
         identity.siteName === source.siteName &&
         typeof identity.node === 'number' &&
         Number.isInteger(identity.node) &&
@@ -23056,10 +23088,10 @@ function createAzureOperationalAcquisitionCollector(
         verify(null, Buffer.from(canonicalStringify(payload)), original.publicKey, bytes(record.signature, 64)),
       'original execution signature differs from source',
     );
-    require47(
+    require48(
       readings.schemaVersion === 1 &&
         readings.scope === 'current-network-operational-readings' &&
-        same24(readings.owner, owner) &&
+        same25(readings.owner, owner) &&
         readings.planSha256 === source.planSha256 &&
         readings.node === identity.node &&
         readings.siteUid === identity.siteUid,
@@ -23076,8 +23108,8 @@ function createAzureOperationalAcquisitionCollector(
         owner,
         issuerSha256: original.digest,
       };
-    require47(
-      same24(value.payload, expected) &&
+    require48(
+      same25(value.payload, expected) &&
         verify(null, Buffer.from(canonicalStringify(expected)), original.publicKey, bytes(value.signature, 64)),
       'key retirement provenance differs',
     );
@@ -23113,7 +23145,7 @@ function createAzureOperationalAcquisitionCollector(
         provenance = { owner, issuerSha256: original.digest };
       } else if (path === anchorName) {
         record = await store.read(path);
-        require47(same24(record, { schemaVersion: 1, owner, issuerSha256: original.digest }), 'issuer pointer differs');
+        require48(same25(record, { schemaVersion: 1, owner, issuerSha256: original.digest }), 'issuer pointer differs');
         schema = 'azure-network-observer-issuer-pointer-v1';
         provenance = { owner, issuerSha256: original.digest };
       } else if (path === retiredName) {
@@ -23123,21 +23155,21 @@ function createAzureOperationalAcquisitionCollector(
         provenance = record;
       } else if (path === `azure-network-issuer-${original.digest}.json`) {
         record = (await readImmutableCeReceipt(store, 'azure-network-issuer', original.digest, deadline)).record;
-        require47(same24(record, original.record), 'original issuer record changed');
+        require48(same25(record, original.record), 'original issuer record changed');
         schema = 'azure-network-operational-issuer-v1';
         provenance = { owner, issuerSha256: original.digest };
       } else {
         const match = /^azure-network-observation-([a-f0-9]{64})\.json$/.exec(path);
-        require47(match, 'unclassified or incomplete observer artifact');
+        require48(match, 'unclassified or incomplete observer artifact');
         const published = await readImmutableCeReceipt(store, publicationPrefix, match[1], deadline);
         const sourceSha = object45(object45(object45(published.record).payload).identity).planSha256;
-        require47(digest5(sourceSha), 'observation source digest malformed');
+        require48(digest5(sourceSha), 'observation source digest malformed');
         const source = loadOriginalSource ? await loadOriginalSource(sourceSha, deadline) : plan;
         deadline.throwIfAborted();
         seal();
-        require47(source.planSha256 === sourceSha, 'original observation source unavailable');
+        require48(source.planSha256 === sourceSha, 'original observation source unavailable');
         const authenticated = authenticateObservation(original, published, source);
-        require47(!invocations.has(authenticated.payload.invocationId), 'duplicate acquisition invocation');
+        require48(!invocations.has(authenticated.payload.invocationId), 'duplicate acquisition invocation');
         invocations.add(authenticated.payload.invocationId);
         record = published.record;
         schema = 'azure-network-operational-acquisition-v1';
@@ -23150,8 +23182,8 @@ function createAzureOperationalAcquisitionCollector(
           purpose: authenticated.payload.purpose,
         };
       }
-      require47(
-        same24(parseNodeHealthJson(native.bytes.toString('utf8')), record),
+      require48(
+        same25(parseNodeHealthJson(native.bytes.toString('utf8')), record),
         'native observer packet differs from semantic record',
       );
       artifacts.push({
@@ -23164,23 +23196,23 @@ function createAzureOperationalAcquisitionCollector(
         semanticProvenanceSha256: canonicalSha256(provenance),
       });
     }
-    require47(same24(before, await names()), 'observer namespace changed during authentication');
+    require48(same25(before, await names()), 'observer namespace changed during authentication');
     for (const file of artifacts) {
       deadline.throwIfAborted();
       const native = await readAzureTerraformParentPrivateFile(join8(directory, file.path), deadline);
-      require47(
+      require48(
         native.identity === file.identity &&
           createHash9('sha256').update(native.bytes).digest('hex') === file.sha256 &&
           canonicalSha256(await store.read(file.path)) === file.packetSha256,
         'authenticated observer record changed',
       );
     }
-    require47(
-      (await issuer(deadline, false)).digest === original.digest && same24(before, await names()),
+    require48(
+      (await issuer(deadline, false)).digest === original.digest && same25(before, await names()),
       'observer inventory changed',
     );
     const finalRoot = await lstat5(directory);
-    require47(
+    require48(
       `${finalRoot.dev}:${finalRoot.ino}:${finalRoot.birthtimeMs}` === rootIdentity,
       'observer directory changed',
     );
@@ -23198,7 +23230,7 @@ function createAzureOperationalAcquisitionCollector(
   const unchangedProof = (before, after) => {
     const proof = (inventory) =>
       inventory.artifacts.filter((file) => file.path !== keyName && file.path !== retiredName);
-    require47(same24(proof(before), proof(after)), 'historical observer proof changed during retirement');
+    require48(same25(proof(before), proof(after)), 'historical observer proof changed during retirement');
   };
   return {
     authenticateRetirementInventory(signal) {
@@ -23209,14 +23241,14 @@ function createAzureOperationalAcquisitionCollector(
         expectedSha = canonicalSha256(identity),
         started = performance.now();
       return operation(signal, async (deadline) => {
-        require47(
+        require48(
           ['preflight', 'restored', 'final'].includes(purpose) &&
-            same24(expected.owner, owner) &&
+            same25(expected.owner, owner) &&
             expected.planSha256 === plan.planSha256 &&
             canonicalSha256(identity) === expectedSha,
           'requested acquisition identity differs',
         );
-        require47((await optional5(store, retiredName)) === undefined, 'signing key retired');
+        require48((await optional5(store, retiredName)) === undefined, 'signing key retired');
         const readings = await collectAzureNetworkOperationalReadings(
           plan,
           expected,
@@ -23228,9 +23260,9 @@ function createAzureOperationalAcquisitionCollector(
           reviewed,
           purpose,
         );
-        require47(
+        require48(
           canonicalSha256(identity) === expectedSha &&
-            same24(readings.owner, owner) &&
+            same25(readings.owner, owner) &&
             readings.planSha256 === plan.planSha256 &&
             readings.node === expected.node &&
             readings.siteUid === expected.siteUid,
@@ -23250,7 +23282,7 @@ function createAzureOperationalAcquisitionCollector(
         };
         const signature = sign(null, Buffer.from(canonicalStringify(payload)), key).toString('base64url');
         const publication = await publishImmutableCeReceipt(store, publicationPrefix, { payload, signature }, deadline);
-        require47(
+        require48(
           canonicalSha256(identity) === expectedSha &&
             (await issuer(deadline, false)).digest === original.digest &&
             verify(null, Buffer.from(canonicalStringify(payload)), original.publicKey, bytes(signature, 64)),
@@ -23291,14 +23323,14 @@ function createAzureOperationalAcquisitionCollector(
           'issuerSha256',
           'publicationSha256',
         ]);
-        require47(
+        require48(
           ['current', 'historical'].includes(mode) &&
             ['preflight', 'restored', 'final'].includes(purpose) &&
             receipt.purpose === purpose &&
             receipt.schemaVersion === 1 &&
             receipt.kind === 'azure-network-operational-acquisition-reference' &&
-            same24(receipt.owner, owner) &&
-            same24(expected.owner, owner) &&
+            same25(receipt.owner, owner) &&
+            same25(expected.owner, owner) &&
             receipt.planSha256 === plan.planSha256 &&
             expected.planSha256 === plan.planSha256 &&
             receipt.identitySha256 === identitySha &&
@@ -23308,18 +23340,18 @@ function createAzureOperationalAcquisitionCollector(
           'receipt reference identity differs',
         );
         const original = await issuer(deadline, false);
-        require47(receipt.issuerSha256 === original.digest, 'receipt issuer differs');
+        require48(receipt.issuerSha256 === original.digest, 'receipt issuer differs');
         const published = await readImmutableCeReceipt(store, publicationPrefix, receipt.publicationSha256, deadline);
         const { payload, readings } = authenticateObservation(original, published, plan);
-        require47(
+        require48(
           payload.invocationId === receipt.invocationId &&
             payload.purpose === purpose &&
-            same24(payload.identity, expected),
+            same25(payload.identity, expected),
           'original execution signature differs',
         );
         if (mode === 'current') {
           const invocation = acquired.get(receipt.invocationId);
-          require47(
+          require48(
             invocation &&
               invocation.publicationSha256 === receipt.publicationSha256 &&
               invocation.identitySha256 === identitySha &&
@@ -23328,7 +23360,7 @@ function createAzureOperationalAcquisitionCollector(
             'current acquisition unavailable',
           );
         }
-        require47(
+        require48(
           canonicalSha256(reference) === referenceSha &&
             canonicalSha256(identity) === identitySha &&
             (await issuer(deadline, false)).digest === original.digest,
@@ -23374,9 +23406,9 @@ function createAzureOperationalAcquisitionCollector(
           deadline.throwIfAborted();
           await store.remove(keyName);
         }
-        require47(
+        require48(
           (await optional5(store, keyName)) === undefined &&
-            same24(await store.read(retiredName), marker) &&
+            same25(await store.read(retiredName), marker) &&
             (await issuer(deadline, false)).digest === original.digest,
           'signing material retirement incomplete',
         );
@@ -23398,7 +23430,7 @@ var keyName = 'azure-network-observer-key.json',
   anchorName = 'azure-network-observer-issuer.json',
   retiredName = 'azure-network-observer-retired.json',
   publicationPrefix = 'azure-network-observation',
-  same24,
+  same25,
   digest5 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_network_operational_provenance = __esm(() => {
   init_node_health();
@@ -23410,7 +23442,7 @@ var init_network_operational_provenance = __esm(() => {
   init_network_operational_readings();
   init_terraform_parent_file_custody();
   init_terraform_upgrade();
-  same24 = canonicalEqual;
+  same25 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/network-operational-session.ts
@@ -23418,7 +23450,7 @@ import { constants as constants3 } from 'node:fs';
 import { lstat as lstat6, open as open3, readdir as readdir4, realpath as realpath4 } from 'node:fs/promises';
 import { dirname as dirname5, join as join9 } from 'node:path';
 
-function require48(value, reason) {
+function require49(value, reason) {
   if (!value) throw Error(`Azure operational issuer session: ${reason}`);
 }
 async function createAzureOperationalAcquisitionSession(request, runtime, api, store, session, forwarding, signal) {
@@ -23427,11 +23459,11 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
     directory = session.getArtifactsDir(),
     sessionId = session.getSessionId(),
     privateDirectory = store.directory;
-  require48(typeof directory === 'string' && directory.startsWith('/'), 'persistent native session required');
-  require48(
+  require49(typeof directory === 'string' && directory.startsWith('/'), 'persistent native session required');
+  require49(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
-      same25(owner, azureUpgradeBinding(plan).owner),
+      same26(owner, azureUpgradeBinding(plan).owner),
     'owning network plan required',
   );
   const callbacks = [
@@ -23444,13 +23476,13 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
   ];
   const seal = () => {
     signal?.throwIfAborted();
-    require48(
-      same25(request, plan) &&
-        same25(store.owner, owner) &&
+    require49(
+      same26(request, plan) &&
+        same26(store.owner, owner) &&
         store.directory === privateDirectory &&
         session.getSessionId() === sessionId &&
         session.getArtifactsDir() === directory &&
-        same25(owner, azureUpgradeBinding(plan).owner) &&
+        same26(owner, azureUpgradeBinding(plan).owner) &&
         callbacks.every(
           (fn, i) =>
             fn ===
@@ -23493,7 +23525,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
   };
   const verifyPrivateDirectory = async () => {
     const root = await lstat6(privateDirectory);
-    require48(
+    require49(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -23502,7 +23534,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
       'private signing directory custody differs',
     );
     const identity = `${root.dev}:${root.ino}:${root.birthtimeMs}`;
-    require48(privateIdentity === undefined || privateIdentity === identity, 'private signing directory replaced');
+    require49(privateIdentity === undefined || privateIdentity === identity, 'private signing directory replaced');
     privateIdentity = identity;
   };
   const readPins = async (active) => {
@@ -23511,7 +23543,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
     await verifyPrivateDirectory();
     await store.verify();
     const root = await lstat6(directory);
-    require48(
+    require49(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -23520,10 +23552,10 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
       'native session directory custody differs',
     );
     const identity = `${root.dev}:${root.ino}:${root.birthtimeMs}`;
-    require48(rootIdentity === undefined || rootIdentity === identity, 'native session directory replaced');
+    require49(rootIdentity === undefined || rootIdentity === identity, 'native session directory replaced');
     rootIdentity = identity;
     const original = await loadPlanArtifact(session, plan.planId, plan.planSha256);
-    require48(same25(original.plan, plan), 'owning public source differs');
+    require49(same26(original.plan, plan), 'owning public source differs');
     const names = (await readdir4(directory)).filter((n) => n.endsWith(suffix)).sort();
     const observed = [];
     for (const name of names) {
@@ -23534,7 +23566,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
       let raw;
       try {
         const before = await file.stat();
-        require48(
+        require49(
           before.isFile() &&
             before.uid === process.getuid?.() &&
             before.nlink === 1 &&
@@ -23547,7 +23579,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
           named = await lstat6(path);
         const fileIdentity = (v) =>
           `${v.dev}:${v.ino}:${v.size}:${v.mtimeMs}:${v.ctimeMs}:${v.birthtimeMs}:${v.uid}:${v.nlink}:${v.mode}`;
-        require48(
+        require49(
           named.isFile() &&
             !named.isSymbolicLink() &&
             fileIdentity(before) === fileIdentity(after) &&
@@ -23555,14 +23587,14 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
           'issuer artifact changed while read',
         );
         const custody = canonicalSha256({ identity: fileIdentity(after), raw });
-        require48(!identities.has(path) || identities.get(path) === custody, 'original issuer artifact changed');
+        require49(!identities.has(path) || identities.get(path) === custody, 'original issuer artifact changed');
         identities.set(path, custody);
       } finally {
         await file.close();
       }
       const row = parseNodeHealthJson(raw);
-      require48(
-        same25(
+      require49(
+        same26(
           Object.keys(row).sort(),
           ['engine', 'issuerSha256', 'kind', 'owner', 'planId', 'planSha256', 'schemaVersion'].sort(),
         ) &&
@@ -23574,22 +23606,22 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
           typeof row.planId === 'string',
         'issuer binding schema differs',
       );
-      if (!same25(row.owner, owner)) continue;
+      if (!same26(row.owner, owner)) continue;
       const source = await loadPlanArtifact(session, row.planId, row.planSha256);
-      require48(
+      require49(
         source.plan.engine === 'terraform' &&
           source.plan.intent.operation === 'update-network' &&
-          same25(azureUpgradeBinding(source.plan).owner, owner),
+          same26(azureUpgradeBinding(source.plan).owner, owner),
         'issuer source ownership differs',
       );
       observed.push(row.issuerSha256);
     }
-    require48(
-      same25(names, (await readdir4(directory)).filter((n) => n.endsWith(suffix)).sort()),
+    require49(
+      same26(names, (await readdir4(directory)).filter((n) => n.endsWith(suffix)).sort()),
       'issuer namespace changed while read',
     );
     const final = await lstat6(directory);
-    require48(
+    require49(
       final.isDirectory() &&
         !final.isSymbolicLink() &&
         final.uid === process.getuid?.() &&
@@ -23602,7 +23634,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
     seal();
     await verifyPrivateDirectory();
     const pins = [...new Set(observed)];
-    require48(pins.length <= 1, 'conflicting original issuer pins');
+    require49(pins.length <= 1, 'conflicting original issuer pins');
     return pins[0];
   };
   retained = await bounded(readPins);
@@ -23612,11 +23644,11 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  require48(pointer === undefined || retained !== undefined, 'original public issuer pin unavailable');
+  require49(pointer === undefined || retained !== undefined, 'original public issuer pin unavailable');
   const originalIssuerPublication = async (issuerSha256, active) => {
-    require48(sha7(issuerSha256) && (retained === undefined || retained === issuerSha256), 'original issuer changed');
+    require49(sha7(issuerSha256) && (retained === undefined || retained === issuerSha256), 'original issuer changed');
     const before = await readPins(active);
-    require48(before === undefined || before === issuerSha256, 'published issuer changed');
+    require49(before === undefined || before === issuerSha256, 'published issuer changed');
     if (before === undefined) {
       const record = {
         schemaVersion: 1,
@@ -23628,14 +23660,14 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
         issuerSha256,
       };
       const id = await session.saveArtifact(JSON.stringify(record), toolType);
-      require48(typeof id === 'string' && id.length > 0, 'original issuer publication not acknowledged');
+      require49(typeof id === 'string' && id.length > 0, 'original issuer publication not acknowledged');
       const path = await session.getArtifactPath(id);
-      require48(
+      require49(
         typeof path === 'string' && dirname5(path) === directory && path.endsWith(suffix),
         'original issuer publication path differs',
       );
     }
-    require48((await readPins(active)) === issuerSha256, 'original issuer publication unavailable');
+    require49((await readPins(active)) === issuerSha256, 'original issuer publication unavailable');
     retained = issuerSha256;
   };
   const collector = createAzureOperationalAcquisitionCollector(
@@ -23652,22 +23684,22 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
       const source = await loadPlanArtifact(session, `azure-ce-${planSha256.slice(0, 24)}`, planSha256);
       active.throwIfAborted();
       seal();
-      require48(
+      require49(
         source.plan.engine === 'terraform' &&
           source.plan.intent.operation === 'update-network' &&
-          same25(azureUpgradeBinding(source.plan).owner, owner),
+          same26(azureUpgradeBinding(source.plan).owner, owner),
         'original observation source ownership differs',
       );
       return source.plan;
     },
   );
   const check = async (active) => {
-    require48((await readPins(active)) === retained, 'original public issuer binding changed');
+    require49((await readPins(active)) === retained, 'original public issuer binding changed');
   };
   return Object.freeze({
     authenticateRetirementInventory(parent) {
       return bounded(async (active) => {
-        require48(retained !== undefined, 'original public issuer pin unavailable');
+        require49(retained !== undefined, 'original public issuer pin unavailable');
         await check(active);
         const result = await collector.authenticateRetirementInventory(active);
         await check(active);
@@ -23679,13 +23711,13 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
         await check(active);
         const result = await collector.collect(args[0], args[1], active, args[3]);
         await check(active);
-        require48(retained === result.issuerSha256, 'acquisition issuer was not published');
+        require49(retained === result.issuerSha256, 'acquisition issuer was not published');
         return result;
       }, args[2]);
     },
     authenticate(...args) {
       return bounded(async (active) => {
-        require48(retained !== undefined, 'original public issuer pin unavailable');
+        require49(retained !== undefined, 'original public issuer pin unavailable');
         await check(active);
         const result = await collector.authenticate(args[0], args[1], args[2], args[3], active);
         await check(active);
@@ -23694,7 +23726,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
     },
     retireSigningMaterial(parent) {
       return bounded(async (active) => {
-        require48(retained !== undefined, 'original public issuer pin unavailable');
+        require49(retained !== undefined, 'original public issuer pin unavailable');
         await check(active);
         const result = await collector.retireSigningMaterial(active);
         await check(active);
@@ -23705,7 +23737,7 @@ async function createAzureOperationalAcquisitionSession(request, runtime, api, s
 }
 var toolType = 'azure-ce-network-operational-issuer',
   suffix,
-  same25,
+  same26,
   sha7 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_network_operational_session = __esm(() => {
   init_node_health();
@@ -23714,7 +23746,7 @@ var init_network_operational_session = __esm(() => {
   init_network_operational_provenance();
   init_terraform_upgrade();
   suffix = `.${toolType}.log`;
-  same25 = canonicalEqual;
+  same26 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/network-update-terraform.ts
@@ -23722,7 +23754,7 @@ import { createHash as createHash10 } from 'node:crypto';
 
 function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
   validateAzureNetworkUpdateInventory(plan, inventory);
-  require49(
+  require50(
     plan.engine === 'terraform' && Number.isInteger(node) && node >= 1 && node <= plan.topology.nodeCount,
     'exact Terraform node required',
   );
@@ -23736,32 +23768,32 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     resources = object46(next.resource),
     providers = object46(next.provider),
     provider = object46(providers.azurerm);
-  require49(
+  require50(
     lower10(provider.subscription_id) === lower10(plan.subscription.id) &&
       lower10(provider.tenant_id) === lower10(plan.subscription.tenantId),
     'retained provider account differs',
   );
   const named = (value, type) => {
-    require49(typeof value === 'string', 'resource name is unresolved');
+    require50(typeof value === 'string', 'resource name is unresolved');
     const match = /^\$\{([a-z0-9_]+)\.([a-z0-9_]+)\.name\}$/.exec(value);
     if (!match) {
-      require49(!value.includes('${'), 'resource name expression is unresolved');
+      require50(!value.includes('${'), 'resource name expression is unresolved');
       return value;
     }
-    require49(match[1] === type, 'resource name references another type');
+    require50(match[1] === type, 'resource name references another type');
     const name = object46(object46(resources[type])[match[2]]).name;
-    require49(typeof name === 'string' && !name.includes('${'), 'resource name reference is unresolved');
+    require50(typeof name === 'string' && !name.includes('${'), 'resource name reference is unresolved');
     return name;
   };
   const subnet = (value) => {
-    require49(typeof value === 'string', 'NIC subnet reference is unavailable');
+    require50(typeof value === 'string', 'NIC subnet reference is unavailable');
     const match = /^\$\{azurerm_subnet\.([a-z0-9_]+)\.id\}$/.exec(value);
     if (!match) {
-      require49(!value.includes('${'), 'NIC subnet expression is unresolved');
+      require50(!value.includes('${'), 'NIC subnet expression is unresolved');
       return { id: value };
     }
     const row = object46(object46(resources.azurerm_subnet)[match[1]]);
-    require49(
+    require50(
       Array.isArray(row.address_prefixes) &&
         row.address_prefixes.length === 1 &&
         typeof row.address_prefixes[0] === 'string',
@@ -23769,7 +23801,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     );
     const group = named(row.resource_group_name, 'azurerm_resource_group'),
       vnet = named(row.virtual_network_name, 'azurerm_virtual_network');
-    require49(typeof row.name === 'string' && !row.name.includes('${'), 'retained subnet name is unresolved');
+    require50(typeof row.name === 'string' && !row.name.includes('${'), 'retained subnet name is unresolved');
     return {
       id: `/subscriptions/${plan.subscription.id}/resourceGroups/${group}/providers/Microsoft.Network/virtualNetworks/${vnet}/subnets/${row.name}`,
       cidr: row.address_prefixes[0],
@@ -23777,7 +23809,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
   };
   const tags = (value, owner) => {
     const row = object46(value);
-    require49(
+    require50(
       row['xcsh-managed-by'] === 'azure-ce' &&
         row['xcsh-execution-engine'] === 'terraform' &&
         row['xcsh-deployment-id'] === plan.deploymentName &&
@@ -23791,7 +23823,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     addresses = [];
   for (const [key, owner] of Object.entries(inventory.nodes)) {
     const vm = object46(vms[`node_${key}`]);
-    require49(
+    require50(
       named(vm.name, 'azurerm_linux_virtual_machine') === `${plan.deploymentName}-${key}` &&
         named(vm.resource_group_name, 'azurerm_resource_group') === plan.intent.resourceGroup &&
         lower10(vm.location) === lower10(plan.region),
@@ -23799,24 +23831,24 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     );
     tags(vm.tags, owner.ownerPlanSha256);
     const attached = plan.nics.map((nic) => `\${azurerm_network_interface.node_${key}_nic_${nic.index}.id}`);
-    require49(same26(vm.network_interface_ids, attached), 'retained VM NIC graph differs');
+    require50(same27(vm.network_interface_ids, attached), 'retained VM NIC graph differs');
     for (const [index, identity] of Object.entries(owner.nics)) {
       const address = `node_${key}_nic_${index}`,
         nic = object46(interfaces[address]);
-      require49(
+      require50(
         named(nic.name, 'azurerm_network_interface') === `${plan.deploymentName}-${key}-nic${index}` &&
           named(nic.resource_group_name, 'azurerm_resource_group') === plan.intent.resourceGroup &&
           lower10(nic.location) === lower10(plan.region),
         'retained NIC resource differs',
       );
       tags(nic.tags, identity.ownerPlanSha256);
-      require49(
+      require50(
         Array.isArray(nic.ip_configuration) && nic.ip_configuration.length === 1,
         'retained single IP configuration required',
       );
       const config = object46(nic.ip_configuration[0]),
         beforeSubnet = subnet(config.subnet_id);
-      require49(
+      require50(
         config.name === identity.ipConfigurationName &&
           config.primary === true &&
           config.private_ip_address_allocation === identity.allocation &&
@@ -23826,13 +23858,13 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
         'retained IP configuration differs',
       );
       const exported = object46(output[`${key}:${index}`]);
-      require49(
+      require50(
         exported.node === Number(key) &&
           exported.index === Number(index) &&
           exported.role === plan.nics.find((nic) => nic.index === Number(index))?.role &&
           exported.site_name === plan.siteName &&
           exported.id === `\${azurerm_network_interface.${address}.id}` &&
-          same26(exported.subnet_id, config.subnet_id),
+          same27(exported.subnet_id, config.subnet_id),
         'retained interface output identity differs',
       );
       if (Number(key) === node) {
@@ -23853,11 +23885,11 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
 }
 function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, providerLockSha256) {
   verifyAzureCePlan(plan);
-  require49(
+  require50(
     stage &&
       typeof stage === 'object' &&
       !Array.isArray(stage) &&
-      same26(Object.keys(stage).sort(), [
+      same27(Object.keys(stage).sort(), [
         'addresses',
         'configuration',
         'configurationSha256',
@@ -23868,7 +23900,7 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
       Array.isArray(stage.addresses),
     'malformed stage schema',
   );
-  require49(
+  require50(
     receipt &&
       typeof receipt === 'object' &&
       !Array.isArray(receipt) &&
@@ -23890,7 +23922,7 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
       ),
     'malformed receipt schema',
   );
-  require49(
+  require50(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       stage.configurationSha256 === hash3(stage.configuration) &&
@@ -23898,13 +23930,13 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
       Number.isInteger(stage.node) &&
       stage.node >= 1 &&
       stage.node <= plan.topology.nodeCount &&
-      same26(
+      same27(
         stage.addresses.toSorted(),
         plan.nics.map((nic) => `azurerm_network_interface.node_${stage.node}_nic_${nic.index}`).toSorted(),
       ),
     'immutable stage identity differs',
   );
-  require49(
+  require50(
     receipt.schemaVersion === 1 &&
       receipt.deploymentId === plan.deploymentName &&
       receipt.engine === 'terraform' &&
@@ -23941,43 +23973,43 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
           `/networkinterfaces/${plan.deploymentName}-${stage.node}-nic${nic.index}`.toLowerCase(),
         ),
     );
-    require49(changes.length === 1, 'selected public NIC identity differs');
+    require50(changes.length === 1, 'selected public NIC identity differs');
     const args = changes[0].args ?? [];
     const target = args[args.indexOf('--subnet') + 1];
-    require49(
+    require50(
       typeof target === 'string' &&
         /^\/subscriptions\/[^/]+\/resourceGroups\/[^/]+\/providers\/Microsoft\.Network\/virtualNetworks\/[^/]+\/subnets\/[^/]+$/i.test(
           target,
         ),
       'resolved selected subnet required',
     );
-    require49(
+    require50(
       Array.isArray(selected.ip_configuration) && selected.ip_configuration.length === 1,
       'single selected NIC IP configuration required',
     );
     const ip = object46(selected.ip_configuration[0]);
     const row = object46(output[`${stage.node}:${nic.index}`]);
-    require49(
+    require50(
       lower10(ip.subnet_id) === lower10(target) &&
         row.node === stage.node &&
         row.index === nic.index &&
         row.role === nic.role &&
         row.site_name === plan.siteName &&
         row.id === `\${azurerm_network_interface.${key}.id}` &&
-        same26(row.subnet_id, ip.subnet_id),
+        same27(row.subnet_id, ip.subnet_id),
       'selected subnet or output identity differs',
     );
   }
   const seen = new Set();
   for (const change of receipt.changes) {
-    require49(change && typeof change === 'object' && !Array.isArray(change), 'malformed planned resource change');
+    require50(change && typeof change === 'object' && !Array.isArray(change), 'malformed planned resource change');
     const match =
       typeof change.address === 'string' ? /^([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$/.exec(change.address) : null;
-    require49(
+    require50(
       match && change.type === match[1] && object46(resources[match[1]])[match[2]] !== undefined,
       'planned resource is outside retained configuration',
     );
-    require49(
+    require50(
       typeof change.address === 'string' &&
         !seen.has(change.address) &&
         typeof change.type === 'string' &&
@@ -23990,40 +24022,40 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
       'saved plan changes an unauthorized resource',
     );
     const row = change;
-    require49(
-      same26(Object.keys(row).sort(), ['actions', 'address', 'type']),
+    require50(
+      same27(Object.keys(row).sort(), ['actions', 'address', 'type']),
       'saved plan contains unresolved import/replacement metadata',
     );
     seen.add(change.address);
   }
-  require49(
+  require50(
     receipt.noChanges === receipt.changes.every((change) => change.actions[0] === 'no-op'),
     'no-change claim differs from planned effects',
   );
 }
 var hash3 = (value) => createHash10('sha256').update(value).digest('hex'),
-  require49 = (condition, message) => {
+  require50 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform network update: ${message}`);
   },
   object46 = (value) => {
-    require49(value && typeof value === 'object' && !Array.isArray(value), 'malformed retained configuration');
+    require50(value && typeof value === 'object' && !Array.isArray(value), 'malformed retained configuration');
     return value;
   },
   lower10 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
-  same26;
+  same27;
 var init_network_update_terraform = __esm(() => {
   init_artifacts();
   init_canonical();
   init_network_update();
-  same26 = canonicalEqual;
+  same27 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-nic-projection.ts
-function require50(value, message) {
+function require51(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC projection: ${message}`);
 }
 function object47(value) {
-  require50(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
+  require51(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
 function resolved(value) {
@@ -24034,7 +24066,7 @@ function resolved(value) {
 }
 function azureTerraformNetworkNicSelections(plan, stage, inventory) {
   validateAzureNetworkUpdateInventory(plan, inventory);
-  require50(
+  require51(
     plan.engine === 'terraform' && Number.isInteger(stage.node) && inventory.nodes[String(stage.node)],
     'exact Terraform node required',
   );
@@ -24062,13 +24094,13 @@ function validateAzureTerraformNetworkNicProjection(
   proposedInput,
 ) {
   validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, providerLockSha256);
-  require50(providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'unqualified provider lock');
+  require51(providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'unqualified provider lock');
   const selections = azureTerraformNetworkNicSelections(plan, stage, inventory);
   const prior = object47(priorInput),
     proposed = object47(proposedInput);
-  require50(
-    same27(Object.keys(prior).sort(), Object.keys(selections.prior).sort()) &&
-      same27(Object.keys(proposed).sort(), Object.keys(selections.proposed).sort()),
+  require51(
+    same28(Object.keys(prior).sort(), Object.keys(selections.prior).sort()) &&
+      same28(Object.keys(proposed).sort(), Object.keys(selections.proposed).sort()),
     'complete selected resource set required',
   );
   const configuration = object47(JSON.parse(stage.configuration));
@@ -24077,17 +24109,17 @@ function validateAzureTerraformNetworkNicProjection(
   const name = (value) => {
     if (typeof value !== 'string' || !value.includes('${')) return value;
     const match = /^\$\{azurerm_resource_group\.([a-z0-9_]+)\.name\}$/.exec(value);
-    require50(match, 'unqualified resource group expression');
+    require51(match, 'unqualified resource group expression');
     const group = object47(object47(resources.azurerm_resource_group)[match[1]]);
-    require50(group.name === plan.intent.resourceGroup, 'referenced group differs');
+    require51(group.name === plan.intent.resourceGroup, 'referenced group differs');
     return group.name;
   };
   const reference = (value) => {
     if (typeof value !== 'string' || !value.includes('${')) return value;
     const match = /^\$\{azurerm_public_ip\.([a-z0-9_]+)\.id\}$/.exec(value);
-    require50(match, 'unqualified requested resource expression');
+    require51(match, 'unqualified requested resource expression');
     const target = object47(object47(resources.azurerm_public_ip)[match[1]]);
-    require50(
+    require51(
       typeof target.name === 'string' &&
         resolved(target.name) &&
         name(target.resource_group_name) === plan.intent.resourceGroup &&
@@ -24106,31 +24138,31 @@ function validateAzureTerraformNetworkNicProjection(
       [before, selections.prior[address]],
       [after, selections.proposed[address]],
     ])
-      require50(
-        same27(Object.keys(value).sort(), fields.toSorted()) && Object.values(value).every(resolved),
+      require51(
+        same28(Object.keys(value).sort(), fields.toSorted()) && Object.values(value).every(resolved),
         'missing, extra or unresolved selected field',
       );
     const configured = object47(interfaces[address.split('.')[1]]);
-    require50(
+    require51(
       Object.keys(configured).every((key) => [...roots, 'ip_configuration'].includes(key)),
       'unqualified NIC configuration field',
     );
     const ipConfig = object47(configured.ip_configuration[0]);
     const effects = receipt.changes.filter((change) => change.address === address);
-    require50(
+    require51(
       effects.length === 1 &&
         effects[0].actions[0] ===
           (lower11(identity.subnetId) === lower11(identity.targetSubnetId) ? 'no-op' : 'update'),
       'saved effect differs from observed subnet boundary',
     );
-    require50(
+    require51(
       identity.allocation !== 'Dynamic' ||
         ipConfig.private_ip_address === undefined ||
         ipConfig.private_ip_address === null ||
         ipConfig.private_ip_address === '',
       'dynamic private IP cannot be an execution input',
     );
-    require50(
+    require51(
       configured.name === `${plan.deploymentName}-${stage.node}-nic${nic.index}` &&
         name(configured.resource_group_name) === plan.intent.resourceGroup &&
         lower11(configured.location) === lower11(plan.region) &&
@@ -24139,12 +24171,12 @@ function validateAzureTerraformNetworkNicProjection(
           lower11(configured.id) === lower11(identity.resourceId)),
       'configured NIC identity differs',
     );
-    require50(
+    require51(
       Object.keys(ipConfig).every((key) => ipFields.includes(key)),
       'unqualified IP configuration field',
     );
     for (const side of [before, after]) {
-      require50(
+      require51(
         lower11(side.id) === lower11(identity.resourceId) &&
           side.name === `${plan.deploymentName}-${stage.node}-nic${nic.index}` &&
           side.resource_group_name === plan.intent.resourceGroup &&
@@ -24154,15 +24186,15 @@ function validateAzureTerraformNetworkNicProjection(
         'NIC, MAC or attachment identity differs',
       );
       const tags = object47(side.tags);
-      require50(
+      require51(
         tags['xcsh-managed-by'] === 'azure-ce' &&
           tags['xcsh-execution-engine'] === 'terraform' &&
           tags['xcsh-deployment-id'] === plan.deploymentName &&
           tags['xcsh-plan-sha256'] === identity.ownerPlanSha256 &&
-          same27(tags, configured.tags),
+          same28(tags, configured.tags),
         'NIC owner differs',
       );
-      require50(
+      require51(
         side['ip_configuration.length'] === 1 &&
           side[ip('name')] === identity.ipConfigurationName &&
           side[ip('primary')] === true &&
@@ -24170,7 +24202,7 @@ function validateAzureTerraformNetworkNicProjection(
           side[ip('private_ip_address_version')] === 'IPv4',
         'single IPv4 IP configuration identity differs',
       );
-      require50(
+      require51(
         typeof side.accelerated_networking_enabled === 'boolean' &&
           typeof side.ip_forwarding_enabled === 'boolean' &&
           Array.isArray(side.dns_servers) &&
@@ -24181,7 +24213,7 @@ function validateAzureTerraformNetworkNicProjection(
         'malformed configurable NIC fields',
       );
       const timeouts = side.timeouts;
-      require50(
+      require51(
         timeouts === null ||
           Object.keys(object47(timeouts)).every(
             (key) =>
@@ -24191,21 +24223,21 @@ function validateAzureTerraformNetworkNicProjection(
         'unqualified timeouts',
       );
       for (const key of ['gateway_load_balancer_frontend_ip_configuration_id', 'public_ip_address_id'])
-        require50(
+        require51(
           side[ip(key)] === null || side[ip(key)] === '' || resourceId(side[ip(key)]),
           'unresolved configured resource reference',
         );
     }
-    require50(
+    require51(
       lower11(before[ip('subnet_id')]) === lower11(identity.subnetId) &&
         lower11(after[ip('subnet_id')]) === lower11(identity.targetSubnetId),
       'approved subnet transition differs',
     );
-    require50(before[ip('private_ip_address')] === identity.privateIp, 'prior private IP differs');
+    require51(before[ip('private_ip_address')] === identity.privateIp, 'prior private IP differs');
     if (Object.hasOwn(after, ip('private_ip_address')))
-      require50(after[ip('private_ip_address')] === identity.privateIp, 'retained private IP differs');
+      require51(after[ip('private_ip_address')] === identity.privateIp, 'retained private IP differs');
     else
-      require50(
+      require51(
         identity.allocation === 'Dynamic' &&
           (ipConfig.private_ip_address === undefined ||
             ipConfig.private_ip_address === null ||
@@ -24214,11 +24246,11 @@ function validateAzureTerraformNetworkNicProjection(
       );
     for (const path of selections.proposed[address])
       if (path !== ip('subnet_id'))
-        require50(same27(before[path], after[path]), 'unauthorized configurable or identity delta');
+        require51(same28(before[path], after[path]), 'unauthorized configurable or identity delta');
     for (const key of roots.filter((key) => !['id', 'name', 'resource_group_name', 'location'].includes(key)))
       if (configured[key] !== undefined && configured[key] !== null)
-        require50(
-          resolved(configured[key]) && same27(after[key], configured[key]),
+        require51(
+          resolved(configured[key]) && same28(after[key], configured[key]),
           'configured root value differs or is unresolved',
         );
     for (const key of ipFields)
@@ -24227,8 +24259,8 @@ function validateAzureTerraformNetworkNicProjection(
         ipConfig[key] !== null &&
         !(key === 'private_ip_address' && identity.allocation === 'Dynamic')
       )
-        require50(
-          resolved(reference(ipConfig[key])) && same27(after[ip(key)], reference(ipConfig[key])),
+        require51(
+          resolved(reference(ipConfig[key])) && same28(after[ip(key)], reference(ipConfig[key])),
           'configured IP value differs or is unresolved',
         );
   }
@@ -24237,7 +24269,7 @@ var AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 = '901676ec098461ba0766d62124a4b011a
   roots,
   ipFields,
   ip = (field) => `ip_configuration.0.${field}`,
-  same27,
+  same28,
   lower11 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   resourceId = (value) =>
     typeof value === 'string' &&
@@ -24272,17 +24304,17 @@ var init_terraform_network_nic_projection = __esm(() => {
     'public_ip_address_id',
     'subnet_id',
   ];
-  same27 = canonicalEqual;
+  same28 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-routing.ts
 import { createHash as createHash11 } from 'node:crypto';
 
-function require51(value, message) {
+function require52(value, message) {
   if (!value) throw Error(`Azure Terraform network dependent routing: ${message}`);
 }
 function object48(value) {
-  require51(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
+  require52(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
 function parse2(value) {
@@ -24301,7 +24333,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
   const parent = (type, name, expectedName, owner) => {
     const row = object48(object48(resources[type])[name]),
       tags = object48(row.tags);
-    require51(
+    require52(
       row.name === expectedName &&
         lower12(row.location) === lower12(plan.region) &&
         (row.resource_group_name === plan.intent.resourceGroup ||
@@ -24318,7 +24350,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
     const row = object48(object48(resources[address.split('.')[0]])[address.split('.')[1]]);
     const ref = expression(node, index),
       identity = before.nodes[String(node)].nics[String(index)];
-    require51(identity && row[field] === ref, 'exact retained dependent NIC expression required');
+    require52(identity && row[field] === ref, 'exact retained dependent NIC expression required');
     dependencies.push({
       kind,
       address,
@@ -24333,21 +24365,21 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
   };
   const routes = resources.azurerm_route === undefined ? {} : object48(resources.azurerm_route);
   if (plan.routing.udr) {
-    require51(
+    require52(
       plan.routing.mode === 'udr' && plan.routing.destinationCidrs.length > 0,
       'explicit UDR destinations required',
     );
     const selected = plan.routing.udr.nextHop;
-    require51(
-      same28(Object.keys(routes).sort(), plan.routing.destinationCidrs.map((_, i) => `route_${i}`).sort()),
+    require52(
+      same29(Object.keys(routes).sort(), plan.routing.destinationCidrs.map((_, i) => `route_${i}`).sort()),
       'complete retained UDR route set required',
     );
     const owner = before.nodes[String(selected.node)].nics[String(selected.nicIndex)].ownerPlanSha256;
     parent('azurerm_route_table', 'ce', `${plan.deploymentName}-rt`, owner);
     for (const [index, prefix] of plan.routing.destinationCidrs.entries()) {
       const row = object48(routes[`route_${index}`]);
-      require51(
-        same28(
+      require52(
+        same29(
           Object.keys(row).sort(),
           [
             'address_prefix',
@@ -24375,23 +24407,23 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
           `${base}/routeTables/${plan.deploymentName}-rt/routes/ce-route-${index + 1}`,
         );
     }
-  } else require51(Object.keys(routes).length === 0, 'UDR resources lack explicit owning profile');
+  } else require52(Object.keys(routes).length === 0, 'UDR resources lack explicit owning profile');
   const peers =
     resources.azurerm_route_server_bgp_connection === undefined
       ? {}
       : object48(resources.azurerm_route_server_bgp_connection);
   if (plan.routing.mode === 'route-server' && !plan.relayProfile)
-    require51(Object.keys(peers).length > 0, 'complete retained CE peer set required');
-  require51(
+    require52(Object.keys(peers).length > 0, 'complete retained CE peer set required');
+  require52(
     !plan.relayProfile || Object.keys(peers).length === 0,
     'relay and direct CE peer contracts cannot be mixed',
   );
   if (Object.keys(peers).length) {
-    require51(plan.routing.mode === 'route-server' && !plan.routing.udr, 'peer resources lack Route Server intent');
+    require52(plan.routing.mode === 'route-server' && !plan.routing.udr, 'peer resources lack Route Server intent');
     const slo = plan.nics.find((nic) => nic.role === 'slo');
-    require51(slo, 'explicit SLO required');
-    require51(
-      same28(
+    require52(slo, 'explicit SLO required');
+    require52(
+      same29(
         Object.keys(peers).sort(),
         Object.keys(before.nodes)
           .map((key) => `node_${key}`)
@@ -24406,20 +24438,20 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
       before.nodes[String(node)].nics[String(slo.index)].ownerPlanSha256,
     );
     const output = object48(object48(object48(graph.output).ce_route_server_peers).value);
-    require51(
-      same28(Object.keys(output).sort(), Object.keys(before.nodes).sort()),
+    require52(
+      same29(Object.keys(output).sort(), Object.keys(before.nodes).sort()),
       'complete peer output set required',
     );
     for (const key of Object.keys(before.nodes)) {
       const row = object48(peers[`node_${key}`]),
         exported = object48(output[key]);
-      require51(
-        same28(Object.keys(row).sort(), ['name', 'peer_asn', 'peer_ip', 'route_server_id'].sort()) &&
+      require52(
+        same29(Object.keys(row).sort(), ['name', 'peer_asn', 'peer_ip', 'route_server_id'].sort()) &&
           row.name === `${plan.deploymentName}-${key}` &&
           row.peer_asn === plan.routing.localAsn &&
           row.route_server_id === `\${azurerm_route_server.ce.id}` &&
           row.peer_ip === expression(Number(key), slo.index) &&
-          same28(exported, {
+          same29(exported, {
             id: `\${azurerm_route_server_bgp_connection.node_${key}.id}`,
             peer_ip: row.peer_ip,
             peer_asn: row.peer_asn,
@@ -24445,7 +24477,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
   };
   for (const group of Object.values(resources))
     for (const row of Object.values(object48(group)))
-      require51(!mentionsSelectedIp(row), 'unqualified resource depends on selected NIC address');
+      require52(!mentionsSelectedIp(row), 'unqualified resource depends on selected NIC address');
   const configuration = JSON.stringify(graph);
   return { ...nicStage, configuration, configurationSha256: hash4(configuration), dependencies };
 }
@@ -24466,7 +24498,7 @@ function buildAzureTerraformNetworkRoutingStage(plan, source, before, current, n
   verifyAzureNetworkUpdateProgress(plan, before, current, reached);
   for (const [key, vm] of Object.entries(before.nodes))
     for (const [index, identity] of Object.entries(vm.nics))
-      require51(
+      require52(
         Number(key) === node || current.nodes[key].nics[index].privateIp === identity.privateIp,
         'unselected NIC address changed',
       );
@@ -24506,23 +24538,23 @@ function buildAzureTerraformNetworkRoutingStage(plan, source, before, current, n
 }
 function validateAzureTerraformNetworkRoutingPrepared(plan, source, before, expected, node, input) {
   const saved = object48(input);
-  require51(
-    same28(Object.keys(saved).sort(), ['schemaVersion', 'kind', 'stage', 'before', 'current', 'appliedNics'].sort()) &&
+  require52(
+    same29(Object.keys(saved).sort(), ['schemaVersion', 'kind', 'stage', 'before', 'current', 'appliedNics'].sort()) &&
       saved.schemaVersion === 2 &&
       saved.kind === 'dependent-routing' &&
-      same28(saved.before, before),
+      same29(saved.before, before),
     'complete original routing input required',
   );
   const current = validateAzureNetworkUpdateInventory(plan, saved.current);
   validateAzureNetworkUpdateInventory(plan, expected);
-  require51(
-    same28(current.nodes, expected.nodes),
+  require52(
+    same29(current.nodes, expected.nodes),
     'retained routing input differs from independently observed identities',
   );
   const stage = buildAzureTerraformNetworkRoutingStage(plan, source, before, current, node);
-  require51(
-    same28(saved.stage, stage) &&
-      same28(
+  require52(
+    same29(saved.stage, stage) &&
+      same29(
         saved.appliedNics,
         Array.from({ length: node }, (_, i) => plan.nics.map((nic) => `${i + 1}:${nic.index}`)).flat(),
       ),
@@ -24531,13 +24563,13 @@ function validateAzureTerraformNetworkRoutingPrepared(plan, source, before, expe
   return { current: structuredClone(current), stage };
 }
 function validateAzureTerraformNetworkRoutingReceipt(plan, source, before, current, stage, receipt, phase) {
-  require51(phase === 'mutation' || phase === 'release', 'known routing phase required');
-  require51(
-    same28(stage, buildAzureTerraformNetworkRoutingStage(plan, source, before, current, stage.node)),
+  require52(phase === 'mutation' || phase === 'release', 'known routing phase required');
+  require52(
+    same29(stage, buildAzureTerraformNetworkRoutingStage(plan, source, before, current, stage.node)),
     'immutable routing stage differs',
   );
   const configuration = phase === 'mutation' ? stage.configuration : stage.releasedConfiguration;
-  require51(
+  require52(
     receipt &&
       receipt.schemaVersion === 1 &&
       receipt.engine === 'terraform' &&
@@ -24571,12 +24603,12 @@ function validateAzureTerraformNetworkRoutingReceipt(plan, source, before, curre
   const resources = object48(parse2(configuration).resource),
     seen = new Set();
   for (const change of receipt.changes) {
-    require51(
-      change && same28(Object.keys(change).sort(), ['address', 'type', 'actions'].sort()),
+    require52(
+      change && same29(Object.keys(change).sort(), ['address', 'type', 'actions'].sort()),
       'unqualified saved change metadata',
     );
     const match = /^([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$/.exec(change.address);
-    require51(
+    require52(
       match && change.type === match[1] && object48(resources[match[1]])[match[2]] && !seen.has(change.address),
       'unknown or duplicate saved resource',
     );
@@ -24584,13 +24616,13 @@ function validateAzureTerraformNetworkRoutingReceipt(plan, source, before, curre
     const dependency = stage.dependencies.find((row) => row.address === change.address);
     const action =
       phase === 'mutation' && dependency && dependency.previousIp !== dependency.currentIp ? 'update' : 'no-op';
-    require51(same28(change.actions, [action]), 'saved plan changes an unauthorized resource or effect');
+    require52(same29(change.actions, [action]), 'saved plan changes an unauthorized resource or effect');
   }
-  require51(
+  require52(
     stage.dependencies.every((row) => seen.has(row.address)),
     'complete dependent effects required',
   );
-  require51(
+  require52(
     typeof receipt.noChanges === 'boolean' &&
       receipt.noChanges === receipt.changes.every((row) => row.actions[0] === 'no-op'),
     'no-change claim differs',
@@ -24620,24 +24652,24 @@ function validateAzureTerraformNetworkRoutingProjection(
   const prior = object48(priorInput),
     proposed = object48(proposedInput),
     selections = azureTerraformNetworkRoutingSelections(stage);
-  require51(
-    same28(Object.keys(prior).sort(), Object.keys(selections).sort()) &&
-      same28(Object.keys(proposed).sort(), Object.keys(selections).sort()),
+  require52(
+    same29(Object.keys(prior).sort(), Object.keys(selections).sort()) &&
+      same29(Object.keys(proposed).sort(), Object.keys(selections).sort()),
     'complete projection resource set required',
   );
   for (const dependency of stage.dependencies) {
     const beforeRow = object48(prior[dependency.address]),
       afterRow = object48(proposed[dependency.address]);
     for (const row of [beforeRow, afterRow]) {
-      require51(
-        same28(Object.keys(row).sort(), selections[dependency.address].toSorted()) &&
+      require52(
+        same29(Object.keys(row).sort(), selections[dependency.address].toSorted()) &&
           Object.values(row).every(resolved2) &&
           lower12(row.id) === lower12(dependency.resourceId),
         'missing, extra, unresolved or foreign projected identity',
       );
       const allowed =
         dependency.kind === 'udr-next-hop' ? ['create', 'delete', 'read', 'update'] : ['create', 'delete', 'read'];
-      require51(
+      require52(
         row.timeouts === null ||
           Object.entries(object48(row.timeouts)).every(
             ([key, value]) => allowed.includes(key) && (value === null || typeof value === 'string'),
@@ -24646,7 +24678,7 @@ function validateAzureTerraformNetworkRoutingProjection(
       );
       if (dependency.kind === 'udr-next-hop') {
         const index = Number(dependency.address.split('_').at(-1));
-        require51(
+        require52(
           row.name === `ce-route-${index + 1}` &&
             row.resource_group_name === plan.intent.resourceGroup &&
             row.route_table_name === `${plan.deploymentName}-rt` &&
@@ -24655,7 +24687,7 @@ function validateAzureTerraformNetworkRoutingProjection(
           'route identity/prefix/type differs',
         );
       } else
-        require51(
+        require52(
           row.name === `${plan.deploymentName}-${stage.node}` &&
             row.peer_asn === plan.routing.localAsn &&
             lower12(row.route_server_id) ===
@@ -24663,18 +24695,18 @@ function validateAzureTerraformNetworkRoutingProjection(
           'Route Server peer identity/ASN differs',
         );
     }
-    require51(
+    require52(
       beforeRow[dependency.field] === (phase === 'mutation' ? dependency.previousIp : dependency.currentIp) &&
         afterRow[dependency.field] === dependency.currentIp,
       'dependent address transition differs',
     );
     for (const field of selections[dependency.address])
       if (field !== dependency.field)
-        require51(same28(beforeRow[field], afterRow[field]), 'unauthorized projected delta');
+        require52(same29(beforeRow[field], afterRow[field]), 'unauthorized projected delta');
   }
 }
 var hash4 = (value) => createHash11('sha256').update(value).digest('hex'),
-  same28,
+  same29,
   lower12 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   expression = (node, index) => `\${azurerm_network_interface.node_${node}_nic_${index}.private_ip_address}`,
   fields5;
@@ -24683,7 +24715,7 @@ var init_terraform_network_routing = __esm(() => {
   init_network_update();
   init_network_update_terraform();
   init_terraform_network_nic_projection();
-  same28 = canonicalEqual;
+  same29 = canonicalEqual;
   fields5 = {
     'udr-next-hop': [
       'id',
@@ -24703,12 +24735,12 @@ var init_terraform_network_routing = __esm(() => {
 import { createHash as createHash12 } from 'node:crypto';
 import { readFile as readFile6 } from 'node:fs/promises';
 
-function require52(value, message) {
+function require53(value, message) {
   if (!value) throw Error(`Azure Terraform network power: ${message}`);
 }
 function action(plan, inventory, node, operation) {
   validateAzureNetworkUpdateInventory(plan, inventory);
-  require52(
+  require53(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       ['deallocate', 'start'].includes(operation) &&
@@ -24721,7 +24753,7 @@ function action(plan, inventory, node, operation) {
   const matches = plan.actions.filter(
     (a) => a.node === node && a.kind === (operation === 'start' ? 'vm-start' : 'vm-deallocate'),
   );
-  require52(
+  require53(
     matches.length === 1 &&
       matches[0].resourceId === vm.resourceId &&
       matches[0].expectedOwnerPlanSha256 === vm.ownerPlanSha256,
@@ -24738,11 +24770,11 @@ function action(plan, inventory, node, operation) {
 }
 async function azureTerraformNetworkPowerDeployment(plan, inventory, node, operation, release = false) {
   const selected = action(plan, inventory, node, operation);
-  require52(typeof release === 'boolean', 'exact release selection required');
+  require53(typeof release === 'boolean', 'exact release selection required');
   return powerDeployment(plan, node, operation, release ? undefined : selected);
 }
 async function azureTerraformNetworkRetiredPowerDeployment(plan, node, operation) {
-  require52(
+  require53(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       /^[a-f0-9]{64}$/.test(plan.planSha256) &&
@@ -24779,7 +24811,7 @@ async function powerDeployment(plan, node, operation, selected) {
   };
 }
 async function validateAzureTerraformNetworkPowerPlan(plan, inventory, node, operation, input, phase) {
-  require52(['mutation', 'release', 'final'].includes(phase), 'exact plan phase required');
+  require53(['mutation', 'release', 'final'].includes(phase), 'exact plan phase required');
   const deployment = await azureTerraformNetworkPowerDeployment(plan, inventory, node, operation, phase !== 'mutation');
   const row = object49(input);
   const required = [
@@ -24794,7 +24826,7 @@ async function validateAzureTerraformNetworkPowerPlan(plan, inventory, node, ope
     'noChanges',
   ];
   const optional = ['actionInvocations', 'imports', 'relinquishments'];
-  require52(
+  require53(
     required.every((key) => key in row) &&
       Object.keys(row).every((key) => [...required, ...optional].includes(key)) &&
       row.schemaVersion === 1 &&
@@ -24812,10 +24844,10 @@ async function validateAzureTerraformNetworkPowerPlan(plan, inventory, node, ope
   );
   const changes = row.changes.map(object49);
   const allowed = phase === 'mutation' ? ['create', 'update', 'no-op'] : ['delete', 'no-op'];
-  require52(
+  require53(
     changes.every(
       (change) =>
-        same29(Object.keys(change).sort(), ['actions', 'address', 'type']) &&
+        same30(Object.keys(change).sort(), ['actions', 'address', 'type']) &&
         change.address === address &&
         change.type === 'azapi_resource_action' &&
         Array.isArray(change.actions) &&
@@ -24844,22 +24876,22 @@ async function validateAzureTerraformNetworkPowerProjection(
   const expected = action(plan, inventory, node, operation);
   const prior = object49(priorInput),
     proposed = object49(proposedInput);
-  require52(
-    same29(Object.keys(prior), [address]) && same29(Object.keys(proposed), [address]),
+  require53(
+    same30(Object.keys(prior), [address]) && same30(Object.keys(proposed), [address]),
     'complete exact state projection required',
   );
   const effects = receipt.changes[0]?.actions[0];
   if (phase === 'final') {
-    require52(prior[address] === null && proposed[address] === null, 'final stage retains an isolated control');
+    require53(prior[address] === null && proposed[address] === null, 'final stage retains an isolated control');
   } else if (phase === 'mutation') {
-    require52(
-      same29(proposed[address], expected) &&
-        (effects === 'create' ? prior[address] === null : same29(prior[address], expected)),
+    require53(
+      same30(proposed[address], expected) &&
+        (effects === 'create' ? prior[address] === null : same30(prior[address], expected)),
       'selected action prior/proposed fields differ',
     );
   } else {
-    require52(
-      proposed[address] === null && (effects === 'delete' ? same29(prior[address], expected) : prior[address] === null),
+    require53(
+      proposed[address] === null && (effects === 'delete' ? same30(prior[address], expected) : prior[address] === null),
       'release removes another control or retains state',
     );
   }
@@ -24899,16 +24931,16 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
     '--output',
     'json',
   ]);
-  require52(response.exitCode === 0, 'selected VM power observation unavailable');
+  require53(response.exitCode === 0, 'selected VM power observation unavailable');
   let vm;
   try {
     vm = object49(JSON.parse(response.stdout));
   } catch {
     throw Error('Azure Terraform network power: malformed VM observation');
   }
-  require52(!['nextLink', 'error', 'errors'].some((key) => vm[key]), 'partial or failed selected VM observation');
+  require53(!['nextLink', 'error', 'errors'].some((key) => vm[key]), 'partial or failed selected VM observation');
   const tags = object49(vm.tags);
-  require52(
+  require53(
     vm.id === selected.resourceId &&
       typeof vm.vmId === 'string' &&
       vm.vmId.toLowerCase() === selected.vmId.toLowerCase() &&
@@ -24924,9 +24956,9 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
     'selected VM identity changed between inventory and power reads',
   );
   const attachments = object49(vm.networkProfile).networkInterfaces;
-  require52(
+  require53(
     Array.isArray(attachments) &&
-      same29(
+      same30(
         attachments.map((value) => object49(value).id).sort(),
         Object.values(selected.nics)
           .map((nic) => nic.resourceId)
@@ -24934,7 +24966,7 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
       ),
     'selected VM NIC attachment changed',
   );
-  require52(
+  require53(
     ['VM running', 'VM deallocated', 'VM stopped', 'VM starting', 'VM stopping', 'VM deallocating'].includes(
       String(vm.powerState),
     ),
@@ -24957,9 +24989,9 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
 }
 var address = 'azapi_resource_action.ce_network',
   hash5 = (value) => createHash12('sha256').update(value).digest('hex'),
-  same29,
+  same30,
   object49 = (value) => {
-    require52(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
+    require53(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
   azureTerraformNetworkPowerSelections;
@@ -24968,23 +25000,23 @@ var init_terraform_network_power = __esm(() => {
   init_network_update();
   init_terraform_foundation();
   init_terraform_lifecycle();
-  same29 = canonicalEqual;
+  same30 = canonicalEqual;
   azureTerraformNetworkPowerSelections = {
     [address]: ['type', 'resource_id', 'action', 'method', 'when', 'locks'],
   };
 });
 
 // plugins/azure/src/ce/terraform-network-routing-observation-validation.ts
-function require53(value, message) {
+function require54(value, message) {
   if (!value) throw Error(`Azure Terraform network routing observation validation: ${message}`);
 }
 function object50(value) {
-  require53(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
+  require54(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys4(value, expected) {
   const row = object50(value);
-  require53(same30(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
+  require54(same31(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
   return row;
 }
 function validateAzureTerraformNetworkRoutingObservation(plan, source, before, current, node, input, target = true) {
@@ -24992,7 +25024,7 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
     stageSha256 = canonicalSha256(stage),
     preparationSha256 = canonicalSha256(prepareAzureTerraformNetworkRouting(plan, source, before, node));
   const value = keys4(input, ['schemaVersion', 'stageSha256', 'routing', 'power']);
-  require53(value.schemaVersion === 1 && value.stageSha256 === stageSha256, 'saved cloud stage identity differs');
+  require54(value.schemaVersion === 1 && value.stageSha256 === stageSha256, 'saved cloud stage identity differs');
   const routing = keys4(value.routing, [
     'schemaVersion',
     'scope',
@@ -25025,7 +25057,7 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
     'inventory',
     'observedAt',
   ]);
-  require53(
+  require54(
     routing.schemaVersion === 1 &&
       routing.scope === 'azure-dependent-routing-configuration' &&
       routing.planSha256 === plan.planSha256 &&
@@ -25042,7 +25074,7 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
       routing.freshness === 'unqualified',
     'saved routing scope or evidence differs',
   );
-  require53(
+  require54(
     routing.reason ===
       (stage.dependencies.length ? 'configuration-installation-only' : 'no-selected-dependent-routing'),
     'saved evidence reason differs',
@@ -25074,14 +25106,14 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
     const owner = object50(object50(object50(resources[udr ? 'azurerm_route_table' : 'azurerm_route_server']).ce).tags)[
       'xcsh-plan-sha256'
     ];
-    require53(
+    require54(
       row.kind === dependency.kind &&
         row.resourceId === dependency.resourceId &&
         row.parentId === parentId &&
         row.parentOwnerPlanSha256 === owner &&
         row.node === node &&
         row.nicIndex === dependency.nicIndex &&
-        same30(row.nic, current.nodes[String(node)].nics[String(dependency.nicIndex)]) &&
+        same31(row.nic, current.nodes[String(node)].nics[String(dependency.nicIndex)]) &&
         row.name === config.name &&
         row.previousIp === dependency.previousIp &&
         row.currentIp === dependency.currentIp &&
@@ -25095,13 +25127,13 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
     );
   }
   const states = new Set(routing.rows.map((row) => row.state));
-  require53(
+  require54(
     routing.configurationState ===
       (stage.dependencies.length ? (states.size === 1 ? routing.rows[0].state : 'mixed') : 'not-required'),
     'saved configuration state differs',
   );
   validateAzureNetworkUpdateInventory(plan, power.inventory);
-  require53(
+  require54(
     power.engine === 'terraform' &&
       power.planSha256 === plan.planSha256 &&
       power.node === node &&
@@ -25111,29 +25143,29 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
       power.resourceId === current.nodes[String(node)].resourceId &&
       power.vmId === current.nodes[String(node)].vmId &&
       power.ownerPlanSha256 === current.nodes[String(node)].ownerPlanSha256 &&
-      same30(object50(power.inventory).nodes, current.nodes) &&
+      same31(object50(power.inventory).nodes, current.nodes) &&
       typeof power.observedAt === 'string' &&
       Number.isFinite(Date.parse(power.observedAt)),
     'saved current power/cloud identity differs',
   );
   return input;
 }
-var same30;
+var same31;
 var init_terraform_network_routing_observation_validation = __esm(() => {
   init_canonical();
   init_network_update();
   init_terraform_network_routing();
-  same30 = canonicalEqual;
+  same31 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-routing-history.ts
-function require54(value, message) {
+function require55(value, message) {
   if (!value) throw Error(`Azure Terraform network routing history: ${message}`);
 }
 function keys5(value, names) {
-  require54(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
+  require55(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   const row = value;
-  require54(same31(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
+  require55(same32(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
   return row;
 }
 async function readAzureTerraformNetworkRoutingHistory(plan, source, before, current, node, store, signal) {
@@ -25141,11 +25173,11 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
     inputSha256 = canonicalSha256(data),
     original = { read: store.read, verify: store.verify },
     ownerSha256 = canonicalSha256(store.owner);
-  require54(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
+  require55(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require54(
+    require55(
       canonicalSha256({ plan, before, current, node }) === inputSha256 &&
         canonicalSha256(data) === inputSha256 &&
         canonicalSha256(store.owner) === ownerSha256 &&
@@ -25172,7 +25204,7 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
   const read = async (name) => {
     const value = structuredClone(await step(() => original.read.call(store, name))),
       digest = canonicalSha256(value);
-    require54(
+    require55(
       packetSha256ByName[name] === undefined || packetSha256ByName[name] === digest,
       'packet changed during history read',
     );
@@ -25210,8 +25242,8 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
         'prior',
         'proposed',
       ]);
-    require54(
-      same31(
+    require55(
+      same32(
         { ...binding, prior: undefined, proposed: undefined },
         {
           schemaVersion: 1,
@@ -25242,10 +25274,10 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
     );
     const outcome = await read(`${prefix}-${phase}-outcome.json`),
       complete = keys5(await read(`${prefix}-${phase}-complete.json`), ['schemaVersion', 'receiptSha256', 'outcome']);
-    require54(
+    require55(
       complete.schemaVersion === 1 &&
         complete.receiptSha256 === canonicalSha256(saved) &&
-        same31(complete.outcome, outcome),
+        same32(complete.outcome, outcome),
       'saved completion receipt and immutable outcome differ',
     );
     observation(outcome);
@@ -25257,9 +25289,9 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
     'proposed',
     'cloud',
   ]);
-  require54(terminal.schemaVersion === 1, 'saved final schema differs');
+  require55(terminal.schemaVersion === 1, 'saved final schema differs');
   const final = receipt(terminal.receipt, 'release');
-  require54(final.noChanges, 'final refresh changes retained resources');
+  require55(final.noChanges, 'final refresh changes retained resources');
   validateAzureTerraformNetworkRoutingProjection(
     data.plan,
     source,
@@ -25273,7 +25305,7 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
   );
   const cloud = observation(terminal.cloud);
   for (const [name, digest] of Object.entries(packetSha256ByName))
-    require54(
+    require55(
       canonicalSha256(await step(() => original.read.call(store, name))) === digest,
       'packet changed during history read',
     );
@@ -25292,7 +25324,7 @@ async function readAzureTerraformNetworkRoutingHistory(plan, source, before, cur
     freshness: 'unqualified',
   };
 }
-var same31 = (a, b) => canonicalEqual(a, b);
+var same32 = (a, b) => canonicalEqual(a, b);
 var init_terraform_network_routing_history = __esm(() => {
   init_canonical();
   init_terraform_network_routing();
@@ -25303,29 +25335,29 @@ var init_terraform_network_routing_history = __esm(() => {
 // plugins/azure/src/ce/terraform-network-stage-history.ts
 import { createHash as createHash13 } from 'node:crypto';
 
-function require55(value, message) {
+function require56(value, message) {
   if (!value) throw Error(`Azure Terraform network stage history: ${message}`);
 }
 function object51(value) {
-  require55(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
+  require56(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys6(value, names) {
   const row = object51(value);
-  require55(same32(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
+  require56(same33(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
   return row;
 }
 async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, phase, store, signal) {
   signal?.throwIfAborted();
   validateAzureNetworkUpdateInventory(plan, before);
-  require55(
+  require56(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       Number.isInteger(node) &&
       node >= 1 &&
       node <= plan.topology.nodeCount &&
       ['deallocated', 'nic-complete', 'restarted', 'routing-complete'].includes(phase) &&
-      same32(store.owner, azureUpgradeBinding(plan).owner),
+      same33(store.owner, azureUpgradeBinding(plan).owner),
     'exact owning node and phase required',
   );
   await store.verify();
@@ -25338,7 +25370,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
     signal?.throwIfAborted();
     const value = await store.read(name);
     const digest = canonicalSha256(value);
-    require55(
+    require56(
       packetSha256ByName[name] === undefined || packetSha256ByName[name] === digest,
       'packet changed during history read',
     );
@@ -25360,7 +25392,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
       'observedAt',
       ...(nic ? ['appliedNics', 'baseline', 'nicConverged'] : []),
     ]);
-    require55(
+    require56(
       row.engine === 'terraform' &&
         row.planSha256 === plan.planSha256 &&
         row.node === node &&
@@ -25379,7 +25411,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
     for (const [owner, vm] of Object.entries(before.nodes))
       for (const [index, identity] of Object.entries(vm.nics))
         if (!applied.includes(`${owner}:${index}`))
-          require55(
+          require56(
             inventory.nodes[owner].nics[index].privateIp === identity.privateIp,
             'unsubmitted historical private IP changed',
           );
@@ -25391,8 +25423,8 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
           observed.privateIp === identity.privateIp
         );
       });
-      require55(
-        same32(row.appliedNics, reachedNics) && row.nicConverged === true && row.baseline === baseline,
+      require56(
+        same33(row.appliedNics, reachedNics) && row.nicConverged === true && row.baseline === baseline,
         'complete selected NIC boundary required',
       );
     }
@@ -25400,10 +25432,10 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
   };
   const completed = async (name, receipt, expectedOutcomeName) => {
     const row = keys6(await read(name), ['schemaVersion', 'receiptSha256', 'outcome']);
-    require55(
+    require56(
       row.schemaVersion === 1 &&
         row.receiptSha256 === canonicalSha256(receipt) &&
-        same32(row.outcome, await read(expectedOutcomeName)),
+        same33(row.outcome, await read(expectedOutcomeName)),
       'saved completion differs from exact receipt/outcome',
     );
     return row.outcome;
@@ -25425,7 +25457,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
         'prior',
         'proposed',
       ]);
-      require55(
+      require56(
         row.schemaVersion === 1 && row.receiptSha256 === canonicalSha256(receipt),
         'power projection receipt differs',
       );
@@ -25459,8 +25491,8 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
       await completed(`${powerPrefix}-release-complete.json`, release, `${powerPrefix}-release-outcome.json`),
       ['cloud', 'state'],
     );
-    require55(
-      same32(outcome.state, {
+    require56(
+      same33(outcome.state, {
         'azapi_resource_action.ce_network': null,
       }),
       'temporary control remains in completed release',
@@ -25486,12 +25518,12 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
       'appliedNics',
       'stage',
     ]);
-    require55(
+    require56(
       prepared.schemaVersion === 1 &&
         prepared.planSha256 === plan.planSha256 &&
         prepared.inventorySha256 === canonicalSha256(before) &&
-        same32(prepared.appliedNics, priorNics) &&
-        same32(prepared.stage, stage),
+        same33(prepared.appliedNics, priorNics) &&
+        same33(prepared.stage, stage),
       'original prepared source/inventory/stage differs',
     );
     const receipt = await read(`${prefix}-mutation-plan.json`);
@@ -25506,7 +25538,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
       'prior',
       'proposed',
     ]);
-    require55(
+    require56(
       binding.schemaVersion === 1 &&
         binding.planSha256 === plan.planSha256 &&
         binding.stageSha256 === canonicalSha256(stage) &&
@@ -25537,11 +25569,11 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
       'prior',
       'proposed',
     ]);
-    require55(final.schemaVersion === 1, 'final NIC packet version differs');
+    require56(final.schemaVersion === 1, 'final NIC packet version differs');
     inventory = cloud(final.cloud, 'deallocate', reachedNics, true);
     const finalReceipt = final.receipt;
     validateAzureNetworkUpdateTerraformReceipt(plan, stage, finalReceipt, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
-    require55(finalReceipt.noChanges, 'historical final NIC plan changes resources');
+    require56(finalReceipt.noChanges, 'historical final NIC plan changes resources');
     validateAzureTerraformNetworkNicProjection(
       plan,
       stage,
@@ -25570,7 +25602,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
   }
   for (const [name, digest] of Object.entries(packetSha256ByName)) {
     signal?.throwIfAborted();
-    require55(canonicalSha256(await store.read(name)) === digest, 'packet changed during history read');
+    require56(canonicalSha256(await store.read(name)) === digest, 'packet changed during history read');
   }
   signal?.throwIfAborted();
   await store.verify();
@@ -25585,7 +25617,7 @@ async function readAzureTerraformNetworkNodeHistory(plan, source, before, node, 
     packetSha256ByName,
   };
 }
-var same32 = (a, b) => canonicalEqual(a, b),
+var same33 = (a, b) => canonicalEqual(a, b),
   hash6 = (value) => createHash13('sha256').update(value).digest('hex');
 var init_terraform_network_stage_history = __esm(() => {
   init_canonical();
@@ -25602,15 +25634,15 @@ var init_terraform_network_stage_history = __esm(() => {
 import { createHash as createHash14 } from 'node:crypto';
 import { readdir as readdir5 } from 'node:fs/promises';
 
-function require56(value, message) {
+function require57(value, message) {
   if (!value) throw Error(`Azure Terraform network checkpoint: ${message}`);
 }
 function keys7(value, expected) {
-  require56(
+  require57(
     value &&
       typeof value === 'object' &&
       !Array.isArray(value) &&
-      same33(Object.keys(value).sort(), expected.toSorted()),
+      same34(Object.keys(value).sort(), expected.toSorted()),
     'saved schema differs',
   );
 }
@@ -25646,7 +25678,7 @@ class AzureTerraformNetworkCheckpoint {
     signal?.throwIfAborted();
     const name = this.revisionName(value.revision),
       saved = await optional6(this.store, name);
-    if (saved !== undefined) require56(same33(saved, value), 'immutable revision differs from proposed transition');
+    if (saved !== undefined) require57(same34(saved, value), 'immutable revision differs from proposed transition');
     else await this.store.write(name, value);
     signal?.throwIfAborted();
   }
@@ -25658,12 +25690,12 @@ class AzureTerraformNetworkCheckpoint {
       const name = this.revisionName(revision),
         input = await this.store.read(name);
       hashes[name] = canonicalSha256(input);
-      if (revision === 0) require56(same33(input, previous), 'original revision differs');
+      if (revision === 0) require57(same34(input, previous), 'original revision differs');
       else {
         keys7(input, Object.keys(previous));
         const next = input,
           transition = next.lastTransition;
-        require56(
+        require57(
           next.revision === revision && next.previousCheckpointSha256 === canonicalSha256(previous) && transition,
           'immutable revision chain differs',
         );
@@ -25671,9 +25703,9 @@ class AzureTerraformNetworkCheckpoint {
         const expected = structuredClone(previous),
           last = expected.nodes.at(-1);
         const proposed = next.nodes?.at(-1);
-        require56(proposed && transition.node === proposed.node, 'revision selected node differs');
+        require57(proposed && transition.node === proposed.node, 'revision selected node differs');
         if (transition.kind === 'prepare') {
-          require56(
+          require57(
             last.phase === 'accepted' &&
               proposed.node === last.node + 1 &&
               proposed.phase === 'prepared' &&
@@ -25683,12 +25715,12 @@ class AzureTerraformNetworkCheckpoint {
           );
           expected.nodes.push(structuredClone(proposed));
         } else {
-          require56(
-            proposed.node === last.node && same33(proposed.before, last.before),
+          require57(
+            proposed.node === last.node && same34(proposed.before, last.before),
             'revision changed original node boundary',
           );
           if (transition.kind === 'stage') {
-            require56(
+            require57(
               ['prepared', 'deallocated', 'nic-complete', 'restarted'].indexOf(last.phase) ===
                 ['deallocated', 'nic-complete', 'restarted', 'routing-complete'].indexOf(proposed.phase) &&
                 proposed.history &&
@@ -25698,11 +25730,11 @@ class AzureTerraformNetworkCheckpoint {
             last.phase = proposed.phase;
             last.history = structuredClone(proposed.history);
           } else {
-            require56(
+            require57(
               transition.kind === 'accept' &&
                 last.phase === 'routing-complete' &&
                 proposed.phase === 'accepted' &&
-                same33(proposed.history, last.history) &&
+                same34(proposed.history, last.history) &&
                 proposed.acceptance,
               'revision acceptance boundary differs',
             );
@@ -25713,14 +25745,14 @@ class AzureTerraformNetworkCheckpoint {
         expected.revision++;
         expected.previousCheckpointSha256 = canonicalSha256(previous);
         expected.lastTransition = structuredClone(transition);
-        require56(same33(next, expected), 'revision changed an unrelated serial boundary');
+        require57(same34(next, expected), 'revision changed an unrelated serial boundary');
         previous = structuredClone(next);
       }
     }
-    require56(same33(previous, value), 'checkpoint differs from immutable revision');
+    require57(same34(previous, value), 'checkpoint differs from immutable revision');
     for (const [name, digest] of Object.entries(hashes)) {
       signal?.throwIfAborted();
-      require56(canonicalSha256(await this.store.read(name)) === digest, 'revision changed during validation');
+      require57(canonicalSha256(await this.store.read(name)) === digest, 'revision changed during validation');
     }
   }
   initial() {
@@ -25740,15 +25772,15 @@ class AzureTerraformNetworkCheckpoint {
   async verifyBinding(signal) {
     signal?.throwIfAborted();
     await this.store.verify();
-    require56(
-      same33(this.store.owner, azureUpgradeBinding(this.plan).owner) &&
-        same33(this.binding.owner, this.store.owner) &&
+    require57(
+      same34(this.store.owner, azureUpgradeBinding(this.plan).owner) &&
+        same34(this.binding.owner, this.store.owner) &&
         this.binding.planSha256 === this.plan.planSha256 &&
         this.binding.kind === 'azure-terraform-network-original-source' &&
         this.binding.engine === 'terraform' &&
         this.binding.schemaVersion === 1 &&
         hash7(this.binding.source) === this.binding.sourceConfigurationSha256 &&
-        same33(await this.store.read(`${this.plan.planId}-terraform-network-source.json`), this.binding),
+        same34(await this.store.read(`${this.plan.planId}-terraform-network-source.json`), this.binding),
       'frozen original source binding differs',
     );
     validateAzureNetworkUpdateInventory(this.plan, this.binding.before);
@@ -25756,7 +25788,7 @@ class AzureTerraformNetworkCheckpoint {
   async noStagePublication(signal) {
     signal?.throwIfAborted();
     const names = await readdir5(this.store.directory);
-    require56(
+    require57(
       !names.some((name) => name.startsWith(`${this.plan.planId}-terraform-network-node-`)),
       'missing root checkpoint after stage publication',
     );
@@ -25764,7 +25796,7 @@ class AzureTerraformNetworkCheckpoint {
   static async inspect(plan, binding, store, qualifyAcceptance, signal) {
     signal?.throwIfAborted();
     verifyAzureCePlan(plan);
-    require56(
+    require57(
       plan.engine === 'terraform' &&
         plan.intent.operation === 'update-network' &&
         typeof qualifyAcceptance === 'function',
@@ -25780,7 +25812,7 @@ class AzureTerraformNetworkCheckpoint {
   static async open(plan, binding, store, qualifyAcceptance, signal) {
     signal?.throwIfAborted();
     verifyAzureCePlan(plan);
-    require56(
+    require57(
       plan.engine === 'terraform' &&
         plan.intent.operation === 'update-network' &&
         typeof qualifyAcceptance === 'function',
@@ -25800,11 +25832,11 @@ class AzureTerraformNetworkCheckpoint {
       const savedRoot = await optional6(store, instance.rootName),
         saved = await optional6(store, instance.name);
       if (savedRoot === undefined) {
-        require56(saved === undefined, 'root marker missing after checkpoint publication');
+        require57(saved === undefined, 'root marker missing after checkpoint publication');
         await instance.noStagePublication(signal);
         signal?.throwIfAborted();
         await store.write(instance.rootName, root);
-      } else require56(same33(savedRoot, root), 'root marker differs');
+      } else require57(same34(savedRoot, root), 'root marker differs');
       if (saved === undefined) {
         await instance.noStagePublication(signal);
         signal?.throwIfAborted();
@@ -25826,10 +25858,10 @@ class AzureTerraformNetworkCheckpoint {
     for (const [owner, vm] of Object.entries(this.binding.before.nodes))
       for (const [index, nic] of Object.entries(vm.nics))
         if (!applied.includes(`${owner}:${index}`))
-          require56(value.nodes[owner].nics[index].privateIp === nic.privateIp, 'unsubmitted private IP changed');
+          require57(value.nodes[owner].nics[index].privateIp === nic.privateIp, 'unsubmitted private IP changed');
   }
   identity(row) {
-    require56(
+    require57(
       row.history?.phase === 'routing-complete',
       'routing completion history required for operational acceptance',
     );
@@ -25849,7 +25881,7 @@ class AzureTerraformNetworkCheckpoint {
     const verification = await this.qualifyAcceptance(structuredClone(receipt), this.identity(row), mode, signal);
     signal?.throwIfAborted();
     keys7(verification, ['status', 'scope', 'evidenceSha256']);
-    require56(
+    require57(
       verification.status === 'verified' &&
         verification.scope === 'node-interfaces-routing-traffic' &&
         sha8(verification.evidenceSha256),
@@ -25871,11 +25903,11 @@ class AzureTerraformNetworkCheckpoint {
       'lastTransition',
     ]);
     const value = input;
-    require56(
+    require57(
       value.schemaVersion === 1 &&
         value.kind === 'azure-terraform-network-serial-checkpoint' &&
         value.engine === 'terraform' &&
-        same33(value.owner, this.store.owner) &&
+        same34(value.owner, this.store.owner) &&
         value.planSha256 === this.plan.planSha256 &&
         value.sourceBindingSha256 === canonicalSha256(this.binding) &&
         Array.isArray(value.nodes) &&
@@ -25896,7 +25928,7 @@ class AzureTerraformNetworkCheckpoint {
         ...(row.history !== undefined ? ['history'] : []),
         ...(row.acceptance !== undefined ? ['acceptance'] : []),
       ]);
-      require56(
+      require57(
         row.node === i + 1 &&
           ['prepared', 'deallocated', 'nic-complete', 'restarted', 'routing-complete', 'accepted'].includes(
             row.phase,
@@ -25906,10 +25938,10 @@ class AzureTerraformNetworkCheckpoint {
       );
       this.before(row.before, row.node);
       if (i === 0)
-        require56(same33(row.before, this.binding.before), 'node one differs from original source inventory');
+        require57(same34(row.before, this.binding.before), 'node one differs from original source inventory');
       const stage = buildAzureTerraformNetworkPinnedNicStage(this.plan, source, row.before, row.node);
       if (row.phase === 'prepared')
-        require56(row.history === undefined && row.acceptance === undefined, 'prepared node contains completion');
+        require57(row.history === undefined && row.acceptance === undefined, 'prepared node contains completion');
       else {
         const phase = row.phase === 'accepted' ? 'routing-complete' : row.phase;
         const history = await readAzureTerraformNetworkNodeHistory(
@@ -25921,23 +25953,23 @@ class AzureTerraformNetworkCheckpoint {
           this.store,
           signal,
         );
-        require56(same33(row.history, history), 'persisted stage history differs');
+        require57(same34(row.history, history), 'persisted stage history differs');
         if (row.phase === 'accepted') {
           keys7(row.acceptance, ['receipt', 'verification']);
-          require56(
-            same33(
+          require57(
+            same34(
               row.acceptance?.verification,
               await this.verification(row.acceptance?.receipt, row, 'historical', signal),
             ),
             'operational acceptance provenance differs',
           );
-        } else require56(row.acceptance === undefined, 'unaccepted stage contains acceptance');
+        } else require57(row.acceptance === undefined, 'unaccepted stage contains acceptance');
       }
       revision += ['prepared', 'deallocated', 'nic-complete', 'restarted', 'routing-complete', 'accepted'].indexOf(
         row.phase,
       );
       if (row.phase === 'accepted') {
-        require56(row.history, 'accepted routing inventory required');
+        require57(row.history, 'accepted routing inventory required');
         source = buildAzureTerraformNetworkRoutingStage(
           this.plan,
           source,
@@ -25947,13 +25979,13 @@ class AzureTerraformNetworkCheckpoint {
         ).releasedConfiguration;
       } else source = stage.configuration;
     }
-    require56(value.revision === revision, 'checkpoint revision differs from serial progress');
-    if (revision === 0) require56(same33(value, this.initial()), 'initial checkpoint differs');
+    require57(value.revision === revision, 'checkpoint revision differs from serial progress');
+    if (revision === 0) require57(same34(value, this.initial()), 'initial checkpoint differs');
     else {
       keys7(value.lastTransition, ['kind', 'node', 'payloadSha256']);
       const t = value.lastTransition,
         last = value.nodes.at(-1);
-      require56(
+      require57(
         sha8(value.previousCheckpointSha256) &&
           sha8(t.payloadSha256) &&
           t.node === last.node &&
@@ -25973,8 +26005,8 @@ class AzureTerraformNetworkCheckpoint {
   }
   async load(signal) {
     await this.verifyBinding(signal);
-    require56(
-      same33(await this.store.read(this.rootName), {
+    require57(
+      same34(await this.store.read(this.rootName), {
         schemaVersion: 1,
         initialCheckpointSha256: canonicalSha256(this.initial()),
       }),
@@ -25985,7 +26017,7 @@ class AzureTerraformNetworkCheckpoint {
     const checkpoint = await this.validate(input, signal);
     await this.verifyRevisions(checkpoint, signal);
     await this.verifyBinding(signal);
-    require56(
+    require57(
       canonicalSha256(await this.store.read(this.name)) === checkpointSha256,
       'checkpoint changed during validation',
     );
@@ -25994,7 +26026,7 @@ class AzureTerraformNetworkCheckpoint {
   snapshot(checkpoint, checkpointSha256) {
     let nodeSource = this.binding.source;
     for (const row of checkpoint.nodes.slice(0, -1)) {
-      require56(row.history?.phase === 'routing-complete', 'accepted predecessor routing history required');
+      require57(row.history?.phase === 'routing-complete', 'accepted predecessor routing history required');
       nodeSource = buildAzureTerraformNetworkRoutingStage(
         this.plan,
         nodeSource,
@@ -26006,7 +26038,7 @@ class AzureTerraformNetworkCheckpoint {
     const current = checkpoint.nodes.at(-1);
     const stage = buildAzureTerraformNetworkPinnedNicStage(this.plan, nodeSource, current.before, current.node);
     const routed = ['routing-complete', 'accepted'].includes(current.phase);
-    require56(!routed || current.history, 'completed routing identity required');
+    require57(!routed || current.history, 'completed routing identity required');
     const configurationSha256 =
       routed && current.history
         ? buildAzureTerraformNetworkRoutingStage(
@@ -26034,14 +26066,14 @@ class AzureTerraformNetworkCheckpoint {
   }
   async change(expectedSha256, transition, mutate, signal) {
     signal?.throwIfAborted();
-    require56(sha8(expectedSha256), 'resolved expected checkpoint digest required');
+    require57(sha8(expectedSha256), 'resolved expected checkpoint digest required');
     const unlock = await acquireProcessLock(`${this.store.directory}/.terraform-network-checkpoint-lock`);
     try {
       const current = await this.load(signal);
       if (current.checkpointSha256 !== expectedSha256) {
-        require56(
+        require57(
           current.checkpoint.previousCheckpointSha256 === expectedSha256 &&
-            same33(current.checkpoint.lastTransition, transition),
+            same34(current.checkpoint.lastTransition, transition),
           'stale checkpoint comparison',
         );
         return current;
@@ -26049,13 +26081,13 @@ class AzureTerraformNetworkCheckpoint {
       const pending = await optional6(this.store, this.revisionName(current.checkpoint.revision + 1));
       if (pending !== undefined) {
         const next = await this.validate(pending, signal);
-        require56(
-          next.previousCheckpointSha256 === expectedSha256 && same33(next.lastTransition, transition),
+        require57(
+          next.previousCheckpointSha256 === expectedSha256 && same34(next.lastTransition, transition),
           'pending immutable revision belongs to another transition',
         );
         await this.verifyRevisions(next, signal);
         await this.verifyBinding(signal);
-        require56(
+        require57(
           canonicalSha256(await this.store.read(this.name)) === expectedSha256,
           'checkpoint changed before recovery publication',
         );
@@ -26071,7 +26103,7 @@ class AzureTerraformNetworkCheckpoint {
       next.lastTransition = transition;
       await this.validate(next, signal);
       await this.verifyBinding(signal);
-      require56(
+      require57(
         canonicalSha256(await this.store.read(this.name)) === expectedSha256,
         'checkpoint changed before publication',
       );
@@ -26090,7 +26122,7 @@ class AzureTerraformNetworkCheckpoint {
       { kind: 'stage', node, payloadSha256: canonicalSha256(phase) },
       async (next, source) => {
         const row = next.nodes.at(-1);
-        require56(
+        require57(
           row.node === node &&
             ['prepared', 'deallocated', 'nic-complete', 'restarted'].indexOf(row.phase) ===
               ['deallocated', 'nic-complete', 'restarted', 'routing-complete'].indexOf(phase),
@@ -26116,7 +26148,7 @@ class AzureTerraformNetworkCheckpoint {
       { kind: 'accept', node, payloadSha256: canonicalSha256(receipt) },
       async (next) => {
         const row = next.nodes.at(-1);
-        require56(row.node === node && row.phase === 'routing-complete', 'selected routing-complete node required');
+        require57(row.node === node && row.phase === 'routing-complete', 'selected routing-complete node required');
         row.acceptance = {
           receipt: structuredClone(receipt),
           verification: await this.verification(receipt, row, 'current', signal),
@@ -26138,7 +26170,7 @@ class AzureTerraformNetworkCheckpoint {
       { kind: 'prepare', node, payloadSha256: canonicalSha256(before) },
       async (next) => {
         const last = next.nodes.at(-1);
-        require56(
+        require57(
           last.phase === 'accepted' && node === last.node + 1 && node <= this.plan.topology.nodeCount,
           'accepted predecessor and next node required',
         );
@@ -26150,7 +26182,7 @@ class AzureTerraformNetworkCheckpoint {
   }
 }
 var hash7 = (text) => createHash14('sha256').update(text).digest('hex'),
-  same33,
+  same34,
   sha8 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_network_checkpoint = __esm(() => {
   init_process_lock();
@@ -26160,7 +26192,7 @@ var init_terraform_network_checkpoint = __esm(() => {
   init_terraform_network_routing();
   init_terraform_network_stage_history();
   init_terraform_upgrade();
-  same33 = canonicalEqual;
+  same34 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-driver-lease.ts
@@ -26168,12 +26200,12 @@ import { createHash as createHash15 } from 'node:crypto';
 import { lstat as lstat7, readFile as readFile7, realpath as realpath5 } from 'node:fs/promises';
 import { join as join10 } from 'node:path';
 
-function require57(value, message) {
+function require58(value, message) {
   if (!value) throw Error(`Azure Terraform network driver lease: ${message}`);
 }
 function held(lease, directory) {
   const current = ownership.get(lease);
-  require57(current?.active && current.directory === directory, 'active exact owning lease required');
+  require58(current?.active && current.directory === directory, 'active exact owning lease required');
   return current;
 }
 function assertAzureTerraformNetworkDriverLease(lease, directory) {
@@ -26183,7 +26215,7 @@ async function claimBytes(directory) {
   const path = join10(directory, '.terraform-network-driver-lock'),
     claim = join10(path, 'claim.json'),
     stat = await lstat7(path);
-  require57(
+  require58(
     stat.isDirectory() &&
       !stat.isSymbolicLink() &&
       stat.uid === process.getuid?.() &&
@@ -26192,7 +26224,7 @@ async function claimBytes(directory) {
     'driver lock private directory differs',
   );
   const file = await lstat7(claim);
-  require57(
+  require58(
     file.isFile() &&
       !file.isSymbolicLink() &&
       file.nlink === 1 &&
@@ -26225,8 +26257,8 @@ async function acquireAzureTerraformNetworkDriverLease(directory) {
 async function verifyAzureTerraformNetworkDriverLease(lease, directory) {
   const current = held(lease, directory),
     expected = current.claimSha256;
-  require57(hash8(await claimBytes(directory)) === expected, 'original owning driver claim changed');
-  require57(
+  require58(hash8(await claimBytes(directory)) === expected, 'original owning driver claim changed');
+  require58(
     held(lease, directory) === current && current.claimSha256 === expected,
     'driver ownership changed during verification',
   );
@@ -26239,7 +26271,7 @@ var init_terraform_network_driver_lease = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-nic-binding.ts
-function require58(value, message) {
+function require59(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC binding: ${message}`);
 }
 async function bindAzureTerraformNetworkNicPlan(
@@ -26253,13 +26285,13 @@ async function bindAzureTerraformNetworkNicPlan(
   env,
   signal,
 ) {
-  require58(canonicalSha256(store.owner) === canonicalSha256(azureUpgradeBinding(plan).owner), 'storage owner differs');
-  require58(
+  require59(canonicalSha256(store.owner) === canonicalSha256(azureUpgradeBinding(plan).owner), 'storage owner differs');
+  require59(
     session.readPlannedResourcePaths && session.readProposedResourcePaths,
     'owning private paths capability required',
   );
   validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, providerLockSha256);
-  require58(providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'unqualified provider lock');
+  require59(providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'unqualified provider lock');
   const selections = azureTerraformNetworkNicSelections(plan, stage, inventory);
   signal?.throwIfAborted();
   await store.verify();
@@ -26278,7 +26310,7 @@ async function bindAzureTerraformNetworkNicPlan(
     };
     const validate = (input) => {
       const value = input;
-      require58(
+      require59(
         value &&
           typeof value === 'object' &&
           !Array.isArray(value) &&
@@ -26287,7 +26319,7 @@ async function bindAzureTerraformNetworkNicPlan(
         'saved binding schema differs',
       );
       for (const [key, expected] of Object.entries(identity))
-        require58(value[key] === expected, 'saved binding identity differs');
+        require59(value[key] === expected, 'saved binding identity differs');
       validateAzureTerraformNetworkNicProjection(
         plan,
         stage,
@@ -26306,14 +26338,14 @@ async function bindAzureTerraformNetworkNicPlan(
       if (error.code !== 'ENOENT') throw error;
     }
     if (saved !== undefined) return validate(saved);
-    require58(
+    require59(
       (await session.readPlanApplicationState(receipt)) === 'planned',
       'unsubmitted saved plan required for new binding',
     );
     const prior = await session.readPlannedResourcePaths(receipt, selections.prior, env, signal);
     const proposed = await session.readProposedResourcePaths(receipt, selections.proposed, env, signal);
     signal?.throwIfAborted();
-    require58((await session.readPlanApplicationState(receipt)) === 'planned', 'plan submitted during projection');
+    require59((await session.readPlanApplicationState(receipt)) === 'planned', 'plan submitted during projection');
     const binding = validate({ ...identity, prior, proposed });
     await store.write(name, binding);
     return binding;
@@ -26330,11 +26362,11 @@ var init_terraform_network_nic_binding = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-nic-execution.ts
-function require59(value, message) {
+function require60(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC execution: ${message}`);
 }
 function object52(value) {
-  require59(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
+  require60(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
 async function optional7(store, name) {
@@ -26362,17 +26394,17 @@ async function runAzureTerraformNetworkNicStage(
   },
 ) {
   const stage = buildAzureTerraformNetworkPinnedNicStage(plan, source, before, node);
-  require59(same34(store.owner, azureUpgradeBinding(plan).owner), 'storage owner differs');
+  require60(same35(store.owner, azureUpgradeBinding(plan).owner), 'storage owner differs');
   const priorKeys = Array.from({ length: node - 1 }, (_, i) => plan.nics.map((nic) => `${i + 1}:${nic.index}`)).flat();
-  require59(same34(appliedNics, priorKeys), 'complete serial predecessor NIC boundary required');
-  require59(
+  require60(same35(appliedNics, priorKeys), 'complete serial predecessor NIC boundary required');
+  require60(
     Number.isInteger(polling.attempts) &&
       polling.attempts > 0 &&
       Number.isFinite(polling.intervalMs) &&
       polling.intervalMs >= 0,
     'invalid convergence bounds',
   );
-  require59(
+  require60(
     session.readPlannedResourcePaths && session.readProposedResourcePaths,
     'owning private paths capability required',
   );
@@ -26417,7 +26449,7 @@ async function runAzureTerraformNetworkNicStage(
     for (const [owner, vm] of Object.entries(before.nodes))
       for (const [index, nic] of Object.entries(vm.nics))
         if (!progress.includes(`${owner}:${index}`))
-          require59(
+          require60(
             inventory.nodes[owner].nics[index].privateIp === nic.privateIp,
             'unsubmitted NIC private IP changed',
           );
@@ -26430,11 +26462,11 @@ async function runAzureTerraformNetworkNicStage(
       bounded,
       deadline,
     );
-    require59(
-      same34(power.inventory.nodes, inventory.nodes),
+    require60(
+      same35(power.inventory.nodes, inventory.nodes),
       'cloud identity changed between NIC and power observations',
     );
-    require59(power.converged && power.powerState === 'deallocated', 'selected VM is not deallocated');
+    require60(power.converged && power.powerState === 'deallocated', 'selected VM is not deallocated');
     return {
       ...power,
       appliedNics: progress,
@@ -26453,8 +26485,8 @@ async function runAzureTerraformNetworkNicStage(
   };
   const validateCloud = (input) => {
     const value = object52(input);
-    require59(
-      same34(
+    require60(
+      same35(
         Object.keys(value).sort(),
         [
           'appliedNics',
@@ -26476,7 +26508,7 @@ async function runAzureTerraformNetworkNicStage(
       'saved cloud schema differs',
     );
     const cloud = input;
-    require59(
+    require60(
       cloud.engine === 'terraform' &&
         cloud.planSha256 === plan.planSha256 &&
         cloud.node === node &&
@@ -26487,13 +26519,13 @@ async function runAzureTerraformNetworkNicStage(
         cloud.powerState === 'deallocated' &&
         cloud.converged === true &&
         cloud.nicConverged === true &&
-        same34(cloud.appliedNics, targetKeys) &&
+        same35(cloud.appliedNics, targetKeys) &&
         typeof cloud.observedAt === 'string' &&
         Number.isFinite(Date.parse(cloud.observedAt)),
       'saved convergence identity differs',
     );
     verifyAzureNetworkUpdateProgress(plan, before, cloud.inventory, targetKeys);
-    require59(cloud.baseline === baseline(cloud.inventory), 'saved baseline differs');
+    require60(cloud.baseline === baseline(cloud.inventory), 'saved baseline differs');
     return cloud;
   };
   signal?.throwIfAborted();
@@ -26505,7 +26537,7 @@ async function runAzureTerraformNetworkNicStage(
     const prefix = `${plan.planId}-terraform-network-node-${node}`;
     const configuration = async () => {
       const current = await session.readConfigurationSha256?.();
-      require59(
+      require60(
         current === stage.previousConfigurationSha256 || current === stage.configurationSha256,
         'private configuration differs',
       );
@@ -26529,29 +26561,29 @@ async function runAzureTerraformNetworkNicStage(
         'current-no-change-plan',
         'nic-binding',
       ])
-        require59(
+        require60(
           (await optional7(store, `${prefix}-${suffix}.json`)) === undefined,
           'prepared history missing after later stage publication',
         );
-      require59(
+      require60(
         (await configuration()) === stage.previousConfigurationSha256,
         'target revision lacks original prepared history',
       );
-      require59((await observe()).baseline, 'unsubmitted cloud baseline differs');
-      require59(
+      require60((await observe()).baseline, 'unsubmitted cloud baseline differs');
+      require60(
         (await session.readConfiguration(stage.previousConfigurationSha256)) === source,
         'retained source bytes differ',
       );
       await store.write(`${prefix}-prepared.json`, prepared);
-    } else require59(same34(savedPrepared, prepared), 'saved prepared stage differs');
+    } else require60(same35(savedPrepared, prepared), 'saved prepared stage differs');
     if ((await configuration()) !== stage.configurationSha256) {
-      require59((await observe()).baseline, 'cloud changed before configuration revision');
+      require60((await observe()).baseline, 'cloud changed before configuration revision');
       await session.reviseConfiguration(stage.previousConfigurationSha256, stage.configuration);
     }
-    require59((await configuration()) === stage.configurationSha256, 'NIC revision differs');
+    require60((await configuration()) === stage.configurationSha256, 'NIC revision differs');
     let mutation = await optional7(store, `${prefix}-mutation-plan.json`);
     if (mutation === undefined) {
-      require59((await observe()).baseline, 'unsubmitted NIC baseline differs');
+      require60((await observe()).baseline, 'unsubmitted NIC baseline differs');
       mutation = await session.plan(env, signal);
       validateAzureNetworkUpdateTerraformReceipt(plan, stage, mutation, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
       await store.write(`${prefix}-mutation-plan.json`, mutation);
@@ -26571,8 +26603,8 @@ async function runAzureTerraformNetworkNicStage(
     );
     const validateCompletion = (input) => {
       const value = object52(input);
-      require59(
-        same34(Object.keys(value).sort(), ['outcome', 'receiptSha256', 'schemaVersion']) &&
+      require60(
+        same35(Object.keys(value).sort(), ['outcome', 'receiptSha256', 'schemaVersion']) &&
           value.schemaVersion === 1 &&
           value.receiptSha256 === canonicalSha256(receipt),
         'saved mutation completion differs',
@@ -26582,11 +26614,11 @@ async function runAzureTerraformNetworkNicStage(
     const completion = await optional7(store, `${prefix}-mutation-complete.json`);
     if (completion === undefined) {
       let state = await session.readPlanApplicationState(receipt);
-      require59(['planned', 'applying', 'applied'].includes(state), 'mutation application state unavailable');
+      require60(['planned', 'applying', 'applied'].includes(state), 'mutation application state unavailable');
       if (state === 'planned') {
-        require59((await observe()).baseline, 'planned NIC baseline changed');
+        require60((await observe()).baseline, 'planned NIC baseline changed');
         if (!receipt.noChanges) {
-          require59((await configuration()) === stage.configurationSha256, 'configuration changed before apply');
+          require60((await configuration()) === stage.configurationSha256, 'configuration changed before apply');
           try {
             await session.apply(receipt, env, signal);
           } catch (error) {
@@ -26601,16 +26633,16 @@ async function runAzureTerraformNetworkNicStage(
       validateCloud(outcome);
       await store.write(`${prefix}-mutation-outcome.json`, outcome);
       if (state === 'applying') await session.reconcileApplyFromEvidence(receipt, canonicalSha256(outcome));
-      else require59(receipt.noChanges || state === 'applied', 'mutation has no authoritative submitted outcome');
+      else require60(receipt.noChanges || state === 'applied', 'mutation has no authoritative submitted outcome');
       const completed = { schemaVersion: 1, receiptSha256: canonicalSha256(receipt), outcome };
       validateCompletion(completed);
       await store.write(`${prefix}-mutation-complete.json`, completed);
     } else validateCompletion(completion);
     const cloud = await poll();
-    require59((await configuration()) === stage.configurationSha256, 'completed NIC configuration changed');
+    require60((await configuration()) === stage.configurationSha256, 'completed NIC configuration changed');
     const final = await session.plan(env, signal);
     validateAzureNetworkUpdateTerraformReceipt(plan, stage, final, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
-    require59(final.noChanges, 'final refresh plan changes retained resources');
+    require60(final.noChanges, 'final refresh plan changes retained resources');
     const selections = azureTerraformNetworkNicSelections(plan, stage, cloud.inventory);
     const prior = await session.readPlannedResourcePaths(final, selections.prior, env, signal),
       proposed = await session.readProposedResourcePaths(final, selections.proposed, env, signal);
@@ -26624,22 +26656,22 @@ async function runAzureTerraformNetworkNicStage(
       proposed,
     );
     const terminalCloud = await poll();
-    require59(
-      same34(terminalCloud.inventory.nodes, cloud.inventory.nodes),
+    require60(
+      same35(terminalCloud.inventory.nodes, cloud.inventory.nodes),
       'final NIC identity changed during plan projection',
     );
     const terminal = { schemaVersion: 1, receipt: final, cloud: terminalCloud, prior, proposed };
     const validateTerminal = (input) => {
       const value = object52(input);
-      require59(
-        same34(Object.keys(value).sort(), ['cloud', 'prior', 'proposed', 'receipt', 'schemaVersion']) &&
+      require60(
+        same35(Object.keys(value).sort(), ['cloud', 'prior', 'proposed', 'receipt', 'schemaVersion']) &&
           value.schemaVersion === 1,
         'saved final schema differs',
       );
       const observed = validateCloud(value.cloud),
         finalReceipt = value.receipt;
       validateAzureNetworkUpdateTerraformReceipt(plan, stage, finalReceipt, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
-      require59(finalReceipt.noChanges, 'saved final plan changes retained resources');
+      require60(finalReceipt.noChanges, 'saved final plan changes retained resources');
       validateAzureTerraformNetworkNicProjection(
         plan,
         stage,
@@ -26670,7 +26702,7 @@ async function runAzureTerraformNetworkNicStage(
     await unlock();
   }
 }
-var same34,
+var same35,
   lower13 = (value) => value.toLowerCase();
 var init_terraform_network_nic_execution = __esm(() => {
   init_process_lock();
@@ -26682,7 +26714,7 @@ var init_terraform_network_nic_execution = __esm(() => {
   init_terraform_network_power();
   init_terraform_network_routing();
   init_terraform_upgrade();
-  same34 = canonicalEqual;
+  same35 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-power-lifecycle.ts
@@ -26780,13 +26812,13 @@ var init_terraform_network_power_lifecycle = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-nic-history.ts
-function require60(value, message) {
+function require61(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC history: ${message}`);
 }
 function keys8(value, expected) {
-  require60(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
+  require61(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
   const row = value;
-  require60(same35(Object.keys(row).sort(), expected.toSorted()), 'saved schema differs');
+  require61(same36(Object.keys(row).sort(), expected.toSorted()), 'saved schema differs');
   return row;
 }
 async function readAzureTerraformNetworkNicHistory(request, sourceRequest, original, node, store, signal) {
@@ -26797,13 +26829,13 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     { read, verify } = store;
   verifyAzureCePlan(plan);
   validateAzureNetworkUpdateInventory(plan, before);
-  require60(
+  require61(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       Number.isInteger(node) &&
       node >= 1 &&
       node <= plan.topology.nodeCount &&
-      same35(owner, azureUpgradeBinding(plan).owner),
+      same36(owner, azureUpgradeBinding(plan).owner),
     'exact owning serial NIC boundary required',
   );
   const stage = buildAzureTerraformNetworkPinnedNicStage(plan, source, before, node),
@@ -26811,10 +26843,10 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     reached = [...previous, ...plan.nics.map((nic) => `${node}:${nic.index}`)];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const unchanged = () =>
-    require60(
-      same35(request, plan) &&
-        same35(original, before) &&
-        same35(store.owner, owner) &&
+    require61(
+      same36(request, plan) &&
+        same36(original, before) &&
+        same36(store.owner, owner) &&
         store.read === read &&
         store.verify === verify,
       'request or storage changed during NIC history read',
@@ -26858,7 +26890,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     }
   }
   for (let i = 1; i < suffixes.length; i++)
-    require60(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later NIC packet');
+    require61(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later NIC packet');
   if (records.has('prepared')) {
     const prepared = keys8(records.get('prepared'), [
       'schemaVersion',
@@ -26867,12 +26899,12 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
       'appliedNics',
       'stage',
     ]);
-    require60(
+    require61(
       prepared.schemaVersion === 1 &&
         prepared.planSha256 === plan.planSha256 &&
         prepared.inventorySha256 === canonicalSha256(before) &&
-        same35(prepared.appliedNics, previous) &&
-        same35(prepared.stage, stage),
+        same36(prepared.appliedNics, previous) &&
+        same36(prepared.stage, stage),
       'prepared source or serial NIC boundary differs',
     );
   }
@@ -26892,7 +26924,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
         'prior',
         'proposed',
       ]);
-      require60(
+      require61(
         binding.schemaVersion === 1 &&
           binding.planSha256 === plan.planSha256 &&
           binding.stageSha256 === canonicalSha256(stage) &&
@@ -26930,7 +26962,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
       'nicConverged',
     ]);
     const vm = before.nodes[String(node)];
-    require60(
+    require61(
       row.engine === 'terraform' &&
         row.planSha256 === plan.planSha256 &&
         row.node === node &&
@@ -26941,7 +26973,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
         row.powerState === 'deallocated' &&
         row.converged === true &&
         row.nicConverged === true &&
-        same35(row.appliedNics, reached) &&
+        same36(row.appliedNics, reached) &&
         typeof row.observedAt === 'string' &&
         Number.isFinite(Date.parse(row.observedAt)),
       'saved NIC cloud identity or completion differs',
@@ -26951,7 +26983,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     for (const [ownerNode, instance] of Object.entries(before.nodes))
       for (const [index, nic] of Object.entries(instance.nics))
         if (!reached.includes(`${ownerNode}:${index}`))
-          require60(
+          require61(
             inventory.nodes[ownerNode].nics[index].privateIp === nic.privateIp,
             'unsubmitted historical NIC address differs',
           );
@@ -26959,16 +26991,16 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
       const observed = inventory.nodes[String(node)].nics[index];
       return observed.subnetId.toLowerCase() === nic.subnetId.toLowerCase() && observed.privateIp === nic.privateIp;
     });
-    require60(row.baseline === baseline, 'saved NIC baseline differs');
+    require61(row.baseline === baseline, 'saved NIC baseline differs');
     return inventory;
   };
   if (records.has('mutation-outcome')) cloud(records.get('mutation-outcome'));
   if (records.has('mutation-complete')) {
     const complete = keys8(records.get('mutation-complete'), ['schemaVersion', 'receiptSha256', 'outcome']);
-    require60(
+    require61(
       complete.schemaVersion === 1 &&
         complete.receiptSha256 === canonicalSha256(receipts.mutation) &&
-        same35(complete.outcome, records.get('mutation-outcome')),
+        same36(complete.outcome, records.get('mutation-outcome')),
       'completion differs from exact receipt/outcome',
     );
   }
@@ -26978,11 +27010,11 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
   ])
     if (records.has(suffix)) {
       const packet = keys8(records.get(suffix), ['schemaVersion', 'receipt', 'cloud', 'prior', 'proposed']);
-      require60(packet.schemaVersion === 1, 'final NIC packet version differs');
+      require61(packet.schemaVersion === 1, 'final NIC packet version differs');
       const inventory = cloud(packet.cloud),
         receipt = packet.receipt;
       validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
-      require60(receipt.noChanges, 'historical final NIC plan changes resources');
+      require61(receipt.noChanges, 'historical final NIC plan changes resources');
       validateAzureTerraformNetworkNicProjection(
         plan,
         stage,
@@ -26999,13 +27031,13 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     const name = `${prefix}-${suffix}.json`;
     try {
       const value = await bounded(() => read.call(store, name));
-      require60(
+      require61(
         records.has(suffix) && canonicalSha256(value) === packetSha256ByName[name],
         'packet changed or appeared',
       );
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      require60(!records.has(suffix), 'packet disappeared');
+      require61(!records.has(suffix), 'packet disappeared');
     }
   }
   return {
@@ -27022,7 +27054,7 @@ async function readAzureTerraformNetworkNicHistory(request, sourceRequest, origi
     retirementQualified: false,
   };
 }
-var same35;
+var same36;
 var init_terraform_network_nic_history = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -27031,17 +27063,17 @@ var init_terraform_network_nic_history = __esm(() => {
   init_terraform_network_nic_projection();
   init_terraform_network_routing();
   init_terraform_upgrade();
-  same35 = canonicalEqual;
+  same36 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-power-history.ts
-function require61(value, message) {
+function require62(value, message) {
   if (!value) throw Error(`Azure Terraform network power history: ${message}`);
 }
 function keys9(value, expected) {
-  require61(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
+  require62(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
   const row = value;
-  require61(same36(Object.keys(row).sort(), expected.toSorted()), 'saved schema differs');
+  require62(same37(Object.keys(row).sort(), expected.toSorted()), 'saved schema differs');
   return row;
 }
 async function readAzureTerraformNetworkPowerHistory(
@@ -27063,24 +27095,24 @@ async function readAzureTerraformNetworkPowerHistory(
   const expected = Array.from({ length: operation === 'start' ? node : node - 1 }, (_, i) =>
     plan.nics.map((nic) => `${i + 1}:${nic.index}`),
   ).flat();
-  require61(
+  require62(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
       Number.isInteger(node) &&
       node >= 1 &&
       node <= plan.topology.nodeCount &&
       ['deallocate', 'start'].includes(operation) &&
-      same36(owner, azureUpgradeBinding(plan).owner) &&
-      same36(appliedNics, expected),
+      same37(owner, azureUpgradeBinding(plan).owner) &&
+      same37(appliedNics, expected),
     'exact owning serial power boundary required',
   );
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const unchanged = () =>
-    require61(
-      same36(request, plan) &&
-        same36(original, before) &&
-        same36(appliedNicsRequest, appliedNics) &&
-        same36(store.owner, owner) &&
+    require62(
+      same37(request, plan) &&
+        same37(original, before) &&
+        same37(appliedNicsRequest, appliedNics) &&
+        same37(store.owner, owner) &&
         store.read === read &&
         store.verify === verify,
       'request or storage changed during history read',
@@ -27127,7 +27159,7 @@ async function readAzureTerraformNetworkPowerHistory(
     }
   }
   for (let i = 1; i < suffixes.length; i++)
-    require61(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later packet');
+    require62(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later packet');
   const cloud = (value) => {
     const row = keys9(value, [
       'engine',
@@ -27143,7 +27175,7 @@ async function readAzureTerraformNetworkPowerHistory(
       'observedAt',
     ]);
     const vm = before.nodes[String(node)];
-    require61(
+    require62(
       row.engine === 'terraform' &&
         row.planSha256 === plan.planSha256 &&
         row.node === node &&
@@ -27162,7 +27194,7 @@ async function readAzureTerraformNetworkPowerHistory(
     for (const [key, instance] of Object.entries(before.nodes))
       for (const [index, nic] of Object.entries(instance.nics))
         if (!appliedNics.includes(`${key}:${index}`))
-          require61(
+          require62(
             inventory.nodes[key].nics[index].privateIp === nic.privateIp,
             'unsubmitted historical NIC address differs',
           );
@@ -27176,7 +27208,7 @@ async function readAzureTerraformNetworkPowerHistory(
     receipts[phase] = receipt;
     if (records.has(`${phase}-binding`)) {
       const binding = keys9(records.get(`${phase}-binding`), ['schemaVersion', 'receiptSha256', 'prior', 'proposed']);
-      require61(
+      require62(
         binding.schemaVersion === 1 && binding.receiptSha256 === canonicalSha256(receipt),
         'projection receipt differs',
       );
@@ -27198,16 +27230,16 @@ async function readAzureTerraformNetworkPowerHistory(
       if (phase === 'mutation') cloud(outcome);
       else {
         const released = keys9(outcome, ['cloud', 'state']);
-        require61(same36(released.state, { 'azapi_resource_action.ce_network': null }), 'released control remains');
+        require62(same37(released.state, { 'azapi_resource_action.ce_network': null }), 'released control remains');
         cloud(released.cloud);
       }
     }
     if (records.has(`${phase}-complete`)) {
       const complete = keys9(records.get(`${phase}-complete`), ['schemaVersion', 'receiptSha256', 'outcome']);
-      require61(
+      require62(
         complete.schemaVersion === 1 &&
           complete.receiptSha256 === canonicalSha256(receipt) &&
-          same36(complete.outcome, records.get(`${phase}-outcome`)),
+          same37(complete.outcome, records.get(`${phase}-outcome`)),
         'completion differs from exact receipt/outcome',
       );
     }
@@ -27224,13 +27256,13 @@ async function readAzureTerraformNetworkPowerHistory(
     const name = `${prefix}-${suffix}.json`;
     try {
       const value = await bounded(() => read.call(store, name));
-      require61(
+      require62(
         records.has(suffix) && canonicalSha256(value) === packetSha256ByName[name],
         'packet changed or appeared during history read',
       );
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      require61(!records.has(suffix), 'packet disappeared during history read');
+      require62(!records.has(suffix), 'packet disappeared during history read');
     }
   }
   await bounded(() => verify.call(store));
@@ -27248,20 +27280,20 @@ async function readAzureTerraformNetworkPowerHistory(
     retirementQualified: false,
   };
 }
-var same36;
+var same37;
 var init_terraform_network_power_history = __esm(() => {
   init_artifacts();
   init_canonical();
   init_network_update();
   init_terraform_network_power();
   init_terraform_upgrade();
-  same36 = canonicalEqual;
+  same37 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-bound-replacement-source.ts
 import { createHash as createHash16 } from 'node:crypto';
 
-function require62(value, message) {
+function require63(value, message) {
   if (!value) throw Error(`Azure Terraform network-bound replacement source: ${message}`);
 }
 async function qualifyAzureTerraformNetworkBoundReplacementSource(
@@ -27281,11 +27313,11 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
     ? verifyAzureTerraformNetworkReplacementProfile(network)
     : verifyAzureTerraformNetworkProfile(network);
   const replacement = verifyAzureTerraformNetworkReplacementProfile(plan);
-  require62(
+  require63(
     replacement.originalPlanSha256 === original.planSha256 && replacement.retainedPlanSha256 === network.planSha256,
     'exact bound original and immediate completed network predecessor required',
   );
-  require62(
+  require63(
     plan.engine === 'terraform' &&
       plan.intent.engine === 'terraform' &&
       plan.intent.operation === 'replace-node' &&
@@ -27300,11 +27332,11 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
       original.intent.operation === 'deploy' &&
       !original.relayProfile &&
       profile.originalPlanSha256 === original.planSha256 &&
-      same37(azureUpgradeBinding(plan), azureUpgradeBinding(original)) &&
-      same37(azureUpgradeBinding(network), azureUpgradeBinding(original)) &&
-      same37(azureTerraformNetworkScope(plan, true), azureTerraformNetworkScope(original, true)) &&
-      same37(azureTerraformNetworkScope(network, true), azureTerraformNetworkScope(original, true)) &&
-      same37(azureTerraformNetworkScope(plan, false), azureTerraformNetworkScope(network, false)),
+      same38(azureUpgradeBinding(plan), azureUpgradeBinding(original)) &&
+      same38(azureUpgradeBinding(network), azureUpgradeBinding(original)) &&
+      same38(azureTerraformNetworkScope(plan, true), azureTerraformNetworkScope(original, true)) &&
+      same38(azureTerraformNetworkScope(network, true), azureTerraformNetworkScope(original, true)) &&
+      same38(azureTerraformNetworkScope(plan, false), azureTerraformNetworkScope(network, false)),
     'exact selected Terraform replacement, original and retained network scope required',
   );
   const history =
@@ -27321,20 +27353,20 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
         replacementVerifier,
       )
     ).completion;
-  require62(
+  require63(
     history && history.sourcePlanSha256 === network.planSha256,
     'exact completed immediate predecessor required',
   );
   const inventory = network.terraformNetworkReplacementProfile
     ? validateAzureTerraformReplacementPredecessorInventory(network, input.inventory, history)
     : validateAzureNetworkUpdateInventory(network, input.inventory);
-  require62(
+  require63(
     history.originalPlanSha256 === original.planSha256 &&
       input.source === history.finalSource &&
       createHash16('sha256').update(input.source).digest('hex') === history.finalConfigurationSha256 &&
       input.providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 &&
       input.providerLockSha256 === history.sourceQualification.providerLockSha256 &&
-      same37(input.site, azureTerraformCompletedGenerationSite(history)),
+      same38(input.site, azureTerraformCompletedGenerationSite(history)),
     'exact private network source, provider lock and owned site required',
   );
   const identities = (nodes) =>
@@ -27352,13 +27384,13 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
         },
       ]),
     );
-  require62(
-    same37(identities(inventory.nodes), identities(azureTerraformCompletedGenerationNodes(history))),
+  require63(
+    same38(identities(inventory.nodes), identities(azureTerraformCompletedGenerationNodes(history))),
     'complete retained VM UUID/owner and NIC/MAC/IP-configuration/subnet identity required',
   );
   const node = String(plan.intent.replacementNode);
   const selected = plan.actions.filter((action) => action.kind === 'vm-delete');
-  require62(
+  require63(
     selected.length === 1 &&
       selected[0].node === Number(node) &&
       selected[0].resourceId?.toLowerCase() === inventory.nodes[node].resourceId.toLowerCase() &&
@@ -27366,7 +27398,7 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
     'one exact retained selected VM delete boundary required',
   );
   signal?.throwIfAborted();
-  require62(same37(input, request), 'requested source identity changed during historical qualification');
+  require63(same38(input, request), 'requested source identity changed during historical qualification');
   return {
     schemaVersion: 1,
     kind: 'azure-terraform-network-bound-replacement-source',
@@ -27385,7 +27417,7 @@ async function qualifyAzureTerraformNetworkBoundReplacementSource(
     currentOperationalAcceptanceQualified: false,
   };
 }
-var same37;
+var same38;
 var init_terraform_network_bound_replacement_source = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -27396,15 +27428,15 @@ var init_terraform_network_bound_replacement_source = __esm(() => {
   init_terraform_network_plan();
   init_terraform_network_replacement_plan();
   init_terraform_upgrade();
-  same37 = canonicalEqual;
+  same38 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-current.ts
-function require63(value, message) {
+function require64(value, message) {
   if (!value) throw Error(`Azure Terraform network replacement current identity: ${message}`);
 }
 function object53(value) {
-  require63(value && typeof value === 'object' && !Array.isArray(value), 'complete cloud object required');
+  require64(value && typeof value === 'object' && !Array.isArray(value), 'complete cloud object required');
   return value;
 }
 async function observeAzureTerraformNetworkReplacementCurrent(request, api, signal) {
@@ -27415,7 +27447,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
   verifyAzureCePlan(retainedPlan);
   const profile = verifyAzureTerraformNetworkReplacementProfile(plan),
     selected = plan.intent.replacementNode;
-  require63(
+  require64(
     typeof selected === 'number' &&
       ['intact', 'quiesced', 'launched'].includes(phase) &&
       /^[a-f0-9]{64}$/.test(input.sourceBindingSha256) &&
@@ -27442,7 +27474,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
     binding.site,
     binding,
   );
-  require63(
+  require64(
     phase === 'launched'
       ? uuid2(input.newVmId) &&
           !Object.values(binding.before.nodes).some((vm) => lower14(vm.vmId) === lower14(input.newVmId))
@@ -27466,11 +27498,11 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       deadline.removeEventListener('abort', onAbort);
     }
   };
-  const unchanged = () => require63(same38(input, request), 'requested binding or phase changed during observation');
+  const unchanged = () => require64(same39(input, request), 'requested binding or phase changed during observation');
   const read = async (args) => {
     unchanged();
     const result = await bounded(() => api.exec('az', [...args, '--output', 'json'], { signal: deadline }));
-    require63(result.exitCode === 0, 'cloud observation unavailable');
+    require64(result.exitCode === 0, 'cloud observation unavailable');
     try {
       return JSON.parse(result.stdout);
     } catch {
@@ -27479,7 +27511,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
   };
   const collect = async () => {
     const account = object53(await read(['account', 'show', '--subscription', plan.subscription.id]));
-    require63(
+    require64(
       lower14(account.id) === lower14(plan.subscription.id) &&
         lower14(account.tenantId) === lower14(plan.subscription.tenantId) &&
         account.environmentName === plan.subscription.cloud &&
@@ -27495,7 +27527,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       plan.subscription.id,
       '--show-details',
     ]);
-    require63(Array.isArray(rows), 'complete VM discovery required');
+    require64(Array.isArray(rows), 'complete VM discovery required');
     const vms = rows.map(object53);
     const nodes = {},
       seenVm = new Set(),
@@ -27503,13 +27535,13 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
     const subnets = new Map();
     const subnet = async (id, expected) => {
       if (subnets.has(lower14(id))) {
-        require63(subnets.get(lower14(id)) === expected, 'conflicting frozen subnet CIDR');
+        require64(subnets.get(lower14(id)) === expected, 'conflicting frozen subnet CIDR');
         return;
       }
       const value = object53(
         await read(['network', 'vnet', 'subnet', 'show', '--ids', id, '--subscription', plan.subscription.id]),
       );
-      require63(
+      require64(
         value.nextLink === undefined &&
           lower14(value.id) === lower14(id) &&
           value.provisioningState === 'Succeeded' &&
@@ -27520,7 +27552,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
         ...(value.addressPrefix !== undefined ? [value.addressPrefix] : []),
         ...(Array.isArray(value.addressPrefixes) ? value.addressPrefixes : []),
       ];
-      require63(
+      require64(
         prefixes.length > 0 && prefixes.every((v) => typeof v === 'string' && v === expected),
         'subnet CIDR missing, changed or ambiguous',
       );
@@ -27533,15 +27565,15 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       const owner = node === selected && phase === 'launched' ? plan.planSha256 : old.ownerPlanSha256;
       const matches = vms.filter((vm) => lower14(vm.id) === lower14(old.resourceId));
       let vmId = null;
-      if (absent) require63(matches.length === 0, 'selected VM must be independently absent after quiesce');
+      if (absent) require64(matches.length === 0, 'selected VM must be independently absent after quiesce');
       else {
-        require63(matches.length === 1, 'VM discovery missing or duplicate');
+        require64(matches.length === 1, 'VM discovery missing or duplicate');
         const vm = matches[0];
         const tags = structuredClone(object53(object53(sourceVms[`node_${node}`]).tags));
         tags['xcsh-plan-sha256'] = owner;
         const attached = object53(vm.networkProfile).networkInterfaces;
         const expectedVmId = node === selected && phase === 'launched' ? input.newVmId : old.vmId;
-        require63(
+        require64(
           vm.nextLink === undefined &&
             vm.name === `${plan.deploymentName}-${node}` &&
             lower14(vm.location) === lower14(plan.region) &&
@@ -27549,9 +27581,9 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
             lower14(object53(vm.hardwareProfile).vmSize) === lower14(plan.vm.size) &&
             uuid2(vm.vmId) &&
             lower14(vm.vmId) === lower14(expectedVmId) &&
-            same38(vm.tags, tags) &&
+            same39(vm.tags, tags) &&
             Array.isArray(attached) &&
-            same38(
+            same39(
               attached.map((v) => lower14(object53(v).id)).sort(),
               Object.values(old.nics)
                 .map((n) => lower14(n.resourceId))
@@ -27559,7 +27591,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
             ),
           'VM generation, tags or attachment differs',
         );
-        require63(!seenVm.has(lower14(vm.vmId)), 'duplicate VM UUID');
+        require64(!seenVm.has(lower14(vm.vmId)), 'duplicate VM UUID');
         seenVm.add(lower14(vm.vmId));
         vmId = vm.vmId;
       }
@@ -27569,12 +27601,12 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
           await read(['network', 'nic', 'show', '--ids', nic.resourceId, '--subscription', plan.subscription.id]),
         );
         const tags = object53(object53(sourceNics[`node_${node}_nic_${index}`]).tags);
-        require63(
+        require64(
           value.nextLink === undefined &&
             lower14(value.id) === lower14(nic.resourceId) &&
             lower14(value.location) === lower14(plan.region) &&
             value.provisioningState === 'Succeeded' &&
-            same38(value.tags, tags) &&
+            same39(value.tags, tags) &&
             Array.isArray(value.ipConfigurations) &&
             value.ipConfigurations.length === 1,
           'full current NIC identity or IP configuration missing',
@@ -27583,7 +27615,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
           value.virtualMachine === undefined || value.virtualMachine === null
             ? null
             : object53(value.virtualMachine).id;
-        require63(
+        require64(
           absent
             ? attachment === null
             : typeof attachment === 'string' && lower14(attachment) === lower14(old.resourceId),
@@ -27591,7 +27623,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
         );
         const config = object53(value.ipConfigurations[0]),
           mac = lower14(value.macAddress).replaceAll('-', ':');
-        require63(
+        require64(
           mac === nic.mac &&
             !seenMac.has(mac) &&
             config.name === nic.ipConfigurationName &&
@@ -27622,7 +27654,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
   };
   const first = await collect(),
     nodes = await collect();
-  require63(same38(first, nodes), 'cloud phase identity changed across collection');
+  require64(same39(first, nodes), 'cloud phase identity changed across collection');
   unchanged();
   deadline.throwIfAborted();
   return {
@@ -27636,7 +27668,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
     currentOperationalAcceptanceQualified: false,
   };
 }
-var same38,
+var same39,
   lower14 = (v) => (typeof v === 'string' ? v.toLowerCase() : ''),
   uuid2 = (v) => typeof v === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
 var init_terraform_network_replacement_current = __esm(() => {
@@ -27646,7 +27678,7 @@ var init_terraform_network_replacement_current = __esm(() => {
   init_terraform_network_replacement_plan();
   init_terraform_network_replacement_source_binding();
   init_terraform_upgrade();
-  same38 = canonicalEqual;
+  same39 = canonicalEqual;
 });
 
 // plugins/platform/src/ce/bootstrap.ts
@@ -27684,7 +27716,7 @@ var init_bootstrap = () => {};
 // plugins/azure/src/ce/terraform-network-replacement-enrollment.ts
 import { createHash as createHash17 } from 'node:crypto';
 
-function require64(v, message) {
+function require65(v, message) {
   if (!v) throw Error(`Azure Terraform network replacement enrollment: ${message}`);
 }
 async function observeAzureTerraformNetworkReplacementEnrollment(
@@ -27703,9 +27735,9 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
   const binding = azureUpgradeBinding(plan),
     node = `${plan.deploymentName}-${plan.intent.replacementNode}`,
     tokenName = `${plan.deploymentName.slice(0, 40)}-${plan.intent.replacementNode}-${plan.planSha256.slice(0, 12)}`;
-  require64(
+  require65(
     runtime.engine === 'terraform' &&
-      same39(owner, binding.owner) &&
+      same40(owner, binding.owner) &&
       /^[a-f0-9]{64}$/.test(expectedBootstrapSha256) &&
       digest6(bootstrap) === expectedBootstrapSha256,
     'resolved owning bootstrap and engine required',
@@ -27725,12 +27757,12 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
     }
   };
   const verify = async () => {
-    require64(
-      same39(plan, request) && same39(owner, store.owner) && runtime.engine === 'terraform',
+    require65(
+      same40(plan, request) && same40(owner, store.owner) && runtime.engine === 'terraform',
       'owning enrollment context changed',
     );
     await bounded(() => store.verify());
-    require64(same39(plan, request) && same39(owner, store.owner), 'owning enrollment context changed');
+    require65(same40(plan, request) && same40(owner, store.owner), 'owning enrollment context changed');
   };
   await verify();
   let raw;
@@ -27743,9 +27775,9 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
     }
     throw error;
   }
-  require64(raw && typeof raw === 'object' && !Array.isArray(raw), 'complete owning private token required');
+  require65(raw && typeof raw === 'object' && !Array.isArray(raw), 'complete owning private token required');
   const token = raw;
-  require64(
+  require65(
     Object.keys(token).sort().join(',') === 'jwt,node,siteName,tokenName' &&
       token.tokenName === tokenName &&
       token.node === node &&
@@ -27753,7 +27785,7 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
       typeof token.jwt === 'string',
     'owning private token identity differs',
   );
-  require64(
+  require65(
     bindAwsCloudInit({ cloud_init_config: bootstrap }, token.jwt) === bootstrap,
     'private JWT differs from frozen compiled bootstrap',
   );
@@ -27764,13 +27796,13 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
     const current = await bounded(() =>
       runtime.observeIssuedBootstrapToken(binding, node, tokenName, tokenSha256, deadline),
     );
-    require64(
+    require65(
       current &&
         Object.keys(current).sort().join(',') ===
           'expiresAt,kind,node,owner,schemaVersion,siteName,tokenName,tokenSha256' &&
         current.schemaVersion === 1 &&
         current.kind === 'ce-issued-bootstrap-current' &&
-        same39(current.owner, owner) &&
+        same40(current.owner, owner) &&
         current.node === node &&
         current.tokenName === tokenName &&
         current.siteName === plan.siteName &&
@@ -27784,12 +27816,12 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
     deadline.throwIfAborted();
   }
   await verify();
-  require64(
+  require65(
     canonicalSha256(await bounded(() => store.read(`${tokenName}.json`))) === privateTokenSha256,
     'private token changed during current observation',
   );
-  require64(
-    same39(plan, request) && same39(owner, store.owner) && runtime.engine === 'terraform',
+  require65(
+    same40(plan, request) && same40(owner, store.owner) && runtime.engine === 'terraform',
     'owning enrollment context changed',
   );
   deadline.throwIfAborted();
@@ -27804,20 +27836,20 @@ async function observeAzureTerraformNetworkReplacementEnrollment(
   };
 }
 var digest6 = (v) => createHash17('sha256').update(v).digest('hex'),
-  same39;
+  same40;
 var init_terraform_network_replacement_enrollment = __esm(() => {
   init_bootstrap();
   init_artifacts();
   init_canonical();
   init_terraform_network_replacement_plan();
   init_terraform_upgrade();
-  same39 = canonicalEqual;
+  same40 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-execution.ts
 import { createHash as createHash18 } from 'node:crypto';
 
-function require65(v, message) {
+function require66(v, message) {
   if (!v) throw Error(`Azure Terraform network replacement execution: ${message}`);
 }
 async function openAzureTerraformNetworkReplacementExecution(request, store, session, api, dependencies, signal) {
@@ -27825,7 +27857,7 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
   const plan = structuredClone(request),
     site = structuredClone(dependencies.site),
     { journalSha256, sourceBindingSha256 } = dependencies;
-  require65(
+  require66(
     typeof dependencies.collectOperational === 'function' &&
       typeof dependencies.qualifyOperational === 'function' &&
       typeof dependencies.qualifyCompletedOperational === 'function',
@@ -27847,9 +27879,9 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
     }
   };
   const unchanged = () =>
-    require65(
-      same40(request, plan) &&
-        same40(dependencies.site, site) &&
+    require66(
+      same41(request, plan) &&
+        same41(dependencies.site, site) &&
         dependencies.journalSha256 === journalSha256 &&
         dependencies.sourceBindingSha256 === sourceBindingSha256,
       'owning execution request changed',
@@ -27867,7 +27899,7 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
       undefined,
       dependencies.qualifyCompletedOperational,
     );
-    require65(
+    require66(
       qualified.execution.journal.sourceBindingSha256 === sourceBindingSha256 &&
         qualified.source.sourceBindingSha256 === sourceBindingSha256,
       'journal source-binding digest differs',
@@ -27879,11 +27911,11 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
     retainedPlan = structuredClone(await bounded(() => dependencies.loaders.loadSource(binding.retainedPlanSha256)));
   await authenticate();
   const verifyConfiguration = async (configurationSha256) => {
-    require65(
+    require66(
       (await bounded(() => session.readConfigurationSha256?.() ?? Promise.resolve(undefined))) === configurationSha256,
       'current private configuration revision differs',
     );
-    require65(
+    require66(
       digest7(await bounded(() => session.readConfiguration(configurationSha256))) === configurationSha256,
       'current private configuration bytes differ',
     );
@@ -27918,9 +27950,9 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
           ownerPlanSha256: nic.ownerPlanSha256,
         };
     }
-    require65(
+    require66(
       source === binding.source &&
-        same40(state, {
+        same41(state, {
           oldVmIds,
           ownerPlanSha256ByNode,
           retainedNics,
@@ -27949,8 +27981,8 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
       const verification = await bounded(() =>
         dependencies.qualifyOperational(structuredClone(receipt), structuredClone(identity), deadline),
       );
-      require65(
-        same40(Object.keys(verification).sort(), ['evidenceSha256', 'scope', 'status']) &&
+      require66(
+        same41(Object.keys(verification).sort(), ['evidenceSha256', 'scope', 'status']) &&
           verification.status === 'verified' &&
           verification.scope === 'node-interfaces-routing-traffic' &&
           typeof verification.evidenceSha256 === 'string' &&
@@ -27962,7 +27994,7 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
       deadline.throwIfAborted();
     }
     const after = await check(configurationSha256, phase, newVmId);
-    require65(same40(before.nodes, after.nodes), 'current identities changed across operational collection');
+    require66(same41(before.nodes, after.nodes), 'current identities changed across operational collection');
     return packet ? { identity, ...packet } : undefined;
   };
   return {
@@ -27974,23 +28006,23 @@ async function openAzureTerraformNetworkReplacementExecution(request, store, ses
     operational,
   };
 }
-var same40,
+var same41,
   digest7 = (v) => createHash18('sha256').update(v).digest('hex');
 var init_terraform_network_replacement_execution = __esm(() => {
   init_canonical();
   init_terraform_network_replacement_current();
   init_terraform_network_replacement_execution_journal();
-  same40 = canonicalEqual;
+  same41 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-refresh-inventory.ts
 import { createHash as createHash19 } from 'node:crypto';
 
-function require66(v, reason) {
+function require67(v, reason) {
   if (!v) throw Error(`Azure Terraform replacement refresh inventory: ${reason}`);
 }
 function keys10(v, names) {
-  require66(
+  require67(
     v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join(',') === names.toSorted().join(','),
     'exact schema required',
   );
@@ -28000,7 +28032,7 @@ async function binding(c, completion) {
     deployment = await c.bounded(() => azureTerraformCurrentDeployment(c.plan));
   const { configuration: _source, providerLock, ...identity } = deployment;
   const providerLockSha256 = createHash19('sha256').update(providerLock).digest('hex');
-  require66(providerLockSha256 === packet.providerLockSha256, 'native provider lock differs from immutable completion');
+  require67(providerLockSha256 === packet.providerLockSha256, 'native provider lock differs from immutable completion');
   c.unchanged();
   return {
     owner: structuredClone(c.owner),
@@ -28022,7 +28054,7 @@ async function binding(c, completion) {
 }
 function validate2(c, record, expected) {
   keys10(record, ['schemaVersion', 'kind', 'binding', 'previousInventorySha256', 'receipts']);
-  require66(
+  require67(
     record.schemaVersion === 1 &&
       record.kind === 'azure-terraform-network-replacement-refresh-inventory' &&
       canonicalEqual(record.binding, expected) &&
@@ -28035,7 +28067,7 @@ function validate2(c, record, expected) {
     seen = new Set();
   for (const row of inventory.receipts) {
     keys10(row, ['receiptSha256', 'receipt', 'nativeHistory', 'nativeHistorySha256']);
-    require66(
+    require67(
       sha9(row.receiptSha256) &&
         row.receiptSha256 === canonicalSha256(row.receipt) &&
         !seen.has(row.receiptSha256) &&
@@ -28049,7 +28081,7 @@ function validate2(c, record, expected) {
       row.receipt,
       c.binding.providerLockSha256,
     );
-    require66(
+    require67(
       row.receipt.noChanges && row.receipt.changes.every((v) => v.actions.join(',') === 'no-op'),
       'refresh must be a complete no-change receipt',
     );
@@ -28064,7 +28096,7 @@ function validate2(c, record, expected) {
       'applicationOutcomeQualified',
       'retirementQualified',
     ]);
-    require66(
+    require67(
       h.schemaVersion === 1 &&
         h.scope === 'exact-saved-plan-journal-history' &&
         h.receiptSha256 === row.receiptSha256 &&
@@ -28088,7 +28120,7 @@ function validate2(c, record, expected) {
         'manifestSha256',
       ]);
       const occurrence = `${match.location}:${match.archiveSha256}`;
-      require66(
+      require67(
         ['current', 'revision', 'plan-history'].includes(String(match.location)) &&
           sha9(match.archiveSha256) &&
           sha9(match.journalSha256) &&
@@ -28111,17 +28143,17 @@ async function readChain(c, store, digest, expected) {
   let next = digest,
     descendant;
   while (next !== null) {
-    require66(sha9(next) && !seen.has(next), 'inventory prefix digest is cyclic or malformed');
+    require67(sha9(next) && !seen.has(next), 'inventory prefix digest is cyclic or malformed');
     seen.add(next);
     const publication = await c.bounded(() => readImmutableCeReceipt(store, receiptNamespace, next, c.deadline));
     const record = validate2(c, publication.record, expected);
     if (descendant)
-      require66(
+      require67(
         record.receipts.length + 1 === descendant.receipts.length &&
           canonicalEqual(record.receipts, descendant.receipts.slice(0, -1)),
         'inventory prefix is partial or reordered',
       );
-    require66(record.previousInventorySha256 !== null || record.receipts.length === 1, 'inventory prefix root differs');
+    require67(record.previousInventorySha256 !== null || record.receipts.length === 1, 'inventory prefix root differs');
     publications.push({ ...publication, record });
     descendant = record;
     next = record.previousInventorySha256;
@@ -28131,7 +28163,7 @@ async function readChain(c, store, digest, expected) {
       const fresh = await c.bounded(() =>
         readImmutableCeReceipt(store, receiptNamespace, original.publicationSha256, c.deadline),
       );
-      require66(
+      require67(
         canonicalEqual(fresh, {
           name: original.name,
           publicationSha256: original.publicationSha256,
@@ -28152,22 +28184,22 @@ async function readAzureTerraformReplacementRefreshInventory(c, store, completio
     pointer = await c.read(pointerName(c.plan));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    require66(expectedDigest === undefined, 'outcome inventory publication is missing');
-    require66(
+    require67(expectedDigest === undefined, 'outcome inventory publication is missing');
+    require67(
       canonicalEqual(c.latestFinal, validateAzureTerraformNetworkReplacementCompletion(c, completion).finalReceipt),
       'missing refresh inventory cannot discard a newer final receipt',
     );
     return;
   }
   keys10(pointer, ['schemaVersion', 'inventorySha256']);
-  require66(
+  require67(
     pointer.schemaVersion === 1 && sha9(pointer.inventorySha256) && pointer.inventorySha256 === expectedDigest,
     'inventory differs from authenticated owning outcome',
   );
   const chain = await readChain(c, store, pointer.inventorySha256, await binding(c, completion)),
     publication = chain.publication,
     record = publication.record;
-  require66(
+  require67(
     canonicalEqual(record.receipts.at(-1)?.receipt, c.latestFinal),
     'latest refresh publication is stale or partial',
   );
@@ -28176,7 +28208,7 @@ async function readAzureTerraformReplacementRefreshInventory(c, store, completio
   const again = await c.bounded(() =>
     readImmutableCeReceipt(store, receiptNamespace, publication.publicationSha256, c.deadline),
   );
-  require66(canonicalEqual(again, publication), 'immutable inventory changed across provenance callbacks');
+  require67(canonicalEqual(again, publication), 'immutable inventory changed across provenance callbacks');
   return { ...publication, record };
 }
 async function publishAzureTerraformReplacementRefreshInventory(
@@ -28206,7 +28238,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
     } = session;
   const seal = () => {
     c.unchanged();
-    require66(
+    require67(
       canonicalEqual(finalRequest, final) &&
         session.readPlanApplicationHistory === readHistory &&
         session.readPlanApplicationState === readState &&
@@ -28215,7 +28247,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
       'owning refresh request/readers changed',
     );
   };
-  require66(
+  require67(
     typeof readHistory === 'function' &&
       typeof readState === 'function' &&
       typeof readConfig === 'function' &&
@@ -28223,7 +28255,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
     'native current and historical receipt readers required',
   );
   validateAzureTerraformReplacementStageReceipt(c.plan, c.material.stages.launch, final, expected.providerLockSha256);
-  require66(
+  require67(
     final.noChanges && final.changes.every((v) => v.actions.join(',') === 'no-op'),
     'final refresh is not no-change',
   );
@@ -28231,7 +28263,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
   try {
     const pointer = await c.read(pointerName(c.plan));
     keys10(pointer, ['schemaVersion', 'inventorySha256']);
-    require66(pointer.schemaVersion === 1 && sha9(pointer.inventorySha256), 'prior inventory pointer differs');
+    require67(pointer.schemaVersion === 1 && sha9(pointer.inventorySha256), 'prior inventory pointer differs');
     priorDigest = pointer.inventorySha256;
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
@@ -28242,13 +28274,13 @@ async function publishAzureTerraformReplacementRefreshInventory(
     const chain = await readChain(c, store, priorDigest, expected);
     rows = structuredClone(chain.publication.record.receipts);
     finishPrior = chain.finish;
-    require66(
+    require67(
       rows.some((row) => canonicalEqual(row.receipt, c.latestFinal)) ||
         canonicalEqual(c.latestFinal, validateAzureTerraformNetworkReplacementCompletion(c, completion).finalReceipt),
       'interrupted refresh does not preserve the exact prior publication',
     );
   } else {
-    require66(
+    require67(
       canonicalEqual(c.latestFinal, validateAzureTerraformNetworkReplacementCompletion(c, completion).finalReceipt),
       'uninventoried prior refresh cannot be discarded',
     );
@@ -28263,7 +28295,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
   const priorHistories = new Map();
   const native = async () => {
     seal();
-    require66(
+    require67(
       (await c.bounded(() => readConfig.call(session))) === expected.finalConfigurationSha256 &&
         (await c.bounded(() => readSource.call(session, expected.finalConfigurationSha256))) ===
           c.material.stages.launch.configuration &&
@@ -28273,7 +28305,7 @@ async function publishAzureTerraformReplacementRefreshInventory(
     for (const row of rows) {
       const actual = await c.bounded(() => readHistory.call(session, structuredClone(row.receipt), c.deadline));
       seal();
-      require66(
+      require67(
         actual.manifestSha256 === manifestSha256 && actual.matches.every((m) => m.manifestSha256 === manifestSha256),
         'retained refresh native manifest differs',
       );
@@ -28290,12 +28322,12 @@ async function publishAzureTerraformReplacementRefreshInventory(
       );
       const digest = canonicalSha256(actual),
         prior = priorHistories.get(row.receiptSha256);
-      require66(prior === undefined || prior === digest, 'retained native refresh changed across callbacks');
+      require67(prior === undefined || prior === digest, 'retained native refresh changed across callbacks');
       priorHistories.set(row.receiptSha256, digest);
     }
     const history = await c.bounded(() => readHistory.call(session, structuredClone(final), c.deadline));
     seal();
-    require66(
+    require67(
       history.manifestSha256 === manifestSha256 && history.matches.every((m) => m.manifestSha256 === manifestSha256),
       'native executor/provider/manifest binding differs',
     );
@@ -28303,9 +28335,9 @@ async function publishAzureTerraformReplacementRefreshInventory(
   };
   const history = await native();
   const existing = rows.find((row) => row.receiptSha256 === finalDigest);
-  require66(!existing || rows.at(-1) === existing, 'old refresh receipt cannot be reordered');
+  require67(!existing || rows.at(-1) === existing, 'old refresh receipt cannot be reordered');
   if (existing) {
-    require66(canonicalEqual(existing.nativeHistory, history), 'interrupted refresh native provenance changed');
+    require67(canonicalEqual(existing.nativeHistory, history), 'interrupted refresh native provenance changed');
     await c.finish();
     await finishPrior();
     seal();
@@ -28328,19 +28360,19 @@ async function publishAzureTerraformReplacementRefreshInventory(
     },
     expected,
   );
-  require66(canonicalEqual(await native(), history), 'native refresh history changed across callbacks');
+  require67(canonicalEqual(await native(), history), 'native refresh history changed across callbacks');
   await c.finish();
   await finishPrior();
   seal();
   const publication = await c.bounded(() => publishImmutableCeReceipt(store, receiptNamespace, record, c.deadline));
-  require66(canonicalEqual(await native(), history), 'native refresh changed during immutable publication');
+  require67(canonicalEqual(await native(), history), 'native refresh changed during immutable publication');
   await c.finish();
   await finishPrior();
   seal();
   await c.bounded(() =>
     store.write(pointerName(c.plan), { schemaVersion: 1, inventorySha256: publication.publicationSha256 }),
   );
-  require66(
+  require67(
     canonicalEqual(await store.read(pointerName(c.plan)), {
       schemaVersion: 1,
       inventorySha256: publication.publicationSha256,
@@ -29862,28 +29894,28 @@ var init_terraform_replacement = __esm(() => {
 function verifyAzureTerraformReplacementGenerationOwners(plan, current, original, sources, checkpoints) {
   verifyAzureCePlan(plan);
   verifyAzureCePlan(original);
-  require67(
+  require68(
     plan.engine === 'terraform' &&
       !plan.relayProfile &&
       plan.intent.operation === 'replace-node' &&
       original.engine === 'terraform' &&
       !original.relayProfile &&
       original.intent.operation === 'deploy' &&
-      same41(azureUpgradeBinding(plan), azureUpgradeBinding(original)) &&
-      same41(scope2(plan), scope2(original)) &&
-      same41(sources.get(original.planSha256), original),
+      same42(azureUpgradeBinding(plan), azureUpgradeBinding(original)) &&
+      same42(scope2(plan), scope2(original)) &&
+      same42(sources.get(original.planSha256), original),
     'exact original creation differs',
   );
   const nodes = azureUpgradeBinding(original).nodes;
   const boundaries = new Map();
   const validateInventory = (state) => {
-    require67(
-      same41(Object.keys(state.oldVmIds).sort(), nodes.toSorted()) &&
-        same41(Object.keys(state.ownerPlanSha256ByNode).sort(), nodes.toSorted()) &&
+    require68(
+      same42(Object.keys(state.oldVmIds).sort(), nodes.toSorted()) &&
+        same42(Object.keys(state.ownerPlanSha256ByNode).sort(), nodes.toSorted()) &&
         Object.values(state.oldVmIds).every((id) => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) &&
         new Set(Object.values(state.oldVmIds).map((id) => id.toLowerCase())).size === nodes.length &&
         validAzureRetainedNicsForSource(original, state.retainedNics) &&
-        same41(state.retainedNics, current.retainedNics) &&
+        same42(state.retainedNics, current.retainedNics) &&
         state.siteUid === current.siteUid &&
         state.siteConfigurationSha256 === current.siteConfigurationSha256,
       'complete original interface, logical site or UUID inventory differs',
@@ -29891,32 +29923,32 @@ function verifyAzureTerraformReplacementGenerationOwners(plan, current, original
   };
   validateInventory(current);
   const visit = (owner, node, vmId, path) => {
-    require67(!path.has(owner), 'recursive generation owner');
+    require68(!path.has(owner), 'recursive generation owner');
     const boundary = `${owner}:${node}`;
     const normalized = vmId.toLowerCase();
-    require67(
+    require68(
       !boundaries.has(boundary) || boundaries.get(boundary) === normalized,
       'survivor UUID differs across generation boundaries',
     );
     boundaries.set(boundary, normalized);
     const source = sources.get(owner);
-    require67(source, 'generation source is unresolved');
+    require68(source, 'generation source is unresolved');
     verifyAzureCePlan(source);
-    require67(
+    require68(
       source?.planSha256 === owner &&
         source.engine === 'terraform' &&
         !source.relayProfile &&
-        same41(azureUpgradeBinding(source), azureUpgradeBinding(original)) &&
-        same41(scope2(source), scope2(original)),
+        same42(azureUpgradeBinding(source), azureUpgradeBinding(original)) &&
+        same42(scope2(source), scope2(original)),
       'generation source scope differs',
     );
     if (owner === original.planSha256) return;
-    require67(
+    require68(
       source?.intent.operation === 'replace-node' && source.intent.replacementNode === nodes.indexOf(node) + 1,
       'generation owns a different selected node',
     );
     const prior = validateAzureTerraformReplacementCheckpoint(source, checkpoints.get(owner));
-    require67(
+    require68(
       prior.phase === 'complete' && prior.newVmId?.toLowerCase() === normalized,
       'predecessor completion or selected UUID differs',
     );
@@ -29928,10 +29960,10 @@ function verifyAzureTerraformReplacementGenerationOwners(plan, current, original
   for (const node of nodes)
     visit(current.ownerPlanSha256ByNode[node], node, current.oldVmIds[node], new Set([plan.planSha256]));
 }
-var require67 = (condition, message) => {
+var require68 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform generation provenance: ${message}`);
   },
-  same41,
+  same42,
   scope2 = (plan) => {
     const { operation: _operation, replacementNode: _node, ...intent } = plan.intent;
     const { termsAccepted: _terms, ...image } = plan.image;
@@ -29953,7 +29985,7 @@ var init_terraform_replacement_generations = __esm(() => {
   init_relay_replacement_identity();
   init_terraform_replacement();
   init_terraform_upgrade();
-  same41 = canonicalEqual;
+  same42 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-replacement-artifact-provenance.ts
@@ -29971,10 +30003,10 @@ function verifyRecovery(plan, checkpoint, phase, value) {
   const selected = `${plan.deploymentName}-${checkpoint.node}`;
   const instances = object56(record.currentVmIds);
   const nodes = Object.keys(checkpoint.oldVmIds).filter((node) => phase !== 'quiesce' || node !== selected);
-  require68(same42(Object.keys(instances).sort(), nodes.sort()), 'recovery node inventory differs');
+  require69(same43(Object.keys(instances).sort(), nodes.sort()), 'recovery node inventory differs');
   for (const node of nodes) {
     const id = instances[node];
-    require68(
+    require69(
       uuid4(id) &&
         (node === selected
           ? !Object.values(checkpoint.oldVmIds).some((old) => lower16(old) === lower16(id)) &&
@@ -29992,7 +30024,7 @@ function verifyRecovery(plan, checkpoint, phase, value) {
         mac: checkpoint.retainedNics[`${index + 1}:${nic.index}`].mac,
       })),
   ).flat();
-  require68(same42(record.expectedInterfaces, expected), 'recovery retained interface inventory differs');
+  require69(same43(record.expectedInterfaces, expected), 'recovery retained interface inventory differs');
 }
 function nonRelayScope(plan) {
   const { operation: _operation, replacementNode: _node, ...intent } = plan.intent;
@@ -30010,7 +30042,7 @@ function nonRelayScope(plan) {
   };
 }
 function verifyAzureTerraformNonRelayConfiguration(base, checkpoint, configuration) {
-  require68(
+  require69(
     base.intent.operation === 'deploy' &&
       !base.relayProfile &&
       validAzureRetainedNicsForSource(base, checkpoint.retainedNics),
@@ -30020,7 +30052,7 @@ function verifyAzureTerraformNonRelayConfiguration(base, checkpoint, configurati
   const bootstrap = {};
   for (let index = 1; index <= base.topology.nodeCount; index++) {
     const encoded = object56(instances[`node_${index}`]).custom_data;
-    require68(
+    require69(
       typeof encoded === 'string' && Buffer.from(encoded, 'base64').toString('base64') === encoded,
       'retained bootstrap encoding differs',
     );
@@ -30031,38 +30063,38 @@ function verifyAzureTerraformNonRelayConfiguration(base, checkpoint, configurati
   for (let index = 1; index <= base.topology.nodeCount; index++)
     object56(object56(expectedVms[`node_${index}`]).tags)['xcsh-plan-sha256'] =
       checkpoint.ownerPlanSha256ByNode[`${base.deploymentName}-${index}`];
-  require68(same42(configuration, expected), 'retained non-relay configuration graph differs');
+  require69(same43(configuration, expected), 'retained non-relay configuration graph differs');
 }
 function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records, providerLockSha256) {
   const generations = new Map();
   for (const [name, value] of records) {
     if (!isAzureTerraformReplacementHistoricalArtifact(name)) continue;
     const id = /^(azure-ce-[a-f0-9]{24})-/.exec(name)?.[1];
-    require68(id, 'generation filename differs');
+    require69(id, 'generation filename differs');
     if (!generations.has(String(id))) generations.set(String(id), new Map());
     generations.get(String(id))?.set(name, value);
   }
   if (!generations.size) return;
   verifyAzureCePlan(base);
   const ownedSites = sites.filter((site) => site.siteName === base.siteName);
-  require68(base.engine === 'terraform' && ownedSites.length === 1, 'owning engine or logical site differs');
+  require69(base.engine === 'terraform' && ownedSites.length === 1, 'owning engine or logical site differs');
   const site = ownedSites[0];
   const sources = new Map([[base.planSha256, base]]);
   for (const [id, history] of generations) {
     const source = object56(history.get(`${id}-terraform-replacement-plan.json`));
     verifyAzureCePlan(source);
-    require68(
+    require69(
       source.planId === id &&
         source.engine === 'terraform' &&
         source.intent.operation === 'replace-node' &&
-        same42(azureUpgradeBinding(source), azureUpgradeBinding(base)) &&
+        same43(azureUpgradeBinding(source), azureUpgradeBinding(base)) &&
         (source.relayProfile
           ? source.relayProfile.schemaVersion === 2 &&
-            same42(azureRelayResourceSource(source), azureRelayResourceSource(base))
-          : !base.relayProfile && same42(nonRelayScope(source), nonRelayScope(base))),
+            same43(azureRelayResourceSource(source), azureRelayResourceSource(base))
+          : !base.relayProfile && same43(nonRelayScope(source), nonRelayScope(base))),
       'generation or original resource owner differs',
     );
-    require68(!sources.has(source.planSha256), 'duplicate generation source');
+    require69(!sources.has(source.planSha256), 'duplicate generation source');
     sources.set(source.planSha256, source);
   }
   const checkpoints = new Map();
@@ -30081,7 +30113,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
   }
   const tokens = new Map();
   for (const token of site.tokens) {
-    require68(
+    require69(
       azureUpgradeBinding(base).nodes.includes(token.node) &&
         /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(token.name) &&
         !tokens.has(token.name),
@@ -30097,7 +30129,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     if (material === undefined && record === undefined) return;
     const value = object56(record);
     exact(value, ['jwt', 'node', 'siteName', 'tokenName']);
-    require68(
+    require69(
       token?.node === node &&
         value.node === node &&
         value.tokenName === name &&
@@ -30113,7 +30145,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     const checkpointValue = history.get(`${id}-terraform-replacement.json`);
     const snapshotValue = history.get(`${id}-terraform-replacement-source.json`);
     if (checkpointValue === undefined && snapshotValue === undefined) {
-      require68(
+      require69(
         history.size === 1 && history.has(azureTerraformReplacementPlanName(source)),
         'orphan generation execution history',
       );
@@ -30125,9 +30157,9 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
       source,
       checkpointValue === undefined ? snapshot.preparedCheckpoint : checkpointValue,
     );
-    require68(checkpoint.siteUid === site.siteUid, 'logical site UID differs');
+    require69(checkpoint.siteUid === site.siteUid, 'logical site UID differs');
     if (checkpointValue === undefined)
-      require68(history.size === 2 && checkpoint.phase === 'prepared', 'orphan stage without initial checkpoint');
+      require69(history.size === 2 && checkpoint.phase === 'prepared', 'orphan stage without initial checkpoint');
     const material = validateAzureTerraformReplacementSource(source, checkpoint, snapshot);
     validateAzureTerraformReplacementStageHistory(source, checkpoint, snapshot, history, providerLockSha256);
     bind(source, checkpoint.node, material.bootstrap);
@@ -30139,27 +30171,27 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     const instances = object56(object56(configuration.resource).azurerm_linux_virtual_machine);
     for (let index = 1; index <= source.topology.nodeCount; index++) {
       const owner = sources.get(checkpoint.ownerPlanSha256ByNode[`${source.deploymentName}-${index}`]);
-      require68(
+      require69(
         owner && (owner.intent.operation === 'deploy' || owner.intent.replacementNode === index),
         'retained bootstrap generation source is unresolved',
       );
       const encoded = object56(instances[`node_${index}`]).custom_data;
-      require68(typeof encoded === 'string', 'retained bootstrap is unavailable');
+      require69(typeof encoded === 'string', 'retained bootstrap is unavailable');
       bind(owner, index, Buffer.from(encoded, 'base64').toString('utf8'));
     }
     const predecessor =
       source.relayProfile?.schemaVersion === 2 ? source.relayProfile.retainedDeploymentPlan : undefined;
     if (predecessor?.relayProfile?.schemaVersion === 2) {
       const previous = generations.get(predecessor.planId);
-      require68(
-        previous && same42(previous.get(azureTerraformReplacementPlanName(predecessor)), predecessor),
+      require69(
+        previous && same43(previous.get(azureTerraformReplacementPlanName(predecessor)), predecessor),
         'predecessor generation execution history is unavailable',
       );
       const previousCheckpoint = validateAzureTerraformReplacementCheckpoint(
         predecessor,
         previous?.get(`${predecessor.planId}-terraform-replacement.json`),
       );
-      require68(previousCheckpoint.phase === 'complete', 'predecessor execution is incomplete');
+      require69(previousCheckpoint.phase === 'complete', 'predecessor execution is incomplete');
       const relay = new Map();
       for (const name of azureRelayHistoricalArtifacts)
         relay.set(name, previous?.get(`${predecessor.planId}-replacement-${name}`));
@@ -30168,7 +30200,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     for (const phase of ['quiesce', 'launch']) {
       const recovery = history.get(`${id}-terraform-${phase}-recovery.json`);
       if (recovery !== undefined) {
-        require68(history.has(`${id}-terraform-${phase}-plan.json`), 'recovery stage plan is unavailable');
+        require69(history.has(`${id}-terraform-${phase}-plan.json`), 'recovery stage plan is unavailable');
         verifyRecovery(source, checkpoint, phase, recovery);
       }
     }
@@ -30177,7 +30209,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
       const registration = object56(registrationValue);
       exact(registration, ['action', 'instanceId', 'node', 'registration', 'siteName', 'state']);
       const selected = `${source.deploymentName}-${checkpoint.node}`;
-      require68(
+      require69(
         ['launched', 'complete'].includes(checkpoint.phase) &&
           registration.action === 'approve-registration' &&
           ['requested', 'submitted'].includes(String(registration.state)) &&
@@ -30199,25 +30231,25 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
   }
   if (base.relayProfile) verifyAzureRelayReplacementHistories(base, site.siteUid, records, sources);
   else
-    require68(
+    require69(
       !Array.from(records.keys()).some(isAzureRelayReplacementHistoricalArtifact),
       'relay journal on non-relay source',
     );
 }
-var require68 = (condition, message) => {
+var require69 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform replacement artifact provenance: ${message}`);
   },
   object56 = (value) => {
-    require68(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
+    require69(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
-  same42,
+  same43,
   lower16 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   uuid4 = (value) => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value),
   exact = (value, expected) =>
-    require68(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
+    require69(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
   collectedAt = (value) =>
-    require68(
+    require69(
       typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
       'collection timestamp differs',
     );
@@ -30232,13 +30264,13 @@ var init_terraform_replacement_artifact_provenance = __esm(() => {
   init_terraform_replacement();
   init_terraform_replacement_generations();
   init_terraform_upgrade();
-  same42 = canonicalEqual;
+  same43 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-update-source.ts
 import { createHash as createHash22 } from 'node:crypto';
 
-function require69(value, message) {
+function require70(value, message) {
   if (!value) throw Error(`Azure Terraform network source: ${message}`);
 }
 function verifyAzureTerraformNetworkUpdateState(plan, inventory, outputs) {
@@ -30247,7 +30279,7 @@ function verifyAzureTerraformNetworkUpdateState(plan, inventory, outputs) {
 }
 function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
   verifyAzureCePlan(plan);
-  require69(
+  require70(
     plan.engine === 'terraform' &&
       keys11(inventory, ['schemaVersion', 'engine', 'planSha256', 'collectedAt', 'nodes']) &&
       inventory.schemaVersion === 1 &&
@@ -30261,7 +30293,7 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
   const nodes = Object.keys(inventory.nodes),
     instances = object57(outputs.ce_instances),
     interfaces = object57(outputs.ce_interfaces);
-  require69(
+  require70(
     keys11(instances, nodes) &&
       keys11(
         interfaces,
@@ -30271,7 +30303,7 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
   );
   for (const [node, vm] of Object.entries(inventory.nodes)) {
     const instance = object57(instances[node]);
-    require69(
+    require70(
       keys11(instance, ['id', 'vm_id', 'site_name', 'hostname']) &&
         lower17(instance.id) === lower17(vm.resourceId) &&
         lower17(instance.vm_id) === lower17(vm.vmId) &&
@@ -30281,7 +30313,7 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
     );
     for (const [index, nic] of Object.entries(vm.nics)) {
       const row = object57(interfaces[`${node}:${index}`]);
-      require69(
+      require70(
         keys11(row, ['id', 'node', 'index', 'role', 'site_name', 'subnet_id']) &&
           lower17(row.id) === lower17(nic.resourceId) &&
           row.node === Number(node) &&
@@ -30306,14 +30338,14 @@ async function qualifyAzureTerraformNetworkUpdateSource(
 ) {
   verifyAzureCePlan(plan);
   validateAzureNetworkUpdateInventory(plan, inventory);
-  require69(
+  require70(
     plan.engine === 'terraform' &&
       !plan.relayProfile &&
       plan.intent.operation === 'update-network' &&
-      same43(store.owner, azureUpgradeBinding(plan).owner),
+      same44(store.owner, azureUpgradeBinding(plan).owner),
     'owned Terraform network intent required',
   );
-  require69(
+  require70(
     providerLockSha256 === hash9((await azureTerraformCurrentDeployment(plan)).providerLock) &&
       /^[a-f0-9]{64}$/.test(site.siteConfigurationSha256) &&
       typeof site.siteUid === 'string' &&
@@ -30322,7 +30354,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   );
   await store.verify();
   const workflow = object57(await store.read('terraform-workflow.json'));
-  require69(
+  require70(
     workflow.schemaVersion === 1 &&
       workflow.engine === 'terraform' &&
       workflow.stage === 'registered' &&
@@ -30332,17 +30364,17 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   );
   const original = await loadSource(workflow.planSha256);
   verifyAzureCePlan(original);
-  require69(
+  require70(
     original.planSha256 === workflow.planSha256 &&
       original.engine === 'terraform' &&
       !original.relayProfile &&
       original.intent.operation === 'deploy' &&
-      same43(azureUpgradeBinding(original), azureUpgradeBinding(plan)) &&
-      same43(scope3(original, true), scope3(plan, true)),
+      same44(azureUpgradeBinding(original), azureUpgradeBinding(plan)) &&
+      same44(scope3(original, true), scope3(plan, true)),
     'original creation scope differs beyond permitted subnet changes',
   );
   const networkProfile = plan.terraformNetworkProfile ? verifyAzureTerraformNetworkProfile(plan) : undefined;
-  require69(
+  require70(
     !networkProfile || networkProfile.originalPlanSha256 === original.planSha256,
     'explicit original differs from completed admission',
   );
@@ -30351,7 +30383,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     indices = nodes.map((_, i) => String(i + 1));
   const bootstrap = object57(workflow.bootstrapByNode),
     launches = object57(workflow.launchedAtByNode);
-  require69(
+  require70(
     keys11(bootstrap, indices) &&
       keys11(launches, indices) &&
       indices.every(
@@ -30366,8 +30398,8 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     'original admitted bootstrap, launch or configuration differs',
   );
   const reservation = object57(await store.read('terraform-site.json'));
-  require69(
-    same43(reservation.owner, binding.owner) &&
+  require70(
+    same44(reservation.owner, binding.owner) &&
       reservation.siteName === original.siteName &&
       reservation.uid === site.siteUid &&
       typeof reservation.contractFingerprint === 'string' &&
@@ -30377,8 +30409,8 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   const originalOutcome = await loadOutcome(original);
   const qualifyOutcome = (owner, row, cp) => {
     const configuration = object57(row.configuration);
-    require69(
-      same43(configuration.owner, binding.owner) &&
+    require70(
+      same44(configuration.owner, binding.owner) &&
         configuration.siteName === original.siteName &&
         configuration.evidenceKind === 'registration-hardware-inventory' &&
         configuration.source === `/api/register/namespaces/system/registrations_by_site/${original.siteName}` &&
@@ -30393,7 +30425,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
           .map(object57)
           .filter((row) => row.node === node && row.role === nic.role);
         const observed = inventory.nodes[String(index + 1)].nics[String(nic.index)];
-        require69(
+        require70(
           matches.length === 1 &&
             lower17(matches[0].mac) === lower17(observed.mac) &&
             typeof matches[0].device === 'string' &&
@@ -30401,10 +30433,10 @@ async function qualifyAzureTerraformNetworkUpdateSource(
           'registered MAC, node, role or device differs',
         );
         const key = `${node}:${matches[0].device}`;
-        require69(!devices.has(key), 'duplicate registered device');
+        require70(!devices.has(key), 'duplicate registered device');
         devices.add(key);
       }
-    require69(
+    require70(
       row.planSha256 === owner.planSha256 &&
         row.planId === owner.planId &&
         row.engine === 'terraform' &&
@@ -30428,8 +30460,8 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   };
   qualifyOutcome(original, originalOutcome);
   const registration = object57(originalOutcome.registrations);
-  require69(
-    same43(registration.owner, binding.owner) &&
+  require70(
+    same44(registration.owner, binding.owner) &&
       registration.siteName === original.siteName &&
       Array.isArray(registration.nodes) &&
       registration.nodes.length === nodes.length,
@@ -30438,7 +30470,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   const originalIds = new Map();
   for (const node of nodes) {
     const rows = registration.nodes.map(object57).filter((row) => row.node === node);
-    require69(
+    require70(
       rows.length === 1 &&
         rows[0].status === 'healthy' &&
         rows[0].state === 'ONLINE' &&
@@ -30450,7 +30482,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     );
     originalIds.set(node, rows[0].instanceId);
   }
-  require69(new Set([...originalIds.values()].map(lower17)).size === nodes.length, 'duplicate original UUID');
+  require70(new Set([...originalIds.values()].map(lower17)).size === nodes.length, 'duplicate original UUID');
   const retainedNics = Object.fromEntries(
     Object.entries(inventory.nodes).flatMap(([node, vm]) =>
       Object.entries(vm.nics).map(([index, nic]) => [
@@ -30465,7 +30497,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
       ]),
     ),
   );
-  require69(validAzureRetainedNicsForSource(original, retainedNics), 'original retained NIC/subnet identity differs');
+  require70(validAzureRetainedNicsForSource(original, retainedNics), 'original retained NIC/subnet identity differs');
   const current = {
     oldVmIds: Object.fromEntries(
       Object.entries(inventory.nodes).map(([n, vm]) => [`${plan.deploymentName}-${n}`, vm.vmId]),
@@ -30481,32 +30513,32 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   const materials = new Map(Object.entries(bootstrap).map(([n, b]) => [`${original.planSha256}:${n}`, b]));
   const seen = new Set();
   const load = async (digest, path) => {
-    require69(
+    require70(
       /^[a-f0-9]{64}$/.test(digest) && !path.has(digest) && digest !== plan.planSha256,
       'cyclic or unresolved generation',
     );
     if (digest === original.planSha256 || seen.has(digest)) return;
     const owner = await loadSource(digest);
     verifyAzureCePlan(owner);
-    require69(
+    require70(
       owner.planSha256 === digest &&
         owner.engine === 'terraform' &&
         !owner.relayProfile &&
         !owner.terraformNetworkReplacementProfile &&
         owner.intent.operation === 'replace-node' &&
-        same43(azureUpgradeBinding(owner), binding) &&
-        same43(scope3(owner, false), scope3(original, false)),
+        same44(azureUpgradeBinding(owner), binding) &&
+        same44(scope3(owner, false), scope3(original, false)),
       'completed replacement source scope differs',
     );
     const cp = validateAzureTerraformReplacementCheckpoint(
       owner,
       await store.read(`${owner.planId}-terraform-replacement.json`),
     );
-    require69(
+    require70(
       cp.phase === 'complete' &&
         cp.siteUid === site.siteUid &&
         cp.siteConfigurationSha256 === site.siteConfigurationSha256 &&
-        same43(cp.retainedNics, retainedNics),
+        same44(cp.retainedNics, retainedNics),
       'completed replacement identity differs',
     );
     const snapshot = object57(await store.read(`${owner.planId}-terraform-replacement-source.json`)),
@@ -30528,12 +30560,12 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     verifyAzureTerraformReplacementGenerationOwners(sources.get(digest), cp, original, sources, checkpoints);
   const boundaries = new Map();
   const visit = (owner, node, vmId, path) => {
-    require69(!path.has(owner), 'recursive VM generation');
+    require70(!path.has(owner), 'recursive VM generation');
     const key = `${owner}:${node}`;
-    require69(!boundaries.has(key) || boundaries.get(key) === lower17(vmId), 'inconsistent predecessor UUID');
+    require70(!boundaries.has(key) || boundaries.get(key) === lower17(vmId), 'inconsistent predecessor UUID');
     boundaries.set(key, lower17(vmId));
     if (owner === original.planSha256) {
-      require69(
+      require70(
         lower17(originalIds.get(node)) === lower17(vmId),
         'original registered UUID differs from cloud generation',
       );
@@ -30541,7 +30573,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     }
     const cp = checkpoints.get(owner),
       prior = sources.get(owner);
-    require69(
+    require70(
       cp && prior?.intent.replacementNode === nodes.indexOf(node) + 1 && lower17(cp.newVmId) === lower17(vmId),
       'replacement selected UUID differs',
     );
@@ -30551,16 +30583,16 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   if (networkProfile) {
     const retained = networkProfile.retainedPlanSha256;
     if (retained === original.planSha256) {
-      require69(
+      require70(
         Object.values(current.ownerPlanSha256ByNode).every((owner) => owner === retained),
         'explicit creation predecessor skips completed replacements',
       );
     } else {
       const cp = checkpoints.get(retained);
-      require69(cp && sources.has(retained), 'explicit predecessor requires completed owning history');
+      require70(cp && sources.has(retained), 'explicit predecessor requires completed owning history');
       for (const [index, node] of nodes.entries()) {
         const selected = cp.node === index + 1;
-        require69(
+        require70(
           current.ownerPlanSha256ByNode[node] === (selected ? retained : cp.ownerPlanSha256ByNode[node]) &&
             lower17(current.oldVmIds[node]) === lower17(selected ? cp.newVmId : cp.oldVmIds[node]),
           'explicit replacement predecessor is not the final current generation',
@@ -30577,7 +30609,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   verifyAzureTerraformNonRelayConfiguration(original, current, configuration);
   const vms = object57(object57(configuration.resource).azurerm_linux_virtual_machine);
   for (const [index, node] of nodes.entries())
-    require69(
+    require70(
       Buffer.from(String(object57(vms[`node_${index + 1}`]).custom_data), 'base64').toString('utf8') ===
         materials.get(`${current.ownerPlanSha256ByNode[node]}:${index + 1}`),
       'retained bootstrap differs from completed owning generation',
@@ -30595,13 +30627,13 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   };
 }
 var hash9 = (value) => createHash22('sha256').update(value).digest('hex'),
-  same43,
+  same44,
   lower17 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   object57 = (value) => {
-    require69(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
+    require70(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
-  keys11 = (value, expected) => same43(Object.keys(object57(value)).sort(), expected.toSorted()),
+  keys11 = (value, expected) => same44(Object.keys(object57(value)).sort(), expected.toSorted()),
   scope3 = (plan, allowSubnet) => {
     const { operation: _operation, replacementNode: _node, nics, ...intent } = plan.intent;
     const { termsAccepted: _terms, ...image } = plan.image;
@@ -30632,30 +30664,30 @@ var init_terraform_network_update_source = __esm(() => {
   init_terraform_replacement_artifact_provenance();
   init_terraform_replacement_generations();
   init_terraform_upgrade();
-  same43 = canonicalEqual;
+  same44 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-source-binding.ts
 import { createHash as createHash23 } from 'node:crypto';
 
-function require70(value, message) {
+function require71(value, message) {
   if (!value) throw Error(`Azure Terraform network replacement source binding: ${message}`);
 }
 function validateAzureTerraformNetworkReplacementBindingIdentity(plan, owner, retained, lock, site, input) {
   verifyAzureCePlan(plan);
   verifyAzureCePlan(retained);
   const profile = verifyAzureTerraformNetworkReplacementProfile(plan);
-  require70(
+  require71(
     retained.planSha256 === profile.retainedPlanSha256 &&
-      same44(owner, azureUpgradeBinding(plan).owner) &&
-      same44(owner, azureUpgradeBinding(retained).owner) &&
+      same45(owner, azureUpgradeBinding(plan).owner) &&
+      same45(owner, azureUpgradeBinding(retained).owner) &&
       lock === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256,
     'exact owning retained plan and qualified provider required',
   );
-  require70(input && typeof input === 'object' && !Array.isArray(input), 'complete immutable source record required');
+  require71(input && typeof input === 'object' && !Array.isArray(input), 'complete immutable source record required');
   const row = input;
-  require70(
-    same44(Object.keys(row).sort(), [
+  require71(
+    same45(Object.keys(row).sort(), [
       'before',
       'engine',
       'kind',
@@ -30674,24 +30706,24 @@ function validateAzureTerraformNetworkReplacementBindingIdentity(plan, owner, re
       row.schemaVersion === 1 &&
       row.kind === 'azure-terraform-network-replacement-original-source' &&
       row.engine === 'terraform' &&
-      same44(row.owner, owner) &&
+      same45(row.owner, owner) &&
       row.planSha256 === plan.planSha256 &&
       row.originalPlanSha256 === profile.originalPlanSha256 &&
       row.retainedPlanSha256 === profile.retainedPlanSha256 &&
       row.providerLockSha256 === lock &&
-      same44(row.site, site) &&
+      same45(row.site, site) &&
       typeof row.source === 'string' &&
       hash10(row.source) === row.sourceConfigurationSha256,
     'saved source schema or identity differs',
   );
-  require70(
+  require71(
     row.outputs &&
       typeof row.outputs === 'object' &&
       !Array.isArray(row.outputs) &&
-      same44(Object.keys(row.outputs).sort(), ['ce_instances', 'ce_interfaces']),
+      same45(Object.keys(row.outputs).sort(), ['ce_instances', 'ce_interfaces']),
     'exact requested Terraform output schema required',
   );
-  require70(
+  require71(
     row.qualification && row.qualification.retainedInventorySha256 === canonicalSha256(row.before),
     'saved complete inventory differs from source qualification',
   );
@@ -30701,7 +30733,7 @@ function validateAzureTerraformNetworkReplacementBindingIdentity(plan, owner, re
   return row;
 }
 var hash10 = (value) => createHash23('sha256').update(value).digest('hex'),
-  same44;
+  same45;
 var init_terraform_network_replacement_source_binding = __esm(() => {
   init_process_lock();
   init_artifacts();
@@ -30716,13 +30748,13 @@ var init_terraform_network_replacement_source_binding = __esm(() => {
   init_terraform_network_replacement_plan();
   init_terraform_network_update_source();
   init_terraform_upgrade();
-  same44 = canonicalEqual;
+  same45 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-binding-reader.ts
 import { createHash as createHash24 } from 'node:crypto';
 
-function require71(value, message) {
+function require72(value, message) {
   if (!value) throw Error(`Azure Terraform network replacement binding reader: ${message}`);
 }
 async function readAzureTerraformNetworkReplacementSourceBinding(
@@ -30744,10 +30776,10 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
     site = structuredClone(siteRequest);
   verifyAzureCePlan(plan);
   const profile = verifyAzureTerraformNetworkReplacementProfile(plan);
-  require71(
+  require72(
     typeof expectedSourceBindingSha256 === 'string' &&
       /^[a-f0-9]{64}$/.test(expectedSourceBindingSha256) &&
-      same45(owner, azureUpgradeBinding(plan).owner) &&
+      same46(owner, azureUpgradeBinding(plan).owner) &&
       typeof verifier === 'function' &&
       site &&
       Object.keys(site).sort().join(',') === 'siteConfigurationSha256,siteUid' &&
@@ -30771,8 +30803,8 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
     }
   };
   const verifyOwner = async () => {
-    require71(
-      same45(plan, request) && same45(site, siteRequest) && same45(owner, store.owner),
+    require72(
+      same46(plan, request) && same46(site, siteRequest) && same46(owner, store.owner),
       'requested identity changed during reading',
     );
     await bounded(() => store.verify());
@@ -30783,7 +30815,7 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
     outcomes = new Map();
   const remember = (map, name, value) => {
     const digest = canonicalSha256(value);
-    require71(!map.has(name) || map.get(name) === digest, 'source or historical packet changed during reading');
+    require72(!map.has(name) || map.get(name) === digest, 'source or historical packet changed during reading');
     map.set(name, digest);
   };
   const read = async (name) => {
@@ -30807,14 +30839,14 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
     async loadSource(digest) {
       const value = await bounded(() => loaders.loadSource(digest));
       verifyAzureCePlan(value);
-      require71(value.planSha256 === digest, 'loaded predecessor digest differs');
+      require72(value.planSha256 === digest, 'loaded predecessor digest differs');
       remember(sources, digest, value);
       return structuredClone(value);
     },
     async loadOutcome(p) {
       const value = await bounded(() => loaders.loadOutcome(structuredClone(p))),
         digest = canonicalSha256(value);
-      require71(
+      require72(
         !outcomes.has(p.planSha256) || outcomes.get(p.planSha256)?.digest === digest,
         'original outcome changed during reading',
       );
@@ -30827,7 +30859,7 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
   const deployment = await bounded(() => azureTerraformCurrentDeployment(plan)),
     lock = createHash24('sha256').update(deployment.providerLock).digest('hex');
   const raw = await read(`${plan.planId}-terraform-network-replacement-source.json`);
-  require71(canonicalSha256(raw) === expectedSourceBindingSha256, 'saved binding differs from owning journal digest');
+  require72(canonicalSha256(raw) === expectedSourceBindingSha256, 'saved binding differs from owning journal digest');
   const binding = validateAzureTerraformNetworkReplacementBindingIdentity(plan, owner, retained, lock, site, raw);
   const qualification = await bounded(() =>
     qualifyAzureTerraformNetworkBoundReplacementSource(
@@ -30848,25 +30880,25 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
       qualifiedPrevious,
     ),
   );
-  require71(same45(binding.qualification, qualification), 'saved source qualification differs');
+  require72(same46(binding.qualification, qualification), 'saved source qualification differs');
   if (owningRead) await bounded(() => owningRead(structuredClone(binding), readonlyStore));
   for (const [name, digest] of sources)
-    require71(
+    require72(
       canonicalSha256(await bounded(() => loaders.loadSource(name))) === digest,
       'predecessor source changed before returning binding',
     );
   for (const { plan: p, digest } of outcomes.values())
-    require71(
+    require72(
       canonicalSha256(await bounded(() => loaders.loadOutcome(structuredClone(p)))) === digest,
       'original outcome changed before returning binding',
     );
   for (const [name, digest] of packets)
-    require71(
+    require72(
       canonicalSha256(await bounded(() => store.read(name))) === digest,
       'historical packet changed before returning binding',
     );
   await verifyOwner();
-  require71(
+  require72(
     canonicalSha256(await bounded(() => store.read(`${plan.planId}-terraform-network-replacement-source.json`))) ===
       expectedSourceBindingSha256,
     'owning binding changed at final read boundary',
@@ -30879,7 +30911,7 @@ async function readAzureTerraformNetworkReplacementSourceBinding(
     currentOperationalAcceptanceQualified: false,
   };
 }
-var same45;
+var same46;
 var init_terraform_network_replacement_binding_reader = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -30888,16 +30920,16 @@ var init_terraform_network_replacement_binding_reader = __esm(() => {
   init_terraform_network_replacement_plan();
   init_terraform_network_replacement_source_binding();
   init_terraform_upgrade();
-  same45 = canonicalEqual;
+  same46 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-execution-journal.ts
-function require72(value, message) {
+function require73(value, message) {
   if (!value) throw Error(`Azure Terraform network replacement execution journal: ${message}`);
 }
 function fromBinding(plan, binding) {
   const node = plan.intent.replacementNode;
-  require72(
+  require73(
     typeof node === 'number' && Number.isSafeInteger(node) && node >= 1 && node <= plan.topology.nodeCount,
     'exact selected node required',
   );
@@ -30939,11 +30971,11 @@ function context2(request, store, siteRequest, signal) {
   };
   const verify = async () => {
     const identity = () =>
-      require72(
-        same46(plan, request) &&
-          same46(owner, store.owner) &&
-          same46(site, siteRequest) &&
-          same46(owner, azureUpgradeBinding(plan).owner),
+      require73(
+        same47(plan, request) &&
+          same47(owner, store.owner) &&
+          same47(site, siteRequest) &&
+          same47(owner, azureUpgradeBinding(plan).owner),
         'requested owning identity changed',
       );
     identity();
@@ -30960,17 +30992,17 @@ function context2(request, store, siteRequest, signal) {
   return { plan, owner, site, deadline, bounded, verify, optional };
 }
 function validate3(plan, owner, site, input) {
-  require72(input && typeof input === 'object' && !Array.isArray(input), 'complete owning journal required');
+  require73(input && typeof input === 'object' && !Array.isArray(input), 'complete owning journal required');
   const row = input,
     profile = verifyAzureTerraformNetworkReplacementProfile(plan);
-  require72(
+  require73(
     Object.keys(row).sort().join(',') ===
       'engine,kind,node,originalPlanSha256,owner,planSha256,providerLockSha256,retainedPlanSha256,schemaVersion,site,sourceBindingSha256,sourceConfigurationSha256' &&
       row.schemaVersion === 1 &&
       row.kind === 'azure-terraform-network-replacement-execution-binding' &&
       row.engine === 'terraform' &&
-      same46(row.owner, owner) &&
-      same46(row.site, site) &&
+      same47(row.owner, owner) &&
+      same47(row.site, site) &&
       row.planSha256 === plan.planSha256 &&
       row.originalPlanSha256 === profile.originalPlanSha256 &&
       row.retainedPlanSha256 === profile.retainedPlanSha256 &&
@@ -30993,11 +31025,11 @@ async function readAzureTerraformNetworkReplacementExecutionBinding(
   qualifiedPrevious,
   replacementVerifier,
 ) {
-  require72(sha10(expectedJournalSha256), 'resolved owning journal digest required');
+  require73(sha10(expectedJournalSha256), 'resolved owning journal digest required');
   const c = context2(request, store, siteRequest, signal);
   await c.verify();
   const raw = await c.bounded(() => store.read(journalName2(c.plan)));
-  require72(canonicalSha256(raw) === expectedJournalSha256, 'journal differs from owning expected digest');
+  require73(canonicalSha256(raw) === expectedJournalSha256, 'journal differs from owning expected digest');
   const row = validate3(c.plan, c.owner, c.site, raw);
   const source = await readAzureTerraformNetworkReplacementSourceBinding(
     c.plan,
@@ -31010,9 +31042,9 @@ async function readAzureTerraformNetworkReplacementExecutionBinding(
     qualifiedPrevious,
     replacementVerifier,
     async (binding, readonlyStore) => {
-      require72(same46(row, fromBinding(c.plan, binding)), 'journal differs from authenticated source binding');
+      require73(same47(row, fromBinding(c.plan, binding)), 'journal differs from authenticated source binding');
       await c.verify();
-      require72(
+      require73(
         canonicalSha256(await c.bounded(() => readonlyStore.read(journalName2(c.plan)))) === expectedJournalSha256,
         'journal changed at final historical read boundary',
       );
@@ -31020,7 +31052,7 @@ async function readAzureTerraformNetworkReplacementExecutionBinding(
   );
   return { execution: result(row), source };
 }
-var same46,
+var same47,
   sha10 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   journalName2 = (plan) => `${plan.planId}-terraform-network-replacement-execution.json`,
   result = (journal) => ({
@@ -31037,26 +31069,26 @@ var init_terraform_network_replacement_execution_journal = __esm(() => {
   init_terraform_network_replacement_binding_reader();
   init_terraform_network_replacement_plan();
   init_terraform_upgrade();
-  same46 = canonicalEqual;
+  same47 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-replacement-completion.ts
 import { createHash as createHash25 } from 'node:crypto';
 
-function require73(v, message) {
+function require74(v, message) {
   if (!v) throw Error(`Azure Terraform network replacement completion: ${message}`);
 }
 function object58(v) {
-  require73(v && typeof v === 'object' && !Array.isArray(v), 'complete private object required');
+  require74(v && typeof v === 'object' && !Array.isArray(v), 'complete private object required');
   return v;
 }
 function keys12(v, fields) {
-  require73(same47(Object.keys(object58(v)).sort(), fields.toSorted()), 'private completion schema differs');
+  require74(same48(Object.keys(object58(v)).sort(), fields.toSorted()), 'private completion schema differs');
 }
 function verification(v) {
   keys12(v, ['status', 'scope', 'evidenceSha256']);
   const row = v;
-  require73(
+  require74(
     row.status === 'verified' && row.scope === 'node-interfaces-routing-traffic' && sha11(row.evidenceSha256),
     'complete operational provenance required',
   );
@@ -31072,8 +31104,8 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     qualifiedPrevious = dependencies.qualifiedPrevious ? structuredClone(dependencies.qualifiedPrevious) : undefined;
   verifyAzureCePlan(plan);
   verifyAzureTerraformNetworkReplacementProfile(plan);
-  require73(
-    same47(owner, azureUpgradeBinding(plan).owner) &&
+  require74(
+    same48(owner, azureUpgradeBinding(plan).owner) &&
       sha11(journalSha256) &&
       sha11(sourceBindingSha256) &&
       typeof completed === 'function',
@@ -31094,10 +31126,10 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     }
   };
   const unchanged = () =>
-    require73(
-      same47(plan, request) &&
-        same47(owner, store.owner) &&
-        same47(site, dependencies.site) &&
+    require74(
+      same48(plan, request) &&
+        same48(owner, store.owner) &&
+        same48(site, dependencies.site) &&
         journalSha256 === dependencies.journalSha256 &&
         sourceBindingSha256 === dependencies.sourceBindingSha256 &&
         dependencies.loaders === loaders &&
@@ -31105,7 +31137,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
         loaders.loadOutcome === loadOutcome &&
         dependencies.qualifyHistorical === historical &&
         dependencies.qualifyCompletedOperational === completed &&
-        same47(qualifiedPrevious, dependencies.qualifiedPrevious),
+        same48(qualifiedPrevious, dependencies.qualifiedPrevious),
       'owning completion context changed',
     );
   const verify = async () => {
@@ -31121,7 +31153,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     unchanged();
     const raw = await bounded(() => store.read(name)),
       digest = canonicalSha256(raw);
-    require73(!observed.has(name) || observed.get(name) === digest, 'private packet changed across completion reads');
+    require74(!observed.has(name) || observed.get(name) === digest, 'private packet changed across completion reads');
     observed.set(name, digest);
     unchanged();
     return structuredClone(raw);
@@ -31142,7 +31174,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     async loadSource(digest) {
       const raw = await bounded(() => loadSource.call(loaders, digest)),
         actual = canonicalSha256(raw);
-      require73(!sources.has(digest) || sources.get(digest) === actual, 'predecessor plan changed');
+      require74(!sources.has(digest) || sources.get(digest) === actual, 'predecessor plan changed');
       sources.set(digest, actual);
       unchanged();
       return structuredClone(raw);
@@ -31150,7 +31182,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     async loadOutcome(source) {
       const raw = await bounded(() => loadOutcome.call(loaders, structuredClone(source))),
         actual = canonicalSha256(raw);
-      require73(
+      require74(
         !outcomes.has(source.planSha256) || outcomes.get(source.planSha256)?.sha256 === actual,
         'predecessor outcome changed',
       );
@@ -31160,7 +31192,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     },
   };
   const historicalVerifier = (receipt, identity, mode) => {
-    require73(mode === 'historical', 'completion ancestry requires historical provenance');
+    require74(mode === 'historical', 'completion ancestry requires historical provenance');
     return bounded(() => historical(structuredClone(receipt), structuredClone(identity), 'historical', deadline));
   };
   const qualified = await readAzureTerraformNetworkReplacementExecutionBinding(
@@ -31175,18 +31207,18 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
     completed,
   );
   const journal = qualified.execution;
-  require73(
+  require74(
     journal.journal.sourceBindingSha256 === sourceBindingSha256 &&
       qualified.source.sourceBindingSha256 === sourceBindingSha256,
     'journal source differs',
   );
   const binding = qualified.source.binding;
-  require73(same47(await read(`${plan.planId}-terraform-replacement-plan.json`), plan), 'saved public request differs');
+  require74(same48(await read(`${plan.planId}-terraform-replacement-plan.json`), plan), 'saved public request differs');
   const checkpoint = validateAzureTerraformReplacementCheckpoint(
     plan,
     await read(`${plan.planId}-terraform-replacement.json`),
   );
-  require73(
+  require74(
     ['launched', 'complete'].includes(checkpoint.phase) &&
       uuid5(checkpoint.newVmId) &&
       !Object.values(binding.before.nodes).some((v) => lower18(v.vmId) === lower18(checkpoint.newVmId)) &&
@@ -31196,7 +31228,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
   );
   const snapshot = await read(`${plan.planId}-terraform-replacement-source.json`),
     material = validateAzureTerraformReplacementSource(plan, checkpoint, snapshot);
-  require73(material.source === binding.source, 'frozen replacement source differs');
+  require74(material.source === binding.source, 'frozen replacement source differs');
   const oldVmIds = {},
     ownerPlanSha256ByNode = {},
     retainedNics = {};
@@ -31212,8 +31244,8 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
         ownerPlanSha256: nic.ownerPlanSha256,
       };
   }
-  require73(
-    same47(
+  require74(
+    same48(
       {
         oldVmIds: checkpoint.oldVmIds,
         ownerPlanSha256ByNode: checkpoint.ownerPlanSha256ByNode,
@@ -31238,18 +31270,18 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
   const finish = async () => {
     for (let pass = 0; pass < 2; pass++) {
       for (const [digest, expected] of sources)
-        require73(
+        require74(
           canonicalSha256(await bounded(() => loadSource.call(loaders, digest))) === expected,
           'predecessor plan changed during completion',
         );
       for (const { plan: source, sha256 } of outcomes.values())
-        require73(
+        require74(
           canonicalSha256(await bounded(() => loadOutcome.call(loaders, structuredClone(source)))) === sha256,
           'predecessor outcome changed during completion',
         );
       await verify();
       for (const [name, expected] of observed)
-        require73(
+        require74(
           canonicalSha256(await bounded(() => store.read(name))) === expected,
           'private completion history changed',
         );
@@ -31269,7 +31301,7 @@ async function openAzureTerraformNetworkReplacementCompletionArtifacts(request, 
       unchanged();
       throw new AzureTerraformNetworkReplacementCompletionUnavailable('Completion operational provenance unavailable');
     }
-    require73(same47(verification(result), verification(packet.verification)), 'operational provenance changed');
+    require74(same48(verification(result), verification(packet.verification)), 'operational provenance changed');
     unchanged();
   };
   return {
@@ -31316,11 +31348,11 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
   ]);
   const row = value,
     { plan, binding, checkpoint, material } = c;
-  require73(
+  require74(
     row.schemaVersion === 1 &&
       row.kind === 'azure-terraform-network-replacement-completion' &&
       row.engine === 'terraform' &&
-      same47(row.owner, c.owner) &&
+      same48(row.owner, c.owner) &&
       row.planSha256 === plan.planSha256 &&
       row.originalPlanSha256 === binding.originalPlanSha256 &&
       row.retainedPlanSha256 === binding.retainedPlanSha256 &&
@@ -31337,7 +31369,7 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
   keys12(row.stageRecordSha256, ['quiesce', 'launch']);
   keys12(row.stageApplications, ['quiesce', 'launch']);
   for (const phase of ['quiesce', 'launch']) {
-    require73(
+    require74(
       row.stageRecordSha256[phase] === canonicalSha256(c.stageRecords[phase]) &&
         row.stageApplications[phase] === (c.stageRecords[phase].receipt.noChanges ? 'no-change' : 'applied'),
       'original consumed stage proof differs',
@@ -31349,12 +31381,12 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
     row.finalReceipt,
     binding.providerLockSha256,
   );
-  require73(
+  require74(
     row.finalReceipt.noChanges && row.finalReceipt.changes.every((v) => v.actions.join(',') === 'no-op'),
     'original final no-change receipt required',
   );
   keys12(row.operational, ['identity', 'receipt', 'receiptSha256', 'verification']);
-  require73(
+  require74(
     row.operational.receipt !== undefined &&
       row.operational.receipt !== null &&
       row.operational.receiptSha256 === canonicalSha256(row.operational.receipt),
@@ -31373,8 +31405,8 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
     'nodes',
   ]);
   const { nodes: _nodes, ...identityBinding } = identity;
-  require73(
-    same47(identityBinding, {
+  require74(
+    same48(identityBinding, {
       owner: c.owner,
       planSha256: plan.planSha256,
       journalSha256: c.journalSha256,
@@ -31390,7 +31422,7 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
     const current = identity.nodes[node];
     keys12(current, ['resourceId', 'vmId', 'vmState', 'ownerPlanSha256', 'nics']);
     const selected = Number(node) === row.selectedNode;
-    require73(
+    require74(
       current.resourceId === vm.resourceId &&
         current.vmState === 'present' &&
         lower18(current.vmId) === lower18(selected ? row.newVmId : vm.vmId) &&
@@ -31399,8 +31431,8 @@ function validateAzureTerraformNetworkReplacementCompletion(c, value) {
     );
     keys12(current.nics, Object.keys(vm.nics));
     for (const [index, nic] of Object.entries(vm.nics))
-      require73(
-        same47(current.nics[index], {
+      require74(
+        same48(current.nics[index], {
           ...nic,
           attachment: vm.resourceId,
         }),
@@ -31432,7 +31464,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
     readConfigurationSha256: readConfiguration,
     readConfiguration: readSource,
   } = session;
-  require73(
+  require74(
     typeof readHistory === 'function' &&
       typeof readCurrentState === 'function' &&
       typeof readConfiguration === 'function' &&
@@ -31440,7 +31472,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
     'owning native current and historical receipt readers required',
   );
   const readersUnchanged = () => {
-    require73(
+    require74(
       session.readPlanApplicationHistory === readHistory &&
         session.readPlanApplicationState === readCurrentState &&
         session.readConfigurationSha256 === readConfiguration &&
@@ -31460,7 +31492,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
   const histories = new Map();
   const verifySession = async () => {
     readersUnchanged();
-    require73(
+    require74(
       (await c.bounded(() => readConfiguration.call(session))) === c.material.stages.launch.configurationSha256 &&
         (await c.bounded(() => readSource.call(session, c.material.stages.launch.configurationSha256))) ===
           c.material.stages.launch.configuration,
@@ -31482,7 +31514,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
         'applicationOutcomeQualified',
         'retirementQualified',
       ]);
-      require73(
+      require74(
         history.schemaVersion === 1 &&
           history.scope === 'exact-saved-plan-journal-history' &&
           canonicalSha256(receipt) === expectedReceiptSha256 &&
@@ -31507,7 +31539,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
           'manifestSha256',
         ]);
         const occurrence = `${match.location}:${match.archiveSha256}`;
-        require73(
+        require74(
           ['current', 'revision', 'plan-history'].includes(match.location) &&
             sha11(match.archiveSha256) &&
             sha11(match.journalSha256) &&
@@ -31522,11 +31554,11 @@ async function publishAzureTerraformNetworkReplacementCompletion(
       }
       const digest = canonicalSha256(history),
         prior = histories.get(phase);
-      require73(prior === undefined || prior === digest, 'native historical stage changed across callbacks');
+      require74(prior === undefined || prior === digest, 'native historical stage changed across callbacks');
       histories.set(phase, digest);
     }
-    require73(
-      same47(final, c.latestFinal) &&
+    require74(
+      same48(final, c.latestFinal) &&
         ['planned', 'applied'].includes(await c.bounded(() => readCurrentState.call(session, final))),
       'exact current final no-change receipt required',
     );
@@ -31547,11 +31579,11 @@ async function publishAzureTerraformNetworkReplacementCompletion(
     packet = validateAzureTerraformNetworkReplacementCompletion(c, existing);
     await qualify(packet.operational, 'historical');
   } else {
-    require73(
+    require74(
       c.checkpoint.phase === 'launched',
       'ordinary complete checkpoint cannot reconstruct missing immutable completion',
     );
-    require73(same47(final, c.latestFinal), 'original saved final receipt differs from owning executor');
+    require74(same48(final, c.latestFinal), 'original saved final receipt differs from owning executor');
     const row = {
       schemaVersion: 1,
       kind: 'azure-terraform-network-replacement-completion',
@@ -31590,19 +31622,19 @@ async function publishAzureTerraformNetworkReplacementCompletion(
   if (existing === undefined) {
     try {
       const later = await c.bounded(() => store.read(name));
-      require73(canonicalSha256(later) === expected, 'late foreign immutable completion must be preserved');
+      require74(canonicalSha256(later) === expected, 'late foreign immutable completion must be preserved');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
       c.unchanged();
       await c.bounded(() => store.write(name, packet));
     }
   }
-  require73(
+  require74(
     canonicalSha256(await c.bounded(() => store.read(name))) === expected,
     'completion changed during publication',
   );
   await c.finish();
-  require73(
+  require74(
     canonicalSha256(await c.bounded(() => store.read(name))) === expected,
     'completion changed after provenance callbacks',
   );
@@ -31616,7 +31648,7 @@ async function publishAzureTerraformNetworkReplacementCompletion(
 var AzureTerraformNetworkReplacementCompletionUnavailable,
   azureTerraformNetworkReplacementCompletionName = (plan) =>
     `${plan.planId}-terraform-network-replacement-complete.json`,
-  same47 = (a, b) => (a === undefined || b === undefined ? a === b : canonicalSha256(a) === canonicalSha256(b)),
+  same48 = (a, b) => (a === undefined || b === undefined ? a === b : canonicalSha256(a) === canonicalSha256(b)),
   lower18 = (v) => (typeof v === 'string' ? v.toLowerCase() : ''),
   sha11 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   uuid5 = (v) => typeof v === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
@@ -31689,7 +31721,7 @@ function azureTerraformCompletedGenerationNodes(history) {
   if (history.kind === 'azure-terraform-network-completion-history') return history.inventory.nodes;
   return Object.fromEntries(
     Object.entries(history.nodes).map(([key, vm]) => {
-      require74(
+      require75(
         vm.vmState === 'present' && vm.vmId && vm.ownerPlanSha256,
         'completed replacement physical identity missing',
       );
@@ -31712,11 +31744,11 @@ function azureTerraformCompletedGenerationNodes(history) {
 function validateAzureTerraformReplacementPredecessorInventory(plan, value, history) {
   verifyAzureCePlan(plan);
   verifyAzureTerraformNetworkReplacementProfile(plan);
-  require74(
+  require75(
     history.kind === 'azure-terraform-network-replacement-completion-history' &&
       history.sourcePlanSha256 === plan.planSha256 &&
       value &&
-      same48(Object.keys(value).sort(), ['collectedAt', 'engine', 'nodes', 'planSha256', 'schemaVersion']) &&
+      same49(Object.keys(value).sort(), ['collectedAt', 'engine', 'nodes', 'planSha256', 'schemaVersion']) &&
       value.schemaVersion === 1 &&
       value.engine === 'terraform' &&
       value.planSha256 === plan.planSha256 &&
@@ -31741,15 +31773,15 @@ function validateAzureTerraformReplacementPredecessorInventory(plan, value, hist
         },
       ]),
     );
-  require74(
-    same48(normalize(value.nodes), normalize(expected)),
+  require75(
+    same49(normalize(value.nodes), normalize(expected)),
     'replacement predecessor full VM/NIC physical identity differs',
   );
   const addresses = new Set();
   for (const vm of Object.values(value.nodes))
     for (const nic of Object.values(vm.nics)) {
       const address = `${nic.subnetId.toLowerCase()}:${nic.privateIp}`;
-      require74(
+      require75(
         usableAzureNetworkAddress(nic.privateIp, nic.subnetCidr) && !addresses.has(address),
         'replacement predecessor address malformed or duplicate',
       );
@@ -31774,21 +31806,21 @@ function azureTerraformCompletedGenerationSite(history) {
     ? { siteUid: history.siteUid, siteConfigurationSha256: history.siteConfigurationSha256 }
     : history.site;
 }
-function require74(value, message) {
+function require75(value, message) {
   if (!value) throw Error(`Azure Terraform network generations: ${message}`);
 }
 function qualifyAzureTerraformAdjacentNetworkSource(plan, input, previous) {
   verifyAzureCePlan(plan);
   validateAzureNetworkUpdateInventory(plan, input.inventory);
   const profile = verifyAzureTerraformNetworkProfile(plan);
-  require74(
+  require75(
     profile.retainedPlanSha256 === previous.sourcePlanSha256 &&
       profile.originalPlanSha256 === previous.originalPlanSha256 &&
       input.source === previous.finalSource &&
       hash11(input.source) === previous.finalConfigurationSha256 &&
       input.providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 &&
       input.providerLockSha256 === previous.sourceQualification.providerLockSha256 &&
-      same48(input.site, azureTerraformCompletedGenerationSite(previous)),
+      same49(input.site, azureTerraformCompletedGenerationSite(previous)),
     'exact predecessor configuration, provider and owned site required',
   );
   const identities = (nodes) =>
@@ -31806,8 +31838,8 @@ function qualifyAzureTerraformAdjacentNetworkSource(plan, input, previous) {
         },
       ]),
     );
-  require74(
-    same48(identities(input.inventory.nodes), identities(azureTerraformCompletedGenerationNodes(previous))),
+  require75(
+    same49(identities(input.inventory.nodes), identities(azureTerraformCompletedGenerationNodes(previous))),
     'adjacent VM UUID/owner or NIC/MAC/subnet/IP-configuration identity differs',
   );
   return {
@@ -31843,14 +31875,14 @@ async function runAzureTerraformNetworkGenerationHistory(
     selectedDigest = selected ? canonicalSha256(selected) : undefined,
     ownerDigest = canonicalSha256(owner);
   const unchanged = () =>
-    require74(
+    require75(
       canonicalSha256(store.owner) === ownerDigest &&
         loaders.loadSource === loadSource &&
         loaders.loadOutcome === loadOutcome,
       'generation dependency context changed during qualification',
     );
   const requestUnchanged = () =>
-    require74(
+    require75(
       canonicalSha256(plan) === planDigest &&
         canonicalSha256(sourcePlan) === planDigest &&
         (selected ? canonicalSha256(selected) : undefined) === selectedDigest &&
@@ -31858,10 +31890,10 @@ async function runAzureTerraformNetworkGenerationHistory(
       'generation request changed during qualification',
     );
   requestUnchanged();
-  require74(
+  require75(
     plan.engine === 'terraform' &&
       (plan.intent.operation === 'update-network' || plan.terraformNetworkReplacementProfile) &&
-      same48(store.owner, owner),
+      same49(store.owner, owner),
     selected ? 'exact owning Terraform generation required' : 'exact owning completed Terraform generation required',
   );
   const bounded = async (task) => {
@@ -31886,7 +31918,7 @@ async function runAzureTerraformNetworkGenerationHistory(
   const read = async (name) => {
     const value = await bounded(() => store.read(name)),
       digest = canonicalSha256(value);
-    require74(!records.has(name) || records.get(name) === digest, 'historical packet changed during qualification');
+    require75(!records.has(name) || records.get(name) === digest, 'historical packet changed during qualification');
     records.set(name, digest);
     return structuredClone(value);
   };
@@ -31906,19 +31938,19 @@ async function runAzureTerraformNetworkGenerationHistory(
     async loadSource(digest) {
       const value = await bounded(() => loaders.loadSource(digest));
       const actual = canonicalSha256(value);
-      require74(
+      require75(
         !sources.has(digest) || sources.get(digest) === actual,
         'predecessor source changed during qualification',
       );
       verifyAzureCePlan(value);
-      require74(value.planSha256 === digest, 'loaded generation digest differs');
+      require75(value.planSha256 === digest, 'loaded generation digest differs');
       sources.set(digest, actual);
       return structuredClone(value);
     },
     async loadOutcome(p) {
       const value = await bounded(() => loaders.loadOutcome(structuredClone(p))),
         digest = canonicalSha256(value);
-      require74(
+      require75(
         !outcomes.has(p.planSha256) || outcomes.get(p.planSha256)?.digest === digest,
         'original outcome changed during qualification',
       );
@@ -31933,19 +31965,19 @@ async function runAzureTerraformNetworkGenerationHistory(
     const profile = current.terraformNetworkProfile
       ? verifyAzureTerraformNetworkProfile(current)
       : verifyAzureTerraformNetworkReplacementProfile(current);
-    require74(chain.length <= 32, 'network generation depth exceeds bounded contract');
+    require75(chain.length <= 32, 'network generation depth exceeds bounded contract');
     const predecessor = await tracked.loadSource(profile.retainedPlanSha256);
-    require74(
+    require75(
       !seen.has(predecessor.planSha256) &&
         predecessor.engine === 'terraform' &&
         !predecessor.relayProfile &&
-        same48(azureUpgradeBinding(predecessor), azureUpgradeBinding(plan)) &&
-        same48(azureTerraformNetworkScope(predecessor, true), azureTerraformNetworkScope(plan, true)),
+        same49(azureUpgradeBinding(predecessor), azureUpgradeBinding(plan)) &&
+        same49(azureTerraformNetworkScope(predecessor, true), azureTerraformNetworkScope(plan, true)),
       'cyclic or foreign predecessor scope',
     );
     seen.add(predecessor.planSha256);
     if (predecessor.terraformNetworkProfile || predecessor.terraformNetworkReplacementProfile) {
-      require74(
+      require75(
         (predecessor.terraformNetworkProfile
           ? verifyAzureTerraformNetworkProfile(predecessor)
           : verifyAzureTerraformNetworkReplacementProfile(predecessor)
@@ -31956,17 +31988,17 @@ async function runAzureTerraformNetworkGenerationHistory(
       current = predecessor;
     } else {
       const original = await tracked.loadSource(profile.originalPlanSha256);
-      require74(
+      require75(
         original.intent.operation === 'deploy' &&
           original.engine === 'terraform' &&
           !original.relayProfile &&
-          same48(azureUpgradeBinding(original), azureUpgradeBinding(plan)) &&
-          same48(azureTerraformNetworkScope(original, true), azureTerraformNetworkScope(plan, true)) &&
+          same49(azureUpgradeBinding(original), azureUpgradeBinding(plan)) &&
+          same49(azureTerraformNetworkScope(original, true), azureTerraformNetworkScope(plan, true)) &&
           (predecessor.intent.operation === 'deploy'
-            ? same48(predecessor, original)
+            ? same49(predecessor, original)
             : predecessor.intent.operation === 'replace-node' &&
               !predecessor.terraformNetworkReplacementProfile &&
-              same48(azureTerraformNetworkScope(predecessor, false), azureTerraformNetworkScope(original, false))),
+              same49(azureTerraformNetworkScope(predecessor, false), azureTerraformNetworkScope(original, false))),
         'original or initial replacement scope differs',
       );
       break;
@@ -31975,15 +32007,15 @@ async function runAzureTerraformNetworkGenerationHistory(
   let previous;
   const completedPlans = selected ? chain.slice(0, -1) : chain;
   if (completedPlans.length)
-    require74(typeof verifier === 'function', 'trusted historical operational verifier required');
+    require75(typeof verifier === 'function', 'trusted historical operational verifier required');
   for (const predecessor of completedPlans) {
     if (predecessor.terraformNetworkReplacementProfile) {
-      require74(
+      require75(
         typeof replacementVerifier === 'function' && previous,
         'distinct trusted replacement historical verifier and completed predecessor required',
       );
       const outcome = await tracked.loadOutcome(predecessor);
-      require74(
+      require75(
         outcome.engine === 'terraform' &&
           outcome.status === 'complete' &&
           outcome.planId === predecessor.planId &&
@@ -32013,7 +32045,7 @@ async function runAzureTerraformNetworkGenerationHistory(
           deadline,
         ),
       );
-      require74(
+      require75(
         outcome.newVmId === completed.nodes[String(predecessor.intent.replacementNode)]?.vmId &&
           outcome.siteUid === completed.site.siteUid &&
           completed.originalPlanSha256 === previous.originalPlanSha256,
@@ -32042,30 +32074,30 @@ async function runAzureTerraformNetworkGenerationHistory(
           ),
         )
     : previous?.sourceQualification;
-  require74(qualification, 'completed source qualification missing');
+  require75(qualification, 'completed source qualification missing');
   for (const [digest, expected] of sources)
-    require74(
+    require75(
       canonicalSha256(await bounded(() => loaders.loadSource(digest))) === expected,
       'generation source changed across chain',
     );
   for (const { plan: p, digest } of outcomes.values())
-    require74(
+    require75(
       canonicalSha256(await bounded(() => loaders.loadOutcome(structuredClone(p)))) === digest,
       'public outcome changed across chain',
     );
   for (const [name, expected] of records)
-    require74(
+    require75(
       canonicalSha256(await bounded(() => store.read(name))) === expected,
       'historical packet changed across chain',
     );
   await bounded(() => store.verify());
-  require74(same48(store.owner, owner), 'owner changed across generation qualification');
+  require75(same49(store.owner, owner), 'owner changed across generation qualification');
   requestUnchanged();
   unchanged();
   deadline.throwIfAborted();
   return { qualification: structuredClone(qualification), ...(selected ? {} : { completion: previous }) };
 }
-var same48 = (a, b) => (a === undefined || b === undefined ? a === b : canonicalEqual(a, b)),
+var same49 = (a, b) => (a === undefined || b === undefined ? a === b : canonicalEqual(a, b)),
   hash11 = (s) => createHash26('sha256').update(s).digest('hex');
 var init_terraform_network_generation_history = __esm(() => {
   init_artifacts();
@@ -32082,20 +32114,20 @@ var init_terraform_network_generation_history = __esm(() => {
 // plugins/azure/src/ce/terraform-network-completion-history.ts
 import { createHash as createHash27 } from 'node:crypto';
 
-function require75(value, message) {
+function require76(value, message) {
   if (!value) throw Error(`Azure Terraform network completion history: ${message}`);
 }
 function object59(value) {
-  require75(value && typeof value === 'object' && !Array.isArray(value), 'malformed historical record');
+  require76(value && typeof value === 'object' && !Array.isArray(value), 'malformed historical record');
   return value;
 }
 function keys13(value, fields) {
-  require75(same49(Object.keys(object59(value)).sort(), fields.toSorted()), 'historical schema differs');
+  require76(same50(Object.keys(object59(value)).sort(), fields.toSorted()), 'historical schema differs');
 }
 function verification2(value) {
   keys13(value, ['status', 'scope', 'evidenceSha256']);
   const row = value;
-  require75(
+  require76(
     row.status === 'verified' &&
       row.scope === 'node-interfaces-routing-traffic' &&
       typeof row.evidenceSha256 === 'string' &&
@@ -32109,10 +32141,10 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const plan = structuredClone(source);
   verifyAzureCePlan(plan);
-  require75(
+  require76(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
-      same49(store.owner, azureUpgradeBinding(plan).owner) &&
+      same50(store.owner, azureUpgradeBinding(plan).owner) &&
       typeof qualifyAcceptance === 'function',
     'owning completed network scope required',
   );
@@ -32122,7 +32154,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     deadline.throwIfAborted();
     const value = await bounded(() => store.read(name)),
       digest = canonicalSha256(value);
-    require75(!observed.has(name) || observed.get(name) === digest, 'historical record changed between reads');
+    require76(!observed.has(name) || observed.get(name) === digest, 'historical record changed between reads');
     observed.set(name, digest);
     return structuredClone(value);
   };
@@ -32151,7 +32183,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     }
   };
   const qualify = (receipt, identity, mode) => {
-    require75(mode === 'historical', 'read-only history cannot request current acceptance');
+    require76(mode === 'historical', 'read-only history cannot request current acceptance');
     return bounded(() =>
       qualifyAcceptance(structuredClone(receipt), structuredClone(identity), 'historical', deadline),
     );
@@ -32161,14 +32193,14 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
   const loadSource = async (digest) => {
     const value = await bounded(() => loaders.loadSource(digest)),
       actual = canonicalSha256(value);
-    require75(!sourceDigests.has(digest) || sourceDigests.get(digest) === actual, 'loaded predecessor source changed');
+    require76(!sourceDigests.has(digest) || sourceDigests.get(digest) === actual, 'loaded predecessor source changed');
     sourceDigests.set(digest, actual);
     return structuredClone(value);
   };
   const loadOutcome = async (owner) => {
     const value = await bounded(() => loaders.loadOutcome(structuredClone(owner))),
       actual = canonicalSha256(value);
-    require75(
+    require76(
       !outcomes.has(owner.planSha256) || outcomes.get(owner.planSha256)?.digest === actual,
       'loaded public outcome changed',
     );
@@ -32190,11 +32222,11 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     'outputs',
     'qualification',
   ]);
-  require75(
+  require76(
     binding.schemaVersion === 1 &&
       binding.kind === 'azure-terraform-network-original-source' &&
       binding.engine === 'terraform' &&
-      same49(binding.owner, store.owner) &&
+      same50(binding.owner, store.owner) &&
       binding.planSha256 === plan.planSha256 &&
       typeof binding.source === 'string' &&
       hash12(binding.source) === binding.sourceConfigurationSha256 &&
@@ -32203,7 +32235,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
   );
   validateAzureNetworkUpdateInventory(plan, binding.before);
   verifyAzureTerraformNetworkUpdateState(plan, binding.before, binding.outputs);
-  require75(
+  require76(
     binding.qualification &&
       typeof binding.qualification.siteUid === 'string' &&
       typeof binding.qualification.siteConfigurationSha256 === 'string',
@@ -32238,9 +32270,9 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
           },
         ),
       );
-  require75(same49(binding.qualification, original), 'original source qualification changed');
+  require76(same50(binding.qualification, original), 'original source qualification changed');
   const snapshot = await AzureTerraformNetworkCheckpoint.inspect(plan, binding, readonlyStore, qualify, deadline);
-  require75(
+  require76(
     snapshot.allNodesAccepted && snapshot.checkpoint.nodes.length === plan.topology.nodeCount,
     'complete accepted serial node history required',
   );
@@ -32250,7 +32282,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     const stage = buildAzureTerraformNetworkPinnedNicStage(plan, nodeSource, row.before, row.node);
     const preflight = object59(await read(`${prefix}-node-${row.node}-preflight.json`));
     keys13(preflight, ['schemaVersion', 'sourceBindingSha256', 'identity', 'receipt', 'verification']);
-    require75(
+    require76(
       preflight.schemaVersion === 1 && preflight.sourceBindingSha256 === canonicalSha256(binding),
       'original preflight source differs',
     );
@@ -32265,8 +32297,8 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
       'configurationSha256',
       'inventory',
     ]);
-    require75(
-      same49(expected.owner, store.owner) &&
+    require76(
+      same50(expected.owner, store.owner) &&
         expected.planSha256 === plan.planSha256 &&
         expected.node === row.node &&
         expected.siteName === plan.siteName &&
@@ -32282,18 +32314,18 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     for (const [node, vm] of Object.entries(binding.before.nodes))
       for (const [index, nic] of Object.entries(vm.nics))
         if (!applied.includes(`${node}:${index}`))
-          require75(
+          require76(
             expected.inventory.nodes[node].nics[index].privateIp === nic.privateIp,
             'unsubmitted preflight private address differs',
           );
-    require75(
-      same49(
+    require76(
+      same50(
         verification2(await qualify(preflight.receipt, expected, 'historical', deadline)),
         verification2(preflight.verification),
       ),
       'preflight acceptance provenance changed',
     );
-    require75(row.history?.phase === 'routing-complete', 'accepted routing-complete history required');
+    require76(row.history?.phase === 'routing-complete', 'accepted routing-complete history required');
     nodeSource = buildAzureTerraformNetworkRoutingStage(
       plan,
       nodeSource,
@@ -32314,7 +32346,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     'outputs',
     'evidenceByNode',
   ]);
-  require75(
+  require76(
     packet.schemaVersion === 1 &&
       packet.engine === 'terraform' &&
       packet.planSha256 === plan.planSha256 &&
@@ -32324,7 +32356,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     'immutable completion identity differs',
   );
   const row = snapshot.checkpoint.nodes.at(-1);
-  require75(row, 'final selected node history missing');
+  require76(row, 'final selected node history missing');
   const finalStage = {
     ...buildAzureTerraformNetworkPinnedNicStage(plan, snapshot.nodeSource, row.before, row.node),
     configuration: nodeSource,
@@ -32332,7 +32364,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
   };
   const completed = packet;
   validateAzureNetworkUpdateTerraformReceipt(plan, finalStage, completed.receipt, binding.providerLockSha256);
-  require75(
+  require76(
     completed.receipt.noChanges && completed.receipt.configurationSha256 === hash12(nodeSource),
     'original final refresh changes or differs',
   );
@@ -32353,8 +32385,8 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
       configurationSha256: snapshot.configurationSha256,
       inventory: structuredClone(completed.inventory),
     };
-    require75(
-      same49(
+    require76(
+      same50(
         verification2(await qualify(evidence.receipt, expected, 'historical', deadline)),
         verification2(evidence.verification),
       ),
@@ -32362,20 +32394,20 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
     );
   }
   for (const [digest, expected] of sourceDigests)
-    require75(
+    require76(
       canonicalSha256(await bounded(() => loaders.loadSource(digest))) === expected,
       'predecessor source changed during qualification',
     );
   for (const { source: owner, digest } of outcomes.values())
-    require75(
+    require76(
       canonicalSha256(await bounded(() => loaders.loadOutcome(structuredClone(owner)))) === digest,
       'public outcome changed during qualification',
     );
   await store.verify();
-  require75(same49(store.owner, binding.owner), 'owner changed during historical qualification');
+  require76(same50(store.owner, binding.owner), 'owner changed during historical qualification');
   for (const [name, digest] of observed) {
     deadline.throwIfAborted();
-    require75(
+    require76(
       canonicalSha256(await bounded(() => store.read(name))) === digest,
       'historical evidence changed during qualification',
     );
@@ -32412,7 +32444,7 @@ async function readAzureTerraformNetworkCompletionHistory(plan, store, loaders, 
     signal,
     replacementVerifier,
   );
-  require75(
+  require76(
     result.completion?.kind === 'azure-terraform-network-completion-history',
     'immutable completed network history required',
   );
@@ -32444,7 +32476,7 @@ async function qualifyAzureTerraformNetworkGenerationSource(
   ).qualification;
 }
 var hash12 = (text) => createHash27('sha256').update(text).digest('hex'),
-  same49 = (a, b) => canonicalEqual(a, b);
+  same50 = (a, b) => canonicalEqual(a, b);
 var init_terraform_network_completion_history = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -32461,7 +32493,7 @@ var init_terraform_network_completion_history = __esm(() => {
 // plugins/azure/src/ce/terraform-network-source-history.ts
 import { createHash as createHash28 } from 'node:crypto';
 
-function require76(value, message) {
+function require77(value, message) {
   if (!value) throw Error(`Azure Terraform network source history: ${message}`);
 }
 async function readAzureTerraformNetworkSourceHistory(
@@ -32479,12 +32511,12 @@ async function readAzureTerraformNetworkSourceHistory(
     { directory, read, verify } = store,
     { loadSource, loadOutcome } = loaders;
   verifyAzureCePlan(plan);
-  require76(
+  require77(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
-      same50(owner, azureUpgradeBinding(plan).owner) &&
+      same51(owner, azureUpgradeBinding(plan).owner) &&
       typeof verifier === 'function' &&
-      same50(Object.keys(site).sort(), ['siteConfigurationSha256', 'siteUid']) &&
+      same51(Object.keys(site).sort(), ['siteConfigurationSha256', 'siteUid']) &&
       typeof site.siteUid === 'string' &&
       !!site.siteUid &&
       /^[a-f0-9]{64}$/.test(site.siteConfigurationSha256),
@@ -32492,10 +32524,10 @@ async function readAzureTerraformNetworkSourceHistory(
   );
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const unchanged = () =>
-    require76(
-      same50(request, plan) &&
-        same50(siteRequest, site) &&
-        same50(store.owner, owner) &&
+    require77(
+      same51(request, plan) &&
+        same51(siteRequest, site) &&
+        same51(store.owner, owner) &&
         store.directory === directory &&
         store.read === read &&
         store.verify === verify &&
@@ -32525,7 +32557,7 @@ async function readAzureTerraformNetworkSourceHistory(
   const trackedRead = async (name) => {
     const value = await bounded(() => read.call(store, name)),
       digest = canonicalSha256(value);
-    require76(
+    require77(
       packetSha256ByName[name] === undefined || packetSha256ByName[name] === digest,
       'packet changed between history reads',
     );
@@ -32550,7 +32582,7 @@ async function readAzureTerraformNetworkSourceHistory(
       const value = await bounded(() => loadSource.call(loaders, digest));
       verifyAzureCePlan(value);
       const actual = canonicalSha256(value);
-      require76(
+      require77(
         value.planSha256 === digest && (!sources.has(digest) || sources.get(digest) === actual),
         'predecessor source changed or declared digest differs',
       );
@@ -32560,7 +32592,7 @@ async function readAzureTerraformNetworkSourceHistory(
     async loadOutcome(source) {
       const value = await bounded(() => loadOutcome.call(loaders, structuredClone(source))),
         digest = canonicalSha256(value);
-      require76(
+      require77(
         !outcomes.has(source.planSha256) || outcomes.get(source.planSha256)?.digest === digest,
         'predecessor outcome changed between reads',
       );
@@ -32570,10 +32602,10 @@ async function readAzureTerraformNetworkSourceHistory(
   };
   const name = `${plan.planId}-terraform-network-source.json`;
   const input = await trackedRead(name);
-  require76(input && typeof input === 'object' && !Array.isArray(input), 'original source packet unavailable');
+  require77(input && typeof input === 'object' && !Array.isArray(input), 'original source packet unavailable');
   const binding = input;
-  require76(
-    same50(Object.keys(binding).sort(), [
+  require77(
+    same51(Object.keys(binding).sort(), [
       'before',
       'engine',
       'kind',
@@ -32589,7 +32621,7 @@ async function readAzureTerraformNetworkSourceHistory(
       binding.schemaVersion === 1 &&
       binding.engine === 'terraform' &&
       binding.kind === 'azure-terraform-network-original-source' &&
-      same50(binding.owner, owner) &&
+      same51(binding.owner, owner) &&
       binding.planSha256 === plan.planSha256 &&
       binding.providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 &&
       typeof binding.source === 'string' &&
@@ -32599,7 +32631,7 @@ async function readAzureTerraformNetworkSourceHistory(
   validateAzureNetworkUpdateInventory(plan, binding.before);
   verifyAzureTerraformNetworkUpdateState(plan, binding.before, binding.outputs);
   const historical = (receipt, identity, mode) => {
-    require76(mode === 'historical', 'original-source history cannot request current acceptance');
+    require77(mode === 'historical', 'original-source history cannot request current acceptance');
     return bounded(() => verifier(structuredClone(receipt), structuredClone(identity), mode, deadline));
   };
   const qualification = await bounded(() =>
@@ -32616,27 +32648,27 @@ async function readAzureTerraformNetworkSourceHistory(
       replacementVerifier,
     ),
   );
-  require76(
-    same50(binding.qualification, qualification),
+  require77(
+    same51(binding.qualification, qualification),
     'original source qualification differs from owning generation history',
   );
   for (const [digest, expected] of sources)
-    require76(
+    require77(
       canonicalSha256(await bounded(() => loadSource.call(loaders, digest))) === expected,
       'predecessor source changed before final history boundary',
     );
   for (const { plan: source, digest } of outcomes.values())
-    require76(
+    require77(
       canonicalSha256(await bounded(() => loadOutcome.call(loaders, structuredClone(source)))) === digest,
       'predecessor outcome changed before final history boundary',
     );
   for (const [packet, digest] of Object.entries(packetSha256ByName))
-    require76(
+    require77(
       canonicalSha256(await bounded(() => read.call(store, packet))) === digest,
       'packet changed before final history boundary',
     );
   await bounded(() => verify.call(store));
-  require76(
+  require77(
     canonicalSha256(await bounded(() => read.call(store, name))) === packetSha256ByName[name],
     'original source root changed at final boundary',
   );
@@ -32649,7 +32681,7 @@ async function readAzureTerraformNetworkSourceHistory(
     retirementQualified: false,
   };
 }
-var same50 = (a, b) => canonicalEqual(a, b),
+var same51 = (a, b) => canonicalEqual(a, b),
   hash13 = (s) => createHash28('sha256').update(s).digest('hex');
 var init_terraform_network_source_history = __esm(() => {
   init_artifacts();
@@ -32662,7 +32694,7 @@ var init_terraform_network_source_history = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-retirement-checkpoint.ts
-function require77(value, message) {
+function require78(value, message) {
   if (!value) throw Error(`Azure Terraform network retirement checkpoint: ${message}`);
 }
 async function readAzureTerraformNetworkRetirementCheckpoint(
@@ -32681,10 +32713,10 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     { loadSource, loadOutcome } = loaders;
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const unchanged = () =>
-    require77(
-      same51(request, plan) &&
-        same51(siteRequest, site) &&
-        same51(store.owner, owner) &&
+    require78(
+      same52(request, plan) &&
+        same52(siteRequest, site) &&
+        same52(store.owner, owner) &&
         store.directory === directory &&
         store.read === read &&
         store.verify === verify &&
@@ -32715,14 +32747,14 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
       value = await bounded(() => read.call(store, name));
     } catch (error) {
       if (error.code === 'ENOENT') {
-        require77(packetSha256ByName[name] === undefined, 'present packet disappeared');
+        require78(packetSha256ByName[name] === undefined, 'present packet disappeared');
         absentPackets.add(name);
       }
       throw error;
     }
-    require77(!absentPackets.has(name), 'absent packet appeared');
+    require78(!absentPackets.has(name), 'absent packet appeared');
     const digest = canonicalSha256(value);
-    require77(
+    require78(
       packetSha256ByName[name] === undefined || packetSha256ByName[name] === digest,
       'packet changed between checkpoint reads',
     );
@@ -32743,7 +32775,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     },
   });
   const historical = (receipt, identity, mode) => {
-    require77(mode === 'historical', 'retirement checkpoint cannot request current acceptance');
+    require78(mode === 'historical', 'retirement checkpoint cannot request current acceptance');
     return bounded(() => verifier(structuredClone(receipt), structuredClone(identity), mode, deadline));
   };
   const sources = new Map(),
@@ -32752,14 +32784,14 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     async loadSource(digest) {
       const value = await bounded(() => loadSource.call(loaders, digest)),
         actual = canonicalSha256(value);
-      require77(!sources.has(digest) || sources.get(digest) === actual, 'original source loader result changed');
+      require78(!sources.has(digest) || sources.get(digest) === actual, 'original source loader result changed');
       sources.set(digest, actual);
       return structuredClone(value);
     },
     async loadOutcome(input) {
       const value = await bounded(() => loadOutcome.call(loaders, structuredClone(input))),
         digest = canonicalSha256(value);
-      require77(
+      require78(
         !outcomes.has(input.planSha256) || outcomes.get(input.planSha256)?.digest === digest,
         'original outcome loader result changed',
       );
@@ -32797,7 +32829,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     complete = await optional(completeName),
     currentFinal = await optional(currentFinalName);
   const revisions = names.filter((name) => name.startsWith(`${prefix}revision-`));
-  require77(
+  require78(
     names
       .filter((name) => name.startsWith(prefix))
       .every(
@@ -32823,8 +32855,8 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     lastTransition: null,
   };
   if (root !== undefined)
-    require77(
-      same51(root, {
+    require78(
+      same52(root, {
         schemaVersion: 1,
         initialCheckpointSha256: canonicalSha256(initial),
       }),
@@ -32851,19 +32883,19 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
   let snapshot;
   let pointerPublication;
   if (originalPointer === undefined) {
-    require77(
+    require78(
       complete === undefined && currentFinal === undefined,
       'terminal publication without original checkpoint pointer',
     );
-    require77(
+    require78(
       !names.some((name) => name.startsWith(`${plan.planId}-terraform-network-node-`)),
       'stage publication without original checkpoint pointer',
     );
-    require77(
-      revisions.length === 0 || same51(revisions, [`${prefix}revision-0.json`]),
+    require78(
+      revisions.length === 0 || same52(revisions, [`${prefix}revision-0.json`]),
       'later or malformed revision without original checkpoint pointer',
     );
-    require77(root !== undefined || names.every((name) => !name.startsWith(prefix)), 'driver packets without root');
+    require78(root !== undefined || names.every((name) => !name.startsWith(prefix)), 'driver packets without root');
     if (revisions.length) {
       snapshot = await inspect(await trackedRead(revisions[0]));
       pointerPublication = 'pending-initial';
@@ -32871,7 +32903,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
   } else {
     const current = await inspect();
     const nextName = `${prefix}revision-${current.checkpoint.revision + 1}.json`;
-    require77(
+    require78(
       revisions.every((name) => {
         const suffix = name.slice(`${prefix}revision-`.length),
           match = /^(0|[1-9][0-9]*)\.json$/.exec(suffix);
@@ -32883,7 +32915,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     pointerPublication = 'current';
     if (names.includes(nextName)) {
       const next = await trackedRead(nextName);
-      require77(
+      require78(
         next &&
           next.revision === current.checkpoint.revision + 1 &&
           next.previousCheckpointSha256 === current.checkpointSha256,
@@ -32894,9 +32926,9 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     }
   }
   const completionSha256ByName = {};
-  require77(complete !== undefined || currentFinal === undefined, 'current final without original completion');
+  require78(complete !== undefined || currentFinal === undefined, 'current final without original completion');
   if (complete !== undefined) {
-    require77(
+    require78(
       pointerPublication === 'current' && snapshot?.allNodesAccepted,
       'terminal publication without complete published serial history',
     );
@@ -32910,7 +32942,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
         replacementVerifier,
       ),
     );
-    require77(
+    require78(
       history.checkpointSha256 === snapshot.checkpointSha256 &&
         history.sourceBindingSha256 === canonicalSha256(source.binding),
       'terminal history differs from original checkpoint',
@@ -32933,7 +32965,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
           replacementVerifier,
         ),
       );
-      require77(
+      require78(
         currentHistory.checkpointSha256 === snapshot.checkpointSha256 &&
           currentHistory.sourceBindingSha256 === canonicalSha256(source.binding),
         'current-final provenance differs',
@@ -32941,26 +32973,26 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
       completionSha256ByName[currentFinalName] = currentHistory.completionSha256;
     }
   }
-  require77(same51(await inventory(), names), 'checkpoint directory changed during inspection');
+  require78(same52(await inventory(), names), 'checkpoint directory changed during inspection');
   for (const [digest, expected] of sources)
-    require77(
+    require78(
       canonicalSha256(await bounded(() => loadSource.call(loaders, digest))) === expected,
       'original source loader result changed before final boundary',
     );
   for (const { plan: original, digest } of outcomes.values())
-    require77(
+    require78(
       canonicalSha256(await bounded(() => loadOutcome.call(loaders, structuredClone(original)))) === digest,
       'original outcome loader result changed before final boundary',
     );
   await trackedVerify();
   for (const [name, digest] of Object.entries(packetSha256ByName))
-    require77(
+    require78(
       canonicalSha256(await bounded(() => read.call(store, name))) === digest,
       'checkpoint or original source history changed before final boundary',
     );
   for (const name of absentPackets)
-    require77((await optional(name)) === undefined, 'absent checkpoint packet appeared');
-  require77(same51(await inventory(), names), 'checkpoint directory changed before final boundary');
+    require78((await optional(name)) === undefined, 'absent checkpoint packet appeared');
+  require78(same52(await inventory(), names), 'checkpoint directory changed before final boundary');
   return {
     schemaVersion: 1,
     scope: 'network-retirement-checkpoint-history',
@@ -32975,7 +33007,7 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     retirementQualified: false,
   };
 }
-var same51 = (a, b) => canonicalEqual(a, b);
+var same52 = (a, b) => canonicalEqual(a, b);
 var init_terraform_network_retirement_checkpoint = __esm(() => {
   init_canonical();
   init_terraform_network_checkpoint();
@@ -32987,13 +33019,13 @@ var init_terraform_network_retirement_checkpoint = __esm(() => {
 // plugins/azure/src/ce/terraform-network-routing-prefix-history.ts
 import { createHash as createHash29 } from 'node:crypto';
 
-function require78(value, message) {
+function require79(value, message) {
   if (!value) throw Error(`Azure Terraform network routing prefix history: ${message}`);
 }
 function keys14(value, names) {
-  require78(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
+  require79(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
   const row = value;
-  require78(same52(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
+  require79(same53(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
   return row;
 }
 async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, before, current, node, store, signal) {
@@ -33002,13 +33034,13 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
     original = { read: store.read, verify: store.verify },
     ownerSha256 = canonicalSha256(store.owner);
   verifyAzureCePlan(data.plan);
-  require78(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
+  require79(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
   let retainedCurrent = data.current,
     stage = buildAzureTerraformNetworkRoutingStage(data.plan, source, data.before, retainedCurrent, node);
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require78(
+    require79(
       canonicalSha256({ plan, before, current, node }) === inputSha256 &&
         canonicalSha256(data) === inputSha256 &&
         canonicalSha256(store.owner) === ownerSha256 &&
@@ -33058,7 +33090,7 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
     }
   }
   for (let i = 1; i < suffixes.length; i++)
-    require78(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later routing packet');
+    require79(!records.has(suffixes[i]) || records.has(suffixes[i - 1]), 'orphan later routing packet');
   if (records.has('prepared')) {
     const qualified = validateAzureTerraformNetworkRoutingPrepared(
       data.plan,
@@ -33096,8 +33128,8 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
         'prior',
         'proposed',
       ]);
-      require78(
-        same52(
+      require79(
+        same53(
           { ...binding, prior: undefined, proposed: undefined },
           {
             schemaVersion: 1,
@@ -33130,10 +33162,10 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
     if (records.has(`${phase}-outcome`)) observation(records.get(`${phase}-outcome`));
     if (records.has(`${phase}-complete`)) {
       const complete = keys14(records.get(`${phase}-complete`), ['schemaVersion', 'receiptSha256', 'outcome']);
-      require78(
+      require79(
         complete.schemaVersion === 1 &&
           complete.receiptSha256 === canonicalSha256(saved) &&
-          same52(complete.outcome, records.get(`${phase}-outcome`)),
+          same53(complete.outcome, records.get(`${phase}-outcome`)),
         'saved completion differs from exact receipt/outcome',
       );
     }
@@ -33144,9 +33176,9 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
   ])
     if (records.has(suffix)) {
       const terminal = keys14(records.get(suffix), ['schemaVersion', 'receipt', 'prior', 'proposed', 'cloud']);
-      require78(terminal.schemaVersion === 1, 'saved final schema differs');
+      require79(terminal.schemaVersion === 1, 'saved final schema differs');
       const final = receipt(terminal.receipt, 'release');
-      require78(final.noChanges, 'final refresh changes retained resources');
+      require79(final.noChanges, 'final refresh changes retained resources');
       validateAzureTerraformNetworkRoutingProjection(
         data.plan,
         source,
@@ -33166,13 +33198,13 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
     const name = `${prefix}-${suffix}.json`;
     try {
       const value = await step(() => original.read.call(store, name));
-      require78(
+      require79(
         records.has(suffix) && canonicalSha256(value) === packetSha256ByName[name],
         'packet changed or appeared',
       );
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      require78(!records.has(suffix), 'packet disappeared');
+      require79(!records.has(suffix), 'packet disappeared');
     }
   }
   seal();
@@ -33193,27 +33225,27 @@ async function readAzureTerraformNetworkRoutingPrefixHistory(plan, source, befor
     retirementQualified: false,
   };
 }
-var same52;
+var same53;
 var init_terraform_network_routing_prefix_history = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_network_routing();
   init_terraform_network_routing_observation_validation();
   init_terraform_upgrade();
-  same52 = canonicalEqual;
+  same53 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-retirement-graph.ts
 import { createHash as createHash30 } from 'node:crypto';
 import { readdir as readdir6 } from 'node:fs/promises';
 
-function require79(value, message) {
+function require80(value, message) {
   if (!value) throw Error(`Azure Terraform network retirement graph: ${message}`);
 }
 function keys15(value, fields) {
-  require79(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
+  require80(value && typeof value === 'object' && !Array.isArray(value), 'saved object required');
   const row = value;
-  require79(same53(Object.keys(row).sort(), fields.toSorted()), 'saved graph schema differs');
+  require80(same54(Object.keys(row).sort(), fields.toSorted()), 'saved graph schema differs');
   return row;
 }
 async function recheckAzureTerraformNetworkRetirementGraph(
@@ -33228,9 +33260,9 @@ async function recheckAzureTerraformNetworkRetirementGraph(
 ) {
   signal?.throwIfAborted();
   const qualified = witness && typeof witness === 'object' ? authenticatedGraphWitnesses.get(witness) : undefined;
-  require79(qualified, 'owning authenticated graph witness required');
+  require80(qualified, 'owning authenticated graph witness required');
   const context = () =>
-    require79(
+    require80(
       qualified.requestSha256 === canonicalSha256(request) &&
         qualified.siteSha256 === canonicalSha256(site) &&
         qualified.store === store &&
@@ -33251,8 +33283,8 @@ async function readAzureTerraformNetworkPacketNames(store, plan) {
     .sort();
   const historical = historicalInventories.get(store);
   if (!historical) return names;
-  require79(
-    historical.planSha256 === plan.planSha256 && same53(names, historical.currentNames),
+  require80(
+    historical.planSha256 === plan.planSha256 && same54(names, historical.currentNames),
     'current network namespace changed during original prefix inspection',
   );
   return [...historical.originalNames];
@@ -33262,7 +33294,7 @@ function immutableGraph(value) {
   const freeze = (entry) => {
     if (entry === null || typeof entry !== 'object') return;
     const prototype = Object.getPrototypeOf(entry);
-    require79(
+    require80(
       Array.isArray(entry) || prototype === Object.prototype || prototype === null,
       'immutable graph requires plain JSON values',
     );
@@ -33291,10 +33323,10 @@ async function readAzureTerraformNetworkRetirementGraph(
     siteMatches = canonicalSnapshot(site);
   const seal = () => {
     deadline.throwIfAborted();
-    require79(
+    require80(
       requestMatches(request) &&
         siteMatches(siteRequest) &&
-        same53(store.owner, owner) &&
+        same54(store.owner, owner) &&
         store.directory === directory &&
         store.read === read &&
         store.verify === verify &&
@@ -33328,13 +33360,13 @@ async function readAzureTerraformNetworkRetirementGraph(
       value = await step(() => read.call(store, name));
     } catch (error) {
       if (error.code === 'ENOENT') {
-        require79(packets[name] === undefined, 'present graph packet disappeared');
+        require80(packets[name] === undefined, 'present graph packet disappeared');
         absent.add(name);
       }
       throw error;
     }
     const digest = canonicalSha256(value);
-    require79(
+    require80(
       !absent.has(name) && (packets[name] === undefined || packets[name] === digest),
       'graph packet appeared or changed',
     );
@@ -33377,14 +33409,14 @@ async function readAzureTerraformNetworkRetirementGraph(
     async loadSource(digest) {
       const value = await step(() => loadSource.call(loaders, digest)),
         actual = canonicalSha256(value);
-      require79(!sources.has(digest) || sources.get(digest) === actual, 'original source changed across graph');
+      require80(!sources.has(digest) || sources.get(digest) === actual, 'original source changed across graph');
       sources.set(digest, actual);
       return structuredClone(value);
     },
     async loadOutcome(original) {
       const value = await step(() => loadOutcome.call(loaders, structuredClone(original))),
         digest = canonicalSha256(value);
-      require79(
+      require80(
         !outcomes.has(original.planSha256) || outcomes.get(original.planSha256)?.digest === digest,
         'original outcome changed across graph',
       );
@@ -33395,7 +33427,7 @@ async function readAzureTerraformNetworkRetirementGraph(
   const historicalChecks = new Map();
   const retainVerification = (key, result, replay) => {
     const digest = canonicalSha256(result);
-    require79(
+    require80(
       !historicalChecks.has(key) || historicalChecks.get(key)?.digest === digest,
       'historical verifier result changed across graph',
     );
@@ -33403,7 +33435,7 @@ async function readAzureTerraformNetworkRetirementGraph(
     return result;
   };
   const historical = async (receipt, identity, mode) => {
-    require79(mode === 'historical', 'graph cannot request current acceptance');
+    require80(mode === 'historical', 'graph cannot request current acceptance');
     const frozenReceipt = structuredClone(receipt),
       frozenIdentity = structuredClone(identity);
     const replay = (active) =>
@@ -33416,7 +33448,7 @@ async function readAzureTerraformNetworkRetirementGraph(
   };
   const historicalReplacement = replacementVerifier
     ? async (receipt, identity, mode) => {
-        require79(mode === 'historical', 'graph cannot request current replacement acceptance');
+        require80(mode === 'historical', 'graph cannot request current replacement acceptance');
         const frozenReceipt = structuredClone(receipt),
           frozenIdentity = structuredClone(identity);
         const replay = (active) =>
@@ -33452,7 +33484,7 @@ async function readAzureTerraformNetworkRetirementGraph(
       historicalReplacement,
     ),
   );
-  require79(
+  require80(
     checkpoint.originalSourceBindingSha256 === canonicalSha256(original.binding),
     'original and serial source bindings differ',
   );
@@ -33468,7 +33500,7 @@ async function readAzureTerraformNetworkRetirementGraph(
     const preflight = await optional(`${prefix}-preflight.json`);
     if (preflight !== undefined) {
       const packet = keys15(preflight, ['schemaVersion', 'sourceBindingSha256', 'identity', 'receipt', 'verification']);
-      require79(
+      require80(
         packet.schemaVersion === 1 && packet.sourceBindingSha256 === canonicalSha256(original.binding),
         'preflight original source differs',
       );
@@ -33482,24 +33514,24 @@ async function readAzureTerraformNetworkRetirementGraph(
         'configurationSha256',
         'inventory',
       ]);
-      require79(
-        same53(identity.owner, owner) &&
+      require80(
+        same54(identity.owner, owner) &&
           identity.planSha256 === plan.planSha256 &&
           identity.node === node &&
           identity.siteName === plan.siteName &&
           identity.siteUid === site.siteUid &&
           identity.siteConfigurationSha256 === site.siteConfigurationSha256 &&
           identity.configurationSha256 === createHash30('sha256').update(source).digest('hex') &&
-          same53(validateAzureNetworkUpdateInventory(plan, identity.inventory).nodes, row.before.nodes),
+          same54(validateAzureNetworkUpdateInventory(plan, identity.inventory).nodes, row.before.nodes),
         'preflight serial/node/site identity differs',
       );
       const qualified = await historical(packet.receipt, packet.identity, 'historical', deadline);
       keys15(qualified, ['status', 'scope', 'evidenceSha256']);
-      require79(
+      require80(
         qualified.status === 'verified' &&
           qualified.scope === 'node-interfaces-routing-traffic' &&
           /^[a-f0-9]{64}$/.test(qualified.evidenceSha256) &&
-          same53(qualified, packet.verification),
+          same54(qualified, packet.verification),
         'preflight historical acceptance differs',
       );
     }
@@ -33512,21 +33544,21 @@ async function readAzureTerraformNetworkRetirementGraph(
     const start = await step(() =>
       readAzureTerraformNetworkPowerHistory(plan, row.before, node, 'start', reached, readonlyStore, deadline),
     );
-    require79(
+    require80(
       preflight !== undefined || (!deallocate.lastPacket && !nic.lastPacket && !start.lastPacket && rank === 0),
       'stage publication without original qualified preflight',
     );
-    require79(
+    require80(
       !nic.lastPacket || (rank >= 1 && deallocate.receipts.final),
       'NIC prefix lacks published serial deallocate prerequisite',
     );
-    require79(
+    require80(
       !start.lastPacket || (rank >= 2 && nic.receipts.final),
       'start prefix lacks published serial NIC prerequisite',
     );
-    require79(rank < 1 || deallocate.receipts.final, 'checkpoint exceeds immutable deallocate completion');
-    require79(rank < 2 || nic.receipts.final, 'checkpoint exceeds immutable NIC completion');
-    require79(rank < 3 || start.receipts.final, 'checkpoint exceeds immutable start completion');
+    require80(rank < 1 || deallocate.receipts.final, 'checkpoint exceeds immutable deallocate completion');
+    require80(rank < 2 || nic.receipts.final, 'checkpoint exceeds immutable NIC completion');
+    require80(rank < 3 || start.receipts.final, 'checkpoint exceeds immutable start completion');
     let routing;
     if (start.receipts.final) {
       const released = keys15(await trackedRead(`${prefix}-start-release-outcome.json`), ['cloud', 'state']);
@@ -33542,7 +33574,7 @@ async function readAzureTerraformNetworkRetirementGraph(
           deadline,
         ),
       );
-      require79(!routing.lastPacket || rank >= 3, 'routing prefix lacks published serial restart prerequisite');
+      require80(!routing.lastPacket || rank >= 3, 'routing prefix lacks published serial restart prerequisite');
     } else {
       for (const suffix of [
         'prepared',
@@ -33557,12 +33589,12 @@ async function readAzureTerraformNetworkRetirementGraph(
         'final-plan',
         'current-no-change-plan',
       ])
-        require79(
+        require80(
           (await optional(`${prefix}-routing-${suffix}.json`)) === undefined,
           'routing packets before immutable restart completion',
         );
     }
-    require79(rank < 4 || routing?.receipts.final, 'checkpoint exceeds immutable routing completion');
+    require80(rank < 4 || routing?.receipts.final, 'checkpoint exceeds immutable routing completion');
     if (preflight !== undefined)
       powerDeployments.push(
         await step(() => azureTerraformNetworkPowerDeployment(plan, row.before, node, 'deallocate')),
@@ -33571,7 +33603,7 @@ async function readAzureTerraformNetworkRetirementGraph(
       powerDeployments.push(await step(() => azureTerraformNetworkPowerDeployment(plan, row.before, node, 'start')));
     nodes.push({ node, phase: row.phase, preflightPresent: preflight !== undefined, deallocate, nic, start, routing });
     if (row.phase === 'accepted') {
-      require79(row.history?.phase === 'routing-complete', 'accepted predecessor lacks routing completion');
+      require80(row.history?.phase === 'routing-complete', 'accepted predecessor lacks routing completion');
       source = buildAzureTerraformNetworkRoutingStage(
         plan,
         source,
@@ -33581,28 +33613,28 @@ async function readAzureTerraformNetworkRetirementGraph(
       ).releasedConfiguration;
     }
   }
-  require79(
+  require80(
     names.every((name) => packets[name] !== undefined),
     'unrecognized or future-node network packet',
   );
   await step(() => verify.call(store));
   for (const [digest, expected] of sources)
-    require79(
+    require80(
       canonicalSha256(await step(() => loadSource.call(loaders, digest))) === expected,
       'original source changed before graph boundary',
     );
   for (const { plan: input, digest } of outcomes.values())
-    require79(
+    require80(
       canonicalSha256(await step(() => loadOutcome.call(loaders, structuredClone(input)))) === digest,
       'original outcome changed before graph boundary',
     );
   for (const [name, digest] of Object.entries(packets))
-    require79(
+    require80(
       canonicalSha256(await step(() => read.call(store, name))) === digest,
       'graph packet changed before final boundary',
     );
-  for (const name of absent) require79((await optionalFresh(name)) === undefined, 'absent graph packet appeared');
-  require79(same53(await inventory(), names), 'network directory changed across graph');
+  for (const name of absent) require80((await optionalFresh(name)) === undefined, 'absent graph packet appeared');
+  require80(same54(await inventory(), names), 'network directory changed across graph');
   seal();
   const result = immutableGraph({
     schemaVersion: 1,
@@ -33632,7 +33664,7 @@ async function readAzureTerraformNetworkRetirementGraph(
       const boundary = () => {
         active.throwIfAborted();
         seal();
-        require79(Object.isFrozen(result), 'authenticated graph witness must remain immutable');
+        require80(Object.isFrozen(result), 'authenticated graph witness must remain immutable');
       };
       const bounded = async (action) => {
         boundary();
@@ -33648,33 +33680,33 @@ async function readAzureTerraformNetworkRetirementGraph(
         }
       };
       await bounded(() => verify.call(store));
-      require79(same53(await bounded(inventory), names), 'authenticated graph namespace changed');
+      require80(same54(await bounded(inventory), names), 'authenticated graph namespace changed');
       for (const [digest, expected] of sources)
-        require79(
+        require80(
           canonicalSha256(await bounded(() => loadSource.call(loaders, digest))) === expected,
           'authenticated graph source loader changed',
         );
       for (const { plan: original, digest } of outcomes.values())
-        require79(
+        require80(
           canonicalSha256(await bounded(() => loadOutcome.call(loaders, structuredClone(original)))) === digest,
           'authenticated graph outcome loader changed',
         );
       for (const { replay, digest } of historicalChecks.values())
-        require79(
+        require80(
           canonicalSha256(await bounded(() => replay(active))) === digest,
           'authenticated graph historical verifier changed',
         );
       for (const [name, digest] of Object.entries(packets))
-        require79(
+        require80(
           canonicalSha256(await bounded(() => read.call(store, name))) === digest,
           'authenticated graph packet changed',
         );
       for (const name of absent)
-        require79((await bounded(() => optionalFresh(name))) === undefined, 'authenticated graph absence changed');
-      require79(same53(await bounded(inventory), names), 'authenticated graph namespace changed at final boundary');
+        require80((await bounded(() => optionalFresh(name))) === undefined, 'authenticated graph absence changed');
+      require80(same54(await bounded(inventory), names), 'authenticated graph namespace changed at final boundary');
       await bounded(() => verify.call(store));
       boundary();
-      require79(canonicalSha256(result) === resultSha256, 'immutable graph final digest differs');
+      require80(canonicalSha256(result) === resultSha256, 'immutable graph final digest differs');
       return structuredClone(result);
     },
   });
@@ -33691,7 +33723,7 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
   replacementVerifier,
   currentWitness,
 ) {
-  require79(
+  require80(
     originalRequest && typeof originalRequest === 'object' && !Array.isArray(originalRequest),
     'original graph witness required',
   );
@@ -33706,11 +33738,11 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require79(
+    require80(
       originalMatches(originalRequest) &&
-        same53(request, plan) &&
-        same53(site, ownedSite) &&
-        same53(store.owner, owner) &&
+        same54(request, plan) &&
+        same54(site, ownedSite) &&
+        same54(store.owner, owner) &&
         store.directory === directory &&
         store.read === read &&
         store.verify === verify &&
@@ -33765,16 +33797,16 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
   const frozen = original,
     originalSnapshot = frozen.checkpoint?.snapshot,
     currentSnapshot = current.checkpoint.snapshot;
-  require79(
+  require80(
     originalSnapshot &&
       currentSnapshot &&
       Number.isSafeInteger(originalSnapshot.checkpoint.revision) &&
       originalSnapshot.checkpoint.revision >= 0 &&
       originalSnapshot.checkpoint.revision <= currentSnapshot.checkpoint.revision &&
-      same53(frozen.original, current.original),
+      same54(frozen.original, current.original),
     'original source or checkpoint ancestry differs',
   );
-  require79(
+  require80(
     frozen.packetSha256ByName &&
       typeof frozen.packetSha256ByName === 'object' &&
       !Array.isArray(frozen.packetSha256ByName) &&
@@ -33792,7 +33824,7 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
     currentAbsent = new Set(current.absentPackets);
   const safeName = (name) => /^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name);
   for (const [name, digest] of Object.entries(originalPackets)) {
-    require79(
+    require80(
       safeName(name) &&
         /^[a-f0-9]{64}$/.test(digest) &&
         !originalAbsent.has(name) &&
@@ -33800,14 +33832,14 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
       'original immutable graph packet changed or disappeared',
     );
   }
-  require79(
+  require80(
     originalPackets[originalRevision] === originalSnapshot.checkpointSha256 &&
       currentPackets[originalRevision] === originalSnapshot.checkpointSha256 &&
       originalPackets[originalRevision] === canonicalSha256(originalSnapshot.checkpoint),
     'original immutable checkpoint is not retained in current ancestry',
   );
   for (const name of originalAbsent)
-    require79(
+    require80(
       safeName(name) && (currentPackets[name] !== undefined || currentAbsent.has(name)),
       'original absence has no independently qualified current publication or absence',
     );
@@ -33823,7 +33855,7 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
         originalPackets[name] === pointerDigest
       );
     });
-  require79(
+  require80(
     pointerDigest && pointerRevisions.length === 1,
     'original moving pointer lacks its exact retained immutable revision',
   );
@@ -33833,32 +33865,32 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
       value = await step(() => read.call(store, name));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      require79(
+      require80(
         currentPackets[name] === undefined && currentAbsent.has(name),
         'current verified packet disappeared during prefix read',
       );
       return;
     }
-    require79(
+    require80(
       currentPackets[name] !== undefined && canonicalSha256(value) === currentPackets[name],
       'current publication changed during original prefix read',
     );
     return structuredClone(value);
   };
   const projectedRead = async (name) => {
-    require79(originalPackets[name] !== undefined || originalAbsent.has(name), 'undeclared original prefix read');
+    require80(originalPackets[name] !== undefined || originalAbsent.has(name), 'undeclared original prefix read');
     const observed = await observe(name);
     if (originalAbsent.has(name))
       throw Object.assign(Error('Absent in authenticated original graph prefix'), { code: 'ENOENT' });
     if (name === pointer) {
       const revision = await observe(pointerRevisions[0]);
-      require79(
+      require80(
         revision !== undefined && canonicalSha256(revision) === pointerDigest,
         'original retained pointer revision changed',
       );
       return revision;
     }
-    require79(
+    require80(
       observed !== undefined && canonicalSha256(observed) === originalPackets[name],
       'original prefix packet changed',
     );
@@ -33898,8 +33930,8 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
         replacementVerifier,
       ),
     );
-    require79(canonicalSha256(reconstructed) === originalSha256, 'reconstructed original graph witness differs');
-    require79(
+    require80(canonicalSha256(reconstructed) === originalSha256, 'reconstructed original graph witness differs');
+    require80(
       canonicalSha256(await currentRead()) === currentSha256,
       'current graph changed across original prefix inspection',
     );
@@ -33909,7 +33941,7 @@ async function readAzureTerraformNetworkRetirementGraphPrefix(
     historicalInventories.delete(projected);
   }
 }
-var same53 = (a, b) => canonicalEqual(a, b),
+var same54 = (a, b) => canonicalEqual(a, b),
   authenticatedGraphWitnesses,
   phases,
   historicalInventories;
@@ -33933,11 +33965,11 @@ import { createHash as createHash31 } from 'node:crypto';
 import { lstat as lstat8, readdir as readdir7, realpath as realpath6 } from 'node:fs/promises';
 import { join as join12 } from 'node:path';
 
-function require80(value, message) {
+function require81(value, message) {
   if (!value) throw Error(`Azure Terraform completed power retirement: ${message}`);
 }
 function object60(input) {
-  require80(input && typeof input === 'object' && !Array.isArray(input), 'malformed retirement packet');
+  require81(input && typeof input === 'object' && !Array.isArray(input), 'malformed retirement packet');
   return input;
 }
 async function retireAzureTerraformNetworkCompletedPowerStageInDriver(
@@ -33962,7 +33994,7 @@ async function retireAzureTerraformNetworkCompletedPowerStageInDriver(
     environment,
     lease,
   );
-  require80(
+  require81(
     result.scope === 'selected-completed-network-power-runner-retirement',
     'unexpected serial inspection result',
   );
@@ -33970,7 +34002,7 @@ async function retireAzureTerraformNetworkCompletedPowerStageInDriver(
 }
 async function readAzureTerraformNetworkCompletedPowerRetirement(...args) {
   const result = await run(args);
-  require80(result.scope === 'selected-completed-network-power-retirement-history', 'unexpected mutation result');
+  require81(result.scope === 'selected-completed-network-power-retirement-history', 'unexpected mutation result');
   return result;
 }
 async function run(args, rawApi, environment = {}, driverLease) {
@@ -33993,7 +34025,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
     owner = structuredClone(rawStore.owner),
     directory = rawStore.directory,
     env = { ...environment };
-  require80(readOnly || readOnlyGraphWitness === undefined, 'borrowed graph cannot authorize mutation');
+  require81(readOnly || readOnlyGraphWitness === undefined, 'borrowed graph cannot authorize mutation');
   const graphWitnessSha256 = readOnlyGraphWitness === undefined ? undefined : canonicalSha256(readOnlyGraphWitness);
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const bindings = [];
@@ -34009,19 +34041,19 @@ async function run(args, rawApi, environment = {}, driverLease) {
   const seal = () => {
     deadline.throwIfAborted();
     if (driverLease) assertAzureTerraformNetworkDriverLease(driverLease, directory);
-    require80(
+    require81(
       (readOnlyGraphWitness === undefined || canonicalSha256(readOnlyGraphWitness) === graphWitnessSha256) &&
         canonicalSha256({ value: request }) === requestSnapshotSha256 &&
         canonicalSha256({ value: siteRequest }) === siteSnapshotSha256 &&
-        same54(rawStore.owner, owner) &&
-        same54(environment, env) &&
+        same55(rawStore.owner, owner) &&
+        same55(environment, env) &&
         rawStore.directory === directory &&
         bindings.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'request or owning dependency changed',
     );
   };
   seal();
-  require80(
+  require81(
     Number.isInteger(node) &&
       node >= 1 &&
       node <= plan.topology.nodeCount &&
@@ -34032,7 +34064,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
     ? async (_directory, _signal, _seal, action, _options) =>
         action(async (work, mutation) => {
           seal();
-          require80(!mutation, 'inspection cannot execute a mutation');
+          require81(!mutation, 'inspection cannot execute a mutation');
           const aborted = Promise.withResolvers(),
             onAbort = () => aborted.reject(deadline.reason);
           deadline.addEventListener('abort', onAbort, { once: true });
@@ -34120,22 +34152,22 @@ async function run(args, rawApi, environment = {}, driverLease) {
         checkpoint = graph.checkpoint.snapshot?.checkpoint.nodes.find((row) => row.node === node),
         historyNode = graph.nodes.find((row) => row.node === node);
       if (readOnly && readOnlyGraphWitness === undefined) currentGraphWitness = graph;
-      require80(checkpoint && historyNode?.preflightPresent, 'original selected serial preflight missing');
+      require81(checkpoint && historyNode?.preflightPresent, 'original selected serial preflight missing');
       const before = checkpoint.before,
         history = operation === 'start' ? historyNode.start : historyNode.deallocate;
-      require80(
+      require81(
         history.allPacketsPresent &&
           history.receipts.mutation &&
           history.receipts.release &&
           history.receipts.final &&
           history.receipts.current &&
-          same54(history.receipts.final, history.receipts.current),
+          same55(history.receipts.final, history.receipts.current),
         'complete original submitted power history required',
       );
       const mutation = await step(() => azureTerraformNetworkPowerDeployment(plan, before, node, operation)),
         release = await step(() => azureTerraformNetworkPowerDeployment(plan, before, node, operation, true));
-      require80(
-        mutation.stage && graph.powerDeployments.some((value) => same54(value, mutation)),
+      require81(
+        mutation.stage && graph.powerDeployments.some((value) => same55(value, mutation)),
         'original selected stage differs',
       );
       const final = await step(() =>
@@ -34175,7 +34207,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
                 ),
               ),
         graphSha256 = canonicalSha256(originalGraph);
-      require80(
+      require81(
         (await optional(cancellationName)) === undefined,
         'cancelled stage requires its separate retirement contract',
       );
@@ -34191,12 +34223,12 @@ async function run(args, rawApi, environment = {}, driverLease) {
         mutationReceiptSha256: canonicalSha256(history.receipts.mutation),
         releaseReceiptSha256: canonicalSha256(history.receipts.release),
       };
-      require80(
-        same54(
+      require81(
+        same55(
           Object.keys(finalized).sort(),
           [...Object.keys(finalizingBound), 'status', 'originalJournalSha256', 'originalState'].sort(),
         ) &&
-          Object.entries(finalizingBound).every(([key, value]) => same54(finalized[key], value)) &&
+          Object.entries(finalizingBound).every(([key, value]) => same55(finalized[key], value)) &&
           finalized.status === 'finalizing' &&
           sha12(finalized.originalJournalSha256) &&
           finalized.originalState === (history.receipts.release.noChanges ? 'planned' : 'applied'),
@@ -34209,7 +34241,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
       const inventory = (path) =>
         step(async () => {
           const stat = await lstat8(path);
-          require80(
+          require81(
             stat.isDirectory() &&
               !stat.isSymbolicLink() &&
               stat.uid === process.getuid?.() &&
@@ -34222,11 +34254,11 @@ async function run(args, rawApi, environment = {}, driverLease) {
       const names = await inventory(root),
         stageNames = await inventory(stageDirectory),
         runnerNames = await inventory(runnerDirectory);
-      require80(
+      require81(
         names
           .filter((name) => name.startsWith(`network-${plan.planSha256.slice(0, 24)}-`))
           .every((stage) => graph.powerDeployments.some((value) => value.stage === stage)) &&
-          same54(stageNames, [mutation.deploymentId]) &&
+          same55(stageNames, [mutation.deploymentId]) &&
           !runnerNames.includes('configuration-transition.json'),
         'foreign/orphan stage or pending revision',
       );
@@ -34242,7 +34274,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
         ],
         ['retireArtifacts'],
       );
-      require80(session.readArtifactRetirement, 'authenticated retirement reader unavailable');
+      require81(session.readArtifactRetirement, 'authenticated retirement reader unavailable');
       const bound = {
         schemaVersion: 1,
         owner,
@@ -34259,39 +34291,39 @@ async function run(args, rawApi, environment = {}, driverLease) {
       };
       const packet = (input, fields) => {
         const value = object60(input);
-        require80(
-          same54(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
-            Object.entries(bound).every(([key, expected]) => same54(value[key], expected)),
+        require81(
+          same55(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
+            Object.entries(bound).every(([key, expected]) => same55(value[key], expected)),
           'retirement packet source or schema differs',
         );
         return value;
       };
       const persist = async (name, value) => {
         const prior = await optional(name);
-        require80(prior === undefined || same54(prior, value), 'immutable retirement publication differs');
+        require81(prior === undefined || same55(prior, value), 'immutable retirement publication differs');
         if (prior === undefined) await store.write(name, value);
-        require80(same54(await store.read(name), value), 'retirement publication changed');
+        require81(same55(await store.read(name), value), 'retirement publication changed');
       };
       const unchanged = async () => {
-        require80(
+        require81(
           canonicalSha256(await graphRead()) === currentGraphSha256 &&
-            same54(await inventory(root), names) &&
-            same54(await inventory(stageDirectory), stageNames) &&
+            same55(await inventory(root), names) &&
+            same55(await inventory(stageDirectory), stageNames) &&
             (await optional(cancellationName)) === undefined,
           'source graph, selected inventory or cancellation changed',
         );
         for (const [name, digest] of Object.entries(packetSha256ByName))
-          require80(canonicalSha256(await store.read(name)) === digest, 'original submitted packet changed');
+          require81(canonicalSha256(await store.read(name)) === digest, 'original submitted packet changed');
       };
       const appliedNics = Array.from({ length: operation === 'start' ? node : node - 1 }, (_, index) =>
         plan.nics.map((nic) => `${index + 1}:${nic.index}`),
       ).flat();
       const observe = async () => {
-        require80(api && !readOnly, 'inspection cannot request current cloud acceptance');
+        require81(api && !readOnly, 'inspection cannot request current cloud acceptance');
         const observed = await step(() =>
           observeAzureTerraformNetworkPower(plan, before, node, operation, appliedNics, api, deadline),
         );
-        require80(
+        require81(
           ['running', 'deallocated', 'stopped'].includes(observed.powerState),
           'stable selected cloud identity required',
         );
@@ -34301,10 +34333,10 @@ async function run(args, rawApi, environment = {}, driverLease) {
       };
       const validateOriginal = (input) => {
         const value = object60(input);
-        require80(same54(Object.keys(value).sort(), ['current', 'phases']), 'frozen original schema differs');
+        require81(same55(Object.keys(value).sort(), ['current', 'phases']), 'frozen original schema differs');
         const current = object60(value.current);
-        require80(
-          same54(
+        require81(
+          same55(
             Object.keys(current).sort(),
             [
               'schemaVersion',
@@ -34322,7 +34354,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
             current.schemaVersion === 1 &&
             current.scope === 'current-saved-plan-byte-and-journal-binding' &&
             current.state === 'planned' &&
-            same54(current.receipt, final) &&
+            same55(current.receipt, final) &&
             current.manifestSha256 === manifestSha256 &&
             current.savedPlanSha256 === final.planSha256 &&
             sha12(current.journalSha256) &&
@@ -34331,16 +34363,16 @@ async function run(args, rawApi, environment = {}, driverLease) {
             current.ordinaryRefreshEnabled === true,
           'frozen ordinary final journal differs',
         );
-        require80(Array.isArray(value.phases) && value.phases.length === 2, 'frozen original phases differ');
+        require81(Array.isArray(value.phases) && value.phases.length === 2, 'frozen original phases differ');
         for (const [index, phase] of ['mutation', 'release'].entries()) {
           const row = object60(value.phases[index]),
             actual = object60(row.history),
             receipt = history.receipts[phase];
-          require80(
+          require81(
             receipt &&
-              same54(Object.keys(row).sort(), ['history', 'phase']) &&
+              same55(Object.keys(row).sort(), ['history', 'phase']) &&
               row.phase === phase &&
-              same54(
+              same55(
                 Object.keys(actual).sort(),
                 [
                   'schemaVersion',
@@ -34364,12 +34396,12 @@ async function run(args, rawApi, environment = {}, driverLease) {
               actual.matches.length > 0,
             'frozen original phase contract differs',
           );
-          require80(
+          require81(
             new Set(actual.matches.map((entry) => canonicalSha256(entry))).size === actual.matches.length &&
               actual.matches.every((input) => {
                 const entry = object60(input);
                 return (
-                  same54(
+                  same55(
                     Object.keys(entry).sort(),
                     [
                       'location',
@@ -34398,22 +34430,22 @@ async function run(args, rawApi, environment = {}, driverLease) {
         }
       };
       const readOriginal = async () => {
-        require80(
+        require81(
           session.readConfigurationSha256 && session.readCurrentPlanJournal && session.readPlanApplicationHistory,
           'original journal inspection unavailable',
         );
-        require80(
+        require81(
           (await session.readConfigurationSha256()) === hash14(release.configuration),
           'original release configuration differs',
         );
         const current = await session.readCurrentPlanJournal(hash14(release.configuration), deadline);
-        require80(
+        require81(
           current.schemaVersion === 1 &&
             current.scope === 'current-saved-plan-byte-and-journal-binding' &&
             current.planSemanticsQualified === false &&
             current.state === 'planned' &&
             current.manifestSha256 === manifestSha256 &&
-            same54(current.receipt, final) &&
+            same55(current.receipt, final) &&
             current.savedPlanSha256 === final.planSha256 &&
             sha12(current.journalSha256) &&
             sha12(current.executionSha256) &&
@@ -34423,10 +34455,10 @@ async function run(args, rawApi, environment = {}, driverLease) {
         const phases = [];
         for (const phase of ['mutation', 'release']) {
           const receipt = history.receipts[phase];
-          require80(receipt, 'original phase receipt missing');
+          require81(receipt, 'original phase receipt missing');
           const actual = await session.readPlanApplicationHistory(receipt, deadline);
           const expectedState = receipt.noChanges ? 'planned' : 'applied';
-          require80(
+          require81(
             actual.schemaVersion === 1 &&
               actual.scope === 'exact-saved-plan-journal-history' &&
               actual.receiptSha256 === canonicalSha256(receipt) &&
@@ -34470,7 +34502,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
         retirementQualified: false,
       });
       if (preparing === undefined) {
-        require80(
+        require81(
           !barrierPresent &&
             (await optional(retiringName)) === undefined &&
             (await optional(retiredName)) === undefined,
@@ -34478,8 +34510,8 @@ async function run(args, rawApi, environment = {}, driverLease) {
         );
         if (readOnly) {
           await unchanged();
-          require80(
-            same54(await inventory(runnerDirectory), runnerNames) &&
+          require81(
+            same55(await inventory(runnerDirectory), runnerNames) &&
               (await optional(preparingName)) === undefined &&
               (await optional(retiringName)) === undefined &&
               (await optional(retiredName)) === undefined,
@@ -34490,18 +34522,18 @@ async function run(args, rawApi, environment = {}, driverLease) {
         const original = await readOriginal(),
           baseline = await observe();
         await unchanged();
-        require80(
-          same54(await readOriginal(), original) && same54(await observe(), baseline),
+        require81(
+          same55(await readOriginal(), original) && same55(await observe(), baseline),
           'original selected evidence changed before preparation',
         );
         preparing = { ...bound, status: 'preparing', packetSha256ByName, originalGraph, original, baseline };
         await persist(preparingName, preparing);
       }
       const prepared = packet(preparing, ['status', 'packetSha256ByName', 'originalGraph', 'original', 'baseline']);
-      require80(
+      require81(
         prepared.status === 'preparing' &&
-          same54(prepared.originalGraph, originalGraph) &&
-          same54(prepared.packetSha256ByName, packetSha256ByName),
+          same55(prepared.originalGraph, originalGraph) &&
+          same55(prepared.packetSha256ByName, packetSha256ByName),
         'original packet custody differs',
       );
       validateOriginal(prepared.original);
@@ -34509,43 +34541,43 @@ async function run(args, rawApi, environment = {}, driverLease) {
         retiring = { ...bound, status: 'retiring', preparingSha256 };
       const stable = async () => {
         await unchanged();
-        require80(same54(await store.read(preparingName), prepared), 'preparation changed');
-        if (!readOnly) require80(same54(await observe(), prepared.baseline), 'selected current cloud identity changed');
-        else require80(same54(await inventory(runnerDirectory), runnerNames), 'retained runner inventory changed');
+        require81(same55(await store.read(preparingName), prepared), 'preparation changed');
+        if (!readOnly) require81(same55(await observe(), prepared.baseline), 'selected current cloud identity changed');
+        else require81(same55(await inventory(runnerDirectory), runnerNames), 'retained runner inventory changed');
       };
       await stable();
       let observed = await session.readArtifactRetirement(final, preparingSha256, deadline);
-      require80(
+      require81(
         ['absent', 'retiring', 'runner-artifacts-retired'].includes(observed.status),
         'retirement reader status differs',
       );
       const savedRetiring = await optional(retiringName),
         savedRetired = await optional(retiredName);
-      if (savedRetiring !== undefined) require80(same54(savedRetiring, retiring), 'retiring authorization differs');
-      require80(
+      if (savedRetiring !== undefined) require81(same55(savedRetiring, retiring), 'retiring authorization differs');
+      require81(
         observed.status === 'absent' || savedRetiring !== undefined,
         'barrier lacks original retiring authorization',
       );
-      require80(
+      require81(
         observed.status === 'runner-artifacts-retired' || savedRetired === undefined,
         'incomplete cleanup has retired publication',
       );
       if (!readOnly && observed.status !== 'runner-artifacts-retired') {
-        require80(session.retireArtifacts, 'owning retirement mutation unavailable');
+        require81(session.retireArtifacts, 'owning retirement mutation unavailable');
         if (observed.status === 'absent')
-          require80(
-            !barrierPresent && same54(await readOriginal(), prepared.original),
+          require81(
+            !barrierPresent && same55(await readOriginal(), prepared.original),
             'original journals changed before first barrier',
           );
         await persist(retiringName, retiring);
         await stable();
         await session.retireArtifacts(final, preparingSha256, env, deadline);
         observed = await session.readArtifactRetirement(final, preparingSha256, deadline);
-        require80(observed.status === 'runner-artifacts-retired', 'selected runner retirement remains incomplete');
+        require81(observed.status === 'runner-artifacts-retired', 'selected runner retirement remains incomplete');
       }
       let retired;
       if (observed.status === 'runner-artifacts-retired') {
-        require80(
+        require81(
           observed.receipt.manifestSha256 === manifestSha256 &&
             observed.receipt.evidenceSha256 === preparingSha256 &&
             observed.receipt.finalPlanSha256 === final.planSha256 &&
@@ -34560,19 +34592,19 @@ async function run(args, rawApi, environment = {}, driverLease) {
           markerSha256: observed.markerSha256,
           receipt: observed.receipt,
         };
-        require80(savedRetired === undefined || same54(savedRetired, retired), 'retired publication differs');
+        require81(savedRetired === undefined || same55(savedRetired, retired), 'retired publication differs');
       }
       await stable();
       if (readOnly) {
-        require80(
-          same54(await optional(retiringName), savedRetiring) &&
-            same54(await optional(retiredName), savedRetired) &&
-            same54(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
+        require81(
+          same55(await optional(retiringName), savedRetiring) &&
+            same55(await optional(retiredName), savedRetired) &&
+            same55(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
           'retained cleanup changed across inspection',
         );
         await stable();
-        require80(
-          same54(await optional(retiringName), savedRetiring) && same54(await optional(retiredName), savedRetired),
+        require81(
+          same55(await optional(retiringName), savedRetiring) && same55(await optional(retiredName), savedRetired),
           'publication changed at final boundary',
         );
         return inspection(
@@ -34586,18 +34618,18 @@ async function run(args, rawApi, environment = {}, driverLease) {
           { preparingSha256, finalReceiptSha256: canonicalSha256(final), observed },
         );
       }
-      require80(
-        retired && observed.status === 'runner-artifacts-retired' && same54(await optional(retiringName), retiring),
+      require81(
+        retired && observed.status === 'runner-artifacts-retired' && same55(await optional(retiringName), retiring),
         'complete selected cleanup required',
       );
       await persist(retiredName, retired);
-      require80(
-        same54(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
+      require81(
+        same55(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
         'retained cleanup changed before final publication boundary',
       );
       await stable();
-      require80(
-        same54(await optional(retiredName), retired) && same54(await optional(retiringName), retiring),
+      require81(
+        same55(await optional(retiredName), retired) && same55(await optional(retiringName), retiring),
         'retired publication or retiring authorization changed at final boundary',
       );
       return {
@@ -34624,7 +34656,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
   );
 }
 var hash14 = (value) => createHash31('sha256').update(value).digest('hex'),
-  same54 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same55 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha12 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 var init_terraform_network_power_completed_retirement = __esm(() => {
   init_canonical();
@@ -34637,7 +34669,7 @@ var init_terraform_network_power_completed_retirement = __esm(() => {
 // plugins/azure/src/ce/terraform-network-power-execution.ts
 import { createHash as createHash32 } from 'node:crypto';
 
-function require81(value, message) {
+function require82(value, message) {
   if (!value) throw Error(`Azure Terraform network power execution: ${message}`);
 }
 async function optional8(store, name) {
@@ -34690,7 +34722,7 @@ async function runAzureTerraformNetworkPowerStage(
   const bindings = [];
   const seal = () => {
     signal?.throwIfAborted();
-    require81(
+    require82(
       canonicalSha256(requestPlan) === snapshots.plan &&
         canonicalSha256(requestBefore) === snapshots.before &&
         canonicalSha256(requestEnvironment) === snapshots.env &&
@@ -34706,14 +34738,14 @@ async function runAzureTerraformNetworkPowerStage(
   };
   signal = AbortSignal.any([AbortSignal.timeout(720000), ...(signal ? [signal] : [])]);
   seal();
-  require81(
+  require82(
     Number.isInteger(polling.attempts) &&
       polling.attempts > 0 &&
       Number.isFinite(polling.intervalMs) &&
       polling.intervalMs >= 0,
     'invalid convergence bounds',
   );
-  require81(canonicalSha256(store.owner) === canonicalSha256(azureUpgradeBinding(plan).owner), 'storage owner differs');
+  require82(canonicalSha256(store.owner) === canonicalSha256(azureUpgradeBinding(plan).owner), 'storage owner differs');
   return withAzureTerraformPowerLifecycle(
     store.directory,
     signal,
@@ -34779,7 +34811,7 @@ async function runAzureTerraformNetworkPowerStage(
       );
       const configuration = async () => {
         const current = await session.readConfigurationSha256?.();
-        require81(
+        require82(
           current === hash15(mutation.configuration) || current === hash15(release.configuration),
           'private configuration differs',
         );
@@ -34788,23 +34820,23 @@ async function runAzureTerraformNetworkPowerStage(
       const validate = (receipt, phase) =>
         validateAzureTerraformNetworkPowerPlan(plan, before, node, operation, receipt, phase);
       const unpublishedPlan = async (phase) => {
-        require81(session.readCurrentPlanJournal, 'current saved-plan journal inspection unavailable');
+        require82(session.readCurrentPlanJournal, 'current saved-plan journal inspection unavailable');
         const current = await configuration();
         const journal = await session.readCurrentPlanJournal(current, signal);
-        require81(
+        require82(
           journal.schemaVersion === 1 &&
             journal.scope === 'current-saved-plan-byte-and-journal-binding' &&
             journal.planSemanticsQualified === false,
           'current saved-plan journal contract differs',
         );
         if (journal.state === 'absent') {
-          require81(
+          require82(
             journal.receipt === undefined && journal.savedPlanSha256 === null && journal.journalSha256 === null,
             'absent journal contains an unbound plan',
           );
           return session.plan(env, signal);
         }
-        require81(
+        require82(
           journal.state === 'planned' && journal.receipt && journal.savedPlanSha256 === journal.receipt.planSha256,
           'unpublished submitted plan requires independently qualified history',
         );
@@ -34831,7 +34863,7 @@ async function runAzureTerraformNetworkPowerStage(
       };
       const validateBinding = async (input, receipt, phase) => {
         const value = input;
-        require81(
+        require82(
           value &&
             canonicalSha256(Object.keys(value).sort()) ===
               canonicalSha256(['prior', 'proposed', 'receiptSha256', 'schemaVersion']) &&
@@ -34852,7 +34884,7 @@ async function runAzureTerraformNetworkPowerStage(
       };
       const validateCloud = (input) => {
         const cloud = input;
-        require81(
+        require82(
           cloud &&
             cloud.engine === 'terraform' &&
             cloud.planSha256 === plan.planSha256 &&
@@ -34876,7 +34908,7 @@ async function runAzureTerraformNetworkPowerStage(
             : { schemaVersion: 1, receiptSha256: canonicalSha256(receipt), outcome };
         if (saved === undefined) return false;
         const value = saved;
-        require81(
+        require82(
           value &&
             canonicalSha256(Object.keys(value).sort()) ===
               canonicalSha256(['outcome', 'receiptSha256', 'schemaVersion']) &&
@@ -34887,7 +34919,7 @@ async function runAzureTerraformNetworkPowerStage(
         if (phase === 'mutation') validateCloud(value.outcome);
         else {
           const releaseOutcome = value.outcome;
-          require81(
+          require82(
             releaseOutcome &&
               canonicalSha256(Object.keys(releaseOutcome).sort()) === canonicalSha256(['cloud', 'state']) &&
               canonicalSha256(releaseOutcome.state) === canonicalSha256({ [address2]: null }),
@@ -34903,7 +34935,7 @@ async function runAzureTerraformNetworkPowerStage(
       if (current === hash15(mutation.configuration)) {
         if (mutationReceipt === undefined) {
           const baseline = await observe();
-          require81(
+          require82(
             baseline.powerState === (operation === 'start' ? 'deallocated' : 'running'),
             'unsubmitted action baseline differs',
           );
@@ -34914,10 +34946,10 @@ async function runAzureTerraformNetworkPowerStage(
         const receipt = await validate(mutationReceipt, 'mutation');
         await projection(receipt, 'mutation');
         let state = await session.readPlanApplicationState(receipt);
-        require81(['planned', 'applying', 'applied'].includes(state), 'mutation application state unavailable');
+        require82(['planned', 'applying', 'applied'].includes(state), 'mutation application state unavailable');
         if (!receipt.noChanges && state === 'planned') {
           const baseline = await observe();
-          require81(
+          require82(
             baseline.powerState === (operation === 'start' ? 'deallocated' : 'running'),
             'planned action baseline changed',
           );
@@ -34933,19 +34965,19 @@ async function runAzureTerraformNetworkPowerStage(
         const outcome = await poll();
         await store.write(`${prefix}-mutation-outcome.json`, outcome);
         if (state === 'applying') await session.reconcileApplyFromEvidence(receipt, canonicalSha256(outcome));
-        else require81(receipt.noChanges || state === 'applied', 'mutation has no authoritative submitted outcome');
+        else require82(receipt.noChanges || state === 'applied', 'mutation has no authoritative submitted outcome');
         await completed('mutation', receipt, outcome);
         current = await configuration();
-        require81(current === hash15(mutation.configuration), 'configuration changed before release');
+        require82(current === hash15(mutation.configuration), 'configuration changed before release');
         await session.reviseConfiguration(current, release.configuration);
       } else {
-        require81(mutationReceipt !== undefined, 'empty stage lacks immutable mutation history');
+        require82(mutationReceipt !== undefined, 'empty stage lacks immutable mutation history');
         const receipt = await validate(mutationReceipt, 'mutation');
-        require81(await completed('mutation', receipt), 'empty stage lacks completed mutation history');
+        require82(await completed('mutation', receipt), 'empty stage lacks completed mutation history');
         await projection(receipt, 'mutation');
-        require81((await observe()).converged, 'released mutation power regressed');
+        require82((await observe()).converged, 'released mutation power regressed');
       }
-      require81((await configuration()) === hash15(release.configuration), 'release revision differs');
+      require82((await configuration()) === hash15(release.configuration), 'release revision differs');
       let releaseReceipt = await optional8(store, `${prefix}-release-plan.json`);
       if (releaseReceipt === undefined) {
         releaseReceipt = await unpublishedPlan('release');
@@ -34957,9 +34989,9 @@ async function runAzureTerraformNetworkPowerStage(
       const releaseAlreadyComplete = await completed('release', released);
       if (!releaseAlreadyComplete) {
         let releaseState = await session.readPlanApplicationState(released);
-        require81(['planned', 'applying', 'applied'].includes(releaseState), 'release application state unavailable');
+        require82(['planned', 'applying', 'applied'].includes(releaseState), 'release application state unavailable');
         if (!released.noChanges && releaseState === 'planned') {
-          require81((await observe()).converged, 'power changed before state-only release');
+          require82((await observe()).converged, 'power changed before state-only release');
           try {
             await session.apply(released, env, signal);
           } catch (error) {
@@ -34975,21 +35007,21 @@ async function runAzureTerraformNetworkPowerStage(
           env,
           signal,
         );
-        require81(
+        require82(
           canonicalSha256(Object.keys(fields)) === canonicalSha256([address2]) && fields[address2] === null,
           'temporary control state remains',
         );
         const cloud = await observe();
-        require81(cloud.converged, 'selected power changed during control release');
+        require82(cloud.converged, 'selected power changed during control release');
         const releaseOutcome = { cloud, state: fields };
         await store.write(`${prefix}-release-outcome.json`, releaseOutcome);
         if (releaseState === 'applying')
           await session.reconcileApplyFromEvidence(released, canonicalSha256(releaseOutcome));
         else
-          require81(released.noChanges || releaseState === 'applied', 'release lacks authoritative submitted outcome');
+          require82(released.noChanges || releaseState === 'applied', 'release lacks authoritative submitted outcome');
         await completed('release', released, releaseOutcome);
       }
-      require81((await observe()).converged, 'completed release power regressed');
+      require82((await observe()).converged, 'completed release power regressed');
       const finalizingName = `azure-power-finalize-${canonicalSha256({ planSha256: plan.planSha256, node, operation }).slice(0, 24)}.json`;
       const { configuration: source, providerLock, ...identity } = release;
       const manifestSha256 = canonicalSha256({
@@ -35008,7 +35040,7 @@ async function runAzureTerraformNetworkPowerStage(
         mutationReceiptSha256: canonicalSha256(mutationReceipt),
         releaseReceiptSha256: canonicalSha256(released),
       };
-      require81(
+      require82(
         session.readCurrentPlanJournal && session.readPlanApplicationHistory,
         'final saved journal/history inspection unavailable',
       );
@@ -35016,12 +35048,12 @@ async function runAzureTerraformNetworkPowerStage(
         readHistory = session.readPlanApplicationHistory;
       const journal = async () => {
         signal?.throwIfAborted();
-        require81(
+        require82(
           session.readCurrentPlanJournal === readJournal && session.readPlanApplicationHistory === readHistory,
           'final owning inspection changed',
         );
         const value = await readJournal.call(session, hash15(release.configuration), signal);
-        require81(
+        require82(
           value.schemaVersion === 1 &&
             value.scope === 'current-saved-plan-byte-and-journal-binding' &&
             value.planSemanticsQualified === false &&
@@ -35037,13 +35069,13 @@ async function runAzureTerraformNetworkPowerStage(
       };
       let finalizing = await optional8(store, finalizingName);
       if (finalizing === undefined) {
-        require81(
+        require82(
           (await optional8(store, `${prefix}-final-plan.json`)) === undefined &&
             (await optional8(store, `${prefix}-current-no-change-plan.json`)) === undefined,
           'published final lacks original finalizing authorization',
         );
         const inspected = await journal();
-        require81(
+        require82(
           canonicalSha256(inspected.receipt) === canonicalSha256(released) &&
             (released.noChanges ? inspected.state === 'planned' : inspected.state === 'applied'),
           'final refresh lacks exact completed release journal',
@@ -35058,7 +35090,7 @@ async function runAzureTerraformNetworkPowerStage(
         await store.write(finalizingName, finalizing);
         signal?.throwIfAborted();
       }
-      require81(
+      require82(
         finalizing &&
           canonicalSha256(Object.keys(finalizing).sort()) ===
             canonicalSha256([...Object.keys(bound), 'status', 'originalJournalSha256', 'originalState'].sort()) &&
@@ -35074,9 +35106,9 @@ async function runAzureTerraformNetworkPowerStage(
       const finalizingSha256 = canonicalSha256(finalizing);
       const history = async () => {
         signal?.throwIfAborted();
-        require81(session.readPlanApplicationHistory === readHistory, 'final owning history changed');
+        require82(session.readPlanApplicationHistory === readHistory, 'final owning history changed');
         const original = await readHistory.call(session, released, signal);
-        require81(
+        require82(
           original.schemaVersion === 1 &&
             original.scope === 'exact-saved-plan-journal-history' &&
             original.receiptSha256 === canonicalSha256(released) &&
@@ -35092,7 +35124,7 @@ async function runAzureTerraformNetworkPowerStage(
             ),
           'finalizing original release journal unavailable',
         );
-        require81(
+        require82(
           canonicalSha256(await optional8(store, finalizingName)) === finalizingSha256 &&
             (await configuration()) === hash15(release.configuration),
           'finalizing packet/configuration changed',
@@ -35103,11 +35135,11 @@ async function runAzureTerraformNetworkPowerStage(
       const inspected = await journal();
       let final;
       if (canonicalSha256(inspected.receipt) === canonicalSha256(released)) {
-        require81(
+        require82(
           inspected.journalSha256 === finalizing.originalJournalSha256 && inspected.state === finalizing.originalState,
           'original release changed before final refresh',
         );
-        require81(
+        require82(
           (await optional8(store, `${prefix}-final-plan.json`)) === undefined &&
             (await optional8(store, `${prefix}-current-no-change-plan.json`)) === undefined,
           'published final differs from current release',
@@ -35116,12 +35148,12 @@ async function runAzureTerraformNetworkPowerStage(
         final = await session.plan(env, signal);
         signal?.throwIfAborted();
       } else {
-        require81(inspected.state === 'planned', 'submitted final journal requires owner recovery');
+        require82(inspected.state === 'planned', 'submitted final journal requires owner recovery');
         final = inspected.receipt;
       }
       await validate(final, 'final');
       const finalJournal = await journal();
-      require81(
+      require82(
         finalJournal.state === 'planned' &&
           canonicalSha256(finalJournal.receipt) === canonicalSha256(final) &&
           finalJournal.ordinaryRefreshEnabled === true &&
@@ -35136,18 +35168,18 @@ async function runAzureTerraformNetworkPowerStage(
         env,
         signal,
       );
-      require81(
+      require82(
         canonicalSha256(emptyState) === canonicalSha256({ [address2]: null }),
         'final applied control state remains',
       );
       await history();
-      require81(canonicalSha256(await journal()) === canonicalSha256(finalJournal), 'final saved evidence changed');
+      require82(canonicalSha256(await journal()) === canonicalSha256(finalJournal), 'final saved evidence changed');
       for (const suffix of ['final-plan', 'current-no-change-plan']) {
         const name = `${prefix}-${suffix}.json`,
           saved = await optional8(store, name);
         if (saved !== undefined) {
           await validate(saved, 'final');
-          require81(
+          require82(
             canonicalSha256(saved) === canonicalSha256(final),
             'published final plan differs from exact saved bytes',
           );
@@ -35160,12 +35192,12 @@ async function runAzureTerraformNetworkPowerStage(
         signal?.throwIfAborted();
       }
       await history();
-      require81(
+      require82(
         canonicalSha256(await journal()) === canonicalSha256(finalJournal),
         'final publication journal changed',
       );
       const finalCloud = await observe();
-      require81(finalCloud.converged, 'terminal power evidence regressed');
+      require82(finalCloud.converged, 'terminal power evidence regressed');
       signal?.throwIfAborted();
       return {
         status: 'power-stage-complete',
@@ -35195,7 +35227,7 @@ var init_terraform_network_power_execution = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-routing-binding.ts
-function require82(value, message) {
+function require83(value, message) {
   if (!value) throw Error(`Azure Terraform network routing binding: ${message}`);
 }
 async function bindAzureTerraformNetworkRoutingPlan(
@@ -35215,7 +35247,7 @@ async function bindAzureTerraformNetworkRoutingPlan(
   const inputSha256 = canonicalSha256(data);
   const selections = azureTerraformNetworkRoutingSelections(data.stage);
   const selectionsSha256 = canonicalSha256(selections);
-  require82(
+  require83(
     session.readPlannedResourcePaths && session.readProposedResourcePaths,
     'owning private paths capability required',
   );
@@ -35229,11 +35261,11 @@ async function bindAzureTerraformNetworkRoutingPlan(
   };
   const directory = store.directory,
     ownerSha256 = canonicalSha256(store.owner);
-  require82(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
+  require83(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
   const bounded = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     bounded.throwIfAborted();
-    require82(
+    require83(
       canonicalSha256({ plan, before, current, stage, receipt, env }) === inputSha256 &&
         canonicalSha256(data) === inputSha256 &&
         canonicalSha256(selections) === selectionsSha256 &&
@@ -35291,15 +35323,15 @@ async function bindAzureTerraformNetworkRoutingPlan(
       providerLockSha256: data.receipt.providerLockSha256,
     };
     const validate = (input) => {
-      require82(input && typeof input === 'object' && !Array.isArray(input), 'complete binding required');
+      require83(input && typeof input === 'object' && !Array.isArray(input), 'complete binding required');
       const value = input;
-      require82(
+      require83(
         canonicalSha256(Object.keys(value).sort()) ===
           canonicalSha256([...Object.keys(identity), 'prior', 'proposed'].sort()),
         'saved binding schema differs',
       );
       for (const [key, expected] of Object.entries(identity))
-        require82(value[key] === expected, 'saved binding identity differs');
+        require83(value[key] === expected, 'saved binding identity differs');
       validateAzureTerraformNetworkRoutingProjection(
         data.plan,
         source,
@@ -35325,13 +35357,13 @@ async function bindAzureTerraformNetworkRoutingPlan(
       seal();
       return value;
     }
-    require82(
+    require83(
       (await step(() => original.state.call(session, data.receipt))) === 'planned',
       'unsubmitted saved plan required for new binding',
     );
     const prior = await step(() => original.prior.call(session, data.receipt, selections, data.env, bounded));
     const proposed = await step(() => original.proposed.call(session, data.receipt, selections, data.env, bounded));
-    require82(
+    require83(
       (await step(() => original.state.call(session, data.receipt))) === 'planned',
       'plan submitted during projection',
     );
@@ -35353,11 +35385,11 @@ var init_terraform_network_routing_binding = __esm(() => {
 // plugins/azure/src/ce/terraform-network-routing-observation.ts
 import { isIP as isIP21 } from 'node:net';
 
-function require83(value, message) {
+function require84(value, message) {
   if (!value) throw Error(`Azure Terraform routing configuration: ${message}`);
 }
 function object61(value) {
-  require83(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
+  require84(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 async function collectAzureTerraformNetworkRoutingConfiguration(
@@ -35378,7 +35410,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
   verifyAzureNetworkUpdateProgress(snapshot.plan, snapshot.before, snapshot.expected, snapshot.appliedNics);
   for (const [owner, vm] of Object.entries(snapshot.before.nodes))
     for (const [index, nic] of Object.entries(vm.nics))
-      require83(
+      require84(
         snapshot.appliedNics.includes(`${owner}:${index}`) ||
           snapshot.expected.nodes[owner].nics[index].privateIp === nic.privateIp,
         'unsubmitted private address changed',
@@ -35386,11 +35418,11 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
   const graph = object61(JSON.parse(source)),
     resources = object61(graph.resource);
   const execute = api.exec;
-  require83(typeof execute === 'function', 'Azure executor unavailable');
+  require84(typeof execute === 'function', 'Azure executor unavailable');
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require83(
+    require84(
       api.exec === execute &&
         canonicalSha256(snapshot) === inputSha256 &&
         canonicalSha256({ plan, before, expected, node, appliedNics }) === inputSha256,
@@ -35434,7 +35466,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
   try {
     const cloud = async () => {
       const observed = await bounded(() => captureAzureNetworkUpdateInventory(snapshot.plan, transport, deadline));
-      require83(same55(observed.nodes, snapshot.expected.nodes), 'complete current cloud identity differs');
+      require84(same56(observed.nodes, snapshot.expected.nodes), 'complete current cloud identity differs');
     };
     const read = async (args) => {
       const response = await transport.exec(
@@ -35442,9 +35474,9 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         [...args, '--subscription', snapshot.plan.subscription.id, '--output', 'json'],
         { signal: deadline },
       );
-      require83(response.exitCode === 0, 'configuration observation unavailable');
+      require84(response.exitCode === 0, 'configuration observation unavailable');
       const value = object61(JSON.parse(response.stdout));
-      require83(
+      require84(
         value.error === undefined &&
           value.errors === undefined &&
           (value.nextLink === undefined || value.nextLink === null || value.nextLink === '') &&
@@ -35467,12 +35499,12 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         );
         const tags = object61(configuredParent.tags),
           owner = tags['xcsh-plan-sha256'];
-        require83(typeof owner === 'string' && /^[a-f0-9]{64}$/.test(owner), 'resolved parent owner required');
+        require84(typeof owner === 'string' && /^[a-f0-9]{64}$/.test(owner), 'resolved parent owner required');
         if (!isUdr) {
           const actions = snapshot.plan.actions.filter(
             (action) => action.kind === 'route-server-peer-update' && action.node === node,
           );
-          require83(
+          require84(
             actions.length === 1 &&
               lower19(actions[0].resourceId) === lower19(dependency.resourceId) &&
               actions[0].expectedOwnerPlanSha256 === owner,
@@ -35482,7 +35514,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         if (!parents.has(parentId)) {
           const parent = await read(['network', isUdr ? 'route-table' : 'routeserver', 'show', '--ids', parentId]);
           const actualTags = object61(parent.tags);
-          require83(
+          require84(
             lower19(parent.id) === lower19(parentId) &&
               parent.name === configuredParent.name &&
               lower19(parent.location) === lower19(snapshot.plan.region) &&
@@ -35507,7 +35539,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         );
         const installedIp = row[isUdr ? 'nextHopIpAddress' : 'peerIp'];
         const nic = snapshot.expected.nodes[String(node)].nics[String(dependency.nicIndex)];
-        require83(
+        require84(
           lower19(row.id) === lower19(dependency.resourceId) &&
             row.name === configured.name &&
             typeof installedIp === 'string' &&
@@ -35516,12 +35548,12 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
           'route/peer identity or installed address differs',
         );
         if (isUdr)
-          require83(
+          require84(
             row.addressPrefix === configured.address_prefix && row.nextHopType === 'VirtualAppliance',
             'current route destination/type differs',
           );
         else
-          require83(row.peerAsn === configured.peer_asn && Number.isInteger(row.peerAsn), 'current peer ASN differs');
+          require84(row.peerAsn === configured.peer_asn && Number.isInteger(row.peerAsn), 'current peer ASN differs');
         rows.push({
           kind: dependency.kind,
           resourceId: dependency.resourceId,
@@ -35545,7 +35577,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
     phase = 'routing-configuration';
     const first = await collect(),
       second = await collect();
-    require83(same55(first, second), 'routing parent or configuration changed');
+    require84(same56(first, second), 'routing parent or configuration changed');
     phase = 'final-cloud-identity';
     await cloud();
     seal();
@@ -35577,26 +35609,26 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
     };
   }
 }
-var same55,
+var same56,
   lower19 = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
 var init_terraform_network_routing_observation = __esm(() => {
   init_canonical();
   init_network_update();
   init_terraform_network_routing();
-  same55 = canonicalEqual;
+  same56 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-routing-execution.ts
-function require84(value, message) {
+function require85(value, message) {
   if (!value) throw Error(`Azure Terraform network routing execution: ${message}`);
 }
 function object62(value) {
-  require84(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
+  require85(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys16(value, expected) {
   const row = object62(value);
-  require84(same56(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
+  require85(same57(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
   return row;
 }
 async function runAzureTerraformNetworkRoutingStage(
@@ -35620,14 +35652,14 @@ async function runAzureTerraformNetworkRoutingStage(
   const inputSha256 = canonicalSha256(data);
   const stage = buildAzureTerraformNetworkRoutingStage(data.plan, source, data.before, data.current, node);
   const stageSha256 = canonicalSha256(stage);
-  require84(
+  require85(
     Number.isInteger(polling.attempts) &&
       polling.attempts > 0 &&
       Number.isFinite(polling.intervalMs) &&
       polling.intervalMs >= 0,
     'bounded polling required',
   );
-  require84(
+  require85(
     session.readConfigurationSha256 && session.readPlannedResourcePaths && session.readProposedResourcePaths,
     'owning configuration and private paths capabilities required',
   );
@@ -35650,7 +35682,7 @@ async function runAzureTerraformNetworkRoutingStage(
   const settings = { attempts: polling.attempts, intervalMs: polling.intervalMs },
     directory = store.directory,
     ownerSha256 = canonicalSha256(store.owner);
-  require84(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
+  require85(ownerSha256 === canonicalSha256(azureUpgradeBinding(data.plan).owner), 'storage owner differs');
   const leased = [];
   const track = (value) => {
     const snapshot = structuredClone(value);
@@ -35660,8 +35692,8 @@ async function runAzureTerraformNetworkRoutingStage(
   const deadline = AbortSignal.any([AbortSignal.timeout(900000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require84(
-      same56({ plan, before, current, node, env }, data) &&
+    require85(
+      same57({ plan, before, current, node, env }, data) &&
         canonicalSha256(data) === inputSha256 &&
         canonicalSha256(stage) === stageSha256 &&
         leased.every((record) => canonicalSha256(record.value) === record.sha256) &&
@@ -35681,7 +35713,7 @@ async function runAzureTerraformNetworkRoutingStage(
         store.verify === original.verify &&
         api.exec === original.exec &&
         polling.wait === original.wait &&
-        same56({ attempts: polling.attempts, intervalMs: polling.intervalMs }, settings),
+        same57({ attempts: polling.attempts, intervalMs: polling.intervalMs }, settings),
       'input or owning collaborator changed',
     );
   };
@@ -35708,8 +35740,8 @@ async function runAzureTerraformNetworkRoutingStage(
     const power = await step(() =>
       observeAzureTerraformNetworkPower(data.plan, data.before, node, 'start', applied, transport, deadline),
     );
-    require84(
-      power.converged && power.powerState === 'running' && same56(power.inventory.nodes, data.current.nodes),
+    require85(
+      power.converged && power.powerState === 'running' && same57(power.inventory.nodes, data.current.nodes),
       'selected node is not running with exact current NIC identity',
     );
     const routing = await step(() =>
@@ -35724,17 +35756,17 @@ async function runAzureTerraformNetworkRoutingStage(
         deadline,
       ),
     );
-    require84(
+    require85(
       routing.status === (stage.dependencies.length ? 'observed' : 'not-required'),
       'current routing ownership/configuration unavailable',
     );
     const finalPower = await step(() =>
       observeAzureTerraformNetworkPower(data.plan, data.before, node, 'start', applied, transport, deadline),
     );
-    require84(
+    require85(
       finalPower.converged &&
         finalPower.powerState === 'running' &&
-        same56(finalPower.inventory.nodes, power.inventory.nodes),
+        same57(finalPower.inventory.nodes, power.inventory.nodes),
       'current node/NIC identity changed during routing observation',
     );
     return { schemaVersion: 1, stageSha256, routing, power: finalPower };
@@ -35767,7 +35799,7 @@ async function runAzureTerraformNetworkRoutingStage(
   };
   const configuration = async () => {
     const hash = await step(() => original.configurationHash.call(session));
-    require84(
+    require85(
       [stage.nicConfigurationSha256, stage.configurationSha256, stage.releasedConfigurationSha256].includes(hash),
       'private configuration differs',
     );
@@ -35803,19 +35835,19 @@ async function runAzureTerraformNetworkRoutingStage(
         'final-plan',
         'current-no-change-plan',
       ])
-        require84(
+        require85(
           (await read(`${prefix}-${suffix}.json`)) === undefined,
           'prepared history missing after later publication',
         );
-      require84((await configuration()) === stage.nicConfigurationSha256, 'pinned NIC source revision required');
-      require84(
+      require85((await configuration()) === stage.nicConfigurationSha256, 'pinned NIC source revision required');
+      require85(
         (await step(() => original.configuration.call(session, stage.nicConfigurationSha256))) ===
           stage.nicConfiguration,
         'pinned source bytes differ',
       );
-      require84(prior(validateObservation(await observe(), false)), 'unsubmitted routing baseline changed');
+      require85(prior(validateObservation(await observe(), false)), 'unsubmitted routing baseline changed');
       await write(`${prefix}-prepared.json`, prepared);
-    } else require84(same56(saved, prepared), 'saved routing preparation differs');
+    } else require85(same57(saved, prepared), 'saved routing preparation differs');
     const published = new Map();
     for (const suffix of [
       'mutation-plan',
@@ -35832,7 +35864,7 @@ async function runAzureTerraformNetworkRoutingStage(
       published.set(suffix, await read(`${prefix}-${suffix}.json`));
     const historyRequired = (suffixes) => {
       for (const suffix of suffixes)
-        require84(published.get(suffix) !== undefined, 'published prerequisite history missing');
+        require85(published.get(suffix) !== undefined, 'published prerequisite history missing');
     };
     for (const phase of ['mutation', 'release']) {
       if (published.get(`${phase}-outcome`) !== undefined || published.get(`${phase}-complete`) !== undefined)
@@ -35861,7 +35893,7 @@ async function runAzureTerraformNetworkRoutingStage(
       if (completion === undefined && (await configuration()) !== nextSha256) {
         const actual = await configuration(),
           baseline = validateObservation(await observe(), phase === 'release');
-        require84(
+        require85(
           phase === 'mutation'
             ? actual === stage.nicConfigurationSha256 && prior(baseline)
             : actual === stage.configurationSha256 && target(baseline),
@@ -35871,7 +35903,7 @@ async function runAzureTerraformNetworkRoutingStage(
       }
       let input = await read(`${phasePrefix}-plan.json`);
       if (input === undefined) {
-        require84(
+        require85(
           completion === undefined &&
             retainedOutcome === undefined &&
             (await read(`${phasePrefix}-binding.json`)) === undefined &&
@@ -35879,7 +35911,7 @@ async function runAzureTerraformNetworkRoutingStage(
           'plan history missing after later publication',
         );
         const cloud = validateObservation(await observe(), phase === 'release');
-        require84(phase === 'release' ? target(cloud) : prior(cloud), 'unsubmitted routing baseline differs');
+        require85(phase === 'release' ? target(cloud) : prior(cloud), 'unsubmitted routing baseline differs');
         input = await step(() => original.plan.call(session, data.env, deadline));
         validateReceipt(input, phase);
         await write(`${phasePrefix}-plan.json`, input);
@@ -35903,28 +35935,28 @@ async function runAzureTerraformNetworkRoutingStage(
       );
       const validateCompletion = (value) => {
         const record = keys16(value, ['schemaVersion', 'receiptSha256', 'outcome']);
-        require84(
+        require85(
           record.schemaVersion === 1 && record.receiptSha256 === canonicalSha256(receipt),
           'saved completion receipt differs',
         );
-        require84(
-          retainedOutcome !== undefined && same56(record.outcome, retainedOutcome),
+        require85(
+          retainedOutcome !== undefined && same57(record.outcome, retainedOutcome),
           'saved completion and immutable outcome differ',
         );
         return validateObservation(record.outcome);
       };
       if (completion === undefined) {
-        require84((await configuration()) === nextSha256, 'routing revision differs before submission');
+        require85((await configuration()) === nextSha256, 'routing revision differs before submission');
         let state = await step(() => original.state.call(session, receipt));
-        require84(['planned', 'applying', 'applied'].includes(state), 'authoritative plan application state required');
+        require85(['planned', 'applying', 'applied'].includes(state), 'authoritative plan application state required');
         if (phase === 'release')
-          require84(
+          require85(
             receipt.noChanges && state === 'planned',
             'reference release must be an unsubmitted no-change plan',
           );
         if (state === 'planned') {
           const cloud = validateObservation(await observe(), phase === 'release');
-          require84(phase === 'release' ? target(cloud) : prior(cloud), 'planned cloud baseline changed');
+          require85(phase === 'release' ? target(cloud) : prior(cloud), 'planned cloud baseline changed');
           if (!receipt.noChanges) {
             try {
               await step(() => original.apply.call(session, receipt, data.env, deadline));
@@ -35943,29 +35975,29 @@ async function runAzureTerraformNetworkRoutingStage(
         }
         const outcome = validateObservation(retainedOutcome);
         state = await step(() => original.state.call(session, receipt));
-        if (receipt.noChanges) require84(state === 'planned', 'no-change routing plan is no longer unsubmitted');
+        if (receipt.noChanges) require85(state === 'planned', 'no-change routing plan is no longer unsubmitted');
         else if (state === 'applying') {
           await step(() => original.reconcile.call(session, receipt, canonicalSha256(outcome)));
-          require84(
+          require85(
             (await step(() => original.state.call(session, receipt))) === 'applied',
             'reconciliation did not establish applied state',
           );
-        } else require84(state === 'applied', 'mutation lacks an authoritative applied outcome');
+        } else require85(state === 'applied', 'mutation lacks an authoritative applied outcome');
         completion = { schemaVersion: 1, receiptSha256: canonicalSha256(receipt), outcome };
         validateCompletion(completion);
         await write(`${phasePrefix}-complete.json`, completion);
       } else validateCompletion(completion);
       await poll();
     }
-    require84(
+    require85(
       (await configuration()) === stage.releasedConfigurationSha256,
       'restored computed reference revision differs',
     );
     const final = track(await step(() => original.plan.call(session, data.env, deadline)));
     validateReceipt(final, 'release');
-    require84(final.noChanges, 'final refresh plan changes retained resources');
+    require85(final.noChanges, 'final refresh plan changes retained resources');
     const finalUnsubmitted = async () =>
-      require84(
+      require85(
         (await step(() => original.state.call(session, final))) === 'planned',
         'final no-change plan is no longer unsubmitted',
       );
@@ -35973,9 +36005,9 @@ async function runAzureTerraformNetworkRoutingStage(
     const selections = azureTerraformNetworkRoutingSelections(stage),
       selectionsSha256 = canonicalSha256(selections);
     const priorFields = await step(() => original.prior.call(session, final, selections, data.env, deadline));
-    require84(canonicalSha256(selections) === selectionsSha256, 'selected paths changed');
+    require85(canonicalSha256(selections) === selectionsSha256, 'selected paths changed');
     const proposedFields = await step(() => original.proposed.call(session, final, selections, data.env, deadline));
-    require84(canonicalSha256(selections) === selectionsSha256, 'selected paths changed');
+    require85(canonicalSha256(selections) === selectionsSha256, 'selected paths changed');
     validateAzureTerraformNetworkRoutingProjection(
       data.plan,
       source,
@@ -35993,10 +36025,10 @@ async function runAzureTerraformNetworkRoutingStage(
     const terminal = { schemaVersion: 1, receipt: final, prior: priorFields, proposed: proposedFields, cloud };
     const validateTerminal = (input) => {
       const record = keys16(input, ['schemaVersion', 'receipt', 'prior', 'proposed', 'cloud']);
-      require84(record.schemaVersion === 1, 'saved final schema differs');
+      require85(record.schemaVersion === 1, 'saved final schema differs');
       const receipt = record.receipt;
       validateReceipt(receipt, 'release');
-      require84(receipt.noChanges, 'saved final plan changes retained resources');
+      require85(receipt.noChanges, 'saved final plan changes retained resources');
       validateAzureTerraformNetworkRoutingProjection(
         data.plan,
         source,
@@ -36013,7 +36045,7 @@ async function runAzureTerraformNetworkRoutingStage(
     validateTerminal(terminal);
     const savedFinal = await read(`${prefix}-final-plan.json`);
     if (savedFinal === undefined) {
-      require84(
+      require85(
         (await read(`${prefix}-current-no-change-plan.json`)) === undefined,
         'immutable final history missing after current publication',
       );
@@ -36038,7 +36070,7 @@ async function runAzureTerraformNetworkRoutingStage(
     await unlock();
   }
 }
-var same56;
+var same57;
 var init_terraform_network_routing_execution = __esm(() => {
   init_process_lock();
   init_canonical();
@@ -36048,13 +36080,13 @@ var init_terraform_network_routing_execution = __esm(() => {
   init_terraform_network_routing_observation();
   init_terraform_network_routing_observation_validation();
   init_terraform_upgrade();
-  same56 = canonicalEqual;
+  same57 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-source-binding.ts
 import { createHash as createHash33 } from 'node:crypto';
 
-function require85(value, message) {
+function require86(value, message) {
   if (!value) throw Error(`Azure Terraform network source binding: ${message}`);
 }
 async function bindAzureTerraformNetworkUpdateSource(
@@ -36092,10 +36124,10 @@ async function bindAzureTerraformNetworkUpdateSource(
     }
   };
   const context = () =>
-    require85(
-      same57(plan, request) &&
-        same57(site, siteRequest) &&
-        same57(owner, store.owner) &&
+    require86(
+      same58(plan, request) &&
+        same58(site, siteRequest) &&
+        same58(owner, store.owner) &&
         loaders.loadSource === sourceLoader &&
         loaders.loadOutcome === outcomeLoader &&
         terraform.open === open &&
@@ -36108,16 +36140,16 @@ async function bindAzureTerraformNetworkUpdateSource(
     context();
   };
   verifyAzureCePlan(plan);
-  require85(
+  require86(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'update-network' &&
-      same57(owner, azureUpgradeBinding(plan).owner),
+      same58(owner, azureUpgradeBinding(plan).owner),
     'exact owning Terraform network intent required',
   );
   await verifyOwner();
   const deployment = await bounded(() => azureTerraformCurrentDeployment(plan)),
     lock = hash16(deployment.providerLock);
-  require85(lock === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'qualified provider lock required');
+  require86(lock === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'qualified provider lock required');
   const unlock = await acquireProcessLock(`${store.directory}/.terraform-network-source-lock`);
   try {
     signal?.throwIfAborted();
@@ -36129,7 +36161,7 @@ async function bindAzureTerraformNetworkUpdateSource(
       absent = new Set();
     const remember = (records, name, value) => {
       const digest = canonicalSha256(value);
-      require85(
+      require86(
         !records.has(name) || records.get(name) === digest,
         'historical source or packet changed during binding',
       );
@@ -36138,12 +36170,12 @@ async function bindAzureTerraformNetworkUpdateSource(
     const optional = async (_store, item) => {
       try {
         const value = await bounded(() => store.read(item));
-        require85(!absent.has(item), 'missing artifact appeared during source binding');
+        require86(!absent.has(item), 'missing artifact appeared during source binding');
         remember(packets, item, value);
         return structuredClone(value);
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
-        require85(!packets.has(item), 'historical artifact disappeared during binding');
+        require86(!packets.has(item), 'historical artifact disappeared during binding');
         absent.add(item);
       }
     };
@@ -36169,7 +36201,7 @@ async function bindAzureTerraformNetworkUpdateSource(
         context();
         const value = await bounded(() => sourceLoader.call(loaders, digest));
         verifyAzureCePlan(value);
-        require85(value.planSha256 === digest, 'predecessor source digest differs');
+        require86(value.planSha256 === digest, 'predecessor source digest differs');
         remember(sources, digest, value);
         return structuredClone(value);
       },
@@ -36177,7 +36209,7 @@ async function bindAzureTerraformNetworkUpdateSource(
         context();
         const value = await bounded(() => outcomeLoader.call(loaders, structuredClone(p))),
           digest = canonicalSha256(value);
-        require85(
+        require86(
           !outcomes.has(p.planSha256) || outcomes.get(p.planSha256)?.digest === digest,
           'predecessor outcome changed during binding',
         );
@@ -36188,17 +36220,17 @@ async function bindAzureTerraformNetworkUpdateSource(
     const recheck = async () => {
       await verifyOwner();
       for (const [digest, expected] of sources)
-        require85(
+        require86(
           canonicalSha256(await bounded(() => sourceLoader.call(loaders, digest))) === expected,
           'predecessor source changed before binding',
         );
       for (const { plan: p, digest } of outcomes.values())
-        require85(
+        require86(
           canonicalSha256(await bounded(() => outcomeLoader.call(loaders, structuredClone(p)))) === digest,
           'predecessor outcome changed before binding',
         );
       for (const [item, digest] of packets)
-        require85(
+        require86(
           canonicalSha256(await bounded(() => store.read(item))) === digest,
           'historical packet changed before binding',
         );
@@ -36213,7 +36245,7 @@ async function bindAzureTerraformNetworkUpdateSource(
       }
       await verifyOwner();
       if (packets.has(name))
-        require85(
+        require86(
           canonicalSha256(await bounded(() => store.read(name))) === packets.get(name),
           'owning source root changed at final boundary',
         );
@@ -36233,10 +36265,10 @@ async function bindAzureTerraformNetworkUpdateSource(
         replacementVerifier,
       );
     const validate = async (input) => {
-      require85(input && typeof input === 'object' && !Array.isArray(input), 'complete saved binding required');
+      require86(input && typeof input === 'object' && !Array.isArray(input), 'complete saved binding required');
       const row = input;
-      require85(
-        same57(Object.keys(row).sort(), [
+      require86(
+        same58(Object.keys(row).sort(), [
           'before',
           'engine',
           'kind',
@@ -36252,7 +36284,7 @@ async function bindAzureTerraformNetworkUpdateSource(
           row.schemaVersion === 1 &&
           row.kind === 'azure-terraform-network-original-source' &&
           row.engine === 'terraform' &&
-          same57(row.owner, store.owner) &&
+          same58(row.owner, store.owner) &&
           row.planSha256 === plan.planSha256 &&
           row.providerLockSha256 === lock &&
           typeof row.source === 'string' &&
@@ -36261,7 +36293,7 @@ async function bindAzureTerraformNetworkUpdateSource(
       );
       validateAzureNetworkUpdateInventory(plan, row.before);
       verifyAzureTerraformNetworkUpdateState(plan, row.before, row.outputs);
-      require85(same57(row.qualification, await qualify(row.source, row.before)), 'saved source qualification changed');
+      require86(same58(row.qualification, await qualify(row.source, row.before)), 'saved source qualification changed');
       signal?.throwIfAborted();
       await verifyOwner();
       return structuredClone(row);
@@ -36311,18 +36343,18 @@ async function bindAzureTerraformNetworkUpdateSource(
           laterNames.push(`${prefix}-${operation}-${suffix}.json`);
     }
     for (const later of laterNames)
-      require85((await optional(store, later)) === undefined, 'original source missing after stage publication');
+      require86((await optional(store, later)) === undefined, 'original source missing after stage publication');
     signal?.throwIfAborted();
     const session = await bounded(() => open.call(terraform, owner, deployment, 'current'));
     const readRevision = session.readConfigurationSha256?.bind(session);
-    require85(readRevision, 'current private configuration capability required');
+    require86(readRevision, 'current private configuration capability required');
     const sourceConfigurationSha256 = await bounded(readRevision);
-    require85(
+    require86(
       typeof sourceConfigurationSha256 === 'string' && /^[a-f0-9]{64}$/.test(sourceConfigurationSha256),
       'resolved private source revision required',
     );
     const source = await bounded(() => session.readConfiguration(sourceConfigurationSha256));
-    require85(
+    require86(
       typeof source === 'string' && hash16(source) === sourceConfigurationSha256,
       'private source bytes differ',
     );
@@ -36354,24 +36386,24 @@ async function bindAzureTerraformNetworkUpdateSource(
       ),
       currentOutputs = await bounded(() => session.readOutputs(['ce_instances', 'ce_interfaces'], env, signal));
     verifyAzureTerraformNetworkUpdateState(plan, current, currentOutputs);
-    require85(
-      same57(current.nodes, before.nodes) &&
-        same57(currentOutputs, outputs) &&
+    require86(
+      same58(current.nodes, before.nodes) &&
+        same58(currentOutputs, outputs) &&
         (await bounded(readRevision)) === sourceConfigurationSha256,
       'source boundary changed during qualification',
     );
     await validate(binding);
     signal?.throwIfAborted();
-    require85((await bounded(readRevision)) === sourceConfigurationSha256, 'source changed before publication');
+    require86((await bounded(readRevision)) === sourceConfigurationSha256, 'source changed before publication');
     const privateUnchanged = async () => {
-      require85(
+      require86(
         (await bounded(readRevision)) === sourceConfigurationSha256 &&
           (await bounded(() => session.readConfiguration(sourceConfigurationSha256))) === source,
         'private source bytes changed at final publication boundary',
       );
       await verifyOwner();
       if (packets.has(name))
-        require85(
+        require86(
           canonicalSha256(await bounded(() => store.read(name))) === packets.get(name),
           'owning source root changed after private read',
         );
@@ -36391,7 +36423,7 @@ async function bindAzureTerraformNetworkUpdateSource(
   }
 }
 var hash16 = (value) => createHash33('sha256').update(value).digest('hex'),
-  same57;
+  same58;
 var init_terraform_network_source_binding = __esm(() => {
   init_process_lock();
   init_artifacts();
@@ -36402,11 +36434,11 @@ var init_terraform_network_source_binding = __esm(() => {
   init_terraform_network_nic_projection();
   init_terraform_network_update_source();
   init_terraform_upgrade();
-  same57 = canonicalEqual;
+  same58 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-driver.ts
-function require86(condition, message) {
+function require87(condition, message) {
   if (!condition) throw Error(`Azure Terraform network driver: ${message}`);
 }
 async function optional9(store, name) {
@@ -36417,10 +36449,10 @@ async function optional9(store, name) {
   }
 }
 function verifyResult(value) {
-  require86(value && typeof value === 'object' && !Array.isArray(value), 'complete operational verification required');
+  require87(value && typeof value === 'object' && !Array.isArray(value), 'complete operational verification required');
   const row = value;
-  require86(
-    same58(Object.keys(row).sort(), ['evidenceSha256', 'scope', 'status']) &&
+  require87(
+    same59(Object.keys(row).sort(), ['evidenceSha256', 'scope', 'status']) &&
       row.status === 'verified' &&
       row.scope === 'node-interfaces-routing-traffic' &&
       typeof row.evidenceSha256 === 'string' &&
@@ -36431,7 +36463,7 @@ function verifyResult(value) {
 }
 async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, loaders, site, dependencies, signal) {
   signal?.throwIfAborted();
-  require86(
+  require87(
     typeof dependencies.collectAcceptance === 'function' && typeof dependencies.qualifyAcceptance === 'function',
     'trusted operational collector and verifier required',
   );
@@ -36473,9 +36505,9 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
     });
     const boundary = async (snapshot) => {
       signal?.throwIfAborted();
-      require86(session.readConfigurationSha256, 'owning current private revision capability required');
+      require87(session.readConfigurationSha256, 'owning current private revision capability required');
       const row = snapshot.checkpoint.nodes.at(-1);
-      require86(row, 'current serial node required');
+      require87(row, 'current serial node required');
       const nicStage = buildAzureTerraformNetworkPinnedNicStage(plan, snapshot.nodeSource, row.before, row.node);
       const routed = ['routing-complete', 'accepted'].includes(snapshot.phase);
       const routing =
@@ -36488,7 +36520,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
               row.node,
             )
           : undefined;
-      require86(!routed || routing, 'completed routing history required');
+      require87(!routed || routing, 'completed routing history required');
       const stage =
         routed && routing
           ? {
@@ -36504,7 +36536,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
           : snapshot.phase === 'restarted' && routing
             ? [nicStage.configurationSha256, routing.configurationSha256, routing.releasedConfigurationSha256]
             : [snapshot.configurationSha256];
-      require86(
+      require87(
         typeof revision === 'string' && allowed.includes(revision),
         'current private configuration differs from serial boundary',
       );
@@ -36524,15 +36556,15 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       for (const [node, vm] of Object.entries(binding.before.nodes))
         for (const [index, nic] of Object.entries(vm.nics))
           if (!progressed.includes(`${node}:${index}`))
-            require86(
+            require87(
               inventory.nodes[node].nics[index].privateIp === nic.privateIp,
               'unsubmitted current private address changed',
             );
       const outputs = await session.readOutputs(['ce_instances', 'ce_interfaces'], env, signal);
       verifyAzureTerraformNetworkUpdateState(plan, inventory, outputs);
       const again = await captureAzureNetworkUpdateInventory(plan, api, signal);
-      require86(
-        same58(again.nodes, inventory.nodes) && (await session.readConfigurationSha256()) === revision,
+      require87(
+        same59(again.nodes, inventory.nodes) && (await session.readConfigurationSha256()) === revision,
         'cloud/private boundary changed during observation',
       );
       return { inventory, outputs, configurationSha256: revision, progressed, stage };
@@ -36567,9 +36599,9 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       const saved = await optional9(store, name);
       if (saved !== undefined) {
         const row = saved;
-        require86(
+        require87(
           row &&
-            same58(Object.keys(row).sort(), [
+            same59(Object.keys(row).sort(), [
               'identity',
               'receipt',
               'schemaVersion',
@@ -36581,7 +36613,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
             row.identity &&
             row.identity.node === snapshot.currentNode &&
             row.identity.configurationSha256 === snapshot.configurationSha256 &&
-            same58(
+            same59(
               { ...row.identity, inventory: undefined },
               {
                 ...identity(snapshot.currentNode, current.inventory, current.configurationSha256),
@@ -36600,9 +36632,9 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
               signal,
             ),
           );
-          require86(same58(row.verification, verification), 'saved preflight provenance differs');
+          require87(same59(row.verification, verification), 'saved preflight provenance differs');
           signal?.throwIfAborted();
-          require86(same58(await store.read(name), saved), 'preflight changed during qualification');
+          require87(same59(await store.read(name), saved), 'preflight changed during qualification');
           return true;
         } catch {
           signal?.throwIfAborted();
@@ -36622,7 +36654,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         'current-no-change-plan',
       ];
       for (const suffix of names)
-        require86(
+        require87(
           (await optional9(
             store,
             `${plan.planId}-terraform-network-node-${snapshot.currentNode}-deallocate-${suffix}.json`,
@@ -36633,7 +36665,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       const evidence = await collect(expected, 'preflight');
       if (!evidence) return false;
       const now = await boundary(snapshot);
-      require86(same58(now.inventory.nodes, current.inventory.nodes), 'current preflight cloud identity changed');
+      require87(same59(now.inventory.nodes, current.inventory.nodes), 'current preflight cloud identity changed');
       signal?.throwIfAborted();
       await store.write(name, {
         schemaVersion: 1,
@@ -36661,11 +36693,11 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         signal,
         dependencies.qualifyReplacementCompleted,
       );
-      require86(
+      require87(
         result &&
           typeof result === 'object' &&
           !Array.isArray(result) &&
-          same58(
+          same59(
             Object.keys(result).sort(),
             [
               'schemaVersion',
@@ -36721,7 +36753,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
             : `${prefix}-${phase === 'deallocated' ? 'deallocate' : 'start'}-final-plan.json`;
       if ((await optional9(store, name)) === undefined) return false;
       const row = snapshot.checkpoint.nodes.at(-1);
-      require86(row, 'selected node history boundary required');
+      require87(row, 'selected node history boundary required');
       await readAzureTerraformNetworkNodeHistory(plan, snapshot.nodeSource, row.before, row.node, phase, store, signal);
       const progressed = [...applied(row.node), ...(phase === 'deallocated' ? [] : selected(row.node))];
       const power = await observeAzureTerraformNetworkPower(
@@ -36733,7 +36765,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         api,
         signal,
       );
-      require86(power.converged, 'completed historical stage lacks current matching power');
+      require87(power.converged, 'completed historical stage lacks current matching power');
       return true;
     };
     let snapshot = await checkpoint.read(signal);
@@ -36741,7 +36773,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       signal?.throwIfAborted();
       const current = await boundary(snapshot),
         row = snapshot.checkpoint.nodes.at(-1);
-      require86(row, 'complete current serial node required');
+      require87(row, 'complete current serial node required');
       if (snapshot.phase === 'prepared') {
         if (!(await preflight(snapshot, current))) return pending(snapshot, 'preflight');
         if (!(await existingStage(snapshot, 'deallocated')))
@@ -36791,8 +36823,8 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         await retirePower(row.node, 'start');
         snapshot = await checkpoint.recordStage(snapshot.checkpointSha256, row.node, 'restarted', signal);
       } else if (snapshot.phase === 'restarted') {
-        require86(
-          row.history?.phase === 'restarted' && same58(current.inventory.nodes, row.history.inventory.nodes),
+        require87(
+          row.history?.phase === 'restarted' && same59(current.inventory.nodes, row.history.inventory.nodes),
           'current NIC identity differs from authenticated restart boundary',
         );
         const preparedRouting = await optional9(
@@ -36834,14 +36866,14 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
           api,
           signal,
         );
-        require86(power.converged, 'restored selected node is not currently running');
+        require87(power.converged, 'restored selected node is not currently running');
         const durable = await optional9(
           store,
           `${plan.planId}-terraform-network-driver-revision-${snapshot.checkpoint.revision + 1}.json`,
         );
         if (durable !== undefined) {
           const saved = durable;
-          require86(
+          require87(
             saved &&
               saved.previousCheckpointSha256 === snapshot.checkpointSha256 &&
               saved.lastTransition?.kind === 'accept' &&
@@ -36859,11 +36891,11 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         }
         const evidence = await collect(identity(row.node, current.inventory, current.configurationSha256), 'restored');
         if (!evidence) return pending(snapshot, 'restored');
-        if (!same58(current.inventory.nodes, row.history?.inventory.nodes))
+        if (!same59(current.inventory.nodes, row.history?.inventory.nodes))
           return pending(snapshot, 'restored-identity');
         snapshot = await checkpoint.acceptNode(snapshot.checkpointSha256, row.node, evidence.receipt, signal);
       } else {
-        require86(snapshot.phase === 'accepted', 'known serial phase required');
+        require87(snapshot.phase === 'accepted', 'known serial phase required');
         snapshot = await checkpoint.prepareNextNode(snapshot.checkpointSha256, current.inventory, signal);
       }
     }
@@ -36879,17 +36911,17 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         api,
         signal,
       );
-      require86(power.converged, 'terminal node is not currently running');
+      require87(power.converged, 'terminal node is not currently running');
       const evidence = await collect(identity(node, current.inventory, current.configurationSha256), 'final');
       if (!evidence) return pending(snapshot, `final-node-${node}`);
       evidenceByNode[String(node)] = evidence;
     }
     const receipt = await session.plan(env, signal);
     validateAzureNetworkUpdateTerraformReceipt(plan, current.stage, receipt, AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256);
-    require86(receipt.noChanges, 'final owning refresh plan changes resources');
+    require87(receipt.noChanges, 'final owning refresh plan changes resources');
     const final = await boundary(snapshot);
-    require86(
-      same58(final.inventory.nodes, current.inventory.nodes) && same58(final.outputs, current.outputs),
+    require87(
+      same59(final.inventory.nodes, current.inventory.nodes) && same59(final.outputs, current.outputs),
       'terminal identities changed during final operational/refresh qualification',
     );
     signal?.throwIfAborted();
@@ -36908,7 +36940,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
     const currentFinalName = `${plan.planId}-terraform-network-driver-current-final.json`;
     let completed = await optional9(store, completeName);
     if (completed === undefined) {
-      require86(
+      require87(
         (await optional9(store, currentFinalName)) === undefined,
         'original completion missing after current final publication',
       );
@@ -36916,9 +36948,9 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       completed = packet;
     } else {
       const historical = completed;
-      require86(
+      require87(
         historical &&
-          same58(Object.keys(historical).sort(), Object.keys(packet).sort()) &&
+          same59(Object.keys(historical).sort(), Object.keys(packet).sort()) &&
           historical.schemaVersion === 1 &&
           historical.engine === 'terraform' &&
           historical.planSha256 === plan.planSha256 &&
@@ -36932,11 +36964,11 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
         historical.receipt,
         AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256,
       );
-      require86(historical.receipt.noChanges, 'original completion refresh changes resources');
+      require87(historical.receipt.noChanges, 'original completion refresh changes resources');
       verifyAzureNetworkUpdateProgress(plan, binding.before, historical.inventory, current.progressed);
       verifyAzureTerraformNetworkUpdateState(plan, historical.inventory, historical.outputs);
-      require86(
-        same58(
+      require87(
+        same59(
           Object.keys(historical.evidenceByNode).sort(),
           Array.from({ length: plan.topology.nodeCount }, (_, i) => String(i + 1)),
         ),
@@ -36944,8 +36976,8 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
       );
       for (let node = 1; node <= plan.topology.nodeCount; node++) {
         const evidence = historical.evidenceByNode[String(node)];
-        require86(
-          evidence && same58(Object.keys(evidence).sort(), ['receipt', 'verification']),
+        require87(
+          evidence && same59(Object.keys(evidence).sort(), ['receipt', 'verification']),
           'historical operational packet differs',
         );
         const qualified = verifyResult(
@@ -36956,10 +36988,10 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
             signal,
           ),
         );
-        require86(same58(evidence.verification, qualified), 'historical terminal operational provenance differs');
+        require87(same59(evidence.verification, qualified), 'historical terminal operational provenance differs');
       }
       signal?.throwIfAborted();
-      require86(same58(await store.read(completeName), completed), 'original completion changed during qualification');
+      require87(same59(await store.read(completeName), completed), 'original completion changed during qualification');
     }
     signal?.throwIfAborted();
     await store.write(currentFinalName, packet);
@@ -37006,7 +37038,7 @@ async function runAzureTerraformNetworkUpdate(plan, terraform, store, api, env, 
     if (!deferredRelease) await unlock();
   }
 }
-var same58 = (a, b) => canonicalEqual(a, b);
+var same59 = (a, b) => canonicalEqual(a, b);
 var init_terraform_network_driver = __esm(() => {
   init_canonical();
   init_network_update();
@@ -37367,13 +37399,13 @@ async function qualifyAzureTerraformReplacementPublicSource(
   loadOutcome,
   providerLockSha256,
 ) {
-  require87(
+  require88(
     !plan.terraformNetworkReplacementProfile,
     'network-bound replacement requires its dedicated owning source contract',
   );
   await store.verify();
   const workflow = object63(await store.read('terraform-workflow.json'));
-  require87(
+  require88(
     workflow.schemaVersion === 1 &&
       workflow.engine === 'terraform' &&
       workflow.stage === 'registered' &&
@@ -37383,10 +37415,10 @@ async function qualifyAzureTerraformReplacementPublicSource(
   );
   const original = await loadSource(workflow.planSha256);
   verifyAzureCePlan(original);
-  require87(original.planSha256 === workflow.planSha256, 'original creation digest differs');
+  require88(original.planSha256 === workflow.planSha256, 'original creation digest differs');
   const bootstraps = object63(workflow.bootstrapByNode),
     launches = object63(workflow.launchedAtByNode);
-  require87(
+  require88(
     azureUpgradeBinding(original).nodes.every(
       (_, i) =>
         typeof bootstraps[String(i + 1)] === 'string' &&
@@ -37395,7 +37427,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
     ),
     'original bootstrap or launch boundaries are incomplete',
   );
-  require87(
+  require88(
     workflow.configurationSha256 ===
       createHash35('sha256').update(renderAzureTerraformFoundation(original, bootstraps)).digest('hex'),
     'original admitted configuration digest differs',
@@ -37407,7 +37439,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
   );
   const outcome = async (owner, cp) => {
     const row = await loadOutcome(owner);
-    require87(
+    require88(
       row.planSha256 === owner.planSha256 &&
         row.planId === owner.planId &&
         row.engine === 'terraform' &&
@@ -37433,13 +37465,13 @@ async function qualifyAzureTerraformReplacementPublicSource(
     if (sources.has(digest)) return;
     const owner = await loadSource(digest);
     verifyAzureCePlan(owner);
-    require87(owner.planSha256 === digest, 'generation source digest differs');
+    require88(owner.planSha256 === digest, 'generation source digest differs');
     sources.set(digest, owner);
     const cp = validateAzureTerraformReplacementCheckpoint(
       owner,
       await store.read(`${owner.planId}-terraform-replacement.json`),
     );
-    require87(cp.phase === 'complete', 'predecessor execution is incomplete');
+    require88(cp.phase === 'complete', 'predecessor execution is incomplete');
     checkpoints.set(digest, cp);
     const history = new Map();
     for (const suffix of ['quiesce-plan', 'launch-plan', 'replacement-final-plan']) {
@@ -37464,7 +37496,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
   const instances = object63(object63(configuration.resource).azurerm_linux_virtual_machine);
   for (const [index, node] of azureUpgradeBinding(original).nodes.entries()) {
     const encoded = object63(instances[`node_${index + 1}`]).custom_data;
-    require87(
+    require88(
       typeof encoded === 'string' &&
         Buffer.from(encoded, 'base64').toString('utf8') ===
           bootstrapMaterials.get(`${current.ownerPlanSha256ByNode[node]}:${index + 1}`),
@@ -37477,7 +37509,7 @@ var object63 = (value) => {
       throw Error('Azure Terraform public source record is malformed');
     return value;
   },
-  require87 = (condition, message) => {
+  require88 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform public source: ${message}`);
   };
 var init_terraform_replacement_public_source = __esm(() => {
@@ -37760,11 +37792,11 @@ import {
 } from 'node:fs/promises';
 import { join as join14 } from 'node:path';
 
-function require88(value, message) {
+function require89(value, message) {
   if (!value) throw Error(`Azure Terraform original receipt inventory: ${message}`);
 }
 function exact2(value, keys) {
-  require88(
+  require89(
     value &&
       typeof value === 'object' &&
       !Array.isArray(value) &&
@@ -37777,9 +37809,9 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
     contextSha256 = canonicalSha256(context);
   const { plan, bootstrapByNode, stage, receipt } = context;
   verifyAzureCePlan(plan);
-  require88(plan.engine === 'terraform' && plan.intent.operation === 'deploy', 'original Terraform deploy required');
+  require89(plan.engine === 'terraform' && plan.intent.operation === 'deploy', 'original Terraform deploy required');
   const count = Object.keys(bootstrapByNode).length;
-  require88(
+  require89(
     count <= plan.topology.nodeCount &&
       Object.keys(bootstrapByNode).every(
         (node, index) =>
@@ -37793,15 +37825,15 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
   );
   if (stage.kind === 'node-admission') {
     exact2(stage, ['kind', 'node']);
-    require88(
+    require89(
       Number.isInteger(stage.node) && stage.node >= 1 && stage.node <= plan.topology.nodeCount && count === stage.node,
       'node admission requires its exact bootstrap prefix',
     );
   } else {
     exact2(stage, ['kind']);
-    require88(stage.kind === 'foundation' || stage.kind === 'ingress-final', 'original stage unsupported');
+    require89(stage.kind === 'foundation' || stage.kind === 'ingress-final', 'original stage unsupported');
     if (stage.kind === 'ingress-final')
-      require88(
+      require89(
         count === plan.topology.nodeCount && plan.intent.ingress?.mode === 'platform-http',
         'ingress final requires all nodes and owning ingress intent',
       );
@@ -37820,11 +37852,11 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
   ]);
   const source = renderAzureTerraformFoundation(plan, bootstrapByNode);
   const deployment = await azureTerraformFoundationDeployment(plan, bootstrapByNode);
-  require88(
-    same59(input, context) && canonicalSha256(context) === contextSha256,
+  require89(
+    same60(input, context) && canonicalSha256(context) === contextSha256,
     'caller changed original receipt request',
   );
-  require88(
+  require89(
     receipt.schemaVersion === 1 &&
       receipt.engine === 'terraform' &&
       receipt.deploymentId === deployment.deploymentId &&
@@ -37839,7 +37871,7 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
   const addresses = new Set();
   for (const change of receipt.changes) {
     exact2(change, ['address', 'type', 'actions']);
-    require88(
+    require89(
       typeof change.address === 'string' &&
         !!change.address &&
         typeof change.type === 'string' &&
@@ -37857,18 +37889,18 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
     addresses.add(change.address);
   }
   if (receipt.actionInvocations !== undefined) {
-    require88(
+    require89(
       Array.isArray(receipt.actionInvocations) && receipt.actionInvocations.length === 0,
       'original resource admission cannot authorize Terraform action invocations',
     );
   }
-  require88(
+  require89(
     receipt.noChanges ===
       receipt.changes.every((change) => change.actions.every((action) => action === 'no-op' || action === 'read')),
     'receipt no-change state differs',
   );
   if (stage.kind === 'ingress-final')
-    require88(receipt.noChanges, 'ingress final must be an ordinary no-change receipt');
+    require89(receipt.noChanges, 'ingress final must be an ordinary no-change receipt');
   return {
     schemaVersion: 1,
     engine: 'terraform',
@@ -37886,7 +37918,7 @@ async function buildAzureTerraformOriginalReceiptRecord(input) {
 async function privateDirectory(path, create = false) {
   if (create) await mkdir2(path, { mode: 448 });
   const stat = await lstat10(path);
-  require88(
+  require89(
     stat.isDirectory() &&
       !stat.isSymbolicLink() &&
       stat.uid === process.getuid?.() &&
@@ -37900,14 +37932,14 @@ async function bytes2(path, links = 1) {
   const file = await open5(path, constants5.O_RDONLY | constants5.O_NOFOLLOW);
   try {
     const before = await file.stat();
-    require88(
+    require89(
       before.isFile() && before.uid === process.getuid?.() && before.nlink === links && (before.mode & 63) === 0,
       'receipt file ownership differs',
     );
     const value = await file.readFile(),
       after = await file.stat(),
       named = await lstat10(path);
-    require88(
+    require89(
       before.dev === after.dev &&
         before.ino === after.ino &&
         before.size === after.size &&
@@ -37930,8 +37962,8 @@ function checkedContext(store, input, signal) {
     verifier = store.verify;
   const boundary = () => {
     signal?.throwIfAborted();
-    require88(store.verify === verifier, 'owning storage verifier changed');
-    require88(
+    require89(store.verify === verifier, 'owning storage verifier changed');
+    require89(
       canonicalSha256({ input, owner: store.owner, directory: store.directory }) === expected,
       'owning original receipt context changed',
     );
@@ -37964,12 +37996,12 @@ function checkedContext(store, input, signal) {
       throw Error('Malformed native owning manifest');
     }
     exact2(value, ['schemaVersion', 'owner']);
-    require88(value.schemaVersion === 2 && same59(value.owner, store.owner), 'native owner manifest differs');
+    require89(value.schemaVersion === 2 && same60(value.owner, store.owner), 'native owner manifest differs');
     const observed = canonicalSha256({
       directory: { dev: root.dev, ino: root.ino },
       owner: { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, sha256: hash17(content) },
     });
-    require88(nativeOwner === undefined || nativeOwner === observed, 'native owner manifest changed');
+    require89(nativeOwner === undefined || nativeOwner === observed, 'native owner manifest changed');
     nativeOwner = observed;
   };
   const verifiedStore = async () => {
@@ -37983,7 +38015,7 @@ async function publishAzureTerraformOriginalReceipt(input, store, signal) {
   signal = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(180000)]);
   const { boundary, step, verifiedStore } = checkedContext(store, input, signal);
   const record = await step(() => buildAzureTerraformOriginalReceiptRecord(input));
-  require88(record.ownerSha256 === canonicalSha256(store.owner), 'receipt publisher owner differs');
+  require89(record.ownerSha256 === canonicalSha256(store.owner), 'receipt publisher owner differs');
   await verifiedStore();
   const directory = join14(store.directory, directoryName);
   try {
@@ -38007,15 +38039,15 @@ async function publishAzureTerraformOriginalReceipt(input, store, signal) {
         const stat = await step(() => lstat10(join14(directory, candidate)));
         if (stat.dev === publishedStat.dev && stat.ino === publishedStat.ino) matches.push(candidate);
       }
-      require88(matches.length === 1, 'linked publication recovery identity is ambiguous');
+      require89(matches.length === 1, 'linked publication recovery identity is ambiguous');
       const pendingPath = join14(directory, matches[0]);
-      require88(
+      require89(
         (await step(() => bytes2(path, 2))).equals(content) &&
           (await step(() => bytes2(pendingPath, 2))).equals(content),
         'linked pending receipt provenance differs',
       );
       await verifiedStore();
-      require88(
+      require89(
         (await step(() => bytes2(path, 2))).equals(content) &&
           (await step(() => bytes2(pendingPath, 2))).equals(content),
         'linked pending receipt changed at recovery',
@@ -38023,18 +38055,18 @@ async function publishAzureTerraformOriginalReceipt(input, store, signal) {
       await step(() => unlink2(pendingPath));
     }
     const existing = await step(() => bytes2(path));
-    require88(existing.equals(content), 'foreign immutable receipt collision retained');
+    require89(existing.equals(content), 'foreign immutable receipt collision retained');
     await verifiedStore();
-    require88((await step(() => bytes2(path))).equals(content), 'published receipt changed');
+    require89((await step(() => bytes2(path))).equals(content), 'published receipt changed');
     return { name, publicationSha256: canonicalSha256(record), receiptSha256: record.receiptSha256 };
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
   const retained = await pendingNames();
-  require88(retained.length <= 1, 'pending publication recovery identity is ambiguous');
+  require89(retained.length <= 1, 'pending publication recovery identity is ambiguous');
   const pending = join14(directory, retained[0] ?? `${canonicalSha256(record)}-${randomUUID5()}.pending`);
   if (retained.length)
-    require88((await step(() => bytes2(pending))).equals(content), 'incomplete or foreign pending receipt retained');
+    require89((await step(() => bytes2(pending))).equals(content), 'incomplete or foreign pending receipt retained');
   const file = await step(() =>
     open5(pending, retained.length ? constants5.O_RDONLY | constants5.O_NOFOLLOW : 'wx', 384),
   );
@@ -38043,12 +38075,12 @@ async function publishAzureTerraformOriginalReceipt(input, store, signal) {
     await step(() => file.sync());
     await file.close();
     await verifiedStore();
-    require88((await step(() => bytes2(pending))).equals(content), 'pending receipt changed');
+    require89((await step(() => bytes2(pending))).equals(content), 'pending receipt changed');
     try {
       await step(() => link2(pending, path));
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      require88((await step(() => bytes2(path))).equals(content), 'late foreign immutable receipt collision retained');
+      require89((await step(() => bytes2(path))).equals(content), 'late foreign immutable receipt collision retained');
     }
     await step(() => unlink2(pending));
     const handle = await step(() => open5(directory, constants5.O_RDONLY));
@@ -38058,7 +38090,7 @@ async function publishAzureTerraformOriginalReceipt(input, store, signal) {
       await handle.close();
     }
     await verifiedStore();
-    require88((await step(() => bytes2(path))).equals(content), 'published receipt changed');
+    require89((await step(() => bytes2(path))).equals(content), 'published receipt changed');
     boundary();
     return { name, publicationSha256: canonicalSha256(record), receiptSha256: record.receiptSha256 };
   } catch (error) {
@@ -38076,10 +38108,10 @@ async function readAzureTerraformOriginalReceiptInventory(plan, bootstrapByNode,
   signal = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(180000)]);
   const { boundary, step, verifiedStore } = checkedContext(store, input, signal);
   verifyAzureCePlan(plan);
-  require88(
+  require89(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'deploy' &&
-      same59(azureUpgradeBinding(plan).owner, store.owner),
+      same60(azureUpgradeBinding(plan).owner, store.owner),
     'inventory original owner differs',
   );
   await verifiedStore();
@@ -38143,20 +38175,20 @@ async function readAzureTerraformOriginalReceiptInventory(plan, bootstrapByNode,
         receipt: value.receipt,
       }),
     );
-    require88(
-      same59(value, expected) && recordName(value) === name && content.equals(Buffer.from(JSON.stringify(expected))),
+    require89(
+      same60(value, expected) && recordName(value) === name && content.equals(Buffer.from(JSON.stringify(expected))),
       'original receipt descriptor provenance differs',
     );
     records.push({ name, publicationSha256: canonicalSha256(value), record: value });
   }
   await verifiedStore();
   await step(() => privateDirectory(directory));
-  require88(
-    same59(await step(() => readdir9(directory).then((names) => names.sort())), names),
+  require89(
+    same60(await step(() => readdir9(directory).then((names) => names.sort())), names),
     'receipt namespace changed',
   );
   for (const [name, content] of inventory)
-    require88(
+    require89(
       (await step(() => bytes2(join14(directory, name)))).equals(content),
       'receipt inventory changed at final boundary',
     );
@@ -38180,10 +38212,10 @@ async function recoverAzureTerraformOriginalReceiptPublications(plan, bootstrapB
   };
   const { step, boundary, verifiedStore } = checkedContext(store, input, signal);
   verifyAzureCePlan(plan);
-  require88(
+  require89(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'deploy' &&
-      same59(azureUpgradeBinding(plan).owner, store.owner),
+      same60(azureUpgradeBinding(plan).owner, store.owner),
     'recovery original owner differs',
   );
   await verifiedStore();
@@ -38205,9 +38237,9 @@ async function recoverAzureTerraformOriginalReceiptPublications(plan, bootstrapB
   const pending = (await step(() => readdir9(directory))).filter((name) => name.endsWith('.pending')).sort(),
     publications = [];
   for (const name of pending) {
-    require88(/^[a-f0-9]{64}-[a-f0-9-]{36}\.pending$/.test(name), 'unrecognized pending original receipt retained');
+    require89(/^[a-f0-9]{64}-[a-f0-9-]{36}\.pending$/.test(name), 'unrecognized pending original receipt retained');
     const stat = await step(() => lstat10(join14(directory, name)));
-    require88(stat.nlink === 1 || stat.nlink === 2, 'pending original receipt has foreign link ownership');
+    require89(stat.nlink === 1 || stat.nlink === 2, 'pending original receipt has foreign link ownership');
     const content = await step(() => bytes2(join14(directory, name), stat.nlink));
     let value;
     try {
@@ -38249,8 +38281,8 @@ async function recoverAzureTerraformOriginalReceiptPublications(plan, bootstrapB
         receipt: value.receipt,
       }),
     );
-    require88(
-      same59(record, value) &&
+    require89(
+      same60(record, value) &&
         name.startsWith(`${canonicalSha256(record)}-`) &&
         content.equals(Buffer.from(JSON.stringify(record))),
       'pending original receipt provenance differs',
@@ -38278,9 +38310,9 @@ async function syncDirectory(path, context) {
   }
 }
 async function originalFragmentRecord(plan, bootstrapByNode, name, fragment, context, nativeCurrent) {
-  require88(nativeCurrent, 'Partial pending original receipt retained: native owner reader unavailable');
+  require89(nativeCurrent, 'Partial pending original receipt retained: native owner reader unavailable');
   const native = structuredClone(await context.step(nativeCurrent));
-  require88(
+  require89(
     native.schemaVersion === 1 &&
       native.scope === 'current-saved-plan-byte-and-journal-binding' &&
       native.state === 'planned' &&
@@ -38314,7 +38346,7 @@ async function originalFragmentRecord(plan, bootstrapByNode, name, fragment, con
       providerLock,
       ...identity
     } = await context.step(() => azureTerraformFoundationDeployment(plan, input.bootstrapByNode));
-    require88(
+    require89(
       native.manifestSha256 ===
         canonicalSha256({
           ...identity,
@@ -38324,18 +38356,18 @@ async function originalFragmentRecord(plan, bootstrapByNode, name, fragment, con
       'Partial pending original receipt retained: native manifest differs',
     );
     const expected = Buffer.from(JSON.stringify(record));
-    require88(
+    require89(
       fragment.length < expected.length && expected.subarray(0, fragment.length).equals(fragment),
       'Partial pending original receipt retained: fragment is not an exact prefix of native publication',
     );
     matches.push({ input, record });
   }
-  require88(
+  require89(
     matches.length === 1,
     'Partial pending original receipt retained: native receipt does not resolve a unique original publication',
   );
-  require88(
-    same59(await context.step(nativeCurrent), native),
+  require89(
+    same60(await context.step(nativeCurrent), native),
     'Partial pending original receipt retained: native journal changed',
   );
   return { native, ...matches[0] };
@@ -38350,7 +38382,7 @@ async function recoverOriginalPublicationFragment(
   nativeCurrent,
   signal,
 ) {
-  require88(pendingPattern.test(name), 'Partial pending original receipt retained: pending name differs');
+  require89(pendingPattern.test(name), 'Partial pending original receipt retained: pending name differs');
   const bound = await originalFragmentRecord(plan, bootstrapByNode, name, fragment, context, nativeCurrent),
     directory = join14(store.directory, directoryName),
     pending = join14(directory, name),
@@ -38363,7 +38395,7 @@ async function recoverOriginalPublicationFragment(
       throw error;
     }),
   );
-  require88(!final, 'Partial pending original receipt retained: immutable publication already exists');
+  require89(!final, 'Partial pending original receipt retained: immutable publication already exists');
   try {
     await context.step(() => privateDirectory(audit, true));
   } catch (error) {
@@ -38371,8 +38403,8 @@ async function recoverOriginalPublicationFragment(
     await context.step(() => privateDirectory(audit));
   }
   let stat = await context.step(() => lstat10(pending));
-  require88(stat.nlink === 1 || stat.nlink === 2, 'Partial pending original receipt retained: link ownership differs');
-  require88(
+  require89(stat.nlink === 1 || stat.nlink === 2, 'Partial pending original receipt retained: link ownership differs');
+  require89(
     (await context.step(() => bytes2(pending, stat.nlink))).equals(fragment),
     'Partial pending original receipt changed during recovery',
   );
@@ -38383,7 +38415,7 @@ async function recoverOriginalPublicationFragment(
   }
   stat = await context.step(() => lstat10(pending));
   const retained = await context.step(() => lstat10(archived));
-  require88(
+  require89(
     stat.nlink === 2 &&
       retained.nlink === 2 &&
       retained.dev === stat.dev &&
@@ -38394,11 +38426,11 @@ async function recoverOriginalPublicationFragment(
   );
   await syncDirectory(audit, context);
   await context.verifiedStore();
-  require88(
-    same59(await context.step(nativeCurrent), bound.native),
+  require89(
+    same60(await context.step(nativeCurrent), bound.native),
     'Partial pending original receipt retained: native binding changed before rebuild',
   );
-  require88(
+  require89(
     (await context.step(() => bytes2(pending, 2))).equals(fragment) &&
       (await context.step(() => bytes2(archived, 2))).equals(fragment),
     'Partial pending original receipt changed before preserving',
@@ -38407,15 +38439,15 @@ async function recoverOriginalPublicationFragment(
   await syncDirectory(directory, context);
   await context.verifiedStore();
   const result = await context.step(() => publishAzureTerraformOriginalReceipt(bound.input, store, signal));
-  require88(
-    same59(await context.step(nativeCurrent), bound.native),
+  require89(
+    same60(await context.step(nativeCurrent), bound.native),
     'Original native publication binding changed during recovery completion',
   );
-  require88(
+  require89(
     (await context.step(() => bytes2(published))).equals(Buffer.from(JSON.stringify(bound.record))),
     'Recovered immutable original publication changed',
   );
-  require88(
+  require89(
     (await context.step(() => bytes2(archived))).equals(fragment),
     'Original preserved publication fragment changed',
   );
@@ -38433,12 +38465,12 @@ async function restoreOriginalPublicationFragments(plan, bootstrapByNode, store,
   }
   for (const name of (await context.step(() => readdir9(audit))).sort()) {
     const match = /^([a-f0-9]{64}-[a-f0-9-]{36}\.pending)\.([a-f0-9]{64})\.fragment$/.exec(name);
-    require88(match, 'Original publication fragment namespace differs');
+    require89(match, 'Original publication fragment namespace differs');
     const path = join14(audit, name),
       stat = await context.step(() => lstat10(path));
-    require88(stat.nlink === 1 || stat.nlink === 2, 'Original publication fragment link ownership differs');
+    require89(stat.nlink === 1 || stat.nlink === 2, 'Original publication fragment link ownership differs');
     const fragment = await context.step(() => bytes2(path, stat.nlink));
-    require88(hash17(fragment) === match[2], 'Original publication fragment digest differs');
+    require89(hash17(fragment) === match[2], 'Original publication fragment digest differs');
     const published = join14(directory, `${match[1].slice(0, 64)}.json`),
       final = await context.step(() =>
         lstat10(published).catch((error) => {
@@ -38447,9 +38479,9 @@ async function restoreOriginalPublicationFragments(plan, bootstrapByNode, store,
         }),
       );
     if (final) {
-      require88(stat.nlink === 1, 'Completed original fragment has an unresolved extra link');
+      require89(stat.nlink === 1, 'Completed original fragment has an unresolved extra link');
       const content = await context.step(() => bytes2(published));
-      require88(
+      require89(
         fragment.length < content.length &&
           content.subarray(0, fragment.length).equals(fragment) &&
           canonicalSha256(JSON.parse(content.toString())) === match[1].slice(0, 64),
@@ -38470,7 +38502,7 @@ async function restoreOriginalPublicationFragments(plan, bootstrapByNode, store,
       await syncDirectory(directory, context);
     }
     const linked = await context.step(() => lstat10(pending));
-    require88(
+    require89(
       linked.dev === stat.dev &&
         linked.ino === stat.ino &&
         linked.nlink === 2 &&
@@ -38482,7 +38514,7 @@ async function restoreOriginalPublicationFragments(plan, bootstrapByNode, store,
 }
 var hash17 = (value) => createHash36('sha256').update(value).digest('hex'),
   sha13 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  same59,
+  same60,
   recordName = (record) => `${canonicalSha256(record)}.json`,
   directoryName = 'terraform-original-deployment-receipts',
   fragmentsName = 'terraform-original-deployment-publication-fragments',
@@ -38492,7 +38524,7 @@ var init_terraform_original_receipt_inventory = __esm(() => {
   init_canonical();
   init_terraform_foundation();
   init_terraform_upgrade();
-  same59 = canonicalEqual;
+  same60 = canonicalEqual;
   pendingPattern = /^([a-f0-9]{64})-([a-f0-9-]{36})\.pending$/;
 });
 
@@ -40989,10 +41021,10 @@ async function optional12(storage, name) {
 }
 function validateAzureFailoverTrafficHistory(base, failover, phase, input, checkpoints) {
   verifyAzureCeFailoverPlan(base, failover);
-  require89(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
+  require90(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
   const history = object66(input);
   keys17(history, ['schemaVersion', 'sourcePlanSha256', 'failoverPlanSha256', 'phase', 'observations']);
-  require89(
+  require90(
     history.schemaVersion === 1 &&
       history.sourcePlanSha256 === base.planSha256 &&
       history.failoverPlanSha256 === failover.planSha256 &&
@@ -41009,7 +41041,7 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
   for (const raw of history.observations) {
     const row = object66(raw);
     keys17(row, ['checkpointKey', 'requestedAt'], ['checkpointSha256']);
-    require89(
+    require90(
       typeof row.checkpointKey === 'string' &&
         row.checkpointKey.startsWith(prefix4(failover, phase)) &&
         /^[a-f0-9]{32}$/.test(row.checkpointKey.slice(prefix4(failover, phase).length)) &&
@@ -41019,11 +41051,11 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
     const name = `${row.checkpointKey}.json`;
     names.add(String(row.checkpointKey));
     const requested = timestamp2(row.requestedAt);
-    require89(requested >= previous, 'history collection order differs');
+    require90(requested >= previous, 'history collection order differs');
     previous = requested;
     const checkpoint = checkpoints.get(name);
     if (row.checkpointSha256 !== undefined)
-      require89(
+      require90(
         typeof row.checkpointSha256 === 'string' &&
           /^[a-f0-9]{64}$/.test(row.checkpointSha256) &&
           checkpoint !== undefined &&
@@ -41035,19 +41067,19 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
       continue;
     }
     const evidence = validateAzureTrafficCheckpoint(base, checkpoint);
-    require89(
+    require90(
       timestamp2(object66(checkpoint).sourceObservedAt) >= requested,
       'checkpoint predates the requested observation',
     );
     if (evidence) {
-      require89(timestamp2(evidence.observedAt) >= requested, 'HTTP observation predates its phase request');
+      require90(timestamp2(evidence.observedAt) >= requested, 'HTTP observation predates its phase request');
       complete++;
     } else {
-      require89(row.checkpointSha256 === undefined, 'completed checkpoint cannot be pending');
+      require90(row.checkpointSha256 === undefined, 'completed checkpoint cannot be pending');
       pending++;
     }
   }
-  require89(
+  require90(
     [...checkpoints.keys()].every((name) => names.has(name.slice(0, -5)) && name.endsWith('.json')),
     'foreign checkpoint inventory',
   );
@@ -41055,8 +41087,8 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
 }
 async function collectAzureFailoverTraffic(base, failover, phase, storage, api, signal) {
   verifyAzureCeFailoverPlan(base, failover);
-  require89(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
-  require89(canonicalSha256(storage.owner) === canonicalSha256(azureFailoverOwner(base)), 'storage owner differs');
+  require90(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
+  require90(canonicalSha256(storage.owner) === canonicalSha256(azureFailoverOwner(base)), 'storage owner differs');
   signal?.throwIfAborted();
   await storage.verify();
   const unlock = await acquireProcessLock(`${storage.directory}/.failover-traffic-${phase}-lock`);
@@ -41067,7 +41099,7 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
     let history = await optional12(storage, name);
     if (history) {
       const raw = object66(history);
-      require89(Array.isArray(raw.observations), 'malformed observation inventory');
+      require90(Array.isArray(raw.observations), 'malformed observation inventory');
       const scope = {
         ...raw,
         observations: raw.observations.map((row) => {
@@ -41090,12 +41122,12 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
         phase,
         observations: [],
       };
-    require89(history.observations.length < 1000, 'phase observation bound exhausted');
+    require90(history.observations.length < 1000, 'phase observation bound exhausted');
     const row = {
       checkpointKey: `${prefix4(failover, phase)}${randomBytes3(16).toString('hex')}`,
       requestedAt: new Date().toISOString(),
     };
-    require89(
+    require90(
       (await optional12(storage, `${row.checkpointKey}.json`)) === undefined,
       'new checkpoint identity already exists',
     );
@@ -41106,7 +41138,7 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
     const evidence = await collectAzureTrafficProbe(base, storage, api, signal, row.checkpointKey);
     signal?.throwIfAborted();
     const checkpoint = await storage.read(`${row.checkpointKey}.json`);
-    require89(
+    require90(
       canonicalSha256(validateAzureTrafficCheckpoint(base, checkpoint)) === canonicalSha256(evidence) &&
         timestamp2(evidence.observedAt) >= timestamp2(row.requestedAt),
       'new HTTP receipt differs',
@@ -41121,21 +41153,21 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
     await unlock();
   }
 }
-var require89 = (value, message) => {
+var require90 = (value, message) => {
     if (!value) throw Error(`Azure failover traffic: ${message}`);
   },
   object66 = (value) => {
-    require89(value && typeof value === 'object' && !Array.isArray(value), 'malformed history');
+    require90(value && typeof value === 'object' && !Array.isArray(value), 'malformed history');
     return value;
   },
   keys17 = (value, required, optional = []) =>
-    require89(
+    require90(
       required.every((key) => key in value) &&
         Object.keys(value).every((key) => required.includes(key) || optional.includes(key)),
       'history fields differ',
     ),
   timestamp2 = (value) => {
-    require89(
+    require90(
       typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
       'history timestamp differs',
     );
@@ -41650,7 +41682,7 @@ var init_failover = __esm(() => {
 // plugins/azure/src/ce/relay-failover.ts
 function requireAzureRelayFailoverScope(source, input, capabilities, records) {
   const binding = azureUpgradeBinding(source);
-  require90(
+  require91(
     source.relayProfile &&
       source.topology.ha &&
       source.topology.nodeCount === 3 &&
@@ -41660,7 +41692,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
     'complete three-node SLO/SLI relay topology required',
   );
   const stored = object68(input);
-  require90(
+  require91(
     Object.keys(stored).sort().join(',') ===
       'binding,contractFingerprint,expectedInterfaces,schemaVersion,siteUid,tenantOrigin' &&
       stored.schemaVersion === 1 &&
@@ -41674,7 +41706,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
       canonicalSha256(stored.binding) === canonicalSha256(binding),
     'active context, contract or deployment binding differs',
   );
-  require90(
+  require91(
     records instanceof Map &&
       ['relay-routing-workflow.json', 'platform-relay-routing.json', 'relay-routing-configuration.json'].every((name) =>
         records.has(name),
@@ -41683,13 +41715,13 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
   );
   verifyAzureRelayHistoricalArtifacts(source, stored.siteUid, records);
   const routing = object68(records.get('platform-relay-routing.json'));
-  require90(
+  require91(
     routing.contractFingerprint === capabilities.contractFingerprint,
     'configured relay contract differs from active context',
   );
   const journal = object68(records.get('relay-routing-workflow.json'));
   const cloud = object68(object68(journal.identity).stable).cloud;
-  require90(
+  require91(
     Array.isArray(cloud) && Array.isArray(stored.expectedInterfaces) && stored.expectedInterfaces.length === 6,
     'complete six-interface binding required',
   );
@@ -41700,7 +41732,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
     const value = object68(row),
       normalized = typeof value.mac === 'string' ? value.mac.toLowerCase().replaceAll('-', ':') : '';
     const key = `${value.node}/${value.role}`;
-    require90(
+    require91(
       binding.nodes.includes(String(value.node)) &&
         ['slo', 'sli'].includes(String(value.role)) &&
         /^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/.test(normalized) &&
@@ -41711,7 +41743,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
     seen.add(key);
     macs.add(normalized);
     const matches = cloud.map(object68).filter((item) => item.node === value.node && item.role === value.role);
-    require90(
+    require91(
       matches.length === 1 && matches[0].mac === normalized,
       'expected interface MAC differs from retained cloud identity',
     );
@@ -41728,7 +41760,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
 async function collectAzureRelayFailoverAcceptance(source, failover, phase, platform, runtime, storage, api, signal) {
   signal?.throwIfAborted();
   verifyAzureCeFailoverPlan(source, failover);
-  require90(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
+  require91(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
   if (!platform.siteBinding) throw Error('Azure relay failover: trusted site binding service unavailable');
   const stored = await platform.siteBinding(source.siteName, source.intent.platformContext);
   signal?.throwIfAborted();
@@ -41748,10 +41780,10 @@ async function collectAzureRelayFailoverAcceptance(source, failover, phase, plat
     signal,
     phase === 'outage' ? { nodeIndex: failover.nodeIndex } : undefined,
   );
-  require90(observation.siteUid === scope.siteUid, 'current site differs from trusted binding');
+  require91(observation.siteUid === scope.siteUid, 'current site differs from trusted binding');
   for (const row of [observation.sessions, observation.finalSessions, observation.ceRoutes]) {
     const current = object68(row);
-    require90(
+    require91(
       current.contractFingerprint === capabilities.contractFingerprint &&
         current.siteName === source.siteName &&
         canonicalSha256(current.owner) === canonicalSha256(stored.binding.owner),
@@ -41759,7 +41791,7 @@ async function collectAzureRelayFailoverAcceptance(source, failover, phase, plat
     );
   }
   const expectedSessions = phase === 'outage' ? 4 : 6;
-  require90(
+  require91(
     observation.sessions.expectedSessions === expectedSessions &&
       observation.sessions.establishedSessions === expectedSessions &&
       observation.finalSessions.expectedSessions === expectedSessions &&
@@ -41798,7 +41830,7 @@ var object68 = (value) => {
       throw Error('Azure relay failover: malformed scope');
     return value;
   },
-  require90 = (condition, message) => {
+  require91 = (condition, message) => {
     if (!condition) throw Error(`Azure relay failover: ${message}`);
   };
 var init_relay_failover = __esm(() => {
@@ -42856,9 +42888,9 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     'trafficRequestedAt',
     'observedAt',
   ]);
-  require91(value.acceptance === 'passed', 'direct phase acceptance differs');
+  require92(value.acceptance === 'passed', 'direct phase acceptance differs');
   const routing = requireAzureFailoverExecutionContract(base, failover, records.get('platform-routing.json'));
-  require91(routing.siteUid === siteUid, 'direct routing site differs');
+  require92(routing.siteUid === siteUid, 'direct routing site differs');
   const binding = azureUpgradeBinding(base),
     selected = binding.nodes[failover.nodeIndex - 1];
   const interfaces = routing.interfaces.filter((row) => phase !== 'outage' || row.node !== selected);
@@ -42890,17 +42922,17 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     'contractFingerprint',
   ]);
   for (const row of [sessions, routes]) {
-    require91(
-      same60(row.owner, binding.owner) &&
+    require92(
+      same61(row.owner, binding.owner) &&
         row.siteName === base.siteName &&
         row.contractFingerprint === routing.contractFingerprint &&
         typeof row.source === 'string' &&
         row.source,
       'direct CE owner/site/contract differs',
     );
-    require91(timestamp3(row.observedAt) <= timestamp3(value.observedAt), 'CE observation follows phase receipt');
+    require92(timestamp3(row.observedAt) <= timestamp3(value.observedAt), 'CE observation follows phase receipt');
   }
-  require91(sessions.status === 'healthy' && routes.status === 'observed', 'direct CE observation unavailable');
+  require92(sessions.status === 'healthy' && routes.status === 'observed', 'direct CE observation unavailable');
   const peers = rows2(sessions.sessions);
   const parsed = parseBgpSessions(
     {
@@ -42920,8 +42952,8 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     },
     expected,
   );
-  require91(
-    same60(parsed.sessions, peers) &&
+  require92(
+    same61(parsed.sessions, peers) &&
       parsed.expectedSessions === sessions.expectedSessions &&
       parsed.establishedSessions === sessions.establishedSessions &&
       parsed.establishedSessions === expected.length,
@@ -42941,19 +42973,19 @@ function directPhase(base, failover, phase, value, siteUid, records) {
       })),
     })),
   };
-  require91(same60(parseBgpRoutes(wire, nodes).nodes, routeNodes), 'direct CE route scope differs');
+  require92(same61(parseBgpRoutes(wire, nodes).nodes, routeNodes), 'direct CE route scope differs');
   const paths = object70(routes.pathInventory);
   const qualifiers = ['status', 'scope', 'freshness', 'traffic'];
-  require91(
+  require92(
     paths.scope === 'unqualified' && paths.freshness === 'unqualified' && paths.traffic === 'unknown',
     'direct CE path qualifiers differ',
   );
   if (paths.status === 'unknown') {
     keys18(paths, [...qualifiers, 'reason']);
-    require91(typeof paths.reason === 'string' && paths.reason.length > 0, 'unknown CE path reason missing');
+    require92(typeof paths.reason === 'string' && paths.reason.length > 0, 'unknown CE path reason missing');
   } else {
     keys18(paths, [...qualifiers, 'nodes']);
-    require91(paths.status === 'observed', 'CE path status differs');
+    require92(paths.status === 'observed', 'CE path status differs');
     const pathNodes = rows2(paths.nodes);
     const pathWire = {
       ver: pathNodes.map((node) => ({
@@ -42968,8 +43000,8 @@ function directPhase(base, failover, phase, value, siteUid, records) {
         })),
       })),
     };
-    require91(
-      same60(parseBgpRoutes(pathWire, nodes).nodes, routeNodes) && same60(parseBgpRoutePaths(pathWire, nodes), paths),
+    require92(
+      same61(parseBgpRoutes(pathWire, nodes).nodes, routeNodes) && same61(parseBgpRoutePaths(pathWire, nodes), paths),
       'direct CE path inventory differs',
     );
   }
@@ -42985,23 +43017,23 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     'observedAt',
   ]);
   const server = base.actions.filter((row) => row.kind === 'route-server-create');
-  require91(
+  require92(
     cloud.status === 'healthy' &&
       cloud.phase === (phase === 'outage' ? 'outage' : 'recovered') &&
       cloud.selectedNode === failover.nodeIndex &&
       cloud.expectedEstablishedSessions === expected.length &&
       server.length === 1 &&
       cloud.routeServerId === server[0].resourceId &&
-      same60(cloud.serviceAddresses, [...routing.routeServerAddresses].sort()),
+      same61(cloud.serviceAddresses, [...routing.routeServerAddresses].sort()),
     'direct cloud topology differs',
   );
-  require91(timestamp3(cloud.observedAt) <= timestamp3(value.observedAt), 'cloud observation follows phase receipt');
+  require92(timestamp3(cloud.observedAt) <= timestamp3(value.observedAt), 'cloud observation follows phase receipt');
   const cloudPeers = rows2(cloud.peers),
     ips = new Set();
-  require91(cloudPeers.length === 3, 'complete retained cloud peers required');
+  require92(cloudPeers.length === 3, 'complete retained cloud peers required');
   for (const [index, peer] of cloudPeers.entries()) {
     keys18(peer, ['node', 'name', 'peerIp', 'peerAsn', 'provisioningState', 'roles']);
-    require91(
+    require92(
       peer.node === index + 1 &&
         peer.name === binding.nodes[index] &&
         peer.peerAsn === base.routing.localAsn &&
@@ -43013,23 +43045,23 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     );
     ips.add(peer.peerIp);
     const roleRows = rows2(peer.roles);
-    require91(roleRows.length === 2, 'both cloud service roles required');
+    require92(roleRows.length === 2, 'both cloud service roles required');
     for (const [roleIndex, role] of roleRows.entries()) {
       keys18(role, ['role', 'learnedRouteCount', 'matchedPrefixes']);
       const expectedPrefixes =
         phase === 'outage' && peer.node === failover.nodeIndex ? [] : base.routing.destinationCidrs;
-      require91(
+      require92(
         role.role === `RouteServiceRole_IN_${roleIndex}` &&
           Number.isSafeInteger(role.learnedRouteCount) &&
           Number(role.learnedRouteCount) >= expectedPrefixes.length &&
-          same60(role.matchedPrefixes, expectedPrefixes),
+          same61(role.matchedPrefixes, expectedPrefixes),
         'direct cloud withdrawal/restoration differs',
       );
     }
   }
 }
 function rowsOrStrings(value) {
-  require91(Array.isArray(value), 'route prefix list required');
+  require92(Array.isArray(value), 'route prefix list required');
   return value;
 }
 async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
@@ -43038,7 +43070,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
   for (const name of names.filter((name) => sourcePattern.test(name))) {
     const source = records.get(name);
     verifyAzureCeFailoverPlan(base, source);
-    require91(name === `${source.planId}.json`, 'source filename differs');
+    require92(name === `${source.planId}.json`, 'source filename differs');
     sources.set(source.planId, source);
   }
   const consumed = new Set();
@@ -43069,13 +43101,13 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
         'observedAt',
       ]);
       timestamp3(value.observedAt);
-      require91(same60(buildAzureCeFailoverPlan(base, prep), failover), 'preparation identity differs');
+      require92(same61(buildAzureCeFailoverPlan(base, prep), failover), 'preparation identity differs');
       consume('-preparation-evidence');
     }
     const auth = read('-authorization');
     if (auth !== undefined) {
-      require91(
-        same60(auth, {
+      require92(
+        same61(auth, {
           schemaVersion: 1,
           engine: base.engine,
           sourcePlanSha256: base.planSha256,
@@ -43091,15 +43123,15 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     const active =
       checkpointValue === undefined ? undefined : validateAzureFailoverCheckpoint(base, failover, checkpointValue);
     if (active) {
-      require91(auth, 'checkpoint authorization missing');
+      require92(auth, 'checkpoint authorization missing');
       consume('-checkpoint');
     }
     if (receipt !== undefined) {
-      require91(active && ['release', 'complete'].includes(active.phase), 'receipt precedes durable release');
+      require92(active && ['release', 'complete'].includes(active.phase), 'receipt precedes durable release');
       validateAzureFailoverReceipt(base, failover, receipt);
       consume('-receipt');
     }
-    if (active?.phase === 'complete') require91(receipt, 'complete checkpoint receipt missing');
+    if (active?.phase === 'complete') require92(receipt, 'complete checkpoint receipt missing');
     const catalogs = new Map();
     for (const phase of phases2) {
       const catalog = read(`-${phase}-traffic-observations`);
@@ -43125,32 +43157,32 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
       const input = read(`-${phase}-evidence`);
       if (input === undefined) continue;
       const value = object70(input);
-      require91(
+      require92(
         value.phase === phase && value.expectedEstablishedSessions === (phase === 'outage' ? 4 : 6),
         'phase scope differs',
       );
       timestamp3(value.observedAt);
-      require91(phase === 'baseline' || reached(phase), 'phase evidence precedes durable phase');
+      require92(phase === 'baseline' || reached(phase), 'phase evidence precedes durable phase');
       const previous =
         phase === 'outage'
           ? phaseEvidence.get('baseline')
           : phase === 'recovered'
             ? phaseEvidence.get('outage')
             : undefined;
-      require91(
+      require92(
         phase === 'baseline' || (previous && timestamp3(value.trafficRequestedAt) >= timestamp3(previous.observedAt)),
         'phase evidence sequence differs',
       );
       const catalog = catalogs.get(phase);
       const request = catalog?.history.observations.find((row) => row.checkpointKey === value.trafficCheckpointKey);
-      require91(
+      require92(
         request?.checkpointSha256 && request.requestedAt === value.trafficRequestedAt,
         'phase traffic catalog binding missing',
       );
       const traffic = validateAzureTrafficCheckpoint(base, records.get(`${value.trafficCheckpointKey}.json`));
-      require91(
+      require92(
         traffic &&
-          same60(traffic, value.traffic) &&
+          same61(traffic, value.traffic) &&
           timestamp3(traffic.observedAt) >= timestamp3(value.trafficRequestedAt) &&
           timestamp3(traffic.observedAt) <= timestamp3(value.observedAt),
         'phase HTTP evidence differs',
@@ -43169,7 +43201,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
           'reason',
           'observedAt',
         ]);
-        require91(
+        require92(
           value.acceptance === 'unknown' &&
             value.topology === 'ce-relay-route-server' &&
             value.expectedCloudEstablishedSessions === 4 &&
@@ -43200,10 +43232,10 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
       if (['start', 'recovered', 'release', 'complete'].includes(active.phase)) required.push('outage');
       if (['release', 'complete'].includes(active.phase)) required.push('recovered');
       for (const phase of required)
-        require91(phaseEvidence.get(phase)?.acceptance === 'passed', 'advanced checkpoint phase evidence missing');
+        require92(phaseEvidence.get(phase)?.acceptance === 'passed', 'advanced checkpoint phase evidence missing');
     }
     if (receipt)
-      require91(
+      require92(
         phaseEvidence.get('recovered') &&
           timestamp3(object70(receipt).observedAt) >= timestamp3(phaseEvidence.get('recovered')?.observedAt),
         'completion receipt precedes recovery',
@@ -43212,7 +43244,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
       const plan = read(`-${phase}-plan`);
       if (plan === undefined) continue;
       const predecessor = phase === 'start' ? 'stop' : phase === 'release' ? 'start' : undefined;
-      require91(
+      require92(
         base.engine === 'terraform' && reached(phase) && auth && (!predecessor || read(`-${predecessor}-plan`)),
         'Terraform phase plan sequence or authorization missing',
       );
@@ -43221,7 +43253,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     }
     const final = read('-final-plan');
     if (final !== undefined) {
-      require91(
+      require92(
         base.engine === 'terraform' &&
           active &&
           ['release', 'complete'].includes(active.phase) &&
@@ -43233,7 +43265,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     }
     const retirement = read('-stage-retirement');
     if (retirement !== undefined) {
-      require91(
+      require92(
         base.engine === 'terraform' && active?.phase === 'complete' && receipt && final,
         'stage retirement precedes failover completion',
       );
@@ -43241,12 +43273,12 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
       consume('-stage-retirement');
     }
     if (base.engine === 'terraform' && active) {
-      if (reached('outage')) require91(read('-stop-plan'), 'Terraform outage stop plan missing');
-      if (reached('recovered')) require91(read('-start-plan'), 'Terraform recovery start plan missing');
-      if (receipt) require91(read('-release-plan') && final, 'Terraform completion release/final plan missing');
+      if (reached('outage')) require92(read('-stop-plan'), 'Terraform outage stop plan missing');
+      if (reached('recovered')) require92(read('-start-plan'), 'Terraform recovery start plan missing');
+      if (receipt) require92(read('-release-plan') && final, 'Terraform completion release/final plan missing');
     }
   }
-  require91(
+  require92(
     names.every((name) => consumed.has(name)),
     'unknown or orphan failover artifact',
   );
@@ -43255,29 +43287,29 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
 var phases2,
   sourcePattern,
   isAzureFailoverHistoricalArtifact = (name) => /^azure-ce-failover-[a-f0-9]{24}(?:-[a-z0-9-]+)?\.json$/.test(name),
-  require91 = (condition, message) => {
+  require92 = (condition, message) => {
     if (!condition) throw Error(`Azure failover history: ${message}`);
   },
   object70 = (input) => {
-    require91(input && typeof input === 'object' && !Array.isArray(input), 'malformed record');
+    require92(input && typeof input === 'object' && !Array.isArray(input), 'malformed record');
     return input;
   },
   keys18 = (value, required, optional = []) =>
-    require91(
+    require92(
       required.every((key) => key in value) &&
         Object.keys(value).every((key) => [...required, ...optional].includes(key)),
       'record fields differ',
     ),
-  same60,
+  same61,
   timestamp3 = (value) => {
-    require91(
+    require92(
       typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
       'historical timestamp differs',
     );
     return Date.parse(value);
   },
   rows2 = (value) => {
-    require91(Array.isArray(value), 'complete list required');
+    require92(Array.isArray(value), 'complete list required');
     return value.map(object70);
   };
 var init_failover_artifact_provenance = __esm(() => {
@@ -43292,7 +43324,7 @@ var init_failover_artifact_provenance = __esm(() => {
   init_traffic_artifact_provenance();
   phases2 = ['baseline', 'outage', 'recovered'];
   sourcePattern = /^azure-ce-failover-[a-f0-9]{24}\.json$/;
-  same60 = canonicalEqual;
+  same61 = canonicalEqual;
 });
 
 // plugins/platform/src/ce/bgp-service-membership.ts
@@ -43367,7 +43399,7 @@ function validatePrimarySelections(intent, selections, provider) {
       throw new Error('Primary-interface ingress requires exact site and node bindings');
     const group = groups.get(binding.siteName);
     if (group) {
-      if (!same61(group.binding, binding) || group.nodes.has(selected.node))
+      if (!same62(group.binding, binding) || group.nodes.has(selected.node))
         throw new Error('Primary-interface ingress site bindings conflict');
       group.nodes.add(selected.node);
     } else groups.set(binding.siteName, { binding, nodes: new Set([selected.node]) });
@@ -43458,7 +43490,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     'request',
   ]);
   if (
-    !same61(material.owner, owner) ||
+    !same62(material.owner, owner) ||
     material.contractFingerprint !== contract.fingerprint ||
     material.siteFingerprint !== siteFingerprint ||
     !Array.isArray(material.selections) ||
@@ -43489,7 +43521,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     const binding = selected.binding;
     fields6(object71(binding), ['owner', 'siteName', 'nodes']);
     if (
-      !same61(binding.owner, owner) ||
+      !same62(binding.owner, owner) ||
       !['aws', 'azure'].includes(owner.provider) ||
       !Array.isArray(binding.nodes) ||
       new Set(binding.nodes).size !== binding.nodes.length ||
@@ -43560,15 +43592,15 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     siteNames: [...new Set(plan.material.placements.map((row) => row.siteName))],
   });
   if (
-    !same61(request, material.request) ||
-    !same61(request, { metadata: { ...built.metadata, labels }, spec: built.spec }) ||
-    !same61(material.originRequest, { metadata: { ...origin.metadata, labels }, spec: origin.spec })
+    !same62(request, material.request) ||
+    !same62(request, { metadata: { ...built.metadata, labels }, spec: built.spec }) ||
+    !same62(material.originRequest, { metadata: { ...origin.metadata, labels }, spec: origin.spec })
   )
     throw new Error('Ingress historical request differs from exact contract compilation');
   return plan;
 }
 var hash21 = (value) => createHash43('sha256').update(canonical3(value)).digest('hex'),
-  same61 = (a, b) => canonical3(a) === canonical3(b);
+  same62 = (a, b) => canonical3(a) === canonical3(b);
 var init_ingress_lifecycle = __esm(() => {
   init_process_lock();
   init_runtime();
@@ -43581,8 +43613,8 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   const binding = azureUpgradeBinding(base),
     owner = binding.owner,
     drain = object72(rawDrain);
-  require92(
-    same62(drain.owner, owner) &&
+  require93(
+    same63(drain.owner, owner) &&
       drain.ingressContractFingerprint === contract.fingerprint &&
       identity3(drain.siteContractFingerprint) &&
       Array.isArray(drain.listeners) &&
@@ -43594,7 +43626,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   for (const [name, raw] of selectedRecords)
     if (name.startsWith('azure-ingress-source-')) {
       const source = validateAzureIngressSource(raw, owner, contract.fingerprint);
-      require92(
+      require93(
         source.plan.siteName === base.siteName && name === `azure-ingress-source-${source.plan.planSha256}.json`,
         'source site or filename differs',
       );
@@ -43605,13 +43637,13 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     if (name.startsWith('ingress-plan-')) {
       const plan = validateCeIngressHistoricalPlan(raw, owner, contract, String(drain.siteContractFingerprint));
       const source = plan.source;
-      require92(source, 'exact source binding missing');
+      require93(source, 'exact source binding missing');
       const journal = journals.get(String(source?.sourcePlanSha256));
-      require92(
+      require93(
         journal &&
           source?.sourceArtifactSha256 === canonicalSha256(journal.record) &&
-          same62(plan.material.intent, journal.intent) &&
-          same62(plan.material.selections, journal.selections) &&
+          same63(plan.material.intent, journal.intent) &&
+          same63(plan.material.selections, journal.selections) &&
           time2(journal.record.observedAt) <= time2(plan.observedAt) &&
           name === `ingress-plan-${plan.id}.json`,
         'plan/source identity join differs',
@@ -43623,7 +43655,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     if (raw === undefined) return;
     const record = object72(raw),
       plan = plans.get(id);
-    require92(
+    require93(
       plan && record.planSha256 === plan.sha256 && ['creating', 'created', 'deleted'].includes(String(record.phase)),
       'checkpoint plan differs',
     );
@@ -43636,12 +43668,12 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
         'observedAt',
         ...(origin ? [] : ['listener', 'routes', 'traffic']),
       ]);
-      require92(
+      require93(
         identity3(record.uid) && time2(record.observedAt) >= time2(plan?.observedAt),
         'checkpoint resource identity differs',
       );
       if (!origin)
-        require92(
+        require93(
           record.listener === 'configured' && record.routes === 'unknown' && record.traffic === 'unknown',
           'configuration checkpoint state differs',
         );
@@ -43652,19 +43684,19 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   for (const [id, plan] of plans) {
     const listener = checkpoint(`ingress-checkpoint-${id}.json`, id, false);
     const origin = checkpoint(`ingress-origin-checkpoint-${id}.json`, id, true);
-    require92(!listener || origin, 'listener checkpoint has no preceding origin');
-    require92(!listener || origin?.phase !== 'creating', 'listener preceded origin completion');
+    require93(!listener || origin, 'listener checkpoint has no preceding origin');
+    require93(!listener || origin?.phase !== 'creating', 'listener preceded origin completion');
     const corrected = listener?.phase === 'deleted' && origin?.phase === 'deleted';
     const matchingListeners = drain.listeners.map(object72).filter((row) => row.id === id);
-    require92(matchingListeners.length <= 1, 'duplicate drain listener');
+    require93(matchingListeners.length <= 1, 'duplicate drain listener');
     if (listener && listener.phase !== 'creating' && !corrected) {
-      require92(
+      require93(
         matchingListeners.length === 1 &&
           matchingListeners[0].name === plan.request.metadata.name &&
           matchingListeners[0].namespace === plan.request.metadata.namespace,
         'listener not bound to completed drain',
       );
-    } else require92(matchingListeners.length === 0, 'incomplete or corrected listener entered current drain');
+    } else require93(matchingListeners.length === 0, 'incomplete or corrected listener entered current drain');
     if (origin && origin.phase !== 'creating' && !corrected) {
       const origins = drain.origins.map(object72).filter((row) => {
         const ref = object72(row.origin);
@@ -43673,12 +43705,12 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
           ref.namespace === plan.material.intent.originPool.namespace
         );
       });
-      require92(origins.length === 1, 'origin not bound to completed drain');
+      require93(origins.length === 1, 'origin not bound to completed drain');
       const snapshot = origins[0],
         ref = object72(snapshot.origin);
-      require92(
+      require93(
         snapshot.schemaVersion === 1 &&
-          same62(snapshot.owner, owner) &&
+          same63(snapshot.owner, owner) &&
           ref.uid === origin.uid &&
           snapshot.contractFingerprint === contract.fingerprint &&
           identity3(snapshot.resourceVersion) &&
@@ -43689,9 +43721,9 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     }
     if (!corrected) {
       const site = drain.sites.map(object72).filter((row) => object72(row.binding).siteName === base.siteName);
-      require92(
+      require93(
         site.length === 1 &&
-          same62(site[0].binding, plan.material.selections[0].binding) &&
+          same63(site[0].binding, plan.material.selections[0].binding) &&
           site[0].siteUid === plan.material.placements[0].siteUid,
         'logical site UID/drain join differs',
       );
@@ -43700,7 +43732,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   }
   for (const [name] of selectedRecords)
     if (/^ingress-(?:checkpoint|origin-checkpoint)-/.test(name))
-      require92(plans.has(String(name.match(/([a-f0-9]{24})\.json$/)?.[1])), 'orphan checkpoint has no compiled plan');
+      require93(plans.has(String(name.match(/([a-f0-9]{24})\.json$/)?.[1])), 'orphan checkpoint has no compiled plan');
   const marker = records.get('azure-platform-ingress.json');
   if (marker !== undefined) {
     const value = object72(marker);
@@ -43715,7 +43747,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     ]);
     const plan = plans.get(String(value.ingressPlanId)),
       journal = journals.get(String(value.sourcePlanSha256));
-    require92(
+    require93(
       value.schemaVersion === 2 &&
         value.engine === base.engine &&
         value.contractFingerprint === contract.fingerprint &&
@@ -43723,7 +43755,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
         journal &&
         value.sourceArtifactSha256 === canonicalSha256(journal.record) &&
         value.configurationSha256 === journal.configurationSha256 &&
-        same62(plan.source, {
+        same63(plan.source, {
           schemaVersion: 1,
           kind: 'azure-ce-source',
           sourcePlanSha256: value.sourcePlanSha256,
@@ -43737,16 +43769,16 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     if (name === 'azure-traffic-probe.json' || name.endsWith('-traffic-probe.json')) {
       const state = object72(raw),
         journal = journals.get(String(state.planSha256));
-      require92(journal, 'traffic source journal missing');
+      require93(journal, 'traffic source journal missing');
       const sourcePlan = journal?.plan;
       if (name !== 'azure-traffic-probe.json') {
         const actions = sourcePlan.actions.filter(
           (row) => row.kind === 'traffic-gate' && name === `${sourcePlan.planId}-${row.id}-traffic-probe.json`,
         );
-        require92(sourcePlan.engine === 'native' && actions.length === 1, 'traffic execution filename differs');
-      } else require92(sourcePlan.engine === 'terraform', 'default traffic checkpoint is not Terraform-owned');
-      require92(
-        same62(state.sourceIdentity, journal?.record.sourceIdentity),
+        require93(sourcePlan.engine === 'native' && actions.length === 1, 'traffic execution filename differs');
+      } else require93(sourcePlan.engine === 'terraform', 'default traffic checkpoint is not Terraform-owned');
+      require93(
+        same63(state.sourceIdentity, journal?.record.sourceIdentity),
         'traffic/ingress source attachment differs',
       );
       const evidence = validateAzureTrafficCheckpoint(sourcePlan, state);
@@ -43757,11 +43789,11 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     if (!current) continue;
     const checkpointName = `${current.checkpointKey}.json`;
     const checkpoint = current.receipt ? records.get(checkpointName) : raw;
-    require92(checkpoint !== undefined, 'current sample receipt has no checkpoint');
+    require93(checkpoint !== undefined, 'current sample receipt has no checkpoint');
     const state = object72(checkpoint),
       journal = journals.get(String(state.planSha256));
-    require92(journal, 'current sample source journal missing');
-    require92(same62(state.sourceIdentity, journal?.record.sourceIdentity), 'current sample source attachment differs');
+    require93(journal, 'current sample source journal missing');
+    require93(same63(state.sourceIdentity, journal?.record.sourceIdentity), 'current sample source attachment differs');
     const sourcePlan = journal?.plan;
     validateAzureTrafficCheckpoint(sourcePlan, checkpoint);
     if (current.receipt) validateAzureCurrentTrafficHistory(sourcePlan, current.checkpointKey, checkpoint, raw);
@@ -43773,7 +43805,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       if (evidence.ingressPlanId !== undefined) {
         const plan = plans.get(String(evidence.ingressPlanId)),
           checkpoint = checkpoints.get(String(evidence.ingressPlanId))?.listener;
-        require92(
+        require93(
           plan &&
             checkpoint &&
             evidence.uid === checkpoint.uid &&
@@ -43784,29 +43816,29 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       }
       if (evidence.source === 'azure:vm-run-command') {
         const journal = journals.get(String(action.sourcePlanSha256));
-        require92(journal, 'public traffic source missing');
+        require93(journal, 'public traffic source missing');
         const file = `${journal?.plan.planId}-${String(action.actionId)}-traffic-probe.json`;
-        require92(
-          same62(evidence, traffic.get(`${journal?.plan.planSha256}/${file}`)),
+        require93(
+          same63(evidence, traffic.get(`${journal?.plan.planSha256}/${file}`)),
           'public traffic action/checkpoint receipt differs',
         );
       }
     }
 }
-var require92 = (value, message) => {
+var require93 = (value, message) => {
     if (!value) throw new Error(`Azure ingress history: ${message}`);
   },
-  same62,
+  same63,
   object72 = (value) => {
-    require92(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
+    require93(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
   keys19 = (value, expected) =>
-    require92(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
+    require93(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
   identity3 = (value) => typeof value === 'string' && value.length > 0,
   sha15 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   time2 = (value) => {
-    require92(
+    require93(
       typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
       'historical collection time differs',
     );
@@ -43825,14 +43857,14 @@ var init_ingress_artifact_provenance = __esm(() => {
   init_ingress_source();
   init_terraform_upgrade();
   init_traffic_artifact_provenance();
-  same62 = canonicalEqual;
+  same63 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/native-upgrade-artifact-provenance.ts
 function verifyAzureNativeUpgradeHistoricalArtifacts(base, teardown, contract, records) {
   const names = [...records.keys()].filter(isAzureNativeUpgradeHistoricalArtifact);
   if (!names.length) return;
-  require93(contract, 'verified upgrade contract missing');
+  require94(contract, 'verified upgrade contract missing');
   const sources = new Map();
   for (const name of names.filter((name) => sourcePattern2.test(name))) {
     const upgrade = records.get(name);
@@ -43847,7 +43879,7 @@ function verifyAzureNativeUpgradeHistoricalArtifacts(base, teardown, contract, r
     ]);
     keys20(upgrade.expectation.before, ['software', 'os']);
     verifyAzureNativeUpgrade(base, upgrade, contract);
-    require93(
+    require94(
       name === `${upgrade.planId}.json` &&
         upgrade.expectation.siteUid === teardown.retirement[0].siteUid &&
         upgrade.expectation.physicalSiteUid === teardown.retirement[0].physicalSiteUid &&
@@ -43856,7 +43888,7 @@ function verifyAzureNativeUpgradeHistoricalArtifacts(base, teardown, contract, r
     );
     sources.set(upgrade.planId, upgrade);
   }
-  require93(sources.size > 0, 'source missing');
+  require94(sources.size > 0, 'source missing');
   let serial;
   if (records.has('native-ce-upgrade-serial.json')) {
     serial = validateNativeUpgradeSerial(records.get('native-ce-upgrade-serial.json'));
@@ -43864,25 +43896,25 @@ function verifyAzureNativeUpgradeHistoricalArtifacts(base, teardown, contract, r
       [serial.activePlanId, serial.activePlanSha256],
       [serial.lastPlanId, serial.lastPlanSha256],
     ]) {
-      if (id !== undefined) require93(sources.get(id)?.planSha256 === digest, 'serial source differs');
+      if (id !== undefined) require94(sources.get(id)?.planSha256 === digest, 'serial source differs');
     }
-    if (serial.lastPlanId) require93(records.has(`${serial.lastPlanId}-checkpoint.json`), 'last checkpoint missing');
+    if (serial.lastPlanId) require94(records.has(`${serial.lastPlanId}-checkpoint.json`), 'last checkpoint missing');
     if (serial.activePlanId)
-      require93(records.has(`${serial.activePlanId}-checkpoint.json`), 'active checkpoint missing');
+      require94(records.has(`${serial.activePlanId}-checkpoint.json`), 'active checkpoint missing');
   }
   for (const name of names) {
     if (name === 'native-ce-upgrade-serial.json' || sourcePattern2.test(name)) continue;
     const id = name.replace(/-(authorization|checkpoint|receipt)\.json$/, '');
     const source = sources.get(id);
-    require93(source, 'artifact source missing');
+    require94(source, 'artifact source missing');
   }
   for (const upgrade of sources.values()) {
     const auth = records.get(`${upgrade.planId}-authorization.json`);
     const checkpoint = records.get(`${upgrade.planId}-checkpoint.json`);
     const receipt = records.get(`${upgrade.planId}-receipt.json`);
     if (auth !== undefined)
-      require93(
-        same63(auth, {
+      require94(
+        same64(auth, {
           schemaVersion: 2,
           engine: 'native',
           sourcePlanSha256: base.planSha256,
@@ -43892,33 +43924,33 @@ function verifyAzureNativeUpgradeHistoricalArtifacts(base, teardown, contract, r
         'authorization differs',
       );
     if (checkpoint !== undefined) {
-      require93(auth, 'checkpoint authorization missing');
+      require94(auth, 'checkpoint authorization missing');
       const checked = validateNativeUpgradeCheckpoint(upgrade, checkpoint);
-      if (checked.phase !== 'ready') require93(serial, 'submitted serial ledger missing');
+      if (checked.phase !== 'ready') require94(serial, 'submitted serial ledger missing');
       if (checked.phase === 'submitted')
-        require93(serial?.activePlanId === upgrade.planId, 'submitted serial source differs');
+        require94(serial?.activePlanId === upgrade.planId, 'submitted serial source differs');
       if (checked.phase === 'complete')
-        require93(serial?.activePlanId || serial?.lastPlanId, 'completed serial source missing');
+        require94(serial?.activePlanId || serial?.lastPlanId, 'completed serial source missing');
       if (serial?.lastPlanId === upgrade.planId)
-        require93(checked.phase !== 'submitted', 'last upgrade is still submitted');
-      if (checked.phase === 'complete') require93(receipt, 'completed receipt missing');
+        require94(checked.phase !== 'submitted', 'last upgrade is still submitted');
+      if (checked.phase === 'complete') require94(receipt, 'completed receipt missing');
       if (receipt !== undefined) {
-        require93(checked.phase !== 'ready', 'receipt predates submission');
+        require94(checked.phase !== 'ready', 'receipt predates submission');
         validateNativeUpgradeReceipt(upgrade, receipt);
       }
-    } else require93(receipt === undefined, 'receipt checkpoint missing');
+    } else require94(receipt === undefined, 'receipt checkpoint missing');
   }
 }
 var sourcePattern2,
   artifactPattern,
   isAzureNativeUpgradeHistoricalArtifact = (name) =>
     name === 'native-ce-upgrade-serial.json' || artifactPattern.test(name),
-  same63,
-  require93 = (condition, message) => {
+  same64,
+  require94 = (condition, message) => {
     if (!condition) throw Error(`Native upgrade history: ${message}`);
   },
   keys20 = (value, names) => {
-    require93(
+    require94(
       value &&
         typeof value === 'object' &&
         !Array.isArray(value) &&
@@ -43932,7 +43964,7 @@ var init_native_upgrade_artifact_provenance = __esm(() => {
   init_native_upgrade2();
   sourcePattern2 = /^azure-ce-native-upgrade-[a-f0-9]{24}\.json$/;
   artifactPattern = /^azure-ce-native-upgrade-[a-f0-9]{24}(?:-(?:authorization|checkpoint|receipt))?\.json$/;
-  same63 = canonicalEqual;
+  same64 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/native-parent-retirement.ts
@@ -43965,15 +43997,15 @@ async function retireAzureNativeParentArtifacts(
   try {
     const binding = azureUpgradeBinding(base),
       relay = base.relayProfile ? azureRelayPlanForDeployment(base) : undefined;
-    require94(
+    require95(
       base.engine === 'native' &&
-        same64(store.owner, binding.owner) &&
-        same64(compileAzureNativeTeardown(base, cloud, teardown.drain, teardown.retirement), teardown),
+        same65(store.owner, binding.owner) &&
+        same65(compileAzureNativeTeardown(base, cloud, teardown.drain, teardown.retirement), teardown),
       'source, owner or teardown differs',
     );
-    require94(same64(await store.read(`${teardown.planId}.json`), teardown), 'saved teardown differs');
-    require94(
-      same64(await store.read(`${teardown.planId}-authorization.json`), {
+    require95(same65(await store.read(`${teardown.planId}.json`), teardown), 'saved teardown differs');
+    require95(
+      same65(await store.read(`${teardown.planId}-authorization.json`), {
         schemaVersion: 1,
         engine: 'native',
         sourcePlanSha256: base.planSha256,
@@ -43982,8 +44014,8 @@ async function retireAzureNativeParentArtifacts(
       }),
       'mutation authorization differs',
     );
-    require94(
-      same64(await store.read('azure-native-lifecycle-retirement.json'), {
+    require95(
+      same65(await store.read('azure-native-lifecycle-retirement.json'), {
         schemaVersion: 1,
         engine: 'native',
         owner: binding.owner,
@@ -43994,17 +44026,17 @@ async function retireAzureNativeParentArtifacts(
     );
     const bootstrap = object73(await store.read('azure-native-bootstrap-retirement.json'));
     const key = relay ? object73(await store.read('azure-native-relay-key-retirement.json')) : undefined;
-    require94(
+    require95(
       relay || (await optional17(store, 'azure-native-relay-key-retirement.json')) === undefined,
       'orphan relay key marker',
     );
     for (const value of key ? [bootstrap, key] : [bootstrap]) {
       const { phase, checkpointSha256, ...draft } = value;
-      require94(
+      require95(
         phase === 'retired' &&
           value.schemaVersion === 1 &&
           value.engine === 'native' &&
-          same64(value.owner, binding.owner) &&
+          same65(value.owner, binding.owner) &&
           value.sourcePlanSha256 === base.planSha256 &&
           value.teardownPlanSha256 === teardown.planSha256 &&
           checkpointSha256 === canonicalSha256(draft) &&
@@ -44025,7 +44057,7 @@ async function retireAzureNativeParentArtifacts(
         'checkpointSha256',
         'phase',
       ]);
-      require94(
+      require95(
         key.relayPlanSha256 === relay.planSha256 && (key.journalSha256 === null || sha16(key.journalSha256)),
         'key source differs',
       );
@@ -44042,7 +44074,7 @@ async function retireAzureNativeParentArtifacts(
       'checkpointSha256',
       'phase',
     ]);
-    require94(
+    require95(
       Array.isArray(bootstrap.artifacts) && bootstrap.inventorySha256 === canonicalSha256(bootstrap.artifacts),
       'bootstrap inventory differs',
     );
@@ -44056,7 +44088,7 @@ async function retireAzureNativeParentArtifacts(
       'sites',
       'observedAt',
     ]);
-    require94(
+    require95(
       receipt.status === 'retired' &&
         receipt.sourcePlanSha256 === base.planSha256 &&
         receipt.teardownPlanSha256 === teardown.planSha256 &&
@@ -44070,7 +44102,7 @@ async function retireAzureNativeParentArtifacts(
     const absenceSha256 = await fresh();
     const directory = async () => {
       const stat = await lstat13(store.directory);
-      require94(
+      require95(
         stat.isDirectory() &&
           !stat.isSymbolicLink() &&
           stat.uid === process.getuid?.() &&
@@ -44080,7 +44112,7 @@ async function retireAzureNativeParentArtifacts(
     };
     const bytes = async (name) => {
       const stat = await lstat13(join19(store.directory, name));
-      require94(
+      require95(
         stat.isFile() &&
           !stat.isSymbolicLink() &&
           stat.nlink === 1 &&
@@ -44094,17 +44126,17 @@ async function retireAzureNativeParentArtifacts(
     for (const row of bootstrap.artifacts) {
       const item = object73(row);
       keys21(item, ['name', 'sha256', 'preserve']);
-      require94(
+      require95(
         typeof item.name === 'string' && sha16(item.sha256) && typeof item.preserve === 'boolean',
         'bootstrap artifact malformed',
       );
       if (item.preserve) {
-        require94(
+        require95(
           /^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(String(item.name)) && !checkouts.has(String(item.name)),
           'opaque reference inventory differs',
         );
         checkouts.set(String(item.name), String(item.sha256));
-      } else require94((await optional17(store, String(item.name))) === undefined, 'enrollment staging reappeared');
+      } else require95((await optional17(store, String(item.name))) === undefined, 'enrollment staging reappeared');
     }
     const preserve = new Set([
       'owner.json',
@@ -44147,7 +44179,7 @@ async function retireAzureNativeParentArtifacts(
         records = new Map();
       for (const name of (await readdir12(store.directory)).sort()) {
         if (name === markerName3 || name === lockName) continue;
-        require94(allowed(name), 'unknown or unqualified artifact blocks retirement');
+        require95(allowed(name), 'unknown or unqualified artifact blocks retirement');
         const raw = await bytes(name);
         let record;
         try {
@@ -44158,9 +44190,9 @@ async function retireAzureNativeParentArtifacts(
         records.set(name, record);
         result.push({ name, sha256: hash22(raw), preserve: preserve.has(name) });
       }
-      for (const name of preserve) require94(records.has(name), 'terminal receipt or opaque reference missing');
+      for (const name of preserve) require95(records.has(name), 'terminal receipt or opaque reference missing');
       for (const [name, digest] of checkouts)
-        require94(result.find((item) => item.name === name)?.sha256 === digest, 'opaque reference changed');
+        require95(result.find((item) => item.name === name)?.sha256 === digest, 'opaque reference changed');
       return { result, records };
     };
     let marker = await optional17(store, markerName3);
@@ -44174,9 +44206,9 @@ async function retireAzureNativeParentArtifacts(
         if (name.startsWith('native-source-')) {
           const source = value;
           verifyAzureCePlan(source);
-          require94(
+          require95(
             source.engine === 'native' &&
-              same64(azureUpgradeBinding(source).owner, binding.owner) &&
+              same65(azureUpgradeBinding(source).owner, binding.owner) &&
               source.siteName === base.siteName &&
               name === `native-source-${source.planSha256}.json`,
             'native source registry differs',
@@ -44193,7 +44225,7 @@ async function retireAzureNativeParentArtifacts(
             if (history)
               await verifyAzureNativeNetworkReplacementRetirementSource(source, object73(history).replacement, {
                 async read(name) {
-                  require94(records.has(name), 'required network replacement record is missing');
+                  require95(records.has(name), 'required network replacement record is missing');
                   return records.get(name);
                 },
               });
@@ -44206,22 +44238,22 @@ async function retireAzureNativeParentArtifacts(
         }
         if (!value || typeof value !== 'object') return;
         const row = value;
-        if (row.owner !== undefined) require94(same64(row.owner, binding.owner), 'action payload owner differs');
-        if (row.siteName !== undefined) require94(row.siteName === base.siteName, 'action payload site differs');
-        if (row.engine !== undefined) require94(row.engine === 'native', 'action payload engine differs');
+        if (row.owner !== undefined) require95(same65(row.owner, binding.owner), 'action payload owner differs');
+        if (row.siteName !== undefined) require95(row.siteName === base.siteName, 'action payload site differs');
+        if (row.engine !== undefined) require95(row.engine === 'native', 'action payload engine differs');
         if (row.sourcePlanSha256 !== undefined)
-          require94(row.sourcePlanSha256 === source.planSha256, 'action payload source differs');
+          require95(row.sourcePlanSha256 === source.planSha256, 'action payload source differs');
         for (const nested of Object.values(row)) identity(nested, source);
       };
       for (const [name, value] of records) {
         if (name === 'owner.json')
-          require94(same64(value, { schemaVersion: 2, owner: binding.owner }), 'owner manifest differs');
+          require95(same65(value, { schemaVersion: 2, owner: binding.owner }), 'owner manifest differs');
         else if (/^azure-ce-teardown-[a-f0-9]{24}\.json$/.test(name) && name !== `${teardown.planId}.json`) {
           const prior = value;
           const priorCloud = sources.get(prior.cloudPlanSha256);
-          require94(
+          require95(
             priorCloud &&
-              same64(compileAzureNativeTeardown(base, priorCloud, prior.drain, prior.retirement), prior) &&
+              same65(compileAzureNativeTeardown(base, priorCloud, prior.drain, prior.retirement), prior) &&
               name === `${prior.planId}.json`,
             'historical teardown source differs',
           );
@@ -44230,9 +44262,9 @@ async function retireAzureNativeParentArtifacts(
           name !== `${teardown.planId}-authorization.json`
         ) {
           const plan = records.get(name.replace('-authorization.json', '.json'));
-          require94(
+          require95(
             plan &&
-              same64(value, {
+              same65(value, {
                 schemaVersion: 1,
                 engine: 'native',
                 sourcePlanSha256: base.planSha256,
@@ -44247,7 +44279,7 @@ async function retireAzureNativeParentArtifacts(
             throw Error('Azure native parent retirement: public generation source filename differs');
           await readAzureNativeNetworkGenerationCompletion(source, {
             async read(key) {
-              require94(records.has(key), 'required completed generation record is missing');
+              require95(records.has(key), 'required completed generation record is missing');
               return records.get(key);
             },
           });
@@ -44263,19 +44295,19 @@ async function retireAzureNativeParentArtifacts(
           ]);
           const source = sources.get(String(value.sourcePlanSha256));
           const actions = source?.actions.filter((row) => row.id === value.actionId);
-          require94(
+          require95(
             source &&
               actions?.length === 1 &&
               value.schemaVersion === 1 &&
               value.engine === 'native' &&
-              same64(value.owner, binding.owner) &&
+              same65(value.owner, binding.owner) &&
               value.actionSha256 === canonicalSha256(actions[0]) &&
               name === `native-action-${source.planSha256}-${value.actionId}.json`,
             'action source, owner or action differs',
           );
           const payload = object73(value.evidence);
           const action = actions?.[0];
-          require94(
+          require95(
             action &&
               [
                 'relay-provision',
@@ -44287,9 +44319,9 @@ async function retireAzureNativeParentArtifacts(
               ].includes(action.kind),
             'unqualified action evidence kind',
           );
-          if (payload.planId !== undefined) require94(payload.planId === source?.planId, 'action payload plan differs');
+          if (payload.planId !== undefined) require95(payload.planId === source?.planId, 'action payload plan differs');
           if (payload.planSha256 !== undefined)
-            require94(payload.planSha256 === source?.planSha256, 'action payload plan hash differs');
+            require95(payload.planSha256 === source?.planSha256, 'action payload plan hash differs');
           if (action?.kind === 'relay-provision') {
             keys21(payload, [
               'status',
@@ -44308,11 +44340,11 @@ async function retireAzureNativeParentArtifacts(
               row.vmId,
               `${profile.routeServerId}/bgpConnections/${row.name}`,
             ]);
-            require94(
+            require95(
               payload.status === 'provisioned' &&
                 payload.sourcePlanSha256 === source?.planSha256 &&
                 payload.relayPlanSha256 === profile.planSha256 &&
-                same64(payload.resourceIds, ids) &&
+                same65(payload.resourceIds, ids) &&
                 payload.software === 'unknown' &&
                 payload.routing === 'unknown' &&
                 payload.traffic === 'unknown',
@@ -44320,7 +44352,7 @@ async function retireAzureNativeParentArtifacts(
             );
             timestamp4(payload.observedAt);
           } else if (action?.kind === 'vm-state-gate') {
-            require94(
+            require95(
               payload.engine === 'native' &&
                 payload.subscriptionId === source?.subscription.id &&
                 payload.region === source?.region &&
@@ -44335,7 +44367,7 @@ async function retireAzureNativeParentArtifacts(
             );
             timestamp4(payload.observedAt);
           } else if (action?.kind === 'health-gate') {
-            require94(
+            require95(
               payload.engine === 'native' &&
                 payload.subscriptionId === source?.subscription.id &&
                 payload.siteName === source?.siteName &&
@@ -44347,9 +44379,9 @@ async function retireAzureNativeParentArtifacts(
             timestamp4(payload.observedAt);
           } else if (action?.kind === 'bgp-gate' && source?.relayProfile) {
             const prefix = source.relayProfile.schemaVersion === 2 ? `${source.planId}-replacement-` : '';
-            require94(
-              same64(payload.configuration, records.get(`${prefix}relay-routing-configuration.json`)) &&
-                same64(payload.observation, records.get(`${prefix}relay-routing-observation.json`)),
+            require95(
+              same65(payload.configuration, records.get(`${prefix}relay-routing-configuration.json`)) &&
+                same65(payload.observation, records.get(`${prefix}relay-routing-observation.json`)),
               'relay action and workflow observations differ',
             );
           } else if (action?.kind === 'f5-ingress-configure') {
@@ -44362,7 +44394,7 @@ async function retireAzureNativeParentArtifacts(
               'traffic',
               'observedAt',
             ]);
-            require94(
+            require95(
               typeof payload.ingressPlanId === 'string' &&
                 /^[a-f0-9]{24}$/.test(payload.ingressPlanId) &&
                 payload.contractFingerprint === contract.fingerprint &&
@@ -44375,7 +44407,7 @@ async function retireAzureNativeParentArtifacts(
           } else if (action?.kind === 'traffic-gate') {
             const ingress = source?.intent.ingress;
             const probe = ingress?.mode === 'platform-http' ? ingress.probe : undefined;
-            require94(
+            require95(
               payload.source === 'azure:vm-run-command' &&
                 payload.status === 'healthy' &&
                 probe &&
@@ -44390,17 +44422,17 @@ async function retireAzureNativeParentArtifacts(
           identity(value.evidence, source);
         } else if (name === 'native-site.json') {
           keys21(value, ['siteName', 'uid', 'owner', 'contractFingerprint']);
-          require94(
+          require95(
             value.siteName === base.siteName &&
               value.uid === teardown.retirement[0].siteUid &&
-              same64(value.owner, binding.owner) &&
+              same65(value.owner, binding.owner) &&
               value.contractFingerprint === teardown.drain.siteContractFingerprint,
             'site reservation differs',
           );
         } else if (name.startsWith('native-registration-node-')) {
           keys21(value, ['siteName', 'node', 'registration', 'instanceId', 'action', 'state']);
           const count = Number(name.match(/node-([1-3])/)?.[1]);
-          require94(
+          require95(
             count <= binding.nodes.length &&
               binding.nodes.slice(0, count).includes(String(value.node)) &&
               value.siteName === base.siteName &&
@@ -44421,9 +44453,9 @@ async function retireAzureNativeParentArtifacts(
             'binding',
             'expectedInterfaces',
           ]);
-          require94(
+          require95(
             value.schemaVersion === 1 &&
-              same64(value.binding, binding) &&
+              same65(value.binding, binding) &&
               value.siteUid === teardown.retirement[0].siteUid &&
               value.contractFingerprint === teardown.drain.siteContractFingerprint &&
               typeof value.tenantOrigin === 'string' &&
@@ -44437,7 +44469,7 @@ async function retireAzureNativeParentArtifacts(
           for (const raw of value.expectedInterfaces) {
             const row = object73(raw);
             keys21(row, ['node', 'role', 'mac', ...(row.staticIp !== undefined ? ['staticIp'] : [])]);
-            require94(
+            require95(
               binding.nodes.includes(String(row.node)) &&
                 ['slo', 'sli', 'data'].includes(String(row.role)) &&
                 typeof row.mac === 'string' &&
@@ -44454,7 +44486,7 @@ async function retireAzureNativeParentArtifacts(
                 ...(configured.dns_server !== undefined ? ['dns_server'] : []),
               ]);
               const ip = String(configured.ip_address).split('/');
-              require94(
+              require95(
                 ip.length === 2 &&
                   isIP26(ip[0]) === 4 &&
                   /^\d{1,2}$/.test(ip[1]) &&
@@ -44468,7 +44500,7 @@ async function retireAzureNativeParentArtifacts(
             used.add(String(row.mac).toLowerCase());
             roles.add(`${row.node}/${row.role === 'data' ? 'sli' : row.role}`);
           }
-          require94(
+          require95(
             value.expectedInterfaces.length === 0 || value.expectedInterfaces.length === binding.nodes.length * 2,
             'partial bound interfaces',
           );
@@ -44476,7 +44508,7 @@ async function retireAzureNativeParentArtifacts(
           keys21(value, ['planId', 'record']);
           const record = object73(value.record);
           keys21(record, ['phase', 'resourceVersion', 'uid']);
-          require94(
+          require95(
             typeof value.planId === 'string' &&
               /^f5xc-ce-v2-[a-f0-9]{24}$/.test(value.planId) &&
               ['replace-prepared', 'replace-observed'].includes(String(record.phase)) &&
@@ -44486,15 +44518,15 @@ async function retireAzureNativeParentArtifacts(
             'public site journal differs',
           );
         } else if (name === 'platform-drain-source.json')
-          require94(
-            same64(value, {
+          require95(
+            same65(value, {
               sha256: canonicalSha256(teardown.drain),
               plan: teardown.drain,
             }),
             'drain source differs',
           );
         else if (name === 'platform-drain-progress.json' || name === 'platform-drain-receipt.json') {
-          require94(records.has('platform-drain-source.json'), 'drain source missing');
+          require95(records.has('platform-drain-source.json'), 'drain source missing');
           const completed = [
             ...teardown.drain.listeners.map((row) => `listener:${row.namespace}/${row.name}`),
             ...teardown.drain.origins.map((row) => `origin:${row.origin.namespace}/${row.origin.name}`),
@@ -44504,14 +44536,14 @@ async function retireAzureNativeParentArtifacts(
               ),
             ),
           ];
-          require94(
-            value.planSha256 === canonicalSha256(teardown.drain) && same64(value.completed, completed),
+          require95(
+            value.planSha256 === canonicalSha256(teardown.drain) && same65(value.completed, completed),
             'drain completed inventory differs',
           );
           timestamp4(value.observedAt);
           if (name.endsWith('progress.json')) {
             keys21(value, ['schemaVersion', 'planSha256', 'completed', 'observedAt']);
-            require94(value.schemaVersion === 1, 'drain checkpoint schema differs');
+            require95(value.schemaVersion === 1, 'drain checkpoint schema differs');
           } else {
             keys21(value, [
               'status',
@@ -44523,9 +44555,9 @@ async function retireAzureNativeParentArtifacts(
               'sites',
               'observedAt',
             ]);
-            require94(
+            require95(
               value.status === 'platform-drained' &&
-                same64(value.owner, binding.owner) &&
+                same65(value.owner, binding.owner) &&
                 value.sourcePlanSha256 === base.planSha256 &&
                 value.cloud === 'unknown' &&
                 value.sites === 'not-retired',
@@ -44569,10 +44601,10 @@ async function retireAzureNativeParentArtifacts(
       'checkpointSha256',
       'phase',
     ]);
-    require94(
+    require95(
       value.schemaVersion === 1 &&
         value.engine === 'native' &&
-        same64(value.owner, binding.owner) &&
+        same65(value.owner, binding.owner) &&
         value.sourcePlanSha256 === base.planSha256 &&
         value.cloudPlanSha256 === cloud.planSha256 &&
         value.teardownPlanSha256 === teardown.planSha256 &&
@@ -44587,7 +44619,7 @@ async function retireAzureNativeParentArtifacts(
     for (const raw of value.artifacts) {
       const item = object73(raw);
       keys21(item, ['name', 'sha256', 'preserve']);
-      require94(
+      require95(
         typeof item.name === 'string' &&
           allowed(item.name) &&
           sha16(item.sha256) &&
@@ -44598,8 +44630,8 @@ async function retireAzureNativeParentArtifacts(
       recorded.set(String(item.name), item);
     }
     const current = (await inventory()).result;
-    require94(
-      current.every((item) => same64(item, recorded.get(item.name))) &&
+    require95(
+      current.every((item) => same65(item, recorded.get(item.name))) &&
         [...recorded.values()].every((item) => !item.preserve || current.some((row) => row.name === item.name)) &&
         (phase !== 'retired' || current.every((item) => item.preserve)),
       'inventory changed after preflight',
@@ -44615,15 +44647,15 @@ async function retireAzureNativeParentArtifacts(
       deadline.throwIfAborted();
       await store.verify();
       await directory();
-      require94(hash22(await bytes(item.name)) === item.sha256, 'artifact changed before deletion');
+      require95(hash22(await bytes(item.name)) === item.sha256, 'artifact changed before deletion');
       deadline.throwIfAborted();
       await unlink5(join19(store.directory, item.name));
     }
     await fresh();
     deadline.throwIfAborted();
     const final = (await inventory()).result;
-    require94(
-      final.every((item) => item.preserve && same64(item, recorded.get(item.name))),
+    require95(
+      final.every((item) => item.preserve && same65(item, recorded.get(item.name))),
       'final retained inventory differs',
     );
     if (phase !== 'retired') await store.write(markerName3, { ...value, phase: 'retired' });
@@ -44644,18 +44676,18 @@ var markerName3 = 'azure-native-parent-artifact-retirement.json',
   lockName = '.azure-relay-native-mutation-lock',
   hash22 = (raw) => createHash44('sha256').update(raw).digest('hex'),
   sha16 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  same64,
-  require94 = (condition, message) => {
+  same65,
+  require95 = (condition, message) => {
     if (!condition) throw Error(`Native parent retirement: ${message}`);
   },
   object73 = (value) => {
-    require94(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
+    require95(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
   keys21 = (value, expected) =>
-    require94(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
+    require95(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
   timestamp4 = (value) =>
-    require94(
+    require95(
       typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
       'historical collection time differs',
     ),
@@ -44684,7 +44716,7 @@ var init_native_parent_retirement = __esm(() => {
   init_relay_deployment_plan();
   init_relay_retirement();
   init_terraform_upgrade();
-  same64 = canonicalEqual;
+  same65 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-destroy-ownership.ts
@@ -46176,35 +46208,35 @@ var init_terraform_failover_retirement = __esm(() => {
 // plugins/azure/src/ce/terraform-terminal-snapshot.ts
 import { types as utilTypes2 } from 'node:util';
 
-function require95(value, message) {
+function require96(value, message) {
   if (!value) throw Error(`Azure terminal snapshot: ${message}`);
 }
 function sealAzureTerraformTerminalSnapshot(value) {
-  require95(value && typeof value === 'object' && !Array.isArray(value), 'terminal object required');
+  require96(value && typeof value === 'object' && !Array.isArray(value), 'terminal object required');
   const inspect = (entry, ancestry) => {
     if (entry === undefined || entry === null || typeof entry === 'string' || typeof entry === 'boolean') return;
     if (typeof entry === 'number') {
-      require95(Number.isFinite(entry), 'finite JSON number required');
+      require96(Number.isFinite(entry), 'finite JSON number required');
       return;
     }
-    require95(typeof entry === 'object' && !utilTypes2.isProxy(entry), 'ordinary JSON data required');
-    require95(!ancestry.has(entry), 'cyclic terminal value');
+    require96(typeof entry === 'object' && !utilTypes2.isProxy(entry), 'ordinary JSON data required');
+    require96(!ancestry.has(entry), 'cyclic terminal value');
     const prototype = Object.getPrototypeOf(entry);
-    require95(
+    require96(
       Array.isArray(entry) ? prototype === Array.prototype : prototype === Object.prototype || prototype === null,
       'ordinary JSON prototype required',
     );
-    require95(
+    require96(
       Object.getOwnPropertySymbols(entry).length === 0 && !('toJSON' in entry),
       'custom JSON behavior forbidden',
     );
     const descriptors = Object.getOwnPropertyDescriptors(entry);
-    require95(!Object.hasOwn(descriptors, '__proto__'), 'prototype field forbidden');
+    require96(!Object.hasOwn(descriptors, '__proto__'), 'prototype field forbidden');
     ancestry.add(entry);
     for (const [key, descriptor] of Object.entries(descriptors)) {
-      require95(Object.hasOwn(descriptor, 'value'), 'accessor terminal field forbidden');
+      require96(Object.hasOwn(descriptor, 'value'), 'accessor terminal field forbidden');
       if (Array.isArray(entry))
-        require95(key === 'length' || /^(0|[1-9][0-9]*)$/.test(key), 'custom array field forbidden');
+        require96(key === 'length' || /^(0|[1-9][0-9]*)$/.test(key), 'custom array field forbidden');
       if (descriptor.enumerable) inspect(descriptor.value, ancestry);
     }
     ancestry.delete(entry);
@@ -46219,7 +46251,7 @@ function sealAzureTerraformTerminalSnapshot(value) {
     Object.freeze(entry);
   };
   freeze(snapshot);
-  require95(
+  require96(
     canonicalSha256({ value: snapshot }) === digest && canonicalSha256(snapshot) === rawDigest,
     'sealed digest differs',
   );
@@ -46244,11 +46276,11 @@ import { constants as constants6 } from 'node:fs';
 import { lstat as lstat16, open as open6, realpath as realpath14 } from 'node:fs/promises';
 import { join as join23 } from 'node:path';
 
-function require96(v, message) {
+function require97(v, message) {
   if (!v) throw Error(`Azure network empty-main binding: ${message}`);
 }
 function object78(v) {
-  require96(v && typeof v === 'object' && !Array.isArray(v), 'record object required');
+  require97(v && typeof v === 'object' && !Array.isArray(v), 'record object required');
   return v;
 }
 function parsePrivate(value) {
@@ -46275,14 +46307,14 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
   const terminalSha256 = canonicalSha256({ value: terminal });
   const seal = () => {
     deadline.throwIfAborted();
-    require96(
-      same65(request, original) &&
-        same65(store.owner, owner) &&
+    require97(
+      same66(request, original) &&
+        same66(store.owner, owner) &&
         store.directory === directory &&
         context.terraform === terraform &&
-        same65(context.destroyTeardown, teardown) &&
+        same66(context.destroyTeardown, teardown) &&
         matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
-        same65(context.site, site) &&
+        same66(context.site, site) &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning request or context changed',
     );
@@ -46313,7 +46345,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
           bytes = await file.readFile(),
           last = await file.stat(),
           named = await lstat16(join23(directory, name));
-        require96(
+        require97(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -46330,14 +46362,14 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
             named.uid === first.uid &&
             named.nlink === 1 &&
             (named.mode & 63) === 0 &&
-            same65(JSON.parse(bytes.toString()), logical),
+            same66(JSON.parse(bytes.toString()), logical),
           'private record custody differs',
         );
         const digest = canonicalSha256({
           identity: `${first.dev}:${first.ino}:${first.birthtimeMs}`,
           bytes: hash27(bytes),
         });
-        require96(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
+        require97(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
         records.set(name, digest);
         return structuredClone(logical);
       } finally {
@@ -46345,7 +46377,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
       }
     }, parent);
   const root = await step(() => lstat16(directory));
-  require96(
+  require97(
     root.isDirectory() &&
       !root.isSymbolicLink() &&
       root.uid === process.getuid?.() &&
@@ -46353,11 +46385,11 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
       (await step(() => realpath14(directory))) === directory,
     'private directory differs',
   );
-  require96(
+  require97(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same65(azureUpgradeBinding(original).owner, owner) &&
-      same65(
+      same66(azureUpgradeBinding(original).owner, owner) &&
+      same66(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -46370,9 +46402,9 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
     'compiled source owner or site differs',
   );
   await step(() => store.verify());
-  require96(same65(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
-  require96(
-    same65(await readRecord(`${teardown.planId}-authorization.json`), {
+  require97(same66(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
+  require97(
+    same66(await readRecord(`${teardown.planId}-authorization.json`), {
       schemaVersion: 1,
       engine: 'terraform',
       sourcePlanSha256: original.planSha256,
@@ -46381,8 +46413,8 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
     }),
     'saved authorization differs',
   );
-  require96(
-    same65(await readRecord('azure-terraform-terminal-cleanup.json'), terminal),
+  require97(
+    same66(await readRecord('azure-terraform-terminal-cleanup.json'), terminal),
     'saved terminal checkpoint differs',
   );
   const checkpoint = object78(terminal),
@@ -46396,7 +46428,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
       configurationSha256: emptySha256,
       providerLockSha256: hash27(providerLock),
     });
-  require96(
+  require97(
     checkpoint.schemaVersion === 1 &&
       checkpoint.phase === 'retiring' &&
       checkpoint.sourcePlanSha256 === original.planSha256 &&
@@ -46416,8 +46448,8 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
         }),
     'terminal checkpoint binding differs',
   );
-  require96(
-    same65(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
+  require97(
+    same66(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
       destroy.operation === 'destroy' &&
       destroy.configurationSha256 === checkpoint.configurationSha256 &&
       destroy.noChanges &&
@@ -46428,17 +46460,17 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
   );
   const retained = object78(parsePrivate(checkpoint.retainedDestroyConfiguration)),
     retainedNetwork = object78(checkpoint.retainedNetworkCustody);
-  require96(
-    same65({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(emptyConfiguration)) &&
+  require97(
+    same66({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(emptyConfiguration)) &&
       retainedNetwork.scope === 'post-destroy-authenticated-network-stage-journal-custody' &&
-      same65(retainedNetwork.owner, owner) &&
+      same66(retainedNetwork.owner, owner) &&
       retainedNetwork.originalPlanSha256 === original.planSha256 &&
       retainedNetwork.teardownPlanSha256 === teardown.planSha256 &&
-      same65(retainedNetwork.site, site),
+      same66(retainedNetwork.site, site),
     'retained provider identity or network source differs',
   );
   for (const receipt of [destroy, final])
-    require96(
+    require97(
       receipt.schemaVersion === 1 &&
         receipt.engine === 'terraform' &&
         receipt.deploymentId === deployment.deploymentId &&
@@ -46453,14 +46485,14 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
         !receipt.relinquishments,
       'exact owning no-change receipt required',
     );
-  require96(!final.operation && final.configurationSha256 === emptySha256, 'ordinary empty final required');
+  require97(!final.operation && final.configurationSha256 === emptySha256, 'ordinary empty final required');
   const session = await step(() => terraform.open(owner, deployment, 'current'));
   const {
     readCancelledPlanContinuation: readContinuation,
     readConfiguration,
     readCurrentPlanJournal: readCurrent,
   } = session;
-  require96(
+  require97(
     typeof readContinuation === 'function' &&
       typeof readConfiguration === 'function' &&
       typeof readCurrent === 'function',
@@ -46483,7 +46515,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
         ),
       parent,
     );
-    require96(
+    require97(
       provenance.schemaVersion === 1 &&
         provenance.scope === 'exact-cancelled-plan-current-continuation-provenance' &&
         provenance.cancellationQualified &&
@@ -46504,14 +46536,14 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
         provenance.retirementQualified === false,
       'native cancellation continuation differs',
     );
-    require96(
+    require97(
       (await step(() => readConfiguration.call(session, emptySha256), parent)) === emptyConfiguration,
       'current empty configuration bytes differ',
     );
     const current = await step(() => readCurrent.call(session, emptySha256, active), parent);
-    require96(
+    require97(
       current.state === 'planned' &&
-        same65(current.receipt, final) &&
+        same66(current.receipt, final) &&
         current.manifestSha256 === manifestSha256 &&
         current.ordinaryRefreshEnabled === true &&
         current.savedPlanSha256 === final.planSha256 &&
@@ -46521,7 +46553,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
     );
     for (const name of records.keys()) await readRecord(name, parent);
     const now = await step(() => lstat16(directory), parent);
-    require96(
+    require97(
       now.dev === root.dev &&
         now.ino === root.ino &&
         now.birthtimeMs === root.birthtimeMs &&
@@ -46569,7 +46601,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
     context,
     digest,
     async recheck(parent) {
-      require96(canonicalSha256(result) === digest && same65(await inspect(parent), first), 'native binding changed');
+      require97(canonicalSha256(result) === digest && same66(await inspect(parent), first), 'native binding changed');
     },
   });
   return result;
@@ -46577,7 +46609,7 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
 async function recheckAzureTerraformNetworkEmptyMainBinding(witness, originalPlanSha256, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses.get(witness) : undefined;
-  require96(
+  require97(
     bound &&
       bound.store === store &&
       bound.context === context &&
@@ -46587,7 +46619,7 @@ async function recheckAzureTerraformNetworkEmptyMainBinding(witness, originalPla
   );
   await bound.recheck(signal);
 }
-var same65 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same66 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash27 = (bytes) => createHash49('sha256').update(bytes).digest('hex'),
   sha18 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   witnesses;
@@ -46601,7 +46633,7 @@ var init_terraform_network_empty_main_binding = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-power-cancellation-packet.ts
-function require97(value, message) {
+function require98(value, message) {
   if (!value) throw Error(`Azure Terraform network power cancellation: ${message}`);
 }
 async function validateAzureTerraformPowerCancellationPacket(
@@ -46624,10 +46656,10 @@ async function validateAzureTerraformPowerCancellationPacket(
     'evidenceSha256',
     ...(packet.status === 'cancelled' ? ['provenance'] : []),
   ];
-  require97(
-    same66(Object.keys(packet).sort(), keys.sort()) &&
+  require98(
+    same67(Object.keys(packet).sort(), keys.sort()) &&
       (packet.status === 'preparing' || packet.status === 'cancelled') &&
-      Object.entries(bound).every(([key, value]) => same66(packet[key], value)) &&
+      Object.entries(bound).every(([key, value]) => same67(packet[key], value)) &&
       typeof packet.originalJournalSha256 === 'string' &&
       /^[a-f0-9]{64}$/.test(packet.originalJournalSha256),
     'stage cancellation source or schema differs',
@@ -46640,7 +46672,7 @@ async function validateAzureTerraformPowerCancellationPacket(
     packet.receipt,
     'mutation',
   );
-  require97(!publishedMutation || same66(publishedMutation, receipt), 'published original receipt differs');
+  require98(!publishedMutation || same67(publishedMutation, receipt), 'published original receipt differs');
   await validateAzureTerraformNetworkPowerProjection(
     plan,
     before,
@@ -46651,7 +46683,7 @@ async function validateAzureTerraformPowerCancellationPacket(
     packet.prior,
     packet.proposed,
   );
-  require97(
+  require98(
     packet.evidenceSha256 ===
       canonicalSha256({
         ...bound,
@@ -46664,15 +46696,15 @@ async function validateAzureTerraformPowerCancellationPacket(
   );
   return { packet, receipt, evidenceSha256: packet.evidenceSha256 };
 }
-var same66,
+var same67,
   object79 = (input) => {
-    require97(input && typeof input === 'object' && !Array.isArray(input), 'malformed cancellation packet');
+    require98(input && typeof input === 'object' && !Array.isArray(input), 'malformed cancellation packet');
     return input;
   };
 var init_terraform_network_power_cancellation_packet = __esm(() => {
   init_canonical();
   init_terraform_network_power();
-  same66 = canonicalEqual;
+  same67 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-power-cancelled-release.ts
@@ -46680,11 +46712,11 @@ import { createHash as createHash50 } from 'node:crypto';
 import { lstat as lstat17, readdir as readdir17, realpath as realpath15 } from 'node:fs/promises';
 import { join as join24 } from 'node:path';
 
-function require98(value, message) {
+function require99(value, message) {
   if (!value) throw Error(`Azure Terraform cancelled power release: ${message}`);
 }
 function object80(value) {
-  require98(value && typeof value === 'object' && !Array.isArray(value), 'malformed release packet');
+  require99(value && typeof value === 'object' && !Array.isArray(value), 'malformed release packet');
   return value;
 }
 async function readAzureTerraformNetworkCancelledPowerRetirement(
@@ -46704,7 +46736,7 @@ async function readAzureTerraformNetworkCancelledPowerRetirement(
     true,
     true,
   );
-  require98(result.scope === 'selected-cancelled-network-power-retirement-history', 'unexpected mutation result');
+  require99(result.scope === 'selected-cancelled-network-power-retirement-history', 'unexpected mutation result');
   return result;
 }
 async function runCancelledPowerStage(args, retire, readOnly = false) {
@@ -46736,21 +46768,21 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
   bind(rawStore, ['read', 'write', 'verify']);
   bind(loaders, ['loadSource', 'loadOutcome']);
   if (rawApi) bind(rawApi, ['exec']);
-  require98(readOnly || rawApi, 'cloud observer required for release or retirement');
+  require99(readOnly || rawApi, 'cloud observer required for release or retirement');
   const seal = () => {
     deadline.throwIfAborted();
-    require98(
-      same67(request, plan) &&
-        same67(siteRequest, site) &&
-        same67(rawStore.owner, owner) &&
-        same67(environment, env) &&
+    require99(
+      same68(request, plan) &&
+        same68(siteRequest, site) &&
+        same68(rawStore.owner, owner) &&
+        same68(environment, env) &&
         rawStore.directory === directory &&
         bindings.every(({ object: target, key, value }) => Reflect.get(target, key) === value),
       'request or owning dependency changed',
     );
   };
   seal();
-  require98(
+  require99(
     Number.isInteger(node) &&
       node >= 1 &&
       node <= plan.topology.nodeCount &&
@@ -46761,7 +46793,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
     ? async (_directory, _deadline, _seal, action) =>
         action(async (work, mutation) => {
           seal();
-          require98(!mutation, 'inspection cannot execute a mutation');
+          require99(!mutation, 'inspection cannot execute a mutation');
           const aborted = Promise.withResolvers(),
             onAbort = () => aborted.reject(deadline.reason);
           deadline.addEventListener('abort', onAbort, { once: true });
@@ -46804,10 +46836,10 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         graphSha256 = canonicalSha256(graph),
         row = graph.checkpoint.snapshot?.checkpoint.nodes.find((value) => value.node === node),
         historyNode = graph.nodes.find((value) => value.node === node);
-      require98(row && historyNode?.preflightPresent, 'original selected preflight unavailable');
+      require99(row && historyNode?.preflightPresent, 'original selected preflight unavailable');
       const before = row.before,
         history = operation === 'deallocate' ? historyNode.deallocate : historyNode.start;
-      require98(
+      require99(
         !history.receipts.release &&
           !history.receipts.current &&
           !history.packetSha256ByName[
@@ -46817,8 +46849,8 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       );
       const mutation = await step(() => azureTerraformNetworkPowerDeployment(plan, before, node, operation)),
         release = await step(() => azureTerraformNetworkPowerDeployment(plan, before, node, operation, true));
-      require98(
-        mutation.stage && graph.powerDeployments.some((value) => same67(value, mutation)),
+      require99(
+        mutation.stage && graph.powerDeployments.some((value) => same68(value, mutation)),
         'original runner identity differs',
       );
       const root = join24(directory, 'terraform-stages'),
@@ -46827,7 +46859,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       const inventory = (path) =>
         step(async () => {
           const stat = await lstat17(path);
-          require98(
+          require99(
             stat.isDirectory() &&
               !stat.isSymbolicLink() &&
               stat.uid === process.getuid?.() &&
@@ -46839,16 +46871,16 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         });
       const names = await inventory(root),
         stages = await inventory(stageDirectory);
-      require98(
+      require99(
         names
           .filter((name) => name.startsWith(`network-${plan.planSha256.slice(0, 24)}-`))
           .every((stage) => graph.powerDeployments.some((value) => value.stage === stage)) &&
-          same67(stages, [mutation.deploymentId]),
+          same68(stages, [mutation.deploymentId]),
         'foreign or orphan selected runner',
       );
       const runnerNames = await inventory(runnerDirectory);
       const barrierPresent = runnerNames.includes('artifact-retirement.json');
-      require98(
+      require99(
         !runnerNames.includes('configuration-transition.json') && (!barrierPresent || retire),
         'pending revision or artifact retirement requires owner recovery',
       );
@@ -46890,10 +46922,10 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           history.receipts.mutation,
         ),
       );
-      require98(original.packet.status === 'cancelled', 'completed original cancellation required');
+      require99(original.packet.status === 'cancelled', 'completed original cancellation required');
       const originalProvenance = object80(original.packet.provenance);
-      require98(
-        same67(
+      require99(
+        same68(
           Object.keys(originalProvenance).sort(),
           [
             'schemaVersion',
@@ -46940,7 +46972,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         ],
         ['plan', 'apply', 'reconcileApplyFromEvidence', 'retireArtifacts'],
       );
-      require98(
+      require99(
         session.readConfigurationSha256 &&
           session.readCurrentPlanJournal &&
           session.readPlanApplicationHistory &&
@@ -46955,7 +46987,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         readCancelledPlanContinuation: readContinuation,
       } = session;
       const configuration = async () =>
-        require98(
+        require99(
           (await session.readConfigurationSha256?.()) === hash28(release.configuration),
           'exact derived release configuration required',
         );
@@ -46965,11 +46997,11 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         configurationSha256: hash28(source),
         providerLockSha256: hash28(providerLock),
       });
-      require98(originalProvenance.manifestSha256 === manifestSha256, 'original cancellation manifest differs');
+      require99(originalProvenance.manifestSha256 === manifestSha256, 'original cancellation manifest differs');
       const journal = async () => {
         await configuration();
         const value = await readCurrent.call(session, hash28(release.configuration), deadline);
-        require98(
+        require99(
           value.schemaVersion === 1 &&
             value.scope === 'current-saved-plan-byte-and-journal-binding' &&
             value.planSemanticsQualified === false &&
@@ -46997,7 +47029,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
               original.evidenceSha256,
               deadline,
             );
-        require98(
+        require99(
           value.schemaVersion === 1 &&
             value.scope ===
               (receipt
@@ -47007,7 +47039,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             (!receipt || ('planSemanticsQualified' in value && value.planSemanticsQualified === false)) &&
             value.cancellationQualified === true &&
             value.cancellationRecordSha256 === originalProvenance.cancellationRecordSha256 &&
-            same67(value.originalArchiveSha256s, originalProvenance.originalArchiveSha256s) &&
+            same68(value.originalArchiveSha256s, originalProvenance.originalArchiveSha256s) &&
             value.originalReceiptSha256 === canonicalSha256(original.receipt) &&
             value.currentConfigurationSha256 === hash28(release.configuration) &&
             value.manifestSha256 === manifestSha256 &&
@@ -47017,7 +47049,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           'original cancellation record or archive custody differs',
         );
         const archived = await readHistory.call(session, original.receipt, deadline);
-        require98(
+        require99(
           archived.schemaVersion === 1 &&
             archived.scope === 'exact-saved-plan-journal-history' &&
             archived.receiptSha256 === canonicalSha256(original.receipt) &&
@@ -47031,17 +47063,17 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
                 entry.journalSha256 === original.packet.originalJournalSha256 &&
                 entry.savedPlanSha256 === original.receipt.planSha256,
             ) &&
-            same67(
+            same68(
               archived.matches.map((entry) => entry.archiveSha256).toSorted(),
               originalProvenance.originalArchiveSha256s,
             ),
           'original unsubmitted archive history differs',
         );
-        require98(
+        require99(
           canonicalSha256(await store.read(cancellationName)) === cancellationPacketSha256 &&
             canonicalSha256(await graphRead()) === graphSha256 &&
-            same67(await inventory(root), names) &&
-            same67(await inventory(stageDirectory), stages),
+            same68(await inventory(root), names) &&
+            same68(await inventory(stageDirectory), stages),
           'original source or stage inventory changed',
         );
         return value;
@@ -47052,7 +47084,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       if (operation === 'start') appliedNics.push(...plan.nics.map((nic) => `${node}:${nic.index}`));
       const observe = () =>
         step(async () => {
-          require98(api && !readOnly, 'inspection cannot collect current cloud evidence');
+          require99(api && !readOnly, 'inspection cannot collect current cloud evidence');
           const value = await observeAzureTerraformNetworkPower(
             plan,
             before,
@@ -47062,7 +47094,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             api,
             deadline,
           );
-          require98(
+          require99(
             ['running', 'deallocated', 'stopped'].includes(value.powerState),
             'stable selected power observation required',
           );
@@ -47086,22 +47118,22 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       };
       const packet = (input, fields) => {
         const value = object80(input);
-        require98(
-          same67(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
-            Object.entries(bound).every(([key, expected]) => same67(value[key], expected)),
+        require99(
+          same68(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
+            Object.entries(bound).every(([key, expected]) => same68(value[key], expected)),
           'release packet source or schema differs',
         );
         return value;
       };
       const persist = async (name, value) => {
         const saved = await optional(name);
-        require98(saved === undefined || same67(saved, value), 'immutable release publication differs');
+        require99(saved === undefined || same68(saved, value), 'immutable release publication differs');
         if (saved === undefined) await store.write(name, value);
-        require98(same67(await store.read(name), value), 'release publication changed');
+        require99(same68(await store.read(name), value), 'release publication changed');
       };
       const retiredPrefix = `azure-power-runner-retirement-${identity}`;
       const retirement = async (proof) => {
-        require98(
+        require99(
           session.readArtifactRetirement && (readOnly || session.retireArtifacts),
           'owning artifact retirement contract unavailable',
         );
@@ -47133,26 +47165,26 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         });
         let preparing = await optional(preparingName);
         if (readOnly && preparing === undefined) {
-          require98(
+          require99(
             !barrierPresent &&
               (await optional(retiringName)) === undefined &&
               (await optional(retiredName)) === undefined,
             'retirement evidence lacks original preparing authorization',
           );
-          require98(
+          require99(
             canonicalSha256(await graphRead()) === graphSha256 &&
               canonicalSha256(await store.read(cancellationName)) === cancellationPacketSha256 &&
-              same67(await inventory(root), names) &&
-              same67(await inventory(stageDirectory), stages) &&
-              same67(await inventory(runnerDirectory), runnerNames) &&
+              same68(await inventory(root), names) &&
+              same68(await inventory(stageDirectory), stages) &&
+              same68(await inventory(runnerDirectory), runnerNames) &&
               (await optional(preparingName)) === undefined,
             'absent preparation changed during inspection',
           );
           return inspection('absent');
         }
         if (proof) {
-          require98(!barrierPresent, 'new preparing authorization cannot follow a barrier');
-          require98(
+          require99(!barrierPresent, 'new preparing authorization cannot follow a barrier');
+          require99(
             phaseNames.every((name) => name.endsWith('-submission.json') || snapshots[name] !== null),
             'original release packet unavailable before retirement',
           );
@@ -47167,7 +47199,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             finalExecutionSha256: proof.finalExecutionSha256,
           };
           if (preparing === undefined) {
-            require98(
+            require99(
               (await optional(retiringName)) === undefined && (await optional(retiredName)) === undefined,
               'retirement publication lacks original preparing authorization',
             );
@@ -47175,7 +47207,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           await persist(preparingName, expected);
           preparing = expected;
         }
-        require98(preparing !== undefined, 'permanent barrier lacks original preparing authorization');
+        require99(preparing !== undefined, 'permanent barrier lacks original preparing authorization');
         const prepared = packet(preparing, [
           'status',
           'packetSha256ByName',
@@ -47185,9 +47217,9 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           'finalJournalSha256',
           'finalExecutionSha256',
         ]);
-        require98(
+        require99(
           prepared.status === 'preparing' &&
-            same67(prepared.packetSha256ByName, snapshots) &&
+            same68(prepared.packetSha256ByName, snapshots) &&
             phaseNames.every((name) => name.endsWith('-submission.json') || snapshots[name] !== null) &&
             [prepared.releaseReceiptSha256, prepared.finalJournalSha256, prepared.finalExecutionSha256].every(
               (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
@@ -47206,9 +47238,9 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           'journalSha256',
           'executionSha256',
         ]);
-        require98(
+        require99(
           savedFinal.status === 'final' &&
-            same67(savedFinal.receipt, final) &&
+            same68(savedFinal.receipt, final) &&
             savedFinal.journalSha256 === prepared.finalJournalSha256 &&
             savedFinal.executionSha256 === prepared.finalExecutionSha256,
           'original final retirement receipt differs',
@@ -47216,51 +47248,51 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         const preparingSha256 = canonicalSha256(prepared),
           retiring = { ...bound, status: 'retiring', preparingSha256, finalReceiptSha256: canonicalSha256(final) };
         const unchanged = async () => {
-          require98(
+          require99(
             canonicalSha256(await graphRead()) === graphSha256 &&
               canonicalSha256(await store.read(cancellationName)) === cancellationPacketSha256 &&
-              same67(await inventory(root), names) &&
-              same67(await inventory(stageDirectory), stages) &&
-              same67(await store.read(preparingName), prepared),
+              same68(await inventory(root), names) &&
+              same68(await inventory(stageDirectory), stages) &&
+              same68(await store.read(preparingName), prepared),
             'retirement source changed',
           );
           for (const name of phaseNames) {
             const value = await optional(name);
-            require98(
+            require99(
               (value === undefined ? null : canonicalSha256(value)) === snapshots[name],
               'retirement original release packet changed',
             );
           }
           if (!readOnly)
-            require98(same67(await observe(), prepared.baseline), 'selected cloud identity changed during retirement');
+            require99(same68(await observe(), prepared.baseline), 'selected cloud identity changed during retirement');
           else
-            require98(
-              same67(await inventory(runnerDirectory), runnerNames),
+            require99(
+              same68(await inventory(runnerDirectory), runnerNames),
               'retained runner inventory changed during inspection',
             );
         };
         await unchanged();
         let observed = await session.readArtifactRetirement(final, preparingSha256, deadline);
         if (readOnly) {
-          require98(
+          require99(
             ['absent', 'retiring', 'runner-artifacts-retired'].includes(observed.status),
             'retirement reader status differs',
           );
           const savedRetiring = await optional(retiringName),
             savedRetired = await optional(retiredName);
           if (savedRetiring !== undefined)
-            require98(same67(savedRetiring, retiring), 'original retiring authorization differs');
-          require98(
+            require99(same68(savedRetiring, retiring), 'original retiring authorization differs');
+          require99(
             observed.status === 'absent' || savedRetiring !== undefined,
             'barrier lacks original retiring authorization',
           );
-          require98(
+          require99(
             observed.status === 'runner-artifacts-retired' || savedRetired === undefined,
             'incomplete barrier has completed retirement publication',
           );
           let status = observed.status === 'absent' ? 'preparing' : 'retiring';
           if (observed.status === 'runner-artifacts-retired') {
-            require98(
+            require99(
               observed.receipt.manifestSha256 === manifestSha256 &&
                 observed.receipt.evidenceSha256 === preparingSha256 &&
                 observed.receipt.finalPlanSha256 === final.planSha256 &&
@@ -47277,23 +47309,23 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
               markerSha256: observed.markerSha256,
               receipt: observed.receipt,
             };
-            require98(
-              savedRetired === undefined || same67(savedRetired, expected),
+            require99(
+              savedRetired === undefined || same68(savedRetired, expected),
               'retired publication differs from retained receipt',
             );
             status = savedRetired === undefined ? 'retired-unpublished' : 'retired';
           }
           await unchanged();
-          require98(
-            same67({ value: await optional(retiringName) }, { value: savedRetiring }) &&
-              same67({ value: await optional(retiredName) }, { value: savedRetired }) &&
-              same67(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
+          require99(
+            same68({ value: await optional(retiringName) }, { value: savedRetiring }) &&
+              same68({ value: await optional(retiredName) }, { value: savedRetired }) &&
+              same68(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
             'retirement proof changed across inspection',
           );
           await unchanged();
-          require98(
-            same67({ value: await optional(retiringName) }, { value: savedRetiring }) &&
-              same67({ value: await optional(retiredName) }, { value: savedRetired }),
+          require99(
+            same68({ value: await optional(retiringName) }, { value: savedRetiring }) &&
+              same68({ value: await optional(retiredName) }, { value: savedRetired }),
             'retirement publication changed at final inspection boundary',
           );
           return inspection(status, {
@@ -47303,16 +47335,16 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             observed,
           });
         }
-        require98(session.retireArtifacts, 'owning retirement mutation contract unavailable');
+        require99(session.retireArtifacts, 'owning retirement mutation contract unavailable');
         if (observed.status === 'absent') {
-          require98(
+          require99(
             proof && !barrierPresent && (await optional(retiredName)) === undefined,
             'absent barrier cannot recover completed retirement',
           );
           const current = await journal();
-          require98(
+          require99(
             current.state === 'planned' &&
-              same67(current.receipt, final) &&
+              same68(current.receipt, final) &&
               current.journalSha256 === prepared.finalJournalSha256 &&
               current.executionSha256 === prepared.finalExecutionSha256 &&
               current.ordinaryRefreshEnabled === true,
@@ -47323,9 +47355,9 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           await session.retireArtifacts(final, preparingSha256, env, deadline);
           observed = await session.readArtifactRetirement(final, preparingSha256, deadline);
         } else {
-          require98(same67(await optional(retiringName), retiring), 'barrier lacks original retiring authorization');
+          require99(same68(await optional(retiringName), retiring), 'barrier lacks original retiring authorization');
           if (observed.status === 'retiring') {
-            require98(
+            require99(
               (await optional(retiredName)) === undefined,
               'partial barrier has completed retirement publication',
             );
@@ -47334,8 +47366,8 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             observed = await session.readArtifactRetirement(final, preparingSha256, deadline);
           }
         }
-        require98(observed.status === 'runner-artifacts-retired', 'selected runner retirement remains incomplete');
-        require98(
+        require99(observed.status === 'runner-artifacts-retired', 'selected runner retirement remains incomplete');
+        require99(
           observed.receipt.manifestSha256 === manifestSha256 &&
             observed.receipt.evidenceSha256 === preparingSha256 &&
             observed.receipt.finalPlanSha256 === final.planSha256 &&
@@ -47353,10 +47385,10 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           receipt: observed.receipt,
         };
         await unchanged();
-        require98(same67(await optional(retiringName), retiring), 'retiring authorization changed');
+        require99(same68(await optional(retiringName), retiring), 'retiring authorization changed');
         await persist(retiredName, retired);
-        require98(
-          same67(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
+        require99(
+          same68(await session.readArtifactRetirement(final, preparingSha256, deadline), observed),
           'retained retirement proof changed before final boundary',
         );
         await unchanged();
@@ -47388,14 +47420,14 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       if (authorization === undefined) {
         await originalCustody();
         const current = await journal();
-        require98(
+        require99(
           current.state === 'absent' &&
             current.receipt === undefined &&
             current.savedPlanSha256 === null &&
             current.journalSha256 === null,
           'saved release lacks original planning authorization',
         );
-        require98(
+        require99(
           (await optional(`${prefix}-plan.json`)) === undefined &&
             (await optional(`${prefix}-submission.json`)) === undefined &&
             (await optional(`${prefix}-outcome.json`)) === undefined &&
@@ -47408,21 +47440,21 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         await persist(`${prefix}-authorization.json`, authorization);
       }
       const authorized = packet(authorization, ['status', 'prior', 'baseline']);
-      require98(
+      require99(
         authorized.status === 'authorized' &&
-          same67(authorized.prior, original.packet.prior) &&
-          same67(authorized.baseline, await observe()),
+          same68(authorized.prior, original.packet.prior) &&
+          same68(authorized.baseline, await observe()),
         'original selected prior or stable cloud baseline differs',
       );
       const authorizationSha256 = canonicalSha256(authorized);
       const stable = async () =>
-        require98(
-          same67(await observe(), authorized.baseline),
+        require99(
+          same68(await observe(), authorized.baseline),
           'selected VM or network changed during state-only release',
         );
       const sealAuthorization = async () =>
-        require98(
-          same67(await store.read(`${prefix}-authorization.json`), authorized),
+        require99(
+          same68(await store.read(`${prefix}-authorization.json`), authorized),
           'original release authorization changed',
         );
       let planPacket = await optional(`${prefix}-plan.json`);
@@ -47435,7 +47467,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           await stable();
           receipt = await session.plan(env, deadline);
         } else {
-          require98(
+          require99(
             current.state === 'planned' && current.receipt,
             'unpublished submitted release requires original plan and submission',
           );
@@ -47466,9 +47498,9 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             proposed,
           ),
         );
-        require98(same67(prior, original.packet.prior), 'release prior differs from original cancelled prior');
+        require99(same68(prior, original.packet.prior), 'release prior differs from original cancelled prior');
         const custody = await originalCustody(receipt);
-        require98(
+        require99(
           'continuation' in custody &&
             custody.continuation &&
             custody.continuation.state === 'planned' &&
@@ -47498,10 +47530,10 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         'originalExecutionSha256',
         'originalReleaseJournalSha256',
       ]);
-      require98(
+      require99(
         planned.status === 'planned' &&
           planned.authorizationSha256 === authorizationSha256 &&
-          same67(planned.prior, original.packet.prior) &&
+          same68(planned.prior, original.packet.prior) &&
           typeof planned.originalExecutionSha256 === 'string' &&
           /^[a-f0-9]{64}$/.test(planned.originalExecutionSha256) &&
           typeof planned.originalReleaseJournalSha256 === 'string' &&
@@ -47533,15 +47565,15 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         originalReleaseJournalSha256: planned.originalReleaseJournalSha256,
       };
       const validateSubmission = async () =>
-        require98(
+        require99(
           released.noChanges
             ? (await optional(`${prefix}-submission.json`)) === undefined
-            : same67(await optional(`${prefix}-submission.json`), expectedSubmission),
+            : same68(await optional(`${prefix}-submission.json`), expectedSubmission),
           'original submission authorization differs',
         );
       const active = async (receipt) => {
         const value = await originalCustody(receipt);
-        require98(
+        require99(
           'continuation' in value &&
             value.continuation &&
             value.continuation.ordinaryRefreshEnabled === true &&
@@ -47566,12 +47598,12 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         if (!released.noChanges) {
           const submitted = await optional(`${prefix}-submission.json`);
           if (current.state === 'planned') {
-            require98(
+            require99(
               current.journalSha256 === planned.originalReleaseJournalSha256,
               'original planned journal changed before submission',
             );
-            require98(
-              submitted === undefined || same67(submitted, submission),
+            require99(
+              submitted === undefined || same68(submitted, submission),
               'planned submission authorization differs',
             );
             await stable();
@@ -47580,12 +47612,12 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
             await session.apply(released, env, deadline);
             current = await active(released);
           } else
-            require98(
-              same67(submitted, submission) && (current.state === 'applying' || current.state === 'applied'),
+            require99(
+              same68(submitted, submission) && (current.state === 'applying' || current.state === 'applied'),
               'submitted release lacks exact original submission authorization',
             );
         } else
-          require98(
+          require99(
             current.state === 'planned' &&
               current.journalSha256 === planned.originalReleaseJournalSha256 &&
               (await optional(`${prefix}-submission.json`)) === undefined,
@@ -47597,8 +47629,8 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           env,
           deadline,
         );
-        require98(
-          same67(fields, { [address3]: null }),
+        require99(
+          same68(fields, { [address3]: null }),
           'selected release outcome unavailable: original control remains',
         );
         await stable();
@@ -47614,8 +47646,8 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           cloud: authorized.baseline,
         };
         await persist(outcomeName, outcome);
-        require98(
-          same67(
+        require99(
+          same68(
             await session.readAppliedResourceFields(released, azureTerraformNetworkPowerSelections, env, deadline),
             fields,
           ),
@@ -47624,7 +47656,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         await stable();
         if (current.state === 'applying') await session.reconcileApplyFromEvidence(released, canonicalSha256(outcome));
         current = await active(released);
-        require98(
+        require99(
           current.state === (released.noChanges ? 'planned' : 'applied'),
           'selected release journal not settled',
         );
@@ -47650,7 +47682,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         'releasedJournalSha256',
         'releasedState',
       ]);
-      require98(
+      require99(
         completed.status === 'complete' &&
           completed.planPacketSha256 === planPacketSha256 &&
           completed.authorizationSha256 === authorizationSha256 &&
@@ -47669,14 +47701,14 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         'state',
         'cloud',
       ]);
-      require98(
+      require99(
         outcome.status === 'observed' &&
           outcome.planPacketSha256 === planPacketSha256 &&
           outcome.authorizationSha256 === authorizationSha256 &&
           outcome.receiptSha256 === canonicalSha256(released) &&
           outcome.originalExecutionSha256 === planned.originalExecutionSha256 &&
-          same67(outcome.state, { [address3]: null }) &&
-          same67(outcome.cloud, authorized.baseline) &&
+          same68(outcome.state, { [address3]: null }) &&
+          same68(outcome.cloud, authorized.baseline) &&
           canonicalSha256(outcome) === completed.outcomeSha256,
         'original selected outcome differs',
       );
@@ -47684,7 +47716,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       await sealAuthorization();
       const originalReleaseHistory = async () => {
         const value = await readHistory.call(session, released, deadline);
-        require98(
+        require99(
           value.schemaVersion === 1 &&
             value.scope === 'exact-saved-plan-journal-history' &&
             value.receiptSha256 === canonicalSha256(released) &&
@@ -47713,25 +47745,25 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       const current = await journal(),
         savedFinalizing = await optional(`${prefix}-finalizing.json`);
       if (savedFinalizing === undefined) {
-        require98(
+        require99(
           current.receipt &&
-            same67(current.receipt, released) &&
+            same68(current.receipt, released) &&
             current.journalSha256 === completed.releasedJournalSha256 &&
             current.state === completed.releasedState &&
             (await optional(`${prefix}-final.json`)) === undefined,
           'final refresh lacks original completed release authorization',
         );
         await persist(`${prefix}-finalizing.json`, finalizing);
-      } else require98(same67(savedFinalizing, finalizing), 'finalizing source differs');
+      } else require99(same68(savedFinalizing, finalizing), 'finalizing source differs');
       let final;
-      if (current.receipt && same67(current.receipt, released)) {
-        require98(
+      if (current.receipt && same68(current.receipt, released)) {
+        require99(
           current.journalSha256 === completed.releasedJournalSha256 && current.state === completed.releasedState,
           'original release changed before final refresh',
         );
         if (released.noChanges && released.changes.length === 0) final = released;
         else {
-          require98(
+          require99(
             (await optional(`${prefix}-final.json`)) === undefined,
             'published final differs from original current release',
           );
@@ -47740,7 +47772,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
           final = await session.plan(env, deadline);
         }
       } else {
-        require98(current.state === 'planned' && current.receipt, 'current final receipt unavailable');
+        require99(current.state === 'planned' && current.receipt, 'current final receipt unavailable');
         final = current.receipt;
       }
       await step(() => validateAzureTerraformNetworkPowerPlan(plan, before, node, operation, final, 'final'));
@@ -47769,9 +47801,9 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         ),
       );
       const finalJournal = await journal();
-      require98(
+      require99(
         finalJournal.state === 'planned' &&
-          same67(finalJournal.receipt, final) &&
+          same68(finalJournal.receipt, final) &&
           finalJournal.ordinaryRefreshEnabled === true &&
           typeof finalJournal.executionSha256 === 'string' &&
           /^[a-f0-9]{64}$/.test(finalJournal.executionSha256),
@@ -47779,8 +47811,8 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
       );
       await originalCustody(final);
       await originalReleaseHistory();
-      require98(
-        same67(await session.readAppliedResourceFields(final, azureTerraformNetworkPowerSelections, env, deadline), {
+      require99(
+        same68(await session.readAppliedResourceFields(final, azureTerraformNetworkPowerSelections, env, deadline), {
           [address3]: null,
         }),
         'final applied selected control remains',
@@ -47798,12 +47830,12 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         executionSha256: finalJournal.executionSha256,
       };
       await persist(`${prefix}-final.json`, finalPacket);
-      require98(
-        same67(await journal(), finalJournal) &&
-          same67(await store.read(`${prefix}-plan.json`), planned) &&
-          same67(await store.read(completionName), completed) &&
-          same67(await store.read(outcomeName), outcome) &&
-          same67(await store.read(`${prefix}-finalizing.json`), finalizing),
+      require99(
+        same68(await journal(), finalJournal) &&
+          same68(await store.read(`${prefix}-plan.json`), planned) &&
+          same68(await store.read(completionName), completed) &&
+          same68(await store.read(outcomeName), outcome) &&
+          same68(await store.read(`${prefix}-finalizing.json`), finalizing),
         'release evidence changed across final publication',
       );
       await validateSubmission();
@@ -47839,7 +47871,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
   );
 }
 var hash28 = (value) => createHash50('sha256').update(value).digest('hex'),
-  same67,
+  same68,
   address3 = 'azapi_resource_action.ce_network';
 var init_terraform_network_power_cancelled_release = __esm(() => {
   init_canonical();
@@ -47847,7 +47879,7 @@ var init_terraform_network_power_cancelled_release = __esm(() => {
   init_terraform_network_power_cancellation_packet();
   init_terraform_network_power_lifecycle();
   init_terraform_network_retirement_graph();
-  same67 = canonicalEqual;
+  same68 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-power-runner-history.ts
@@ -47856,7 +47888,7 @@ import { constants as constants7 } from 'node:fs';
 import { lstat as lstat18, open as openFile, readdir as readdir18, realpath as realpath16 } from 'node:fs/promises';
 import { join as join25 } from 'node:path';
 
-function require99(value, message) {
+function require100(value, message) {
   if (!value) throw Error(`Azure Terraform network power runner history: ${message}`);
 }
 async function readAzureTerraformNetworkPowerRunnerHistory(
@@ -47881,11 +47913,11 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require99(
+    require100(
       (graphWitness === undefined || canonicalSha256(graphWitness) === graphWitnessSha256) &&
-        same68(request, plan) &&
-        same68(siteRequest, site) &&
-        same68(store.owner, owner) &&
+        same69(request, plan) &&
+        same69(siteRequest, site) &&
+        same69(store.owner, owner) &&
         store.directory === directory &&
         terraform.open === open &&
         store.read === read &&
@@ -47915,7 +47947,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       let names = null;
       try {
         const stat = await lstat18(path);
-        require99(
+        require100(
           stat.isDirectory() &&
             !stat.isSymbolicLink() &&
             stat.uid === process.getuid?.() &&
@@ -47927,7 +47959,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
-      require99(!directories.has(path) || same68(directories.get(path), names), 'stage directory inventory changed');
+      require100(!directories.has(path) || same69(directories.get(path), names), 'stage directory inventory changed');
       directories.set(path, names);
       return names;
     });
@@ -47940,7 +47972,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
         if (error.code !== 'ENOENT') throw error;
         found = false;
       }
-      require99(!markers.has(path) || markers.get(path) === found, 'stage marker presence changed');
+      require100(!markers.has(path) || markers.get(path) === found, 'stage marker presence changed');
       markers.set(path, found);
       return found;
     });
@@ -47950,14 +47982,14 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       const file = await openFile(path, constants7.O_RDONLY | constants7.O_NOFOLLOW);
       try {
         const before = await file.stat();
-        require99(
+        require100(
           before.isFile() && before.uid === process.getuid?.() && before.nlink === 1 && (before.mode & 63) === 0,
           'retained completed runner file ownership differs',
         );
         const bytes = await file.readFile(),
           after = await file.stat(),
           named = await lstat18(path);
-        require99(
+        require100(
           after.dev === before.dev &&
             after.ino === before.ino &&
             after.size === before.size &&
@@ -47973,7 +48005,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
           'retained completed runner file changed during read',
         );
         const digest = createHash51('sha256').update(bytes).digest('hex');
-        require99(
+        require100(
           (expectedSha256 === undefined || digest === expectedSha256) &&
             (!retainedFiles.has(path) || retainedFiles.get(path) === digest),
           'authenticated completed runner bytes changed',
@@ -48006,7 +48038,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
     prefix = `network-${plan.planSha256.slice(0, 24)}-`;
   const selected = (names ?? []).filter((name) => name.startsWith(prefix));
   const deployments = graph.powerDeployments;
-  require99(
+  require100(
     new Set(deployments.map((deployment) => deployment.stage)).size === deployments.length &&
       selected.every((stage) => deployments.some((deployment) => deployment.stage === stage)),
     'orphan or serially unauthorized selected power runner',
@@ -48014,30 +48046,30 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
   const rows = [];
   const rechecks = [];
   for (const deployment of deployments) {
-    require99(deployment.stage, 'derived stage identity missing');
+    require100(deployment.stage, 'derived stage identity missing');
     const match = deployment.stage.match(/-node-(\d+)-(deallocate|start)$/);
-    require99(match, 'derived selected stage malformed');
+    require100(match, 'derived selected stage malformed');
     const node = Number(match[1]),
       operation = match[2];
     const checkpoint = graph.checkpoint.snapshot?.checkpoint.nodes.find((row) => row.node === node),
       historyNode = graph.nodes.find((row) => row.node === node);
-    require99(checkpoint && historyNode, 'selected runner lacks exact original serial node');
+    require100(checkpoint && historyNode, 'selected runner lacks exact original serial node');
     const history = operation === 'start' ? historyNode.start : historyNode.deallocate;
     const row = { stage: deployment.stage, node, operation, deploymentSha256: canonicalSha256(deployment) };
     if (!selected.includes(deployment.stage)) {
-      require99(!history.lastPacket, 'published selected power history lacks owning runner directory');
+      require100(!history.lastPacket, 'published selected power history lacks owning runner directory');
       rows.push({ ...row, status: 'missing' });
       continue;
     }
     const stageDirectory = join25(root, deployment.stage),
       runnerDirectory = join25(stageDirectory, deployment.deploymentId);
     const stageNames = await inventory(stageDirectory);
-    require99(
-      stageNames && same68(stageNames, [deployment.deploymentId]),
+    require100(
+      stageNames && same69(stageNames, [deployment.deploymentId]),
       'stage directory has foreign or orphan runner',
     );
-    require99(await inventory(runnerDirectory), 'owning runner directory missing');
-    require99(
+    require100(await inventory(runnerDirectory), 'owning runner directory missing');
+    require100(
       !(await exists(join25(runnerDirectory, 'configuration-transition.json'))),
       'pending runner revision requires owner recovery',
     );
@@ -48056,8 +48088,8 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       };
       const cancellation = await readCancellation();
       rechecks.push(async () =>
-        require99(
-          same68({ value: await readCancellation() }, { value: cancellation }),
+        require100(
+          same69({ value: await readCancellation() }, { value: cancellation }),
           'selected cancellation presence or custody changed',
         ),
       );
@@ -48084,7 +48116,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
           retirement,
         });
         rechecks.push(async () =>
-          require99(same68(await inspect(), retirement), 'retired selected runner proof changed'),
+          require100(same69(await inspect(), retirement), 'retired selected runner proof changed'),
         );
       } else {
         const completedIdentity = canonicalSha256({ planSha256: plan.planSha256, node, operation }).slice(0, 24);
@@ -48105,7 +48137,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
         };
         const packets = await readPackets();
         rechecks.push(async () =>
-          require99(same68(await readPackets(), packets), 'completed retirement publication custody changed'),
+          require100(same69(await readPackets(), packets), 'completed retirement publication custody changed'),
         );
         if (packets.some((packet) => packet !== null)) {
           const inspect = () =>
@@ -48132,7 +48164,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
           });
           if (retirement.runnerRetirementQualified) {
             const proof = retirement.proof;
-            require99(
+            require100(
               proof?.observed?.status === 'runner-artifacts-retired' &&
                 typeof proof.observed.markerSha256 === 'string' &&
                 /^[a-f0-9]{64}$/.test(proof.observed.markerSha256) &&
@@ -48148,22 +48180,22 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
               configurationSha256: hash29(configuration),
               providerLockSha256: hash29(providerLock),
             };
-            require99(
+            require100(
               canonicalSha256(manifest) === proof.observed.receipt.manifestSha256,
               'completed retained manifest differs from selected release',
             );
-            require99(
-              same68(await inventory(runnerDirectory), ['artifact-retirement.json', 'deployment.json']),
+            require100(
+              same69(await inventory(runnerDirectory), ['artifact-retirement.json', 'deployment.json']),
               'completed retired runner retains unexpected artifacts',
             );
-            require99(
-              same68(JSON.parse((await retainedFile(join25(runnerDirectory, 'deployment.json'))).toString()), manifest),
+            require100(
+              same69(JSON.parse((await retainedFile(join25(runnerDirectory, 'deployment.json'))).toString()), manifest),
               'completed retained manifest bytes differ',
             );
             await retainedFile(join25(runnerDirectory, 'artifact-retirement.json'), proof.observed.markerSha256);
           } else {
             rechecks.push(async () =>
-              require99(same68(await inspect(), retirement), 'completed selected retirement proof changed'),
+              require100(same69(await inspect(), retirement), 'completed selected retirement proof changed'),
             );
           }
         } else rows.push({ ...row, status: 'retired-awaiting-receipt' });
@@ -48176,9 +48208,9 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       readCurrentPlanJournal: currentJournal,
       readPlanApplicationHistory: applicationHistory,
     } = session;
-    require99(currentConfiguration && currentJournal && applicationHistory, 'owning journal inspection unavailable');
+    require100(currentConfiguration && currentJournal && applicationHistory, 'owning journal inspection unavailable');
     const methods = () =>
-      require99(
+      require100(
         session.readConfigurationSha256 === currentConfiguration &&
           session.readCurrentPlanJournal === currentJournal &&
           session.readPlanApplicationHistory === applicationHistory,
@@ -48187,8 +48219,8 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
     const release = await step(() =>
       azureTerraformNetworkPowerDeployment(plan, checkpoint.before, node, operation, true),
     );
-    require99(
-      same68(
+    require100(
+      same69(
         deployment,
         await step(() => azureTerraformNetworkPowerDeployment(plan, checkpoint.before, node, operation)),
       ),
@@ -48200,17 +48232,17 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
     };
     const configuration = await step(() => currentConfiguration.call(session));
     methods();
-    require99(
+    require100(
       configuration === hash29(deployment.configuration) || configuration === hash29(release.configuration),
       'current isolated power configuration differs',
     );
     const configurationPhase = configuration === hash29(deployment.configuration) ? 'mutation' : 'release';
-    require99(
+    require100(
       configurationPhase !== 'mutation' || !history.receipts.release,
       'actual runner is behind published release history',
     );
     if (configurationPhase === 'release')
-      require99(
+      require100(
         history.receipts.mutation &&
           history.packetSha256ByName[
             `${plan.planId}-terraform-network-node-${node}-${operation}-mutation-complete.json`
@@ -48219,7 +48251,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       );
     const current = await step(() => currentJournal.call(session, configuration, deadline));
     methods();
-    require99(
+    require100(
       current.schemaVersion === 1 &&
         current.scope === 'current-saved-plan-byte-and-journal-binding' &&
         current.planSemanticsQualified === false &&
@@ -48238,7 +48270,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
           configurationPhase,
         ),
       );
-      require99(
+      require100(
         current.savedPlanSha256 === current.receipt.planSha256 &&
           current.journalSha256 &&
           ['planned', 'applying', 'applied'].includes(current.state),
@@ -48248,12 +48280,12 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
         configurationPhase === 'mutation'
           ? [history.receipts.mutation]
           : [history.receipts.release, history.receipts.final, history.receipts.current];
-      require99(
-        recorded.some((receipt) => receipt && same68(receipt, current.receipt)) || current.state === 'planned',
+      require100(
+        recorded.some((receipt) => receipt && same69(receipt, current.receipt)) || current.state === 'planned',
         'unpublished submitted current journal',
       );
     } else
-      require99(
+      require100(
         current.state === 'absent' && current.savedPlanSha256 === null && current.journalSha256 === null,
         'unbound absent current journal',
       );
@@ -48263,7 +48295,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       if (!receipt) continue;
       const actual = await step(() => applicationHistory.call(session, receipt, deadline));
       methods();
-      require99(
+      require100(
         actual.schemaVersion === 1 &&
           actual.scope === 'exact-saved-plan-journal-history' &&
           actual.receiptSha256 === canonicalSha256(receipt) &&
@@ -48275,7 +48307,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
           Array.isArray(actual.matches),
         'original phase journal history contract differs',
       );
-      require99(
+      require100(
         actual.matches.every(
           (entry) =>
             ['current', 'revision', 'plan-history'].includes(entry.location) &&
@@ -48304,8 +48336,8 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
       phases[phase] = { receiptSha256: canonicalSha256(receipt), submission, history: actual };
       rechecks.push(async () => {
         methods();
-        require99(
-          same68(await step(() => applicationHistory.call(session, receipt, deadline)), actual),
+        require100(
+          same69(await step(() => applicationHistory.call(session, receipt, deadline)), actual),
           'original selected runner phase journal changed',
         );
         methods();
@@ -48314,15 +48346,15 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
     rows.push({ ...row, status: 'inspected', configurationPhase, current, phases });
     rechecks.push(async () => {
       methods();
-      require99(
+      require100(
         (await step(() => currentConfiguration.call(session))) === configuration &&
-          same68(await step(() => currentJournal.call(session, configuration, deadline)), current),
+          same69(await step(() => currentJournal.call(session, configuration, deadline)), current),
         'current selected runner journal changed',
       );
       methods();
     });
   }
-  require99(
+  require100(
     canonicalSha256(await graphRead()) === graphSha256,
     'original serial graph changed across runner inspection',
   );
@@ -48330,7 +48362,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
   for (const path of directories.keys()) await inventory(path);
   for (const path of markers.keys()) await exists(path);
   for (const path of retainedFiles.keys()) await retainedFile(path);
-  require99(
+  require100(
     canonicalSha256(await graphRead()) === graphSha256,
     'original serial graph changed at completed custody boundary',
   );
@@ -48349,7 +48381,7 @@ async function readAzureTerraformNetworkPowerRunnerHistory(
   };
 }
 var hash29 = (value) => createHash51('sha256').update(value).digest('hex'),
-  same68 = (a, b) => canonicalEqual(a, b);
+  same69 = (a, b) => canonicalEqual(a, b);
 var init_terraform_network_power_runner_history = __esm(() => {
   init_canonical();
   init_terraform_network_power();
@@ -48363,13 +48395,13 @@ import { createHash as createHash52 } from 'node:crypto';
 import { lstat as lstat19, readdir as readdir19, realpath as realpath17 } from 'node:fs/promises';
 import { join as join26 } from 'node:path';
 
-function require100(value, message) {
+function require101(value, message) {
   if (!value) throw Error(`Azure Terraform network main runner history: ${message}`);
 }
 function keys22(value, fields) {
-  require100(value && typeof value === 'object' && !Array.isArray(value), 'complete journal object required');
+  require101(value && typeof value === 'object' && !Array.isArray(value), 'complete journal object required');
   const row = value;
-  require100(same69(Object.keys(row).sort(), fields.toSorted()), 'journal schema differs');
+  require101(same70(Object.keys(row).sort(), fields.toSorted()), 'journal schema differs');
   return row;
 }
 async function readAzureTerraformNetworkMainRunnerHistory(
@@ -48398,10 +48430,10 @@ async function readAzureTerraformNetworkMainRunnerHistory(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require100(
-      same69(request, plan) &&
-        same69(siteRequest, site) &&
-        same69(store.owner, owner) &&
+    require101(
+      same70(request, plan) &&
+        same70(siteRequest, site) &&
+        same70(store.owner, owner) &&
         store.directory === directory &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'request or owning dependency changed',
@@ -48435,8 +48467,8 @@ async function readAzureTerraformNetworkMainRunnerHistory(
     );
   const recheckEmpty = async () => {
     if (!emptyMainAdmission) return;
-    require100(
-      emptyMainAdmission.context.terraform === terraform && same69(emptyMainAdmission.context.site, site),
+    require101(
+      emptyMainAdmission.context.terraform === terraform && same70(emptyMainAdmission.context.site, site),
       'terminal main owner context differs',
     );
     await step(() =>
@@ -48460,7 +48492,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
   const graph = lineage?.graph ?? (await graphRead()),
     graphSha256 = canonicalSha256(graph);
   const deployment = await step(() => azureTerraformCurrentDeployment(plan));
-  require100(
+  require101(
     !deployment.stage &&
       deployment.deploymentId === owner.deploymentId &&
       deployment.scope.account === owner.account &&
@@ -48473,7 +48505,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
     step(async () => {
       try {
         const stat = await lstat19(runnerDirectory);
-        require100(
+        require101(
           stat.isDirectory() &&
             !stat.isSymbolicLink() &&
             stat.uid === process.getuid?.() &&
@@ -48488,7 +48520,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
       }
     });
   const names = await inventory();
-  require100(!names?.includes('configuration-transition.json'), 'pending main runner revision requires owner recovery');
+  require101(!names?.includes('configuration-transition.json'), 'pending main runner revision requires owner recovery');
   const rows = [],
     terminalRows = [],
     receipts = [];
@@ -48520,10 +48552,10 @@ async function readAzureTerraformNetworkMainRunnerHistory(
   }
   for (const [publicationName, packetSha256] of Object.entries(graph.checkpoint.completionSha256ByName)) {
     const packet = await step(() => readPacket.call(store, publicationName));
-    require100(canonicalSha256(packet) === packetSha256, 'terminal publication changed after graph authentication');
-    require100(packet && typeof packet === 'object' && !Array.isArray(packet), 'terminal publication object required');
+    require101(canonicalSha256(packet) === packetSha256, 'terminal publication changed after graph authentication');
+    require101(packet && typeof packet === 'object' && !Array.isArray(packet), 'terminal publication object required');
     const receipt = packet.receipt;
-    require100(
+    require101(
       receipt &&
         receipt.noChanges === true &&
         Array.isArray(receipt.changes) &&
@@ -48540,7 +48572,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
     });
     receipts.push(structuredClone(receipt));
     rechecks.push(async () => {
-      require100(
+      require101(
         canonicalSha256(await step(() => readPacket.call(store, publicationName))) === packetSha256,
         'terminal publication changed at saved-byte boundary',
       );
@@ -48560,12 +48592,12 @@ async function readAzureTerraformNetworkMainRunnerHistory(
       readCurrentPlanJournal: readCurrent,
       readPlanApplicationHistory: readHistory,
     } = session;
-    require100(
+    require101(
       readConfiguration && readCurrent && readHistory,
       'authenticated main runner journal readers unavailable',
     );
     const methods = () =>
-      require100(
+      require101(
         session.readConfigurationSha256 === readConfiguration &&
           session.readCurrentPlanJournal === readCurrent &&
           session.readPlanApplicationHistory === readHistory,
@@ -48579,7 +48611,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
       ...(lineage?.lineage.configurationSha256s ?? []),
       ...(emptyMainAdmission ? [emptyMainAdmission.witness.configurationSha256] : []),
     ]);
-    require100(
+    require101(
       sha19(configuration) && configurations.has(configuration),
       'current main runner configuration is outside original graph',
     );
@@ -48600,13 +48632,13 @@ async function readAzureTerraformNetworkMainRunnerHistory(
       'planSemanticsQualified',
       ...(current.executionSha256 !== undefined ? ['executionSha256', 'ordinaryRefreshEnabled'] : []),
     ]);
-    require100(
+    require101(
       current.executionSha256 === undefined ||
         (sha19(current.executionSha256) && typeof current.ordinaryRefreshEnabled === 'boolean'),
       'current execution binding differs',
     );
     const manifestSha256 = manifestOf(configuration);
-    require100(
+    require101(
       current.schemaVersion === 1 &&
         current.scope === 'current-saved-plan-byte-and-journal-binding' &&
         current.manifestSha256 === manifestSha256 &&
@@ -48614,7 +48646,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
         ['absent', 'planned', 'applying', 'applied'].includes(current.state),
       'current main runner journal identity differs',
     );
-    require100(
+    require101(
       current.receipt
         ? current.savedPlanSha256 === current.receipt.planSha256 &&
             sha19(current.savedPlanSha256) &&
@@ -48642,7 +48674,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
         'applicationOutcomeQualified',
         'retirementQualified',
       ]);
-      require100(
+      require101(
         actual.schemaVersion === 1 &&
           actual.scope === 'exact-saved-plan-journal-history' &&
           actual.receiptSha256 === canonicalSha256(receipt) &&
@@ -48666,7 +48698,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
           'manifestSha256',
         ]);
         const key = `${match.location}:${match.archiveSha256}`;
-        require100(
+        require101(
           ['current', 'revision', 'plan-history'].includes(match.location) &&
             ['planned', 'applying', 'applied'].includes(match.state) &&
             sha19(match.archiveSha256) &&
@@ -48697,8 +48729,8 @@ async function readAzureTerraformNetworkMainRunnerHistory(
       custodyRows[index].history = structuredClone(actual);
       rechecks.push(async () => {
         methods();
-        require100(
-          same69(await step(() => readHistory.call(session, receipt, deadline)), actual),
+        require101(
+          same70(await step(() => readHistory.call(session, receipt, deadline)), actual),
           'original main runner journal changed',
         );
         methods();
@@ -48707,18 +48739,18 @@ async function readAzureTerraformNetworkMainRunnerHistory(
     const originalCurrent = structuredClone(current);
     rechecks.push(async () => {
       methods();
-      require100(
+      require101(
         (await step(() => readConfiguration.call(session))) === configuration &&
-          same69(await step(() => readCurrent.call(session, configuration, deadline)), originalCurrent),
+          same70(await step(() => readCurrent.call(session, configuration, deadline)), originalCurrent),
         'current main runner journal changed',
       );
       methods();
     });
   }
-  require100(canonicalSha256(await graphRead()) === graphSha256, 'original network graph changed');
+  require101(canonicalSha256(await graphRead()) === graphSha256, 'original network graph changed');
   for (const recheck of rechecks) await recheck();
-  require100(same69(await inventory(), names), 'main runner inventory changed');
-  require100(canonicalSha256(await graphRead()) === graphSha256, 'original network graph changed at final boundary');
+  require101(same70(await inventory(), names), 'main runner inventory changed');
+  require101(canonicalSha256(await graphRead()) === graphSha256, 'original network graph changed at final boundary');
   await recheckEmpty();
   seal();
   return {
@@ -48746,7 +48778,7 @@ async function readAzureTerraformNetworkMainRunnerHistory(
     retirementQualified: false,
   };
 }
-var same69 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same70 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash30 = (value) => createHash52('sha256').update(value).digest('hex'),
   sha19 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 var init_terraform_network_main_runner_history = __esm(() => {
@@ -48763,7 +48795,7 @@ import { constants as constants8 } from 'node:fs';
 import { lstat as lstat20, open as openFile2, readdir as readdir20, realpath as realpath18 } from 'node:fs/promises';
 import { join as join27 } from 'node:path';
 
-function require101(value, message) {
+function require102(value, message) {
   if (!value) throw Error(`Azure Terraform replacement receipt provenance: ${message}`);
 }
 async function readAzureTerraformNetworkReplacementReceiptProvenance(
@@ -48788,7 +48820,7 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require101(
+    require102(
       canonicalEqual(request, plan) &&
         canonicalEqual(store.owner, owner) &&
         canonicalEqual(siteRequest, site) &&
@@ -48813,7 +48845,7 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
   seal();
   verifyAzureCePlan(plan);
   verifyAzureTerraformNetworkReplacementProfile(plan);
-  require101(
+  require102(
     canonicalEqual(azureUpgradeBinding(plan).owner, owner) &&
       typeof verifier === 'function' &&
       typeof replacementVerifier === 'function',
@@ -48823,7 +48855,7 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
   const packetSnapshot = async () => {
     seal();
     const before = await step(() => lstat20(directory));
-    require101(
+    require102(
       before.isDirectory() &&
         !before.isSymbolicLink() &&
         before.uid === process.getuid?.() &&
@@ -48835,19 +48867,19 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
       bytesByName = {},
       fileIdentitiesByName = {};
     for (const name of names.filter((name) => name.endsWith('.json'))) {
-      require101(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'private receipt packet filename differs');
+      require102(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'private receipt packet filename differs');
       const path = join27(directory, name),
         handle = await step(() => openFile2(path, constants8.O_RDONLY | constants8.O_NOFOLLOW));
       try {
         const stat = await step(() => handle.stat());
-        require101(
+        require102(
           stat.isFile() && stat.uid === process.getuid?.() && stat.nlink === 1 && (stat.mode & 63) === 0,
           'private receipt packet file ownership differs',
         );
         const bytes = await step(() => handle.readFile()),
           after = await step(() => handle.stat()),
           named = await step(() => lstat20(path));
-        require101(
+        require102(
           after.dev === stat.dev &&
             after.ino === stat.ino &&
             after.size === stat.size &&
@@ -48869,7 +48901,7 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
       }
     }
     const after = await step(() => lstat20(directory));
-    require101(
+    require102(
       after.dev === before.dev &&
         after.ino === before.ino &&
         canonicalEqual((await step(() => readdir20(directory))).sort(), names),
@@ -48893,7 +48925,7 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
     );
   const generation = await readHistory(),
     history = generation.completion;
-  require101(
+  require102(
     history?.kind === 'azure-terraform-network-replacement-completion-history' &&
       history.sourcePlanSha256 === plan.planSha256 &&
       canonicalEqual(history.owner, owner) &&
@@ -48917,14 +48949,14 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
   );
   const name = azureTerraformNetworkReplacementCompletionName(plan);
   const raw = await step(() => context.read(name));
-  require101(
+  require102(
     canonicalSha256(raw) === history.completionSha256,
     'immutable receipt publication differs from authenticated outcome',
   );
   const packet = validateAzureTerraformNetworkReplacementCompletion(context, raw);
   await step(() => context.qualify(packet.operational, 'historical'));
   const outcome = structuredClone(await step(() => loaders.loadOutcome(plan)));
-  require101(
+  require102(
     outcome.networkReplacementCompletionSha256 === history.completionSha256,
     'owning completion outcome changed',
   );
@@ -48968,17 +49000,17 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
   }));
   await step(() => context.finish());
   const fresh = await readHistory();
-  require101(canonicalEqual(fresh, generation), 'owning generation changed across receipt collection');
+  require102(canonicalEqual(fresh, generation), 'owning generation changed across receipt collection');
   await step(() => context.finish());
-  require101(
+  require102(
     canonicalSha256(await step(() => context.read(name))) === history.completionSha256,
     'immutable receipt publication changed at final boundary',
   );
-  require101(
+  require102(
     canonicalEqual(await packetSnapshot(), originalPackets),
     'native receipt packet changed across provenance callbacks',
   );
-  require101(canonicalEqual(await step(() => loaders.loadOutcome(plan)), outcome), 'owning refresh outcome changed');
+  require102(canonicalEqual(await step(() => loaders.loadOutcome(plan)), outcome), 'owning refresh outcome changed');
   seal();
   return {
     schemaVersion: 1,
@@ -49016,14 +49048,14 @@ var init_terraform_network_replacement_receipt_provenance = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-retirement-requests.ts
-function require102(value, message) {
+function require103(value, message) {
   if (!value) throw Error(`Azure Terraform network retirement requests: ${message}`);
 }
 async function readAzureTerraformNetworkRetirementRequests(originalRequest, session, signal) {
   signal?.throwIfAborted();
   const original = structuredClone(originalRequest);
   verifyAzureCePlan(original);
-  require102(
+  require103(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
       !original.terraformNetworkProfile &&
@@ -49034,23 +49066,23 @@ async function readAzureTerraformNetworkRetirementRequests(originalRequest, sess
   const binding = azureUpgradeBinding(original);
   const inventory = await readAzureCePlanInventory(session, signal);
   const plans = new Map(inventory.plans.map(({ plan }) => [plan.planSha256, plan]));
-  require102(
-    same70(plans.get(original.planSha256) ?? null, original),
+  require103(
+    same71(plans.get(original.planSha256) ?? null, original),
     'original deploy missing or changed in public plan inventory',
   );
   const selected = inventory.plans
     .map(({ plan }) => plan)
     .filter((plan) => {
       const profile = plan.terraformNetworkProfile ?? plan.terraformNetworkReplacementProfile;
-      const ownerMatches = same70(azureUpgradeBinding(plan).owner, binding.owner);
+      const ownerMatches = same71(azureUpgradeBinding(plan).owner, binding.owner);
       if (profile?.originalPlanSha256 === original.planSha256 || (ownerMatches && profile)) {
-        require102(
-          profile?.originalPlanSha256 === original.planSha256 && same70(azureUpgradeBinding(plan), binding),
+        require103(
+          profile?.originalPlanSha256 === original.planSha256 && same71(azureUpgradeBinding(plan), binding),
           'network request original lineage or owner differs',
         );
         return true;
       }
-      require102(
+      require103(
         !(ownerMatches && plan.engine === 'terraform' && plan.intent.operation === 'update-network'),
         'network execution identifiers unresolved',
       );
@@ -49061,31 +49093,31 @@ async function readAzureTerraformNetworkRetirementRequests(originalRequest, sess
       ? verifyAzureTerraformNetworkProfile(plan)
       : verifyAzureTerraformNetworkReplacementProfile(plan);
   const ancestry = (plan, seen = new Set()) => {
-    require102(!seen.has(plan.planSha256), 'cyclic network ancestry');
+    require103(!seen.has(plan.planSha256), 'cyclic network ancestry');
     seen.add(plan.planSha256);
     const profile = profileOf(plan),
       retained = plans.get(profile.retainedPlanSha256);
-    require102(
+    require103(
       retained &&
-        same70(azureUpgradeBinding(retained), binding) &&
-        same70(azureTerraformNetworkScope(plan, true), azureTerraformNetworkScope(original, true)) &&
-        same70(azureTerraformNetworkScope(retained, true), azureTerraformNetworkScope(original, true)),
+        same71(azureUpgradeBinding(retained), binding) &&
+        same71(azureTerraformNetworkScope(plan, true), azureTerraformNetworkScope(original, true)) &&
+        same71(azureTerraformNetworkScope(retained, true), azureTerraformNetworkScope(original, true)),
       'exact retained predecessor or original provider scope unavailable',
     );
     if (plan.terraformNetworkReplacementProfile)
-      require102(
-        same70(azureTerraformNetworkScope(plan, false), azureTerraformNetworkScope(retained, false)),
+      require103(
+        same71(azureTerraformNetworkScope(plan, false), azureTerraformNetworkScope(retained, false)),
         'replacement retained subnet scope differs',
       );
     if (retained.planSha256 === original.planSha256) {
-      require102(!plan.terraformNetworkReplacementProfile, 'network-bound replacement requires preceding generation');
+      require103(!plan.terraformNetworkReplacementProfile, 'network-bound replacement requires preceding generation');
       return [original.planSha256];
     }
     if (retained.terraformNetworkProfile || retained.terraformNetworkReplacementProfile) {
-      require102(profileOf(retained).originalPlanSha256 === original.planSha256, 'retained original differs');
+      require103(profileOf(retained).originalPlanSha256 === original.planSha256, 'retained original differs');
       return [...ancestry(retained, seen), retained.planSha256];
     }
-    require102(
+    require103(
       !plan.terraformNetworkReplacementProfile &&
         retained.engine === 'terraform' &&
         retained.intent.operation === 'replace-node' &&
@@ -49095,7 +49127,7 @@ async function readAzureTerraformNetworkRetirementRequests(originalRequest, sess
         !retained.networkProfile &&
         !retained.networkReplacementProfile &&
         !retained.relayProfile &&
-        same70(azureTerraformNetworkScope(retained, false), azureTerraformNetworkScope(original, false)),
+        same71(azureTerraformNetworkScope(retained, false), azureTerraformNetworkScope(original, false)),
       'initial replacement predecessor is unresolved',
     );
     return [original.planSha256, retained.planSha256];
@@ -49110,9 +49142,9 @@ async function readAzureTerraformNetworkRetirementRequests(originalRequest, sess
   }));
   const recheck = async () => {
     signal?.throwIfAborted();
-    require102(same70(originalRequest, original), 'original request changed');
+    require103(same71(originalRequest, original), 'original request changed');
     await inventory.recheck();
-    require102(same70(originalRequest, original), 'original request changed');
+    require103(same71(originalRequest, original), 'original request changed');
   };
   await recheck();
   return {
@@ -49131,14 +49163,14 @@ async function readAzureTerraformNetworkRetirementRequests(originalRequest, sess
     recheck,
   };
 }
-var same70;
+var same71;
 var init_terraform_network_retirement_requests = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_network_plan();
   init_terraform_network_replacement_plan();
   init_terraform_upgrade();
-  same70 = canonicalEqual;
+  same71 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-original-receipt-provenance.ts
@@ -49147,7 +49179,7 @@ import { constants as constants9 } from 'node:fs';
 import { lstat as lstat21, open as open7, readdir as readdir21, realpath as realpath19 } from 'node:fs/promises';
 import { join as join28 } from 'node:path';
 
-function require103(value, message) {
+function require104(value, message) {
   if (!value) throw Error(`Azure Terraform original receipt provenance: ${message}`);
 }
 async function readAzureTerraformOriginalReceiptProvenance(request, store, loaders, signal) {
@@ -49163,9 +49195,9 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
     ];
   const seal = () => {
     deadline.throwIfAborted();
-    require103(
-      same71(request, plan) &&
-        same71(store.owner, owner) &&
+    require104(
+      same72(request, plan) &&
+        same72(store.owner, owner) &&
         store.directory === directory &&
         bindings.every((row) => Reflect.get(row.target, row.key) === row.value),
       'owning request or dependency changed',
@@ -49187,8 +49219,8 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
     }
   };
   verifyAzureCePlan(plan);
-  require103(
-    plan.engine === 'terraform' && plan.intent.operation === 'deploy' && same71(owner, azureUpgradeBinding(plan).owner),
+  require104(
+    plan.engine === 'terraform' && plan.intent.operation === 'deploy' && same72(owner, azureUpgradeBinding(plan).owner),
     'exact original deployment owner required',
   );
   await step(() => store.verify());
@@ -49210,7 +49242,7 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
       ...(auditStat ? [audit] : []),
     ]) {
       const before = await step(() => lstat21(path));
-      require103(
+      require104(
         before.isDirectory() &&
           !before.isSymbolicLink() &&
           before.uid === process.getuid?.() &&
@@ -49221,7 +49253,7 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
       const names = (await step(() => readdir21(path))).sort();
       dirs[path] = { identity: `${before.dev}:${before.ino}:${before.birthtimeMs}`, names };
       for (const name of names.filter((name) => (path === directory ? name.endsWith('.json') : true))) {
-        require103(
+        require104(
           path === audit
             ? /^[a-f0-9]{64}-[a-f0-9-]{36}\.pending\.[a-f0-9]{64}\.fragment$/.test(name)
             : /^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name),
@@ -49231,14 +49263,14 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
           handle = await step(() => open7(selected, constants9.O_RDONLY | constants9.O_NOFOLLOW));
         try {
           const stat = await step(() => handle.stat());
-          require103(
+          require104(
             stat.isFile() && stat.uid === process.getuid?.() && stat.nlink === 1 && (stat.mode & 63) === 0,
             'original packet file ownership differs',
           );
           const bytes = await step(() => handle.readFile()),
             after = await step(() => handle.stat()),
             named = await step(() => lstat21(selected));
-          require103(
+          require104(
             after.dev === stat.dev &&
               after.ino === stat.ino &&
               after.size === stat.size &&
@@ -49263,10 +49295,10 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
         }
       }
       const after = await step(() => lstat21(path));
-      require103(
+      require104(
         after.dev === before.dev &&
           after.ino === before.ino &&
-          same71(names, (await step(() => readdir21(path))).sort()),
+          same72(names, (await step(() => readdir21(path))).sort()),
         'original packet namespace changed',
       );
     }
@@ -49277,7 +49309,7 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
           join28(directory, 'terraform-original-deployment-receipts', `${publicationSha256}.json`),
         ),
         fragmentSha256 = name.slice(-73, -9);
-      require103(
+      require104(
         bytes &&
           published &&
           createHash54('sha256').update(bytes).digest('hex') === fragmentSha256 &&
@@ -49292,9 +49324,9 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
   const packets = await snapshot(),
     source = await step(() => loaders.loadSource(plan.planSha256));
   verifyAzureCePlan(source);
-  require103(same71(source, plan), 'owning original public source differs');
+  require104(same72(source, plan), 'owning original public source differs');
   const outcome = structuredClone(await step(() => loaders.loadOutcome(plan)));
-  require103(
+  require104(
     outcome.planId === plan.planId &&
       outcome.planSha256 === plan.planSha256 &&
       outcome.engine === 'terraform' &&
@@ -49304,12 +49336,12 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
     'completed owning original public outcome and receipt inventory binding required',
   );
   const checkpoint = structuredClone(await step(() => store.read('terraform-workflow.json')));
-  require103(
+  require104(
     checkpoint.schemaVersion === 1 &&
       checkpoint.engine === 'terraform' &&
       checkpoint.planSha256 === plan.planSha256 &&
       checkpoint.stage === 'registered' &&
-      same71(checkpoint.originalReceiptInventorySha256, outcome.originalReceiptInventorySha256) &&
+      same72(checkpoint.originalReceiptInventorySha256, outcome.originalReceiptInventorySha256) &&
       checkpoint.bootstrapByNode &&
       typeof checkpoint.bootstrapByNode === 'object' &&
       !Array.isArray(checkpoint.bootstrapByNode),
@@ -49318,12 +49350,12 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
   const inventory = await step(() =>
     readAzureTerraformOriginalReceiptInventory(plan, checkpoint.bootstrapByNode, store, deadline),
   );
-  require103(
+  require104(
     inventory.status === 'complete' && canonicalSha256(inventory) === outcome.originalReceiptInventorySha256,
     'original receipt inventory differs from authenticated public outcome',
   );
   const records = inventory.records.map((row) => row.record);
-  require103(
+  require104(
     records.some(
       (record) => record.stage.kind === 'foundation' && Object.keys(record.bootstrapSha256ByNode).length === 0,
     ) &&
@@ -49334,23 +49366,23 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
         records.some((record) => record.stage.kind === 'ingress-final')),
     'original receipt stage inventory is incomplete',
   );
-  require103(
-    same71(await step(() => loaders.loadSource(plan.planSha256)), source) &&
-      same71(await step(() => loaders.loadOutcome(plan)), outcome),
+  require104(
+    same72(await step(() => loaders.loadSource(plan.planSha256)), source) &&
+      same72(await step(() => loaders.loadOutcome(plan)), outcome),
     'owning original public source or outcome changed',
   );
-  require103(
-    same71(await step(() => store.read('terraform-workflow.json')), checkpoint),
+  require104(
+    same72(await step(() => store.read('terraform-workflow.json')), checkpoint),
     'owning original checkpoint changed',
   );
-  require103(
-    same71(
+  require104(
+    same72(
       await step(() => readAzureTerraformOriginalReceiptInventory(plan, checkpoint.bootstrapByNode, store, deadline)),
       inventory,
     ),
     'original receipt descriptors changed',
   );
-  require103(same71(await snapshot(), packets), 'original packet bytes or namespace changed across callbacks');
+  require104(same72(await snapshot(), packets), 'original packet bytes or namespace changed across callbacks');
   seal();
   return {
     schemaVersion: 1,
@@ -49368,13 +49400,13 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
     operationalAcceptanceQualified: false,
   };
 }
-var same71;
+var same72;
 var init_terraform_original_receipt_provenance = __esm(() => {
   init_artifacts();
   init_canonical();
   init_terraform_original_receipt_inventory();
   init_terraform_upgrade();
-  same71 = canonicalEqual;
+  same72 = canonicalEqual;
 });
 
 // plugins/azure/src/ce/terraform-network-retirement-lineage.ts
@@ -49383,7 +49415,7 @@ import { constants as constants10 } from 'node:fs';
 import { lstat as lstat22, open as openFile3, readdir as readdir22, realpath as realpath20 } from 'node:fs/promises';
 import { join as join29 } from 'node:path';
 
-function require104(value, message) {
+function require105(value, message) {
   if (!value) throw Error(`Azure Terraform network retirement lineage: ${message}`);
 }
 async function recheckAzureTerraformNetworkRetirementLineage(
@@ -49398,9 +49430,9 @@ async function recheckAzureTerraformNetworkRetirementLineage(
 ) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses2.get(witness) : undefined;
-  require104(bound, 'owning authenticated lineage witness required');
+  require105(bound, 'owning authenticated lineage witness required');
   const context = () =>
-    require104(
+    require105(
       bound.store === store &&
         bound.loaders === loaders &&
         bound.verifier === verifier &&
@@ -49423,7 +49455,7 @@ async function recheckAzureTerraformNetworkRetirementLineage(
     replacementVerifier,
   );
   context();
-  require104(canonicalSha256(result) === bound.resultSha256, 'authenticated lineage changed');
+  require105(canonicalSha256(result) === bound.resultSha256, 'authenticated lineage changed');
   return { lineage: structuredClone(result), graph: structuredClone(graph) };
 }
 async function readAzureTerraformNetworkRetirementLineage(
@@ -49453,10 +49485,10 @@ async function readAzureTerraformNetworkRetirementLineage(
   ];
   const seal = () => {
     deadline.throwIfAborted();
-    require104(
-      same72(originalRequest, original) &&
-        same72(siteRequest, site) &&
-        same72(store.owner, owner) &&
+    require105(
+      same73(originalRequest, original) &&
+        same73(siteRequest, site) &&
+        same73(store.owner, owner) &&
         store.directory === directory &&
         bindings.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'request or owning dependencies changed',
@@ -49480,10 +49512,10 @@ async function readAzureTerraformNetworkRetirementLineage(
   };
   seal();
   verifyAzureCePlan(original);
-  require104(
+  require105(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same72(azureUpgradeBinding(original).owner, owner),
+      same73(azureUpgradeBinding(original).owner, owner),
     'original deployment ownership differs',
   );
   await step(() => store.verify());
@@ -49496,18 +49528,18 @@ async function readAzureTerraformNetworkRetirementLineage(
   const exactSource = async (digest) => {
     const source = await step(() => loaders.loadSource(digest));
     verifyAzureCePlan(source);
-    require104(
-      source.planSha256 === digest && same72(azureUpgradeBinding(source).owner, owner),
+    require105(
+      source.planSha256 === digest && same73(azureUpgradeBinding(source).owner, owner),
       'exact source identity differs',
     );
     sources.set(digest, structuredClone(source));
     return source;
   };
-  require104(same72(await exactSource(original.planSha256), original), 'exact original deploy source differs');
+  require105(same73(await exactSource(original.planSha256), original), 'exact original deploy source differs');
   const directorySnapshot = async (path, absentAllowed = false) => {
     try {
       const stat = await step(() => lstat22(path));
-      require104(
+      require105(
         stat.isDirectory() &&
           !stat.isSymbolicLink() &&
           stat.uid === process.getuid?.() &&
@@ -49529,7 +49561,7 @@ async function readAzureTerraformNetworkRetirementLineage(
   const configurations = new Set();
   for (const row of inventory.requests) {
     const plan = await exactSource(row.planSha256);
-    require104(
+    require105(
       plan.planId === row.planId &&
         (plan.terraformNetworkProfile ?? plan.terraformNetworkReplacementProfile)?.retainedPlanSha256 ===
           row.retainedPlanSha256,
@@ -49544,7 +49576,7 @@ async function readAzureTerraformNetworkRetirementLineage(
         if (error.code !== 'ENOENT') throw error;
         absent = true;
       }
-      require104(
+      require105(
         absent || (outcome && typeof outcome === 'object' && !Array.isArray(outcome)),
         'complete replacement outcome object or explicit absence required',
       );
@@ -49561,7 +49593,7 @@ async function readAzureTerraformNetworkRetirementLineage(
             deadline,
           ),
         );
-        require104(
+        require105(
           provenance.originalPlanSha256 === original.planSha256 &&
             provenance.retainedPlanSha256 === row.retainedPlanSha256,
           'replacement public/source/original receipt provenance differs',
@@ -49588,7 +49620,7 @@ async function readAzureTerraformNetworkRetirementLineage(
     const prefix = `${row.planId}-terraform-network`,
       names = root?.names.filter((name) => name.startsWith(prefix)) ?? [];
     if (!names.includes(`${prefix}-source.json`)) {
-      require104(
+      require105(
         names.length === 0 &&
           !children?.names.some((name) => name.startsWith(`network-${row.planSha256.slice(0, 24)}-`)),
         'unstaged request has execution packets or children',
@@ -49601,7 +49633,7 @@ async function readAzureTerraformNetworkRetirementLineage(
         if (error.code !== 'ENOENT') throw error;
         absent = true;
       }
-      require104(
+      require105(
         absent || (outcome && typeof outcome === 'object' && !Array.isArray(outcome)),
         'complete outcome object or explicit absence required',
       );
@@ -49626,7 +49658,7 @@ async function readAzureTerraformNetworkRetirementLineage(
         }
     for (const [name, digest] of Object.entries(graph.checkpoint.completionSha256ByName)) {
       const packet = await step(() => store.read(name));
-      require104(canonicalSha256(packet) === digest, 'terminal graph publication changed');
+      require105(canonicalSha256(packet) === digest, 'terminal graph publication changed');
       const receipt = packet.receipt;
       configurations.add(receipt.configurationSha256);
     }
@@ -49639,7 +49671,7 @@ async function readAzureTerraformNetworkRetirementLineage(
   }
   for (const a of inventory.requests.filter((row) => graphs.has(row.planSha256) || replacements.has(row.planSha256)))
     for (const b of inventory.requests.filter((row) => graphs.has(row.planSha256) || replacements.has(row.planSha256)))
-      require104(
+      require105(
         a.planSha256 === b.planSha256 || a.ancestry.includes(b.planSha256) || b.ancestry.includes(a.planSha256),
         'staged public lineage forks',
       );
@@ -49665,12 +49697,12 @@ async function readAzureTerraformNetworkRetirementLineage(
   const digest = canonicalSha256(result);
   const recheck = async (parentSignal) => {
     seal();
-    require104(canonicalSha256(result) === digest, 'authenticated lineage changed');
+    require105(canonicalSha256(result) === digest, 'authenticated lineage changed');
     await step(() => store.verify(), parentSignal);
     await step(() => inventory.recheck(), parentSignal);
     for (const [sha256, source] of sources)
-      require104(
-        same72(await step(() => loaders.loadSource(sha256), parentSignal), source),
+      require105(
+        same73(await step(() => loaders.loadSource(sha256), parentSignal), source),
         'source changed across lineage',
       );
     for (const [sha256, graph] of graphs)
@@ -49689,7 +49721,7 @@ async function readAzureTerraformNetworkRetirementLineage(
         parentSignal,
       );
     for (const [sha256, expected] of replacements) {
-      require104(replacementVerifier, 'owning replacement historical verifier unavailable');
+      require105(replacementVerifier, 'owning replacement historical verifier unavailable');
       const actual = await step(
         () =>
           readAzureTerraformNetworkReplacementReceiptProvenance(
@@ -49703,7 +49735,7 @@ async function readAzureTerraformNetworkRetirementLineage(
           ),
         parentSignal,
       );
-      require104(same72(actual, expected), 'replacement receipt provenance changed across lineage');
+      require105(same73(actual, expected), 'replacement receipt provenance changed across lineage');
     }
     for (const [sha256, expected] of outcomes) {
       let actual,
@@ -49714,16 +49746,16 @@ async function readAzureTerraformNetworkRetirementLineage(
         if (error.code !== 'ENOENT') throw error;
         absent = true;
       }
-      require104(same72({ absent, outcome: actual }, expected), 'unstaged outcome changed');
+      require105(same73({ absent, outcome: actual }, expected), 'unstaged outcome changed');
     }
-    require104(
-      same72(await directorySnapshot(directory), root) &&
-        same72(await directorySnapshot(join29(directory, 'terraform-stages'), true), children),
+    require105(
+      same73(await directorySnapshot(directory), root) &&
+        same73(await directorySnapshot(join29(directory, 'terraform-stages'), true), children),
       'execution directory changed across lineage',
     );
     await step(() => inventory.recheck(), parentSignal);
     seal();
-    require104(canonicalSha256(result) === digest, 'authenticated lineage changed');
+    require105(canonicalSha256(result) === digest, 'authenticated lineage changed');
     return result;
   };
   await recheck();
@@ -49738,7 +49770,7 @@ async function readAzureTerraformNetworkRetirementLineage(
     resultSha256: digest,
     assertContext() {
       seal();
-      require104(canonicalSha256(result) === digest, 'authenticated lineage changed');
+      require105(canonicalSha256(result) === digest, 'authenticated lineage changed');
     },
     recheck,
   });
@@ -49759,8 +49791,8 @@ async function readAzureTerraformNetworkAllOriginalCustody(
   const active = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const recheckEmpty = async () => {
     if (!emptyMainAdmission) return;
-    require104(
-      emptyMainAdmission.context.terraform === terraform && same72(emptyMainAdmission.context.site, site),
+    require105(
+      emptyMainAdmission.context.terraform === terraform && same73(emptyMainAdmission.context.site, site),
       'terminal collection owner context differs',
     );
     await recheckAzureTerraformNetworkEmptyMainBinding(
@@ -49784,16 +49816,16 @@ async function readAzureTerraformNetworkAllOriginalCustody(
     replacementVerifier,
   );
   const context = witnesses2.get(root);
-  require104(context, 'owning collection context missing');
+  require105(context, 'owning collection context missing');
   let live = true;
   const child = structuredClone(root),
     childSha256 = canonicalSha256(child);
   const boundary = () => {
     active.throwIfAborted();
-    require104(live, 'collection scope expired');
-    require104(terraform.open === open, 'collection owning runner dependency changed');
+    require105(live, 'collection scope expired');
+    require105(terraform.open === open, 'collection owning runner dependency changed');
     context.assertContext();
-    require104(canonicalSha256(child) === childSha256, 'collection witness changed');
+    require105(canonicalSha256(child) === childSha256, 'collection witness changed');
   };
   const step = async (action) => {
     boundary();
@@ -49828,20 +49860,20 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           throw error;
         });
         if (!handle) {
-          require104(!files.has(path) || files.get(path) === null, 'native journal bytes changed across collection');
+          require105(!files.has(path) || files.get(path) === null, 'native journal bytes changed across collection');
           files.set(path, null);
           return;
         }
         try {
           const before = await handle.stat();
-          require104(
+          require105(
             before.isFile() && before.uid === process.getuid?.() && before.nlink === 1 && (before.mode & 63) === 0,
             'native journal file ownership differs',
           );
           const bytes = await handle.readFile(),
             after = await handle.stat(),
             named = await lstat22(path);
-          require104(
+          require105(
             after.dev === before.dev &&
               after.ino === before.ino &&
               after.size === before.size &&
@@ -49860,7 +49892,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         } finally {
           await handle.close();
         }
-        require104(!files.has(path) || files.get(path) === digest, 'native journal bytes changed across collection');
+        require105(!files.has(path) || files.get(path) === digest, 'native journal bytes changed across collection');
         files.set(path, digest);
       });
     const directory = async (path) =>
@@ -49871,14 +49903,14 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           throw error;
         });
         if (!stat) {
-          require104(
+          require105(
             !directories.has(path) || directories.get(path) === null,
             'native journal namespace changed across collection',
           );
           directories.set(path, null);
           return [];
         }
-        require104(
+        require105(
           stat.isDirectory() &&
             !stat.isSymbolicLink() &&
             stat.uid === process.getuid?.() &&
@@ -49887,8 +49919,8 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           'native journal directory ownership differs',
         );
         snapshot = { identity: `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`, names: (await readdir22(path)).sort() };
-        require104(
-          !directories.has(path) || same72(directories.get(path), snapshot),
+        require105(
+          !directories.has(path) || same73(directories.get(path), snapshot),
           'native journal namespace changed across collection',
         );
         directories.set(path, snapshot);
@@ -49896,25 +49928,25 @@ async function readAzureTerraformNetworkAllOriginalCustody(
       });
     const owningNames = await directory(store.directory);
     for (const name of owningNames.filter((name) => name.endsWith('.json'))) {
-      require104(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'owning packet filename differs');
+      require105(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'owning packet filename differs');
       await file(join29(store.directory, name));
     }
     const originalReceiptDirectory = join29(store.directory, 'terraform-original-deployment-receipts');
     const originalReceiptNames = await directory(originalReceiptDirectory);
     for (const name of originalReceiptNames) {
-      require104(/^[a-f0-9]{64}\.json$/.test(name), 'original receipt publication is incomplete or malformed');
+      require105(/^[a-f0-9]{64}\.json$/.test(name), 'original receipt publication is incomplete or malformed');
       await file(join29(originalReceiptDirectory, name));
     }
     const originalFragmentDirectory = join29(store.directory, 'terraform-original-deployment-publication-fragments');
     for (const name of await directory(originalFragmentDirectory)) {
-      require104(
+      require105(
         /^[a-f0-9]{64}-[a-f0-9-]{36}\.pending\.[a-f0-9]{64}\.fragment$/.test(name),
         'original publication fragment namespace differs',
       );
       await file(join29(originalFragmentDirectory, name));
     }
     const originalMain = await step(() => azureTerraformCurrentDeployment(original));
-    require104(
+    require105(
       !originalMain.stage &&
         originalMain.deploymentId === store.owner.deploymentId &&
         originalMain.scope.account === store.owner.account &&
@@ -49927,16 +49959,16 @@ async function readAzureTerraformNetworkAllOriginalCustody(
     for (const row of root.rows.filter((row) => row.execution === 'staged-network')) {
       const plan = structuredClone(await step(() => loaders.loadSource(row.planSha256)));
       verifyAzureCePlan(plan);
-      require104(
-        plan.planSha256 === row.planSha256 && same72(azureUpgradeBinding(plan).owner, store.owner),
+      require105(
+        plan.planSha256 === row.planSha256 && same73(azureUpgradeBinding(plan).owner, store.owner),
         'native snapshot source identity differs',
       );
       const main = await step(() => azureTerraformCurrentDeployment(plan));
       runnerDirectories.add(join29(store.directory, main.deploymentId));
       const graph = context.staged.get(row.planSha256);
-      require104(graph, 'owning staged graph missing');
+      require105(graph, 'owning staged graph missing');
       for (const power of graph.powerDeployments) {
-        require104(power.stage, 'owning power stage missing');
+        require105(power.stage, 'owning power stage missing');
         runnerDirectories.add(join29(store.directory, 'terraform-stages', power.stage, power.deploymentId));
       }
     }
@@ -49957,13 +49989,13 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         const root = join29(path, archive);
         const entries = await directory(root);
         for (const name of entries) {
-          require104(
+          require105(
             (archive === 'revisions' ? /^[a-f0-9-]{36}$/ : /^[a-f0-9]{64}$/).test(name),
             'native journal archive identity differs',
           );
           const child = join29(root, name);
           for (const entry of await directory(child)) {
-            require104(
+            require105(
               [
                 'main.tf.json',
                 'deployment.json',
@@ -49979,7 +50011,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           }
         }
       }
-      require104(same72(names, await directory(path)), 'native journal namespace changed during snapshot');
+      require105(same73(names, await directory(path)), 'native journal namespace changed during snapshot');
     }
     if (emptyMainAdmission) {
       const cancellationName = `configuration-cancellation-${canonicalSha256({
@@ -49987,7 +50019,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         expectedSha256: emptyMainAdmission.witness.retainedDestroyConfigurationSha256,
         nextSha256: emptyMainAdmission.witness.configurationSha256,
       })}.json`;
-      require104(
+      require105(
         createHash55('sha256').update(cancellationName).digest('hex') ===
           emptyMainAdmission.witness.cancellationRecordNameSha256,
         'native cancellation record name differs',
@@ -49998,15 +50030,15 @@ async function readAzureTerraformNetworkAllOriginalCustody(
     let recheckNative;
     const mainNames = await directory(mainDirectory);
     if (directories.get(mainDirectory) !== null && !mainNames.includes('artifact-retirement.json')) {
-      require104(
+      require105(
         !mainNames.includes('configuration-transition.json'),
         'pending shared main revision requires owner recovery',
       );
       const session = await step(() => open.call(terraform, store.owner, originalMain, 'current'));
       const { readPlanJournalInventory: read, readConfigurationSha256: readConfiguration } = session;
-      require104(read && readConfiguration, 'exhaustive authenticated shared main readers unavailable');
+      require105(read && readConfiguration, 'exhaustive authenticated shared main readers unavailable');
       const methods = () =>
-        require104(
+        require105(
           session.readPlanJournalInventory === read && session.readConfigurationSha256 === readConfiguration,
           'shared main inventory dependency changed',
         );
@@ -50020,11 +50052,11 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         });
       const validSha = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
       const exact = (value, fields) => {
-        require104(
+        require105(
           value &&
             typeof value === 'object' &&
             !Array.isArray(value) &&
-            same72(Object.keys(value).sort(), fields.toSorted()),
+            same73(Object.keys(value).sort(), fields.toSorted()),
           'shared main inventory schema differs',
         );
       };
@@ -50045,7 +50077,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           'applicationOutcomeQualified',
           'retirementQualified',
         ]);
-        require104(
+        require105(
           validSha(configurationSha256) &&
             value.schemaVersion === 1 &&
             value.scope === 'all-native-saved-plan-journal-inventory' &&
@@ -50081,7 +50113,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
             ...(entry.executionSha256 !== undefined ? ['executionSha256', 'ordinaryRefreshEnabled'] : []),
           ]);
           const key = `${entry.location}:${entry.archiveRef}`;
-          require104(
+          require105(
             ['current', 'revision', 'plan-history'].includes(entry.location) &&
               !seen.has(key) &&
               validSha(entry.archiveSha256) &&
@@ -50097,7 +50129,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           seen.add(key);
           if (entry.location === 'current') current++;
           if (entry.state === 'absent' || entry.state === 'unknown') {
-            require104(
+            require105(
               entry.receiptSha256 === null &&
                 entry.executionSha256 === undefined &&
                 (entry.state === 'absent'
@@ -50109,7 +50141,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
             );
             if (entry.state === 'unknown') partial++;
           } else
-            require104(
+            require105(
               validSha(entry.receiptSha256) &&
                 validSha(entry.journalSha256) &&
                 validSha(entry.savedPlanSha256) &&
@@ -50118,7 +50150,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
               'shared main saved receipt identity differs',
             );
         }
-        require104(
+        require105(
           current === 1 &&
             value.incompleteArchives === partial &&
             value.status === (partial || value.unrecognizedRootEntrySha256s.length ? 'partial' : 'complete'),
@@ -50131,9 +50163,9 @@ async function readAzureTerraformNetworkAllOriginalCustody(
       const frozen = structuredClone(native);
       recheckNative = async () => {
         methods();
-        require104(
+        require105(
           (await step(() => readConfiguration.call(session))) === configurationSha256 &&
-            same72(await inspect(), frozen),
+            same73(await inspect(), frozen),
           'shared main inventory changed at final boundary',
         );
         methods();
@@ -50143,8 +50175,8 @@ async function readAzureTerraformNetworkAllOriginalCustody(
     for (const row of root.rows.filter((row) => row.execution === 'staged-network')) {
       const plan = structuredClone(await step(() => loaders.loadSource(row.planSha256)));
       verifyAzureCePlan(plan);
-      require104(
-        plan.planSha256 === row.planSha256 && same72(azureUpgradeBinding(plan).owner, store.owner),
+      require105(
+        plan.planSha256 === row.planSha256 && same73(azureUpgradeBinding(plan).owner, store.owner),
         'collection source identity differs',
       );
       const main = await step(() =>
@@ -50174,7 +50206,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           context.staged.get(row.planSha256),
         ),
       );
-      require104(
+      require105(
         main.lineageSha256 === canonicalSha256(root) && main.graphSha256 === power.graphSha256,
         'collection journal/graph join differs',
       );
@@ -50188,7 +50220,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         configurations.add(receipt.configurationSha256);
         for (const match of receipt.history?.matches ?? []) {
           const existing = accepted.get(receipt.receiptSha256);
-          require104(
+          require105(
             !existing ||
               (existing.configurationSha256 === match.configurationSha256 &&
                 existing.savedPlanSha256 === match.savedPlanSha256 &&
@@ -50210,7 +50242,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
       (!!emptyMainAdmission &&
         native?.status === 'partial' &&
         native.incompleteArchives === 0 &&
-        same72(native.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256]));
+        same73(native.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256]));
     const { configuration: _originalSource, providerLock: originalLock, ...mainIdentity } = originalMain;
     const originalRows = [];
     const originalProof =
@@ -50218,7 +50250,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
         ? await step(() => readAzureTerraformOriginalReceiptProvenance(original, store, loaders, active))
         : undefined;
     if (originalProof) {
-      require104(
+      require105(
         originalProof.originalPlanSha256 === original.planSha256 &&
           originalProof.ownerSha256 === canonicalSha256(store.owner),
         'original receipt public/source/owner binding differs',
@@ -50232,7 +50264,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
             providerLockSha256: createHash55('sha256').update(originalLock).digest('hex'),
           });
         const existing = accepted.get(receiptSha256);
-        require104(
+        require105(
           !existing ||
             (existing.configurationSha256 === receipt.configurationSha256 &&
               existing.savedPlanSha256 === receipt.planSha256 &&
@@ -50284,7 +50316,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
           providerLockSha256: createHash55('sha256').update(originalLock).digest('hex'),
         });
         const existing = accepted.get(receiptSha256);
-        require104(
+        require105(
           !existing ||
             (existing.configurationSha256 === receipt.configurationSha256 &&
               existing.savedPlanSha256 === receipt.planSha256 &&
@@ -50337,7 +50369,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
       native?.entries.map((entry) => {
         const binding = entry.receiptSha256 ? accepted.get(entry.receiptSha256) : undefined;
         if (binding)
-          require104(
+          require105(
             binding.configurationSha256 === entry.configurationSha256 &&
               binding.savedPlanSha256 === entry.savedPlanSha256 &&
               binding.manifestSha256 === entry.manifestSha256,
@@ -50437,16 +50469,16 @@ async function readAzureTerraformNetworkAllOriginalCustody(
       currentOperationalAcceptanceQualified: false,
     };
     if (originalProof)
-      require104(
-        same72(
+      require105(
+        same73(
           await step(() => readAzureTerraformOriginalReceiptProvenance(original, store, loaders, active)),
           originalProof,
         ),
         'original receipt provenance changed at final native boundary',
       );
     if (recheckNative) await recheckNative();
-    require104(
-      same72(await step(() => context.recheck(active)), root),
+    require105(
+      same73(await step(() => context.recheck(active)), root),
       'collection lineage changed at final native boundary',
     );
     await recheckEmpty();
@@ -50469,7 +50501,7 @@ async function readAzureTerraformNetworkAllOriginalCustody(
     witnesses2.delete(child);
   }
 }
-var same72 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same73 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   witnesses2;
 var init_terraform_network_retirement_lineage = __esm(() => {
   init_artifacts();
@@ -50492,7 +50524,7 @@ import { constants as constants11 } from 'node:fs';
 import { lstat as lstat23, open as open8, readdir as readdir23, realpath as realpath21 } from 'node:fs/promises';
 import { join as join30 } from 'node:path';
 
-function require105(value, message) {
+function require106(value, message) {
   if (!value) throw Error(`Azure authenticated network packet inventory: ${message}`);
 }
 async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, store, context, signal) {
@@ -50510,11 +50542,11 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require105(
-      same73(request, plan) &&
-        same73(store.owner, owner) &&
+    require106(
+      same74(request, plan) &&
+        same74(store.owner, owner) &&
         store.directory === directory &&
-        same73(context.site, site) &&
+        same74(context.site, site) &&
         context.loaders === loaders &&
         context.verifier === verifier &&
         context.replacementVerifier === replacementVerifier &&
@@ -50539,16 +50571,16 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
     }
   };
   seal();
-  require105(
+  require106(
     plan.engine === 'terraform' &&
-      same73(azureUpgradeBinding(plan).owner, owner) &&
+      same74(azureUpgradeBinding(plan).owner, owner) &&
       !!(plan.terraformNetworkProfile || plan.terraformNetworkReplacementProfile),
     'exact owning network request required',
   );
   await step(() => store.verify());
   const snapshot = async (parent) => {
     const before = await step(() => lstat23(directory), parent);
-    require105(
+    require106(
       before.isDirectory() &&
         !before.isSymbolicLink() &&
         before.uid === process.getuid?.() &&
@@ -50559,7 +50591,7 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
     const names = (await step(() => readdir23(directory), parent)).sort();
     const packets = {};
     for (const name of names.filter((name) => name.endsWith('.json'))) {
-      require105(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'private root packet filename differs');
+      require106(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'private root packet filename differs');
       const path = join30(directory, name),
         handle = await step(() => open8(path, constants11.O_RDONLY | constants11.O_NOFOLLOW), parent);
       try {
@@ -50567,7 +50599,7 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
           bytes = await step(() => handle.readFile(), parent),
           last = await step(() => handle.stat(), parent),
           named = await step(() => lstat23(path), parent);
-        require105(
+        require106(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -50600,36 +50632,36 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
       }
     }
     const after = await step(() => lstat23(directory), parent);
-    require105(
+    require106(
       after.isDirectory() &&
         !after.isSymbolicLink() &&
         identity4(after) === identity4(before) &&
         after.uid === before.uid &&
         (after.mode & 63) === 0 &&
-        same73((await step(() => readdir23(directory), parent)).sort(), names),
+        same74((await step(() => readdir23(directory), parent)).sort(), names),
       'native namespace changed during collection',
     );
     return { identity: identity4(before), names, packets };
   };
   const original = await snapshot();
   const inspect = async (parent) => {
-    require105(same73(await snapshot(parent), original), 'native packet bytes, inode or namespace changed');
+    require106(same74(await snapshot(parent), original), 'native packet bytes, inode or namespace changed');
     const consumed = new Map(),
       absent = new Set();
     const read = async (name) => {
-      require105(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'owning reader requested a foreign packet path');
+      require106(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\.json$/.test(name), 'owning reader requested a foreign packet path');
       let value;
       try {
         value = await step(() => store.read(name), parent);
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
-        require105(!original.packets[name] && !consumed.has(name), 'logical absence differs from native publication');
+        require106(!original.packets[name] && !consumed.has(name), 'logical absence differs from native publication');
         absent.add(name);
         throw error;
       }
       const digest = canonicalSha256(value),
         native = original.packets[name];
-      require105(
+      require106(
         native &&
           !absent.has(name) &&
           native.packetSha256 === digest &&
@@ -50661,7 +50693,7 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
     const active = AbortSignal.any([deadline, ...(parent ? [parent] : [])]);
     let provenance;
     if (plan.terraformNetworkReplacementProfile) {
-      require105(replacementVerifier, 'owning completed-replacement verifier required');
+      require106(replacementVerifier, 'owning completed-replacement verifier required');
       provenance = await step(
         () =>
           readAzureTerraformNetworkReplacementReceiptProvenance(
@@ -50690,9 +50722,9 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
         parent,
       );
     }
-    require105(consumed.size > 0, 'owning reader consumed no authenticated packets');
-    require105(
-      same73(await snapshot(parent), original),
+    require106(consumed.size > 0, 'owning reader consumed no authenticated packets');
+    require106(
+      same74(await snapshot(parent), original),
       'native packet bytes, inode or namespace changed across authentication',
     );
     await step(() => store.verify(), parent);
@@ -50700,7 +50732,7 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
       provenanceSha256: canonicalSha256(provenance),
       packets: [...consumed.keys()].sort().map((name) => {
         const native = original.packets[name];
-        require105(native, 'consumed native packet missing');
+        require106(native, 'consumed native packet missing');
         return { name, ...native };
       }),
       absentPackets: [...absent].sort(),
@@ -50733,15 +50765,15 @@ async function readAzureTerraformNetworkAuthenticatedPacketInventory(request, st
     context,
     digest,
     async recheck(parent) {
-      require105(
-        canonicalSha256(result) === digest && same73(await inspect(parent), first),
+      require106(
+        canonicalSha256(result) === digest && same74(await inspect(parent), first),
         'authenticated packet inventory changed',
       );
     },
   });
   return result;
 }
-var same73 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same74 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash31 = (bytes) => createHash56('sha256').update(bytes).digest('hex'),
   identity4 = (stat) => `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`,
   witnesses3;
@@ -50754,7 +50786,7 @@ var init_terraform_network_authenticated_packet_inventory = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-parent-public-bindings.ts
-function require106(value, message) {
+function require107(value, message) {
   if (!value) throw Error(`Azure network parent public bindings: ${message}`);
 }
 function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertContext) {
@@ -50764,7 +50796,7 @@ function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertCo
   const boundary = () => {
     signal.throwIfAborted();
     assertContext();
-    require106(
+    require107(
       owningLoaders.loadSource === loadSource && owningLoaders.loadOutcome === loadOutcome,
       'owning loader changed',
     );
@@ -50786,19 +50818,19 @@ function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertCo
     }
   };
   const sourceRecord = (plan) => {
-    require106(sha20(plan.planSha256), 'execution source identifier unresolved');
+    require107(sha20(plan.planSha256), 'execution source identifier unresolved');
     const record = { planSha256: plan.planSha256, sourceSha256: canonicalSha256(plan) };
     const previous = sources.get(record.planSha256);
-    require106(!previous || previous.sourceSha256 === record.sourceSha256, 'repeated source changed');
+    require107(!previous || previous.sourceSha256 === record.sourceSha256, 'repeated source changed');
     sources.set(record.planSha256, record);
     return record;
   };
   const loaders = {
     async loadSource(digest) {
       boundary();
-      require106(sha20(digest), 'execution source identifier unresolved');
+      require107(sha20(digest), 'execution source identifier unresolved');
       const value = structuredClone(await step(() => loadSource.call(owningLoaders, digest)));
-      require106(value.planSha256 === digest, 'loaded source identity differs');
+      require107(value.planSha256 === digest, 'loaded source identity differs');
       sourceRecord(value);
       boundary();
       return value;
@@ -50817,11 +50849,11 @@ function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertCo
         absence = error;
       }
       boundary();
-      require106(
+      require107(
         absence || (value && typeof value === 'object' && !Array.isArray(value)),
         'complete outcome or explicit absence required',
       );
-      require106(
+      require107(
         canonicalSha256(callbackInput) === source.sourceSha256 && canonicalSha256(plan) === source.sourceSha256,
         'outcome source input changed',
       );
@@ -50830,7 +50862,7 @@ function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertCo
         publication: absence ? 'absent' : 'published',
         outcomeSha256: absence ? null : canonicalSha256({ value }),
       };
-      require106(!previous || canonicalSha256(previous.record) === canonicalSha256(record), 'repeated outcome changed');
+      require107(!previous || canonicalSha256(previous.record) === canonicalSha256(record), 'repeated outcome changed');
       outcomes.set(input.planSha256, { input, record });
       if (absence) throw absence;
       return value;
@@ -50860,7 +50892,7 @@ function captureAzureNetworkParentPublicBindings(owningLoaders, signal, assertCo
           if (record.publication !== 'absent' || error.code !== 'ENOENT') throw error;
         }
       }
-      require106(canonicalSha256(snapshot()) === expected, 'public mapping changed across recheck');
+      require107(canonicalSha256(snapshot()) === expected, 'public mapping changed across recheck');
     },
   };
 }
@@ -50874,7 +50906,7 @@ import { createHash as createHash57 } from 'node:crypto';
 import { lstat as lstat24, readdir as readdir24, realpath as realpath22 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute3, join as join31 } from 'node:path';
 
-function require107(value, message) {
+function require108(value, message) {
   if (!value) throw Error(`Azure network parent public custody: ${message}`);
 }
 async function readAzureTerraformNetworkParentPublicCustody(request, session, retained, signal) {
@@ -50889,16 +50921,16 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const nativeSeal = () => {
     deadline.throwIfAborted();
-    require107(
-      same74(request, original) &&
-        same74(retained, binding) &&
+    require108(
+      same75(request, original) &&
+        same75(retained, binding) &&
         callbacks.every(({ key, value }) => Reflect.get(session, key) === value),
       'owning public context changed',
     );
   };
   const seal = () => {
     nativeSeal();
-    require107(
+    require108(
       session.getArtifactsDir() === directory && session.getSessionId() === sessionId,
       'owning public context changed',
     );
@@ -50937,8 +50969,8 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
     }
   };
   seal();
-  require107(directory && isAbsolute3(directory), 'durable public evidence directory required');
-  require107(
+  require108(directory && isAbsolute3(directory), 'durable public evidence directory required');
+  require108(
     sha21(binding.publicPlanInventorySha256) &&
       sha21(binding.requestInventorySha256) &&
       binding.publicBindings &&
@@ -50948,7 +50980,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
   );
   const sourceRows = binding.publicBindings.sources,
     outcomeRows = binding.publicBindings.outcomes;
-  require107(
+  require108(
     sourceRows.length > 0 &&
       sourceRows.every(
         (row) =>
@@ -50959,7 +50991,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
       new Set(sourceRows.map((row) => row.planSha256)).size === sourceRows.length,
     'missing, malformed or duplicate public source mapping',
   );
-  require107(
+  require108(
     outcomeRows.every(
       (row) =>
         sha21(row.planSha256) &&
@@ -50972,14 +51004,14 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
     ) && new Set(outcomeRows.map((row) => row.planSha256)).size === outcomeRows.length,
     'malformed, duplicate or foreign public outcome mapping',
   );
-  require107(
+  require108(
     outcomeRows.some((row) => row.planSha256 === original.planSha256),
     'original public outcome mapping missing',
   );
   const snapshot = async (parent) => {
     seal();
     const root = await nativeStep(() => lstat24(directory), parent);
-    require107(
+    require108(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -50993,7 +51025,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
       .sort();
     const files = [];
     for (const name of names) {
-      require107(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name), 'foreign public evidence filename');
+      require108(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name), 'foreign public evidence filename');
       const file = await nativeStep(
         () => readAzureTerraformParentPrivateFile(join31(directory, name), deadline),
         parent,
@@ -51004,18 +51036,18 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
       } catch {
         throw Error('Azure network parent public custody: malformed public evidence');
       }
-      require107(value && typeof value === 'object' && !Array.isArray(value), 'malformed public evidence');
+      require108(value && typeof value === 'object' && !Array.isArray(value), 'malformed public evidence');
       files.push({ name, identity: file.identity, sha256: createHash57('sha256').update(file.bytes).digest('hex') });
     }
     const after = await nativeStep(() => lstat24(directory), parent);
-    require107(
+    require108(
       after.isDirectory() &&
         !after.isSymbolicLink() &&
         after.uid === root.uid &&
         (after.mode & 63) === 0 &&
         (await nativeStep(() => realpath22(directory), parent)) === directory &&
         `${after.dev}:${after.ino}:${after.birthtimeMs}` === identity &&
-        same74(
+        same75(
           (await nativeStep(() => readdir24(directory), parent))
             .filter(
               (name) => name.endsWith('.azure-ce-plan.log') || name.endsWith('.azure-ce-terraform-checkpoint.log'),
@@ -51029,40 +51061,40 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
     return { identity, files };
   };
   const first = await snapshot();
-  require107(
+  require108(
     !Object.hasOwn(binding, 'publicEvidenceSnapshotSha256') ||
       (sha21(binding.publicEvidenceSnapshotSha256) && canonicalSha256(first) === binding.publicEvidenceSnapshotSha256),
     'native-bound public namespace changed',
   );
   const inspect = async (parent) => {
-    require107(same74(await snapshot(parent), first), 'public evidence bytes, inode or namespace changed');
+    require108(same75(await snapshot(parent), first), 'public evidence bytes, inode or namespace changed');
     const requests = await step(() => readAzureTerraformNetworkRetirementRequests(original, session, deadline), parent);
-    require107(
+    require108(
       requests.publicPlanInventorySha256 === binding.publicPlanInventorySha256 &&
         requests.requestInventorySha256 === binding.requestInventorySha256,
       'exact public request inventory changed',
     );
-    require107(
+    require108(
       [original.planSha256, ...requests.requests.map((row) => row.planSha256)].every((digest) =>
         sourceRows.some((row) => row.planSha256 === digest),
       ),
       'public request missing from retained source mapping',
     );
-    require107(
+    require108(
       requests.requests.every((row) => outcomeRows.some((outcome) => outcome.planSha256 === row.planSha256)),
       'public request missing from retained outcome mapping',
     );
     const inventory = await step(() => readAzureCePlanInventory(session, deadline), parent);
-    require107(inventory.sourceSha256 === binding.publicPlanInventorySha256, 'public source inventory changed');
+    require108(inventory.sourceSha256 === binding.publicPlanInventorySha256, 'public source inventory changed');
     const plans = new Map(inventory.plans.map(({ plan }) => [plan.planSha256, plan]));
     for (const row of sourceRows)
-      require107(
+      require108(
         plans.has(row.planSha256) && canonicalSha256(plans.get(row.planSha256)) === row.sourceSha256,
         'public source missing or changed',
       );
     for (const row of outcomeRows) {
       const source = plans.get(row.planSha256);
-      require107(source, 'public outcome source missing');
+      require108(source, 'public outcome source missing');
       let outcome,
         absent = false;
       try {
@@ -51071,7 +51103,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
         if (!(error instanceof AzureTerraformOutcomeAbsent)) throw error;
         absent = true;
       }
-      require107(
+      require108(
         row.publication === (absent ? 'absent' : 'published') &&
           (absent ? row.outcomeSha256 === null : row.outcomeSha256 === canonicalSha256({ value: outcome })),
         'public outcome publication changed',
@@ -51079,7 +51111,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
     }
     await step(() => requests.recheck(), parent);
     await step(() => inventory.recheck(), parent);
-    require107(same74(await snapshot(parent), first), 'public evidence bytes, inode or namespace changed');
+    require108(same75(await snapshot(parent), first), 'public evidence bytes, inode or namespace changed');
     nativeSeal();
   };
   await inspect();
@@ -51096,7 +51128,7 @@ async function readAzureTerraformNetworkParentPublicCustody(request, session, re
   };
 }
 var sha21 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  same74 = (a, b) => canonicalEqual({ value: a }, { value: b });
+  same75 = (a, b) => canonicalEqual({ value: a }, { value: b });
 var init_terraform_network_parent_public_custody = __esm(() => {
   init_artifacts();
   init_canonical();
@@ -51111,7 +51143,7 @@ import { constants as constants12 } from 'node:fs';
 import { lstat as lstat25, open as open9, readdir as readdir25, realpath as realpath23 } from 'node:fs/promises';
 import { join as join32 } from 'node:path';
 
-function require108(value, message) {
+function require109(value, message) {
   if (!value) throw Error(`Azure original parent directory inventory: ${message}`);
 }
 async function readAzureTerraformOriginalParentDirectoryInventory(request, store, loaders, signal) {
@@ -51127,9 +51159,9 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
   ];
   const seal = () => {
     deadline.throwIfAborted();
-    require108(
-      same75(request, plan) &&
-        same75(store.owner, owner) &&
+    require109(
+      same76(request, plan) &&
+        same76(store.owner, owner) &&
         store.directory === directory &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning context changed',
@@ -51153,7 +51185,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
   };
   const snapshot = async (parent) => {
     const root = await step(() => lstat25(directory), parent);
-    require108(
+    require109(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -51175,7 +51207,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
         if (name.endsWith('publication-fragments') && error.code === 'ENOENT') continue;
         throw error;
       }
-      require108(
+      require109(
         first.isDirectory() &&
           !first.isSymbolicLink() &&
           first.uid === process.getuid?.() &&
@@ -51185,7 +51217,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
       );
       const names = (await step(() => readdir25(path), parent)).sort();
       for (const fileName of names) {
-        require108(
+        require109(
           name.endsWith('receipts')
             ? /^[a-f0-9]{64}\.json$/.test(fileName)
             : /^[a-f0-9]{64}-[a-f0-9-]{36}\.pending\.[a-f0-9]{64}\.fragment$/.test(fileName),
@@ -51198,7 +51230,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
             bytes = await step(() => handle.readFile(), parent),
             after = await step(() => handle.stat(), parent),
             named = await step(() => lstat25(selected), parent);
-          require108(
+          require109(
             before.isFile() &&
               before.uid === process.getuid?.() &&
               before.nlink === 1 &&
@@ -51221,19 +51253,19 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
         }
       }
       const after = await step(() => lstat25(path), parent);
-      require108(
+      require109(
         after.isDirectory() &&
           !after.isSymbolicLink() &&
           identity5(after) === identity5(first) &&
           after.uid === first.uid &&
           (after.mode & 63) === 0 &&
-          same75((await step(() => readdir25(path), parent)).sort(), names),
+          same76((await step(() => readdir25(path), parent)).sort(), names),
         'original directory changed during read',
       );
       directories.push({ path: name, identity: identity5(first), names });
     }
     const afterRoot = await step(() => lstat25(directory), parent);
-    require108(
+    require109(
       afterRoot.isDirectory() &&
         !afterRoot.isSymbolicLink() &&
         identity5(afterRoot) === identity5(root) &&
@@ -51247,26 +51279,26 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
   await step(() => store.verify());
   const original = await snapshot();
   const inspect = async (parent) => {
-    require108(same75(await snapshot(parent), original), 'original bytes, inode or namespace changed');
+    require109(same76(await snapshot(parent), original), 'original bytes, inode or namespace changed');
     const active = AbortSignal.any([deadline, ...(parent ? [parent] : [])]);
     const provenance = await step(
       () => readAzureTerraformOriginalReceiptProvenance(plan, store, loaders, active),
       parent,
     );
     const receipts = original.directories.find((row) => row.path === 'terraform-original-deployment-receipts');
-    require108(
+    require109(
       receipts &&
-        same75(receipts.names, provenance.receipts.map((row) => `${canonicalSha256(row.record)}.json`).sort()),
+        same76(receipts.names, provenance.receipts.map((row) => `${canonicalSha256(row.record)}.json`).sort()),
       'original directory differs from authenticated public receipt inventory',
     );
     const fragments = original.directories.find(
       (row) => row.path === 'terraform-original-deployment-publication-fragments',
     );
-    require108(
-      same75(fragments?.names ?? [], provenance.publicationFragments.map((row) => row.name).sort()),
+    require109(
+      same76(fragments?.names ?? [], provenance.publicationFragments.map((row) => row.name).sort()),
       'original fragments differ from authenticated publication provenance',
     );
-    require108(same75(await snapshot(parent), original), 'original bytes, inode or namespace changed across callbacks');
+    require109(same76(await snapshot(parent), original), 'original bytes, inode or namespace changed across callbacks');
     await step(() => store.verify(), parent);
     return canonicalSha256(provenance);
   };
@@ -51291,7 +51323,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
     loaders,
     digest,
     async recheck(parent) {
-      require108(
+      require109(
         canonicalSha256(result) === digest && (await inspect(parent)) === provenanceSha256,
         'original directory inventory changed',
       );
@@ -51299,7 +51331,7 @@ async function readAzureTerraformOriginalParentDirectoryInventory(request, store
   });
   return result;
 }
-var same75 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same76 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash32 = (bytes) => createHash58('sha256').update(bytes).digest('hex'),
   identity5 = (stat) => `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`,
   witnesses4;
@@ -51389,7 +51421,7 @@ import { constants as constants13 } from 'node:fs';
 import { lstat as lstat26, open as open10, readdir as readdir26, realpath as realpath24 } from 'node:fs/promises';
 import { join as join33 } from 'node:path';
 
-function require109(value, message) {
+function require110(value, message) {
   if (!value) throw Error(`Azure operational retirement session: ${message}`);
 }
 async function createAzureOperationalRetirementSession(request, transport, cloud, storage, publicSession, signal) {
@@ -51398,15 +51430,15 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
     owner = structuredClone(storage.owner),
     directory = storage.directory;
   verifyAzureCePlan(original);
-  require109(
+  require110(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same76(azureUpgradeBinding(original).owner, owner),
+      same77(azureUpgradeBinding(original).owner, owner),
     'original Terraform deployment required',
   );
   const publicDirectory = publicSession.getArtifactsDir(),
     sessionId = publicSession.getSessionId();
-  require109(
+  require110(
     typeof publicDirectory === 'string' && publicDirectory.startsWith('/'),
     'persistent original public session required',
   );
@@ -51419,10 +51451,10 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
   const storeCallbacks = [storage.verify, storage.read, storage.write, storage.remove];
   const seal = () => {
     signal?.throwIfAborted();
-    require109(
+    require110(
       requestMatches(request) &&
         requestMatches(original) &&
-        same76(storage.owner, owner) &&
+        same77(storage.owner, owner) &&
         storage.directory === directory &&
         transport.engine === 'terraform' &&
         publicSession.getSessionId() === sessionId &&
@@ -51472,7 +51504,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
     await store.verify();
     const root = await lstat26(directory),
       native = await lstat26(publicDirectory);
-    require109(
+    require110(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -51480,7 +51512,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
         (await realpath24(directory)) === directory,
       'private directory custody differs',
     );
-    require109(
+    require110(
       native.isDirectory() &&
         !native.isSymbolicLink() &&
         native.uid === process.getuid?.() &&
@@ -51489,7 +51521,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
       'public directory custody differs',
     );
     const identity = (value) => `${value.dev}:${value.ino}:${value.birthtimeMs}`;
-    require109(
+    require110(
       (privateIdentity === undefined || privateIdentity === identity(root)) &&
         (publicIdentity === undefined || publicIdentity === identity(native)),
       'owning directory replaced',
@@ -51497,7 +51529,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
     privateIdentity = identity(root);
     publicIdentity = identity(native);
     const source = await loadPlanArtifact(publicSession, original.planId, original.planSha256);
-    require109(same76(source.plan, original), 'original public deployment differs');
+    require110(same77(source.plan, original), 'original public deployment differs');
     const names = (await readdir26(publicDirectory)).filter((name) => name.endsWith(suffix2)).sort();
     const bindings = [];
     for (const name of names) {
@@ -51508,7 +51540,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
       let raw;
       try {
         const before = await handle.stat();
-        require109(
+        require110(
           before.isFile() &&
             before.uid === process.getuid?.() &&
             before.nlink === 1 &&
@@ -51521,12 +51553,12 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
           named = await lstat26(path);
         const stamp = (value) =>
           `${value.dev}:${value.ino}:${value.birthtimeMs}:${value.size}:${value.mtimeMs}:${value.ctimeMs}:${value.uid}:${value.mode}:${value.nlink}`;
-        require109(
+        require110(
           named.isFile() && !named.isSymbolicLink() && stamp(before) === stamp(after) && stamp(after) === stamp(named),
           'public issuer file changed',
         );
         const retained = canonicalSha256({ stamp: stamp(named), raw });
-        require109(
+        require110(
           !fileIdentities.has(path) || fileIdentities.get(path) === retained,
           'original public issuer replaced',
         );
@@ -51535,8 +51567,8 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
         await handle.close();
       }
       const row = parseNodeHealthJson(raw);
-      require109(
-        same76(
+      require110(
+        same77(
           Object.keys(row).sort(),
           ['schemaVersion', 'kind', 'engine', 'owner', 'planId', 'planSha256', 'issuerSha256'].sort(),
         ) &&
@@ -51548,30 +51580,30 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
           digest10(row.issuerSha256),
         'original public issuer schema differs',
       );
-      if (!same76(row.owner, owner)) continue;
+      if (!same77(row.owner, owner)) continue;
       const candidate = (await loadPlanArtifact(publicSession, row.planId, row.planSha256)).plan;
-      require109(
+      require110(
         candidate.engine === 'terraform' &&
           candidate.intent.operation === 'update-network' &&
-          same76(azureUpgradeBinding(candidate), azureUpgradeBinding(original)) &&
-          same76(azureTerraformNetworkScope(candidate, true), azureTerraformNetworkScope(original, true)) &&
+          same77(azureUpgradeBinding(candidate), azureUpgradeBinding(original)) &&
+          same77(azureTerraformNetworkScope(candidate, true), azureTerraformNetworkScope(original, true)) &&
           (!candidate.terraformNetworkProfile ||
             candidate.terraformNetworkProfile.originalPlanSha256 === original.planSha256),
         'original issuer network source differs from deployment',
       );
       bindings.push({ issuerSha256: row.issuerSha256, source: candidate });
     }
-    require109(
-      same76(names, (await readdir26(publicDirectory)).filter((name) => name.endsWith(suffix2)).sort()),
+    require110(
+      same77(names, (await readdir26(publicDirectory)).filter((name) => name.endsWith(suffix2)).sort()),
       'public issuer namespace changed',
     );
     const pins = [...new Set(bindings.map((row) => row.issuerSha256))];
-    require109(pins.length <= 1, 'conflicting original public issuers');
+    require110(pins.length <= 1, 'conflicting original public issuers');
     const privateNames = (await readdir26(directory)).filter(observerName).sort();
-    require109(bindings.length > 0 || privateNames.length === 0, 'observer artifacts have no original public issuer');
+    require110(bindings.length > 0 || privateNames.length === 0, 'observer artifacts have no original public issuer');
     const finalPrivate = await lstat26(directory),
       finalPublic = await lstat26(publicDirectory);
-    require109(
+    require110(
       identity(finalPrivate) === privateIdentity &&
         identity(finalPublic) === publicIdentity &&
         (finalPrivate.mode & 63) === 0 &&
@@ -51595,7 +51627,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
       )
     : undefined;
   const sameBindings = (value) =>
-    same76(
+    same77(
       value.bindings.map((row) => ({ issuerSha256: row.issuerSha256, sourcePlanSha256: row.source.planSha256 })),
       opening.bindings.map((row) => ({ issuerSha256: row.issuerSha256, sourcePlanSha256: row.source.planSha256 })),
     );
@@ -51621,7 +51653,7 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
     try {
       const first = await inspect(active),
         last = await inspect(active);
-      require109(
+      require110(
         sameBindings(first) && sameBindings(last) && !first.privateNames.length && !last.privateNames.length,
         'observer absence changed',
       );
@@ -51643,9 +51675,9 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
   const read = (parent) =>
     bounded(async (active) => {
       if (!acquisition) return absent(active);
-      require109(sameBindings(await inspect(active)), 'original source binding changed');
+      require110(sameBindings(await inspect(active)), 'original source binding changed');
       const inventory = await acquisition.authenticateRetirementInventory(active);
-      require109(sameBindings(await inspect(active)), 'original source binding changed');
+      require110(sameBindings(await inspect(active)), 'original source binding changed');
       return { ...inventory, observerState: 'present' };
     }, parent);
   const facade = Object.freeze({
@@ -51658,9 +51690,9 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
             scope: 'operational-observer-signing-material',
             artifactInventory: await absent(active),
           };
-        require109(sameBindings(await inspect(active)), 'original source binding changed');
+        require110(sameBindings(await inspect(active)), 'original source binding changed');
         const retired = await acquisition.retireSigningMaterial(active);
-        require109(sameBindings(await inspect(active)), 'original source binding changed');
+        require110(sameBindings(await inspect(active)), 'original source binding changed');
         return {
           status: retired.status,
           scope: retired.scope,
@@ -51674,17 +51706,17 @@ async function createAzureOperationalRetirementSession(request, transport, cloud
 }
 async function readAuthenticatedAzureOperationalRetirementInventory(candidate, original, store, publicSession, signal) {
   const bound = candidate && typeof candidate === 'object' ? sessions.get(candidate) : undefined;
-  require109(
+  require110(
     bound &&
-      same76(bound.source, original) &&
+      same77(bound.source, original) &&
       bound.publicSession === publicSession &&
       bound.store.directory === store.directory &&
-      same76(bound.store.owner, store.owner),
+      same77(bound.store.owner, store.owner),
     'genuine owning retirement session required',
   );
   return bound.read(signal);
 }
-var same76,
+var same77,
   digest10 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   suffix2 = '.azure-ce-network-operational-issuer.log',
   observerName = (name) =>
@@ -51701,7 +51733,7 @@ var init_network_operational_retirement_session = __esm(() => {
   init_network_operational_session();
   init_terraform_network_plan();
   init_terraform_upgrade();
-  same76 = canonicalEqual;
+  same77 = canonicalEqual;
   sessions = new WeakMap();
 });
 
@@ -51754,15 +51786,15 @@ var init_network_operational_parent_disposition = __esm(() => {
 import { createHash as createHash60 } from 'node:crypto';
 import { join as join34 } from 'node:path';
 
-function require110(v, message) {
+function require111(v, message) {
   if (!v) throw Error(`Azure pending import provenance: ${message}`);
 }
 function object81(v) {
-  require110(v && typeof v === 'object' && !Array.isArray(v), 'record required');
+  require111(v && typeof v === 'object' && !Array.isArray(v), 'record required');
   return v;
 }
 function keys23(v, fields) {
-  require110(same77(Object.keys(object81(v)).sort(), fields.toSorted()), 'schema fields differ');
+  require111(same78(Object.keys(object81(v)).sort(), fields.toSorted()), 'schema fields differ');
 }
 async function readAzureTerraformPendingImportProvenance(request, store, session, signal, emptyMainAdmission) {
   const base = structuredClone(request),
@@ -51780,9 +51812,9 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require110(
-      same77(request, base) &&
-        same77(store.owner, owner) &&
+    require111(
+      same78(request, base) &&
+        same78(store.owner, owner) &&
         store.directory === directory &&
         emptyMainAdmission?.witness === admittedWitness &&
         emptyMainAdmission?.context === admittedContext &&
@@ -51817,9 +51849,9 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       );
   };
   verifyAzureCePlan(base);
-  require110(
+  require111(
     base.engine === 'terraform' &&
-      same77(owner, azureUpgradeBinding(base).owner) &&
+      same78(owner, azureUpgradeBinding(base).owner) &&
       session.readPlanApplicationHistory &&
       session.readPlanJournalInventory,
     'owning native observers required',
@@ -51838,11 +51870,11 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     }
     const logical = await step(() => store.read(name));
     const nativeAfter = await step(() => readAzureTerraformParentPrivateFile(join34(directory, name), deadline));
-    require110(
+    require111(
       nativeAfter.identity === native.identity && hash34(nativeAfter.bytes) === hash34(native.bytes),
       'native packet changed during logical read',
     );
-    require110(same77(parsed, logical), 'logical and native packet differ');
+    require111(same78(parsed, logical), 'logical and native packet differ');
     return {
       value: object81(logical),
       identity: native.identity,
@@ -51869,7 +51901,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   ]);
   const id = `/subscriptions/${base.subscription.id}/resourceGroups/${base.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${base.deploymentName}-1`;
   const address = 'azurerm_linux_virtual_machine.node_1';
-  require110(
+  require111(
     value.schemaVersion === 2 &&
       value.sourcePlanSha256 === base.planSha256 &&
       value.id === id &&
@@ -51884,9 +51916,9 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     'completed owning import configuration required',
   );
   const imported = object81(JSON.parse(value.importedConfiguration));
-  require110(same77(imported.import, [{ to: address, id }]), 'exact import declaration required');
+  require111(same78(imported.import, [{ to: address, id }]), 'exact import declaration required');
   const receipt = object81(value.receipt);
-  require110(
+  require111(
     receipt.schemaVersion === 1 &&
       receipt.engine === 'terraform' &&
       receipt.deploymentId === base.deploymentName &&
@@ -51899,7 +51931,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       !receipt.refreshOriginSha256 &&
       !receipt.actionInvocations?.length &&
       !receipt.relinquishments?.length &&
-      same77(receipt.imports, [
+      same78(receipt.imports, [
         {
           address,
           type: 'azurerm_linux_virtual_machine',
@@ -51925,7 +51957,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     'evidenceSha256',
   ]);
   const { evidenceSha256, ...body } = application;
-  require110(
+  require111(
     application.schemaVersion === 1 &&
       evidenceSha256 === canonicalSha256(body) &&
       sha23(application.vmObservationSha256) &&
@@ -51933,7 +51965,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       application.historySha256 === canonicalSha256(application.history) &&
       application.originalConfigurationSha256 === value.configurationSha256 &&
       application.importedConfigurationSha256 === value.importedConfigurationSha256 &&
-      same77(application.stateIdentity, {
+      same78(application.stateIdentity, {
         address,
         type: 'azurerm_linux_virtual_machine',
         id,
@@ -51942,7 +51974,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   );
   const deployment = await step(() => azureTerraformCurrentDeployment(base));
   const { configuration: _configuration, providerLock, ...manifestIdentity } = deployment;
-  require110(hash34(providerLock) === receipt.providerLockSha256, 'installed owning provider lock differs');
+  require111(hash34(providerLock) === receipt.providerLockSha256, 'installed owning provider lock differs');
   const expectedImportedManifestSha256 = canonicalSha256({
     ...manifestIdentity,
     configurationSha256: value.importedConfigurationSha256,
@@ -51950,10 +51982,10 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   });
   const history = await step(() => readHistory(receipt, deadline)),
     inventory = await step(() => readInventory(deadline));
-  require110(
+  require111(
     history.incompleteArchives === 0 &&
       history.receiptSha256 === canonicalSha256(receipt) &&
-      same77(history.matches, object81(application.history).matches) &&
+      same78(history.matches, object81(application.history).matches) &&
       history.matches.length > 0 &&
       history.matches.some((row) => row.state === 'applied') &&
       history.matches.every(
@@ -51965,7 +51997,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       ) &&
       (emptyMainAdmission
         ? inventory.status === 'partial' &&
-          same77(inventory.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256])
+          same78(inventory.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256])
         : inventory.status === 'complete' && inventory.unrecognizedRootEntrySha256s?.length === 0) &&
       inventory.incompleteArchives === 0 &&
       inventory.entries.some((row) => row.configurationSha256 === value.configurationSha256) &&
@@ -51978,7 +52010,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     `original/import configuration and applied native archives required: ${JSON.stringify({
       incompleteHistoryArchives: history.incompleteArchives,
       exactReceipt: history.receiptSha256 === canonicalSha256(receipt),
-      retainedMatchesEqual: same77(history.matches, object81(application.history).matches),
+      retainedMatchesEqual: same78(history.matches, object81(application.history).matches),
       historyMatches: history.matches.length,
       appliedMatch: history.matches.some((row) => row.state === 'applied'),
       manifestMatches: history.matches.every((row) => row.manifestSha256 === expectedImportedManifestSha256),
@@ -51994,15 +52026,15 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       ),
     })}`,
   );
-  require110(
-    same77(await snapshot(), first) &&
-      same77(await step(() => readHistory(receipt, deadline)), history) &&
-      same77(await step(() => readInventory(deadline)), inventory) &&
-      same77(await snapshot(), first),
+  require111(
+    same78(await snapshot(), first) &&
+      same78(await step(() => readHistory(receipt, deadline)), history) &&
+      same78(await step(() => readInventory(deadline)), inventory) &&
+      same78(await snapshot(), first),
     'native custody changed during observation',
   );
   await recheckCancellation();
-  require110(same77(await snapshot(), first), 'native custody changed after cancellation recheck');
+  require111(same78(await snapshot(), first), 'native custody changed after cancellation recheck');
   seal();
   return {
     schemaVersion: 1,
@@ -52027,7 +52059,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   };
 }
 var hash34 = (v) => createHash60('sha256').update(v).digest('hex'),
-  same77 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same78 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha23 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_pending_import_provenance = __esm(() => {
   init_artifacts();
@@ -52041,11 +52073,11 @@ var init_terraform_pending_import_provenance = __esm(() => {
 // plugins/azure/src/ce/terraform-upgrade-artifact-provenance.ts
 import { createHash as createHash61 } from 'node:crypto';
 
-function require111(value, message) {
+function require112(value, message) {
   if (!value) throw Error(`Terraform upgrade history: ${message}`);
 }
 function object82(value) {
-  require111(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
+  require112(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
   return value;
 }
 function keys24(value, fields) {
@@ -52053,7 +52085,7 @@ function keys24(value, fields) {
     .filter(([, item]) => item !== undefined)
     .map(([name]) => name)
     .sort();
-  require111(same78(names, fields.toSorted()), 'record fields differ');
+  require112(same79(names, fields.toSorted()), 'record fields differ');
 }
 async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSite, contract, currentRecords, signal) {
   const base = structuredClone(request),
@@ -52067,7 +52099,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
     fingerprint = contract?.fingerprint;
   const seal = () => {
     signal?.throwIfAborted();
-    require111(
+    require112(
       canonicalSha256(request) === requestSha256 &&
         canonicalSha256(currentSite) === siteSha256 &&
         canonicalSha256(inventory(currentRecords)) === recordsSha256 &&
@@ -52079,11 +52111,11 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
   seal();
   for (const name of records.keys())
     if (name.startsWith('azure-ce-upgrade-') && name.endsWith('.json'))
-      require111(artifactPattern2.test(name), 'unclassified upgrade root record');
+      require112(artifactPattern2.test(name), 'unclassified upgrade root record');
   const names = [...records.keys()].filter(isAzureTerraformUpgradeHistoricalArtifact).sort();
   const sources = new Map();
   if (names.length)
-    require111(
+    require112(
       contract &&
         base.engine === 'terraform' &&
         typeof site.siteUid === 'string' &&
@@ -52098,7 +52130,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
     seal();
     await verifyAzureTerraformUpgrade(base, upgrade, contract);
     seal();
-    require111(
+    require112(
       name === `${upgrade.planId}.json` &&
         !sources.has(upgrade.planId) &&
         upgrade.expectation.siteUid === site.siteUid &&
@@ -52108,14 +52140,14 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
     );
     sources.set(upgrade.planId, structuredClone(upgrade));
   }
-  if (names.length) require111(sources.size > 0, 'upgrade source missing');
+  if (names.length) require112(sources.size > 0, 'upgrade source missing');
   const checkpoints = new Map();
   const actions = new Map();
   const stageRetirementPaths = [];
   for (const name of names) {
     if (name === serialName || sourcePattern3.test(name)) continue;
     const id = name.replace(/-(authorization|checkpoint|action-plan|receipt|stage-retirement)\.json$/, '');
-    require111(sources.has(id), 'root artifact source missing');
+    require112(sources.has(id), 'root artifact source missing');
     if (name.endsWith('-stage-retirement.json')) stageRetirementPaths.push(name);
   }
   for (const upgrade of sources.values()) {
@@ -52125,8 +52157,8 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
       rawAction = records.get(`${id}-action-plan.json`),
       rawReceipt = records.get(`${id}-receipt.json`);
     if (auth !== undefined)
-      require111(
-        same78(auth, {
+      require112(
+        same79(auth, {
           schemaVersion: 2,
           engine: 'terraform',
           sourcePlanSha256: base.planSha256,
@@ -52136,10 +52168,10 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
         'authorization differs',
       );
     if (rawCheckpoint === undefined) {
-      require111(rawAction === undefined && rawReceipt === undefined, 'action or completion checkpoint missing');
+      require112(rawAction === undefined && rawReceipt === undefined, 'action or completion checkpoint missing');
       continue;
     }
-    require111(auth !== undefined, 'checkpoint authorization missing');
+    require112(auth !== undefined, 'checkpoint authorization missing');
     const checkpoint = object82(rawCheckpoint);
     keys24(checkpoint, [
       'schemaVersion',
@@ -52149,7 +52181,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
       'phase',
       ...(checkpoint.actionPlanSha256 === undefined ? [] : ['actionPlanSha256']),
     ]);
-    require111(
+    require112(
       checkpoint.schemaVersion === 2 &&
         checkpoint.engine === 'terraform' &&
         checkpoint.sourcePlanSha256 === base.planSha256 &&
@@ -52173,7 +52205,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
         'noChanges',
         'actionInvocations',
       ]);
-      require111(
+      require112(
         action.schemaVersion === 1 &&
           action.engine === 'terraform' &&
           action.deploymentId === upgrade.deployment.deploymentId &&
@@ -52182,17 +52214,17 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
           action.providerLockSha256 === hash35(upgrade.deployment.providerLock) &&
           sha24(action.planSha256) &&
           action.noChanges === false &&
-          same78(action.changes, []) &&
-          same78(action.actionInvocations, [upgrade.action]) &&
+          same79(action.changes, []) &&
+          same79(action.actionInvocations, [upgrade.action]) &&
           (checkpoint.phase === 'ready' || action.planSha256 === checkpoint.actionPlanSha256),
         'saved action identity or intent differs',
       );
       actions.set(id, action);
     }
-    if (checkpoint.phase !== 'ready') require111(rawAction !== undefined, 'submitted action missing');
-    if (checkpoint.phase === 'complete') require111(rawReceipt !== undefined, 'completed receipt missing');
+    if (checkpoint.phase !== 'ready') require112(rawAction !== undefined, 'submitted action missing');
+    if (checkpoint.phase === 'complete') require112(rawReceipt !== undefined, 'completed receipt missing');
     if (rawReceipt !== undefined) {
-      require111(checkpoint.phase !== 'ready' && rawAction !== undefined, 'receipt predates submission');
+      require112(checkpoint.phase !== 'ready' && rawAction !== undefined, 'receipt predates submission');
       const receipt = object82(rawReceipt),
         action = actions.get(id);
       keys24(receipt, [
@@ -52208,13 +52240,13 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
         'routing',
         'traffic',
       ]);
-      require111(
+      require112(
         receipt.status === 'upgrade-complete' &&
           receipt.engine === 'terraform' &&
           receipt.planId === id &&
           receipt.planSha256 === upgrade.planSha256 &&
           receipt.siteName === upgrade.expectation.binding.siteName &&
-          same78(receipt.target, upgrade.expectation.target) &&
+          same79(receipt.target, upgrade.expectation.target) &&
           receipt.actionPlanSha256 === action?.planSha256 &&
           typeof receipt.observedAt === 'string' &&
           Number.isFinite(Date.parse(receipt.observedAt)) &&
@@ -52238,7 +52270,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
         (key) => serial?.[key] !== undefined,
       ),
     ]);
-    require111(
+    require112(
       serial.schemaVersion === 2 &&
         serial.engine === 'terraform' &&
         ['active', 'idle'].includes(String(serial.status)) &&
@@ -52254,23 +52286,23 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
       [serial.lastPlanId, serial.lastPlanSha256],
     ])
       if (id !== undefined)
-        require111(
+        require112(
           typeof id === 'string' && sha24(digest) && sources.get(id)?.planSha256 === digest && checkpoints.has(id),
           'serial source or checkpoint differs',
         );
     if (serial.lastPlanId !== undefined)
-      require111(checkpoints.get(String(serial.lastPlanId))?.phase !== 'submitted', 'last upgrade is still submitted');
+      require112(checkpoints.get(String(serial.lastPlanId))?.phase !== 'submitted', 'last upgrade is still submitted');
   }
   for (const [id, checkpoint] of checkpoints) {
     if (checkpoint.phase === 'submitted')
-      require111(serial?.status === 'active' && serial.activePlanId === id, 'submitted serial owner differs');
+      require112(serial?.status === 'active' && serial.activePlanId === id, 'submitted serial owner differs');
     if (checkpoint.phase === 'complete')
-      require111(
+      require112(
         serial && (serial.activePlanId !== undefined || serial.lastPlanId !== undefined),
         'completed serial ledger missing',
       );
     if (checkpoint.phase === 'ready' && actions.has(id))
-      require111(serial?.status === 'active' && serial.activePlanId === id, 'prepared action serial owner differs');
+      require112(serial?.status === 'active' && serial.activePlanId === id, 'prepared action serial owner differs');
   }
   seal();
   return {
@@ -52289,7 +52321,7 @@ var sourcePattern3,
   serialName = 'terraform-ce-upgrade-serial.json',
   hash35 = (value) => createHash61('sha256').update(value).digest('hex'),
   sha24 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  same78 = (left, right) => canonicalEqual({ value: left }, { value: right }),
+  same79 = (left, right) => canonicalEqual({ value: left }, { value: right }),
   isAzureTerraformUpgradeHistoricalArtifact = (name) => name === serialName || artifactPattern2.test(name);
 var init_terraform_upgrade_artifact_provenance = __esm(() => {
   init_canonical();
@@ -52304,15 +52336,15 @@ import { createHash as createHash62 } from 'node:crypto';
 import { lstat as lstat27, readdir as readdir27, realpath as realpath25 } from 'node:fs/promises';
 import { join as join35 } from 'node:path';
 
-function require112(v, message) {
+function require113(v, message) {
   if (!v) throw Error(`Azure upgrade applied journal: ${message}`);
 }
 function object83(v) {
-  require112(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require113(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 function keys25(v, names) {
-  require112(same79(Object.keys(object83(v)).sort(), names.toSorted()), 'journal fields differ');
+  require113(same80(Object.keys(object83(v)).sort(), names.toSorted()), 'journal fields differ');
 }
 async function qualifyAzureTerraformUpgradeAppliedJournal(
   request,
@@ -52341,11 +52373,11 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = (active) => {
     active.throwIfAborted();
-    require112(
-      same79(request, base) &&
-        same79(input, upgrade) &&
-        same79(currentSite, site) &&
-        same79(store.owner, owner) &&
+    require113(
+      same80(request, base) &&
+        same80(input, upgrade) &&
+        same80(currentSite, site) &&
+        same80(store.owner, owner) &&
         store.directory === directory &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning input or dependency changed',
@@ -52365,9 +52397,9 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
     }
   };
   seal(deadline);
-  require112(
+  require113(
     base.engine === 'terraform' &&
-      same79(owner, azureUpgradeBinding(base).owner) &&
+      same80(owner, azureUpgradeBinding(base).owner) &&
       typeof session.readPlanApplicationHistory === 'function',
     'owning journal observer required',
   );
@@ -52375,7 +52407,7 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
   const snapshot = async (active) => {
     await step(() => store.verify(), active);
     const root = await step(() => lstat27(directory), active);
-    require112(
+    require113(
       root.isDirectory() &&
         !root.isSymbolicLink() &&
         root.uid === process.getuid?.() &&
@@ -52401,7 +52433,7 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
         throw Error('Azure upgrade applied journal: malformed root record');
       }
       const logical = await step(() => store.read(name), active);
-      require112(same79(parsed, logical), 'root logical and native bytes differ');
+      require113(same80(parsed, logical), 'root logical and native bytes differ');
       records.set(name, structuredClone(logical));
       files.push({
         path: name,
@@ -52417,10 +52449,10 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
     () => verifyAzureTerraformUpgradeHistoricalArtifacts(base, site, contract, first.records, deadline),
     deadline,
   );
-  require112(same79(rootHistory.sources.get(upgrade.planId), upgrade), 'exact saved upgrade source required');
+  require113(same80(rootHistory.sources.get(upgrade.planId), upgrade), 'exact saved upgrade source required');
   const checkpoint = object83(first.records.get(`${upgrade.planId}-checkpoint.json`)),
     serial = object83(first.records.get('terraform-ce-upgrade-serial.json'));
-  require112(
+  require113(
     checkpoint.phase === 'complete' && serial.status === 'idle' && serial.activePlanId === undefined,
     'complete inactive upgrade required',
   );
@@ -52433,7 +52465,7 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
   });
   const validateHistory = (raw) => verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestSha256);
   const history = validateHistory(await step(() => readHistory(action, deadline), deadline));
-  require112(same79(await snapshot(deadline), first), 'root bytes or namespace changed during observation');
+  require113(same80(await snapshot(deadline), first), 'root bytes or namespace changed during observation');
   const body = {
     schemaVersion: 1,
     scope: 'azure-terraform-upgrade-applied-journal-custody',
@@ -52464,15 +52496,15 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
     async recheck(parent) {
       const active = AbortSignal.any([deadline, ...(parent ? [parent] : [])]);
       seal(active);
-      require112(
-        canonicalSha256(body) === digest && same79(await snapshot(active), first),
+      require113(
+        canonicalSha256(body) === digest && same80(await snapshot(active), first),
         'owning witness or root custody changed',
       );
-      require112(
-        same79(validateHistory(await step(() => readHistory(action, active), active)), history),
+      require113(
+        same80(validateHistory(await step(() => readHistory(action, active), active)), history),
         'native journal history changed',
       );
-      require112(same79(await snapshot(active), first), 'root bytes or namespace changed during recheck');
+      require113(same80(await snapshot(active), first), 'root bytes or namespace changed during recheck');
       seal(active);
     },
   });
@@ -52489,7 +52521,7 @@ async function recheckAzureTerraformUpgradeAppliedJournal(
   signal,
 ) {
   const bound = witness && typeof witness === 'object' ? witnesses5.get(witness) : undefined;
-  require112(
+  require113(
     bound &&
       bound.request === request &&
       bound.input === input &&
@@ -52514,7 +52546,7 @@ function verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestS
     'applicationOutcomeQualified',
     'retirementQualified',
   ]);
-  require112(
+  require113(
     history.schemaVersion === 1 &&
       history.scope === 'exact-saved-plan-journal-history' &&
       history.receiptSha256 === canonicalSha256(action) &&
@@ -52540,7 +52572,7 @@ function verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestS
       'manifestSha256',
     ]);
     const key = `${match.location}/${match.archiveSha256}`;
-    require112(
+    require113(
       ['current', 'revision', 'plan-history'].includes(String(match.location)) &&
         !seen.has(key) &&
         ['planned', 'applied'].includes(String(match.state)) &&
@@ -52554,11 +52586,11 @@ function verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestS
     seen.add(key);
     applied ||= match.state === 'applied';
   }
-  require112(applied, 'native applied journal occurrence required');
+  require113(applied, 'native applied journal occurrence required');
   return structuredClone(history);
 }
 var hash36 = (bytes) => createHash62('sha256').update(bytes).digest('hex'),
-  same79 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same80 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha25 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   witnesses5;
 var init_terraform_upgrade_applied_journal = __esm(() => {
@@ -52574,16 +52606,16 @@ import { createHash as createHash63 } from 'node:crypto';
 import { lstat as lstat28, readdir as readdir28 } from 'node:fs/promises';
 import { join as join36 } from 'node:path';
 
-function require113(v, message) {
+function require114(v, message) {
   if (!v) throw Error(`Azure upgrade stage retirement: ${message}`);
 }
 function object84(v) {
-  require113(v && typeof v === 'object' && !Array.isArray(v), 'complete checkpoint required');
+  require114(v && typeof v === 'object' && !Array.isArray(v), 'complete checkpoint required');
   return v;
 }
 function keys26(v, names) {
-  require113(
-    same80(
+  require114(
+    same81(
       Object.entries(object84(v))
         .filter(([, value]) => value !== undefined)
         .map(([key]) => key)
@@ -52630,10 +52662,10 @@ async function accessAzureTerraformUpgradeStage(
   ];
   const seal = () => {
     active.throwIfAborted();
-    require113(
-      same80(request, base) &&
-        same80(input, upgrade) &&
-        same80(store.owner, owner) &&
+    require114(
+      same81(request, base) &&
+        same81(input, upgrade) &&
+        same81(store.owner, owner) &&
         store.directory === directory &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning input or method changed',
@@ -52654,8 +52686,8 @@ async function accessAzureTerraformUpgradeStage(
   };
   seal();
   await step(() => verifyAzureTerraformUpgrade(base, upgrade, contract));
-  require113(
-    sha26(externalEvidenceSha256) && same80(owner, azureUpgradeBinding(base).owner),
+  require114(
+    sha26(externalEvidenceSha256) && same81(owner, azureUpgradeBinding(base).owner),
     'owning external absence digest required',
   );
   const site = {
@@ -52687,8 +52719,8 @@ async function accessAzureTerraformUpgradeStage(
       const history = await step(() =>
         verifyAzureTerraformUpgradeHistoricalArtifacts(base, site, contract, records, active),
       );
-      require113(
-        same80(history.sources.get(upgrade.planId), upgrade) &&
+      require114(
+        same81(history.sources.get(upgrade.planId), upgrade) &&
           object84(records.get(`${upgrade.planId}-checkpoint.json`)).phase === 'complete' &&
           object84(records.get('terraform-ce-upgrade-serial.json')).status === 'idle',
         'complete inactive owning roots required',
@@ -52714,7 +52746,7 @@ async function accessAzureTerraformUpgradeStage(
         'changes',
         'noChanges',
       ]);
-      require113(
+      require114(
         receipt.schemaVersion === 1 &&
           receipt.engine === 'terraform' &&
           receipt.deploymentId === upgrade.deployment.deploymentId &&
@@ -52750,10 +52782,10 @@ async function accessAzureTerraformUpgradeStage(
           'deploymentSha256',
           'externalEvidenceSha256',
         ];
-      require113(
+      require114(
         c.schemaVersion === 2 &&
           ['preparing', 'capturing', 'retiring', 'retired'].includes(String(c.status)) &&
-          same80(c.owner, owner) &&
+          same81(c.owner, owner) &&
           c.sourcePlanSha256 === base.planSha256 &&
           c.upgradePlanSha256 === upgrade.planSha256 &&
           c.deploymentSha256 === deploymentSha256 &&
@@ -52763,14 +52795,14 @@ async function accessAzureTerraformUpgradeStage(
       if (c.status !== 'preparing') {
         bound.push('receipt', 'receiptSha256');
         finalReceipt(c.receipt);
-        require113(c.receiptSha256 === canonicalSha256(c.receipt), 'final receipt digest differs');
+        require114(c.receiptSha256 === canonicalSha256(c.receipt), 'final receipt digest differs');
       }
       if (c.status === 'retiring' || c.status === 'retired') {
         bound.push('appliedJournal', 'appliedJournalSha256', 'retirementEvidence', 'evidenceSha256');
-        require113(
+        require114(
           sha26(c.appliedJournalSha256) &&
             c.appliedJournalSha256 === canonicalSha256(c.appliedJournal) &&
-            same80(c.retirementEvidence, envelope(c.appliedJournalSha256, String(c.receiptSha256))) &&
+            same81(c.retirementEvidence, envelope(c.appliedJournalSha256, String(c.receiptSha256))) &&
             c.evidenceSha256 === canonicalSha256(c.retirementEvidence),
           'original stage evidence envelope differs',
         );
@@ -52782,12 +52814,12 @@ async function accessAzureTerraformUpgradeStage(
     let checkpoint = await optional21(store, name);
     if (checkpoint !== undefined) validate(checkpoint);
     if (observationOnly !== undefined)
-      require113(
-        checkpoint !== undefined && object84(checkpoint).status === 'retired' && same80(checkpoint, observationOnly),
+      require114(
+        checkpoint !== undefined && object84(checkpoint).status === 'retired' && same81(checkpoint, observationOnly),
         'read-only completed stage checkpoint required',
       );
     const session = await step(() => terraform.open(owner, upgrade.deployment, 'current'));
-    require113(
+    require114(
       session.retireArtifacts &&
         session.readArtifactRetirement &&
         session.readPlanApplicationHistory &&
@@ -52807,7 +52839,7 @@ async function accessAzureTerraformUpgradeStage(
     ])
       dependencies.push({ target: session, key, value: Reflect.get(session, key) });
     if (checkpoint === undefined) {
-      require113(
+      require114(
         (await step(() => readConfiguration())) === hash37(configuration) &&
           (await step(() => session.readPlanApplicationState(action))) === 'applied',
         'owning applied action required',
@@ -52824,7 +52856,7 @@ async function accessAzureTerraformUpgradeStage(
       await step(() => store.write(name, checkpoint));
     }
     const unchanged = async () => {
-      require113(same80(await step(() => store.read(name)), checkpoint), 'stage checkpoint changed across boundary');
+      require114(same81(await step(() => store.read(name)), checkpoint), 'stage checkpoint changed across boundary');
       await roots();
     };
     if (object84(checkpoint).status === 'preparing') {
@@ -52885,12 +52917,12 @@ async function accessAzureTerraformUpgradeStage(
         'retirementQualified',
         'currentOperationalAcceptanceQualified',
       ]);
-      require113(
+      require114(
         proof.schemaVersion === 1 &&
           proof.scope === 'azure-terraform-upgrade-applied-journal-custody' &&
           proof.sourcePlanSha256 === base.planSha256 &&
           proof.upgradePlanSha256 === upgrade.planSha256 &&
-          same80(proof.site, site) &&
+          same81(proof.site, site) &&
           proof.contractFingerprint === contract.fingerprint &&
           proof.actionReceiptSha256 === canonicalSha256(action) &&
           proof.manifestSha256 === manifestSha256 &&
@@ -52905,17 +52937,17 @@ async function accessAzureTerraformUpgradeStage(
       verifyAzureTerraformUpgradeAppliedJournalHistory(proof.history, action, manifestSha256);
       const current = await roots(),
         files = proof.files.map(object84);
-      require113(same80(files.map((file) => file.path).sort(), current.names), 'retained root namespace differs');
+      require114(same81(files.map((file) => file.path).sort(), current.names), 'retained root namespace differs');
       const root = await step(() => lstat28(directory));
-      require113(
+      require114(
         proof.rootIdentity === `${root.dev}:${root.ino}:${root.birthtimeMs}`,
         'retained root identity differs',
       );
       for (const file of files) {
         keys26(file, ['path', 'identity', 'bytesSha256', 'packetSha256']);
-        require113(typeof file.path === 'string' && current.names.includes(file.path), 'retained root path differs');
+        require114(typeof file.path === 'string' && current.names.includes(file.path), 'retained root path differs');
         const native = await step(() => readAzureTerraformParentPrivateFile(join36(directory, file.path), active));
-        require113(
+        require114(
           native.identity === file.identity &&
             hash37(native.bytes) === file.bytesSha256 &&
             file.packetSha256 === canonicalSha256(current.records.get(file.path)),
@@ -52935,7 +52967,7 @@ async function accessAzureTerraformUpgradeStage(
         'retiredArtifacts',
         'independentCleanupSha256',
       ]);
-      require113(
+      require114(
         value.status === 'runner-artifacts-retired' &&
           value.manifestSha256 === manifestSha256 &&
           value.evidenceSha256 === evidenceSha256 &&
@@ -52953,26 +52985,26 @@ async function accessAzureTerraformUpgradeStage(
     await retained();
     if (observed.status === 'runner-artifacts-retired') {
       const native = result(observed.receipt);
-      require113(sha26(observed.markerSha256), 'permanent native marker identity required');
+      require114(sha26(observed.markerSha256), 'permanent native marker identity required');
       if (c.status === 'retired')
-        require113(same80(c.result, native), 'completed root result differs from native barrier');
+        require114(same81(c.result, native), 'completed root result differs from native barrier');
       else {
         checkpoint = { ...c, status: 'retired', result: native };
         await step(() => store.write(name, checkpoint));
       }
       return native;
     }
-    require113(c.status === 'retiring', 'completed stage lost its permanent native barrier');
+    require114(c.status === 'retiring', 'completed stage lost its permanent native barrier');
     if (observed.status === 'absent') {
       const fresh = await step(() =>
         qualifyAzureTerraformUpgradeAppliedJournal(base, upgrade, site, contract, store, session, active),
       );
-      require113(same80(fresh, c.appliedJournal), 'pre-deletion applied custody changed');
+      require114(same81(fresh, c.appliedJournal), 'pre-deletion applied custody changed');
       await step(() =>
         recheckAzureTerraformUpgradeAppliedJournal(fresh, base, upgrade, site, contract, store, session, active),
       );
     } else
-      require113(
+      require114(
         sha26(observed.markerSha256) &&
           sha26(observed.independentCleanupSha256) &&
           Number.isSafeInteger(observed.remainingArtifacts) &&
@@ -52983,10 +53015,10 @@ async function accessAzureTerraformUpgradeStage(
     const retired = result(await step(() => retire(receipt, evidenceSha256, env, active)));
     await retained();
     const permanent = await step(() => observeRetirement(receipt, evidenceSha256, active));
-    require113(
+    require114(
       permanent.status === 'runner-artifacts-retired' &&
         sha26(permanent.markerSha256) &&
-        same80(result(permanent.receipt), retired),
+        same81(result(permanent.receipt), retired),
       'owning permanent native barrier required after cleanup',
     );
     await retained();
@@ -53020,12 +53052,12 @@ async function retireAzureTerraformUpgradeStage(
 }
 async function readAzureTerraformUpgradeStageRetirement(request, input, contract, terraform, store, signal) {
   signal?.throwIfAborted();
-  require113(/^azure-ce-upgrade-[a-f0-9]{24}$/.test(input.planId), 'read-only stage source identifier required');
+  require114(/^azure-ce-upgrade-[a-f0-9]{24}$/.test(input.planId), 'read-only stage source identifier required');
   const name = `${input.planId}-stage-retirement.json`,
     path = join36(store.directory, name),
     before = await readAzureTerraformParentPrivateFile(path, signal),
     checkpoint = object84(JSON.parse(before.bytes.toString()));
-  require113(
+  require114(
     checkpoint.schemaVersion === 2 && checkpoint.status === 'retired' && sha26(checkpoint.externalEvidenceSha256),
     'read-only completed stage checkpoint required',
   );
@@ -53041,7 +53073,7 @@ async function readAzureTerraformUpgradeStageRetirement(request, input, contract
     checkpoint,
   );
   const after = await readAzureTerraformParentPrivateFile(path, signal);
-  require113(
+  require114(
     after.identity === before.identity && after.bytes.equals(before.bytes),
     'read-only stage checkpoint descriptor changed',
   );
@@ -53058,7 +53090,7 @@ async function finalizeAzureTerraformUpgradeStageRetirement(
   signal,
 ) {
   signal?.throwIfAborted();
-  require113(sha26(newStageExternalEvidenceSha256), 'resolved external absence digest required');
+  require114(sha26(newStageExternalEvidenceSha256), 'resolved external absence digest required');
   await verifyAzureTerraformUpgrade(request, input, contract);
   const saved = await optional21(store, `${input.planId}-stage-retirement.json`);
   if (saved === undefined)
@@ -53073,7 +53105,7 @@ async function finalizeAzureTerraformUpgradeStageRetirement(
       signal,
     );
   const checkpoint = object84(saved);
-  require113(
+  require114(
     checkpoint.schemaVersion === 2 && sha26(checkpoint.externalEvidenceSha256),
     'original stage external evidence required',
   );
@@ -53108,7 +53140,7 @@ async function qualifiedAzureTerraformUpgradeStages(base, store, stages, contrac
   return upgrades.sort((a, b) => String(a.deployment.stage).localeCompare(String(b.deployment.stage)));
 }
 var hash37 = (v) => createHash63('sha256').update(v).digest('hex'),
-  same80 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same81 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha26 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_upgrade_retirement = __esm(() => {
   init_process_lock();
@@ -53124,18 +53156,18 @@ import { createHash as createHash64 } from 'node:crypto';
 import { isIP as isIP27 } from 'node:net';
 import { join as join37 } from 'node:path';
 
-function require114(value, message) {
+function require115(value, message) {
   if (!value) throw Error(`Azure parent disposition: ${message}`);
 }
 function object85(value) {
-  require114(value && typeof value === 'object' && !Array.isArray(value), 'complete schema record required');
+  require115(value && typeof value === 'object' && !Array.isArray(value), 'complete schema record required');
   return value;
 }
 function keys27(value, fields) {
-  require114(same81(Object.keys(object85(value)).sort(), fields.toSorted()), 'record fields differ');
+  require115(same82(Object.keys(object85(value)).sort(), fields.toSorted()), 'record fields differ');
 }
 function timestamp5(value) {
-  require114(
+  require115(
     typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now(),
     'historical timestamp differs',
   );
@@ -53152,7 +53184,7 @@ function validateAzureTerraformParentTeardownReceipt(raw, base, teardown, final)
     'sites',
     'observedAt',
   ]);
-  require114(
+  require115(
     receipt.status === 'retired' &&
       receipt.sourcePlanSha256 === base.planSha256 &&
       receipt.teardownPlanSha256 === teardown.planSha256 &&
@@ -53182,9 +53214,9 @@ async function collectAzureTerraformParentDispositions(
   const teardown = context.destroyTeardown,
     binding = azureUpgradeBinding(base),
     owner = binding.owner;
-  require114(
+  require115(
     base.engine === 'terraform' &&
-      same81(store.owner, owner) &&
+      same82(store.owner, owner) &&
       teardown.sourcePlanSha256 === base.planSha256 &&
       teardown.retirement.length === 1 &&
       teardown.retirement[0].siteName === base.siteName &&
@@ -53193,18 +53225,18 @@ async function collectAzureTerraformParentDispositions(
   );
   const files = [...snapshot.files, snapshot.terminalFile],
     byPath = new Map(files.map((file) => [file.path, file]));
-  require114(byPath.size === files.length, 'duplicate native file');
+  require115(byPath.size === files.length, 'duplicate native file');
   const records = new Map();
   for (const file of files.filter((file) => !file.path.includes('/'))) {
     signal?.throwIfAborted();
     const value = await store.read(file.path);
-    require114(canonicalSha256(value) === file.packetSha256, 'semantic record differs from native snapshot');
+    require115(canonicalSha256(value) === file.packetSha256, 'semantic record differs from native snapshot');
     records.set(file.path, structuredClone(value));
   }
   const decisions = new Map();
   const decide = (path, action, schema, provenance, payloadSha256ByField) => {
     const file = byPath.get(path);
-    require114(file && schema.length > 0, 'decision lacks exact native file or schema');
+    require115(file && schema.length > 0, 'decision lacks exact native file or schema');
     const decision = {
       ...file,
       action,
@@ -53212,16 +53244,16 @@ async function collectAzureTerraformParentDispositions(
       semanticProvenanceSha256: canonicalSha256(provenance),
       ...(payloadSha256ByField ? { payloadSha256ByField } : {}),
     };
-    require114(!decisions.has(path), 'conflicting or duplicate semantic decision');
+    require115(!decisions.has(path), 'conflicting or duplicate semantic decision');
     decisions.set(path, decision);
   };
   const original = await readAzureTerraformOriginalReceiptProvenance(base, store, context.loaders, signal);
-  require114(
+  require115(
     canonicalSha256(original) === authority.originalDirectories.provenanceSha256,
     'original receipt directory authority differs',
   );
   const outcome = await context.loaders.loadOutcome(base);
-  require114(canonicalSha256(outcome) === original.outcomeSha256, 'original public outcome differs');
+  require115(canonicalSha256(outcome) === original.outcomeSha256, 'original public outcome differs');
   const rootGeneric = new Set();
   const generic = (path, action, schema, provenance, payload) => {
     rootGeneric.add(path);
@@ -53239,16 +53271,16 @@ async function collectAzureTerraformParentDispositions(
     for (const file of observer) {
       generic(file.path, file.action, file.schema, { observer: file.semanticProvenanceSha256 });
       const decision = decisions.get(file.path);
-      require114(decision, 'owning observer decision missing');
+      require115(decision, 'owning observer decision missing');
       decision.semanticProvenanceSha256 = file.semanticProvenanceSha256;
     }
   }
   const record = (name) => object85(records.get(name));
   keys27(record('owner.json'), ['schemaVersion', 'owner']);
-  require114(same81(record('owner.json'), { schemaVersion: 2, owner }), 'owner manifest differs');
+  require115(same82(record('owner.json'), { schemaVersion: 2, owner }), 'owner manifest differs');
   generic('owner.json', 'preserve', 'ce-owner-v2', { owner });
-  require114(
-    same81(records.get('azure-terraform-terminal-cleanup.json'), context.terminalCleanup),
+  require115(
+    same82(records.get('azure-terraform-terminal-cleanup.json'), context.terminalCleanup),
     'owning terminal checkpoint differs',
   );
   generic(
@@ -53257,10 +53289,10 @@ async function collectAzureTerraformParentDispositions(
     'terraform-terminal-cleanup-v1',
     authority.terminal,
   );
-  require114(same81(records.get(`${teardown.planId}.json`), teardown), 'saved compiled teardown differs');
+  require115(same82(records.get(`${teardown.planId}.json`), teardown), 'saved compiled teardown differs');
   generic(`${teardown.planId}.json`, 'preserve', 'terraform-teardown-plan', teardown);
-  require114(
-    same81(records.get(`${teardown.planId}-authorization.json`), {
+  require115(
+    same82(records.get(`${teardown.planId}-authorization.json`), {
       schemaVersion: 1,
       engine: 'terraform',
       sourcePlanSha256: base.planSha256,
@@ -53270,8 +53302,8 @@ async function collectAzureTerraformParentDispositions(
     'teardown authorization differs',
   );
   generic(`${teardown.planId}-authorization.json`, 'preserve', 'terraform-teardown-authorization-v1', teardown);
-  require114(
-    same81(records.get('azure-terraform-lifecycle-retirement.json'), {
+  require115(
+    same82(records.get('azure-terraform-lifecycle-retirement.json'), {
       schemaVersion: 1,
       engine: 'terraform',
       owner,
@@ -53283,11 +53315,11 @@ async function collectAzureTerraformParentDispositions(
   );
   generic('azure-terraform-lifecycle-retirement.json', 'preserve', 'terraform-lifecycle-retirement-v1', teardown);
   const terminal = object85(authority.terminal);
-  require114(
+  require115(
     terminal.destroyJournalCustodyQualified === true &&
       terminal.publicJournalCustodyQualified === true &&
       terminal.currentEmptyMainJournalCustodyQualified === true &&
-      same81(terminal.owner, owner) &&
+      same82(terminal.owner, owner) &&
       terminal.originalPlanSha256 === base.planSha256 &&
       terminal.teardownPlanSha256 === teardown.planSha256 &&
       Array.isArray(terminal.consumed),
@@ -53299,7 +53331,7 @@ async function collectAzureTerraformParentDispositions(
   ]) {
     const receipt = record(name),
       joins = terminal.consumed.map(object85).filter((row) => row.phase === phase);
-    require114(
+    require115(
       joins.length === 1 && joins[0].receiptSha256 === canonicalSha256(receipt) && sha27(joins[0].historySha256),
       'destroy receipt lacks owning native application provenance',
     );
@@ -53319,14 +53351,14 @@ async function collectAzureTerraformParentDispositions(
     });
   }
   const workflow = record('terraform-workflow.json');
-  require114(
+  require115(
     canonicalSha256(workflow) === original.checkpointSha256,
     'original workflow differs from owning completed public outcome',
   );
   const bootstrap = object85(workflow.bootstrapByNode),
     payload = {};
   for (const [node, value] of Object.entries(bootstrap)) {
-    require114(
+    require115(
       /^[1-3]$/.test(node) && Number(node) <= base.topology.nodeCount && typeof value === 'string',
       'workflow bootstrap schema differs',
     );
@@ -53347,17 +53379,17 @@ async function collectAzureTerraformParentDispositions(
           row.record.stage.kind === kind &&
           (kind !== 'node-admission' ||
             (row.record.stage.kind === 'node-admission' && row.record.stage.node === node)) &&
-          same81(row.record.receipt, value),
+          same82(row.record.receipt, value),
       );
-    require114(matches.length === 1, 'root foundation or admission receipt differs from exact original publication');
+    require115(matches.length === 1, 'root foundation or admission receipt differs from exact original publication');
     generic(name, 'preserve', 'terraform-original-published-plan-receipt-v1', matches[0]);
   }
-  require114(
-    same81(records.get('terraform-registration-configuration.json'), outcome.configuration),
+  require115(
+    same82(records.get('terraform-registration-configuration.json'), outcome.configuration),
     'registered configuration differs from original public outcome',
   );
-  require114(
-    same81(records.get('terraform-registration-observation.json'), outcome.registrations),
+  require115(
+    same82(records.get('terraform-registration-observation.json'), outcome.registrations),
     'registration observation differs from original public outcome',
   );
   for (const name of ['terraform-registration-configuration.json', 'terraform-registration-observation.json'])
@@ -53370,7 +53402,7 @@ async function collectAzureTerraformParentDispositions(
       site.tokens.map((token) => [`${token.name}.json`, { ...token, siteName: site.siteName }]),
     ),
   );
-  require114(
+  require115(
     tokens.size === teardown.retirement.reduce((total, site) => total + site.tokens.length, 0),
     'duplicate issued token identity',
   );
@@ -53378,7 +53410,7 @@ async function collectAzureTerraformParentDispositions(
     if (!records.has(name)) continue;
     const value = record(name);
     keys27(value, ['jwt', 'node', 'siteName', 'tokenName']);
-    require114(
+    require115(
       value.tokenName === token.name &&
         value.node === token.node &&
         value.siteName === token.siteName &&
@@ -53408,7 +53440,7 @@ async function collectAzureTerraformParentDispositions(
       pendingAdmission,
     );
     const file = byPath.get(proof.path);
-    require114(
+    require115(
       file &&
         file.identity === proof.identity &&
         file.sha256 === proof.bytesSha256 &&
@@ -53421,8 +53453,8 @@ async function collectAzureTerraformParentDispositions(
     if (rootGeneric.has(name)) continue;
     const value = object85(raw);
     if (name === `terraform-authorization-${base.planSha256}.json`) {
-      require114(
-        same81(value, {
+      require115(
+        same82(value, {
           schemaVersion: 1,
           engine: 'terraform',
           planSha256: base.planSha256,
@@ -53433,10 +53465,10 @@ async function collectAzureTerraformParentDispositions(
       generic(name, 'preserve', 'terraform-original-authorization-v1', base);
     } else if (name === 'terraform-site.json') {
       keys27(value, ['siteName', 'uid', 'owner', 'contractFingerprint']);
-      require114(
+      require115(
         value.siteName === base.siteName &&
           value.uid === context.site.siteUid &&
-          same81(value.owner, owner) &&
+          same82(value.owner, owner) &&
           value.contractFingerprint === teardown.drain.siteContractFingerprint,
         'original site reservation differs',
       );
@@ -53450,9 +53482,9 @@ async function collectAzureTerraformParentDispositions(
         'binding',
         'expectedInterfaces',
       ]);
-      require114(
+      require115(
         value.schemaVersion === 1 &&
-          same81(value.binding, binding) &&
+          same82(value.binding, binding) &&
           value.siteUid === context.site.siteUid &&
           value.contractFingerprint === teardown.drain.siteContractFingerprint &&
           typeof value.tenantOrigin === 'string' &&
@@ -53467,7 +53499,7 @@ async function collectAzureTerraformParentDispositions(
         const row = object85(rawInterface);
         keys27(row, ['node', 'role', 'mac', ...(row.staticIp === undefined ? [] : ['staticIp'])]);
         const role = row.role === 'data' ? 'sli' : row.role;
-        require114(
+        require115(
           binding.nodes.includes(String(row.node)) &&
             ['slo', 'sli'].includes(String(role)) &&
             typeof row.mac === 'string' &&
@@ -53484,7 +53516,7 @@ async function collectAzureTerraformParentDispositions(
             ...(ip.default_gw === undefined ? [] : ['default_gw']),
             ...(ip.dns_server === undefined ? [] : ['dns_server']),
           ]);
-          require114(
+          require115(
             configured.length === 2 &&
               isIP27(configured[0]) === 4 &&
               /^\d{1,2}$/.test(configured[1]) &&
@@ -53498,7 +53530,7 @@ async function collectAzureTerraformParentDispositions(
         macs.add(row.mac.toLowerCase());
         roles.add(`${row.node}/${role}`);
       }
-      require114(
+      require115(
         value.expectedInterfaces.length === binding.nodes.length * 2,
         'complete authoritative interface binding required',
       );
@@ -53507,7 +53539,7 @@ async function collectAzureTerraformParentDispositions(
       keys27(value, ['planId', 'record']);
       const saved = object85(value.record);
       keys27(saved, ['phase', 'resourceVersion', 'uid']);
-      require114(
+      require115(
         typeof value.planId === 'string' &&
           /^f5xc-ce-v2-[a-f0-9]{24}$/.test(value.planId) &&
           ['replace-prepared', 'replace-observed'].includes(String(saved.phase)) &&
@@ -53520,10 +53552,10 @@ async function collectAzureTerraformParentDispositions(
     } else if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {
       const checkout = object85(value.checkout),
         token = tokens.get(`${String(value.tokenName)}.json`);
-      require114(
+      require115(
         value.schemaVersion === 1 &&
-          same81(value.owner, owner) &&
-          same81(value.binding, binding) &&
+          same82(value.owner, owner) &&
+          same82(value.binding, binding) &&
           value.siteUid === context.site.siteUid &&
           value.contractFingerprint === teardown.drain.siteContractFingerprint &&
           token &&
@@ -53533,13 +53565,13 @@ async function collectAzureTerraformParentDispositions(
         'opaque checkout provenance differs',
       );
       const upstream = record(`${token.name}.json`);
-      require114(
+      require115(
         typeof upstream.jwt === 'string' && hash38(upstream.jwt) === checkout.digest,
         'opaque checkout upstream token differs',
       );
       generic(name, 'preserve', 'ce-bootstrap-checkout-v1', { value, token });
     } else if (name === 'azure-terraform-cloud-destroy-reconciliation.json') {
-      require114(
+      require115(
         ['absent', 'owned'].includes(String(value.status)) &&
           (value.status !== 'owned' || value.ownerPlanSha256 === base.planSha256) &&
           value.resourceGroupId ===
@@ -53549,14 +53581,14 @@ async function collectAzureTerraformParentDispositions(
       timestamp5(value.observedAt);
       generic(name, 'preserve', 'terraform-destroy-reconciliation', { value, owner });
     } else if (name === 'platform-drain-source.json') {
-      require114(
-        same81(value, { sha256: canonicalSha256(teardown.drain), plan: teardown.drain }),
+      require115(
+        same82(value, { sha256: canonicalSha256(teardown.drain), plan: teardown.drain }),
         'drain source differs',
       );
       generic(name, 'preserve', 'ce-platform-drain-source', teardown.drain);
     } else if (name === 'platform-drain-progress.json' || name === 'platform-drain-receipt.json') {
-      require114(
-        same81(records.get('platform-drain-source.json'), {
+      require115(
+        same82(records.get('platform-drain-source.json'), {
           sha256: canonicalSha256(teardown.drain),
           plan: teardown.drain,
         }),
@@ -53571,14 +53603,14 @@ async function collectAzureTerraformParentDispositions(
           ),
         ),
       ];
-      require114(
-        value.planSha256 === canonicalSha256(teardown.drain) && same81(value.completed, completed),
+      require115(
+        value.planSha256 === canonicalSha256(teardown.drain) && same82(value.completed, completed),
         'drain completed target inventory differs',
       );
       timestamp5(value.observedAt);
       if (name.endsWith('progress.json')) {
         keys27(value, ['schemaVersion', 'planSha256', 'completed', 'observedAt']);
-        require114(value.schemaVersion === 1, 'drain progress schema differs');
+        require115(value.schemaVersion === 1, 'drain progress schema differs');
       } else {
         keys27(value, [
           'status',
@@ -53590,9 +53622,9 @@ async function collectAzureTerraformParentDispositions(
           'sites',
           'observedAt',
         ]);
-        require114(
+        require115(
           value.status === 'platform-drained' &&
-            same81(value.owner, owner) &&
+            same82(value.owner, owner) &&
             value.sourcePlanSha256 === base.planSha256 &&
             value.cloud === 'unknown' &&
             value.sites === 'not-retired',
@@ -53603,7 +53635,7 @@ async function collectAzureTerraformParentDispositions(
     }
   }
   const locks = new Set(original.receipts.map((row) => row.record.receipt.providerLockSha256));
-  require114(locks.size === 1, 'original provider lock inventory differs');
+  require115(locks.size === 1, 'original provider lock inventory differs');
   const providerLockSha256 = [...locks][0];
   const networkPackets = new Set(authority.packets.map((packet) => packet.path));
   const replacement = new Map(
@@ -53613,14 +53645,14 @@ async function collectAzureTerraformParentDispositions(
     ),
   );
   if ([...replacement.keys()].some(isAzureTerraformReplacementHistoricalArtifact)) {
-    require114(sha27(providerLockSha256), 'owning provider lock identity required');
+    require115(sha27(providerLockSha256), 'owning provider lock identity required');
     verifyAzureTerraformReplacementHistoricalArtifacts(base, teardown.retirement, replacement, providerLockSha256);
   }
   const relay = new Map([...records].filter(([name]) => azureRelayHistoricalArtifacts.has(name)));
   if (relay.size) verifyAzureRelayHistoricalArtifacts(base, context.site.siteUid, relay);
   const ingress = new Map([...records].filter(([name]) => isAzureIngressHistoricalArtifact(name)));
   if (ingress.size) {
-    require114(contracts.ingress, 'verified ingress contract required for historical schema validation');
+    require115(contracts.ingress, 'verified ingress contract required for historical schema validation');
     verifyAzureIngressHistoricalArtifacts(base, teardown.drain, contracts.ingress, records);
   }
   const failover = new Map(
@@ -53645,7 +53677,7 @@ async function collectAzureTerraformParentDispositions(
     signal,
   );
   for (const artifact of upgradeHistory.rootArtifacts) {
-    require114(
+    require115(
       byPath.get(artifact.path)?.packetSha256 === artifact.packetSha256,
       'upgrade root native identity differs',
     );
@@ -53655,7 +53687,7 @@ async function collectAzureTerraformParentDispositions(
   const upgradeStages = new Set();
   for (const upgrade of upgradeHistory.sources.values()) {
     const stage = upgrade.deployment.stage;
-    require114(typeof stage === 'string' && !upgradeStages.has(stage), 'upgrade stage source differs');
+    require115(typeof stage === 'string' && !upgradeStages.has(stage), 'upgrade stage source differs');
     upgradeStages.add(stage);
     const directory = `terraform-stages/${stage}`;
     const staged =
@@ -53663,7 +53695,7 @@ async function collectAzureTerraformParentDispositions(
       files.some((row) => row.path.startsWith(`${directory}/`));
     if (!staged) {
       const serial = records.get('terraform-ce-upgrade-serial.json');
-      require114(
+      require115(
         !upgradeHistory.rootArtifacts.some((row) => row.path.startsWith(`${upgrade.planId}-`)) &&
           !upgradeHistory.stageRetirementPaths.includes(`${upgrade.planId}-stage-retirement.json`) &&
           (!serial ||
@@ -53679,7 +53711,7 @@ async function collectAzureTerraformParentDispositions(
       const source = raw;
       verifyAzureCeFailoverPlan(base, source);
       const deployment = await azureTerraformFailoverDeployment(base, source, 'release');
-      require114(
+      require115(
         name === `${source.planId}.json` && typeof deployment.stage === 'string' && !stages.has(deployment.stage),
         'failover stage source differs',
       );
@@ -53687,17 +53719,17 @@ async function collectAzureTerraformParentDispositions(
     }
   }
   const networkStages = new Map(authority.children.map((child) => [child.stage, child]));
-  require114(networkStages.size === authority.children.length, 'duplicate owning network child');
+  require115(networkStages.size === authority.children.length, 'duplicate owning network child');
   const directoryDecisions = [];
   const allowedDirectories = new Set(['', base.deploymentName, 'terraform-stages']);
   for (const child of authority.children) {
     const stage = snapshot.directories.find((row) => row.path === `terraform-stages/${child.stage}`);
-    require114(stage && same81(stage.names, [base.deploymentName]), 'network child runner owner differs');
+    require115(stage && same82(stage.names, [base.deploymentName]), 'network child runner owner differs');
     const prefix = `${stage.path}/${base.deploymentName}`,
       proof = object85(child.proof),
       observed = object85(proof.observed),
       receipt = object85(observed.receipt);
-    require114(
+    require115(
       byPath.get(`${prefix}/artifact-retirement.json`)?.sha256 === observed.markerSha256 &&
         byPath.get(`${prefix}/deployment.json`)?.packetSha256 === receipt.manifestSha256,
       'owning child marker or manifest differs',
@@ -53715,7 +53747,7 @@ async function collectAzureTerraformParentDispositions(
     const readStage = async (name) => {
       const path = `${prefix}/${name}`,
         native = await readAzureTerraformParentPrivateFile(join37(store.directory, path), signal);
-      require114(
+      require115(
         native.identity === byPath.get(path)?.identity && hash38(native.bytes) === byPath.get(path)?.sha256,
         'stage descriptor custody differs',
       );
@@ -53727,17 +53759,17 @@ async function collectAzureTerraformParentDispositions(
       retirement = record(retirementName),
       final = object85(retirement.receipt);
     const { configuration, providerLock, ...identity } = stage.deployment;
-    require114(
+    require115(
       typeof configuration === 'string' &&
         typeof providerLock === 'string' &&
-        same81(manifest, {
+        same82(manifest, {
           ...identity,
           configurationSha256: hash38(configuration),
           providerLockSha256: hash38(providerLock),
         }) &&
         retirement.schemaVersion === (stage.failover ? 1 : 2) &&
         retirement.status === 'retired' &&
-        same81(retirement.owner, owner) &&
+        same82(retirement.owner, owner) &&
         retirement.sourcePlanSha256 === base.planSha256 &&
         (stage.failover ? retirement.failoverPlanSha256 : retirement.upgradePlanSha256) === stage.source.planSha256 &&
         retirement.deploymentSha256 === canonicalSha256(stage.deployment) &&
@@ -53770,7 +53802,7 @@ async function collectAzureTerraformParentDispositions(
       marker.independentCleanupSha256,
     );
     if (!stage.failover) {
-      require114(
+      require115(
         upgradeHistory.stageRetirementPaths.includes(retirementName) && contracts.upgrade,
         'upgrade native retirement root or trusted contract missing',
       );
@@ -53782,8 +53814,8 @@ async function collectAzureTerraformParentDispositions(
         store,
         signal,
       );
-      require114(
-        same81(observed, retirement.result) &&
+      require115(
+        same82(observed, retirement.result) &&
           observed.manifestSha256 === canonicalSha256(manifest) &&
           observed.evidenceSha256 === retirement.evidenceSha256 &&
           observed.finalPlanSha256 === final.planSha256 &&
@@ -53801,7 +53833,7 @@ async function collectAzureTerraformParentDispositions(
     for (const name of ['deployment.json', 'artifact-retirement.json']) {
       const path = `${prefix}/${name}`,
         logical = name === 'deployment.json' ? manifest : marker;
-      require114(byPath.get(path)?.packetSha256 === canonicalSha256(logical), 'retained stage native record differs');
+      require115(byPath.get(path)?.packetSha256 === canonicalSha256(logical), 'retained stage native record differs');
       decide(path, 'preserve', 'native-generic-stage-retirement', {
         sourcePlanSha256: stage.source.planSha256,
         retirement,
@@ -53812,7 +53844,7 @@ async function collectAzureTerraformParentDispositions(
     allowedDirectories.add(prefix);
   }
   for (const file of authority.originalDirectories.files) {
-    require114(
+    require115(
       byPath.get(file.path)?.identity === file.identity && byPath.get(file.path)?.sha256 === file.bytesSha256,
       'original receipt metadata native identity differs',
     );
@@ -53829,16 +53861,16 @@ async function collectAzureTerraformParentDispositions(
   for (const name of ['terraform-original-deployment-receipts', 'terraform-original-deployment-publication-fragments'])
     if (snapshot.directories.some((row) => row.path === name)) allowedDirectories.add(name);
   for (const directory of snapshot.directories) {
-    require114(allowedDirectories.has(directory.path), 'unclassified root or nested directory');
+    require115(allowedDirectories.has(directory.path), 'unclassified root or nested directory');
     if (directory.path === 'terraform-stages')
-      require114(
-        same81(directory.names, [...networkStages.keys(), ...stages.keys()].sort()),
+      require115(
+        same82(directory.names, [...networkStages.keys(), ...stages.keys()].sort()),
         'unaccounted stage directory',
       );
     if (directory.path.startsWith('terraform-stages/')) {
       const runner = directory.path.split('/').length === 3;
-      require114(
-        same81(directory.names, runner ? ['artifact-retirement.json', 'deployment.json'] : [base.deploymentName]),
+      require115(
+        same82(directory.names, runner ? ['artifact-retirement.json', 'deployment.json'] : [base.deploymentName]),
         'stage namespace differs',
       );
     }
@@ -53850,18 +53882,18 @@ async function collectAzureTerraformParentDispositions(
     });
   }
   const sensitive = new Map(authority.sensitive.map((row) => [row.path, row]));
-  require114(sensitive.size === authority.sensitive.length, 'duplicate sensitive schema decision');
+  require115(sensitive.size === authority.sensitive.length, 'duplicate sensitive schema decision');
   for (const packet of authority.packets) {
     if (decisions.has(packet.path)) continue;
     const file = byPath.get(packet.path),
       selected = sensitive.get(packet.path);
-    require114(
+    require115(
       file && file.packetSha256 === packet.packetSha256 && sha27(packet.semanticProvenanceSha256),
       'owning packet authority differs from native bytes',
     );
     if (selected) {
-      require114(
-        same81(
+      require115(
+        same82(
           {
             path: selected.path,
             identity: selected.identity,
@@ -53899,18 +53931,18 @@ async function collectAzureTerraformParentDispositions(
         originalPlanSha256: base.planSha256,
       });
   }
-  require114(
+  require115(
     files.every((file) => decisions.has(file.path)) && decisions.size === files.length,
     `unclassified parent file blocks complete disposition: ${files
       .filter((file) => !decisions.has(file.path))
       .map((file) => file.path)
       .join(',')}`,
   );
-  require114(
+  require115(
     sensitive.size === authority.sensitive.filter((row) => decisions.get(row.path)?.action === 'delete').length,
     'sensitive staging lacks typed deletion',
   );
-  require114(
+  require115(
     new Set(directoryDecisions.map((row) => row.path)).size === snapshot.directories.length,
     'duplicate directory disposition',
   );
@@ -53922,7 +53954,7 @@ async function collectAzureTerraformParentDispositions(
   };
 }
 var hash38 = (input) => createHash64('sha256').update(input).digest('hex'),
-  same81 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same82 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha27 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 var init_terraform_parent_disposition = __esm(() => {
   init_independent_cleanup();
@@ -53950,11 +53982,11 @@ import { constants as constants14 } from 'node:fs';
 import { lstat as lstat29, open as open11, readdir as readdir29, realpath as realpath26 } from 'node:fs/promises';
 import { join as join38 } from 'node:path';
 
-function require115(value, message) {
+function require116(value, message) {
   if (!value) throw Error(`Azure network parent inventory: ${message}`);
 }
 function object86(value) {
-  require115(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
+  require116(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 function azureNetworkParentTerminalProjection(value) {
@@ -54021,7 +54053,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       : [],
   );
   const sealContracts = (current) => {
-    require115(
+    require116(
       current.parentContracts === parentContracts &&
         current.parentContracts?.ingress === contracts.ingress &&
         current.parentContracts?.upgrade === contracts.upgrade &&
@@ -54039,7 +54071,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   const seal = () => {
     deadline.throwIfAborted();
     sealContracts(context);
-    require115(
+    require116(
       canonicalSha256({ value: request }) === planSha256 &&
         canonicalSha256({ value: store.owner }) === ownerSha256 &&
         store.directory === root &&
@@ -54072,11 +54104,11 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     }
   };
   seal();
-  require115(
+  require116(
     plan.engine === 'terraform' &&
       plan.intent.operation === 'deploy' &&
-      same82(azureUpgradeBinding(plan).owner, owner) &&
-      same82(
+      same83(azureUpgradeBinding(plan).owner, owner) &&
+      same83(
         compileAzureTerraformTeardown(
           plan,
           teardown.drain,
@@ -54089,13 +54121,13 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   );
   const terminal = object86(terminalWitness),
     lineage = object86(terminal.retainedLineage);
-  require115(
+  require116(
     sha28(lineage.publicPlanInventorySha256) &&
       sha28(lineage.requestInventorySha256) &&
       terminal.currentEmptyMainJournalCustodyQualified === true &&
       terminal.powerRunnerRetirementQualified === true &&
       terminal.mainRunnerRetirementQualified === false &&
-      same82(terminal.owner, owner) &&
+      same83(terminal.owner, owner) &&
       terminal.originalPlanSha256 === plan.planSha256 &&
       terminal.teardownPlanSha256 === teardown.planSha256 &&
       Array.isArray(terminal.retainedPowerChildren) &&
@@ -54103,7 +54135,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     'pre-main terminal custody required',
   );
   const checkpointRecord = object86(checkpoint);
-  require115(
+  require116(
     checkpointRecord.phase === 'retiring' &&
       typeof checkpointRecord.retainedDestroyConfiguration === 'string' &&
       hash39(checkpointRecord.retainedDestroyConfiguration) === checkpointRecord.configurationSha256,
@@ -54114,7 +54146,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     const boundary = () => {
       active.throwIfAborted();
       sealContracts(context);
-      require115(
+      require116(
         store.directory === root &&
           context.loaders === loaders &&
           context.terraform === terraform &&
@@ -54145,7 +54177,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     const directory = async (path) => {
       const full = path ? join38(root, path) : root,
         first = await nativeStep(() => lstat29(full), parent);
-      require115(
+      require116(
         first.isDirectory() &&
           !first.isSymbolicLink() &&
           first.uid === process.getuid?.() &&
@@ -54157,7 +54189,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         .filter((name) => path || (name !== parentMarker && name !== lockName2))
         .sort();
       const after = await nativeStep(() => lstat29(full), parent);
-      require115(
+      require116(
         after.isDirectory() &&
           !after.isSymbolicLink() &&
           identity6(first) === identity6(after) &&
@@ -54170,7 +54202,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       return value;
     };
     const file = async (path, fragment = false) => {
-      require115(safe2(path), 'foreign private file path');
+      require116(safe2(path), 'foreign private file path');
       const full = join38(root, path),
         handle = await nativeStep(() => open11(full, constants14.O_RDONLY | constants14.O_NOFOLLOW), parent);
       try {
@@ -54178,7 +54210,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
           bytes = await nativeStep(() => handle.readFile(), parent),
           after = await nativeStep(() => handle.stat(), parent),
           named = await nativeStep(() => lstat29(full), parent);
-        require115(
+        require116(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -54216,7 +54248,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     const rootDirectory = await directory('');
     for (const name of rootDirectory.names) {
       if (name === terminalName) {
-        require115(same82(await file(name), expectedCheckpoint), 'saved terminal checkpoint differs');
+        require116(same83(await file(name), expectedCheckpoint), 'saved terminal checkpoint differs');
         terminalFile = files.pop();
         continue;
       }
@@ -54226,20 +54258,20 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         await file(name);
         continue;
       }
-      require115(stat.isDirectory() && !stat.isSymbolicLink(), 'foreign root entry');
+      require116(stat.isDirectory() && !stat.isSymbolicLink(), 'foreign root entry');
       const selected = await directory(name);
       if (name === plan.deploymentName) continue;
       if (name === 'terraform-stages') {
         for (const stage of selected.names) {
-          require115(safe2(stage), 'foreign stage path');
+          require116(safe2(stage), 'foreign stage path');
           const stageDirectory = await directory(`${name}/${stage}`);
-          require115(stageDirectory.names.length === 1, 'stage runner is missing or ambiguous');
+          require116(stageDirectory.names.length === 1, 'stage runner is missing or ambiguous');
           const runner = stageDirectory.names[0];
-          require115(runner && safe2(runner), 'foreign runner path');
+          require116(runner && safe2(runner), 'foreign runner path');
           const runnerPath = `${name}/${stage}/${runner}`,
             runnerDirectory = await directory(runnerPath);
-          require115(
-            same82(runnerDirectory.names, ['artifact-retirement.json', 'deployment.json']),
+          require116(
+            same83(runnerDirectory.names, ['artifact-retirement.json', 'deployment.json']),
             'unretired stage artifacts',
           );
           for (const entry of runnerDirectory.names) await file(`${runnerPath}/${entry}`);
@@ -54256,13 +54288,13 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       const names = (await nativeStep(() => readdir29(full), parent))
         .filter((name) => selected.path || (name !== parentMarker && name !== lockName2))
         .sort();
-      require115(
-        identity6(stat) === selected.identity && same82(names, selected.names),
+      require116(
+        identity6(stat) === selected.identity && same83(names, selected.names),
         'namespace changed during snapshot',
       );
     }
     seal();
-    require115(terminalFile, 'owning terminal checkpoint is absent');
+    require116(terminalFile, 'owning terminal checkpoint is absent');
     return {
       terminalFile,
       rootIdentity: rootDirectory.identity,
@@ -54283,7 +54315,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   const absentNetworkPackets = new Set();
   const remember = (name, digest) => {
     const native = nativeByName.get(name);
-    require115(
+    require116(
       native && native.packetSha256 === digest && (!authenticated.has(name) || authenticated.get(name) === digest),
       'semantic packet differs from frozen native bytes',
     );
@@ -54315,11 +54347,11 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   });
   const publicBindings = captureAzureNetworkParentPublicBindings(loaders, deadline, seal);
   const semanticLoaders = publicBindings.loaders;
-  require115(same82(await semanticLoaders.loadSource(plan.planSha256), plan), 'original public source differs');
+  require116(same83(await semanticLoaders.loadSource(plan.planSha256), plan), 'original public source differs');
   await semanticLoaders.loadOutcome(plan);
   for (const raw of lineage.rows) {
     const row = object86(raw);
-    require115(sha28(row.planSha256), 'unresolved public execution source');
+    require116(sha28(row.planSha256), 'unresolved public execution source');
     const source = await semanticLoaders.loadSource(row.planSha256);
     let absent = false;
     try {
@@ -54328,7 +54360,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       if (error.code !== 'ENOENT') throw error;
       absent = true;
     }
-    require115(
+    require116(
       absent === (row.execution === 'unstaged-no-outcome'),
       'public outcome availability differs from owning lineage',
     );
@@ -54338,12 +54370,12 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   const sensitive = async (name, schema, source, semanticProvenanceSha256, fields) => {
     const native = nativeByName.get(name),
       expected = authenticated.get(name);
-    require115(
+    require116(
       native && expected && native.packetSha256 === expected && sha28(semanticProvenanceSha256),
       'sensitive decision lacks owning semantic and native provenance',
     );
     const value = object86(await readonlyStore.read(name));
-    require115(
+    require116(
       value.schemaVersion === 1 &&
         (schema === 'completed-power-preparing-v1' ? value.sourcePlanSha256 : value.planSha256) === source.planSha256,
       'sensitive staging source identity differs',
@@ -54352,7 +54384,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     for (const field of fields) {
       const payload = value[field];
       if (field === 'originalGraph') {
-        require115(
+        require116(
           payload &&
             typeof payload === 'object' &&
             !Array.isArray(payload) &&
@@ -54361,7 +54393,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         );
         payloadSha256ByField[field] = canonicalSha256(payload);
       } else {
-        require115(typeof payload === 'string', 'sensitive persisted payload schema differs');
+        require116(typeof payload === 'string', 'sensitive persisted payload schema differs');
         payloadSha256ByField[field] = hash39(payload);
       }
     }
@@ -54377,20 +54409,20 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       payloadSha256ByField,
     };
     const existing = sensitiveDecisions.get(name);
-    require115(!existing || same82(existing, decision), 'conflicting sensitive staging decisions');
+    require116(!existing || same83(existing, decision), 'conflicting sensitive staging decisions');
     sensitiveDecisions.set(name, decision);
   };
   const allChildren = [];
   for (const raw of lineage.rows) {
     const row = object86(raw);
-    require115(
+    require116(
       ['staged-network', 'completed-replacement', 'unstaged-no-outcome'].includes(String(row.execution)),
       'unqualified public lineage',
     );
     if (row.execution === 'unstaged-no-outcome') continue;
-    require115(sha28(row.planSha256), 'unresolved public execution source');
+    require116(sha28(row.planSha256), 'unresolved public execution source');
     const source = await step(() => semanticLoaders.loadSource(row.planSha256));
-    require115(source.planSha256 === row.planSha256, 'loaded public execution differs');
+    require116(source.planSha256 === row.planSha256, 'loaded public execution differs');
     const packets = await step(() =>
       readAzureTerraformNetworkAuthenticatedPacketInventory(
         source,
@@ -54408,11 +54440,11 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         semanticProvenanceSha256: packets.provenanceSha256,
       };
       const existing = packetAuthorities.get(packet.name);
-      require115(!existing || existing.packetSha256 === authority.packetSha256, 'owning packet authority conflicts');
+      require116(!existing || existing.packetSha256 === authority.packetSha256, 'owning packet authority conflicts');
       packetAuthorities.set(packet.name, authority);
     }
     for (const name of packets.absentPackets) {
-      require115(!nativeByName.has(name) && !first.rootNames.includes(name), 'absent network packet is published');
+      require116(!nativeByName.has(name) && !first.rootNames.includes(name), 'absent network packet is published');
       absentNetworkPackets.add(name);
     }
     provenance.push({ sourcePlanSha256: source.planSha256, kind: packets.kind, sha256: packets.provenanceSha256 });
@@ -54464,7 +54496,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       }
       for (const child of power.rows) {
         const retired = child.retirement;
-        require115(
+        require116(
           child.status === 'retired' && retired?.runnerRetirementQualified,
           'complete native child retirement required',
         );
@@ -54494,17 +54526,17 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     }
   }
   allChildren.sort((a, b) => a.stage.localeCompare(b.stage));
-  require115(same82(allChildren, terminal.retainedPowerChildren), 'retained native child identities differ');
+  require116(same83(allChildren, terminal.retainedPowerChildren), 'retained native child identities differ');
   for (const child of allChildren) {
     const proof = object86(child.proof),
       observed = object86(proof.observed),
       receipt = object86(observed.receipt);
     const stage = first.directories.find((row) => row.path === `terraform-stages/${child.stage}`);
-    require115(stage && stage.names.length === 1, 'missing child directory');
+    require116(stage && stage.names.length === 1, 'missing child directory');
     const runner = stage.names[0];
-    require115(runner, 'missing child runner');
+    require116(runner, 'missing child runner');
     const prefix = `${stage.path}/${runner}`;
-    require115(
+    require116(
       nativeByName.get(`${prefix}/artifact-retirement.json`)?.sha256 === observed.markerSha256 &&
         nativeByName.get(`${prefix}/deployment.json`)?.packetSha256 === receipt.manifestSha256,
       'native child marker or manifest differs',
@@ -54514,7 +54546,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     readAzureTerraformOriginalParentDirectoryInventory(plan, store, semanticLoaders, deadline),
   );
   for (const file of originalDirectories.files) {
-    require115(
+    require116(
       nativeByName.get(file.path)?.sha256 === file.bytesSha256 &&
         nativeByName.get(file.path)?.identity === file.identity,
       'original metadata differs from frozen directory',
@@ -54523,9 +54555,9 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   const parentNative = new Map([...first.files, first.terminalFile].map((row) => [row.path, row]));
   const parentRead = async (name) => {
     const native = parentNative.get(name);
-    require115(native && !name.includes('/'), 'unaccounted generic parent packet');
+    require116(native && !name.includes('/'), 'unaccounted generic parent packet');
     const value = await step(() => store.read(name));
-    require115(canonicalSha256(value) === native.packetSha256, 'generic parent record differs from native bytes');
+    require116(canonicalSha256(value) === native.packetSha256, 'generic parent record differs from native bytes');
     return structuredClone(value);
   };
   const genericStore = new Proxy(readonlyStore, {
@@ -54562,7 +54594,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   const publicEvidence = await step(() =>
     readAzureTerraformNetworkParentPublicCustody(request, publicSession, publicMapping, deadline),
   );
-  require115(same82(await snapshot(), first), 'parent bytes, inode or namespace changed across enrollment');
+  require116(same83(await snapshot(), first), 'parent bytes, inode or namespace changed across enrollment');
   const body = {
     schemaVersion: 1,
     scope: 'native-bound-network-parent-inventory',
@@ -54593,7 +54625,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
     digest,
     async qualifyPublishedEnvelope(currentContext, parent) {
       seal();
-      require115(
+      require116(
         canonicalSha256(body) === digest && canonicalSha256(terminalWitness) === authenticatedTerminalSha256,
         'owning parent enrollment or terminal witness changed',
       );
@@ -54614,10 +54646,10 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         active.throwIfAborted();
         sealContracts(currentContext);
         seal();
-        require115(
-          same82(currentContext.terminalCleanup, publishedCheckpoint) &&
-            same82(currentContext.destroyTeardown, teardown) &&
-            same82(currentContext.site, site) &&
+        require116(
+          same83(currentContext.terminalCleanup, publishedCheckpoint) &&
+            same83(currentContext.destroyTeardown, teardown) &&
+            same83(currentContext.site, site) &&
             currentContext.loaders === loaders &&
             currentContext.verifier === verifier &&
             currentContext.replacementVerifier === replacementVerifier &&
@@ -54625,7 +54657,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
             currentContext.publicSession === publicSession,
           'exact owning frozen-envelope publication context required',
         );
-        require115(
+        require116(
           canonicalSha256(body) === digest && canonicalSha256(terminalWitness) === authenticatedTerminalSha256,
           'owning parent enrollment or terminal witness changed',
         );
@@ -54636,14 +54668,14 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         const current = await snapshot(active, publishedCheckpoint);
         const { terminalFile: currentTerminalFile, ...currentParent } = current;
         const { terminalFile: originalTerminalFile, ...originalParent } = first;
-        require115(
+        require116(
           currentTerminalFile.path === terminalName &&
             originalTerminalFile.path === terminalName &&
-            same82(currentParent, originalParent),
+            same83(currentParent, originalParent),
           'parent bytes, inode or namespace changed across owning publication',
         );
-        require115(
-          !publishedTerminalFile || same82(currentTerminalFile, publishedTerminalFile),
+        require116(
+          !publishedTerminalFile || same83(currentTerminalFile, publishedTerminalFile),
           'published terminal bytes or inode changed during qualification',
         );
         publishedTerminalFile ??= structuredClone(currentTerminalFile);
@@ -54658,8 +54690,8 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       publicationSeal();
       const { recordSha256: currentRecordSha256, ...currentProof } = object86(freshTerminal);
       const { recordSha256: originalRecordSha256, ...originalProof } = object86(authenticatedTerminal);
-      require115(
-        sha28(currentRecordSha256) && sha28(originalRecordSha256) && same82(currentProof, originalProof),
+      require116(
+        sha28(currentRecordSha256) && sha28(originalRecordSha256) && same83(currentProof, originalProof),
         'terminal custody changed across owning publication',
       );
       await step(() => publicBindings.recheck(), parent);
@@ -54667,17 +54699,17 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       await checkSnapshot();
     },
     async recheck(parent) {
-      require115(canonicalSha256(body) === digest, 'parent inventory witness changed');
+      require116(canonicalSha256(body) === digest, 'parent inventory witness changed');
       const active = AbortSignal.any([deadline, ...(parent ? [parent] : [])]);
-      require115(same82(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
+      require116(same83(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
       await step(
         () => recheckAzureTerraformNetworkDestroyJournalCustody(terminalWitness, request, store, context, active),
         parent,
       );
-      require115(same82(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
+      require116(same83(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
       await step(() => publicBindings.recheck(), parent);
       await step(() => publicEvidence.recheck(parent), parent);
-      require115(same82(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
+      require116(same83(await snapshot(parent), first), 'parent bytes, inode or namespace changed');
       seal();
     },
   });
@@ -54686,7 +54718,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
 async function recheckAzureTerraformNetworkParentInventory(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses6.get(witness) : undefined;
-  require115(
+  require116(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -54706,7 +54738,7 @@ async function qualifyAzureTerraformNetworkParentPublishedEnvelope(
 ) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses6.get(witness) : undefined;
-  require115(
+  require116(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -54715,9 +54747,9 @@ async function qualifyAzureTerraformNetworkParentPublishedEnvelope(
     'owning parent inventory witness required',
   );
   await bound.qualifyPublishedEnvelope(currentContext, signal);
-  require115(canonicalSha256(witness) === bound.digest, 'owning parent inventory witness changed');
+  require116(canonicalSha256(witness) === bound.digest, 'owning parent inventory witness changed');
 }
-var same82 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same83 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash39 = (bytes) => createHash65('sha256').update(bytes).digest('hex'),
   identity6 = (stat) => `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`,
   safe2 = (path) =>
@@ -54745,11 +54777,11 @@ var init_terraform_network_parent_inventory = __esm(() => {
 // plugins/azure/src/ce/terraform-network-terminal-staging-projection.ts
 import { createHash as createHash66 } from 'node:crypto';
 
-function require116(value, message) {
+function require117(value, message) {
   if (!value) throw Error(`Azure terminal staging projection: ${message}`);
 }
 function object87(value) {
-  require116(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
+  require117(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, observed) {
@@ -54759,7 +54791,7 @@ function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, obser
     inventory = object87(terminal.retainedNetworkParentInventory),
     receipt = object87(barrier.receipt),
     final = object87(terminal.final);
-  require116(
+  require117(
     terminal.phase === 'retired' &&
       inventory.schemaVersion === 1 &&
       inventory.scope === 'native-bound-network-parent-inventory' &&
@@ -54768,16 +54800,16 @@ function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, obser
       terminal.sourcePlanSha256 === inventory.originalPlanSha256 &&
       sha29(terminal.teardownPlanSha256) &&
       terminal.teardownPlanSha256 === inventory.teardownPlanSha256 &&
-      same83(evidence.networkParentInventory, inventory) &&
+      same84(evidence.networkParentInventory, inventory) &&
       sha29(terminal.retirementEvidenceSha256) &&
       canonicalSha256(evidence) === terminal.retirementEvidenceSha256 &&
       azureNetworkParentTerminalProjection(terminal) === inventory.terminalProjectionSha256,
     'native-bound protected checkpoint differs',
   );
-  require116(
+  require117(
     barrier.status === 'runner-artifacts-retired' &&
       sha29(barrier.markerSha256) &&
-      same83(receipt, terminal.artifacts) &&
+      same84(receipt, terminal.artifacts) &&
       receipt.evidenceSha256 === terminal.retirementEvidenceSha256 &&
       sha29(receipt.manifestSha256) &&
       sha29(receipt.independentCleanupSha256) &&
@@ -54795,23 +54827,23 @@ function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, obser
     'complete matching native barrier and ordinary final receipt required',
   );
   const digest = inventory.retainedDestroyConfigurationSha256;
-  require116(sha29(digest) && digest === terminal.configurationSha256, 'retained destroy digest differs');
+  require117(sha29(digest) && digest === terminal.configurationSha256, 'retained destroy digest differs');
   const present = Object.hasOwn(terminal, 'retainedDestroyConfiguration');
   if (present) {
-    require116(
+    require117(
       typeof terminal.retainedDestroyConfiguration === 'string' &&
         hash40(terminal.retainedDestroyConfiguration) === digest,
       'retained destroy plaintext differs',
     );
-    require116(
+    require117(
       !Object.hasOwn(terminal, 'retainedDestroyConfigurationSha256') ||
         terminal.retainedDestroyConfigurationSha256 === digest,
       'conflicting retained destroy digest',
     );
     delete terminal.retainedDestroyConfiguration;
     terminal.retainedDestroyConfigurationSha256 = digest;
-  } else require116(terminal.retainedDestroyConfigurationSha256 === digest, 'missing authenticated destroy digest');
-  require116(
+  } else require117(terminal.retainedDestroyConfigurationSha256 === digest, 'missing authenticated destroy digest');
+  require117(
     azureNetworkParentTerminalProjection(terminal) === inventory.terminalProjectionSha256,
     'protected checkpoint changed during projection',
   );
@@ -54829,7 +54861,7 @@ function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, obser
 }
 var sha29 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   hash40 = (value) => createHash66('sha256').update(value).digest('hex'),
-  same83 = (left, right) => canonicalEqual({ value: left }, { value: right });
+  same84 = (left, right) => canonicalEqual({ value: left }, { value: right });
 var init_terraform_network_terminal_staging_projection = __esm(() => {
   init_canonical();
   init_terraform_network_parent_inventory();
@@ -54841,11 +54873,11 @@ import { constants as constants15 } from 'node:fs';
 import { lstat as lstat30, open as open12, readdir as readdir30, realpath as realpath27 } from 'node:fs/promises';
 import { join as join39 } from 'node:path';
 
-function require117(v, message) {
+function require118(v, message) {
   if (!v) throw Error(`Azure network retired-main custody: ${message}`);
 }
 function object88(v) {
-  require117(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require118(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 async function qualifyAzureTerraformNetworkRetiredMainCustody(request, store, context, signal) {
@@ -54879,7 +54911,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     siteSha256 = canonicalSha256({ value: site });
   const seal = () => {
     deadline.throwIfAborted();
-    require117(
+    require118(
       canonicalSha256({ value: request }) === originalSha256 &&
         canonicalSha256({ value: store.owner }) === ownerSha256 &&
         store.directory === directory &&
@@ -54927,7 +54959,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         } catch {
           throw Error('Azure network retired-main custody: malformed private record');
         }
-        require117(
+        require118(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -54944,14 +54976,14 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
             named.uid === first.uid &&
             named.nlink === 1 &&
             (named.mode & 63) === 0 &&
-            same84(parsed, logical),
+            same85(parsed, logical),
           'private record custody differs',
         );
         const digest = canonicalSha256({
           identity: `${first.dev}:${first.ino}:${first.birthtimeMs}`,
           bytes: hash41(bytes),
         });
-        require117(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
+        require118(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
         records.set(name, digest);
         return structuredClone(logical);
       } finally {
@@ -54959,7 +54991,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       }
     }, parent);
   const root = await step(() => lstat30(directory));
-  require117(
+  require118(
     root.isDirectory() &&
       !root.isSymbolicLink() &&
       root.uid === process.getuid?.() &&
@@ -54967,11 +54999,11 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       (await step(() => realpath27(directory))) === directory,
     'private root differs',
   );
-  require117(
+  require118(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same84(azureUpgradeBinding(original).owner, owner) &&
-      same84(
+      same85(azureUpgradeBinding(original).owner, owner) &&
+      same85(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -54984,9 +55016,9 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     'compiled owner or teardown differs',
   );
   await step(() => store.verify());
-  require117(same84(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
-  require117(
-    same84(await readRecord(`${teardown.planId}-authorization.json`), {
+  require118(same85(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
+  require118(
+    same85(await readRecord(`${teardown.planId}-authorization.json`), {
       schemaVersion: 1,
       engine: 'terraform',
       sourcePlanSha256: original.planSha256,
@@ -54996,16 +55028,16 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     'saved authorization differs',
   );
   const lifecycle = object88(await readRecord('azure-terraform-lifecycle-retirement.json'));
-  require117(
+  require118(
     lifecycle.schemaVersion === 1 &&
       lifecycle.kind === teardown.kind &&
-      same84(lifecycle.owner, owner) &&
+      same85(lifecycle.owner, owner) &&
       lifecycle.sourcePlanSha256 === original.planSha256 &&
       lifecycle.teardownPlanSha256 === teardown.planSha256,
     'saved lifecycle differs',
   );
-  require117(
-    same84(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
+  require118(
+    same85(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
     'saved terminal checkpoint differs',
   );
   const terminal = object88(checkpoint),
@@ -55017,7 +55049,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
   const { configuration, providerLock, ...identity } = deployment;
   const configurationSha256 = hash41(configuration),
     manifestSha256 = canonicalSha256({ ...identity, configurationSha256, providerLockSha256: hash41(providerLock) });
-  require117(
+  require118(
     terminal.schemaVersion === 1 &&
       terminal.phase === 'retired' &&
       terminal.sourcePlanSha256 === original.planSha256 &&
@@ -55028,7 +55060,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       terminal.evidenceSha256 === canonicalSha256(terminal.evidence) &&
       sha30(terminal.retirementEvidenceSha256) &&
       terminal.retirementEvidenceSha256 === canonicalSha256(evidence) &&
-      same84(evidence.terminalNetwork, retained) &&
+      same85(evidence.terminalNetwork, retained) &&
       terminal.checkpointSha256 ===
         canonicalSha256({
           configurationSha256: terminal.configurationSha256,
@@ -55038,7 +55070,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         }),
     'retired checkpoint binding differs',
   );
-  require117(
+  require118(
     final.schemaVersion === 1 &&
       final.engine === 'terraform' &&
       final.deploymentId === deployment.deploymentId &&
@@ -55055,8 +55087,8 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       !final.relinquishments,
     'exact ordinary final receipt required',
   );
-  require117(
-    same84(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
+  require118(
+    same85(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
       destroy.operation === 'destroy' &&
       destroy.schemaVersion === 1 &&
       destroy.engine === 'terraform' &&
@@ -55078,10 +55110,10 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
           hash41(terminal.retainedDestroyConfiguration) === destroy.configurationSha256),
     'retained destroy source differs',
   );
-  require117(
+  require118(
     retained.scope === 'post-destroy-authenticated-network-stage-journal-custody' &&
-      same84(retained.owner, owner) &&
-      same84(retained.site, site) &&
+      same85(retained.owner, owner) &&
+      same85(retained.site, site) &&
       retained.originalPlanSha256 === original.planSha256 &&
       retained.teardownPlanSha256 === teardown.planSha256 &&
       retained.publicJournalCustodyQualified === true &&
@@ -55095,10 +55127,10 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     'qualified retained terminal custody required',
   );
   const emptyBinding = object88(retained.emptyMainBinding);
-  require117(
+  require118(
     emptyBinding.scope === 'authenticated-terminal-empty-main-configuration-binding' &&
-      same84(emptyBinding.owner, owner) &&
-      same84(emptyBinding.site, site) &&
+      same85(emptyBinding.owner, owner) &&
+      same85(emptyBinding.site, site) &&
       emptyBinding.originalPlanSha256 === original.planSha256 &&
       emptyBinding.teardownPlanSha256 === teardown.planSha256 &&
       emptyBinding.configurationSha256 === configurationSha256 &&
@@ -55113,7 +55145,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       const before = await lstat30(path),
         names = (await readdir30(path)).sort(),
         after = await lstat30(path);
-      require117(
+      require118(
         before.isDirectory() &&
           !before.isSymbolicLink() &&
           before.uid === process.getuid?.() &&
@@ -55129,8 +55161,8 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         'native directory custody differs',
       );
       const snapshot = { identity: `${before.dev}:${before.ino}:${before.birthtimeMs}`, names };
-      require117(
-        !nativeDirectories.has(path) || same84(nativeDirectories.get(path), snapshot),
+      require118(
+        !nativeDirectories.has(path) || same85(nativeDirectories.get(path), snapshot),
         'native directory identity or inventory changed',
       );
       nativeDirectories.set(path, snapshot);
@@ -55144,7 +55176,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
           bytes = await file.readFile(),
           last = await file.stat(),
           named = await lstat30(path);
-        require117(
+        require118(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -55165,9 +55197,9 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
           'native file changed during read',
         );
         const snapshot = { identity: `${first.dev}:${first.ino}:${first.birthtimeMs}`, bytes: hash41(bytes) };
-        require117(
+        require118(
           (expectedSha256 === undefined || snapshot.bytes === expectedSha256) &&
-            (!nativeFiles.has(path) || same84(nativeFiles.get(path), snapshot)),
+            (!nativeFiles.has(path) || same85(nativeFiles.get(path), snapshot)),
           'native file bytes or identity changed',
         );
         nativeFiles.set(path, snapshot);
@@ -55182,7 +55214,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
   };
   const session = await step(() => terraform.open(owner, deployment, 'current')),
     readRetirement = session.readArtifactRetirement;
-  require117(typeof readRetirement === 'function', 'owning native permanent barrier reader required');
+  require118(typeof readRetirement === 'function', 'owning native permanent barrier reader required');
   dependencies.push({ target: session, key: 'readArtifactRetirement', value: readRetirement });
   const authenticatedPower = new Map();
   const inspect = async (parent) => {
@@ -55192,18 +55224,18 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       if (name.endsWith('.json')) await readRecord(name, parent);
     for (const name of records.keys()) await readRecord(name, parent);
     const mainDirectory = join39(directory, deployment.deploymentId);
-    require117(
-      same84(await nativeDirectory(mainDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
+    require118(
+      same85(await nativeDirectory(mainDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
       'native main inventory differs',
     );
     const observed = await step(
       () => readRetirement.call(session, final, terminal.retirementEvidenceSha256, active),
       parent,
     );
-    require117(observed.status === 'runner-artifacts-retired', 'native main barrier is absent or incomplete');
-    require117(
+    require118(observed.status === 'runner-artifacts-retired', 'native main barrier is absent or incomplete');
+    require118(
       sha30(observed.markerSha256) &&
-        same84(observed.receipt, terminal.artifacts) &&
+        same85(observed.receipt, terminal.artifacts) &&
         observed.receipt.manifestSha256 === manifestSha256 &&
         observed.receipt.evidenceSha256 === terminal.retirementEvidenceSha256 &&
         observed.receipt.finalPlanSha256 === final.planSha256 &&
@@ -55212,14 +55244,14 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     );
     if (projectedCheckpoint) {
       const projection = prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, observed);
-      require117(
-        !projection.transformationRequired && same84(projection.checkpoint, checkpoint),
+      require118(
+        !projection.transformationRequired && same85(projection.checkpoint, checkpoint),
         'exact post-plaintext checkpoint and frozen parent barrier required',
       );
     }
     await nativeFile(join39(mainDirectory, 'artifact-retirement.json'), observed.markerSha256, parent);
-    require117(
-      same84(JSON.parse((await nativeFile(join39(mainDirectory, 'deployment.json'), undefined, parent)).toString()), {
+    require118(
+      same85(JSON.parse((await nativeFile(join39(mainDirectory, 'deployment.json'), undefined, parent)).toString()), {
         ...identity,
         configurationSha256,
         providerLockSha256: hash41(providerLock),
@@ -55240,8 +55272,8 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         ),
       parent,
     );
-    require117(
-      same84(lineage, retained.retainedLineage) &&
+    require118(
+      same85(lineage, retained.retainedLineage) &&
         lineage.rows.every((row) =>
           ['staged-network', 'completed-replacement', 'unstaged-no-outcome'].includes(row.execution),
         ),
@@ -55250,8 +55282,8 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     const children = [];
     for (const row of lineage.rows.filter((row) => row.execution === 'staged-network')) {
       const source = await step(() => loaders.loadSource(row.planSha256), parent);
-      require117(
-        source.planSha256 === row.planSha256 && same84(azureUpgradeBinding(source).owner, owner),
+      require118(
+        source.planSha256 === row.planSha256 && same85(azureUpgradeBinding(source).owner, owner),
         'retained child source differs',
       );
       let power = authenticatedPower.get(row.planSha256);
@@ -55272,10 +55304,10 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         );
         authenticatedPower.set(row.planSha256, structuredClone(power));
       }
-      require117(power.graphSha256 === row.graphSha256 && power.rows.length > 0, 'retained child graph differs');
+      require118(power.graphSha256 === row.graphSha256 && power.rows.length > 0, 'retained child graph differs');
       for (const child of power.rows) {
         const retirement = child.retirement;
-        require117(
+        require118(
           child.status === 'retired' &&
             retirement?.runnerRetirementQualified &&
             retirement.sourcePlanSha256 === row.planSha256 &&
@@ -55285,26 +55317,26 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
         const stageDirectory = join39(directory, 'terraform-stages', child.stage);
         const runnerNames = await nativeDirectory(stageDirectory, parent);
         const runnerName = runnerNames[0];
-        require117(
+        require118(
           runnerNames.length === 1 && typeof runnerName === 'string' && /^[a-zA-Z0-9_-]+$/.test(runnerName),
           'native child runner identity differs',
         );
         const runnerDirectory = join39(stageDirectory, runnerName);
-        require117(
-          same84(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
+        require118(
+          same85(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
         const proof = object88(retirement.proof),
           observedChild = object88(proof.observed),
           childReceipt = object88(observedChild.receipt);
-        require117(
+        require118(
           observedChild.status === 'runner-artifacts-retired' &&
             sha30(observedChild.markerSha256) &&
             sha30(childReceipt.manifestSha256),
           'native child proof incomplete',
         );
         await nativeFile(join39(runnerDirectory, 'artifact-retirement.json'), observedChild.markerSha256, parent);
-        require117(
+        require118(
           canonicalSha256(
             JSON.parse((await nativeFile(join39(runnerDirectory, 'deployment.json'), undefined, parent)).toString()),
           ) === childReceipt.manifestSha256,
@@ -55321,15 +55353,15 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       }
     }
     children.sort((a, b) => a.stage.localeCompare(b.stage));
-    require117(
-      same84(children, retained.retainedPowerChildren) &&
-        same84(children.map((child) => child.stage).sort(), retained.stages) &&
+    require118(
+      same85(children, retained.retainedPowerChildren) &&
+        same85(children.map((child) => child.stage).sort(), retained.stages) &&
         new Set(children.map((child) => `${child.networkPlanSha256}:${child.node}:${child.operation}`)).size ===
           children.length,
       'retained child identities differ, duplicate or are partial',
     );
-    require117(
-      same84(
+    require118(
+      same85(
         await step(
           () =>
             readAzureTerraformNetworkRetirementLineage(
@@ -55348,8 +55380,8 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       ),
       'public lineage changed',
     );
-    require117(
-      same84(
+    require118(
+      same85(
         await step(() => readRetirement.call(session, final, terminal.retirementEvidenceSha256, active), parent),
         observed,
       ),
@@ -55358,7 +55390,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     await nativeBoundary(parent);
     for (const name of records.keys()) await readRecord(name, parent);
     const now = await step(() => lstat30(directory), parent);
-    require117(
+    require118(
       now.dev === root.dev &&
         now.ino === root.ino &&
         now.birthtimeMs === root.birthtimeMs &&
@@ -55387,16 +55419,16 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
           markerSha256: first.markerSha256,
           receipt: terminal.artifacts,
         });
-        require117(
+        require118(
           expected.transformationRequired &&
             hash41(file.bytes) === hash41(JSON.stringify(expected.checkpoint)) &&
-            same84(JSON.parse(file.bytes.toString()), expected.checkpoint) &&
+            same85(JSON.parse(file.bytes.toString()), expected.checkpoint) &&
             (projectedIdentity === undefined || projectedIdentity === file.identity),
           'exact projected terminal custody differs',
         );
         projectedIdentity = file.identity;
       } else
-        require117(
+        require118(
           records.get(name) ===
             canonicalSha256({
               identity: file.identity,
@@ -55411,7 +55443,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     await nativeRecordBoundary(parent, projected);
     await nativeBoundary(parent);
     const now = await step(() => lstat30(directory), parent);
-    require117(
+    require118(
       now.dev === root.dev &&
         now.ino === root.ino &&
         now.birthtimeMs === root.birthtimeMs &&
@@ -55455,13 +55487,13 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     context,
     digest,
     async recheck(parent) {
-      require117(
-        canonicalSha256(result) === digest && same84(await inspect(parent), first),
+      require118(
+        canonicalSha256(result) === digest && same85(await inspect(parent), first),
         'retained main custody changed',
       );
     },
     async nativeRecheck(projected, parent) {
-      require117(canonicalSha256(result) === digest, 'retained main custody changed');
+      require118(canonicalSha256(result) === digest, 'retained main custody changed');
       await finalNativeBoundary(parent, projected);
     },
   });
@@ -55470,7 +55502,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
 async function recheckAzureTerraformNetworkRetiredMainCustody(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses7.get(witness) : undefined;
-  require117(
+  require118(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -55490,7 +55522,7 @@ async function recheckAzureTerraformNetworkRetiredMainNativeCustody(
 ) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses7.get(witness) : undefined;
-  require117(
+  require118(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -55500,7 +55532,7 @@ async function recheckAzureTerraformNetworkRetiredMainNativeCustody(
   );
   await bound.nativeRecheck(projected, signal);
 }
-var same84 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same85 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash41 = (v) => createHash67('sha256').update(v).digest('hex'),
   sha30 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   witnesses7;
@@ -55523,15 +55555,15 @@ import { constants as constants16 } from 'node:fs';
 import { lstat as lstat31, open as openFile4, readdir as readdir31, realpath as realpath28 } from 'node:fs/promises';
 import { join as join40 } from 'node:path';
 
-function require118(value, message) {
+function require119(value, message) {
   if (!value) throw Error(`Azure Terraform network destroy journal custody: ${message}`);
 }
 function object89(value) {
-  require118(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
+  require119(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
   return value;
 }
 function keys28(value, fields) {
-  require118(same85(Object.keys(object89(value)).sort(), fields.toSorted()), 'native journal schema differs');
+  require119(same86(Object.keys(object89(value)).sort(), fields.toSorted()), 'native journal schema differs');
 }
 async function qualifyAzureTerraformNetworkJournalCustody(request, store, context, signal, emptyMainAdmission) {
   const original = structuredClone(request),
@@ -55555,17 +55587,17 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require118(
-      same85(request, original) &&
-        same85(store.owner, owner) &&
+    require119(
+      same86(request, original) &&
+        same86(store.owner, owner) &&
         store.directory === directory &&
         context.publicSession === publicSession &&
         context.terraform === terraform &&
         context.loaders === loaders &&
         context.verifier === verifier &&
         context.replacementVerifier === replacementVerifier &&
-        same85(context.site, site) &&
-        same85(context.destroyTeardown, teardown) &&
+        same86(context.site, site) &&
+        same86(context.destroyTeardown, teardown) &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning request or dependency changed',
     );
@@ -55589,7 +55621,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
   const namespace = () =>
     step(async () => {
       const stat = await lstat31(directory);
-      require118(
+      require119(
         stat.isDirectory() &&
           !stat.isSymbolicLink() &&
           stat.uid === process.getuid?.() &&
@@ -55606,14 +55638,14 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       const file = await openFile4(join40(directory, name), constants16.O_RDONLY | constants16.O_NOFOLLOW);
       try {
         const before = await file.stat();
-        require118(
+        require119(
           before.isFile() && before.uid === process.getuid?.() && before.nlink === 1 && (before.mode & 63) === 0,
           'record file ownership differs',
         );
         const bytes = await file.readFile(),
           after = await file.stat(),
           named = await lstat31(join40(directory, name));
-        require118(
+        require119(
           after.dev === before.dev &&
             after.ino === before.ino &&
             after.size === before.size &&
@@ -55628,22 +55660,22 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
             (named.mode & 63) === 0,
           'record changed during native read',
         );
-        require118(same85(JSON.parse(bytes.toString()), value), 'record reader differs from native bytes');
+        require119(same86(JSON.parse(bytes.toString()), value), 'record reader differs from native bytes');
         return canonicalSha256({ identity: `${before.dev}:${before.ino}:${before.birthtimeMs}`, bytes: hash42(bytes) });
       } finally {
         await file.close();
       }
     });
-    require118(!recordDigests.has(name) || recordDigests.get(name) === native, 'record bytes or identity changed');
+    require119(!recordDigests.has(name) || recordDigests.get(name) === native, 'record bytes or identity changed');
     recordDigests.set(name, native);
     return value;
   };
   seal();
-  require118(
+  require119(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same85(azureUpgradeBinding(original).owner, owner) &&
-      same85(
+      same86(azureUpgradeBinding(original).owner, owner) &&
+      same86(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -55657,11 +55689,11 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
   );
   await step(() => store.verify());
   const root = await namespace();
-  require118(same85(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown source differs');
+  require119(same86(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown source differs');
   const authorization = object89(await readRecord(`${teardown.planId}-authorization.json`)),
     lifecycle = object89(await readRecord('azure-terraform-lifecycle-retirement.json'));
-  require118(
-    same85(authorization, {
+  require119(
+    same86(authorization, {
       schemaVersion: 1,
       engine: 'terraform',
       sourcePlanSha256: original.planSha256,
@@ -55670,7 +55702,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     }) &&
       lifecycle.schemaVersion === 1 &&
       lifecycle.kind === teardown.kind &&
-      same85(lifecycle.owner, owner) &&
+      same86(lifecycle.owner, owner) &&
       lifecycle.sourcePlanSha256 === original.planSha256 &&
       lifecycle.teardownPlanSha256 === teardown.planSha256,
     'saved lifecycle or destruction authorization differs',
@@ -55686,7 +55718,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       providerLockSha256: hash42(providerLock),
     });
   for (const receipt of [plan, final]) {
-    require118(
+    require119(
       receipt &&
         receipt.schemaVersion === 1 &&
         receipt.engine === 'terraform' &&
@@ -55707,7 +55739,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       'exact owning delete-only destroy receipt required',
     );
   }
-  require118(
+  require119(
     final.noChanges && final.changes.length === 0 && plan.configurationSha256 === final.configurationSha256,
     'final destroy receipt or configuration differs',
   );
@@ -55718,7 +55750,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     readPlanApplicationHistory: readHistory,
     readCurrentPlanJournal: readCurrent,
   } = session;
-  require118(
+  require119(
     typeof readConfiguration === 'function' &&
       typeof readConfigurationSha256 === 'function' &&
       typeof readHistory === 'function' &&
@@ -55752,7 +55784,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
   const source = emptyMainAdmission
     ? String(emptyMainAdmission.context.terminalCleanup.retainedDestroyConfiguration)
     : await step(() => readConfiguration.call(session, final.configurationSha256));
-  require118(
+  require119(
     hash42(source) === final.configurationSha256 &&
       (await step(() => readConfigurationSha256.call(session))) === currentConfigurationSha256,
     'owning current configuration bytes differ',
@@ -55761,7 +55793,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     addresses = new Set();
   for (const [type, rows] of Object.entries(resources))
     for (const name of Object.keys(object89(rows))) addresses.add(`${type}.${name}`);
-  require118(
+  require119(
     plan.changes.every((change) => addresses.has(change.address) && change.address.startsWith(`${change.type}.`)),
     'destroy receipt includes resource outside authenticated current configuration',
   );
@@ -55788,15 +55820,15 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     const nativeRootAccounted = emptyMainAdmission
       ? history.sharedMain.status === 'partial' &&
         history.sharedMain.incompleteArchives === 0 &&
-        same85(history.sharedMain.unrecognizedRootEntrySha256s, [
+        same86(history.sharedMain.unrecognizedRootEntrySha256s, [
           emptyMainAdmission.witness.cancellationRecordNameSha256,
         ])
       : history.sharedMain.status === 'complete' && history.sharedMain.unrecognizedRootEntrySha256s?.length === 0;
-    require118(
+    require119(
       nativeRootAccounted &&
         history.sharedMain.originalDeploymentJournalsQualified &&
         history.lineage.configurationSha256s.includes(final.configurationSha256),
-      `complete retained original native custody and known configuration required: ${JSON.stringify({ status: history.sharedMain.status, incompleteArchives: history.sharedMain.incompleteArchives, unrecognizedRoots: history.sharedMain.unrecognizedRootEntrySha256s?.length, exactCancellation: emptyMainAdmission ? same85(history.sharedMain.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256]) : undefined, originalQualified: history.sharedMain.originalDeploymentJournalsQualified, knownConfiguration: history.lineage.configurationSha256s.includes(final.configurationSha256) })}`,
+      `complete retained original native custody and known configuration required: ${JSON.stringify({ status: history.sharedMain.status, incompleteArchives: history.sharedMain.incompleteArchives, unrecognizedRoots: history.sharedMain.unrecognizedRootEntrySha256s?.length, exactCancellation: emptyMainAdmission ? same86(history.sharedMain.unrecognizedRootEntrySha256s, [emptyMainAdmission.witness.cancellationRecordNameSha256]) : undefined, originalQualified: history.sharedMain.originalDeploymentJournalsQualified, knownConfiguration: history.lineage.configurationSha256s.includes(final.configurationSha256) })}`,
     );
     const currentReceipt = emptyMainAdmission ? emptyMainAdmission.context.terminalCleanup.final : final;
     const current = await step(() => readCurrent.call(session, currentConfigurationSha256, active), parentSignal);
@@ -55812,12 +55844,12 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       'executionSha256',
       'ordinaryRefreshEnabled',
     ]);
-    require118(current.state === 'planned' || current.state === 'applied', 'current destroy receipt is unresolved');
-    require118(
+    require119(current.state === 'planned' || current.state === 'applied', 'current destroy receipt is unresolved');
+    require119(
       current.schemaVersion === 1 &&
         current.scope === 'current-saved-plan-byte-and-journal-binding' &&
         current.planSemanticsQualified === false &&
-        same85(current.receipt, currentReceipt) &&
+        same86(current.receipt, currentReceipt) &&
         current.savedPlanSha256 === currentReceipt.planSha256 &&
         current.manifestSha256 === manifestOf(currentConfigurationSha256) &&
         sha31(current.journalSha256) &&
@@ -55842,7 +55874,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
         'applicationOutcomeQualified',
         'retirementQualified',
       ]);
-      require118(
+      require119(
         native.schemaVersion === 1 &&
           native.scope === 'exact-saved-plan-journal-history' &&
           native.receiptSha256 === canonicalSha256(receipt) &&
@@ -55866,7 +55898,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
           'manifestSha256',
         ]);
         const occurrence = `${match.location}:${match.archiveSha256}`;
-        require118(
+        require119(
           ['current', 'revision', 'plan-history'].includes(match.location) &&
             !seen.has(occurrence) &&
             sha31(match.archiveSha256) &&
@@ -55879,7 +55911,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
         );
         seen.add(occurrence);
       }
-      require118(
+      require119(
         receipt.noChanges || native.matches.some((match) => match.state === 'applied'),
         'destroy mutation lacks exact consumed native application',
       );
@@ -55894,7 +55926,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       : undefined;
     const pendingReceipt = pendingProof ? object89(await readRecord(pendingName)).receipt : undefined;
     if (pendingProof) {
-      require118(
+      require119(
         pendingReceipt && canonicalSha256(pendingReceipt) === pendingProof.receiptSha256,
         'pending import receipt differs from owning native provenance',
       );
@@ -55927,14 +55959,14 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
         )
       );
     });
-    require118(
+    require119(
       accounted &&
         expected.every((receipt) =>
           history.sharedMain.rows.some((row) => row.receiptSha256 === canonicalSha256(receipt)),
         ),
       'unaccounted or missing additional native receipt',
     );
-    require118(
+    require119(
       history.lineage.rows.every(
         (row) =>
           row.execution === 'staged-network' ||
@@ -55951,7 +55983,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     );
     const stages = history.rows
       .flatMap((row) => {
-        require118(
+        require119(
           row.main.originalPublishedJournalsQualified &&
             row.main.terminalPublishedJournalsQualified &&
             row.power.rows.length > 0 &&
@@ -55961,12 +55993,12 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
         return row.power.rows.map((power) => power.stage);
       })
       .sort();
-    require118(new Set(stages).size === stages.length, 'duplicate retained power stage');
+    require119(new Set(stages).size === stages.length, 'duplicate retained power stage');
     const retainedPowerChildren = history.rows
       .flatMap((row) =>
         row.power.rows.map((power) => {
           const retirement = power.retirement;
-          require118(
+          require119(
             retirement &&
               retirement.sourcePlanSha256 === row.planSha256 &&
               retirement.stage === power.stage &&
@@ -55982,7 +56014,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
             receipt = object89(observed.receipt);
           keys28(proof, ['preparingSha256', 'finalReceiptSha256', 'observed']);
           keys28(observed, ['status', 'markerSha256', 'receipt']);
-          require118(
+          require119(
             sha31(proof.preparingSha256) &&
               sha31(proof.finalReceiptSha256) &&
               observed.status === 'runner-artifacts-retired' &&
@@ -56008,8 +56040,8 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
         }),
       )
       .sort((a, b) => a.stage.localeCompare(b.stage));
-    require118(
-      same85(
+    require119(
+      same86(
         retainedPowerChildren.map((child) => child.stage),
         stages,
       ) &&
@@ -56018,17 +56050,17 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       'duplicate or partial retained child identity',
     );
     for (const name of recordDigests.keys()) await step(() => readRecord(name), parentSignal);
-    require118(
-      same85(await namespace(), root) &&
+    require119(
+      same86(await namespace(), root) &&
         (await step(() => readConfigurationSha256.call(session), parentSignal)) === currentConfigurationSha256 &&
         (emptyMainAdmission ||
           (await step(() => readConfiguration.call(session, final.configurationSha256), parentSignal)) === source) &&
-        same85(await step(() => readCurrent.call(session, currentConfigurationSha256, active), parentSignal), current),
+        same86(await step(() => readCurrent.call(session, currentConfigurationSha256, active), parentSignal), current),
       'owning source or native current boundary changed',
     );
     if (pendingProof)
-      require118(
-        same85(
+      require119(
+        same86(
           await step(
             () => readAzureTerraformPendingImportProvenance(original, store, session, active, emptyMainAdmission),
             parentSignal,
@@ -56039,8 +56071,8 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       );
     await recheckEmpty(parentSignal);
     if (emptyMainAdmission)
-      require118(
-        same85(
+      require119(
+        same86(
           retainedPowerChildren,
           emptyMainAdmission.context.terminalCleanup.retainedNetworkCustody.retainedPowerChildren,
         ),
@@ -56091,8 +56123,8 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
     authenticate: seal,
     async recheck(parentSignal) {
       seal();
-      require118(
-        canonicalSha256(result) === digest && same85(await step(() => inspect(parentSignal), parentSignal), first),
+      require119(
+        canonicalSha256(result) === digest && same86(await step(() => inspect(parentSignal), parentSignal), first),
         'authenticated destroy custody changed',
       );
       seal();
@@ -56103,7 +56135,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
 function authenticateAzureTerraformNetworkDestroyJournalCustody(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses8.get(witness) : undefined;
-  require118(
+  require119(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -56117,7 +56149,7 @@ function authenticateAzureTerraformNetworkDestroyJournalCustody(witness, request
 async function recheckAzureTerraformNetworkDestroyJournalCustody(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses8.get(witness) : undefined;
-  require118(
+  require119(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -56126,7 +56158,7 @@ async function recheckAzureTerraformNetworkDestroyJournalCustody(witness, reques
     'owning authenticated destroy custody witness required',
   );
   await bound.recheck(signal);
-  require118(canonicalSha256(witness) === bound.digest, 'authenticated destroy custody changed');
+  require119(canonicalSha256(witness) === bound.digest, 'authenticated destroy custody changed');
 }
 async function qualifyAzureTerraformNetworkDestroyJournalCustody(request, store, context, signal) {
   return qualifyAzureTerraformNetworkJournalCustody(request, store, context, signal);
@@ -56141,7 +56173,7 @@ async function qualifyAzureTerraformNetworkTerminalJournalCustody(request, store
   const witness = await qualifyAzureTerraformNetworkEmptyMainBinding(request, store, context, signal);
   return qualifyAzureTerraformNetworkJournalCustody(request, store, context, signal, { witness, context });
 }
-var same85 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same86 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash42 = (bytes) => createHash68('sha256').update(bytes).digest('hex'),
   sha31 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   witnesses8;
@@ -56163,11 +56195,11 @@ import { constants as constants17 } from 'node:fs';
 import { lstat as lstat32, open as open13, readdir as readdir32, realpath as realpath29 } from 'node:fs/promises';
 import { join as join41 } from 'node:path';
 
-function require119(v, message) {
+function require120(v, message) {
   if (!v) throw Error(`Azure network cancellation/planning binding: ${message}`);
 }
 function object90(v) {
-  require119(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require120(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, context, signal) {
@@ -56193,13 +56225,13 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require119(
-      same86(request, original) &&
-        same86(store.owner, owner) &&
+    require120(
+      same87(request, original) &&
+        same87(store.owner, owner) &&
         store.directory === directory &&
-        same86(context.destroyTeardown, teardown) &&
-        same86(context.terminalCleanup, checkpoint) &&
-        same86(context.site, site) &&
+        same87(context.destroyTeardown, teardown) &&
+        same87(context.terminalCleanup, checkpoint) &&
+        same87(context.site, site) &&
         context.terraform === terraform &&
         context.publicSession === publicSession &&
         context.loaders === loaders &&
@@ -56241,7 +56273,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         } catch {
           throw Error('Azure network cancellation/planning binding: malformed private record');
         }
-        require119(
+        require120(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -56258,14 +56290,14 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
             named.uid === first.uid &&
             named.nlink === 1 &&
             (named.mode & 63) === 0 &&
-            same86(parsed, logical),
+            same87(parsed, logical),
           'private record custody differs',
         );
         const digest = canonicalSha256({
           identity: `${first.dev}:${first.ino}:${first.birthtimeMs}`,
           bytes: hash43(bytes),
         });
-        require119(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
+        require120(!records.has(name) || records.get(name) === digest, 'private record bytes or identity changed');
         records.set(name, digest);
         return structuredClone(logical);
       } finally {
@@ -56273,7 +56305,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       }
     }, parent);
   const root = await step(() => lstat32(directory));
-  require119(
+  require120(
     root.isDirectory() &&
       !root.isSymbolicLink() &&
       root.uid === process.getuid?.() &&
@@ -56281,11 +56313,11 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       (await step(() => realpath29(directory))) === directory,
     'private root differs',
   );
-  require119(
+  require120(
     original.engine === 'terraform' &&
       original.intent.operation === 'deploy' &&
-      same86(azureUpgradeBinding(original).owner, owner) &&
-      same86(
+      same87(azureUpgradeBinding(original).owner, owner) &&
+      same87(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -56298,9 +56330,9 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     'compiled owner or teardown differs',
   );
   await step(() => store.verify());
-  require119(same86(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
-  require119(
-    same86(await readRecord(`${teardown.planId}-authorization.json`), {
+  require120(same87(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
+  require120(
+    same87(await readRecord(`${teardown.planId}-authorization.json`), {
       schemaVersion: 1,
       engine: 'terraform',
       sourcePlanSha256: original.planSha256,
@@ -56310,16 +56342,16 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     'saved authorization differs',
   );
   const lifecycle = object90(await readRecord('azure-terraform-lifecycle-retirement.json'));
-  require119(
+  require120(
     lifecycle.schemaVersion === 1 &&
       lifecycle.kind === teardown.kind &&
-      same86(lifecycle.owner, owner) &&
+      same87(lifecycle.owner, owner) &&
       lifecycle.sourcePlanSha256 === original.planSha256 &&
       lifecycle.teardownPlanSha256 === teardown.planSha256,
     'saved lifecycle differs',
   );
-  require119(
-    same86(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
+  require120(
+    same87(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
     'saved terminal checkpoint differs',
   );
   const terminal = object90(checkpoint),
@@ -56331,7 +56363,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
   const configurationSha256 = hash43(configuration),
     manifestOf = (digest) =>
       canonicalSha256({ ...identity, configurationSha256: digest, providerLockSha256: hash43(providerLock) });
-  require119(
+  require120(
     terminal.schemaVersion === 1 &&
       ['cancelling', 'planning'].includes(String(terminal.phase)) &&
       terminal.final === undefined &&
@@ -56343,7 +56375,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       terminal.emptyConfigurationSha256 === configurationSha256 &&
       sha32(terminal.evidenceSha256) &&
       terminal.evidenceSha256 === canonicalSha256(evidence) &&
-      same86(evidence.network, retained) &&
+      same87(evidence.network, retained) &&
       terminal.checkpointSha256 ===
         canonicalSha256({
           configurationSha256: terminal.configurationSha256,
@@ -56353,8 +56385,8 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         }),
     'cancellation checkpoint binding differs',
   );
-  require119(
-    same86(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
+  require120(
+    same87(await readRecord('azure-terraform-cloud-destroy-final.json'), destroy) &&
       destroy.operation === 'destroy' &&
       destroy.schemaVersion === 1 &&
       destroy.engine === 'terraform' &&
@@ -56374,17 +56406,17 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     'retained destroy source differs',
   );
   const retainedConfiguration = object90(JSON.parse(terminal.retainedDestroyConfiguration));
-  require119(
-    same86(
+  require120(
+    same87(
       { terraform: retainedConfiguration.terraform, provider: retainedConfiguration.provider },
       JSON.parse(configuration),
     ),
     'retained provider and execution identity differ',
   );
-  require119(
+  require120(
     retained.scope === 'post-destroy-authenticated-network-stage-journal-custody' &&
-      same86(retained.owner, owner) &&
-      same86(retained.site, site) &&
+      same87(retained.owner, owner) &&
+      same87(retained.site, site) &&
       retained.originalPlanSha256 === original.planSha256 &&
       retained.teardownPlanSha256 === teardown.planSha256 &&
       retained.publicJournalCustodyQualified === true &&
@@ -56404,7 +56436,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       const before = await lstat32(path),
         names = (await readdir32(path)).sort(),
         after = await lstat32(path);
-      require119(
+      require120(
         before.isDirectory() &&
           !before.isSymbolicLink() &&
           before.uid === process.getuid?.() &&
@@ -56420,8 +56452,8 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         'native directory custody differs',
       );
       const snapshot = { identity: `${before.dev}:${before.ino}:${before.birthtimeMs}`, names };
-      require119(
-        !nativeDirectories.has(path) || same86(nativeDirectories.get(path), snapshot),
+      require120(
+        !nativeDirectories.has(path) || same87(nativeDirectories.get(path), snapshot),
         'native directory identity or inventory changed',
       );
       nativeDirectories.set(path, snapshot);
@@ -56435,7 +56467,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
           bytes = await file.readFile(),
           last = await file.stat(),
           named = await lstat32(path);
-        require119(
+        require120(
           first.isFile() &&
             first.uid === process.getuid?.() &&
             first.nlink === 1 &&
@@ -56456,9 +56488,9 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
           'native file changed during read',
         );
         const snapshot = { identity: `${first.dev}:${first.ino}:${first.birthtimeMs}`, bytes: hash43(bytes) };
-        require119(
+        require120(
           (expectedSha256 === undefined || snapshot.bytes === expectedSha256) &&
-            (!nativeFiles.has(path) || same86(nativeFiles.get(path), snapshot)),
+            (!nativeFiles.has(path) || same87(nativeFiles.get(path), snapshot)),
           'native file bytes or identity changed',
         );
         nativeFiles.set(path, snapshot);
@@ -56478,7 +56510,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     readCancelledPlanContinuation: readContinuation,
     readConfiguration,
   } = session;
-  require119(
+  require120(
     readCancellation && readCurrent && readContinuation && readConfiguration,
     'native cancellation and current readers required',
   );
@@ -56498,7 +56530,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     for (const name of records.keys()) await readRecord(name, parent);
     const mainDirectory = join41(directory, deployment.deploymentId);
     const mainNames = await nativeDirectory(mainDirectory, parent);
-    require119(!mainNames.includes('artifact-retirement.json'), 'main retirement is outside cancellation/planning');
+    require120(!mainNames.includes('artifact-retirement.json'), 'main retirement is outside cancellation/planning');
     for (const name of mainNames)
       if (name.endsWith('.json') || name === 'saved.tfplan')
         await nativeFile(join41(mainDirectory, name), undefined, parent);
@@ -56506,7 +56538,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       if (mainNames.includes(rootName)) {
         const archiveRoot = join41(mainDirectory, rootName);
         for (const archive of await nativeDirectory(archiveRoot, parent)) {
-          require119(
+          require120(
             (rootName === 'revisions' ? /^[a-f0-9-]{36}$/ : /^[a-f0-9]{64}$/).test(archive),
             'archive identity differs',
           );
@@ -56527,7 +56559,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         ),
       parent,
     );
-    require119(
+    require120(
       cancellation.schemaVersion === 1 &&
         cancellation.scope === 'exact-unsubmitted-plan-cancellation-provenance' &&
         ['absent', 'pending', 'cancelled'].includes(cancellation.status) &&
@@ -56546,7 +56578,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     let currentJournalSha256 = null;
     let initialDestroyCustody;
     if (cancellation.status === 'absent') {
-      require119(
+      require120(
         cancellation.cancellationRecordSha256 === null &&
           cancellation.currentConfigurationSha256 === destroy.configurationSha256 &&
           terminal.phase === 'cancelling',
@@ -56556,36 +56588,36 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         () => qualifyAzureTerraformNetworkDestroyJournalCustody(request, store, context, active),
         parent,
       );
-      require119(same86(custody, retained), 'retained custody differs before first cancellation');
+      require120(same87(custody, retained), 'retained custody differs before first cancellation');
       initialDestroyCustody = custody;
-      require119(
+      require120(
         (await step(() => readConfiguration.call(session, destroy.configurationSha256), parent)) ===
           terminal.retainedDestroyConfiguration,
         'retained current destroy bytes differ',
       );
     } else {
-      require119(
+      require120(
         sha32(cancellation.cancellationRecordSha256) && cancellation.originalArchiveSha256s.every(sha32),
         'native cancellation record differs',
       );
       if (cancellation.status === 'cancelled') {
-        require119(
+        require120(
           cancellation.currentConfigurationSha256 === configurationSha256 &&
             cancellation.originalArchiveSha256s.length > 0 &&
             (await step(() => readConfiguration.call(session, configurationSha256), parent)) === configuration,
           'completed cancellation lacks exact archived original and current empty configuration',
         );
         const current = await step(() => readCurrent.call(session, configurationSha256, active), parent);
-        require119(current.manifestSha256 === manifestOf(configurationSha256), 'current native manifest differs');
+        require120(current.manifestSha256 === manifestOf(configurationSha256), 'current native manifest differs');
         if (current.state === 'absent') {
-          require119(
+          require120(
             current.receipt === undefined && current.savedPlanSha256 === null && current.journalSha256 === null,
             'ordinary current slot is partial',
           );
           ordinaryPlanReady = true;
         } else {
           const final = current.receipt;
-          require119(
+          require120(
             current.state === 'planned' &&
               final &&
               !final.operation &&
@@ -56619,7 +56651,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
               ),
             parent,
           );
-          require119(
+          require120(
             continuation.cancellationQualified &&
               continuation.manifestSha256 === current.manifestSha256 &&
               continuation.currentConfigurationSha256 === configurationSha256 &&
@@ -56644,34 +56676,34 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       for (const child of children) {
         const stageDirectory = join41(directory, 'terraform-stages', child.stage);
         const names = await nativeDirectory(stageDirectory, parent);
-        require119(
+        require120(
           names.length === 1 && /^[a-zA-Z0-9_-]+$/.test(requirePresent(names[0])),
           'native child runner identity differs',
         );
         const path = join41(stageDirectory, requirePresent(names[0]));
-        require119(
-          same86(await nativeDirectory(path, parent), ['artifact-retirement.json', 'deployment.json']),
+        require120(
+          same87(await nativeDirectory(path, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
         const proof = object90(child.proof),
           observed = object90(proof.observed),
           receipt = object90(observed.receipt);
-        require119(
+        require120(
           observed.status === 'runner-artifacts-retired' &&
             sha32(observed.markerSha256) &&
             sha32(receipt.manifestSha256),
           'native child proof incomplete',
         );
         await nativeFile(join41(path, 'artifact-retirement.json'), observed.markerSha256, parent);
-        require119(
+        require120(
           canonicalSha256(
             JSON.parse((await nativeFile(join41(path, 'deployment.json'), undefined, parent)).toString()),
           ) === receipt.manifestSha256,
           'native child manifest differs',
         );
       }
-      require119(
-        same86(
+      require120(
+        same87(
           await step(
             () =>
               readCancellation.call(
@@ -56717,8 +56749,8 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         ),
       parent,
     );
-    require119(
-      same86(lineage, retained.retainedLineage) &&
+    require120(
+      same87(lineage, retained.retainedLineage) &&
         lineage.rows.every((row) =>
           ['staged-network', 'completed-replacement', 'unstaged-no-outcome'].includes(row.execution),
         ),
@@ -56727,8 +56759,8 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     const children = [];
     for (const row of lineage.rows.filter((row) => row.execution === 'staged-network')) {
       const source = await step(() => loaders.loadSource(row.planSha256), parent);
-      require119(
-        source.planSha256 === row.planSha256 && same86(azureUpgradeBinding(source).owner, owner),
+      require120(
+        source.planSha256 === row.planSha256 && same87(azureUpgradeBinding(source).owner, owner),
         'retained child source differs',
       );
       let power = authenticatedPower.get(row.planSha256);
@@ -56749,10 +56781,10 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         );
         authenticatedPower.set(row.planSha256, structuredClone(power));
       }
-      require119(power.graphSha256 === row.graphSha256 && power.rows.length > 0, 'retained child graph differs');
+      require120(power.graphSha256 === row.graphSha256 && power.rows.length > 0, 'retained child graph differs');
       for (const child of power.rows) {
         const retirement = child.retirement;
-        require119(
+        require120(
           child.status === 'retired' &&
             retirement?.runnerRetirementQualified &&
             retirement.sourcePlanSha256 === row.planSha256 &&
@@ -56761,26 +56793,26 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         );
         const stageDirectory = join41(directory, 'terraform-stages', child.stage);
         const runnerNames = await nativeDirectory(stageDirectory, parent);
-        require119(
+        require120(
           runnerNames.length === 1 && /^[a-zA-Z0-9_-]+$/.test(requirePresent(runnerNames[0])),
           'native child runner identity differs',
         );
         const runnerDirectory = join41(stageDirectory, requirePresent(runnerNames[0]));
-        require119(
-          same86(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
+        require120(
+          same87(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
         const proof = object90(retirement.proof),
           observedChild = object90(proof.observed),
           childReceipt = object90(observedChild.receipt);
-        require119(
+        require120(
           observedChild.status === 'runner-artifacts-retired' &&
             sha32(observedChild.markerSha256) &&
             sha32(childReceipt.manifestSha256),
           'native child proof incomplete',
         );
         await nativeFile(join41(runnerDirectory, 'artifact-retirement.json'), observedChild.markerSha256, parent);
-        require119(
+        require120(
           canonicalSha256(
             JSON.parse((await nativeFile(join41(runnerDirectory, 'deployment.json'), undefined, parent)).toString()),
           ) === childReceipt.manifestSha256,
@@ -56797,15 +56829,15 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       }
     }
     children.sort((a, b) => a.stage.localeCompare(b.stage));
-    require119(
-      same86(children, retained.retainedPowerChildren) &&
-        same86(children.map((child) => child.stage).sort(), retained.stages) &&
+    require120(
+      same87(children, retained.retainedPowerChildren) &&
+        same87(children.map((child) => child.stage).sort(), retained.stages) &&
         new Set(children.map((child) => `${child.networkPlanSha256}:${child.node}:${child.operation}`)).size ===
           children.length,
       'retained child identities differ, duplicate or are partial',
     );
-    require119(
-      same86(
+    require120(
+      same87(
         await step(
           () =>
             readAzureTerraformNetworkRetirementLineage(
@@ -56824,8 +56856,8 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       ),
       'public lineage changed',
     );
-    require119(
-      same86(
+    require120(
+      same87(
         await step(
           () =>
             readCancellation.call(
@@ -56884,14 +56916,14 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       context,
       digest,
       async recheck(parent) {
-        require119(
-          canonicalSha256(result) === digest && same86(await inspect(parent), first),
+        require120(
+          canonicalSha256(result) === digest && same87(await inspect(parent), first),
           'cancellation/planning custody changed',
         );
       },
       async refresh(parent) {
         seal();
-        require119(
+        require120(
           canonicalSha256(result) === digest &&
             first.cancellationStatus === 'cancelled' &&
             first.ordinaryPlanReady &&
@@ -56901,25 +56933,25 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
         );
         const mainDirectory = join41(directory, deployment.deploymentId),
           prior = nativeDirectories.get(mainDirectory);
-        require119(
+        require120(
           prior && !prior.names.includes('plan-receipt.json') && !prior.names.includes('saved.tfplan'),
           'original absent current namespace required',
         );
         const before = await step(() => lstat32(mainDirectory), parent),
           names = (await step(() => readdir32(mainDirectory), parent)).sort();
-        require119(
+        require120(
           `${before.dev}:${before.ino}:${before.birthtimeMs}` === prior.identity &&
-            same86(names, [...prior.names, 'plan-receipt.json', 'saved.tfplan'].sort()),
+            same87(names, [...prior.names, 'plan-receipt.json', 'saved.tfplan'].sort()),
           'ordinary continuation namespace differs',
         );
         nativeDirectories.set(mainDirectory, { ...prior, names });
         const current = await inspect(parent);
-        require119(
+        require120(
           current.cancellationStatus === 'cancelled' &&
             current.ordinaryCurrentJournalQualified &&
             !current.ordinaryPlanReady &&
             current.currentPlanReceipt !== null &&
-            same86(current.children, first.children) &&
+            same87(current.children, first.children) &&
             current.lineageSha256 === first.lineageSha256,
           'ordinary continuation or retained custody differs',
         );
@@ -56933,7 +56965,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
 async function recheckAzureTerraformNetworkCancelledMainBinding(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses9.get(witness) : undefined;
-  require119(
+  require120(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -56946,7 +56978,7 @@ async function recheckAzureTerraformNetworkCancelledMainBinding(witness, request
 async function refreshAzureTerraformNetworkCancelledMainBinding(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses9.get(witness) : undefined;
-  require119(
+  require120(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -56960,7 +56992,7 @@ function requirePresent(value) {
   if (value === null || value === undefined) throw Error('Required qualified evidence is missing');
   return value;
 }
-var same86 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same87 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash43 = (v) => createHash69('sha256').update(v).digest('hex'),
   sha32 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   witnesses9;
@@ -56976,13 +57008,13 @@ var init_terraform_network_cancelled_main_binding = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-post-plaintext-parent-custody.ts
-function require120(v, message) {
+function require121(v, message) {
   if (!v) throw Error(`Azure post-plaintext parent custody: ${message}`);
 }
 async function recheckAzureTerraformNetworkPostPlaintextParentCustody(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses10.get(witness) : undefined;
-  require120(
+  require121(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -57005,11 +57037,11 @@ var init_terraform_network_post_plaintext_parent_custody = __esm(() => {
 import { createHash as createHash70 } from 'node:crypto';
 import { join as join42 } from 'node:path';
 
-function require121(v, message) {
+function require122(v, message) {
   if (!v) throw Error(`Azure frozen retired services: ${message}`);
 }
 function object91(v) {
-  require121(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require122(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 async function qualifyAzureTerraformNetworkFreshRetiredServices(request, store, context, signal) {
@@ -57033,13 +57065,13 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
   const terminalSha256 = canonicalSha256({ value: terminal });
   const seal = () => {
     deadline.throwIfAborted();
-    require121(
-      same87(request, original) &&
-        same87(store.owner, owner) &&
+    require122(
+      same88(request, original) &&
+        same88(store.owner, owner) &&
         store.directory === root &&
         matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
-        same87(context.destroyTeardown, teardown) &&
-        same87(context.site, site) &&
+        same88(context.destroyTeardown, teardown) &&
+        same88(context.site, site) &&
         context.terraform === terraform &&
         context.loaders === loaders &&
         methods.every(({ target, key, value }) => Reflect.get(target, key) === value),
@@ -57069,22 +57101,22 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
   verifyAzureCePlan(original);
   const checkpoint = object91(terminal),
     frozen = structuredClone(checkpoint.retainedNetworkParentInventory);
-  require121(
+  require122(
     frozen &&
-      same87(frozen, object91(checkpoint.retirementEvidence).networkParentInventory) &&
+      same88(frozen, object91(checkpoint.retirementEvidence).networkParentInventory) &&
       frozen.schemaVersion === 1 &&
       frozen.mainDirectory === request.deploymentName &&
       !Object.hasOwn(checkpoint, 'retainedDestroyConfiguration') &&
       frozen.scope === 'native-bound-network-parent-inventory' &&
       frozen.completeParentDispositionQualified === true &&
-      same87(frozen.owner, owner) &&
+      same88(frozen.owner, owner) &&
       frozen.originalPlanSha256 === request.planSha256 &&
       frozen.teardownPlanSha256 === teardown.planSha256,
     'authenticated frozen parent required',
   );
   const custody = new Map();
   const file = async (path, parent) => {
-    require121(
+    require122(
       path !== '' && path.split('/').every((p) => /^[a-zA-Z0-9_.-]+$/.test(p) && p !== '.' && p !== '..'),
       'foreign native path',
     );
@@ -57097,14 +57129,14 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       parent,
     );
     const value = { identity: native.identity, bytesSha256: hash44(native.bytes) };
-    require121(!custody.has(path) || same87(custody.get(path), value), 'retained native bytes or identity changed');
+    require122(!custody.has(path) || same88(custody.get(path), value), 'retained native bytes or identity changed');
     custody.set(path, value);
     return JSON.parse(native.bytes.toString());
   };
   const record = async (path, parent) => {
     const logical = await step(() => store.read(path), parent),
       native = await file(path, parent);
-    require121(same87(logical, native), 'logical and native record differ');
+    require122(same88(logical, native), 'logical and native record differ');
     return structuredClone(native);
   };
   const boundary = async (parent) => {
@@ -57117,7 +57149,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       snapshot = custody.get(path),
       expected = declared.get(path),
       decision = frozen.parentArtifactDecisions.find((row) => row.path === path);
-    require121(
+    require122(
       snapshot &&
         expected &&
         decision &&
@@ -57129,32 +57161,32 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     );
     return native;
   };
-  require121(same87(await record('azure-terraform-terminal-cleanup.json'), terminal), 'saved terminal differs');
-  require121(same87(await frozenRecord('owner.json'), { schemaVersion: 2, owner }), 'saved owner differs');
-  require121(same87(await frozenRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
+  require122(same88(await record('azure-terraform-terminal-cleanup.json'), terminal), 'saved terminal differs');
+  require122(same88(await frozenRecord('owner.json'), { schemaVersion: 2, owner }), 'saved owner differs');
+  require122(same88(await frozenRecord(`${teardown.planId}.json`), teardown), 'saved teardown differs');
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
   const mainSession = await step(() => terraform.open(owner, deployment, 'current'));
   const bind = (session) => {
     const reader = session.readArtifactRetirement;
-    require121(typeof reader === 'function', 'owning native retirement service reader required');
+    require122(typeof reader === 'function', 'owning native retirement service reader required');
     methods.push({ target: session, key: 'readArtifactRetirement', value: reader });
     return reader;
   };
   const mainReader = bind(mainSession),
     final = object91(checkpoint.final);
-  require121(
+  require122(
     sha33(checkpoint.retirementEvidenceSha256) &&
       checkpoint.retirementEvidenceSha256 === canonicalSha256(checkpoint.retirementEvidence),
     'native evidence digest differs',
   );
   const main = await step(() => mainReader.call(mainSession, final, checkpoint.retirementEvidenceSha256, deadline));
-  require121(
-    main.status === 'runner-artifacts-retired' && same87(main.receipt, checkpoint.artifacts),
+  require122(
+    main.status === 'runner-artifacts-retired' && same88(main.receipt, checkpoint.artifacts),
     'main native barrier differs',
   );
   const mainManifest = await file(`${deployment.deploymentId}/deployment.json`),
     mainMarker = await file(`${deployment.deploymentId}/artifact-retirement.json`);
-  require121(
+  require122(
     canonicalSha256(mainManifest) === main.receipt.manifestSha256 &&
       custody.get(`${deployment.deploymentId}/artifact-retirement.json`)?.bytesSha256 === main.markerSha256 &&
       object91(mainMarker).status === 'runner-artifacts-retired',
@@ -57168,21 +57200,21 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       source = structuredClone(await step(() => loaders.loadSource(child.networkPlanSha256)));
       verifyAzureCePlan(source);
       const publicBinding = frozen.publicBindings.sources.filter((row) => row.planSha256 === child.networkPlanSha256);
-      require121(
+      require122(
         source.planSha256 === child.networkPlanSha256 &&
           publicBinding.length === 1 &&
           publicBinding[0]?.sourceSha256 === canonicalSha256(source) &&
-          same87(azureUpgradeBinding(source).owner, owner),
+          same88(azureUpgradeBinding(source).owner, owner),
         'frozen public source differs',
       );
       sources.set(source.planSha256, source);
     }
-    require121(child.operation === 'deallocate' || child.operation === 'start', 'exact selected operation required');
+    require122(child.operation === 'deallocate' || child.operation === 'start', 'exact selected operation required');
     const selected = await step(() => azureTerraformNetworkRetiredPowerDeployment(source, child.node, child.operation));
-    require121(selected.stage === child.stage, 'selected native stage differs');
+    require122(selected.stage === child.stage, 'selected native stage differs');
     const proof = object91(child.proof),
       expected = object91(proof.observed);
-    require121(
+    require122(
       expected.status === 'runner-artifacts-retired' &&
         sha33(expected.markerSha256) &&
         sha33(proof.preparingSha256) &&
@@ -57200,12 +57232,12 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       : `${source.planId}-terraform-network-node-${child.node}-${child.operation}-final-plan.json`;
     const packet = await frozenRecord(receiptPath),
       receipt = cancelled ? object91(packet).finalReceipt : packet;
-    require121(canonicalSha256(receipt) === proof.finalReceiptSha256, 'exact preserved final receipt differs');
+    require122(canonicalSha256(receipt) === proof.finalReceiptSha256, 'exact preserved final receipt differs');
     const session = await step(() => terraform.open(owner, selected, 'current')),
       reader = bind(session);
     const observed = await step(() => reader.call(session, receipt, proof.preparingSha256, deadline));
-    require121(
-      observed.status === 'runner-artifacts-retired' && same87(observed, expected),
+    require122(
+      observed.status === 'runner-artifacts-retired' && same88(observed, expected),
       'child native service differs from frozen proof',
     );
     const directory = `terraform-stages/${child.stage}/${selected.deploymentId}`;
@@ -57214,7 +57246,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     for (const path of [`${directory}/deployment.json`, `${directory}/artifact-retirement.json`]) {
       const expectedFile = declared.get(path),
         snapshot = custody.get(path);
-      require121(
+      require122(
         expectedFile &&
           snapshot &&
           expectedFile.identity === snapshot.identity &&
@@ -57222,21 +57254,21 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
         'child frozen native identity differs',
       );
     }
-    require121(
+    require122(
       canonicalSha256(manifest) === observed.receipt.manifestSha256 &&
         custody.get(`${directory}/artifact-retirement.json`)?.bytesSha256 === observed.markerSha256,
       'child native manifest or marker differs',
     );
     rows.push({ child, session, reader, final: receipt, evidenceSha256: proof.preparingSha256, observed });
   }
-  require121(
+  require122(
     rows.length === frozen.children.length && new Set(rows.map((row) => row.child.stage)).size === rows.length,
     'duplicate or partial child bindings',
   );
   const inspect = async (parent) => {
     await boundary(parent);
-    require121(
-      same87(
+    require122(
+      same88(
         await step(
           () =>
             mainReader.call(
@@ -57252,8 +57284,8 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       'main native barrier changed',
     );
     for (const row of rows)
-      require121(
-        same87(
+      require122(
+        same88(
           await step(
             () =>
               row.reader.call(
@@ -57302,7 +57334,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     context,
     digest,
     async recheck(parent) {
-      require121(canonicalSha256(result) === digest, 'retired service witness changed');
+      require122(canonicalSha256(result) === digest, 'retired service witness changed');
       await inspect(parent);
     },
   });
@@ -57311,7 +57343,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
 async function recheckAzureTerraformNetworkFrozenRetiredServices(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses11.get(witness) : undefined;
-  require121(
+  require122(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -57322,7 +57354,7 @@ async function recheckAzureTerraformNetworkFrozenRetiredServices(witness, reques
   await bound.recheck(signal);
 }
 var hash44 = (v) => createHash70('sha256').update(v).digest('hex'),
-  same87 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same88 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   sha33 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
   witnesses11;
 var init_terraform_network_frozen_retired_services = __esm(() => {
@@ -57338,7 +57370,7 @@ var init_terraform_network_frozen_retired_services = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-teardown-admission.ts
-function require122(value, message) {
+function require123(value, message) {
   if (!value) throw Error(`Azure Terraform network teardown admission: ${message}`);
 }
 async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, context, signal) {
@@ -57362,7 +57394,7 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require122(
+    require123(
       canonicalSha256(request) === canonicalSha256(original) &&
         canonicalSha256(store.owner) === canonicalSha256(owner) &&
         store.directory === directory &&
@@ -57400,7 +57432,7 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
       ]);
       active.throwIfAborted();
       seal();
-      require122(
+      require123(
         history.allPublicRequestCustodyQualified &&
           history.sharedMain.status === 'complete' &&
           history.sharedMain.allNativeReceiptsAccounted &&
@@ -57409,7 +57441,7 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
         'complete original and public native journal custody required',
       );
       const powers = history.rows.flatMap((row) => {
-        require122(
+        require123(
           row.main.originalPublishedJournalsQualified &&
             row.main.terminalPublishedJournalsQualified &&
             row.power.rows.length > 0 &&
@@ -57421,7 +57453,7 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
         return row.power.rows.map((power) => ({ planSha256: row.planSha256, ...power }));
       });
       const stages = powers.map((power) => power.stage).sort();
-      require122(new Set(stages).size === stages.length, 'duplicate authenticated power stage');
+      require123(new Set(stages).size === stages.length, 'duplicate authenticated power stage');
       return { history, stages };
     } finally {
       active.removeEventListener('abort', onAbort);
@@ -57451,9 +57483,9 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
     digest,
     async recheck(parentSignal) {
       seal();
-      require122(canonicalSha256(result) === digest, 'authenticated witness changed');
+      require123(canonicalSha256(result) === digest, 'authenticated witness changed');
       const current = await collect(parentSignal);
-      require122(
+      require123(
         canonicalSha256(current.history) === historySha256 &&
           canonicalSha256(current.stages) === canonicalSha256(result.stages),
         'authenticated network stage history changed',
@@ -57466,7 +57498,7 @@ async function qualifyAzureTerraformNetworkTeardownAdmission(request, store, con
 async function recheckAzureTerraformNetworkTeardownAdmission(witness, request, store, context, signal) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses12.get(witness) : undefined;
-  require122(
+  require123(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -57475,7 +57507,7 @@ async function recheckAzureTerraformNetworkTeardownAdmission(witness, request, s
     'owning authenticated admission witness required',
   );
   await bound.recheck(signal);
-  require122(canonicalSha256(witness) === bound.digest, 'authenticated witness changed');
+  require123(canonicalSha256(witness) === bound.digest, 'authenticated witness changed');
 }
 var witnesses12;
 var init_terraform_network_teardown_admission = __esm(() => {
@@ -57766,7 +57798,7 @@ var init_terraform_teardown_stage_history = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-fresh-parent-absence.ts
-function require123(value, message) {
+function require124(value, message) {
   if (!value) throw Error(`Azure fresh parent absence: ${message}`);
 }
 async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, context, runtime, contract, api, signal) {
@@ -57788,7 +57820,7 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
     teardownSha256 = canonicalSha256({ value: teardown });
   const guard = () => {
     active.throwIfAborted();
-    require123(
+    require124(
       canonicalSha256({ value: request }) === originalSha256 &&
         canonicalSha256({ value: store.owner }) === ownerSha256 &&
         store.directory === root &&
@@ -57807,9 +57839,9 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
   };
   guard();
   const binding = azureUpgradeBinding(request);
-  require123(
-    same88(binding.owner, owner) &&
-      same88(
+  require124(
+    same89(binding.owner, owner) &&
+      same89(
         compileAzureTerraformTeardown(
           request,
           teardown.drain,
@@ -57827,7 +57859,7 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
     ...teardown.drain.listeners.map((row) => row.namespace),
     ...teardown.drain.origins.map((row) => row.origin.namespace),
   ]) {
-    require123(
+    require124(
       typeof name === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name),
       'exact namespace required',
     );
@@ -57877,9 +57909,9 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
     );
     const began = Date.parse(platform.startedAt),
       at = Date.parse(platform.observedAt);
-    require123(
+    require124(
       platform.status === 'absent' &&
-        same88(platform.owner, owner) &&
+        same89(platform.owner, owner) &&
         platform.siteContractFingerprint === siteFingerprint &&
         platform.ingressContractFingerprint === ingressFingerprint &&
         Number.isFinite(began) &&
@@ -57898,7 +57930,7 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
       parent,
     );
     const cloudAt = Date.parse(cloud.observedAt);
-    require123(
+    require124(
       cloud.status === 'absent' &&
         cloud.engine === 'terraform' &&
         cloud.sourcePlanSha256 === request.planSha256 &&
@@ -57920,7 +57952,7 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
         ),
       parent,
     );
-    require123(Date.now() - at <= 60000 && Date.now() - cloudAt <= 60000, 'external observations became stale');
+    require124(Date.now() - at <= 60000 && Date.now() - cloudAt <= 60000, 'external observations became stale');
     return { platform, cloud };
   };
   const evidence = await inspect();
@@ -57951,7 +57983,7 @@ async function qualifyAzureTerraformNetworkFreshParentAbsence(request, store, co
     api,
     digest,
     async recheck(parent) {
-      require123(canonicalSha256(result) === digest, 'absence witness changed');
+      require124(canonicalSha256(result) === digest, 'absence witness changed');
       return inspect(parent);
     },
   });
@@ -57969,7 +58001,7 @@ async function recheckAzureTerraformNetworkFreshParentAbsence(
 ) {
   signal?.throwIfAborted();
   const bound = witness && typeof witness === 'object' ? witnesses13.get(witness) : undefined;
-  require123(
+  require124(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -57982,7 +58014,7 @@ async function recheckAzureTerraformNetworkFreshParentAbsence(
   );
   return bound.recheck(signal);
 }
-var same88 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+var same89 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   witnesses13;
 var init_terraform_network_fresh_parent_absence = __esm(() => {
   init_canonical();
@@ -57999,7 +58031,7 @@ import { createHash as createHash71 } from 'node:crypto';
 import { lstat as lstat34, readdir as readdir34, realpath as realpath31, unlink as unlink6 } from 'node:fs/promises';
 import { join as join44 } from 'node:path';
 
-function require124(value, message) {
+function require125(value, message) {
   if (!value) throw Error(`Azure network packet retirement: ${message}`);
 }
 async function recheckAzureTerraformNetworkRetiredBootstrapPackets(
@@ -58015,7 +58047,7 @@ async function recheckAzureTerraformNetworkRetiredBootstrapPackets(
 ) {
   signal?.throwIfAborted();
   const bound = observation && typeof observation === 'object' ? bootstrapObservations.get(observation) : undefined;
-  require124(
+  require125(
     bound &&
       bound.request === request &&
       bound.store === store &&
@@ -58035,7 +58067,7 @@ async function recheckAzureTerraformNetworkRetiredBootstrapPackets(
   try {
     await Promise.race([bound.recheck(), aborted.promise]);
     active.throwIfAborted();
-    require124(canonicalSha256(observation) === bound.digest, 'completed bootstrap observation changed');
+    require125(canonicalSha256(observation) === bound.digest, 'completed bootstrap observation changed');
     return observation;
   } finally {
     active.removeEventListener('abort', onAbort);
@@ -58085,7 +58117,7 @@ async function qualifyAzureTerraformNetworkRetiredBootstrapPackets(
   const result = await retirePackets(request, store, context, 'bootstrap', fresh, active, true, (callback) => {
     recheck = callback;
   });
-  require124(recheck, 'completed native snapshot recheck required');
+  require125(recheck, 'completed native snapshot recheck required');
   const observation = {
     ...result,
     status: 'retired-bootstrap-packets-observed',
@@ -58131,7 +58163,7 @@ async function retirePackets(
     terminalSha256 = canonicalSha256({ value: terminal });
   const guard = () => {
     active.throwIfAborted();
-    require124(
+    require125(
       store.directory === root &&
         canonicalSha256({ value: store.owner }) === ownerSha256 &&
         canonicalSha256({ value: request }) === originalSha256 &&
@@ -58145,9 +58177,9 @@ async function retirePackets(
   guard();
   const native = await qualifyAzureTerraformNetworkFreshRetiredServices(request, store, context, active);
   guard();
-  require124(terminal && typeof terminal === 'object' && !Array.isArray(terminal), 'complete terminal record required');
+  require125(terminal && typeof terminal === 'object' && !Array.isArray(terminal), 'complete terminal record required');
   const frozen = structuredClone(Reflect.get(terminal, 'retainedNetworkParentInventory'));
-  require124(
+  require125(
     frozen && canonicalSha256(frozen) === native.frozenParentInventorySha256,
     'native frozen inventory differs',
   );
@@ -58162,7 +58194,7 @@ async function retirePackets(
     .filter((row) => kind === 'non-bootstrap' && row.action === 'delete' && row.schema === 'ce-bootstrap-token-v1')
     .sort((a, b) => a.path.localeCompare(b.path));
   const paths = actions.map((row) => row.path);
-  require124(
+  require125(
     (kind === 'bootstrap' || paths.length > 0) &&
       new Set(paths).size === paths.length &&
       actions.every((row) => safe3(row.path) && row.path !== markerName),
@@ -58205,8 +58237,8 @@ async function retirePackets(
       deleted: priorActions.map((row) => row.path),
       pending: null,
     };
-    require124(
-      same89(logical, value) && same89(value, priorBinding),
+    require125(
+      same90(logical, value) && same90(value, priorBinding),
       'completed native non-bootstrap checkpoint required',
     );
     priorMarker = {
@@ -58225,12 +58257,12 @@ async function retirePackets(
     const file = await readAzureTerraformParentPrivateFile(join44(root, markerName), active);
     guard();
     const value = JSON.parse(file.bytes.toString());
-    require124(same89(logical, value), 'logical and native checkpoint differ');
-    require124(
+    require125(same90(logical, value), 'logical and native checkpoint differ');
+    require125(
       Array.isArray(value.deleted) &&
         value.deleted.every((path) => typeof path === 'string') &&
         value.deleted.length <= paths.length &&
-        same89(value.deleted, paths.slice(0, value.deleted.length)) &&
+        same90(value.deleted, paths.slice(0, value.deleted.length)) &&
         (value.pending === null ||
           (typeof value.pending === 'string' &&
             value.deleted.length < paths.length &&
@@ -58239,8 +58271,8 @@ async function retirePackets(
         (value.status !== 'packets-retired' || (value.pending === null && value.deleted.length === paths.length)),
       'checkpoint progress differs',
     );
-    require124(
-      same89(value, {
+    require125(
+      same90(value, {
         ...binding,
         status: value.status,
         deleted: value.deleted,
@@ -58255,7 +58287,7 @@ async function retirePackets(
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  if (readOnly) require124(checkpoint?.status === 'packets-retired', 'completed bootstrap packet retirement required');
+  if (readOnly) require125(checkpoint?.status === 'packets-retired', 'completed bootstrap packet retirement required');
   const main = new Map();
   for (const path of [`${frozen.mainDirectory}/artifact-retirement.json`, `${frozen.mainDirectory}/deployment.json`]) {
     const file = await readAzureTerraformParentPrivateFile(join44(root, path), active);
@@ -58266,19 +58298,19 @@ async function retirePackets(
     });
   }
   const expected = new Map([...frozen.files, frozen.terminalFile].map((row) => [row.path, row]));
-  require124(
+  require125(
     !expected.has(markerName) && expected.size === frozen.files.length + 1,
     'frozen files duplicate or foreign checkpoint',
   );
   for (const [path, row] of main) expected.set(path, { path, ...row });
   if (priorMarker) expected.set(priorMarker.path, priorMarker);
   const directories = new Map(frozen.directories.map((row) => [row.path, row]));
-  require124(directories.size === frozen.directories.length, 'duplicate frozen directories');
+  require125(directories.size === frozen.directories.length, 'duplicate frozen directories');
   const snapshot = async (progress) => {
     guard();
     await verify.call(store);
     guard();
-    if (progress) require124(same89(await load(), progress), 'saved progress changed');
+    if (progress) require125(same90(await load(), progress), 'saved progress changed');
     if (beforeSnapshot) {
       await beforeSnapshot(active);
       guard();
@@ -58301,7 +58333,7 @@ async function retirePackets(
       const full = path ? join44(root, path) : root,
         stat = await lstat34(full),
         declared = directories.get(path);
-      require124(
+      require125(
         declared &&
           stat.isDirectory() &&
           !stat.isSymbolicLink() &&
@@ -58318,14 +58350,14 @@ async function retirePackets(
       ).filter((name) => !absent.has(path ? `${path}/${name}` : name));
       if (path === '' && progress) expectedNames.push(markerName);
       if (path === '' && priorMarker) expectedNames.push(priorMarker.path);
-      require124(same89(names, expectedNames.sort()), 'exhaustive directory namespace differs');
+      require125(same90(names, expectedNames.sort()), 'exhaustive directory namespace differs');
       seenDirs.add(path);
       for (const name of names) {
         const selected = path ? `${path}/${name}` : name;
-        require124(safe3(selected), 'foreign native path');
+        require125(safe3(selected), 'foreign native path');
         if (selected === markerName) {
           const file = await readAzureTerraformParentPrivateFile(join44(root, selected), active);
-          require124(progress && same89(JSON.parse(file.bytes.toString()), progress), 'native saved progress changed');
+          require125(progress && same90(JSON.parse(file.bytes.toString()), progress), 'native saved progress changed');
           continue;
         }
         const current = await lstat34(join44(root, selected));
@@ -58333,15 +58365,15 @@ async function retirePackets(
           await walk(selected);
           continue;
         }
-        require124(current.isFile() && !current.isSymbolicLink(), 'foreign native entry');
+        require125(current.isFile() && !current.isSymbolicLink(), 'foreign native entry');
         const file = await readAzureTerraformParentPrivateFile(join44(root, selected), active),
           prior = expected.get(selected);
         const fragment = selected.startsWith('terraform-original-deployment-publication-fragments/');
         const parsed = fragment ? undefined : JSON.parse(file.bytes.toString());
         if (selected === 'azure-terraform-terminal-cleanup.json')
-          require124(same89(parsed, terminal), 'projected terminal differs');
+          require125(same90(parsed, terminal), 'projected terminal differs');
         else
-          require124(
+          require125(
             prior &&
               prior.identity === file.identity &&
               prior.sha256 === hash45(file.bytes) &&
@@ -58352,7 +58384,7 @@ async function retirePackets(
       }
       const after = await lstat34(full);
       guard();
-      require124(
+      require125(
         after.isDirectory() &&
           !after.isSymbolicLink() &&
           after.dev === stat.dev &&
@@ -58360,14 +58392,14 @@ async function retirePackets(
           after.birthtimeMs === stat.birthtimeMs &&
           after.uid === stat.uid &&
           (after.mode & 63) === 0 &&
-          same89(all, (await readdir34(full)).sort()),
+          same90(all, (await readdir34(full)).sort()),
         'native namespace changed during snapshot',
       );
     };
     await walk('');
-    require124(
-      same89([...seen].sort(), [...expected.keys()].filter((path) => !absent.has(path)).sort()) &&
-        same89([...seenDirs].sort(), [...directories.keys()].sort()),
+    require125(
+      same90([...seen].sort(), [...expected.keys()].filter((path) => !absent.has(path)).sort()) &&
+        same90([...seenDirs].sort(), [...directories.keys()].sort()),
       'partial native discovery',
     );
     guard();
@@ -58395,16 +58427,16 @@ async function retirePackets(
     await write.call(store, markerName, value, active);
     guard();
     const saved = await load();
-    require124(same89(saved, value), 'published checkpoint differs');
+    require125(same90(saved, value), 'published checkpoint differs');
     checkpoint = saved;
   };
   if (!checkpoint) {
     await publish({ ...binding, status: 'retiring', deleted: [], pending: null });
   }
-  require124(checkpoint, 'durable checkpoint required');
+  require125(checkpoint, 'durable checkpoint required');
   while (checkpoint.deleted.length < paths.length) {
     const selected = paths[checkpoint.deleted.length];
-    require124(selected, 'selected typed action required');
+    require125(selected, 'selected typed action required');
     if (checkpoint.pending === null) await publish({ ...checkpoint, pending: selected });
     await snapshot(checkpoint);
     guard();
@@ -58418,7 +58450,7 @@ async function retirePackets(
     if (!missing) {
       const file = await readAzureTerraformParentPrivateFile(join44(root, selected), active),
         declared = expected.get(selected);
-      require124(
+      require125(
         declared && file.identity === declared.identity && hash45(file.bytes) === declared.sha256,
         'selected packet changed before deletion',
       );
@@ -58437,7 +58469,7 @@ async function retirePackets(
 var nonBootstrapMarkerName = 'azure-terraform-network-packet-retirement.json',
   bootstrapMarkerName = 'azure-terraform-network-bootstrap-packet-retirement.json',
   hash45 = (bytes) => createHash71('sha256').update(bytes).digest('hex'),
-  same89 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same90 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   safe3 = (path) =>
     path !== '' && path.split('/').every((part) => /^[a-zA-Z0-9_.-]+$/.test(part) && part !== '.' && part !== '..'),
   bootstrapObservations;
@@ -58455,11 +58487,11 @@ import { createHash as createHash72 } from 'node:crypto';
 import { lstat as lstat35 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute4, join as join45, resolve as resolve4 } from 'node:path';
 
-function require125(value, message) {
+function require126(value, message) {
   if (!value) throw Error(`Azure network opaque checkout retirement: ${message}`);
 }
 function object92(value) {
-  require125(value && typeof value === 'object' && !Array.isArray(value), 'record required');
+  require126(value && typeof value === 'object' && !Array.isArray(value), 'record required');
   return value;
 }
 async function readAzureTerraformNetworkFrozenCheckouts(request, store, context, inventory, mainMarkerSha256, signal) {
@@ -58480,12 +58512,12 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
   active.throwIfAborted();
   const root = store.directory;
   const declarations = inventory.directories.filter((directory) => directory.path === '');
-  require125(declarations.length === 1, 'exact frozen root directory required');
+  require126(declarations.length === 1, 'exact frozen root directory required');
   const rootIdentity = declarations[0]?.identity;
   const checkRoot = async () => {
     active.throwIfAborted();
     const stat = await lstat35(root);
-    require125(
+    require126(
       store.directory === root &&
         stat.isDirectory() &&
         !stat.isSymbolicLink() &&
@@ -58499,18 +58531,18 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
   await checkRoot();
   const binding = azureUpgradeBinding(request),
     owner = structuredClone(store.owner);
-  require125(
-    same90(owner, binding.owner) &&
-      same90(inventory.owner, owner) &&
+  require126(
+    same91(owner, binding.owner) &&
+      same91(inventory.owner, owner) &&
       inventory.originalPlanSha256 === request.planSha256 &&
       inventory.teardownPlanSha256 === context.destroyTeardown.planSha256 &&
       /^[a-f0-9]{64}$/.test(mainMarkerSha256),
     'frozen owner or source differs',
   );
   const rows = inventory.parentArtifactDecisions.filter((row) => row.schema === 'ce-bootstrap-checkout-v1');
-  require125(new Set(rows.map((row) => row.path)).size === rows.length, 'duplicate checkout decision');
-  require125(
-    same90(
+  require126(new Set(rows.map((row) => row.path)).size === rows.length, 'duplicate checkout decision');
+  require126(
+    same91(
       inventory.files
         .filter((file) => /^bootstrap-checkout-/.test(file.path))
         .map((file) => file.path)
@@ -58522,14 +58554,14 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
   const selected = [];
   for (const row of rows.sort((a, b) => a.path.localeCompare(b.path))) {
     active.throwIfAborted();
-    require125(
+    require126(
       row.action === 'preserve' && /^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(row.path),
       'checkout preserve decision required',
     );
     const declared = inventory.files.filter((file) => file.path === row.path);
-    require125(
+    require126(
       declared.length === 1 &&
-        same90(declared[0], {
+        same91(declared[0], {
           path: row.path,
           identity: row.identity,
           sha256: row.sha256,
@@ -58540,29 +58572,29 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
     const path = join45(store.directory, row.path);
     const native = await readAzureTerraformParentPrivateFile(path, active);
     const value = object92(JSON.parse(native.bytes.toString()));
-    require125(
+    require126(
       native.identity === row.identity &&
         hash46(native.bytes) === row.sha256 &&
         canonicalSha256(value) === row.packetSha256 &&
-        same90(value, await step(() => store.read(row.path))),
+        same91(value, await step(() => store.read(row.path))),
       'checkout native identity or raw/logical bytes differ',
     );
     const after = await readAzureTerraformParentPrivateFile(path, active);
-    require125(
+    require126(
       after.identity === native.identity && after.bytes.equals(native.bytes),
       'checkout changed across logical read',
     );
     await checkRoot();
-    require125(
-      same90(
+    require126(
+      same91(
         Object.keys(value).sort(),
         ['binding', 'checkout', 'contractFingerprint', 'node', 'owner', 'schemaVersion', 'siteUid', 'tokenName'].sort(),
       ),
       'checkout fields differ',
     );
     const checkout = object92(value.checkout);
-    require125(
-      same90(Object.keys(checkout).sort(), ['schemaVersion', 'reference', 'root', 'digest', 'expiresAt', 'uid'].sort()),
+    require126(
+      same91(Object.keys(checkout).sort(), ['schemaVersion', 'reference', 'root', 'digest', 'expiresAt', 'uid'].sort()),
       'opaque binding fields differ',
     );
     const tokens = context.destroyTeardown.retirement.flatMap((site) =>
@@ -58570,13 +58602,13 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
         .filter((token) => token.name === value.tokenName)
         .map((token) => ({ ...token, siteName: site.siteName })),
     );
-    require125(tokens.length === 1, 'exact issued token required');
+    require126(tokens.length === 1, 'exact issued token required');
     const token = tokens[0];
-    require125(
+    require126(
       token &&
         value.schemaVersion === 1 &&
-        same90(value.owner, owner) &&
-        same90(value.binding, binding) &&
+        same91(value.owner, owner) &&
+        same91(value.binding, binding) &&
         value.siteUid === context.site.siteUid &&
         value.contractFingerprint === context.destroyTeardown.drain.siteContractFingerprint &&
         value.node === token.node &&
@@ -58599,7 +58631,7 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
       (item) =>
         item.path === `${token.name}.json` && item.schema === 'ce-bootstrap-token-v1' && item.action === 'delete',
     );
-    require125(
+    require126(
       issued.length === 1 && issued[0]?.payloadSha256ByField?.jwt === checkout.digest,
       'frozen upstream token digest differs',
     );
@@ -58620,7 +58652,7 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
       evidenceSha256,
     });
   }
-  require125(
+  require126(
     new Set(selected.map((row) => row.binding.reference)).size === selected.length,
     'duplicate opaque reference',
   );
@@ -58649,7 +58681,7 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
   });
   const guard = () => {
     active.throwIfAborted();
-    require125(
+    require126(
       store.directory === root &&
         store.read === read &&
         store.verify === verify &&
@@ -58677,9 +58709,9 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
   );
   guard();
   const inventory = structuredClone(object92(context.terminalCleanup).retainedNetworkParentInventory);
-  require125(canonicalSha256(inventory) === custody.inventorySha256, 'completed native inventory differs');
+  require126(canonicalSha256(inventory) === custody.inventorySha256, 'completed native inventory differs');
   const marker = object92(await store.read('azure-terraform-network-bootstrap-packet-retirement.json'));
-  require125(
+  require126(
     marker.status === 'packets-retired' &&
       marker.pending === null &&
       marker.frozenInventorySha256 === custody.inventorySha256 &&
@@ -58708,8 +58740,8 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
       api,
       active,
     );
-    require125(
-      same90(
+    require126(
+      same91(
         await readAzureTerraformNetworkFrozenCheckouts(
           request,
           store,
@@ -58739,7 +58771,7 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
       digest: row.binding.digest,
       evidenceSha256: row.evidenceSha256,
     };
-    require125(
+    require126(
       metadata.version === 1 &&
         metadata.session === parts[0] &&
         metadata.id === parts[1] &&
@@ -58748,8 +58780,8 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
         metadata.expiresAt === row.binding.expiresAt &&
         metadata.checkoutReady === true &&
         metadata.consumed === true &&
-        same90(metadata.retirementPending, expectedReceipt) &&
-        same90(metadata.retirement, expectedReceipt),
+        same91(metadata.retirementPending, expectedReceipt) &&
+        same91(metadata.retirement, expectedReceipt),
       'independent completed token metadata differs',
     );
     try {
@@ -58772,9 +58804,9 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
     active,
   );
   guard();
-  require125(
-    same90(custody, after) &&
-      same90(
+  require126(
+    same91(custody, after) &&
+      same91(
         await readAzureTerraformNetworkFrozenCheckouts(
           request,
           store,
@@ -58803,7 +58835,7 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
   };
 }
 var hash46 = (bytes) => createHash72('sha256').update(bytes).digest('hex'),
-  same90 = (a, b) => canonicalEqual({ value: a }, { value: b });
+  same91 = (a, b) => canonicalEqual({ value: a }, { value: b });
 var init_terraform_network_opaque_checkout_retirement = __esm(() => {
   init_token_store();
   init_canonical();
@@ -58816,11 +58848,11 @@ var init_terraform_network_opaque_checkout_retirement = __esm(() => {
 // plugins/azure/src/ce/terraform-network-terminal-main-retirement.ts
 import { createHash as createHash73 } from 'node:crypto';
 
-function require126(v, message) {
+function require127(v, message) {
   if (!v) throw Error(`Azure network terminal main retirement: ${message}`);
 }
 function object93(v) {
-  require126(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require127(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 async function retireAzureTerraformNetworkTerminalMain(request, store, context, beforeRetirement, env, signal) {
@@ -58854,7 +58886,7 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
     siteSha256 = canonicalSha256({ value: site });
   const seal = () => {
     deadline.throwIfAborted();
-    require126(
+    require127(
       canonicalSha256({ value: request }) === originalSha256 &&
         matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, originalContextSha256) &&
         canonicalSha256({ value: context.destroyTeardown }) === teardownSha256 &&
@@ -58885,9 +58917,9 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
   };
   seal();
   await step(() => store.verify());
-  require126(
-    same91(azureUpgradeBinding(original).owner, owner) &&
-      same91(
+  require127(
+    same92(azureUpgradeBinding(original).owner, owner) &&
+      same92(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -58898,9 +58930,9 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
       ),
     'compiled teardown differs',
   );
-  require126(
-    same91(await step(() => store.read(`${teardown.planId}.json`)), teardown) &&
-      same91(await step(() => store.read(`${teardown.planId}-authorization.json`)), {
+  require127(
+    same92(await step(() => store.read(`${teardown.planId}.json`)), teardown) &&
+      same92(await step(() => store.read(`${teardown.planId}-authorization.json`)), {
         schemaVersion: 1,
         engine: 'terraform',
         sourcePlanSha256: original.planSha256,
@@ -58910,13 +58942,13 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
     'saved authorization differs',
   );
   let checkpoint = object93(await step(() => store.read(name5)));
-  require126(
-    same91(checkpoint, originalContext) && ['retiring', 'retired'].includes(String(checkpoint.phase)),
+  require127(
+    same92(checkpoint, originalContext) && ['retiring', 'retired'].includes(String(checkpoint.phase)),
     'owning final checkpoint required',
   );
   const final = object93(checkpoint.final);
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
-  require126(
+  require127(
     final.schemaVersion === 1 &&
       final.engine === 'terraform' &&
       final.deploymentId === deployment.deploymentId &&
@@ -58936,11 +58968,11 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
   if (checkpoint.phase === 'retired') {
     const frozen = object93(checkpoint.retainedNetworkParentInventory),
       nativeEvidence = object93(checkpoint.retirementEvidence);
-    require126(
-      same91(nativeEvidence.networkParentInventory, frozen) &&
+    require127(
+      same92(nativeEvidence.networkParentInventory, frozen) &&
         frozen.schemaVersion === 1 &&
         frozen.scope === 'native-bound-network-parent-inventory' &&
-        same91(frozen.owner, owner) &&
+        same92(frozen.owner, owner) &&
         frozen.originalPlanSha256 === original.planSha256 &&
         frozen.teardownPlanSha256 === teardown.planSha256 &&
         frozen.parentRetirementQualified === false,
@@ -58959,7 +58991,7 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
     const terminal = await step(() =>
       qualifyAzureTerraformNetworkTerminalJournalCustody(request, store, context, deadline),
     );
-    require126(terminal.mainRunnerRetirementQualified === false, 'pre-retirement terminal custody required');
+    require127(terminal.mainRunnerRetirementQualified === false, 'pre-retirement terminal custody required');
     await step(() => beforeRetirement(deadline));
     const parentInventory = await step(() =>
       readAzureTerraformNetworkParentInventory(request, store, context, terminal, deadline),
@@ -58982,30 +59014,30 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
   const evidence = object93(checkpoint.retirementEvidence),
     retained = object93(checkpoint.retainedTerminalNetworkCustody),
     frozenInventory = object93(checkpoint.retainedNetworkParentInventory);
-  require126(
-    same91(evidence.networkParentInventory, frozenInventory) &&
+  require127(
+    same92(evidence.networkParentInventory, frozenInventory) &&
       frozenInventory.schemaVersion === 1 &&
       frozenInventory.scope === 'native-bound-network-parent-inventory' &&
-      same91(frozenInventory.owner, owner) &&
+      same92(frozenInventory.owner, owner) &&
       frozenInventory.originalPlanSha256 === original.planSha256 &&
       frozenInventory.teardownPlanSha256 === teardown.planSha256 &&
       frozenInventory.parentRetirementQualified === false,
     'frozen parent inventory differs',
   );
-  require126(
+  require127(
     sha34(checkpoint.retirementEvidenceSha256) &&
       checkpoint.retirementEvidenceSha256 === canonicalSha256(evidence) &&
-      same91(evidence.terminalNetwork, retained) &&
+      same92(evidence.terminalNetwork, retained) &&
       retained.currentEmptyMainJournalCustodyQualified === true &&
       retained.mainRunnerRetirementQualified === false &&
       retained.originalPlanSha256 === original.planSha256 &&
       retained.teardownPlanSha256 === teardown.planSha256 &&
-      same91(retained.owner, owner),
+      same92(retained.owner, owner),
     'frozen terminal custody differs',
   );
   const session = await step(() => terraform.open(owner, deployment, 'current'));
   const { readArtifactRetirement: readRetirement, retireArtifacts: retire } = session;
-  require126(readRetirement && retire, 'native retirement and permanent barrier interfaces required');
+  require127(readRetirement && retire, 'native retirement and permanent barrier interfaces required');
   dependencies.push(
     { target: session, key: 'readArtifactRetirement', value: readRetirement },
     { target: session, key: 'retireArtifacts', value: retire },
@@ -59034,8 +59066,8 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
         );
         const { recordSha256: currentRecordSha256, ...currentProof } = object93(terminal);
         const { recordSha256: frozenRecordSha256, ...frozenProof } = retained;
-        require126(
-          sha34(currentRecordSha256) && sha34(frozenRecordSha256) && same91(currentProof, frozenProof),
+        require127(
+          sha34(currentRecordSha256) && sha34(frozenRecordSha256) && same92(currentProof, frozenProof),
           'frozen terminal custody changed before retirement',
         );
         const currentInventory = await step(() =>
@@ -59043,10 +59075,10 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
         );
         const { terminalFile: currentTerminalFile, ...currentParentInventory } = currentInventory;
         const { terminalFile: frozenTerminalFile, ...retainedParentInventory } = frozenInventory;
-        require126(
+        require127(
           sha34(object93(currentTerminalFile).sha256) &&
             sha34(object93(frozenTerminalFile).sha256) &&
-            same91(currentParentInventory, retainedParentInventory),
+            same92(currentParentInventory, retainedParentInventory),
           'frozen parent inventory changed before retirement',
         );
         await step(() => beforeRetirement(deadline));
@@ -59055,21 +59087,21 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
         );
       }
     } else {
-      require126(
+      require127(
         observed.status === 'retiring' && sha34(observed.independentCleanupSha256),
         'native partial barrier differs',
       );
       await step(() => beforeRetirement(deadline));
     }
-    require126(same91(await step(() => store.read(name5)), checkpoint), 'saved frozen checkpoint changed');
+    require127(same92(await step(() => store.read(name5)), checkpoint), 'saved frozen checkpoint changed');
     const receipt = await step(() => retire.call(session, final, evidenceSha256, environment, deadline));
     observed = await step(() => readRetirement.call(session, final, evidenceSha256, deadline));
-    require126(
-      observed.status === 'runner-artifacts-retired' && same91(observed.receipt, receipt),
+    require127(
+      observed.status === 'runner-artifacts-retired' && same92(observed.receipt, receipt),
       'native retirement acknowledgement lacks permanent proof',
     );
   }
-  require126(observed.status === 'runner-artifacts-retired', 'native permanent main barrier required');
+  require127(observed.status === 'runner-artifacts-retired', 'native permanent main barrier required');
   checkpoint = { ...checkpoint, phase: 'retired', artifacts: structuredClone(observed.receipt) };
   await step(() => store.write(name5, checkpoint));
   const retiredContext = { ...context, terminalCleanup: checkpoint };
@@ -59084,7 +59116,7 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
   };
 }
 var name5 = 'azure-terraform-terminal-cleanup.json',
-  same91 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same92 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash47 = (s) => createHash73('sha256').update(s).digest('hex'),
   sha34 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 var init_terraform_network_terminal_main_retirement = __esm(() => {
@@ -59102,11 +59134,11 @@ var init_terraform_network_terminal_main_retirement = __esm(() => {
 import { createHash as createHash74 } from 'node:crypto';
 import { join as join46 } from 'node:path';
 
-function require127(value, message) {
+function require128(value, message) {
   if (!value) throw Error(`Azure terminal plaintext retirement: ${message}`);
 }
 function object94(value) {
-  require127(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
+  require128(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 async function retireAzureTerraformNetworkTerminalPlaintext(request, store, context, beforeTransformation, signal) {
@@ -59134,13 +59166,13 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require127(
-      same92(request, original) &&
-        same92(store.owner, owner) &&
+    require128(
+      same93(request, original) &&
+        same93(store.owner, owner) &&
         store.directory === root &&
         matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, checkpointSha256, 'raw') &&
-        same92(context.site, site) &&
-        same92(context.destroyTeardown, teardown) &&
+        same93(context.site, site) &&
+        same93(context.destroyTeardown, teardown) &&
         context.loaders === loaders &&
         context.terraform === terraform &&
         context.publicSession === publicSession &&
@@ -59169,7 +59201,7 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
   );
   const native = structuredClone(nativeWitness);
   const terminal = object94(checkpoint);
-  require127(
+  require128(
     native.mainRunnerRetirementQualified === true &&
       native.parentRetirementQualified === false &&
       native.mainRetirementReceiptSha256 === canonicalSha256(terminal.artifacts),
@@ -59180,7 +59212,7 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
     markerSha256: native.mainMarkerSha256,
     receipt: terminal.artifacts,
   });
-  require127(projection.transformationRequired, 'terminal plaintext already transformed; use post-parent reader');
+  require128(projection.transformationRequired, 'terminal plaintext already transformed; use post-parent reader');
   const path = join46(root, name6),
     markerPath = join46(
       root,
@@ -59188,14 +59220,14 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
       'artifact-retirement.json',
     );
   const before = await step(() => readAzureTerraformParentPrivateFile(path, deadline));
-  require127(same92(JSON.parse(before.bytes.toString()), checkpoint), 'saved terminal checkpoint differs');
+  require128(same93(JSON.parse(before.bytes.toString()), checkpoint), 'saved terminal checkpoint differs');
   const marker = await step(() => readAzureTerraformParentPrivateFile(markerPath, deadline));
-  require127(hash48(marker.bytes) === native.mainMarkerSha256, 'permanent main marker differs');
+  require128(hash48(marker.bytes) === native.mainMarkerSha256, 'permanent main marker differs');
   const custody = async () => {
     await step(() => store.verify());
     const current = await step(() => readAzureTerraformParentPrivateFile(path, deadline));
     const nativeMarker = await step(() => readAzureTerraformParentPrivateFile(markerPath, deadline));
-    require127(
+    require128(
       current.identity === before.identity &&
         hash48(current.bytes) === hash48(before.bytes) &&
         nativeMarker.identity === marker.identity &&
@@ -59214,12 +59246,12 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
     recheckAzureTerraformNetworkRetiredMainNativeCustody(nativeWitness, request, store, context, true, deadline),
   );
   const transformed = await step(() => readAzureTerraformParentPrivateFile(path, deadline));
-  require127(
-    same92(JSON.parse(transformed.bytes.toString()), projection.checkpoint),
+  require128(
+    same93(JSON.parse(transformed.bytes.toString()), projection.checkpoint),
     'owning terminal transformation differs',
   );
   const afterMarker = await step(() => readAzureTerraformParentPrivateFile(markerPath, deadline));
-  require127(
+  require128(
     afterMarker.identity === marker.identity && hash48(afterMarker.bytes) === hash48(marker.bytes),
     'permanent main marker changed during transformation',
   );
@@ -59237,7 +59269,7 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
 }
 var name6 = 'azure-terraform-terminal-cleanup.json',
   hash48 = (bytes) => createHash74('sha256').update(bytes).digest('hex'),
-  same92 = (left, right) => canonicalEqual({ value: left }, { value: right });
+  same93 = (left, right) => canonicalEqual({ value: left }, { value: right });
 var init_terraform_network_terminal_plaintext_retirement = __esm(() => {
   init_canonical();
   init_terraform_network_retired_main_custody();
@@ -59249,11 +59281,11 @@ var init_terraform_network_terminal_plaintext_retirement = __esm(() => {
 // plugins/azure/src/ce/terraform-network-terminal-planning.ts
 import { createHash as createHash75 } from 'node:crypto';
 
-function require128(v, message) {
+function require129(v, message) {
   if (!v) throw Error(`Azure network terminal planning: ${message}`);
 }
 function object95(v) {
-  require128(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
+  require129(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 async function prepareAzureTerraformNetworkTerminalPlanning(request, store, context, freshAbsence, env, signal) {
@@ -59280,18 +59312,18 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const seal = () => {
     deadline.throwIfAborted();
-    require128(
-      same93(request, original) &&
-        same93(store.owner, owner) &&
+    require129(
+      same94(request, original) &&
+        same94(store.owner, owner) &&
         store.directory === directory &&
-        same93(context.destroyTeardown, teardown) &&
-        same93(context.site, site) &&
+        same94(context.destroyTeardown, teardown) &&
+        same94(context.site, site) &&
         context.terraform === terraform &&
         context.publicSession === publicSession &&
         context.loaders === loaders &&
         context.verifier === verifier &&
         context.replacementVerifier === replacementVerifier &&
-        same93(env, environment) &&
+        same94(env, environment) &&
         dependencies.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning context changed',
     );
@@ -59311,9 +59343,9 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
   };
   seal();
   await step(() => store.verify());
-  require128(
-    same93(azureUpgradeBinding(original).owner, owner) &&
-      same93(
+  require129(
+    same94(azureUpgradeBinding(original).owner, owner) &&
+      same94(
         compileAzureTerraformTeardown(
           original,
           teardown.drain,
@@ -59333,7 +59365,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     plan,
     readUnsubmittedPlanCancellation: readCancellation,
   } = session;
-  require128(
+  require129(
     typeof readConfiguration === 'function' &&
       typeof readDigest === 'function' &&
       typeof cancel === 'function' &&
@@ -59361,12 +59393,12 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     );
     const destroy = object95(await step(() => store.read('azure-terraform-cloud-destroy-final.json')));
     const currentDigest = await step(() => readDigest.call(session));
-    require128(currentDigest === destroy.configurationSha256, 'current destroy configuration differs');
+    require129(currentDigest === destroy.configurationSha256, 'current destroy configuration differs');
     const retainedDestroyConfiguration = await step(() => readConfiguration.call(session, destroy.configurationSha256));
-    require128(hash49(retainedDestroyConfiguration) === destroy.configurationSha256, 'retained destroy bytes differ');
+    require129(hash49(retainedDestroyConfiguration) === destroy.configurationSha256, 'retained destroy bytes differ');
     const retained = object95(JSON.parse(retainedDestroyConfiguration));
-    require128(
-      same93({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(deployment.configuration)),
+    require129(
+      same94({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(deployment.configuration)),
       'retained provider identity differs',
     );
     const evidence = { ...object95(await step(() => freshAbsence(deadline))), network: structuredClone(custody) };
@@ -59393,7 +59425,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     };
     await step(() => store.write(name7, checkpoint, deadline));
   }
-  require128(['cancelling', 'planning'].includes(String(checkpoint.phase)), 'cancellation/planning phase required');
+  require129(['cancelling', 'planning'].includes(String(checkpoint.phase)), 'cancellation/planning phase required');
   const qualify = (current) => {
     const boundContext = { ...context, terminalCleanup: current };
     return {
@@ -59403,7 +59435,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
   };
   const assertSaved = (current) =>
     step(async () => {
-      require128(same93(await store.read(name7), current), 'saved checkpoint changed');
+      require129(same94(await store.read(name7), current), 'saved checkpoint changed');
     });
   if (checkpoint.phase === 'cancelling') {
     const { boundContext, read } = qualify(checkpoint),
@@ -59424,7 +59456,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
           cancelling.evidenceSha256,
         ),
       );
-      require128(actual === hash49(deployment.configuration), 'native cancelled configuration differs');
+      require129(actual === hash49(deployment.configuration), 'native cancelled configuration differs');
       const cancellation = await step(() =>
         readCancellation.call(
           session,
@@ -59435,7 +59467,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
           deadline,
         ),
       );
-      require128(
+      require129(
         cancellation.cancellationQualified &&
           cancellation.status === 'cancelled' &&
           cancellation.currentConfigurationSha256 === hash49(deployment.configuration),
@@ -59448,13 +59480,13 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
   }
   const { boundContext, read } = qualify(checkpoint),
     observed = await read();
-  require128(observed.cancellationQualified, 'ordinary planning requires completed native cancellation');
+  require129(observed.cancellationQualified, 'ordinary planning requires completed native cancellation');
   let final = observed.currentPlanReceipt;
   let current = observed;
   const recoveredExistingPlan = final !== null;
   let retirementEvidence;
   if (!final) {
-    require128(observed.ordinaryPlanReady, 'exact absent current slot required');
+    require129(observed.ordinaryPlanReady, 'exact absent current slot required');
     await step(() => freshAbsence(deadline));
     await step(() =>
       recheckAzureTerraformNetworkCancelledMainBinding(observed, request, store, boundContext, deadline),
@@ -59466,20 +59498,20 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
       refreshAzureTerraformNetworkCancelledMainBinding(observed, request, store, boundContext, deadline),
     );
     current = after;
-    require128(
-      after.ordinaryCurrentJournalQualified && same93(after.currentPlanReceipt, final),
+    require129(
+      after.ordinaryCurrentJournalQualified && same94(after.currentPlanReceipt, final),
       'ordinary native plan lacks exact continuation proof',
     );
   }
-  require128(
-    current.ordinaryCurrentJournalQualified && same93(current.currentPlanReceipt, final),
+  require129(
+    current.ordinaryCurrentJournalQualified && same94(current.currentPlanReceipt, final),
     'native ordinary continuation changed',
   );
   if (recoveredExistingPlan) {
     retirementEvidence = object95(await step(() => freshAbsence(deadline)));
     await step(() => recheckAzureTerraformNetworkCancelledMainBinding(current, request, store, boundContext, deadline));
   }
-  require128(retirementEvidence, 'fresh retirement evidence required');
+  require129(retirementEvidence, 'fresh retirement evidence required');
   await assertSaved(checkpoint);
   checkpoint = {
     ...checkpoint,
@@ -59498,7 +59530,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
   };
 }
 var name7 = 'azure-terraform-terminal-cleanup.json',
-  same93 = (a, b) => canonicalEqual({ value: a }, { value: b }),
+  same94 = (a, b) => canonicalEqual({ value: a }, { value: b }),
   hash49 = (s) => createHash75('sha256').update(s).digest('hex');
 var init_terraform_network_terminal_planning = __esm(() => {
   init_canonical();
