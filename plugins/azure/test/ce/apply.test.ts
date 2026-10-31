@@ -641,7 +641,8 @@ it('fails closed instead of routing unsupported Terraform operations through ini
       ];
     }
     const lifecycle = compileAzureCePlan(selected, observed);
-    expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
+    if (operation === 'update-network') expect(() => assertAzureTerraformApplyOperation(lifecycle)).not.toThrow();
+    else expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
   }
 });
 

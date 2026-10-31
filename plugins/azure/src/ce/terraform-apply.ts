@@ -13,6 +13,7 @@ import { ensureAzurePlatformIngress } from './platform-ingress';
 import { fingerprintCurrentObservation } from './recovery';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import { azureTerraformLifecycleDeployment, runAzureTerraformLifecycle } from './terraform-lifecycle';
+import { runAzureTerraformNetworkPublicUpdate } from './terraform-network-public-update';
 import { loadAzureTerraformOutcome, saveAzureTerraformOutcome } from './terraform-outcome';
 import { runAzureTerraformReplacement } from './terraform-replacement';
 import { qualifyAzureTerraformReplacementPublicSource } from './terraform-replacement-public-source';
@@ -47,7 +48,7 @@ export function reconcileAzureTerraformMarketplaceTermsAcceptance(
 
 /** Keep unsupported lifecycle intents from falling through to the deployment-only admission workflow. */
 export function assertAzureTerraformApplyOperation(plan: Awaited<ReturnType<typeof loadPlanArtifact>>['plan']): void {
-  if (!['deploy', 'start', 'stop', 'resize', 'replace-node'].includes(plan.intent.operation))
+  if (!['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network'].includes(plan.intent.operation))
     throw new Error(`Terraform ${plan.intent.operation} is not executable through Azure CE apply`);
 }
 
@@ -246,32 +247,35 @@ export async function executeAzureCeTerraformApply(
                 .digest('hex'),
             )
         : undefined;
-    let result: Record<string, unknown> = ['start', 'stop', 'resize'].includes(plan.intent.operation)
-      ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
-      : plan.intent.operation === 'replace-node'
-        ? await runAzureTerraformReplacement(
-            plan,
-            terraform,
-            runtime,
-            storage,
-            api,
-            process.env,
-            signal,
-            acceptIngress,
-            qualifySource,
-          )
-        : await runAzureTerraformAdmission(
-            plan,
-            terraform,
-            runtime,
-            storage,
-            api,
-            revalidate,
-            process.env,
-            signal,
-            undefined,
-            acceptIngress,
-          );
+    let result: Record<string, unknown> =
+      plan.intent.operation === 'update-network'
+        ? await runAzureTerraformNetworkPublicUpdate(plan, ctx, terraform, runtime, storage, api, signal)
+        : ['start', 'stop', 'resize'].includes(plan.intent.operation)
+          ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
+          : plan.intent.operation === 'replace-node'
+            ? await runAzureTerraformReplacement(
+                plan,
+                terraform,
+                runtime,
+                storage,
+                api,
+                process.env,
+                signal,
+                acceptIngress,
+                qualifySource,
+              )
+            : await runAzureTerraformAdmission(
+                plan,
+                terraform,
+                runtime,
+                storage,
+                api,
+                revalidate,
+                process.env,
+                signal,
+                undefined,
+                acceptIngress,
+              );
     if (
       ['start', 'resize'].includes(plan.intent.operation) &&
       ingressContract &&

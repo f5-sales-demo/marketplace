@@ -332,3 +332,57 @@ for (const stage of ['platform', 'terraform'] as const)
         else process.env.XDG_CONFIG_HOME = before;
       }
     });
+
+test('actual public Terraform network update reaches owning storage instead of a future-work rejection', async () => {
+  const f = await fixture();
+  Object.assign(f.params, { planId: f.plan.planId, planSha256: f.plan.planSha256 });
+  const result = await f.run();
+  expect(result.isError).toBe(true);
+  expect(result.content[0].text).toContain('test owning storage boundary reached');
+  expect(result.content[0].text).not.toContain('not executable through Azure CE apply');
+  expect(f.calls.storage).toBe(1);
+});
+
+for (const site of [
+  {},
+  { metadata: null, system_metadata: { uid: 'site-uid' } },
+  { metadata: [], system_metadata: { uid: 'site-uid' } },
+  { metadata: { name: 'foreign', namespace: 'system' }, system_metadata: { uid: 'site-uid' } },
+  { metadata: { namespace: 'system' }, system_metadata: {} },
+] as const)
+  test(`actual public network adapter rejects malformed owned site ${JSON.stringify(site)} before cloud access`, async () => {
+    const f = await fixture();
+    const store = await CeDeploymentStore.open(join(f.ctx.cwd, 'owning'), azureUpgradeBinding(f.plan).owner);
+    let cloudCalls = 0,
+      terraformCalls = 0,
+      configurationCalls = 0;
+    const runtime = {
+      engine: 'terraform',
+      observeOwnedSite: async () => site,
+      ownedSiteConfiguration: () => {
+        configurationCalls++;
+        throw Error('unexpected configuration read');
+      },
+    } as unknown as Parameters<
+      typeof import('../../src/ce/terraform-network-public-update').runAzureTerraformNetworkPublicUpdate
+    >[3];
+    const terraform = {
+      open: async () => {
+        terraformCalls++;
+        throw Error('unexpected Terraform access');
+      },
+    } as unknown as CeTerraformService;
+    const api = {
+      exec: async () => {
+        cloudCalls++;
+        throw Error('unexpected cloud access');
+      },
+    } as AzExecApi;
+    const { runAzureTerraformNetworkPublicUpdate } = await import('../../src/ce/terraform-network-public-update');
+    await expect(runAzureTerraformNetworkPublicUpdate(f.plan, f.ctx, terraform, runtime, store, api)).rejects.toThrow(
+      'Current owned network site identity is unavailable',
+    );
+    expect(cloudCalls).toBe(0);
+    expect(terraformCalls).toBe(0);
+    expect(configurationCalls).toBe(0);
+  });

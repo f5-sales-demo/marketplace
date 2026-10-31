@@ -926,3 +926,36 @@ test('forged retirement-session methods cannot supply typed parent disposition a
     collect(f.original, f.store, f.session, [], counterfeit as unknown as Parameters<typeof collect>[4]),
   ).rejects.toThrow('genuine owning retirement session');
 });
+
+test('actual operational acceptance adapter authenticates collected facts and preserves missing qualification', async () => {
+  const f = await publicSessionFixture(),
+    session = await openPublicAcquisition(f);
+  const { createAzureNetworkOperationalAcceptance } = await import('../../src/ce/network-operational-acceptance');
+  const adapter = createAzureNetworkOperationalAcceptance(session);
+  const receipt = await adapter.collectAcceptance(f.identity, 'preflight');
+  const reading = await adapter.inspect(receipt, f.identity, 'current');
+  expect(reading.status).toBe('unknown');
+  expect(reading.interfaceState).toBe('observed');
+  expect(reading.missing).toContain('original-sample-freshness');
+  expect(reading.missing).toContain('selected-node-readiness');
+  await expect(adapter.qualifyAcceptance(receipt, f.identity, 'current')).rejects.toThrow(
+    'Operational evidence remains unqualified',
+  );
+  const reopened = createAzureNetworkOperationalAcceptance(await openPublicAcquisition(f));
+  expect((await reopened.inspect(receipt, f.identity, 'historical')).status).toBe('unknown');
+  await expect(reopened.inspect(receipt, f.identity, 'current')).rejects.toThrow('current acquisition unavailable');
+  expect(f.mutations()).toBe(0);
+});
+
+test('actual operational acceptance adapter preserves explicit down and rejects foreign signed identity', async () => {
+  const f = await publicSessionFixture();
+  f.state.down = true;
+  const { createAzureNetworkOperationalAcceptance } = await import('../../src/ce/network-operational-acceptance');
+  const adapter = createAzureNetworkOperationalAcceptance(await openPublicAcquisition(f));
+  const receipt = await adapter.collectAcceptance(f.identity, 'preflight');
+  expect((await adapter.inspect(receipt, f.identity, 'current')).interfaceState).toBe('down');
+  const foreign = structuredClone(receipt);
+  foreign.identitySha256 = 'e'.repeat(64);
+  await expect(adapter.qualifyAcceptance(foreign, f.identity, 'historical')).rejects.toThrow();
+  expect(f.mutations()).toBe(0);
+});
