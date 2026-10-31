@@ -607,3 +607,17 @@ credential files, audience, environment and all saved-plan gates remain bound.
 Long apply still requires separately reviewed refresh qualification and full
 XCSH lifetime. No executor or cloud consumer is enabled; production snapshot,
 workspace, bridge, guard and all subsequent acceptance gates remain open.
+
+Attempts 313 and 314 qualify provider-refresh evidence consistency, a zero-cloud
+local preparation plan and private capture components. The
+[fixture receipt](gcp-provider-refresh-fixture-20261031.md) records 20 evidence
+tests, 30 selected shared regressions, seven fixture-guard tests and an actual
+saved plan with four natural closures. Terraform source version 2.4.5 retains
+unchanged generated runtime bytes. The
+[capture receipt](gcp-provider-refresh-capture-20261031.md) records 62 final tests
+and a real disposable local process with four kernel/SDK identity boundaries and
+independent closure. A failed capture's claim remains unresolved and preserved.
+The actual tokeninfo callback and Google refresh across expiry have not run.
+Neither preparation nor the new consistency checks admit apply. Production
+controller, final capture, workspace, bridge, guard and every remaining live,
+cleanup, review and publication gate remain open.
