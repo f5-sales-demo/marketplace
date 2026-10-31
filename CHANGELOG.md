@@ -10,6 +10,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce` 2.3.16** verifies visible progress through bounded render callbacks when timer delivery
+  is delayed, while retaining completion, cancellation and late-update assertions (#1559).
+
+- **`terraform` 2.4.4** accepts Terraform's minimal empty-state summary only when stable private raw state proves
+  the pinned version, zero resources and zero outputs; ambiguous summaries still refuse (#1559).
+- **`gcloud` 1.7.25** checks SSD-backed quota for Balanced Persistent Disk and rejects missing, duplicate or
+  insufficient SSD quota without substituting standard-disk quota (#1559).
+
+- **`gcloud` 1.7.24 / `platform` 6.3.9** add the opt-in, versioned Site-level admin SSH profile for the two-interface
+  Terraform HA candidate. The reviewed intent binds one Ed25519 public key; SSH is permitted on SLI and blocked on SLO,
+  with local DNS and web UI blocked on both. Legacy configurations and cleanup fingerprints remain unchanged. Fresh
+  guest access and full lifecycle acceptance remain unverified (#1559).
+
+- **`gcloud` 1.7.23** declares the required Platform installation dependency, uses the installed shared Terraform runner on public paths, exposes scoped refusals for unqualified lifecycle operations, and measures recovery from disruption or restoration-command start without resetting the 120-second clock (#1559).
+
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
@@ -41,6 +56,148 @@ and this project adheres to
 
 - **`cloudstatus`** v1.9.2 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
 
+- **`gcloud` 1.7.22 and `platform` 6.3.8** support scoped GitHub authentication
+  for pinned GCP CE release metadata, including owned cleanup when anonymous
+  quota is exhausted. Asset downloads remain anonymous and retain immutable
+  digest checks. Real xcsh development-runtime registration, shared services,
+  authenticated contract reads and credential-expiry refusal passed; HA live
+  acceptance remains separate (#1559).
+
+- **`gcloud` 1.7.20 and `platform` 6.3.4** add the scoped operational-health
+  collector for public Terraform ownership, persist complete original placement
+  once, and verify immutable profile, qualification and parser identities.
+  Unavailable qualification returns scoped v2 unknown; failed reads preserve
+  known failures. Terraform HA reviews bind lifecycle and health fingerprints;
+  the fixed profile requires qualified image/provider pins and permits cleanup
+  without live health collection. The release pin and public HA admission await fresh live
+  qualification (#1559).
+
+- **`aws` 2.3.3** uses a placeholder account in the presentation fixture so
+  changed-content privacy validation accepts the synthetic test evidence.
+
+- **`terraform` 2.4.3 and `gcloud` 1.7.19** bound executor identity persistence
+  and gate release to fifteen seconds. Startup failures verify child exit before
+  releasing owned locks; unresolved stops continue to block recovery. Private
+  gate transitions retain executable and process identity without exporting
+  arguments or credentials (#1559).
+
+- **`gcloud` 1.7.17 and `platform` 6.3.3** collect scoped HA component status and independent
+  service inventory, checking original site and node identities before and after
+  reads. Status and diagnostics report a versioned HA result with per-node health,
+  required coverage counts, observation times and sanitized receipt hashes. Missing
+  or duplicate identities, stale evidence and failed reads retain unknown health.
+  Public HA deployment remains gated by owning health qualification.
+
+- **`gcloud`** records a fresh private HA health qualification gap. Three original
+  nodes reached ONLINE with both NIC joins and no-change planning. Health API
+  failures, duplicate inventory identities and missing service coverage prevented
+  qualified HA health through the thirty-minute convergence window. Public HA
+  admission and owning API publication remain gated.
+
+- **`gcloud`** records private three-node HA interrupted-success recovery and
+  partial orphan-disk cleanup. Recovery refuses a live executor without mutation
+  and preserves the original binary before no-change planning. Each separate
+  delete-only cleanup completed an empty destroy plan, stable state and eighteen
+  independent absences without replay. Public HA admission and exhaustive health
+  remain gated; receipts bind the actual executable sources and frozen bundles.
+
+- **`gcloud`** binds HA firewall ownership to completed Google insert receipts,
+  equal provider-retained and live creation timestamps, and exact live target IDs.
+  Creation must fall within one completed insert operation's recorded interval;
+  operation start time need not equal resource creation time. Google 8.7.0 has no
+  numeric firewall ID in Terraform state; missing or ambiguous evidence requires reconciliation.
+
+- **`gcloud`** owns four guide-required SLO/SLI interface firewall rules in
+  candidate HA Terraform configuration and verifies their exact cloud identities
+  and scope. Independent cleanup covers eighteen objects; public HA admission remains gated.
+
+- **`gcloud`** prepares HA ownership and read-only prerequisites: every zone and
+  node contributes to quota checks; all fourteen three-node cloud/XC objects
+  retain exact identity and absence coverage, including later-node orphan disks.
+  HA interface comparison ignores JSON key order, and sanitized status includes
+  the exact owned instance ID. Public HA deployment and cleanup remain gated by
+  API contract qualification and installed/live evidence (#1559).
+
+- **`terraform`** and **`gcloud`** preserve exact 64-bit provider identity integers
+  during private Terraform JSON parsing. This fixes subnet ownership comparison
+  and recovery without replaying the original apply (#1559).
+
+- **`gcloud`** adds public Terraform saved-plan authorization, original-attempt
+  recovery and separate delete-only partial cleanup for the single-node BYOL
+  profile. Reviews bind the F5 context name and actual API endpoint; cleanup
+  completion also requires the unchanged final empty-plan state snapshot.
+  Deployment completion binds a stable no-op state snapshot; resumed completion
+  requires that exact state and all original live identities without replay.
+  The versioned configuration owns the boot disk explicitly. Deployment
+  uses the published and installed-qualified XC v15.13.0 provider, Terraform
+  1.16.6 and Google 8.7.0 with a verified Darwin ARM64/Linux AMD64 lock. Fresh
+  public installed/live deployment, interrupted recovery and partial disk cleanup
+  passed, including typed teardown and independent eight-object absence (#1559).
+  **`terraform`** tracks the original executor process before submission and
+  refuses recovery while that process remains live.
+
+- **`terraform`** exposes restricted inspection of the exact original interrupted
+  apply checkpoint and state. Inspection preserves pending state and does not
+  attest success or authorize resubmission; owning adapters must independently
+  verify the outcome before reconciliation (#1559).
+
+- **`terraform`** adds restricted applied-state identity projection bound to the
+  original reviewed binary, isolated state lineage/serial and stable snapshot.
+  **`gcloud`** captures exact Terraform creation ownership with independent cloud
+  identities and ordered disk/NIC checks. Public Terraform deployment remains
+  unavailable while review/apply and interrupted recovery are integrated (#1559).
+
+- **`gcloud`** adds an explicit native single-node deployment plan/apply candidate
+  with server-collected prerequisites, persisted overall review, unchanged corporate
+  funding/BYOL bindings and durable authorization for asynchronous resume. Completed
+  creation journal resources support partial native cleanup. Fresh isolated installed
+  public native deployment, two healthy observations and typed teardown passed on
+  the narrow disposable profile, followed by eight independent absence checks (#1559).
+
+- **`gcloud`** binds native and Terraform billable execution to confirmed corporate
+  funding and the unchanged existing billing association. The pinned BYOL product
+  supports exact document authorization for access/use separately from procurement
+  consent and license acquisition; it creates no resources or orders (#1559).
+
+- **`gcloud`** adds candidate Terraform teardown through the owning plan/apply
+  lifecycle, with stored session inputs, original Platform identity, exact saved
+  destroy projection, interrupted outcome reconciliation and final absence checks.
+  Installed XC identity capture and fresh live cloud teardown passed on the narrow
+  disposable single-node profile, with final empty destroy and eight absence checks (#1559).
+- **`terraform`** attests exact completed saved plans before post-apply ownership
+  capture. **`platform`** provides scoped site/token identity observations and a
+  private Terraform execution context without exporting bootstrap material (#1559).
+- **`gcloud`** automatically prepares missing `alpha` and `beta` command groups
+  before commands and help, with noninteractive installation, coordinated
+  preparation, verification and explicit component-manager failures (#1559).
+- **`gcloud`** documents Google's prerequisite Cloud terms and returns the
+  acceptance link, account guidance and verification steps when API enablement
+  reports `UREQ_TOS_NOT_ACCEPTED` (#1559).
+- **`gcloud`** adds programmatic Marketplace consent review and grant through
+  scoped Google APIs, with exact image/license/document binding, server dry runs
+  and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
+  qualified terms mechanism and no usage fee is treated as acceptance (#1559).
+- **`gcloud`** v1.7.21 adds GCP registration/interface correlation, restricted bootstrap
+  checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
+  and power/resize candidates, immutable SLO replacement classification, and exact
+  async resource identity. Live lifecycle gates remain explicit (#1559).
+- **`gcloud`** adds reviewed native single-node teardown through typed plan/apply
+  tools, with exact ownership checks, durable interruption authorization and final
+  absence evidence. Installed qualification covers synthetic Compute identities
+  and live owned XC cleanup; fresh installed native live cloud teardown and eight
+  independent absence checks now pass on the narrow disposable single-node profile (#1559).
+- **`platform`** v6.3.7 registers shared CE storage/runtime service with portable
+  process locks and GCP ownership scope while keeping unqualified mutation unavailable.
+  Terraform HA ownership observations now bind each of the three original node tokens,
+  allowing initial absence and partial cleanup reads while rejecting foreign or ambiguous nodes.
+  Initial operational placement handles global runtime rows without node information
+  and rejects foreign runtime nodes before persisting the original binding.
+- **`gcloud` / `terraform`** fix GCP destroy review by projecting exact nonsensitive
+  disk/NIC fields and array counts instead of sensitive provider blocks. A preserved
+  live saved-plan replay and fresh installed live typed Terraform teardown pass,
+  with exact saved-plan apply, final empty destroy and independent absence (#1559).
+- **`terraform`** v2.4.3 loads the isolated CE runner alongside existing CLI integration,
+  preserving provider locks, saved-plan identity and deployment ownership.
 - **`gitlab`** v1.5.2 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).
 
 - **`github`** v3.3.1 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).

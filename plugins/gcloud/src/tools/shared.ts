@@ -1,3 +1,4 @@
+import { withGcloudCommandGroups } from '../gcloud/command-groups';
 import {
   GcloudAuthError,
   type GcloudExecApi,
@@ -70,7 +71,7 @@ export function hasControlChars(arg: string): boolean {
 // ---------------------------------------------------------------------------
 
 export function makeExecApi(cwd: string): GcloudExecApi {
-  return {
+  return withGcloudCommandGroups({
     async exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<GcloudRawResult> {
       // Thread the AbortSignal so a genuine in-flight cancellation actually
       // terminates the child. We must NOT pre-check signal.aborted to throw a
@@ -85,6 +86,7 @@ export function makeExecApi(cwd: string): GcloudExecApi {
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
+        env: { ...process.env, CLOUDSDK_CORE_DISABLE_PROMPTS: '1' },
         ...(signal && !signal.aborted ? { signal } : {}),
       });
       if (!child.stdout || !child.stderr) {
@@ -97,5 +99,5 @@ export function makeExecApi(cwd: string): GcloudExecApi {
       ]);
       return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode: exitCode ?? 0 };
     },
-  };
+  });
 }
