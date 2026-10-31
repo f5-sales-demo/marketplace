@@ -560,3 +560,13 @@ fixtures do not qualify live credential or plan evidence. No executor or cloud
 consumer is enabled. Trusted live snapshot production, Platform workspace and
 provider joins, independent absence and review, production deadlines, bridge,
 guard, installation and all live and publication gates remain open.
+
+Attempt 306 executes the locked external providers in a credential-free
+validation fixture. The
+[provider execution receipt](gcp-q39-provider-execution-offline-20261030.md)
+records two natural command completions, complete schema and provider exit
+evidence, and fresh independent absence checks for six recorded subjects. The
+initial trace-size checker refusal is preserved and repaired by a separate
+reader without execution replay. Production provider birth identities,
+deadlines, live credential integration, bridge, guard and all live and
+publication gates remain open.
