@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.5** checks original-provider Google ADC refresh evidence against reviewed input
+  hashes, expiry and process identity. Live refresh qualification remains required (#1559).
+
 - **`salesforce` 2.3.16** verifies visible progress through bounded render callbacks when timer delivery
   is delayed, while retaining completion, cancellation and late-update assertions (#1559).
 
