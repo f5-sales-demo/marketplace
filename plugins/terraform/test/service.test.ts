@@ -157,7 +157,7 @@ test('interrupted custom execution retains its claim and consumed apply across t
                 terraform_version: deployment.terraformVersion,
                 errored: false,
                 complete: true,
-                applyable: true,
+                applyable: true, // codespell:ignore applyable -- exact Terraform JSON field
                 resource_changes: [
                   {
                     address: 'terraform_data.ce',
