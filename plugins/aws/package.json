@@ -1,27 +1,28 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "2.3.2",
+  "version": "3.0.0-uat.150",
   "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
-  "main": "src/index.ts",
+  "main": "dist/runtime.js",
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh"
+    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh",
+    "build:runtime": "bun ../../scripts/build-ce-runtime.ts aws"
   },
   "xcsh": {
     "name": "AWS",
-    "version": "2.3.2",
+    "version": "3.0.0-uat.150",
     "extensions": [
-      "src/index.ts"
+      "dist/runtime.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.8.0"
+    "@f5-sales-demo/xcsh": ">=23.10.3"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
-    "bun-types": "^1.4.2",
-    "@f5-sales-demo/xcsh": "23.9.3"
+    "bun-types": "^1.4.4",
+    "@f5-sales-demo/xcsh": "^23.10.3"
   },
   "license": "Apache-2.0"
 }

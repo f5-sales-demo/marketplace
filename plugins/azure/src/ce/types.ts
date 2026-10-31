@@ -1,4 +1,8 @@
-export const AZURE_CE_SCHEMA_VERSION = 2 as const;
+import type { InitialSiteVersions } from '../../../platform/src/ce/initial-versions';
+import type { AzureNativeNetworkUpdateCheckpoint } from './network-update';
+import type { AzureRelayDeploymentProfile } from './relay-deployment-plan';
+export const AZURE_CE_SCHEMA_VERSION = 3 as const;
+export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
@@ -15,6 +19,32 @@ export type AzureCeOperation =
 
 export type AzureCeEgressMode = 'public-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AzureCeRoutingMode = 'auto' | 'udr' | 'route-server';
+
+/** Explicit associations for subnets created by this deployment; exact node/NIC next hop. */
+export interface AzureCeGreenfieldUdr {
+  subnetNames: string[];
+  nextHop: { node: number; nicIndex: number };
+}
+
+export type AzureCeIngress =
+  | { mode: 'none' }
+  | {
+      mode: 'platform-http';
+      port: number;
+      listener: {
+        name: string;
+        namespace: string;
+        domain: string;
+        privateAddress: string;
+        originPool: { name: string; namespace: string };
+      };
+      probe: {
+        sourceVmResourceId: string;
+        path: string;
+        expectedStatus: number;
+        expectedBodySha256: string;
+      };
+    };
 
 export interface AzureCeSubnetIntent {
   mode: 'greenfield' | 'brownfield';
@@ -48,7 +78,18 @@ export interface AzureCeBrownfieldRouteChange {
   destinationCidr: string;
 }
 
+/** Explicit, private workload used to prove a Route Server learned prefix. */
+export interface AzureCeWorkloadFixture {
+  imageVersion: string;
+  subnetName: string;
+  cidr: string;
+  privateIp: string;
+  port: number;
+}
+
 export interface AzureCeIntent {
+  platformContext?: string;
+  engine?: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   operation: AzureCeOperation;
   subscriptionId: string;
@@ -60,11 +101,20 @@ export interface AzureCeIntent {
   topology: { ha: boolean };
   nics: AzureCeNicIntent[];
   egress: { mode: AzureCeEgressMode; resourceId?: string };
-  routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
+  routing: {
+    mode: AzureCeRoutingMode;
+    destinationCidrs: string[];
+    localAsn?: number;
+    peerAsn?: number;
+    udr?: AzureCeGreenfieldUdr;
+  };
+  ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
+  initialVersions?: InitialSiteVersions;
   image: { publisher: string; offer: string; plan: string };
   vm: { size: string; zones?: string[] };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };
+  workloadFixture?: AzureCeWorkloadFixture;
   replacementNode?: number;
 }
 
@@ -122,8 +172,8 @@ export interface AzureCeObservation {
     sourceReceipts: Array<{ url: string; normalizedSha256: string }>;
     sharedContract: {
       url: typeof AZURE_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
   };
@@ -148,10 +198,14 @@ export type AzureCeActionKind =
   | 'route-table-create'
   | 'route-create'
   | 'route-association-update'
+  | 'relay-provision'
   | 'route-server-create'
   | 'route-server-peer-create'
+  | 'route-server-peer-update'
+  | 'f5-ingress-configure'
   | 'resource-delete'
   | 'brownfield-restore'
+  | 'vm-state-gate'
   | 'health-gate'
   | 'bgp-gate'
   | 'traffic-gate';
@@ -168,9 +222,19 @@ export interface AzureCeAction {
   mutates: boolean;
   destructive: boolean;
   requiresBootstrap?: boolean;
+  expectedPowerState?: 'running' | 'deallocated';
+  expectedOwnerPlanSha256?: string;
+  expectedVmSize?: string;
 }
 
 export interface AzureCePlanDraft {
+  terraformNetworkReplacementProfile?: import('./terraform-network-replacement-plan').AzureTerraformNetworkReplacementProfile;
+  terraformNetworkProfile?: import('./terraform-network-plan').AzureTerraformNetworkProfile;
+  networkReplacementProfile?: import('./native-network-replacement').AzureNativeNetworkReplacementProfile;
+  networkProfile?: import('./native-network-plan').AzureNativeNetworkProfile;
+  workloadProfile?: import('./workload-plan').AzureWorkloadDeploymentProfile;
+  relayProfile?: AzureRelayDeploymentProfile | import('./relay-replacement-plan').AzureRelayReplacementProfile;
+  engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   intent: AzureCeIntent;
   subscription: AzureCeObservation['subscription'];
@@ -181,10 +245,17 @@ export interface AzureCePlanDraft {
   topology: { ha: boolean; nodeCount: 1 | 3; zones: string[] };
   nics: Array<AzureCeNicIntent & { index: number }>;
   egress: AzureCeIntent['egress'];
-  routing: { mode: Exclude<AzureCeRoutingMode, 'auto'>; destinationCidrs: string[]; localAsn: number; peerAsn: number };
+  routing: {
+    mode: Exclude<AzureCeRoutingMode, 'auto'>;
+    destinationCidrs: string[];
+    localAsn: number;
+    peerAsn: number;
+    udr?: AzureCeGreenfieldUdr;
+  };
   securityRules: AzureCeSecurityRuleIntent[];
   image: AzureCeObservation['image'];
   vm: AzureCeIntent['vm'];
+  computeCapacity: { ceVcpus: number; workloadVcpus: number; quotaAvailable: number };
   warnings: string[];
   billableResources: Array<{ type: string; count: number }>;
   actions: AzureCeAction[];
@@ -205,6 +276,7 @@ export interface AzureCePlanDraft {
   }>;
   ownershipTagTemplate: {
     'xcsh-managed-by': 'azure-ce';
+    'xcsh-execution-engine': 'native' | 'terraform';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
   };
@@ -216,11 +288,21 @@ export interface AzureCePlan extends AzureCePlanDraft {
 }
 
 export interface AzureCeCheckpoint {
-  schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
+  authorization?: { apply: boolean; terms: boolean; destroy: boolean };
+  engine: 'native' | 'terraform';
+  schemaVersion: typeof AZURE_CE_CHECKPOINT_SCHEMA_VERSION;
   planId: string;
   planSha256: string;
   completedActionIds: string[];
+  pendingAction?: {
+    actionId: string;
+    kind: AzureCeActionKind;
+    resourceId: string;
+    requestSha256: string;
+  };
+  networkUpdate?: AzureNativeNetworkUpdateCheckpoint;
   failedActionId?: string;
   observationFingerprint?: string;
+  observationSnapshot?: AzureCeObservation;
   state: 'running' | 'partial' | 'complete';
 }
