@@ -1,15 +1,11 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { AzExecApi } from '../../src/az/exec';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { observeAzureTerraformNetworkReplacementCurrent } from '../../src/ce/terraform-network-replacement-current';
 import { bindAzureTerraformNetworkReplacementSource } from '../../src/ce/terraform-network-replacement-source-binding';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false, phase: 'intact' | 'quiesced' | 'launched' = 'intact') {
   const f = await terraformNetworkBoundReplacementFixture(ha);
   const { binding } = await bindAzureTerraformNetworkReplacementSource(

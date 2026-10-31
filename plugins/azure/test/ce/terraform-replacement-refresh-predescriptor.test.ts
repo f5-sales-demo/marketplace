@@ -1,17 +1,16 @@
-import { expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { readAzureTerraformNetworkAllOriginalCustody } from '../../src/ce/terraform-network-retirement-lineage';
 import { validateAzureTerraformReplacementCheckpoint } from '../../src/ce/terraform-replacement';
 import { planAzureTerraformReplacementFinalRefresh } from '../../src/ce/terraform-replacement-final-refresh';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('owning replacement saved-plan reply loss before descriptor publication resumes with every native receipt accounted', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     let outcome = f.result;
     const loadOutcome = f.loaders.loadOutcome.bind(f.loaders);
@@ -148,10 +147,5 @@ test('owning replacement saved-plan reply loss before descriptor publication res
     expect(f.f.state.applies).toBe(applies);
     await f.appendUnknown();
     expect((await collect()).sharedMain.allNativeReceiptsAccounted).toBe(false);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

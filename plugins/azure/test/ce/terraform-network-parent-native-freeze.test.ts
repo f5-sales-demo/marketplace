@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,19 +24,19 @@ import { compileAzureTerraformTeardown } from '../../src/ce/terraform-teardown';
 import { qualifyAzureTerraformTeardownStageHistory } from '../../src/ce/terraform-teardown-stage-history';
 import { azureUpgradeBinding, prepareAzureTerraformUpgrade } from '../../src/ce/terraform-upgrade';
 import { retireAzureTerraformUpgradeStage } from '../../src/ce/terraform-upgrade-retirement';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { lineageCleanupEvidence } from './terraform-network-lineage-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
 import { completedReplacement } from './terraform-network-mixed-generation-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { networkReplacementExecutorFixture } from './terraform-network-replacement-executor-fixture';
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 import { originalNativeWorkflowFixture } from './terraform-original-native-workflow-fixture';
 import { executeOwningPendingImport } from './terraform-pending-import-parent-fixture';
 
 test('parent enrollment freezes exhaustive schema file and directory dispositions before main', async () => {
-  const before = new Set(nicExecutionRoots);
   const birth = await terraformNetworkSourceFixture(true);
   const original = await originalNativeWorkflowFixture(
     true,
@@ -542,9 +542,5 @@ test('parent enrollment freezes exhaustive schema file and directory disposition
     await original.close();
     await rm(publicDirectory, { recursive: true });
     await rm(upgradeCliRoot, { recursive: true });
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 600000);

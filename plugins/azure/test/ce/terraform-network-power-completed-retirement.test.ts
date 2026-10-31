@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -16,12 +16,10 @@ import {
 import { AzureTerraformPowerLifecycleInterrupted } from '../../src/ce/terraform-network-power-lifecycle';
 import { readAzureTerraformNetworkPowerRunnerHistory } from '../../src/ce/terraform-network-power-runner-history';
 import { readAzureTerraformNetworkRetirementGraph } from '../../src/ce/terraform-network-retirement-graph';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkCompletedPowerFixture } from './terraform-network-power-completed-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 // Structured synthetic independent evidence qualifies adapter source tests only. Actual independent
 // Terraform process regressions are separately required; no cloud/live qualification is claimed here.
 function evidence(request: CleanupRequest, version: string): IndependentCleanupEvidence {

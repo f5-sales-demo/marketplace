@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -27,18 +27,18 @@ import { beginAzureTerraformRetirement } from '../../src/ce/terraform-retirement
 import { compileAzureTerraformTeardown } from '../../src/ce/terraform-teardown';
 import { qualifyAzureTerraformTeardownStageHistory } from '../../src/ce/terraform-teardown-stage-history';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { lineageCleanupEvidence } from './terraform-network-lineage-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
 import { completedReplacement } from './terraform-network-mixed-generation-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { networkReplacementExecutorFixture } from './terraform-network-replacement-executor-fixture';
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 import { originalNativeWorkflowFixture } from './terraform-original-native-workflow-fixture';
 
 test('native terminal main orchestration freezes custody and resumes after permanent barrier without reexecution', async () => {
-  const before = new Set(nicExecutionRoots);
   const birth = await terraformNetworkSourceFixture(true);
   const original = await originalNativeWorkflowFixture(
     true,
@@ -709,10 +709,6 @@ test('native terminal main orchestration freezes custody and resumes after perma
   } finally {
     await original.close();
     await rm(publicDirectory, { recursive: true });
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 600000);
 

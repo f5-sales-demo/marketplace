@@ -1,13 +1,12 @@
-import { expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
 import { readAzureTerraformNetworkAllOriginalCustody } from '../../src/ce/terraform-network-retirement-lineage';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('owning completed replacement receipt provenance joins every actual native original receipt and retains unknown refreshes', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     const publicSession: SessionManagerLike = {
       getSessionId: () => `${f.f.store.directory}-replacement-receipt-public`,
@@ -65,10 +64,5 @@ test('owning completed replacement receipt provenance joins every actual native 
     expect(unknown.sharedMain.unstagedRequestAbsenceQualified).toBe(false);
     expect(unknown.parentRetirementQualified).toBe(false);
     expect(f.commands).toEqual(after);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

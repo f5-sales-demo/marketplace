@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readdir, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readdir } from 'node:fs/promises';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import {
   type AzureTerraformNetworkAcceptanceIdentity,
@@ -7,13 +7,11 @@ import {
   AzureTerraformNetworkCheckpoint,
 } from '../../src/ce/terraform-network-checkpoint';
 import { bindAzureTerraformNetworkUpdateSource } from '../../src/ce/terraform-network-source-binding';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 import { networkStageHistoryFixture } from './terraform-network-stage-history-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = true, move = true) {
   const f = await networkStageHistoryFixture(1, move, ha, false);
   const original = await terraformNetworkSourceFixture(ha);

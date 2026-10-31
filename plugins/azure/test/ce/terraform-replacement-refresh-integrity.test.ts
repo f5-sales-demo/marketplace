@@ -1,14 +1,14 @@
-import { expect, test } from 'bun:test';
-import { rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { readAzureTerraformNetworkReplacementReceiptProvenance } from '../../src/ce/terraform-network-replacement-receipt-provenance';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('replacement refresh rejects a missing middle descriptor even when the caller updates the inventory digest', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     let outcome = f.result;
     const load = f.loaders.loadOutcome.bind(f.loaders);
@@ -46,10 +46,5 @@ test('replacement refresh rejects a missing middle descriptor even when the call
     ).rejects.toThrow('prefix');
     expect(f.commands).toEqual(commands);
     expect(f.f.state.applies).toBe(applies);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

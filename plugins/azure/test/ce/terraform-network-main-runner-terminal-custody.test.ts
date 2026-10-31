@@ -1,14 +1,11 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { test } from './owned-fixture-test';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function terminalReceipts(f: Awaited<ReturnType<typeof terraformNetworkMainRunnerFixture>>) {
   const receipts = new Map<string, PlanReceipt>();
   for (const name of Object.keys(f.graph.checkpoint.completionSha256ByName)) {

@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -9,12 +9,9 @@ import {
 } from '../../../terraform/src/cleanup-verifier-worker';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { readAzureTerraformNetworkPowerRunnerHistory } from '../../src/ce/terraform-network-power-runner-history';
+import { test } from './owned-fixture-test';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 function evidence(request: CleanupRequest, version: string): IndependentCleanupEvidence {
   return {
     schemaVersion: 1,

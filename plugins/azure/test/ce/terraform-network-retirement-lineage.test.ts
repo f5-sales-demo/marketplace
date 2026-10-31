@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CleanupRequest,
@@ -18,14 +18,12 @@ import {
   readAzureTerraformNetworkRetirementLineage,
   recheckAzureTerraformNetworkRetirementLineage,
 } from '../../src/ce/terraform-network-retirement-lineage';
+import { test } from './owned-fixture-test';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture() {
   const birth = await terraformNetworkSourceFixture(false);
   const plan = compileAzureTerraformNetworkUpdatePlan(birth.plan, birth.original);
@@ -296,8 +294,7 @@ test('shared main fixture appendPlan selects the exact requested successor recei
   expect(await f.second.appendPlan(receipt)).toEqual(receipt);
 }, 180000);
 test('main custody rejects transient caller injection of a foreign configuration hash', async () => {
-  let settled = false;
-  try {
+  {
     const f = await fixture();
     const configuration = JSON.parse(await readFile(join(f.second.runnerDirectory, 'main.tf.json'), 'utf8'));
     configuration.locals = { ...configuration.locals, synthetic_foreign_lineage: true };
@@ -334,11 +331,8 @@ test('main custody rejects transient caller injection of a foreign configuration
       await expect(f.main(witness)).rejects.toThrow('outside original graph');
     } finally {
       witness.configurationSha256s.splice(0, witness.configurationSha256s.length, ...list);
-      settled = true;
     }
     expect(injected).toBeGreaterThan(0);
     expect(canonicalSha256(witness)).toBe(digest);
-  } finally {
-    if (settled) for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
   }
 }, 180000);

@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from 'bun:test';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CleanupRequest,
@@ -17,7 +17,8 @@ import {
   retireAzureTerraformNetworkCompletedPowerStageInDriver,
 } from '../../src/ce/terraform-network-power-completed-retirement';
 import { AzureTerraformPowerLifecycleInterrupted } from '../../src/ce/terraform-network-power-lifecycle';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkCompletedPowerFixture } from './terraform-network-power-completed-fixture';
 
 function evidence(request: CleanupRequest, version: string): IndependentCleanupEvidence {
@@ -61,9 +62,6 @@ function evidence(request: CleanupRequest, version: string): IndependentCleanupE
   };
 }
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const operation of ['start', 'deallocate'] as const)
   for (const ha of [false, true])
     test(`actual completed ${operation} ${ha ? 'third-node HA' : 'single'} runner retires under already-held serial driver lock`, async () => {

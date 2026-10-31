@@ -1,13 +1,10 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { readAzureTerraformNetworkPowerHistory } from '../../src/ce/terraform-network-power-history';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { networkStageHistoryFixture } from './terraform-network-stage-history-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 const suffixes = [
   'mutation-plan',
   'mutation-binding',

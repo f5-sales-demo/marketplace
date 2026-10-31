@@ -1,13 +1,10 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { readAzureTerraformNetworkReplacementSourceBinding } from '../../src/ce/terraform-network-replacement-binding-reader';
 import { readAzureTerraformNetworkReplacementExecutionBinding } from '../../src/ce/terraform-network-replacement-execution-journal';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { networkReplacementExecutorFixture as fixture } from './terraform-network-replacement-executor-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const mode of ['source', 'outcome'] as const)
   test(`joint journal final callback cannot change authenticated ${mode}`, async () => {
     const f = await fixture(),

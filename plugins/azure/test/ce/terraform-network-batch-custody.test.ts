@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { chmod, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
@@ -9,12 +9,11 @@ import {
   readAzureTerraformNetworkAllOriginalCustody,
   recheckAzureTerraformNetworkRetirementLineage,
 } from '../../src/ce/terraform-network-retirement-lineage';
+import { test } from './owned-fixture-test';
 import { terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 test('lineage-owned batch authenticates all three actual main/power generations with private scoped witnesses', async () => {
-  const existingRoots = new Set(nicExecutionRoots),
-    controller = new AbortController();
+  const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(Error('bounded batch custody cancellation')), 150000);
   try {
     const f = await terraformNetworkLineageFixture(false, 3, controller.signal);
@@ -79,10 +78,6 @@ test('lineage-owned batch authenticates all three actual main/power generations 
     expect(result.allPublicRequestCustodyQualified).toBe(false);
     expect(f.first.commands).toEqual(commands);
     expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-    for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   } finally {
     clearTimeout(timer);
     controller.abort(Error('batch custody settled'));
@@ -90,7 +85,6 @@ test('lineage-owned batch authenticates all three actual main/power generations 
 }, 180000);
 
 test('batch rejects valid earlier original journal bytes changed during later-generation inspection', async () => {
-  const existingRoots = new Set(nicExecutionRoots);
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(Error('bounded cross-generation red')), 150000);
   try {
@@ -139,10 +133,6 @@ test('batch rejects valid earlier original journal bytes changed during later-ge
       ),
     ).rejects.toThrow();
     expect(changed).toBe(true);
-    for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   } finally {
     clearTimeout(timer);
     controller.abort(Error('red settled'));
@@ -160,8 +150,7 @@ for (const fault of [
   'partial-main',
 ] as const)
   test(`batch retains or rejects ${fault} at its final native owning boundary`, async () => {
-    const existingRoots = new Set(nicExecutionRoots),
-      controller = new AbortController(),
+    const controller = new AbortController(),
       timer = setTimeout(() => controller.abort(Error('bounded batch fault')), 150000);
     try {
       const f = await terraformNetworkLineageFixture(false, 2, controller.signal),
@@ -228,18 +217,13 @@ for (const fault of [
       expect(fired).toBe(true);
       expect(f.first.commands).toEqual(commands);
       expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-      for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-        await rm(root, { recursive: true });
-        nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-      }
     } finally {
       clearTimeout(timer);
       controller.abort(Error('batch fault settled'));
     }
   }, 180000);
 test('batch cancellation bounds an ignored actual runner await and cannot return late custody', async () => {
-  const existingRoots = new Set(nicExecutionRoots),
-    f = await terraformNetworkLineageFixture(false, 2),
+  const f = await terraformNetworkLineageFixture(false, 2),
     open = f.second.service.open;
   const controller = new AbortController(),
     started = Promise.withResolvers<void>(),
@@ -280,8 +264,4 @@ test('batch cancellation bounds an ignored actual runner await and cannot return
   }
   expect((await readdir(f.first.store.directory)).sort()).toEqual(names);
   expect(f.first.commands).toEqual(commands);
-  for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-    await rm(root, { recursive: true });
-    nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-  }
 }, 180000);

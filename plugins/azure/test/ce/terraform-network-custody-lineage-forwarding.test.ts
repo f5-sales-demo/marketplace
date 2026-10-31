@@ -1,17 +1,16 @@
-import { expect, test } from 'bun:test';
-import { rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { prepareAzureTerraformNetworkMainRetirementHistory } from '../../src/ce/terraform-network-main-retirement-preparation';
 import { prepareAzureTerraformNetworkRetirementCustody } from '../../src/ce/terraform-network-retirement-custody';
+import { test } from './owned-fixture-test';
 import { terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 for (const [kind, prepare] of [
   ['paired', prepareAzureTerraformNetworkRetirementCustody],
   ['main', prepareAzureTerraformNetworkMainRetirementHistory],
 ] as const) {
   test(`${kind} custody forwards genuine older-generation lineage before immutable publication`, async () => {
-    const existingRoots = new Set(nicExecutionRoots);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(Error('bounded custody regression cancellation')), 150000);
     try {
@@ -50,10 +49,6 @@ for (const [kind, prepare] of [
           await f.read(controller.signal),
         ),
       ).toEqual(result);
-      for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-        await rm(root, { recursive: true });
-        nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-      }
     } finally {
       clearTimeout(timer);
       controller.abort(Error('custody regression settled'));
@@ -67,8 +62,7 @@ for (const [kind, prepare] of [
 ] as const)
   for (const fault of ['serialized-witness', 'foreign-publication', 'changed-packet', 'response-loss'] as const)
     test(`${kind} lineage custody rejects or recovers ${fault} through actual publication`, async () => {
-      const existingRoots = new Set(nicExecutionRoots),
-        controller = new AbortController();
+      const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(Error('bounded publication regression cancellation')), 150000);
       try {
         const f = await terraformNetworkLineageFixture(false, 2, controller.signal);
@@ -131,10 +125,6 @@ for (const [kind, prepare] of [
         }
         expect(f.first.commands).toEqual(commands);
         expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-        for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-          await rm(root, { recursive: true });
-          nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-        }
       } finally {
         clearTimeout(timer);
         controller.abort(Error('publication regression settled'));

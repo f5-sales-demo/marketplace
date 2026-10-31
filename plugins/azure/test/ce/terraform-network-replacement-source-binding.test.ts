@@ -1,17 +1,14 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm, stat } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../../src/az/exec';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { bindAzureTerraformNetworkReplacementSource } from '../../src/ce/terraform-network-replacement-source-binding';
 import { qualifyAzureTerraformReplacementPublicSource } from '../../src/ce/terraform-replacement-public-source';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 function setFixtureInstanceVmId(outputs: Record<string, unknown>, key: string, vmId: string) {
   const instances = outputs.ce_instances;
   if (!instances || typeof instances !== 'object' || Array.isArray(instances))

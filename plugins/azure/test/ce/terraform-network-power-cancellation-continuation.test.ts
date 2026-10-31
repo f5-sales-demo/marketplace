@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PlanReceipt } from '../../../terraform/src/runner';
@@ -7,13 +7,12 @@ import {
   azureTerraformNetworkPowerSelections,
   validateAzureTerraformNetworkPowerProjection,
 } from '../../src/ce/terraform-network-power';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkPowerCancellationFixture } from './terraform-network-power-cancellation-fixture';
 
 const address = 'azapi_resource_action.ce_network';
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
+
 async function fixture(operation: 'deallocate' | 'start' = 'deallocate', existing = true) {
   const f = await terraformNetworkPowerCancellationFixture(false, 1, operation, false, existing);
   await f.runCancellation();

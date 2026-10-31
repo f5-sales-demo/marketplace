@@ -1,13 +1,10 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { observeAzureTerraformNetworkReplacementEnrollment } from '../../src/ce/terraform-network-replacement-enrollment';
 import { openAzureTerraformNetworkReplacementExecution } from '../../src/ce/terraform-network-replacement-execution';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { networkReplacementExecutorFixture as fixture } from './terraform-network-replacement-executor-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const ha of [false, true])
   test(`actual network-bound ${ha ? 'HA' : 'single'} executor unknown preflight preserves all resources without bootstrap`, async () => {
     const f = await fixture(ha);

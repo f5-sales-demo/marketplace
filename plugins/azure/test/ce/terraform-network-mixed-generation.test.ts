@@ -1,16 +1,12 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { rm } from 'node:fs/promises';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { qualifyAzureTerraformNetworkBoundReplacementSource } from '../../src/ce/terraform-network-bound-replacement-source';
 import { qualifyAzureTerraformNetworkGenerationSource } from '../../src/ce/terraform-network-completion-history';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
+import { test } from './owned-fixture-test';
 import { completedReplacement, rehash } from './terraform-network-mixed-generation-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const ha of [false, true]) {
   test(`completed actual replacement qualifies the next replacement source (${ha ? 'HA' : 'single'})`, async () => {
     const { f, first, next, loaders, input } = await completedReplacement(ha);

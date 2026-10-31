@@ -1,18 +1,17 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   azureTerraformNetworkPowerSelections,
   validateAzureTerraformNetworkPowerPlan,
   validateAzureTerraformNetworkPowerProjection,
 } from '../../src/ce/terraform-network-power';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkPowerCancellationFixture as fixture } from './terraform-network-power-cancellation-fixture';
 
 const address = 'azapi_resource_action.ce_network';
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
+
 for (const ha of [false, true])
   for (const operation of ['deallocate', 'start'] as const)
     test(`actual cancelled ${ha ? 'HA' : 'single'} ${operation} current runner creates distinct ordinary empty release/final receipts without power replay`, async () => {

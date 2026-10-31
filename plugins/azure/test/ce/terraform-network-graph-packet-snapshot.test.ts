@@ -1,17 +1,13 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import {
   readAzureTerraformNetworkRetirementGraph,
   recheckAzureTerraformNetworkRetirementGraph,
 } from '../../src/ce/terraform-network-retirement-graph';
 import { bindAzureTerraformNetworkUpdateSource } from '../../src/ce/terraform-network-source-binding';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 test('graph mint bounds repeated native reads while rechecking every present packet', async () => {
   const f = await terraformNetworkMainRunnerFixture(),
     read = f.store.read,

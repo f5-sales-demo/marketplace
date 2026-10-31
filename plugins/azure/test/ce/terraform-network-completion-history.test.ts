@@ -1,14 +1,11 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readdir, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readdir } from 'node:fs/promises';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import type { AzureTerraformNetworkAcceptanceIdentity } from '../../src/ce/terraform-network-checkpoint';
 import { readAzureTerraformNetworkCompletionHistory } from '../../src/ce/terraform-network-completion-history';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false, move = true) {
   const f = await terraformNetworkDriverFixture(ha, move);
   const run = () =>

@@ -1,5 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import {
@@ -7,12 +6,9 @@ import {
   readAzureTerraformNetworkReplacementExecutionJournal,
 } from '../../src/ce/terraform-network-replacement-execution-journal';
 import { bindAzureTerraformNetworkReplacementSource } from '../../src/ce/terraform-network-replacement-source-binding';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false) {
   const f = await terraformNetworkBoundReplacementFixture(ha);
   const prepared = await bindAzureTerraformNetworkReplacementSource(

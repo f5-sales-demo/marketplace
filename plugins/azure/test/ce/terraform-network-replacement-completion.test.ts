@@ -1,17 +1,14 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import {
   type AzureTerraformNetworkReplacementCompletion,
   azureTerraformNetworkReplacementCompletionName,
 } from '../../src/ce/terraform-network-replacement-completion';
 import { readAzureTerraformNetworkReplacementCompletionHistory } from '../../src/ce/terraform-network-replacement-completion-history';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { networkReplacementExecutorFixture as fixture } from './terraform-network-replacement-executor-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 const checkpointName = (f: Awaited<ReturnType<typeof fixture>>) => `${f.input.plan.planId}-terraform-replacement.json`;
 const history = (f: Awaited<ReturnType<typeof fixture>>, digest: string, signal?: AbortSignal) =>
   readAzureTerraformNetworkReplacementCompletionHistory(f.input.plan, f.store, f.dependencies, digest, signal);

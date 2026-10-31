@@ -1,15 +1,13 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { azureTerraformNetworkPowerDeployment } from '../../src/ce/terraform-network-power';
 import { AzureTerraformPowerCancellationInterrupted } from '../../src/ce/terraform-network-power-cancellation';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkPowerCancellationFixture as fixture } from './terraform-network-power-cancellation-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const [ha, node, operation, published] of [
   [false, 1, 'deallocate', false],
   [false, 1, 'start', true],

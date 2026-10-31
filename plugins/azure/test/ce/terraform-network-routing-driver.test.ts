@@ -1,14 +1,10 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import type { AzureCeIntent } from '../../src/ce/types';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 const profile = (mode: 'udr' | 'route-server', node = 1): AzureCeIntent['routing'] =>
   mode === 'udr'
     ? {

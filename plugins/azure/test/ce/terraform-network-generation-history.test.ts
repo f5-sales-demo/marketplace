@@ -1,5 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import {
@@ -7,13 +6,11 @@ import {
   readAzureTerraformNetworkCompletionHistory,
 } from '../../src/ce/terraform-network-completion-history';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false) {
   const birth = await terraformNetworkSourceFixture(ha);
   const plan = compileAzureTerraformNetworkUpdatePlan(birth.plan, birth.original);

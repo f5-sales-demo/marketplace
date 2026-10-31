@@ -1,13 +1,12 @@
-import { expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
 import { readAzureTerraformNetworkAllOriginalCustody } from '../../src/ce/terraform-network-retirement-lineage';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('replacement shared-main custody rejects outcome, verifier, native identity, duplicate and final packet faults', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     const publicSession: SessionManagerLike = {
       getSessionId: () => `${f.f.store.directory}-replacement-adversarial-public`,
@@ -81,10 +80,5 @@ test('replacement shared-main custody rejects outcome, verifier, native identity
     expect(f.commands).toEqual(commands);
     expect(f.f.calls).toEqual(calls);
     expect(f.f.state.applies).toBe(applies);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

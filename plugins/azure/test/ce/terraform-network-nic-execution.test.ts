@@ -1,11 +1,7 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { nicExecutionFixture as executionFixture, nicExecutionRoots } from './terraform-network-nic-execution-fixture';
-
-afterEach(async () => {
-  for (const p of nicExecutionRoots.splice(0)) await rm(p, { recursive: true });
-});
+import { test } from './owned-fixture-test';
+import { nicExecutionFixture as executionFixture } from './terraform-network-nic-execution-fixture';
 
 for (const [node, move, ha] of [
   [1, true, false],

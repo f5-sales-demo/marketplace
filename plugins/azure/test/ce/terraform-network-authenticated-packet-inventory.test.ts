@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256 } from '../../src/ce/canonical';
@@ -9,15 +9,15 @@ import {
   recheckAzureTerraformNetworkAuthenticatedPacketInventory,
 } from '../../src/ce/terraform-network-authenticated-packet-inventory';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
+import { test } from './owned-fixture-test';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
 import { completedReplacement } from './terraform-network-mixed-generation-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
 for (const replacement of [false, true])
   test(`authenticated ${replacement ? 'replacement' : 'network'} packet inventory preserves semantic and native custody without parent admission`, async () => {
-    const before = new Set(nicExecutionRoots);
-    try {
+    {
       const replacementFixture = replacement ? await completedReplacement(false) : undefined;
       const birth = replacementFixture ? undefined : await terraformNetworkSourceFixture(false);
       let network: Awaited<ReturnType<typeof terraformNetworkMainRunnerFixture>> | undefined;
@@ -179,11 +179,6 @@ for (const replacement of [false, true])
         release.resolve();
         await returned.promise;
         context.loaders.loadSource = loadSource;
-      }
-    } finally {
-      for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-        await rm(root, { recursive: true });
-        nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
       }
     }
   }, 180000);

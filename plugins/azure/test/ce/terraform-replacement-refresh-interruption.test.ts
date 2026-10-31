@@ -1,13 +1,12 @@
-import { expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { readAzureTerraformNetworkReplacementReceiptProvenance } from '../../src/ce/terraform-network-replacement-receipt-provenance';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('replacement resumes interruption after durable refresh descriptor and before current final publication', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     const finalName = `${f.first.planId}-terraform-replacement-final-plan.json`,
       completionName = `${f.first.planId}-terraform-network-replacement-complete.json`,
@@ -86,10 +85,5 @@ test('replacement resumes interruption after durable refresh descriptor and befo
     );
     expect(proof.receipts).toHaveLength(5);
     expect(f.commands).toEqual(commands);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

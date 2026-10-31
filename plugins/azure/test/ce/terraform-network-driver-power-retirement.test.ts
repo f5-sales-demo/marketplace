@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readdir, readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CleanupRequest,
@@ -9,12 +9,9 @@ import {
 } from '../../../terraform/src/cleanup-verifier-worker';
 import { retireAzureTerraformNetworkCompletedPowerStageInDriver } from '../../src/ce/terraform-network-power-completed-retirement';
 import { AzureTerraformPowerLifecycleInterrupted } from '../../src/ce/terraform-network-power-lifecycle';
+import { test } from './owned-fixture-test';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 function evidence(request: CleanupRequest, version: string): IndependentCleanupEvidence {
   return {
     schemaVersion: 1,

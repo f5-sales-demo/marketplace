@@ -1,9 +1,9 @@
-import { expect, test } from 'bun:test';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { prepareAzureTerraformNetworkAllRetirementCustody } from '../../src/ce/terraform-network-all-retirement-custody';
+import { test } from './owned-fixture-test';
 import { terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 for (const fault of [
   'none',
@@ -13,8 +13,7 @@ for (const fault of [
   'changed-publication-bytes',
 ] as const)
   test(`actual all-generation immutable publication handles ${fault}`, async () => {
-    const existingRoots = new Set(nicExecutionRoots),
-      controller = new AbortController(),
+    const controller = new AbortController(),
       timer = setTimeout(() => controller.abort(Error('bounded aggregate publication')), 150000);
     try {
       const f = await terraformNetworkLineageFixture(false, 2, controller.signal),
@@ -66,10 +65,6 @@ for (const fault of [
       }
       expect(f.first.commands).toEqual(commands);
       expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-      for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-        await rm(root, { recursive: true });
-        nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-      }
     } finally {
       clearTimeout(timer);
       controller.abort(Error('publication settled'));

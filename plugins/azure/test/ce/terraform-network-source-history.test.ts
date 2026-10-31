@@ -1,5 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update';
 import { compileAzureCePlan } from '../../src/ce/planner';
@@ -7,13 +6,11 @@ import { readAzureTerraformNetworkCompletionHistory } from '../../src/ce/terrafo
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
 import { bindAzureTerraformNetworkUpdateSource } from '../../src/ce/terraform-network-source-binding';
 import { readAzureTerraformNetworkSourceHistory } from '../../src/ce/terraform-network-source-history';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false) {
   const f = await terraformNetworkDriverFixture(ha);
   const { binding } = await bindAzureTerraformNetworkUpdateSource(

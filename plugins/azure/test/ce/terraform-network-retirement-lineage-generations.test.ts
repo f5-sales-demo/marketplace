@@ -1,19 +1,18 @@
-import { expect, test } from 'bun:test';
-import { readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
+import { test } from './owned-fixture-test';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { lineageCleanupEvidence, terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 for (const ha of [false, true])
   test(
     `three-generation ${ha ? 'HA six-interface' : 'single two-interface'} shared-main lineage retains actual custody`,
     async () => {
-      const existingRoots = new Set(nicExecutionRoots);
       const controller = new AbortController();
       const timer = setTimeout(
         () => controller.abort(Error('bounded lineage qualification cancellation')),
@@ -81,10 +80,6 @@ for (const ha of [false, true])
         }
         expect(f.first.commands).toEqual(commands);
         expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-        for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-          await rm(root, { recursive: true });
-          nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-        }
       } finally {
         clearTimeout(timer);
         controller.abort(Error('qualification ended'));
@@ -94,7 +89,6 @@ for (const ha of [false, true])
   );
 
 test('independently authentic staged forks cannot authorize each other shared-main configuration', async () => {
-  const existingRoots = new Set(nicExecutionRoots);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(Error('bounded fork diagnostic cancellation')), 150000);
   try {
@@ -119,10 +113,6 @@ test('independently authentic staged forks cannot authorize each other shared-ma
     await terraformNetworkMainRunnerFixture(false, seed, driver, false, f.second);
     await savePlanArtifact(f.publicSession, fork, f.birth.current);
     await expect(f.read(controller.signal)).rejects.toThrow('staged public lineage forks');
-    for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   } finally {
     clearTimeout(timer);
     controller.abort(Error('fork test ended'));

@@ -1,5 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { qualifyAzureTerraformNetworkBoundReplacementSource } from '../../src/ce/terraform-network-bound-replacement-source';
@@ -8,13 +7,10 @@ import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-n
 import { compileAzureTerraformNetworkReplacementPlan } from '../../src/ce/terraform-network-replacement-plan';
 import { azureTerraformReplacementStages } from '../../src/ce/terraform-replacement';
 import type { AzureCePlan } from '../../src/ce/types';
+import { test } from './owned-fixture-test';
 import { terraformNetworkBoundReplacementFixture as fixture } from './terraform-network-bound-replacement-fixture';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 function rehash(p: AzureCePlan): AzureCePlan {
   const { planId: _id, planSha256: _sha, ...draft } = p;
   const digest = canonicalSha256(draft);

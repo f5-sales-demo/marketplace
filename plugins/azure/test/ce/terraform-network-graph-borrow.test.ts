@@ -1,16 +1,15 @@
-import { expect, test } from 'bun:test';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readAzureTerraformNetworkCompletedPowerRetirement } from '../../src/ce/terraform-network-power-completed-retirement';
 import { readAzureTerraformNetworkPowerRunnerHistory } from '../../src/ce/terraform-network-power-runner-history';
 import { readAzureTerraformNetworkRetirementGraph } from '../../src/ce/terraform-network-retirement-graph';
+import { test } from './owned-fixture-test';
 import { terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 for (const fault of ['none', 'serialized', 'changed-native-packet', 'changed-retired-marker'] as const)
   test(`read-only borrowed graph retains actual proof or rejects ${fault}`, async () => {
-    const existingRoots = new Set(nicExecutionRoots),
-      controller = new AbortController(),
+    const controller = new AbortController(),
       timer = setTimeout(() => controller.abort(Error('bounded borrowed-graph test')), 150000);
     try {
       const f = await terraformNetworkLineageFixture(false, 2, controller.signal);
@@ -90,10 +89,6 @@ for (const fault of ['none', 'serialized', 'changed-native-packet', 'changed-ret
       expect(f.first.commands).toEqual(commands);
       expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
       if (fault !== 'changed-native-packet') expect((await readdir(f.first.store.directory)).sort()).toEqual(names);
-      for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-        await rm(root, { recursive: true });
-        nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-      }
     } finally {
       clearTimeout(timer);
       controller.abort(Error('borrowed graph settled'));

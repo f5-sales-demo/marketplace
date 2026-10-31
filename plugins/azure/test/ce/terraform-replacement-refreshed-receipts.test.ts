@@ -1,14 +1,13 @@
-import { expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
 import { readAzureTerraformNetworkAllOriginalCustody } from '../../src/ce/terraform-network-retirement-lineage';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { replacementNativeReceiptsFixture } from './terraform-network-replacement-native-receipts-fixture';
 
 test('owning replacement refresh history accounts every exact native final receipt while unrelated receipts remain unknown', async () => {
-  const before = new Set(nicExecutionRoots);
-  try {
+  {
     const f = await replacementNativeReceiptsFixture();
     let outcome = f.result;
     const loadOutcome = f.loaders.loadOutcome.bind(f.loaders);
@@ -54,10 +53,5 @@ test('owning replacement refresh history accounts every exact native final recei
     expect(f.f.state.applies).toBe(applies);
     await f.appendUnknown();
     expect((await collect()).sharedMain.allNativeReceiptsAccounted).toBe(false);
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   }
 }, 300000);

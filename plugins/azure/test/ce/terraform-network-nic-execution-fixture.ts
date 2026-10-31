@@ -1,7 +1,4 @@
 import { expect } from 'bun:test';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { projectTerraformFieldPath } from '../../../terraform/src/field-paths';
 import type { PlanReceipt } from '../../../terraform/src/runner';
@@ -13,6 +10,7 @@ import { AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 } from '../../src/ce/terraform-
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import type { AzureCeIntent, AzureCePlan } from '../../src/ce/types';
 import { networkUpdateFixture } from './network-update-fixture';
+import { createOwnedFixtureRoot } from './root-scope';
 
 type FixtureConfiguration = {
   resource: {
@@ -24,7 +22,6 @@ type FixtureConfiguration = {
     azurerm_public_ip: Record<string, { name: string }>;
   };
 };
-export const nicExecutionRoots: string[] = [];
 export interface TerraformNetworkFixtureSeed {
   plan: AzureCePlan;
   inventory: AzureNetworkUpdateInventory;
@@ -105,8 +102,7 @@ export async function nicExecutionFixture(
   }
   const source = seed?.source ?? JSON.stringify(sourceObject),
     before = await captureAzureNetworkUpdateInventory(f.plan, f.api);
-  const root = await mkdtemp(join(tmpdir(), 'azure-network-nic-execution-'));
-  nicExecutionRoots.push(root);
+  const root = await createOwnedFixtureRoot();
   const store = seed?.store ?? (await CeDeploymentStore.open(root, azureUpgradeBinding(f.plan).owner));
   const state = {
     configuration: source,

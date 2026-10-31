@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CePlatformService } from '../../../platform/src/ce/service';
@@ -8,12 +8,9 @@ import { azureTerraformNetworkPowerDeployment } from '../../src/ce/terraform-net
 import { readAzureTerraformNetworkPowerRunnerHistory } from '../../src/ce/terraform-network-power-runner-history';
 import { readAzureTerraformNetworkRetirementGraph } from '../../src/ce/terraform-network-retirement-graph';
 import { bindAzureTerraformNetworkUpdateSource } from '../../src/ce/terraform-network-source-binding';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 const address = 'azapi_resource_action.ce_network';
 async function fixture(ha = false) {
   const f = await terraformNetworkDriverFixture(ha);
@@ -51,7 +48,7 @@ async function fixture(ha = false) {
             terraform_version: deployment.terraformVersion,
             errored: false,
             complete: true,
-            applyable: true,
+            applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
             resource_changes: effect
               ? [
                   {

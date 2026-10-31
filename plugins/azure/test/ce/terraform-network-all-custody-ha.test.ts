@@ -1,15 +1,14 @@
-import { expect, test } from 'bun:test';
-import { readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { prepareAzureTerraformNetworkAllRetirementCustody } from '../../src/ce/terraform-network-all-retirement-custody';
 import { readAzureTerraformNetworkAllOriginalCustody } from '../../src/ce/terraform-network-retirement-lineage';
+import { test } from './owned-fixture-test';
 import { terraformNetworkLineageFixture } from './terraform-network-lineage-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
 test('three-generation single aggregate publishes every actual original main/power journal in one exact record', async () => {
-  const existingRoots = new Set(nicExecutionRoots),
-    controller = new AbortController(),
+  const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(Error('bounded three-generation aggregate cancellation')), 150000);
   try {
     const f = await terraformNetworkLineageFixture(false, 3, controller.signal),
@@ -37,18 +36,13 @@ test('three-generation single aggregate publishes every actual original main/pow
     expect(result.parentRetirementQualified).toBe(false);
     expect(f.first.commands).toEqual(commands);
     expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-    for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   } finally {
     clearTimeout(timer);
     controller.abort(Error('single aggregate settled'));
   }
 }, 180000);
 test('lineage-owned all-generation HA six-MAC custody authenticates eighteen actual retired children', async () => {
-  const existingRoots = new Set(nicExecutionRoots),
-    controller = new AbortController(),
+  const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(Error('bounded all-generation HA cancellation')), 540000);
   try {
     const began = performance.now(),
@@ -86,10 +80,6 @@ test('lineage-owned all-generation HA six-MAC custody authenticates eighteen act
     expect(result.parentRetirementQualified).toBe(false);
     expect(f.first.commands).toEqual(commands);
     expect(f.drivers.flatMap((driver) => driver.vmPowerActions)).toEqual(actions);
-    for (const root of nicExecutionRoots.filter((root) => !existingRoots.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
   } finally {
     clearTimeout(timer);
     controller.abort(Error('HA custody settled'));

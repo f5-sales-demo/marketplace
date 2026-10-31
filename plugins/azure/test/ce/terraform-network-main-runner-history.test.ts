@@ -1,13 +1,10 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256 } from '../../src/ce/canonical';
+import { test } from './owned-fixture-test';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 for (const ha of [false, true])
   test(`actual ${ha ? 'three-node HA' : 'single'} main journals join original NIC/routing graph without commands or cleanup`, async () => {
     const f = await terraformNetworkMainRunnerFixture(ha),

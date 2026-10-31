@@ -1,14 +1,12 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { releaseAzureTerraformNetworkCancelledPowerStage } from '../../src/ce/terraform-network-power-cancelled-release';
 import { AzureTerraformPowerLifecycleInterrupted } from '../../src/ce/terraform-network-power-lifecycle';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+
 import { terraformNetworkPowerCancellationFixture } from './terraform-network-power-cancellation-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(operation: 'deallocate' | 'start' = 'deallocate', existing = true, ha = false, node = 1) {
   const f = await terraformNetworkPowerCancellationFixture(ha, node, operation, true, existing);
   await f.runCancellation();

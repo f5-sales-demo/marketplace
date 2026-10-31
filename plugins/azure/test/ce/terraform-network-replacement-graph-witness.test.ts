@@ -1,18 +1,14 @@
-import { afterEach, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
 import {
   readAzureTerraformNetworkRetirementGraph,
   recheckAzureTerraformNetworkRetirementGraph,
 } from '../../src/ce/terraform-network-retirement-graph';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
 import { completedReplacement, rehash } from './terraform-network-mixed-generation-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function preparedNetworkAfterReplacement(ha: boolean) {
   const { f, first, original, result, inventory } = await completedReplacement(ha);
   const { replacementNode: _node, ...intent } = first.intent;

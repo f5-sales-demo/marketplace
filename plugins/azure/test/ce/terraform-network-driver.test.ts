@@ -1,17 +1,13 @@
-import { afterEach, expect, test } from 'bun:test';
-import { readFile, rm } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AzureTerraformNetworkAcceptanceIdentity } from '../../src/ce/terraform-network-checkpoint';
 import {
   AzureTerraformPowerLifecycleInterrupted,
   type AzureTerraformPowerSettlement,
 } from '../../src/ce/terraform-network-power-lifecycle';
+import { test } from './owned-fixture-test';
 import { terraformNetworkDriverFixture as fixture } from './terraform-network-driver-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
-
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 
 for (const [ha, move] of [
   [false, true],

@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { chmod, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type SessionManagerLike, savePlanArtifact } from '../../src/ce/artifacts';
@@ -8,6 +8,7 @@ import {
   compileAzureTerraformNetworkUpdatePlan,
   verifyAzureTerraformNetworkProfile,
 } from '../../src/ce/terraform-network-plan';
+import { test } from './owned-fixture-test';
 import { terraformNetworkMainRunnerFixture as actualMainFixture } from './terraform-network-main-runner-fixture';
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
@@ -32,12 +33,6 @@ async function terraformNetworkMainRunnerFixture(ha = false) {
     await savePlanArtifact(publicSession, plan, original.current);
   return { ...f, publicSession };
 }
-
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
-
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 
 import { prepareAzureTerraformNetworkMainRetirementHistory } from '../../src/ce/terraform-network-main-retirement-preparation';
 

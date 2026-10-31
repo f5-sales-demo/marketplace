@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from 'bun:test';
-import { chmod, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CleanupRequest,
@@ -13,14 +13,12 @@ import { captureAzureNetworkUpdateInventory } from '../../src/ce/network-update'
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
 import { prepareAzureTerraformNetworkRetirementCustody } from '../../src/ce/terraform-network-retirement-custody';
 import type { AzureCePlan } from '../../src/ce/types';
+import { test } from './owned-fixture-test';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+
 import { terraformNetworkSourceFixture } from './terraform-network-source-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(ha = false, mode: 'completed' | 'source-only' | 'delayed-child' = 'completed') {
   const source = await terraformNetworkSourceFixture(ha);
   const plan = compileAzureTerraformNetworkUpdatePlan(source.plan, source.original);

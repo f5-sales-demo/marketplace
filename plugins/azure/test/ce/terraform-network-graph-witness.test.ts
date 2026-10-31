@@ -1,16 +1,13 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   readAzureTerraformNetworkRetirementGraph,
   recheckAzureTerraformNetworkRetirementGraph,
 } from '../../src/ce/terraform-network-retirement-graph';
+import { test } from './owned-fixture-test';
 import { terraformNetworkMainRunnerFixture } from './terraform-network-main-runner-fixture';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
 
-afterEach(async () => {
-  for (const root of nicExecutionRoots.splice(0)) await rm(root, { recursive: true });
-});
 async function fixture(signal?: AbortSignal) {
   const f = await terraformNetworkMainRunnerFixture();
   const verifier = f.dependencies.qualifyAcceptance;

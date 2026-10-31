@@ -1,23 +1,12 @@
-import { expect, test } from 'bun:test';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from 'bun:test';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type PlanReceipt, TerraformRunner } from '../../../terraform/src/runner';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { azureTerraformCurrentDeployment } from '../../src/ce/terraform-foundation';
-import { nicExecutionRoots } from './terraform-network-nic-execution-fixture';
+import { test } from './owned-fixture-test';
+import { withOwnedFixtureRootScope as owned } from './root-scope';
 import { networkReplacementExecutorFixture } from './terraform-network-replacement-executor-fixture';
-
-async function owned(work: () => Promise<void>) {
-  const before = new Set(nicExecutionRoots);
-  try {
-    await work();
-  } finally {
-    for (const root of nicExecutionRoots.filter((root) => !before.has(root))) {
-      await rm(root, { recursive: true });
-      nicExecutionRoots.splice(nicExecutionRoots.indexOf(root), 1);
-    }
-  }
-}
 
 /** Real saved-plan files/journals; cloud and Terraform executable responses stay synthetic. */
 async function nativeFixture() {
@@ -41,7 +30,7 @@ async function nativeFixture() {
         terraform_version: deployment.terraformVersion,
         errored: false,
         complete: true,
-        applyable: true,
+        applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
         output_changes: {},
         resource_changes: selected.changes.map((change) => ({
           ...change,
