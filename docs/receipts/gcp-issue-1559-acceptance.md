@@ -74,6 +74,8 @@ Failing-first dependency, dispatch, optional Terraform and timing regressions we
 
 ## Installation and normal development runtime
 
+Current runtime acceptance is routed to the Ubuntu workstation by explicit user instruction. The managed MacBook cannot sign software. [Attempt 312](gcp-ubuntu-installed-runtime-20261031.md) qualifies 489 current installed files in an isolated Ubuntu worktree at xcsh `33d1e443d`, Bun 1.4.2 and a source-matched Linux native addon. Configured-model native and explicit-Terraform refusal execution, ready setup/status, bounded interactive rendering and supported removal passed. All 32 recorded original process groups were independently absent. Historical Mac runtime receipts remain attributed to their original executions; published installed acceptance and full live behavior remain open.
+
 The staging catalog is named `issue-1559-acceptance-staging`. It contains frozen plugin snapshots and is installed through the supported marketplace CLI into an isolated acceptance profile. GCloud installation also installed Platform; Terraform was initially absent. Qualified marketplace IDs passed disable, enable and upgrade. A second upgrade consumed a changed runtime snapshot. Initial attempts using bare IDs failed and were preserved; the CLI requires `name@marketplace` for those marketplace operations.
 
 Source-matched xcsh `33d1e443da267361b1be4af8936941b82a57198c`, Bun 1.4.2 and its existing native build were used. Ordinary `bun dev` loaded installed plugins without `--plugin-dir`, adapter replacement or fetch replacement. With the existing saved context, GCloud and Platform reported ready. Interactive setup reported ready with no setup required. The noninteractive `--json` setup attempt correctly refused the human-only interface.
