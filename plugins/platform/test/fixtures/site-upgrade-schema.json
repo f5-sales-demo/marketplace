@@ -1,0 +1,348 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "tag": "v6.1.2",
+    "commit": "a5fa987f876db955666bd94fefed35f283bb5364",
+    "sha256": "66f3c819e6c1cdc96dadcee513cf0b5af74b70b5d603d28f70578e6f206cfef7"
+  },
+  "schemas": {
+    "siteUpgradeSWRequest": {
+      "type": "object",
+      "description": "Request for Upgrade SW of Site.",
+      "title": "Upgrade SW request",
+      "x-displayname": "Upgrade SW Request.",
+      "x-ves-proto-message": "ves.io.schema.site.UpgradeSWRequest",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "description": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress)",
+          "title": "Force",
+          "format": "boolean",
+          "x-displayname": "Force",
+          "x-ves-required": "false",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "false"
+          },
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "true",
+          "x-f5xc-description-short": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e.",
+          "x-f5xc-description-medium": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress).",
+          "x-f5xc-required-for": {
+            "minimum_config": false,
+            "create": false,
+            "update": false,
+            "read": false
+          }
+        },
+        "name": {
+          "type": "string",
+          "description": "Site name",
+          "title": "Name",
+          "x-displayname": "Name",
+          "x-ves-example": "Ce398",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "ce398",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "naming",
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "characterSet": {
+              "allowed": "[a-z0-9-]",
+              "restricted": "[^a-z0-9-]",
+              "required": "[a-z0-9]",
+              "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+            },
+            "format": "dns-label",
+            "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+            "validation": {
+              "rfc": "RFC 1035",
+              "standard": "DNS-1035 label (alpha-first)"
+            },
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.99,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Site namespace.",
+          "title": "Namespace",
+          "x-displayname": "Namespace",
+          "x-ves-example": "System",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "system",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "naming",
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "characterSet": {
+              "allowed": "[a-z0-9-]",
+              "restricted": "[^a-z0-9-]",
+              "required": "[a-z0-9]",
+              "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+            },
+            "format": "dns-label",
+            "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+            "validation": {
+              "rfc": "RFC 1035",
+              "standard": "DNS-1035 label (alpha-first)"
+            },
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.99,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version to upgraded to.",
+          "title": "SW/OS Version",
+          "x-displayname": "Version",
+          "x-ves-example": "Crt-20201010-600.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "crt-20201010-600",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "general",
+            "maxLength": 1024,
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.85,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for siteUpgradeSWRequest",
+        "required_fields": ["name", "namespace", "version"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"name\": \"ce398\",\n  \"namespace\": \"system\",\n  \"version\": \"crt-20201010-600\"\n}",
+        "example_yaml": "name: ce398\nnamespace: system\nversion: crt-20201010-600"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "siteUpgradeOSRequest": {
+      "type": "object",
+      "description": "Request for Upgrade OS of Site.",
+      "title": "Upgrade OS request",
+      "x-displayname": "Upgrade OS Request.",
+      "x-ves-proto-message": "ves.io.schema.site.UpgradeOSRequest",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "description": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress)",
+          "title": "Force",
+          "format": "boolean",
+          "x-displayname": "Force",
+          "x-ves-required": "false",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "false"
+          },
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "true",
+          "x-f5xc-description-short": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e.",
+          "x-f5xc-description-medium": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress).",
+          "x-f5xc-required-for": {
+            "minimum_config": false,
+            "create": false,
+            "update": false,
+            "read": false
+          }
+        },
+        "name": {
+          "type": "string",
+          "description": "Site name",
+          "title": "Name",
+          "x-displayname": "Name",
+          "x-ves-example": "Ce398",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "ce398",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "naming",
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "characterSet": {
+              "allowed": "[a-z0-9-]",
+              "restricted": "[^a-z0-9-]",
+              "required": "[a-z0-9]",
+              "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+            },
+            "format": "dns-label",
+            "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+            "validation": {
+              "rfc": "RFC 1035",
+              "standard": "DNS-1035 label (alpha-first)"
+            },
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.99,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Site namespace.",
+          "title": "Namespace",
+          "x-displayname": "Namespace",
+          "x-ves-example": "System",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "system",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "naming",
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "characterSet": {
+              "allowed": "[a-z0-9-]",
+              "restricted": "[^a-z0-9-]",
+              "required": "[a-z0-9]",
+              "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+            },
+            "format": "dns-label",
+            "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+            "validation": {
+              "rfc": "RFC 1035",
+              "standard": "DNS-1035 label (alpha-first)"
+            },
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.99,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version to upgraded to.",
+          "title": "SW/OS Version",
+          "x-displayname": "Version",
+          "x-ves-example": "7.2003.20",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "7.2003.20",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "general",
+            "maxLength": 1024,
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.85,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "minimum_config": true,
+            "create": true,
+            "update": false,
+            "read": false
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for siteUpgradeOSRequest",
+        "required_fields": ["name", "namespace", "version"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"name\": \"ce398\",\n  \"namespace\": \"system\",\n  \"version\": \"7.2003.20\"\n}",
+        "example_yaml": "name: ce398\nnamespace: system\nversion: 7.2003.20"
+      },
+      "x-f5xc-cli-domain": "other"
+    }
+  }
+}

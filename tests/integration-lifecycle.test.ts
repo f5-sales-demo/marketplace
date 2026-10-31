@@ -1641,6 +1641,19 @@ describe('provider integration lifecycle', () => {
     }
   });
 
+  it('declares GCloud Platform installation dependency while Terraform remains optional', async () => {
+    const definitions = await definitionsFor('gcloud');
+    const gcloud = definitions.find((definition) => definition.id === 'gcloud');
+    expect(gcloud?.dependencies).toEqual(['platform']);
+    expect(gcloud?.setup?.pluginDependencies).toEqual(['platform']);
+    const manifest = await Bun.file(join(import.meta.dir, '..', 'plugins/gcloud/.xcsh-plugin/plugin.json')).json();
+    const catalog = await Bun.file(join(import.meta.dir, '..', '.xcsh-plugin/marketplace.json')).json();
+    expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
+    expect(
+      catalog.plugins.find((entry: { name: string }) => entry.name === 'gcloud').lifecycle.pluginDependencies,
+    ).toEqual(['platform']);
+  });
+
   it('runs KVM setup through its idempotent v2 controller', async () => {
     const [kvm] = await definitionsFor('kvm');
     const controller = join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'kvm-smsv2ctl');
