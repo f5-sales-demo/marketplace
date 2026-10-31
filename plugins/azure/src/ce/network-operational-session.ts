@@ -229,11 +229,31 @@ export async function createAzureOperationalAcquisitionSession(
     forwarding,
     retained,
     originalIssuerPublication,
+    async (planSha256, active) => {
+      active.throwIfAborted();
+      seal();
+      const source = await loadPlanArtifact(session, `azure-ce-${planSha256.slice(0, 24)}`, planSha256);
+      active.throwIfAborted();
+      seal();
+      require(source.plan.engine === 'terraform' &&
+        source.plan.intent.operation === 'update-network' &&
+        same(azureUpgradeBinding(source.plan).owner, owner), 'original observation source ownership differs');
+      return source.plan;
+    },
   );
   const check = async (active: AbortSignal) => {
     require((await readPins(active)) === retained, 'original public issuer binding changed');
   };
   return Object.freeze({
+    authenticateRetirementInventory(parent?: AbortSignal) {
+      return bounded(async (active) => {
+        require(retained !== undefined, 'original public issuer pin unavailable');
+        await check(active);
+        const result = await collector.authenticateRetirementInventory(active);
+        await check(active);
+        return result;
+      }, parent);
+    },
     collect(...args: Parameters<typeof collector.collect>) {
       return bounded(async (active) => {
         await check(active);

@@ -1,6 +1,17 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from 'node:crypto';
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  randomUUID,
+  sign,
+  verify,
+} from 'node:crypto';
+import { lstat, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { ExpectedCeForwardingRoutes } from '../../../platform/src/ce/forwarding-route';
+import { parseNodeHealthJson } from '../../../platform/src/ce/node-health';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { guardAzureCeApplyObject } from './apply-request';
 import { verifyAzureCePlan } from './artifacts';
@@ -8,6 +19,7 @@ import { canonicalSha256, canonicalStringify } from './canonical';
 import { publishImmutableCeReceipt, readImmutableCeReceipt } from './immutable-receipt-publication';
 import { collectAzureNetworkOperationalReadings } from './network-operational-readings';
 import type { AzureTerraformNetworkAcceptanceIdentity } from './terraform-network-checkpoint';
+import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -77,6 +89,7 @@ export function createAzureOperationalAcquisitionCollector(
   forwarding?: ExpectedCeForwardingRoutes,
   trustedIssuerSha256?: string,
   originalIssuerPublication?: (issuerSha256: string, signal: AbortSignal) => Promise<void>,
+  loadOriginalSource?: (planSha256: string, signal: AbortSignal) => Promise<AzureCePlan>,
 ) {
   const plan = structuredClone(request),
     owner = structuredClone(storage.owner),
@@ -216,7 +229,194 @@ export function createAzureOperationalAcquisitionCollector(
         .equals(bytes(record.publicKey)), 'signing material differs');
     return key;
   };
+  const authenticateObservation = (
+    original: Awaited<ReturnType<typeof issuer>>,
+    published: Awaited<ReturnType<typeof readImmutableCeReceipt>>,
+    source: AzureCePlan,
+  ) => {
+    verifyAzureCePlan(source);
+    const binding = azureUpgradeBinding(source),
+      record = object(published.record);
+    keys(record, ['payload', 'signature']);
+    const payload = object(record.payload);
+    keys(payload, ['schemaVersion', 'kind', 'issuerSha256', 'invocationId', 'purpose', 'identity', 'readings']);
+    const identity = object(payload.identity),
+      readings = object(payload.readings);
+    require(source.engine === 'terraform' &&
+      source.intent.operation === 'update-network' &&
+      same(binding.owner, owner) &&
+      identity.planSha256 === source.planSha256 &&
+      same(identity.owner, owner) &&
+      identity.siteName === source.siteName &&
+      typeof identity.node === 'number' &&
+      Number.isInteger(identity.node) &&
+      identity.node >= 1 &&
+      identity.node <= source.topology.nodeCount &&
+      payload.schemaVersion === 1 &&
+      payload.kind === 'azure-network-operational-acquisition' &&
+      payload.issuerSha256 === original.digest &&
+      typeof payload.invocationId === 'string' &&
+      /^[a-f0-9-]{36}$/.test(payload.invocationId) &&
+      ['preflight', 'restored', 'final'].includes(payload.purpose as string) &&
+      verify(
+        null,
+        Buffer.from(canonicalStringify(payload)),
+        original.publicKey,
+        bytes(record.signature, 64),
+      ), 'original execution signature differs from source');
+    require(readings.schemaVersion === 1 &&
+      readings.scope === 'current-network-operational-readings' &&
+      same(readings.owner, owner) &&
+      readings.planSha256 === source.planSha256 &&
+      readings.node === identity.node &&
+      readings.siteUid === identity.siteUid, 'signed acquisition scope differs');
+    return { payload, identity, readings };
+  };
+  const retirementMarker = (marker: unknown, original: Awaited<ReturnType<typeof issuer>>) => {
+    keys(marker, ['payload', 'signature']);
+    const value = object(marker),
+      expected = {
+        schemaVersion: 1,
+        kind: 'azure-network-observer-key-retired',
+        owner,
+        issuerSha256: original.digest,
+      };
+    require(same(value.payload, expected) &&
+      verify(
+        null,
+        Buffer.from(canonicalStringify(expected)),
+        original.publicKey,
+        bytes(value.signature, 64),
+      ), 'key retirement provenance differs');
+  };
+  // Exhaustive owning observer namespace, not a filename allowlist or operational gate.
+  // Every observation needs the independently loaded original public source and issuer signature.
+  const inspectRetirementInventory = async (deadline: AbortSignal) => {
+    const names = async () =>
+      (await readdir(directory))
+        .filter((name) =>
+          ['azure-network-observer-', 'azure-network-issuer-', 'azure-network-observation-'].some((prefix) =>
+            name.startsWith(prefix),
+          ),
+        )
+        .sort();
+    const root = await lstat(directory);
+    const rootIdentity = `${root.dev}:${root.ino}:${root.birthtimeMs}`;
+    const before = await names(),
+      original = await issuer(deadline, false);
+    const artifacts: Array<{
+      path: string;
+      identity: string;
+      sha256: string;
+      action: 'preserve' | 'delete';
+      schema: string;
+      packetSha256: string;
+      semanticProvenanceSha256: string;
+    }> = [];
+    const invocations = new Set<string>();
+    for (const path of before) {
+      deadline.throwIfAborted();
+      seal();
+      const native = await readAzureTerraformParentPrivateFile(join(directory, path), deadline);
+      let record: unknown,
+        schema: string,
+        provenance: unknown,
+        action: 'preserve' | 'delete' = 'preserve';
+      if (path === keyName) {
+        await signingKey(original.record);
+        record = await store.read(path);
+        schema = 'azure-network-observer-signing-key-v1';
+        action = 'delete';
+        provenance = { owner, issuerSha256: original.digest };
+      } else if (path === anchorName) {
+        record = await store.read(path);
+        require(same(record, { schemaVersion: 1, owner, issuerSha256: original.digest }), 'issuer pointer differs');
+        schema = 'azure-network-observer-issuer-pointer-v1';
+        provenance = { owner, issuerSha256: original.digest };
+      } else if (path === retiredName) {
+        record = await store.read(path);
+        retirementMarker(record, original);
+        schema = 'azure-network-observer-retirement-v1';
+        provenance = record;
+      } else if (path === `azure-network-issuer-${original.digest}.json`) {
+        record = (await readImmutableCeReceipt(store, 'azure-network-issuer', original.digest, deadline)).record;
+        require(same(record, original.record), 'original issuer record changed');
+        schema = 'azure-network-operational-issuer-v1';
+        provenance = { owner, issuerSha256: original.digest };
+      } else {
+        const match = /^azure-network-observation-([a-f0-9]{64})\.json$/.exec(path);
+        require(match, 'unclassified or incomplete observer artifact');
+        const published = await readImmutableCeReceipt(store, publicationPrefix, match[1], deadline);
+        const sourceSha = object(object(object(published.record).payload).identity).planSha256;
+        require(digest(sourceSha), 'observation source digest malformed');
+        const source = loadOriginalSource ? await loadOriginalSource(sourceSha, deadline) : plan;
+        deadline.throwIfAborted();
+        seal();
+        require(source.planSha256 === sourceSha, 'original observation source unavailable');
+        const authenticated = authenticateObservation(original, published, source);
+        require(!invocations.has(authenticated.payload.invocationId as string), 'duplicate acquisition invocation');
+        invocations.add(authenticated.payload.invocationId as string);
+        record = published.record;
+        schema = 'azure-network-operational-acquisition-v1';
+        provenance = {
+          owner,
+          sourcePlanSha256: sourceSha,
+          issuerSha256: original.digest,
+          identitySha256: canonicalSha256(authenticated.identity),
+          invocationId: authenticated.payload.invocationId,
+          purpose: authenticated.payload.purpose,
+        };
+      }
+      require(same(
+        parseNodeHealthJson(native.bytes.toString('utf8')),
+        record,
+      ), 'native observer packet differs from semantic record');
+      artifacts.push({
+        path,
+        identity: native.identity,
+        sha256: createHash('sha256').update(native.bytes).digest('hex'),
+        action,
+        schema,
+        packetSha256: canonicalSha256(record),
+        semanticProvenanceSha256: canonicalSha256(provenance),
+      });
+    }
+    require(same(before, await names()), 'observer namespace changed during authentication');
+    for (const file of artifacts) {
+      deadline.throwIfAborted();
+      const native = await readAzureTerraformParentPrivateFile(join(directory, file.path), deadline);
+      require(native.identity === file.identity &&
+        createHash('sha256').update(native.bytes).digest('hex') === file.sha256 &&
+        canonicalSha256(await store.read(file.path)) === file.packetSha256, 'authenticated observer record changed');
+    }
+    require((await issuer(deadline, false)).digest === original.digest &&
+      same(before, await names()), 'observer inventory changed');
+    const finalRoot = await lstat(directory);
+    require(`${finalRoot.dev}:${finalRoot.ino}:${finalRoot.birthtimeMs}` ===
+      rootIdentity, 'observer directory changed');
+    return {
+      status: 'authenticated' as const,
+      scope: 'owning-observer-artifact-disposition' as const,
+      owner: structuredClone(owner),
+      issuerSha256: original.digest,
+      artifacts,
+      signingMaterialPresent: before.includes(keyName),
+      operationalAcceptance: 'unknown' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+    };
+  };
+  const unchangedProof = (
+    before: Awaited<ReturnType<typeof inspectRetirementInventory>>,
+    after: Awaited<ReturnType<typeof inspectRetirementInventory>>,
+  ) => {
+    const proof = (inventory: typeof before) =>
+      inventory.artifacts.filter((file) => file.path !== keyName && file.path !== retiredName);
+    require(same(proof(before), proof(after)), 'historical observer proof changed during retirement');
+  };
   return {
+    authenticateRetirementInventory(signal?: AbortSignal) {
+      return operation(signal, inspectRetirementInventory);
+    },
     async collect(
       identity: Identity,
       purpose: AzureOperationalAcquisitionPurpose,
@@ -325,30 +525,11 @@ export function createAzureOperationalAcquisitionCollector(
           /^[a-f0-9-]{36}$/.test(receipt.invocationId), 'receipt reference identity differs');
         const original = await issuer(deadline, false);
         require(receipt.issuerSha256 === original.digest, 'receipt issuer differs');
-        const published = await readImmutableCeReceipt(store, publicationPrefix, receipt.publicationSha256, deadline),
-          record = object(published.record);
-        keys(record, ['payload', 'signature']);
-        const payload = object(record.payload);
-        keys(payload, ['schemaVersion', 'kind', 'issuerSha256', 'invocationId', 'purpose', 'identity', 'readings']);
-        require(payload.schemaVersion === 1 &&
-          payload.kind === 'azure-network-operational-acquisition' &&
-          payload.issuerSha256 === original.digest &&
-          payload.invocationId === receipt.invocationId &&
+        const published = await readImmutableCeReceipt(store, publicationPrefix, receipt.publicationSha256, deadline);
+        const { payload, readings } = authenticateObservation(original, published, plan);
+        require(payload.invocationId === receipt.invocationId &&
           payload.purpose === purpose &&
-          same(payload.identity, expected) &&
-          verify(
-            null,
-            Buffer.from(canonicalStringify(payload)),
-            original.publicKey,
-            bytes(record.signature, 64),
-          ), 'original execution signature differs');
-        const readings = object(payload.readings);
-        require(readings.schemaVersion === 1 &&
-          readings.scope === 'current-network-operational-readings' &&
-          same(readings.owner, owner) &&
-          readings.planSha256 === plan.planSha256 &&
-          readings.node === expected.node &&
-          readings.siteUid === expected.siteUid, 'signed acquisition scope differs');
+          same(payload.identity, expected), 'original execution signature differs');
         if (mode === 'current') {
           const invocation = acquired.get(receipt.invocationId);
           // This bounds local acquisition reuse. It is never original CE heartbeat freshness.
@@ -376,7 +557,8 @@ export function createAzureOperationalAcquisitionCollector(
     },
     async retireSigningMaterial(signal?: AbortSignal) {
       return operation(signal, async (deadline) => {
-        const original = await issuer(deadline, false);
+        const before = await inspectRetirementInventory(deadline),
+          original = await issuer(deadline, false);
         let marker = await optional(store, retiredName);
         if (marker === undefined) {
           const key = await signingKey(original.record),
@@ -392,21 +574,8 @@ export function createAzureOperationalAcquisitionCollector(
           };
           await store.write(retiredName, marker, deadline);
         }
-        keys(marker, ['payload', 'signature']);
-        const value = object(marker),
-          expected = {
-            schemaVersion: 1,
-            kind: 'azure-network-observer-key-retired',
-            owner,
-            issuerSha256: original.digest,
-          };
-        require(same(value.payload, expected) &&
-          verify(
-            null,
-            Buffer.from(canonicalStringify(expected)),
-            original.publicKey,
-            bytes(value.signature, 64),
-          ), 'key retirement provenance differs');
+        retirementMarker(marker, original);
+        unchangedProof(before, await inspectRetirementInventory(deadline));
         const key = await optional(store, keyName);
         if (key !== undefined) {
           await signingKey(original.record);
@@ -416,12 +585,15 @@ export function createAzureOperationalAcquisitionCollector(
         require((await optional(store, keyName)) === undefined &&
           same(await store.read(retiredName), marker) &&
           (await issuer(deadline, false)).digest === original.digest, 'signing material retirement incomplete');
+        const artifactInventory = await inspectRetirementInventory(deadline);
+        unchangedProof(before, artifactInventory);
         acquired.clear();
         return {
           status: 'retired' as const,
           scope: 'operational-observer-signing-material' as const,
           issuerSha256: original.digest,
           historicalPublicProofRetained: true as const,
+          artifactInventory,
         };
       });
     },

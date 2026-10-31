@@ -625,3 +625,133 @@ test('public directory permission drift blocks an existing acquisition session',
   expect(f.state.calls).toBe(calls);
   expect(f.mutations()).toBe(0);
 });
+
+test('retirement inventory authenticates owned unknown/down proof and preserves it after key retirement', async () => {
+  const f = await fixture();
+  f.state.down = true;
+  const references = [];
+  for (const purpose of ['preflight', 'restored', 'final'] as const)
+    references.push(await f.collector.collect(f.identity, purpose));
+  const before = await f.collector.authenticateRetirementInventory();
+  expect(before.status).toBe('authenticated');
+  expect(before.operationalAcceptance).toBe('unknown');
+  expect(before.canSatisfyInterfaceMutationGate).toBe(false);
+  expect(before.artifacts.filter((file) => file.schema === 'azure-network-operational-acquisition-v1')).toHaveLength(3);
+  const signing = (await f.store.read('azure-network-observer-key.json')) as { signingMaterial: string };
+  expect(JSON.stringify(before)).not.toContain(signing.signingMaterial);
+  const retired = await f.collector.retireSigningMaterial();
+  expect(retired.artifactInventory.signingMaterialPresent).toBe(false);
+  for (const reference of references)
+    expect(
+      (await f.open(reference.issuerSha256).authenticate(reference, f.identity, reference.purpose, 'historical'))
+        .readings.identity.interfaces,
+    ).toBeDefined();
+  expect(f.mutations()).toBe(0);
+});
+for (const fault of ['signature', 'source', 'issuer', 'pending', 'unclassified'] as const)
+  test(`retirement refuses ${fault} proof before signing or deleting any material`, async () => {
+    const f = await fixture(),
+      reference = await f.collector.collect(f.identity, 'preflight');
+    const publication = await readImmutableCeReceipt(f.store, 'azure-network-observation', reference.publicationSha256);
+    if (fault === 'signature' || fault === 'source') {
+      const record = structuredClone(publication.record) as {
+        payload: { identity: { planSha256: string } };
+        signature: string;
+      };
+      if (fault === 'signature') record.signature = Buffer.alloc(64).toString('base64url');
+      else record.payload.identity.planSha256 = 'f'.repeat(64);
+      await publishImmutableCeReceipt(f.store, 'azure-network-observation', record);
+    } else if (fault === 'issuer') {
+      await publishImmutableCeReceipt(f.store, 'azure-network-issuer', { foreign: true });
+    } else {
+      await f.store.write(
+        fault === 'pending'
+          ? 'azure-network-observation-unresolved.pending'
+          : 'azure-network-observer-unclassified.json',
+        { unknown: true },
+      );
+    }
+    const key = await readFile(join(f.store.directory, 'azure-network-observer-key.json'));
+    await expect(f.collector.retireSigningMaterial()).rejects.toThrow();
+    expect(await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).toEqual(key);
+    await expect(f.store.read('azure-network-observer-retired.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+test('public session authenticates the original source for retirement inventory and retains public proof', async () => {
+  const f = await publicSessionFixture(),
+    collector = await openPublicAcquisition(f);
+  const reference = await collector.collect(f.identity, 'preflight');
+  expect(
+    (await collector.authenticateRetirementInventory()).artifacts.some(
+      (file) => file.path === `azure-network-observation-${reference.publicationSha256}.json`,
+    ),
+  ).toBe(true);
+  expect((await collector.retireSigningMaterial()).artifactInventory.operationalAcceptance).toBe('unknown');
+  expect((await (await openPublicAcquisition(f)).authenticateRetirementInventory()).signingMaterialPresent).toBe(false);
+});
+
+for (const fault of ['inode', 'namespace', 'unavailable-source', 'cancel'] as const)
+  test(`retirement rechecks ${fault} across original-source authentication without removing signing material`, async () => {
+    const f = await fixture(),
+      reference = await f.collector.collect(f.identity, 'preflight');
+    const path = join(f.store.directory, `azure-network-observation-${reference.publicationSha256}.json`);
+    const key = await readFile(join(f.store.directory, 'azure-network-observer-key.json'));
+    const controller = new AbortController();
+    let changed = false;
+    const collector = createAzureOperationalAcquisitionCollector(
+      f.plan,
+      f.runtime,
+      f.api,
+      f.store,
+      undefined,
+      reference.issuerSha256,
+      undefined,
+      async (digest) => {
+        expect(digest).toBe(f.plan.planSha256);
+        if (!changed) {
+          changed = true;
+          if (fault === 'inode') {
+            const original = await readFile(path);
+            await rm(path);
+            await writeFile(path, original, { mode: 0o600 });
+          } else if (fault === 'namespace') {
+            await f.store.write('azure-network-observer-unclassified.json', { unknown: true });
+          } else if (fault === 'unavailable-source') throw Error('original-source-unavailable');
+          else controller.abort(Error('cancel-retirement-source'));
+        }
+        return f.plan;
+      },
+    );
+    await expect(collector.retireSigningMaterial(controller.signal)).rejects.toThrow();
+    expect(changed).toBe(true);
+    expect(await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).toEqual(key);
+    await expect(f.store.read('azure-network-observer-retired.json')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+test('public retirement cannot substitute a missing original public plan with an in-memory source', async () => {
+  const f = await publicSessionFixture(),
+    collector = await openPublicAcquisition(f);
+  await collector.collect(f.identity, 'preflight');
+  const original = [...f.paths.values()].find((path) => path.endsWith('.azure-ce-plan.log'));
+  expect(original).toBeDefined();
+  if (original === undefined) throw Error('fixture public source missing');
+  await rm(original);
+  const key = await readFile(join(f.store.directory, 'azure-network-observer-key.json'));
+  await expect(collector.retireSigningMaterial()).rejects.toThrow();
+  expect(await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).toEqual(key);
+});
+
+for (const purpose of ['preflight', 'restored', 'final'] as const)
+  test(`HA ${purpose} six-interface unknown/down proof survives authenticated retirement`, async () => {
+    const f = await fixture(true);
+    f.state.down = true;
+    const reference = await f.collector.collect(f.identity, purpose);
+    const inventory = await f.collector.authenticateRetirementInventory();
+    expect(
+      inventory.artifacts.filter((file) => file.schema === 'azure-network-operational-acquisition-v1'),
+    ).toHaveLength(1);
+    expect((await f.collector.retireSigningMaterial()).artifactInventory.signingMaterialPresent).toBe(false);
+    const historical = await f.open(reference.issuerSha256).authenticate(reference, f.identity, purpose, 'historical');
+    expect(historical.readings.identity.interfaces).toHaveLength(6);
+    expect(historical.operationalAcceptance).toBe('unknown');
+    expect(historical.canSatisfyInterfaceMutationGate).toBe(false);
+    expect(f.mutations()).toBe(0);
+  });
