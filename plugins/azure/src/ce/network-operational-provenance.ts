@@ -65,6 +65,8 @@ export interface AzureOperationalAcquisitionReference {
  * Only collect() signs: it invokes the real collector and never accepts caller-supplied readings.
  * Current authentication also requires this process's acquisition; historical authentication
  * verifies signed originally collected facts, including unknown states. No mutation gate is granted.
+ * Reopening requires an original issuer pin retained by the owning workflow independently of
+ * the mutable storage pointer and the candidate reference. No pin means unknown provenance.
  * The private key is confined to owned storage; retire() removes it while retaining public proof.
  */
 export function createAzureOperationalAcquisitionCollector(
@@ -73,6 +75,7 @@ export function createAzureOperationalAcquisitionCollector(
   cloud: Cloud,
   storage: CeDeploymentStore,
   forwarding?: ExpectedCeForwardingRoutes,
+  trustedIssuerSha256?: string,
 ) {
   const plan = structuredClone(request),
     owner = structuredClone(storage.owner),
@@ -80,6 +83,7 @@ export function createAzureOperationalAcquisitionCollector(
     reviewed = forwarding === undefined ? undefined : structuredClone(forwarding),
     requestSha = canonicalSha256(request),
     reviewedSha = forwarding === undefined ? undefined : canonicalSha256(forwarding);
+  require(trustedIssuerSha256 === undefined || digest(trustedIssuerSha256), 'retained issuer pin malformed');
   verifyAzureCePlan(plan);
   require(plan.engine === 'terraform' &&
     plan.intent.operation === 'update-network' &&
@@ -99,7 +103,7 @@ export function createAzureOperationalAcquisitionCollector(
     api = guardAzureCeApplyObject(cloud, seal),
     store = guardAzureCeApplyObject(storage, seal, {}, ['owner', 'directory']);
   const acquired = new Map<string, { publicationSha256: string; identitySha256: string; started: number }>();
-  let anchored: string | undefined;
+  let anchored: string | undefined = trustedIssuerSha256;
   const operation = async <T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>) => {
     const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
     const step = async <V>(task: () => Promise<V>) => {
@@ -140,6 +144,8 @@ export function createAzureOperationalAcquisitionCollector(
   const issuer = async (signal: AbortSignal, create: boolean) => {
     let pointer = await optional(store, anchorName);
     signal.throwIfAborted();
+    const initializing = pointer === undefined && create && anchored === undefined;
+    require(pointer !== undefined || anchored === undefined, 'retained issuer publication missing');
     if (pointer === undefined && create) {
       let secret = await optional(store, keyName);
       if (secret === undefined) {
@@ -174,7 +180,7 @@ export function createAzureOperationalAcquisitionCollector(
     require(anchor.schemaVersion === 1 &&
       same(anchor.owner, owner) &&
       digest(anchor.issuerSha256) &&
-      (anchored === undefined || anchored === anchor.issuerSha256), 'pinned issuer differs');
+      (initializing || (anchored !== undefined && anchored === anchor.issuerSha256)), 'pinned issuer differs');
     const publication = await readImmutableCeReceipt(store, 'azure-network-issuer', anchor.issuerSha256, signal);
     const record = object(publication.record);
     keys(record, ['schemaVersion', 'kind', 'owner', 'publicKey']);

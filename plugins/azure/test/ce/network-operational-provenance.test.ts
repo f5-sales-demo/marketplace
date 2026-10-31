@@ -94,7 +94,8 @@ async function fixture(ha = false) {
     args.includes('show-effective-route-table')
       ? Promise.resolve({ exitCode: 0, stdout: JSON.stringify({ value: [] }), stderr: '' })
       : exec.call(f.api, command, args, options);
-  const open = () => createAzureOperationalAcquisitionCollector(f.plan, runtime, f.api, store),
+  const open = (trustedIssuerSha256?: string) =>
+      createAzureOperationalAcquisitionCollector(f.plan, runtime, f.api, store, undefined, trustedIssuerSha256),
     collector = open();
   return { ...f, binding, identity, store, state, runtime, collector, open };
 }
@@ -122,14 +123,14 @@ test('historical acquisition preserves explicitly down and unqualified facts ins
   const f = await fixture(true);
   f.state.down = true;
   const receipt = await f.collector.collect(f.identity, 'preflight'),
-    history = await f.open().authenticate(receipt, f.identity, 'preflight', 'historical');
+    history = await f.open(receipt.issuerSha256).authenticate(receipt, f.identity, 'preflight', 'historical');
   expect(history.readings.identity).toMatchObject({
     status: 'down',
     freshness: 'unqualified',
     canSatisfyInterfaceMutationGate: false,
   });
   expect(history.operationalAcceptance).toBe('unknown');
-  await expect(f.open().authenticate(receipt, f.identity, 'preflight', 'current')).rejects.toThrow(
+  await expect(f.open(receipt.issuerSha256).authenticate(receipt, f.identity, 'preflight', 'current')).rejects.toThrow(
     'current acquisition unavailable',
   );
 });
@@ -199,9 +200,11 @@ test('private signing material retires and historical public verification still 
     historicalPublicProofRetained: true,
   });
   await expect(readFile(secretPath)).rejects.toMatchObject({ code: 'ENOENT' });
-  expect((await f.open().authenticate(receipt, f.identity, 'preflight', 'historical')).status).toBe('authenticated');
+  expect((await f.open(receipt.issuerSha256).authenticate(receipt, f.identity, 'preflight', 'historical')).status).toBe(
+    'authenticated',
+  );
   const calls = f.state.calls;
-  await expect(f.open().collect(f.identity, 'preflight')).rejects.toThrow('signing key retired');
+  await expect(f.open(receipt.issuerSha256).collect(f.identity, 'preflight')).rejects.toThrow('signing key retired');
   await expect(f.collector.authenticate(receipt, f.identity, 'preflight', 'current')).rejects.toThrow(
     'current acquisition unavailable',
   );
@@ -295,7 +298,9 @@ test('interrupted key retirement resumes without reopening collection or losing 
   await expect(collector.retireSigningMaterial()).rejects.toThrow('injected-retirement-interruption');
   await expect(collector.collect(f.identity, 'preflight')).rejects.toThrow('signing key retired');
   expect((await collector.retireSigningMaterial()).status).toBe('retired');
-  expect((await f.open().authenticate(reference, f.identity, 'preflight', 'historical')).status).toBe('authenticated');
+  expect(
+    (await f.open(reference.issuerSha256).authenticate(reference, f.identity, 'preflight', 'historical')).status,
+  ).toBe('authenticated');
 });
 test('a forged retirement marker cannot authorize removal of a private signing key', async () => {
   const f = await fixture(),
@@ -327,3 +332,60 @@ for (const purpose of ['preflight', 'restored', 'final'] as const)
       f.collector.authenticate({ ...reference, purpose: other }, f.identity, other, 'historical'),
     ).rejects.toThrow('original execution signature differs');
   });
+
+test('fresh-process historical authentication rejects a substituted mutable issuer anchor', async () => {
+  const f = await fixture(),
+    reference = await f.collector.collect(f.identity, 'preflight');
+  const published = await readImmutableCeReceipt(f.store, 'azure-network-observation', reference.publicationSha256);
+  const pair = generateKeyPairSync('ed25519');
+  const issuer = await publishImmutableCeReceipt(f.store, 'azure-network-issuer', {
+    schemaVersion: 1,
+    kind: 'azure-network-operational-issuer',
+    owner: f.store.owner,
+    publicKey: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url'),
+  });
+  const record = structuredClone(published.record) as { payload: { issuerSha256: string }; signature: string };
+  record.payload.issuerSha256 = issuer.publicationSha256;
+  record.signature = sign(null, Buffer.from(canonicalStringify(record.payload)), pair.privateKey).toString('base64url');
+  const forged = await publishImmutableCeReceipt(f.store, 'azure-network-observation', record);
+  await f.store.write('azure-network-observer-issuer.json', {
+    schemaVersion: 1,
+    owner: f.store.owner,
+    issuerSha256: issuer.publicationSha256,
+  });
+  for (const reopened of [f.open(), f.open(reference.issuerSha256)])
+    await expect(
+      reopened.authenticate(
+        { ...reference, issuerSha256: issuer.publicationSha256, publicationSha256: forged.publicationSha256 },
+        f.identity,
+        'preflight',
+        'historical',
+      ),
+    ).rejects.toThrow('pinned issuer differs');
+});
+
+test('reopened historical authentication needs a retained original pin and does not read one from its reference', async () => {
+  const f = await fixture(),
+    reference = await f.collector.collect(f.identity, 'preflight');
+  const calls = f.state.calls;
+  await expect(f.open().authenticate(reference, f.identity, 'preflight', 'historical')).rejects.toThrow(
+    'pinned issuer differs',
+  );
+  await expect(f.open('e'.repeat(64)).authenticate(reference, f.identity, 'preflight', 'historical')).rejects.toThrow(
+    'pinned issuer differs',
+  );
+  expect(
+    (await f.open(reference.issuerSha256).authenticate(reference, f.identity, 'preflight', 'historical')).status,
+  ).toBe('authenticated');
+  expect(f.state.calls).toBe(calls);
+  expect(f.mutations()).toBe(0);
+});
+test('missing retained issuer cannot be replaced during collection or key retirement', async () => {
+  const f = await fixture(),
+    reference = await f.collector.collect(f.identity, 'preflight');
+  await f.store.remove('azure-network-observer-issuer.json');
+  const reopened = f.open(reference.issuerSha256);
+  await expect(reopened.collect(f.identity, 'preflight')).rejects.toThrow('retained issuer publication missing');
+  await expect(reopened.retireSigningMaterial()).rejects.toThrow('retained issuer publication missing');
+  expect((await readFile(join(f.store.directory, 'azure-network-observer-key.json'))).length).toBeGreaterThan(0);
+});
