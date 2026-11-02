@@ -621,3 +621,14 @@ The actual tokeninfo callback and Google refresh across expiry have not run.
 Neither preparation nor the new consistency checks admit apply. Production
 controller, final capture, workspace, bridge, guard and every remaining live,
 cleanup, review and publication gate remain open.
+
+Attempts 316 and 317 repair the stale presentation tracker and qualify the
+[controller clock and claim successor](gcp-controller-clock-20261102.md).
+Thirty-seven focused tracker and renderer tests passed; all 23 reported CI
+checks completed without failures at the delivered repair. Nineteen clock tests
+and a real 48-second claim-lifetime test passed. Initial, periodic and final
+system-clock samples retained the original deadlines, and independent process
+group reviews preceded successful claim release. The frozen helper's expected
+timeout and claim remain preserved. The actual controller, callback integration,
+fresh local plan and Google token refresh across expiry remain unqualified.
+No cloud apply is admitted; all subsequent live and publication gates remain open.
