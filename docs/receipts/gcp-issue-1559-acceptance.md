@@ -632,3 +632,14 @@ group reviews preceded successful claim release. The frozen helper's expected
 timeout and claim remain preserved. The actual controller, callback integration,
 fresh local plan and Google token refresh across expiry remain unqualified.
 No cloud apply is admitted; all subsequent live and publication gates remain open.
+
+Attempts 318 and 319 qualify the
+[original capture controller and callback fixture](gcp-controller-and-callback-fixture-20261102.md).
+Eight budget tests and an actual disposable local controller passed, including
+four original boundaries, three independent group absences and two read-only
+resumes. Thirteen plan and context tests passed. A fresh saved plan contains
+three local resources and three deferred Google reads, with zero cloud resources
+and four natural execution closures. The actual original-budget apply controller,
+dynamic callback context and real Google token verification across expiry remain
+open. Changed callback bytes require fresh consumer bindings and review. The plan
+is unsubmitted and every subsequent live and publication gate remains open.
