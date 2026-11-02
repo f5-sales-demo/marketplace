@@ -643,3 +643,14 @@ and four natural execution closures. The actual original-budget apply controller
 dynamic callback context and real Google token verification across expiry remain
 open. Changed callback bytes require fresh consumer bindings and review. The plan
 is unsubmitted and every subsequent live and publication gate remains open.
+
+Attempt 320 verifies
+[current ADC and invocation trust](gcp-current-adc-trust-20261102.md).
+Seven regressions passed. A fresh read-only refresh verified server identity and
+project access while preserving the original credential bytes. Four original
+read groups were independently absent. A stale source-boundary refusal and SDK
+TLS-chain refusal are retained. The successful invocation used the existing
+managed CA bundle through the documented process environment property; global
+settings and credentials were unchanged. Actual original-provider refresh across
+expiry, apply-controller context integration and every subsequent acceptance
+gate remain open.
