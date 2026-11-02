@@ -1051,3 +1051,12 @@ test('public signed acquisition retains unknown for a foreign reported forwardin
   expect(value.operationalAcceptance).toBe('unknown');
   expect(f.mutations()).toBe(0);
 });
+
+test('network acquisition rejects a coerced purpose before reading evidence or creating an issuer', async () => {
+  const f = await fixture();
+  await expect(
+    Reflect.apply(f.collector.collect, f.collector, [f.identity, { toString: () => 'preflight' }]),
+  ).rejects.toThrow(/purpose/);
+  expect(f.state.calls).toBe(0);
+  await expect(f.store.read('azure-network-observer-issuer.json')).rejects.toThrow();
+});
