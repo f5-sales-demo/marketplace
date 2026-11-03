@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "5.0.0-uat.210",
+  "version": "5.0.0-uat.211",
   "description": "Azure CLI tools and deterministic F5 Customer Edge administration for xcsh",
   "main": "dist/runtime.js",
   "scripts": {
@@ -11,18 +11,18 @@
   },
   "xcsh": {
     "name": "Azure",
-    "version": "5.0.0-uat.210",
+    "version": "5.0.0-uat.211",
     "extensions": [
       "dist/runtime.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.10.3"
+    "@f5-sales-demo/xcsh": ">=23.10.7"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.4",
-    "@f5-sales-demo/xcsh": "^23.10.3"
+    "@f5-sales-demo/xcsh": "23.10.7"
   },
   "license": "Apache-2.0"
 }
