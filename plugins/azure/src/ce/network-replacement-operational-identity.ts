@@ -7,6 +7,7 @@ import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
+import { collectAzureReplacementBgp } from './network-replacement-bgp';
 import { collectAzureReplacementForwarding } from './network-replacement-forwarding';
 import { collectAzureReplacementNodeReadiness } from './network-replacement-node-readiness';
 import {
@@ -42,7 +43,9 @@ export async function collectAzureReplacementOperationalIdentity(
   request: AzureCePlan,
   expected: AzureTerraformNetworkReplacementOperationalIdentity,
   transport: AzureOperationalIdentityRuntime &
-    Partial<Pick<CeRuntime, 'observeNodeReadiness' | 'observeForwardingRoutes'>>,
+    Partial<
+      Pick<CeRuntime, 'observeNodeReadiness' | 'observeForwardingRoutes' | 'observeBgpSessions' | 'observeBgpRoutes'>
+    >,
   cloud: AzExecApi,
   storage: CeDeploymentStore,
   terraform: TerraformSession,
@@ -52,7 +55,9 @@ export async function collectAzureReplacementOperationalIdentity(
 ) {
   signal?.throwIfAborted();
   const readinessReader = transport.observeNodeReadiness,
-    forwardingReader = transport.observeForwardingRoutes;
+    forwardingReader = transport.observeForwardingRoutes,
+    bgpSessionReader = transport.observeBgpSessions,
+    bgpRouteReader = transport.observeBgpRoutes;
   const plan = structuredClone(request),
     identity = structuredClone(expected),
     requestMatches = canonicalSnapshot(request),
@@ -160,6 +165,8 @@ export async function collectAzureReplacementOperationalIdentity(
       transport.engine === 'terraform' &&
       transport.observeNodeReadiness === readinessReader &&
       transport.observeForwardingRoutes === forwardingReader &&
+      transport.observeBgpSessions === bgpSessionReader &&
+      transport.observeBgpRoutes === bgpRouteReader &&
       pinned.every((v) => v.object[v.name] === v.callback), 'owning observation context changed');
   };
   seal();
@@ -281,7 +288,20 @@ export async function collectAzureReplacementOperationalIdentity(
           reason: 'complete-interface-identity-unavailable',
         };
   require(transport.observeForwardingRoutes === forwardingReader, 'forwarding reader changed');
-  if (typeof readinessReader === 'function' || typeof forwardingReader === 'function') {
+  const bgp =
+    result.status !== 'unknown'
+      ? await collectAzureReplacementBgp(plan, identity, source, result.interfaces, api, transport, deadline)
+      : {
+          status: 'unknown' as const,
+          operationalAcceptance: 'unknown' as const,
+          reason: 'complete-interface-identity-unavailable',
+        };
+  seal();
+  if (
+    typeof readinessReader === 'function' ||
+    typeof forwardingReader === 'function' ||
+    plan.routing.mode === 'route-server'
+  ) {
     const final = await collectAzureOperationalIdentityJoins(
       base,
       binding,
@@ -292,11 +312,11 @@ export async function collectAzureReplacementOperationalIdentity(
       observeCloud,
       deadline,
     );
-    require(same(result, final), 'replacement identities changed across node readiness collection');
+    require(same(result, final), 'replacement identities changed across readiness, forwarding or BGP collection');
   }
   // Do not hide guard failures, even if an unavailable observation already returned unknown.
   await authenticate();
   await configuration();
   seal();
-  return { ...result, nodeReadiness, forwarding };
+  return { ...result, nodeReadiness, forwarding, bgp };
 }
