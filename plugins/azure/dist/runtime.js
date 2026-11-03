@@ -2633,6 +2633,71 @@ function initialSoftwareSettings(value) {
   return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
 }
 
+// plugins/azure/src/ce/image-hardware-compatibility.ts
+function readAzureImageHardware(raw, expected) {
+  const row = object2(raw),
+    [publisher, offer, sku, version, extra] = expected.urn.split(':');
+  const id = `/subscriptions/${expected.subscriptionId}/providers/Microsoft.Compute/locations/${expected.region}/publishers/${publisher}/artifacttypes/VMImage/offers/${offer}/skus/${sku}/versions/${version}`;
+  if (
+    extra !== undefined ||
+    !publisher ||
+    !offer ||
+    !sku ||
+    !version ||
+    typeof row.id !== 'string' ||
+    row.id.toLowerCase() !== id.toLowerCase() ||
+    row.name !== version ||
+    typeof row.location !== 'string' ||
+    row.location.toLowerCase() !== expected.region.toLowerCase()
+  )
+    return { architecture: 'unknown', hyperVGeneration: 'unknown' };
+  return {
+    architecture: architecture(row.architecture),
+    hyperVGeneration: row.hyperVGeneration === 'V1' || row.hyperVGeneration === 'V2' ? row.hyperVGeneration : 'unknown',
+  };
+}
+function readAzureSkuHardware(raw) {
+  const rows = Array.isArray(object2(raw).capabilities) ? object2(raw).capabilities.map(object2) : [];
+  const capability = (name) => {
+    const matching = rows.filter(
+      (row) => typeof row.name === 'string' && row.name.toLowerCase() === name.toLowerCase(),
+    );
+    return matching.length === 1 ? matching[0].value : undefined;
+  };
+  const generations = capability('HyperVGenerations');
+  const values = typeof generations === 'string' ? generations.split(',').map((value) => value.trim()) : [];
+  const valid =
+    values.length > 0 &&
+    values.length <= 2 &&
+    new Set(values).size === values.length &&
+    values.every((value) => value === 'V1' || value === 'V2');
+  return {
+    architecture: architecture(capability('CpuArchitectureType')),
+    hyperVGenerations: valid ? values.sort() : undefined,
+  };
+}
+function classifyAzureImageHardwareCompatibility(image, sku) {
+  if (
+    !['x64', 'arm64'].includes(image.architecture ?? '') ||
+    !['x64', 'arm64'].includes(sku.architecture ?? '') ||
+    !['V1', 'V2'].includes(image.hyperVGeneration ?? '') ||
+    !Array.isArray(sku.hyperVGenerations) ||
+    !sku.hyperVGenerations.length ||
+    new Set(sku.hyperVGenerations).size !== sku.hyperVGenerations.length ||
+    sku.hyperVGenerations.some((value) => value !== 'V1' && value !== 'V2')
+  )
+    return 'unknown';
+  return image.architecture === sku.architecture && sku.hyperVGenerations.includes(image.hyperVGeneration)
+    ? 'compatible'
+    : 'incompatible';
+}
+var object2 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  architecture = (value) => {
+    if (typeof value !== 'string') return 'unknown';
+    const result = value.trim().toLowerCase();
+    return result === 'x64' || result === 'arm64' ? result : 'unknown';
+  };
+
 // plugins/platform/src/ce/forwarding-route.ts
 import { isIP } from 'node:net';
 
@@ -2696,7 +2761,7 @@ var init_forwarding_route = __esm(() => {
 });
 
 // plugins/platform/src/ce/upgrade-evidence.ts
-function object2(value) {
+function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
 }
@@ -2705,11 +2770,11 @@ function text(value) {
   return value;
 }
 function parseUpgradePrechecks(raw) {
-  const list = object2(raw).checklist;
+  const list = object3(raw).checklist;
   if (!Array.isArray(list) || !list.length) throw new Error('Missing upgrade prechecks');
   const seen = new Set();
   const checks = list.map((value) => {
-    const row = object2(value),
+    const row = object3(value),
       name = text(row.item),
       status = text(row.status);
     if (
@@ -2723,7 +2788,7 @@ function parseUpgradePrechecks(raw) {
   return { checks, passing: checks.every((check) => ['CHECKLIST_PASSED', 'CHECKLIST_WARNING'].includes(check.status)) };
 }
 function parseSoftwareTargets(raw) {
-  const values = object2(raw).sw_versions;
+  const values = object3(raw).sw_versions;
   if (
     !Array.isArray(values) ||
     values.some((value) => typeof value !== 'string' || !/^crt-\d{8}-\d{4}$/.test(value)) ||
@@ -4517,7 +4582,7 @@ import { isIP as isIP2 } from 'node:net';
 function require4(value) {
   if (!value) throw Error('Azure CE forwarding expectations are malformed, partial or identity-unverified');
 }
-function object3(value) {
+function object4(value) {
   require4(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
@@ -4529,7 +4594,7 @@ function prefix2(value) {
   return number % 2 ** (32 - Number(bits)) === 0;
 }
 function normalizeAzureForwardingExpectations(value, nodeCount, roles) {
-  const profile = object3(value);
+  const profile = object4(value);
   require4(
     canonicalEqual(Object.keys(profile).sort(), ['after', 'before']) &&
       [1, 3].includes(nodeCount) &&
@@ -4539,7 +4604,7 @@ function normalizeAzureForwardingExpectations(value, nodeCount, roles) {
     require4(Array.isArray(value) && value.length >= nodeCount * 2 && value.length <= 1024);
     const seen = new Set();
     const rows = value.map((raw) => {
-      const row = object3(raw);
+      const row = object4(raw);
       require4(
         canonicalEqual(Object.keys(row).sort(), ['node', 'prefix', 'role', 'routeType']) &&
           typeof row.node === 'number' &&
@@ -6247,6 +6312,8 @@ function compileAzureCePlan(input, observation) {
   if (!region?.eligible) fail(`region ${intent.region ?? '<recommended>'} is not eligible`);
   const size = region.vmSizes.find((candidate) => candidate.name.toLowerCase() === intent.vm.size.toLowerCase());
   if (!size || size.restricted) fail(`VM size ${intent.vm.size} is unavailable or restricted in ${region.name}`);
+  const hardware = classifyAzureImageHardwareCompatibility(observation.image, size);
+  if (hardware !== 'compatible') fail(`VM/image hardware compatibility is ${hardware} for ${intent.vm.size}`);
   if (!Number.isFinite(size.memoryGb) || !Number.isInteger(size.maxNics) || size.maxNics < 1)
     fail('VM size has incomplete observed memory or NIC capabilities');
   if (size.vCpus < 8 || size.memoryGb < 32)
@@ -6502,7 +6569,7 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
     } catch {
       throw Error('Azure relay identity: malformed JSON');
     }
-    const value = object4(response);
+    const value = object5(response);
     require5(
       sameId(value.id, expectedId) &&
         value.provisioningState === 'Succeeded' &&
@@ -6511,7 +6578,7 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
     );
     if (located) require5(value.location === plan.region, 'resource region differs');
     if (relay || expectedId === plan.vnetId) {
-      const tags = object4(value.tags);
+      const tags = object5(value.tags);
       for (const [key, expected] of Object.entries(expectedTags))
         if (relay || key !== 'xcsh-relay-plan-sha256') require5(tags[key] === expected, 'resource owner differs');
     }
@@ -6528,14 +6595,14 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
   const macs = new Set();
   for (const relay of plan.relays) {
     const vm = await read(['vm'], relay.vmId, true, true);
-    require5(object4(vm.hardwareProfile).vmSize === plan.vmSize, 'VM size differs');
-    const storage = object4(vm.storageProfile);
-    const disk = object4(storage.osDisk);
+    require5(object5(vm.hardwareProfile).vmSize === plan.vmSize, 'VM size differs');
+    const storage = object5(vm.storageProfile);
+    const disk = object5(storage.osDisk);
     require5(
-      disk.name === relay.osDiskName && sameId(object4(disk.managedDisk).id, relay.osDiskId),
+      disk.name === relay.osDiskName && sameId(object5(disk.managedDisk).id, relay.osDiskId),
       'OS disk attachment differs',
     );
-    const image = object4(storage.imageReference);
+    const image = object5(storage.imageReference);
     for (const key of ['publisher', 'offer', 'sku'])
       require5(id(image[key]) === plan.hostImage[key].toLowerCase(), 'host image differs');
     require5(
@@ -6543,14 +6610,14 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
         (image.exactVersion === undefined || image.exactVersion === plan.hostImage.version),
       'host image version is unresolved or differs',
     );
-    const references = object4(vm.networkProfile).networkInterfaces;
+    const references = object5(vm.networkProfile).networkInterfaces;
     require5(
-      Array.isArray(references) && references.length === 1 && sameId(object4(references[0]).id, relay.nicId),
+      Array.isArray(references) && references.length === 1 && sameId(object5(references[0]).id, relay.nicId),
       'VM attachment is incomplete or duplicated',
     );
     const nic = await read(['network', 'nic'], relay.nicId, true, true);
     require5(
-      sameId(object4(nic.virtualMachine).id, relay.vmId) && nic.enableIPForwarding === true,
+      sameId(object5(nic.virtualMachine).id, relay.vmId) && nic.enableIPForwarding === true,
       'NIC owner or forwarding differs',
     );
     const rawMac = typeof nic.macAddress === 'string' ? nic.macAddress.toLowerCase() : '';
@@ -6563,7 +6630,7 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
     macs.add(mac);
     const configs = nic.ipConfigurations;
     require5(Array.isArray(configs) && configs.length === 1, 'NIC IP configuration missing or duplicated');
-    const ip = object4(configs[0]);
+    const ip = object5(configs[0]);
     require5(
       sameId(ip.id, relay.ipConfigurationId) &&
         ip.name === 'ipconfig1' &&
@@ -6571,7 +6638,7 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
         ip.privateIPAddressVersion === 'IPv4' &&
         ip.privateIPAllocationMethod === 'Static' &&
         ip.privateIPAddress === relay.privateAddress &&
-        sameId(object4(ip.subnet).id, relay.subnetId),
+        sameId(object5(ip.subnet).id, relay.subnetId),
       'NIC IP configuration identity differs',
     );
     relays.push({
@@ -6605,7 +6672,7 @@ async function observeAzureRelayIdentity(source, plan, api, signal) {
 var require5 = (condition, message) => {
     if (!condition) throw Error(`Azure relay identity: ${message}`);
   },
-  object4 = (value) => {
+  object5 = (value) => {
     require5(value && typeof value === 'object' && !Array.isArray(value), 'malformed observation');
     return value;
   },
@@ -6644,7 +6711,7 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
     } catch {
       throw Error('Azure relay Route Server: malformed JSON');
     }
-    const result = object5(response);
+    const result = object6(response);
     reads.push({ args: fullArgs, responseSha256: canonicalSha256(result), observedAt: new Date().toISOString() });
     return result;
   };
@@ -6675,7 +6742,7 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
     ipv4(address) < ipv4(network) + 63;
   const common = ['--resource-group', source.intent.resourceGroup, '--name', `${source.deploymentName}-rs`];
   const server = await read(['network', 'routeserver', 'show', ...common]);
-  const tags = object5(server.tags);
+  const tags = object6(server.tags);
   require6(
     same2(server.id, plan.routeServerId) &&
       same2(server.location, plan.region) &&
@@ -6701,7 +6768,7 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
     Array.isArray(references) &&
       references.length === 2 &&
       expectedPeers.every(
-        (expected) => references.filter((reference) => same2(object5(reference).id, expected)).length === 1,
+        (expected) => references.filter((reference) => same2(object6(reference).id, expected)).length === 1,
       ),
     'hub peer references incomplete or foreign',
   );
@@ -6710,7 +6777,7 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
     Array.isArray(configReferences) && configReferences.length > 0 && configReferences.length <= 2,
     'hub IP configuration references missing',
   );
-  const referenceIds = configReferences.map((reference) => object5(reference).id);
+  const referenceIds = configReferences.map((reference) => object6(reference).id);
   require6(
     referenceIds.every(
       (id) =>
@@ -6729,16 +6796,16 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
     Array.isArray(configurations.value) && configurations.value.length === referenceIds.length,
     'hub IP configuration list incomplete',
   );
-  const values = configurations.value.map(object5);
+  const values = configurations.value.map(object6);
   require6(
     referenceIds.every((id) => values.filter((value) => same2(value.id, id)).length === 1),
     'hub IP configuration identities differ',
   );
   for (const value of values) {
-    const properties = object5(value.properties);
+    const properties = object6(value.properties);
     require6(
       properties.provisioningState === 'Succeeded' &&
-        same2(object5(properties.subnet).id, hostedSubnetId) &&
+        same2(object6(properties.subnet).id, hostedSubnetId) &&
         usable(properties.privateIPAddress) &&
         addresses.includes(properties.privateIPAddress),
       'hosted IP configuration differs',
@@ -6800,7 +6867,7 @@ async function observeAzureRelayRouteServerIdentity(source, plan, api, signal) {
 var require6 = (condition, message) => {
     if (!condition) throw Error(`Azure relay Route Server: ${message}`);
   },
-  object5 = (value) => {
+  object6 = (value) => {
     require6(value && typeof value === 'object' && !Array.isArray(value), 'malformed observation');
     const result = value;
     require6(
@@ -6953,7 +7020,7 @@ async function captureAzureRouteServerOwnership(plan, api, signal) {
   verifyAzureCePlan(plan);
   if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
   const routeServerId = routeServerIdFor(plan);
-  const server = object6(
+  const server = object7(
     await read(
       api,
       plan,
@@ -6969,7 +7036,7 @@ async function captureAzureRouteServerOwnership(plan, api, signal) {
       signal,
     ),
   );
-  const tags = object6(server.tags);
+  const tags = object7(server.tags);
   const ownerPlanSha256 = tags['xcsh-plan-sha256'];
   if (
     lower(server.id) !== lower(routeServerId) ||
@@ -6987,7 +7054,7 @@ async function captureAzureRouteServerOwnership(plan, api, signal) {
   for (let node = 1; node <= plan.topology.nodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
     const expectedId = `${routeServerId}/bgpConnections/${name}`;
-    const peer = object6(
+    const peer = object7(
       await read(
         api,
         plan,
@@ -7033,13 +7100,13 @@ async function read(api, plan, args, signal) {
   }
 }
 function routeRoles(value) {
-  const response = object6(value);
+  const response = object7(value);
   if (response.nextLink || response.nextPageToken || response.error) throw new Error('Incomplete Route Server routes');
   const roles = Object.entries(response)
     .filter(([name]) => /^RouteServiceRole_IN_[01]$/.test(name))
     .map(([role, routes]) => {
       if (!Array.isArray(routes)) throw new Error('Malformed Route Server role routes');
-      return { role, routes: routes.map(object6) };
+      return { role, routes: routes.map(object7) };
     });
   if (roles.length !== 2 || new Set(roles.map((entry) => entry.role)).size !== 2)
     throw new Error('Both Route Server service-role observations are required');
@@ -7076,7 +7143,7 @@ async function discoverAzureRouteServerIdentity(plan, api, signal, retained) {
   const routeServerId =
     retained?.routeServerId ?? (isNetworkUpdate ? routeServerIdFor(plan) : serverAction[0]?.resourceId);
   const ownerPlanSha256 = retained?.ownerPlanSha256 ?? (isNetworkUpdate ? updateOwnerHashes[0] : plan.planSha256);
-  const server = object6(
+  const server = object7(
     await read(
       api,
       plan,
@@ -7092,7 +7159,7 @@ async function discoverAzureRouteServerIdentity(plan, api, signal, retained) {
       signal,
     ),
   );
-  const tags = object6(server.tags);
+  const tags = object7(server.tags);
   const routerIps = server.virtualRouterIps;
   if (
     lower(server.id) !== lower(routeServerId) ||
@@ -7165,7 +7232,7 @@ async function collectAzureRouteServerHealth(plan, api, signal, retained) {
         '--name',
         name,
       ];
-      const peer = object6(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
+      const peer = object7(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
       if (
         lower(peer.id) !== lower(peerId) ||
         peer.name !== name ||
@@ -7232,7 +7299,7 @@ async function collectAzureRouteServerFailoverHealth(plan, nodeIndex, phase, api
       '--name',
       name,
     ];
-    const peer = object6(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
+    const peer = object7(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
     if (
       lower(peer.id) !== lower(action[0].resourceId) ||
       peer.name !== name ||
@@ -7273,7 +7340,7 @@ async function collectAzureRouteServerFailoverHealth(plan, nodeIndex, phase, api
     observedAt: new Date().toISOString(),
   };
 }
-var object6 = (value) => {
+var object7 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Route Server evidence');
     return value;
   },
@@ -7899,7 +7966,7 @@ var init_relay_deployment_plan = __esm(() => {
 });
 
 // plugins/azure/src/ce/native-action-recovery.ts
-function object7(value, message) {
+function object8(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
 }
@@ -8064,7 +8131,7 @@ async function readResource(plan, resourceId, api, signal, vm = false) {
   }
   let value;
   try {
-    value = object7(JSON.parse(result.stdout), 'Malformed Azure pending mutation postcondition evidence');
+    value = object8(JSON.parse(result.stdout), 'Malformed Azure pending mutation postcondition evidence');
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error('Malformed Azure pending mutation postcondition evidence');
     throw error;
@@ -8074,7 +8141,7 @@ async function readResource(plan, resourceId, api, signal, vm = false) {
   return value;
 }
 function assertOwner(plan, value, expectedPlanSha256 = plan.planSha256) {
-  const tags = object7(value.tags, 'Azure pending mutation ownership tags are unavailable');
+  const tags = object8(value.tags, 'Azure pending mutation ownership tags are unavailable');
   if (
     tags['xcsh-managed-by'] !== 'azure-ce' ||
     tags['xcsh-deployment-id'] !== plan.deploymentName ||
@@ -8119,7 +8186,7 @@ function routeMatches(route, action) {
 }
 function childPostcondition(action, value) {
   const args = action.args ?? [];
-  const properties = object7(value.properties ?? {}, 'Azure pending mutation properties are malformed');
+  const properties = object8(value.properties ?? {}, 'Azure pending mutation properties are malformed');
   if (action.kind === 'subnet-create') {
     const expected = options(args, '--address-prefixes');
     const actual = Array.isArray(properties.addressPrefixes) ? properties.addressPrefixes : [properties.addressPrefix];
@@ -8491,7 +8558,7 @@ function actions(plan, node, verifiedSnapshot = false) {
   return { vm: vm[0], nics };
 }
 function owned(plan, row, owner) {
-  const tags = object8(row.tags);
+  const tags = object9(row.tags);
   require10(
     tags['xcsh-managed-by'] === 'azure-ce' &&
       tags['xcsh-execution-engine'] === plan.engine &&
@@ -8513,7 +8580,7 @@ async function azJson(api, args, signal) {
   }
   if (value && typeof value === 'object' && !Array.isArray(value))
     require10(
-      !['nextLink', 'error', 'errors'].some((key) => object8(value)[key]),
+      !['nextLink', 'error', 'errors'].some((key) => object9(value)[key]),
       'partial or failed cloud observation',
     );
   return value;
@@ -8522,7 +8589,7 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
   verifyAzureCePlan(plan);
   const binding = azureUpgradeBinding(plan);
   for (let node = 1; node <= plan.topology.nodeCount; node++) actions(plan, node);
-  const account = object8(await azJson(api, ['account', 'show', '--subscription', plan.subscription.id], signal));
+  const account = object9(await azJson(api, ['account', 'show', '--subscription', plan.subscription.id], signal));
   require10(
     lower4(account.id) === lower4(plan.subscription.id) &&
       lower4(account.tenantId) === lower4(plan.subscription.tenantId) &&
@@ -8544,13 +8611,13 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
     signal,
   );
   require10(Array.isArray(rawVms), 'complete VM inventory required');
-  const vms = rawVms.map(object8);
+  const vms = rawVms.map(object9);
   const subnets = new Map(),
     vnets = new Map();
   const subnet = async (id) => {
     const key = lower4(id);
     if (subnets.has(key)) return subnets.get(key);
-    const value = object8(
+    const value = object9(
       await azJson(
         api,
         ['network', 'vnet', 'subnet', 'show', '--ids', id, '--subscription', plan.subscription.id],
@@ -8583,14 +8650,14 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
         lower4(vm.location) === lower4(plan.region) &&
         vm.provisioningState === 'Succeeded' &&
         uuid(vm.vmId) &&
-        lower4(object8(vm.hardwareProfile).vmSize) === lower4(plan.vm.size),
+        lower4(object9(vm.hardwareProfile).vmSize) === lower4(plan.vm.size),
       'VM generation or configuration differs',
     );
-    const attached = object8(vm.networkProfile).networkInterfaces;
+    const attached = object9(vm.networkProfile).networkInterfaces;
     require10(
       Array.isArray(attached) &&
         same4(
-          attached.map((item) => lower4(object8(item).id)).sort(),
+          attached.map((item) => lower4(object9(item).id)).sort(),
           planned.nics.map((nic) => lower4(nic.resourceId)).sort(),
         ),
       'complete exact VM/NIC attachment required',
@@ -8599,7 +8666,7 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
     for (const nic of plan.nics) {
       const action = planned.nics.find((a) => lower4(a.resourceId).endsWith(`-nic${nic.index}`));
       const id = action.resourceId;
-      const value = object8(
+      const value = object9(
         await azJson(api, ['network', 'nic', 'show', '--ids', id, '--subscription', plan.subscription.id], signal),
       );
       owned(plan, value, action.expectedOwnerPlanSha256);
@@ -8607,14 +8674,14 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
         lower4(value.id) === lower4(id) &&
           lower4(value.location) === lower4(plan.region) &&
           value.provisioningState === 'Succeeded' &&
-          lower4(object8(value.virtualMachine).id) === lower4(vm.id),
+          lower4(object9(value.virtualMachine).id) === lower4(vm.id),
         'NIC identity or VM attachment differs',
       );
       require10(
         Array.isArray(value.ipConfigurations) && value.ipConfigurations.length === 1,
         'one authoritative IP configuration required',
       );
-      const config = object8(value.ipConfigurations[0]);
+      const config = object9(value.ipConfigurations[0]);
       const configName = config.name;
       require10(
         typeof configName === 'string' &&
@@ -8626,7 +8693,7 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
           ['Dynamic', 'Static'].includes(String(config.privateIPAllocationMethod)),
         'complete IP configuration identity/state required',
       );
-      const sourceId = object8(config.subnet).id,
+      const sourceId = object9(config.subnet).id,
         targetId = argument(action, '--subnet');
       const vnetId = subnetVnet(sourceId, plan);
       require10(
@@ -8636,7 +8703,7 @@ async function captureAzureNetworkUpdateInventory(plan, api, signal) {
       if (!vnets.has(lower4(vnetId)))
         vnets.set(
           lower4(vnetId),
-          object8(
+          object9(
             await azJson(
               api,
               ['network', 'vnet', 'show', '--ids', vnetId, '--subscription', plan.subscription.id],
@@ -8705,7 +8772,7 @@ function validateAzureNetworkUpdateInventory(plan, value) {
   return result;
 }
 function validateInventorySnapshot(plan, value, scopes) {
-  const row = object8(value);
+  const row = object9(value);
   require10(
     exactKeys(row, ['schemaVersion', 'engine', 'planSha256', 'collectedAt', 'nodes']) &&
       row.schemaVersion === 1 &&
@@ -8716,14 +8783,14 @@ function validateInventorySnapshot(plan, value, scopes) {
       Date.parse(row.collectedAt) <= Date.now() + 60000,
     'inventory plan or schema differs',
   );
-  const nodes = object8(row.nodes),
+  const nodes = object9(row.nodes),
     expectedNodes = Array.from({ length: plan.topology.nodeCount }, (_, i) => String(i + 1));
   require10(exactKeys(nodes, expectedNodes), 'complete node inventory required');
   const usedIds = new Set(),
     usedMacs = new Set(),
     usedIps = new Set();
   for (const key of expectedNodes) {
-    const node = object8(nodes[key]);
+    const node = object9(nodes[key]);
     let planned = scopes.get(key);
     if (!planned) {
       planned = actions(plan, Number(key), true);
@@ -8738,7 +8805,7 @@ function validateInventorySnapshot(plan, value, scopes) {
       'VM owner/UUID scope differs or duplicates',
     );
     usedIds.add(lower4(node.vmId));
-    const nics = object8(node.nics);
+    const nics = object9(node.nics);
     require10(
       exactKeys(
         nics,
@@ -8747,7 +8814,7 @@ function validateInventorySnapshot(plan, value, scopes) {
       'complete ordered NIC inventory required',
     );
     for (const nic of plan.nics) {
-      const state = object8(nics[String(nic.index)]),
+      const state = object9(nics[String(nic.index)]),
         action = planned.nics.find((a) => lower4(a.resourceId).endsWith(`-nic${nic.index}`));
       const ipKey = `${lower4(state.subnetId)}:${state.privateIp}`;
       require10(
@@ -8902,13 +8969,13 @@ function azureNetworkUpdateAppliedNics(plan, completed, current, pendingActionId
   return applied;
 }
 function validateAzureNativeNetworkUpdateCheckpoint(plan, value, completed, pendingActionId) {
-  const row = object8(value);
+  const row = object9(value);
   require10(
     plan.engine === 'native' && exactKeys(row, ['before', 'current', ...(row.source !== undefined ? ['source'] : [])]),
     'native network checkpoint schema differs',
   );
   if (row.source !== undefined) {
-    const source = object8(row.source);
+    const source = object9(row.source);
     require10(
       exactKeys(source, [
         'originalPlanSha256',
@@ -8951,7 +9018,7 @@ function validateAzureNativeNetworkUpdateCheckpoint(plan, value, completed, pend
 var require10 = (condition, message) => {
     if (!condition) throw Error(`Azure network update identity: ${message}`);
   },
-  object8 = (value) => {
+  object9 = (value) => {
     require10(value && typeof value === 'object' && !Array.isArray(value), 'malformed cloud record');
     return value;
   },
@@ -8965,7 +9032,7 @@ var require10 = (condition, message) => {
     (Number.parseInt(value.slice(0, 2), 16) & 1) === 0 &&
     value !== '00:00:00:00:00:00',
   exactKeys = (value, names) => {
-    const keys = Object.keys(object8(value)).sort(),
+    const keys = Object.keys(object9(value)).sort(),
       expected = names.toSorted();
     return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
   },
@@ -9525,7 +9592,7 @@ function require11(condition, message) {
 function validateAzureNativeNetworkCheckpointHistory(plan, value) {
   verifyAzureCePlan(plan);
   const profile = verifyAzureNativeNetworkProfile(plan),
-    row = object9(value);
+    row = object10(value);
   require11(
     Object.keys(row).sort().join(',') ===
       'actionReceiptSha256ById,checkpoint,checkpointSha256,engine,kind,owner,schemaVersion,sourcePlanSha256' &&
@@ -9546,7 +9613,7 @@ function validateAzureNativeNetworkCheckpointHistory(plan, value) {
         : checkpoint.networkUpdate.source.networkHistoryPlanSha256s.at(-1) === profile.retainedPlanSha256),
     'complete original and retained source provenance required',
   );
-  const receipts = object9(row.actionReceiptSha256ById),
+  const receipts = object10(row.actionReceiptSha256ById),
     ids = boundaryIds(checkpoint);
   require11(
     Object.entries(receipts).every(
@@ -9572,7 +9639,7 @@ async function persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, stor
       if (error.code !== 'ENOENT') throw error;
     }
     if (value === undefined) continue;
-    const row = object9(value),
+    const row = object10(value),
       action = plan.actions.find((item) => item.id === id);
     require11(
       action &&
@@ -9610,7 +9677,7 @@ async function persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, stor
   if (saved === undefined) await store.write(name, row);
 }
 var same5,
-  object9 = (value) => {
+  object10 = (value) => {
     require11(value && typeof value === 'object' && !Array.isArray(value), 'malformed checkpoint record');
     return value;
   },
@@ -9640,7 +9707,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
     action && (source.intent.operation === 'replace-node' || action.node === source.topology.nodeCount),
     'complete final health action is unavailable',
   );
-  const row = object10(await store.read(`native-action-${source.planSha256}-${action?.id}.json`));
+  const row = object11(await store.read(`native-action-${source.planSha256}-${action?.id}.json`));
   const binding = azureUpgradeBinding(source);
   require12(
     row.schemaVersion === 1 &&
@@ -9651,9 +9718,9 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
       row.actionSha256 === canonicalSha256(action),
     'final public health envelope differs',
   );
-  const evidence = object10(row.evidence),
-    configuration = object10(evidence.configuration),
-    registrations = object10(evidence.registrations);
+  const evidence = object11(row.evidence),
+    configuration = object11(evidence.configuration),
+    registrations = object11(evidence.registrations);
   require12(
     evidence.planId === source.planId &&
       evidence.planSha256 === source.planSha256 &&
@@ -9661,7 +9728,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
       evidence.subscriptionId === source.subscription.id &&
       evidence.siteName === source.siteName &&
       evidence.status === 'healthy' &&
-      object10(evidence.health).status === 'healthy' &&
+      object11(evidence.health).status === 'healthy' &&
       evidence.scope === 'site-global-and-registration-only' &&
       configuration.status === 'configured' &&
       registrations.status === 'healthy' &&
@@ -9675,7 +9742,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
       typeof configuration.contractFingerprint === 'string' &&
       /^sha256:[a-f0-9]{64}$/.test(configuration.contractFingerprint) &&
       registrations.contractFingerprint === configuration.contractFingerprint &&
-      evidence.siteConfigurationSha256 === canonicalSha256(object10(evidence.siteConfiguration)),
+      evidence.siteConfigurationSha256 === canonicalSha256(object11(evidence.siteConfiguration)),
     'original registered configuration or logical-site binding differs',
   );
   require12(
@@ -9689,7 +9756,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
     used = new Set(),
     devices = new Set();
   for (const [index, node] of binding.nodes.entries()) {
-    const rows = registrations.nodes.map(object10).filter((row) => row.node === node);
+    const rows = registrations.nodes.map(object11).filter((row) => row.node === node);
     require12(
       rows.length === 1 &&
         rows[0].status === 'healthy' &&
@@ -9706,7 +9773,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
     for (const nic of source.nics) {
       const expected = inventory.nodes[String(index + 1)].nics[String(nic.index)];
       const matches = configuration.interfaces
-        .map(object10)
+        .map(object11)
         .filter((iface) => iface.node === node && iface.role === nic.role && lower5(iface.mac) === expected.mac);
       require12(
         matches.length === 1 &&
@@ -9729,7 +9796,7 @@ async function readAzureNativeFinalConfiguration(source, inventory, store) {
 var require12 = (condition, message) => {
     if (!condition) throw Error(`Azure native registered configuration: ${message}`);
   },
-  object10 = (value) => {
+  object11 = (value) => {
     require12(value && typeof value === 'object' && !Array.isArray(value), 'malformed provenance record');
     return value;
   },
@@ -9748,7 +9815,7 @@ function require13(condition, message) {
 function validateAzureNativeNetworkHistory(plan, value) {
   verifyAzureCePlan(plan);
   const profile = verifyAzureNativeNetworkProfile(plan),
-    row = object11(value);
+    row = object12(value);
   require13(
     Object.keys(row).sort().join(',') ===
       'engine,finalConfigurationSha256,kind,networkUpdate,owner,schemaVersion,sourcePlanSha256' &&
@@ -9961,7 +10028,7 @@ async function verifyAzureNativeNetworkHistoricalBefore(base, plan, siteUid, net
   );
   require13(origin && origin.siteUid === siteUid, 'historical original source or logical site is missing');
   const birth = await readAzureNativeFinalConfiguration(base, network.before, store),
-    reservation = object11(await store.read('native-site.json'));
+    reservation = object12(await store.read('native-site.json'));
   require13(
     birth.siteUid === siteUid &&
       birth.siteConfigurationSha256 === origin.siteConfigurationSha256 &&
@@ -9985,8 +10052,8 @@ async function verifyAzureNativeNetworkHistoricalBefore(base, plan, siteUid, net
         generation.intent.replacementNode === azureUpgradeBinding(base).nodes.indexOf(node) + 1,
       'retained VM generation source is unresolved',
     );
-    const record = object11(await store.read(`native-replacement-history-${digest}.json`));
-    const replacement = object11(record.replacement);
+    const record = object12(await store.read(`native-replacement-history-${digest}.json`));
+    const replacement = object12(record.replacement);
     require13(
       replacement.status === 'registered' &&
         replacement.siteUid === siteUid &&
@@ -10002,8 +10069,8 @@ async function verifyAzureNativeNetworkHistoricalBefore(base, plan, siteUid, net
         health.instances[node]?.toLowerCase() === uuid.toLowerCase(),
       'registered generation configuration differs',
     );
-    const owners = object11(replacement.ownerPlanSha256ByNode),
-      old = object11(replacement.oldVmIds);
+    const owners = object12(replacement.ownerPlanSha256ByNode),
+      old = object12(replacement.oldVmIds);
     for (const survivor of azureUpgradeBinding(base).nodes) {
       if (survivor !== node)
         require13(
@@ -10037,7 +10104,7 @@ async function verifyAzureNativeNetworkHistoryRecords(base, siteUid, records) {
   const histories = new Map();
   for (const [name, value] of records)
     if (isAzureNativeNetworkHistory(name)) {
-      const source = sources.get(String(object11(value).sourcePlanSha256));
+      const source = sources.get(String(object12(value).sourcePlanSha256));
       require13(source && name === azureNativeNetworkHistoryName(source), 'history source is unresolved');
       const plan = source,
         profile = verifyAzureNativeNetworkProfile(plan);
@@ -10053,7 +10120,7 @@ async function verifyAzureNativeNetworkHistoryRecords(base, siteUid, records) {
       require13(origin.siteUid === siteUid, 'network original logical site differs');
       const birth = await readAzureNativeFinalConfiguration(base, history.networkUpdate.before, store);
       const final = await readAzureNativeFinalConfiguration(plan, history.networkUpdate.current, store);
-      const reservation = object11(await store.read('native-site.json'));
+      const reservation = object12(await store.read('native-site.json'));
       require13(
         birth.siteUid === siteUid &&
           birth.siteConfigurationSha256 === origin.siteConfigurationSha256 &&
@@ -10078,7 +10145,7 @@ async function verifyAzureNativeNetworkHistoryRecords(base, siteUid, records) {
   const checkpoints = new Map();
   for (const [name, value] of records)
     if (isAzureNativeNetworkCheckpointHistory(name)) {
-      const source = sources.get(String(object11(value).sourcePlanSha256));
+      const source = sources.get(String(object12(value).sourcePlanSha256));
       require13(source, 'public checkpoint source is unresolved');
       const row = validateAzureNativeNetworkCheckpointHistory(source, value);
       require13(name === azureNativeNetworkCheckpointHistoryName(row), 'public checkpoint filename differs');
@@ -10203,7 +10270,7 @@ async function verifyAzureNativeNetworkHistoryRecords(base, siteUid, records) {
         const receipts = {};
         for (const [name, value] of records)
           if (name.startsWith(`native-action-${source.planSha256}-`)) {
-            const actionId = String(object11(value).actionId);
+            const actionId = String(object12(value).actionId);
             require13(
               name === `native-action-${source.planSha256}-${actionId}.json` &&
                 source.actions.some((action) => action.id === actionId),
@@ -10219,7 +10286,7 @@ async function verifyAzureNativeNetworkHistoryRecords(base, siteUid, records) {
       }
     }
 }
-var object11 = (value) => {
+var object12 = (value) => {
     require13(value && typeof value === 'object' && !Array.isArray(value), 'malformed history record');
     return value;
   },
@@ -10559,14 +10626,14 @@ async function captureAzureRetainedNicsForSource(original, api, signal) {
     );
     signal?.throwIfAborted();
     require15(raw.exitCode === 0, 'cloud NIC read unavailable');
-    const value = object12(JSON.parse(raw.stdout));
-    const tags = object12(value.tags);
+    const value = object13(JSON.parse(raw.stdout));
+    const tags = object13(value.tags);
     const vm = original.actions.find((item) => item.kind === 'vm-create' && item.node === action.node);
     require15(
       value.provisioningState === 'Succeeded' &&
         lower6(value.location) === lower6(plan.region) &&
         lower6(value.id) === lower6(action.resourceId) &&
-        lower6(object12(value.virtualMachine).id) === lower6(vm?.resourceId) &&
+        lower6(object13(value.virtualMachine).id) === lower6(vm?.resourceId) &&
         tags['xcsh-managed-by'] === 'azure-ce' &&
         tags['xcsh-execution-engine'] === plan.engine &&
         tags['xcsh-deployment-id'] === plan.deploymentName &&
@@ -10578,12 +10645,12 @@ async function captureAzureRetainedNicsForSource(original, api, signal) {
       Array.isArray(value.ipConfigurations) && value.ipConfigurations.length === 1,
       'one exact retained IP configuration required',
     );
-    const config = object12(value.ipConfigurations[0]);
+    const config = object13(value.ipConfigurations[0]);
     require15(config.privateIPAddressVersion === 'IPv4', 'retained IPv4 configuration required');
     const index = action.resourceId?.match(/-nic([0-9]+)$/)?.[1];
     result[`${action.node}:${index}`] = {
       resourceId: String(value.id),
-      subnetId: String(object12(config.subnet).id),
+      subnetId: String(object13(config.subnet).id),
       mac: lower6(value.macAddress).replaceAll('-', ':'),
       privateIp: String(config.privateIPAddress),
       ownerPlanSha256: original.planSha256,
@@ -10596,7 +10663,7 @@ var require15 = (value, message) => {
     if (!value) throw Error(`Azure relay replacement identity: ${message}`);
   },
   lower6 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
-  object12 = (value) => {
+  object13 = (value) => {
     require15(value && typeof value === 'object' && !Array.isArray(value), 'malformed cloud record');
     return value;
   },
@@ -10722,7 +10789,7 @@ function parseBgpSessions(response, expected) {
     )
   )
     throw new Error('Invalid expected BGP session identity');
-  const value = object13(response);
+  const value = object14(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -10732,7 +10799,7 @@ function parseBgpSessions(response, expected) {
   )
     throw new Error('Partial BGP session evidence');
   const expectedNodes = [...new Set(expected.map((item) => item.node))];
-  const nodes = array(value.ver).map(object13);
+  const nodes = array(value.ver).map(object14);
   if (
     nodes.length !== expectedNodes.length ||
     expectedNodes.some((node) => nodes.filter((candidate) => matchesNode(node, candidate.name)).length !== 1)
@@ -10740,8 +10807,8 @@ function parseBgpSessions(response, expected) {
     throw new Error('BGP session node identity differs');
   const actual = nodes.flatMap((node) =>
     array(node.peer).map((item) => {
-      const peer = object13(item);
-      const address = object13(object13(peer.peer_address).ipv4).addr;
+      const peer = object14(item);
+      const address = object14(object14(peer.peer_address).ipv4).addr;
       if (
         typeof node.name !== 'string' ||
         typeof peer.interface_name !== 'string' ||
@@ -10797,7 +10864,7 @@ function parseBgpSessions(response, expected) {
     sessions,
   };
 }
-var object13 = (value) => {
+var object14 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP session evidence');
     return value;
   },
@@ -10819,7 +10886,7 @@ function parseBgpRoutes(response, expectedNodes) {
     expectedNodes.some((node) => !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(node))
   )
     throw new Error('Invalid expected BGP route node identity');
-  const value = object14(response);
+  const value = object15(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -10828,7 +10895,7 @@ function parseBgpRoutes(response, expectedNodes) {
     (value.errors !== undefined && array2(value.errors).length)
   )
     throw new Error('Partial BGP route evidence');
-  const rows = array2(value.ver).map(object14);
+  const rows = array2(value.ver).map(object15);
   if (
     rows.length !== expectedNodes.length ||
     expectedNodes.some((node) => rows.filter((candidate) => matchesNode2(node, candidate.name)).length !== 1)
@@ -10838,16 +10905,16 @@ function parseBgpRoutes(response, expectedNodes) {
     const row = rows.find((candidate) => matchesNode2(node, candidate.name));
     if (!row) throw new Error('BGP route node identity differs');
     const routingInstances = array2(row.ri_table).map((entry) => {
-      const instance = object14(entry);
+      const instance = object15(entry);
       if (typeof instance.routing_instance !== 'string' || !instance.routing_instance)
         throw new Error('Malformed BGP routing instance evidence');
       const tables = array2(instance.rt_table).map((entry) => {
-        const table = object14(entry);
+        const table = object15(entry);
         if (typeof table.name !== 'string' || !table.name) throw new Error('Malformed BGP route table evidence');
         const routes = (kind) => {
           const seen = new Set();
           return array2(table[kind]).map((entry) => {
-            const route = object14(entry);
+            const route = object15(entry);
             if (!cidr(route.subnet) || seen.has(route.subnet)) throw new Error('Malformed BGP route prefix evidence');
             seen.add(route.subnet);
             return route.subnet;
@@ -10870,7 +10937,7 @@ function parseBgpRoutes(response, expectedNodes) {
 function parseBgpRoutePaths(response, expectedNodes) {
   try {
     const inventory = parseBgpRoutes(response, expectedNodes);
-    const rows = array2(object14(response).ver).map(object14);
+    const rows = array2(object15(response).ver).map(object15);
     const text = (value, empty = false) => {
       if (
         typeof value !== 'string' ||
@@ -10886,19 +10953,19 @@ function parseBgpRoutePaths(response, expectedNodes) {
       const row = rows.find((candidate) => matchesNode2(node, candidate.name));
       if (!row) throw Error('BGP route path node identity differs');
       const routingInstances = array2(row.ri_table).map((value) => {
-        const instance = object14(value);
+        const instance = object15(value);
         return {
           name: instance.routing_instance,
           tables: array2(instance.rt_table).map((value) => {
-            const table = object14(value);
+            const table = object15(value);
             const routes = (kind) =>
               array2(table[kind]).map((value) => {
-                const route = object14(value);
+                const route = object15(value);
                 const rawPaths = array2(route.path);
                 if (!rawPaths.length) throw Error('Incomplete BGP route path evidence');
                 const seen = new Set();
                 const path = rawPaths.map((value) => {
-                  const raw = object14(value);
+                  const raw = object15(value);
                   if (Object.keys(raw).some((key) => !['peer', 'nh', 'as_path', 'local_pref', 'med'].includes(key)))
                     throw Error('Unqualified BGP route path fields');
                   const peer = text(raw.peer);
@@ -10934,7 +11001,7 @@ function parseBgpRoutePaths(response, expectedNodes) {
     };
   }
 }
-var object14 = (value) => {
+var object15 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP route evidence');
     return value;
   },
@@ -10962,14 +11029,14 @@ var init_bgp_route_evidence = __esm(() => {
 // plugins/platform/src/ce/wire-schema.ts
 import { isIP as isIP12 } from 'node:net';
 
-function object15(value) {
+function object16(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SMSv2 schema is malformed');
   return value;
 }
 function vendorIntegerRanges(source) {
   const key = 'ves.io.schema.rules.uint32.ranges';
   const annotations = ['x-ves-validation-rules', 'x-validation-rules']
-    .map((name) => (source[name] === undefined ? undefined : object15(source[name])[key]))
+    .map((name) => (source[name] === undefined ? undefined : object16(source[name])[key]))
     .filter((value) => value !== undefined);
   if (!annotations.length) return;
   if (source.type !== 'integer' || annotations.some((value) => typeof value !== 'string'))
@@ -11001,14 +11068,14 @@ function requestSchema(schemas, root) {
   const referenced = new Set();
   function convert(value) {
     if (typeof value === 'boolean') return value;
-    const source = object15(value);
+    const source = object16(value);
     if (source.readOnly === true) return false;
     const result = {};
     for (const [key, item] of Object.entries(source)) {
       if (keywords.has(key)) result[key] = item;
       if (key === 'required' && Array.isArray(item))
         result.required = item.map((name) => {
-          const property = object15(source.properties ?? {})[String(name)];
+          const property = object16(source.properties ?? {})[String(name)];
           return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
         });
       if (key === '$ref') {
@@ -11021,8 +11088,8 @@ function requestSchema(schemas, root) {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object15(item)).map(([name, schema]) => {
-            const wireName = object15(schema)['x-f5xc-wire-name'];
+          Object.entries(object16(item)).map(([name, schema]) => {
+            const wireName = object16(schema)['x-f5xc-wire-name'];
             return [typeof wireName === 'string' ? wireName : name, convert(schema)];
           }),
         );
@@ -11054,7 +11121,7 @@ function requestSchema(schemas, root) {
       if (!Array.isArray(names) || names.some((name) => typeof name !== 'string'))
         throw new Error('Malformed SMSv2 oneof group');
       const wireNames = names.map((name) => {
-        const property = object15(source.properties ?? {})[String(name)];
+        const property = object16(source.properties ?? {})[String(name)];
         return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
       });
       for (let i = 0; i < wireNames.length; i++)
@@ -11077,10 +11144,10 @@ function createWireValidator(
   const schema = requestSchema(schemas, root);
   if (observedInterfaceIdentityEcho) {
     if (root !== 'securemesh_site_v2ReplaceRequest') throw new Error('Identity echo requires a replacement snapshot');
-    const properties = object15(object15(schemas.securemesh_site_v2Interface).properties);
-    const projected = object15(object15(object15(schema.definitions).securemesh_site_v2Interface).properties);
+    const properties = object16(object16(schemas.securemesh_site_v2Interface).properties);
+    const projected = object16(object16(object16(schema.definitions).securemesh_site_v2Interface).properties);
     for (const field of ['is_primary', 'is_management']) {
-      const source = object15(properties[field]);
+      const source = object16(properties[field]);
       if (source.readOnly !== true || source.type !== 'boolean') throw new Error('Interface identity schema changed');
       projected[field] = { type: 'boolean' };
     }
@@ -11149,7 +11216,7 @@ function firstFailure(schemaValue, value, document) {
   if (typeof schemaValue.$ref === 'string') {
     const prefix = '#/definitions/';
     if (!schemaValue.$ref.startsWith(prefix)) return '$ref';
-    const definition = object15(document.definitions)[schemaValue.$ref.slice(prefix.length)];
+    const definition = object16(document.definitions)[schemaValue.$ref.slice(prefix.length)];
     if (definition === undefined) return '$ref';
     const failure = firstFailure(definition, value, document);
     if (failure) return failure;
@@ -11215,7 +11282,7 @@ function firstFailure(schemaValue, value, document) {
       return 'minProperties';
     if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties)
       return 'maxProperties';
-    const properties = schemaValue.properties ? object15(schemaValue.properties) : undefined;
+    const properties = schemaValue.properties ? object16(schemaValue.properties) : undefined;
     for (const [key, item] of entries) {
       const propertySchema = properties?.[key];
       if (propertySchema !== undefined) {
@@ -11623,12 +11690,12 @@ function verifyRequest(request) {
 }
 function parseAzureRelayGuestReceipt(request, raw) {
   verifyRequest(request);
-  const result = object16(raw);
+  const result = object17(raw);
   require17(
     !result.nextLink && !result.error && Array.isArray(result.value) && result.value.length === 2,
     'complete guest stdout/stderr required',
   );
-  const values = result.value.map(object16);
+  const values = result.value.map(object17);
   const stdout = values.filter((value) => value.code === 'ComponentStatus/StdOut/succeeded' && value.level === 'Info');
   const stderr = values.filter((value) => value.code === 'ComponentStatus/StdErr/succeeded' && value.level === 'Info');
   require17(
@@ -11643,7 +11710,7 @@ function parseAzureRelayGuestReceipt(request, raw) {
   const lines = stdout[0].message.trim().split(`
 `);
   require17(lines.length === 1 && lines[0].startsWith(prefix), 'one nonce-bound guest receipt required');
-  const value = object16(JSON.parse(lines[0].slice(prefix.length)));
+  const value = object17(JSON.parse(lines[0].slice(prefix.length)));
   require17(
     Object.keys(value).sort().join(',') ===
       [...Object.keys(request.expected), 'status', 'imageId', 'interfaceName', 'containerId'].sort().join(','),
@@ -11677,7 +11744,7 @@ function parseAzureRelayGuestReceipt(request, raw) {
 var require17 = (condition, message) => {
     if (!condition) throw Error(`Azure relay guest: ${message}`);
   },
-  object16 = (value) => {
+  object17 = (value) => {
     require17(value && typeof value === 'object' && !Array.isArray(value), 'malformed response');
     return value;
   },
@@ -11899,14 +11966,14 @@ ${python}XCSH_RELAY_GUEST`;
 function parseAzureRelayGuestSessions(request, raw) {
   const { requestSha256, ...draft } = request;
   require18(requestSha256 === canonicalSha256(draft), 'request integrity differs');
-  const result = object17(raw);
+  const result = object18(raw);
   require18(
     Object.keys(result).every((key) => ['value', 'name', 'startTime', 'endTime'].includes(key)) &&
       Array.isArray(result.value) &&
       result.value.length === 2,
     'complete public command result required',
   );
-  const values = result.value.map(object17);
+  const values = result.value.map(object18);
   const stdout = values.filter((row) => row.code === 'ComponentStatus/StdOut/succeeded' && row.level === 'Info');
   const stderr = values.filter((row) => row.code === 'ComponentStatus/StdErr/succeeded' && row.level === 'Info');
   require18(
@@ -11921,7 +11988,7 @@ function parseAzureRelayGuestSessions(request, raw) {
   const lines = stdout[0].message.trim().split(`
 `);
   require18(lines.length === 1 && lines[0].startsWith(prefix), 'one nonce-bound session receipt required');
-  const payload = object17(JSON.parse(lines[0].slice(prefix.length)));
+  const payload = object18(JSON.parse(lines[0].slice(prefix.length)));
   require18(Object.keys(payload).sort().join(',') === 'guest,sessions', 'unexpected session receipt fields');
   const guest = parseAzureRelayGuestReceipt(request.observation, {
     value: [
@@ -11937,7 +12004,7 @@ function parseAzureRelayGuestSessions(request, raw) {
     Array.isArray(payload.sessions) && payload.sessions.length === request.sessionBinding.peers.length,
     'complete FRR session scope required',
   );
-  const sessions = payload.sessions.map(object17);
+  const sessions = payload.sessions.map(object18);
   const unavailable = request.sessionBinding.unavailablePeer;
   if (unavailable)
     require18(
@@ -11999,7 +12066,7 @@ function parseAzureRelayGuestSessions(request, raw) {
 var require18 = (value, message) => {
     if (!value) throw Error(`Azure relay guest sessions: ${message}`);
   },
-  object17 = (value) => {
+  object18 = (value) => {
     require18(value && typeof value === 'object' && !Array.isArray(value), 'malformed session evidence');
     return value;
   };
@@ -12110,12 +12177,12 @@ ${python}XCSH_RELAY_GUEST`;
 function parseAzureRelayGuestRoute(request, raw) {
   const { requestSha256, ...draft } = request;
   require19(requestSha256 === canonicalSha256(draft), 'request integrity differs');
-  const value = object18(raw);
+  const value = object19(raw);
   require19(
     !value.error && !value.nextLink && Array.isArray(value.value) && value.value.length === 2,
     'complete public command result required',
   );
-  const entries = value.value.map(object18);
+  const entries = value.value.map(object19);
   const stdout = entries.filter((row) => row.code === 'ComponentStatus/StdOut/succeeded' && row.level === 'Info');
   const stderr = entries.filter((row) => row.code === 'ComponentStatus/StdErr/succeeded' && row.level === 'Info');
   require19(
@@ -12131,7 +12198,7 @@ function parseAzureRelayGuestRoute(request, raw) {
   const lines = stdout[0].message.trim().split(`
 `);
   require19(lines.length === 1 && lines[0].startsWith(prefix), 'one nonce-bound route receipt required');
-  const payload = object18(JSON.parse(lines[0].slice(prefix.length)));
+  const payload = object19(JSON.parse(lines[0].slice(prefix.length)));
   require19(Object.keys(payload).sort().join(',') === 'route,session', 'unexpected route receipt fields');
   const session = parseAzureRelayGuestSessions(request.sessionRequest, {
     value: [
@@ -12143,7 +12210,7 @@ function parseAzureRelayGuestRoute(request, raw) {
       { code: 'ComponentStatus/StdErr/succeeded', level: 'Info', message: '' },
     ],
   });
-  const route = object18(payload.route);
+  const route = object19(payload.route);
   const binding = request.routeBinding;
   const asn = binding.sourcePeers[0].asn;
   require19(
@@ -12186,7 +12253,7 @@ function parseAzureRelayGuestRoute(request, raw) {
 var require19 = (value, message) => {
     if (!value) throw Error(`Azure relay guest routes: ${message}`);
   },
-  object18 = (value) => {
+  object19 = (value) => {
     require19(value && typeof value === 'object' && !Array.isArray(value), 'malformed route evidence');
     return value;
   };
@@ -12270,12 +12337,12 @@ ${python}XCSH_RELAY_GUEST`;
 function parseAzureRelayGuestFib(request, raw) {
   const { requestSha256, ...draft } = request;
   require20(requestSha256 === canonicalSha256(draft), 'request integrity differs');
-  const value = object19(raw);
+  const value = object20(raw);
   require20(
     !value.error && !value.nextLink && Array.isArray(value.value) && value.value.length === 2,
     'complete public response required',
   );
-  const entries = value.value.map(object19);
+  const entries = value.value.map(object20);
   const stdout = entries.filter((entry) => entry.code === 'ComponentStatus/StdOut/succeeded' && entry.level === 'Info');
   const stderr = entries.filter((entry) => entry.code === 'ComponentStatus/StdErr/succeeded' && entry.level === 'Info');
   require20(
@@ -12291,7 +12358,7 @@ function parseAzureRelayGuestFib(request, raw) {
   const lines = stdout[0].message.trim().split(`
 `);
   require20(lines.length === 1 && lines[0].startsWith(marker), 'one nonce-bound FIB receipt required');
-  const payload = object19(JSON.parse(lines[0].slice(marker.length)));
+  const payload = object20(JSON.parse(lines[0].slice(marker.length)));
   require20(Object.keys(payload).sort().join(',') === 'fib,membership', 'unexpected receipt fields');
   const membership = parseAzureRelayGuestRoute(request.routeRequest, {
     value: [
@@ -12303,9 +12370,9 @@ function parseAzureRelayGuestFib(request, raw) {
       { code: 'ComponentStatus/StdErr/succeeded', level: 'Info', message: '' },
     ],
   });
-  const fib = object19(payload.fib);
+  const fib = object20(payload.fib);
   const binding = request.fibBinding;
-  const guest = object19(membership.session.guest);
+  const guest = object20(membership.session.guest);
   require20(
     Object.keys(fib).sort().join(',') ===
       'installed,interfaceIndex,interfaceName,lookupAddress,nextHop,prefix,protocol,sourceAddress,table' &&
@@ -12335,7 +12402,7 @@ function parseAzureRelayGuestFib(request, raw) {
 var require20 = (value, message) => {
     if (!value) throw Error(`Azure relay guest FIB: ${message}`);
   },
-  object19 = (value) => {
+  object20 = (value) => {
     require20(value && typeof value === 'object' && !Array.isArray(value), 'malformed evidence');
     return value;
   };
@@ -12383,7 +12450,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   const plan = azureRelayPlanForDeployment(source),
     resourceSource = azureRelayResourceSource(source),
     binding = azureUpgradeBinding(source);
-  const journal = object20(records.get('relay-routing-workflow.json'));
+  const journal = object21(records.get('relay-routing-workflow.json'));
   keys(journal, [
     'schemaVersion',
     'engine',
@@ -12403,10 +12470,10 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
       sha2(journal.bindingSha256),
     'workflow owner, engine or site differs',
   );
-  const identity = object20(journal.identity);
+  const identity = object21(journal.identity);
   keys(identity, ['stable', 'server', 'slo', 'endpoints']);
-  const stable = object20(identity.stable),
-    server = object20(identity.server);
+  const stable = object21(identity.stable),
+    server = object21(identity.server);
   keys(server, [
     'status',
     'source',
@@ -12597,8 +12664,8 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
             slo[0].interfaceName === row.interfaceName &&
             slo[0].linkUp === true &&
             same9(slo[0].ipv4, row.ipv4) &&
-            endpoints[0].address === object20(row.ipv4).address &&
-            object20(row.ipv4).prefixLength === Number(plan.sloCidr.split('/')[1]),
+            endpoints[0].address === object21(row.ipv4).address &&
+            object21(row.ipv4).prefixLength === Number(plan.sloCidr.split('/')[1]),
           'SLO endpoint binding differs',
         );
       }
@@ -12608,7 +12675,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   const activation = (relayName, nonce) =>
     compileAzureRelayGuestActivation(source, plan, relayName, historical.server, historical.endpoints, nonce);
   for (const relay of plan.relays) activation(relay.name, '0'.repeat(32));
-  const entries = object20(journal.relays),
+  const entries = object21(journal.relays),
     names = Object.keys(entries),
     nonces = new Set();
   require21(
@@ -12617,7 +12684,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   );
   const receipts = [];
   for (const name of names) {
-    const entry = object20(entries[name]);
+    const entry = object21(entries[name]);
     keys(entry, ['nonce', 'requestSha256', 'submitted', ...('receipt' in entry ? ['receipt'] : [])]);
     require21(
       entry.submitted === true &&
@@ -12630,7 +12697,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
     const request = activation(name, entry.nonce);
     require21(entry.requestSha256 === request.requestSha256, 'compiled submission digest differs');
     if ('receipt' in entry) {
-      const receipt = object20(entry.receipt),
+      const receipt = object21(entry.receipt),
         probe = compileAzureRelayGuestObservation(request);
       require21(
         [request.requestSha256, probe.requestSha256].includes(String(receipt.requestSha256)),
@@ -12653,7 +12720,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   const routing = buildAzureRelayRouting(source.siteName, plan.localAsn, slo, relays, () => {});
   const platform = records.get('platform-relay-routing.json');
   if (platform !== undefined) {
-    const value = object20(platform);
+    const value = object21(platform);
     keys(value, [
       'kind',
       'name',
@@ -12687,7 +12754,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   require21(names.length === 0 || platform !== undefined, 'submitted guests require platform routing provenance');
   const configuration = records.get('relay-routing-configuration.json');
   if (configuration !== undefined) {
-    const value = object20(configuration);
+    const value = object21(configuration);
     keys(value, [
       'status',
       'sourcePlanSha256',
@@ -12719,7 +12786,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
   const observation = records.get('relay-routing-observation.json');
   if (observation !== undefined) {
     require21(configuration !== undefined, 'observation requires completed configuration');
-    const value = object20(observation);
+    const value = object21(observation);
     keys(value, [
       ...(outage ? ['outage'] : []),
       'status',
@@ -12756,7 +12823,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
       'observation identity or unsupported acceptance claim differs',
     );
     if (outage) {
-      const selected = object20(value.outage);
+      const selected = object21(value.outage);
       keys(selected, [
         'nodeIndex',
         'powerState',
@@ -12775,7 +12842,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
     }
     timestamp(value.collectedAt);
     for (const key of ['sessions', 'finalSessions', 'ceRoutes']) {
-      const row = object20(value[key]);
+      const row = object21(value[key]);
       require21(
         same9(row.owner, binding.owner) &&
           row.siteName === source.siteName &&
@@ -12785,7 +12852,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
       timestamp(row.observedAt);
       require21(Array.isArray(row[key === 'ceRoutes' ? 'nodes' : 'sessions']), 'malformed CE routing observation');
       require21(
-        row.contractFingerprint === object20(platform).contractFingerprint &&
+        row.contractFingerprint === object21(platform).contractFingerprint &&
           typeof row.source === 'string' &&
           row.source.length > 0,
         'CE routing contract provenance differs',
@@ -12807,7 +12874,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
         };
         require21(same9(parseBgpRoutes(wire, observedNodes).nodes, nodes), 'CE route inventory provenance differs');
         if (row.pathInventory !== undefined) {
-          const paths = object20(row.pathInventory);
+          const paths = object21(row.pathInventory);
           require21(
             ['observed', 'unknown'].includes(String(paths.status)) &&
               paths.scope === 'unqualified' &&
@@ -12883,8 +12950,8 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
       ];
       for (const task of tasks) {
         const row = array3(value.guestRoutes)[routeIndex++],
-          session = object20(row.session),
-          guest = object20(session.guest);
+          session = object21(row.session),
+          guest = object21(session.guest);
         const nonce = guest.nonce;
         require21(
           typeof nonce === 'string' && /^[a-f0-9]{32}$/.test(nonce) && !probeNonces.has(nonce),
@@ -12911,7 +12978,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
         };
         const parsed = parseAzureRelayGuestRoute(routeRequest, rawResult('XCSH_RELAY_ROUTE', nonce, payload));
         require21(same9(withoutCollectionTimes(row), withoutCollectionTimes(parsed)), 'guest route provenance differs');
-        const configured = object20(object20(entries[relay.name]).receipt);
+        const configured = object21(object21(entries[relay.name]).receipt);
         require21(
           ['containerId', 'imageId', 'interfaceName'].every((key) => guest[key] === configured[key]),
           'guest changed since configuration',
@@ -12933,7 +13000,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
       routeIndex === array3(value.guestRoutes).length && fibIndex === array3(value.guestFib).length,
       'duplicate or surplus route observations',
     );
-    const cloud = object20(value.cloudRoutes);
+    const cloud = object21(value.cloudRoutes);
     keys(cloud, [
       'status',
       'source',
@@ -13062,7 +13129,7 @@ function verifyAzureRelayHistoricalArtifacts(source, siteUid, records, outage) {
 }
 function requireAzureRelayHistoricalAcceptance(source, siteUid, records) {
   verifyAzureRelayHistoricalArtifacts(source, siteUid, records);
-  const observation = object20(records.get('relay-routing-observation.json'));
+  const observation = object21(records.get('relay-routing-observation.json'));
   require21(
     observation.routing === 'healthy' &&
       observation.ceSampleFreshnessQualified === true &&
@@ -13106,13 +13173,13 @@ var azureRelayHistoricalArtifacts,
   require21 = (condition, message) => {
     if (!condition) throw Error(`Azure relay artifact provenance: ${message}`);
   },
-  object20 = (value) => {
+  object21 = (value) => {
     require21(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
   array3 = (value) => {
     require21(Array.isArray(value), 'malformed list');
-    return value.map(object20);
+    return value.map(object21);
   },
   keys = (value, expected) =>
     require21(Object.keys(value).sort().join(',') === expected.toSorted().join(','), 'record fields differ'),
@@ -13199,7 +13266,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
       outage.baselineRecords.has('relay-routing-configuration.json'),
       'completed baseline configuration required',
     );
-    const journal = object21(outage.baselineRecords.get('relay-routing-workflow.json'));
+    const journal = object22(outage.baselineRecords.get('relay-routing-workflow.json'));
     verifyAzureRelayHistoricalArtifacts(source, String(journal.siteUid), outage.baselineRecords);
     baseline = journal;
   }
@@ -13238,7 +13305,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
       ),
     );
     require22(raw.exitCode === 0, 'cloud identity read unavailable');
-    const value = object21(JSON.parse(raw.stdout));
+    const value = object22(JSON.parse(raw.stdout));
     require22(
       sameId2(value.id, id) &&
         value.provisioningState === 'Succeeded' &&
@@ -13246,7 +13313,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
         !['nextLink', 'nextPageToken', 'errors', 'error'].some((key) => value[key]),
       'incomplete or foreign cloud identity',
     );
-    const tags = object21(value.tags);
+    const tags = object22(value.tags);
     for (const [key, wanted] of Object.entries({
       'xcsh-managed-by': 'azure-ce',
       'xcsh-execution-engine': source.engine,
@@ -13268,7 +13335,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
         }),
       );
       require22(raw.exitCode === 0, 'outage account read unavailable');
-      const account = object21(JSON.parse(raw.stdout));
+      const account = object22(JSON.parse(raw.stdout));
       require22(
         sameId2(account.id, source.subscription.id) &&
           sameId2(account.tenantId, source.subscription.tenantId) &&
@@ -13279,7 +13346,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
       );
     }
     const site = await bounded(() => runtime.observeOwnedSite(binding, deadline));
-    const siteUid = object21(site.system_metadata).uid;
+    const siteUid = object22(site.system_metadata).uid;
     require22(typeof siteUid === 'string' && siteUid.trim(), 'logical site UID unavailable');
     require22(
       expected.length === binding.nodes.length * source.nics.length &&
@@ -13331,7 +13398,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
         'distinct CE VM UUID required',
       );
       usedVms.add(vm.vmId.toLowerCase());
-      const references = object21(vm.networkProfile).networkInterfaces;
+      const references = object22(vm.networkProfile).networkInterfaces;
       require22(
         Array.isArray(references) && references.length === source.nics.length,
         'complete CE VM NIC references required',
@@ -13345,9 +13412,9 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
         );
         require22(actions.length === 1 && actions[0].resourceId, 'one saved CE NIC required');
         const nicId = actions[0].resourceId;
-        require22(references.filter((ref) => sameId2(object21(ref).id, nicId)).length === 1, 'CE VM NIC join differs');
+        require22(references.filter((ref) => sameId2(object22(ref).id, nicId)).length === 1, 'CE VM NIC join differs');
         const nic = await read(['network', 'nic'], nicId);
-        require22(sameId2(object21(nic.virtualMachine).id, vmId), 'CE NIC VM attachment differs');
+        require22(sameId2(object22(nic.virtualMachine).id, vmId), 'CE NIC VM attachment differs');
         const normalized = mac3(nic.macAddress);
         require22(!usedMacs.has(normalized), 'CE MAC duplicated');
         usedMacs.add(normalized);
@@ -13366,7 +13433,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
         );
         const configs = nic.ipConfigurations;
         require22(Array.isArray(configs) && configs.length === 1, 'one complete CE NIC IP configuration required');
-        const config = object21(configs[0]);
+        const config = object22(configs[0]);
         require22(
           typeof config.name === 'string' &&
             /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/.test(config.name) &&
@@ -13379,7 +13446,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
             action.args?.[action.args.indexOf('--name') + 1] === selected.subnet.name,
         );
         require22(
-          subnets.length === 1 && subnets[0].resourceId && sameId2(object21(config.subnet).id, subnets[0].resourceId),
+          subnets.length === 1 && subnets[0].resourceId && sameId2(object22(config.subnet).id, subnets[0].resourceId),
           'CE subnet join differs',
         );
         if (selected.role === 'slo') {
@@ -13412,7 +13479,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
     }
     const server = await observeAzureRelayRouteServerIdentity(source, plan, api, deadline);
     const finalSite = await bounded(() => runtime.observeOwnedSite(binding, deadline));
-    require22(object21(finalSite.system_metadata).uid === siteUid, 'logical site changed during identity collection');
+    require22(object22(finalSite.system_metadata).uid === siteUid, 'logical site changed during identity collection');
     const stable = {
       siteUid,
       cloud,
@@ -13459,7 +13526,7 @@ async function azureRelayCurrentIdentityContext(source, expected, runtime, stora
 var require22 = (condition, message) => {
     if (!condition) throw Error(`Azure relay workflow: ${message}`);
   },
-  object21 = (value) => {
+  object22 = (value) => {
     require22(value && typeof value === 'object' && !Array.isArray(value), 'malformed current identity');
     return value;
   },
@@ -13512,7 +13579,7 @@ function parseAzureRelayRouteExchange(source, plan, relayName, identity, learned
     'selected relay peer identity differs',
   );
   const roles = (raw, direction) => {
-    const map = object22(raw);
+    const map = object23(raw);
     require23(
       Object.keys(map).sort().join(',') === 'RouteServiceRole_IN_0,RouteServiceRole_IN_1',
       'two complete service-role route lists required',
@@ -13523,7 +13590,7 @@ function parseAzureRelayRouteExchange(source, plan, relayName, identity, learned
         require23(Array.isArray(values), 'malformed service-role routes');
         const seen = new Set();
         const routes = values.map((entry) => {
-          const route = object22(entry);
+          const route = object23(entry);
           require23(
             prefix3(route.network) &&
               typeof route.localAddress === 'string' &&
@@ -13688,7 +13755,7 @@ async function observeAzureRelayRouteExchange(source, plan, api, signal) {
 var require23 = (value, message) => {
     if (!value) throw Error(`Azure relay route evidence: ${message}`);
   },
-  object22 = (value) => {
+  object23 = (value) => {
     require23(value && typeof value === 'object' && !Array.isArray(value), 'malformed route map');
     return value;
   },
@@ -13738,7 +13805,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
   );
   const { plan, binding, bounded, deadline, observe } = context;
   source = context.source;
-  const journal = object23(await storage.read('relay-routing-workflow.json'));
+  const journal = object24(await storage.read('relay-routing-workflow.json'));
   require24(
     Object.keys(journal).sort().join(',') ===
       'bindingSha256,engine,identity,relayPlanSha256,relays,schemaVersion,siteUid,sourcePlanSha256' &&
@@ -13748,7 +13815,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
       journal.relayPlanSha256 === plan.planSha256,
     'checkpoint owner or shape differs',
   );
-  const entries = object23(journal.relays);
+  const entries = object24(journal.relays);
   require24(
     Object.keys(entries).join(',') === plan.relays.map((relay) => relay.name).join(','),
     'complete ordered configured relay checkpoint required',
@@ -13767,7 +13834,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
   const guestIdentity = new Map();
   const usedNonces = new Set();
   for (const relay of plan.relays) {
-    const entry = object23(entries[relay.name]);
+    const entry = object24(entries[relay.name]);
     require24(
       Object.keys(entry).sort().join(',') === 'nonce,receipt,requestSha256,submitted' &&
         entry.submitted === true &&
@@ -13787,7 +13854,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
     );
     const observation = compileAzureRelayGuestObservation(activation);
     require24(entry.requestSha256 === activation.requestSha256, 'saved guest request differs');
-    const receipt = object23(entry.receipt);
+    const receipt = object24(entry.receipt);
     require24(
       Object.keys(receipt).sort().join(',') ===
         [
@@ -13895,7 +13962,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
       const prior = guestIdentity.get(relay.name);
       for (const key of ['containerId', 'imageId', 'interfaceName'])
         require24(
-          object23(evidence.session.guest)[key] === prior?.[key],
+          object24(evidence.session.guest)[key] === prior?.[key],
           'guest runtime changed since owned configuration',
         );
       guestRoutes.push(evidence);
@@ -13933,7 +14000,7 @@ async function observeAzureRelayRoutingWorkflow(source, expected, runtime, stora
 var require24 = (condition, message) => {
     if (!condition) throw Error(`Azure relay observation: ${message}`);
   },
-  object23 = (value) => {
+  object24 = (value) => {
     require24(value && typeof value === 'object' && !Array.isArray(value), 'malformed owned checkpoint');
     return value;
   };
@@ -14834,7 +14901,7 @@ async function qualifyAzureNativeNetworkUpdateSource(plan, before, store, load) 
       same10(azureNativeNetworkScope(plan, true), azureNativeNetworkScope(original, true)),
     'original creation scope differs beyond permitted subnets',
   );
-  const site = object24(await store.read('native-site.json'));
+  const site = object25(await store.read('native-site.json'));
   const generations = new Set(),
     boundaries = new Map();
   const readSource = async (sha) => {
@@ -14955,7 +15022,7 @@ async function verifyAzureNativeNetworkUpdateSite(plan, source, runtime, signal)
   const binding = azureUpgradeBinding(plan),
     site = await runtime.observeOwnedSite(binding, signal);
   require26(
-    object24(site.system_metadata).uid === source.siteUid &&
+    object25(site.system_metadata).uid === source.siteUid &&
       canonicalSha256(runtime.ownedSiteConfiguration(binding, site)) === source.siteConfigurationSha256,
     'owned logical-site identity or configuration changed',
   );
@@ -14963,7 +15030,7 @@ async function verifyAzureNativeNetworkUpdateSite(plan, source, runtime, signal)
 var require26 = (condition, message) => {
     if (!condition) throw Error(`Azure native network source: ${message}`);
   },
-  object24 = (value) => {
+  object25 = (value) => {
     require26(value && typeof value === 'object' && !Array.isArray(value), 'malformed provenance record');
     return value;
   },
@@ -15049,12 +15116,12 @@ async function captureAzureNativeNetworkReplacementNics(plan, inventory, api, si
       require27(raw.exitCode === 0, 'current NIC evidence unavailable');
       let row;
       try {
-        row = object25(JSON.parse(raw.stdout));
+        row = object26(JSON.parse(raw.stdout));
       } catch {
         throw Error('Azure native network replacement execution: malformed NIC evidence');
       }
-      const tags = object25(row.tags);
-      const attachment = row.virtualMachine == null ? undefined : object25(row.virtualMachine);
+      const tags = object26(row.tags);
+      const attachment = row.virtualMachine == null ? undefined : object26(row.virtualMachine);
       require27(
         lower9(row.id) === lower9(expected.resourceId) &&
           lower9(row.location) === lower9(plan.region) &&
@@ -15072,13 +15139,13 @@ async function captureAzureNativeNetworkReplacementNics(plan, inventory, api, si
           row.ipConfigurations.length === 1,
         'retained NIC ownership/MAC/attachment differs',
       );
-      const ip = object25(row.ipConfigurations[0]);
+      const ip = object26(row.ipConfigurations[0]);
       require27(
         lower9(ip.id) === lower9(expected.ipConfigurationId) &&
           ip.name === expected.ipConfigurationName &&
           ip.privateIPAddressVersion === 'IPv4' &&
           ip.privateIPAllocationMethod === expected.allocation &&
-          lower9(object25(ip.subnet).id) === lower9(expected.subnetId) &&
+          lower9(object26(ip.subnet).id) === lower9(expected.subnetId) &&
           ip.privateIPAddress === expected.privateIp &&
           usableAzureNetworkAddress(ip.privateIPAddress, expected.subnetCidr),
         'retained IP configuration/address/subnet differs',
@@ -15153,8 +15220,8 @@ async function verifyAzureNativeNetworkReplacementExecution(
     if (raw.exitCode !== 0) {
       let code;
       try {
-        const error = object25(JSON.parse(raw.stderr || raw.stdout));
-        code = object25(error.error ?? error).code;
+        const error = object26(JSON.parse(raw.stderr || raw.stdout));
+        code = object26(error.error ?? error).code;
       } catch {
         code = undefined;
       }
@@ -15167,11 +15234,11 @@ async function verifyAzureNativeNetworkReplacementExecution(
     }
     let row;
     try {
-      row = object25(JSON.parse(raw.stdout));
+      row = object26(JSON.parse(raw.stdout));
     } catch {
       throw Error('Azure native network replacement execution: malformed VM evidence');
     }
-    const tags = object25(row.tags),
+    const tags = object26(row.tags),
       uuid = lower9(row.vmId),
       isOld = uuid === before.vmId.toLowerCase() && tags['xcsh-plan-sha256'] === before.ownerPlanSha256;
     const isNew =
@@ -15179,18 +15246,18 @@ async function verifyAzureNativeNetworkReplacementExecution(
       !Object.values(value.oldVmIds).some((id) => id.toLowerCase() === uuid) &&
       tags['xcsh-plan-sha256'] === plan.planSha256 &&
       (!value.newVmId || value.newVmId.toLowerCase() === uuid);
-    const attached = object25(row.networkProfile).networkInterfaces;
+    const attached = object26(row.networkProfile).networkInterfaces;
     require27(
       Array.isArray(attached) &&
         same11(
-          attached.map((nic) => lower9(object25(nic).id)),
+          attached.map((nic) => lower9(object26(nic).id)),
           Object.values(before.nics).map((nic) => lower9(nic.resourceId)),
         ),
       'VM-side retained interface binding differs',
     );
     if (selected && isNew) {
-      const image = object25(object25(row.storageProfile).imageReference),
-        marketplace = object25(row.plan);
+      const image = object26(object26(row.storageProfile).imageReference),
+        marketplace = object26(row.plan);
       require27(
         lower9(image.publisher) === lower9(plan.image.publisher) &&
           lower9(image.offer) === lower9(plan.image.offer) &&
@@ -15207,7 +15274,7 @@ async function verifyAzureNativeNetworkReplacementExecution(
         row.name === `${plan.deploymentName}-${index}` &&
         lower9(row.location) === lower9(plan.region) &&
         row.provisioningState === 'Succeeded' &&
-        lower9(object25(row.hardwareProfile).vmSize) === lower9(plan.vm.size) &&
+        lower9(object26(row.hardwareProfile).vmSize) === lower9(plan.vm.size) &&
         tags['xcsh-managed-by'] === 'azure-ce' &&
         tags['xcsh-execution-engine'] === 'native' &&
         tags['xcsh-deployment-id'] === plan.deploymentName &&
@@ -15223,7 +15290,7 @@ async function verifyAzureNativeNetworkReplacementExecution(
 }
 var same11,
   lower9 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
-  object25 = (value) => {
+  object26 = (value) => {
     require27(value && typeof value === 'object' && !Array.isArray(value), 'malformed cloud identity');
     return value;
   };
@@ -15438,7 +15505,7 @@ var init_native_network_replacement_retirement = __esm(() => {
 
 // plugins/azure/src/ce/native-replacement-history.ts
 function validate(plan, value) {
-  const record = object26(value);
+  const record = object27(value);
   require29(
     Object.keys(record).sort().join(',') ===
       'bootstrappedNodes,engine,kind,launchedAtByNode,owner,replacement,schemaVersion,sourcePlanSha256' &&
@@ -15449,11 +15516,11 @@ function validate(plan, value) {
       same13(record.owner, azureUpgradeBinding(plan).owner),
     'source or record fields differ',
   );
-  const replacement = object26(record.replacement);
+  const replacement = object27(record.replacement);
   validateAzureNativeReplacementState(plan, replacement);
   require29(!plan.relayProfile && replacement.originalSourcePlan, 'standard original creation missing');
   const bootstrapped = record.bootstrappedNodes;
-  const launched = object26(record.launchedAtByNode);
+  const launched = object27(record.launchedAtByNode);
   require29(
     Array.isArray(bootstrapped) &&
       new Set(bootstrapped).size === bootstrapped.length &&
@@ -15514,7 +15581,7 @@ async function verifyAzureNativeReplacementHistories(base, siteUid, records) {
     }
   for (const [name, value] of records)
     if (isAzureNativeReplacementHistory(name)) {
-      const source = sources.get(String(object26(value).sourcePlanSha256));
+      const source = sources.get(String(object27(value).sourcePlanSha256));
       require29(source && name === azureNativeReplacementHistoryName(source), 'history source is unresolved');
       const replacement = validate(source, value);
       require29(
@@ -15570,7 +15637,7 @@ var require29 = (condition, message) => {
     if (!condition) throw Error(`Azure native replacement history: ${message}`);
   },
   same13,
-  object26 = (value) => {
+  object27 = (value) => {
     require29(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
@@ -15673,7 +15740,7 @@ async function persistAzureNativeNetworkGenerationCompletion(source, checkpoint,
 async function readAzureNativeNetworkGenerationCompletion(source, store, load) {
   verifyAzureCePlan(source);
   verifyAzureNativeNetworkReplacementProfile(source);
-  const row = object27(await store.read(azureNativeNetworkGenerationCompletionName(source)));
+  const row = object28(await store.read(azureNativeNetworkGenerationCompletionName(source)));
   require30(
     Object.keys(row).sort().join(',') ===
       'checkpoint,checkpointSha256,engine,finalConfigurationSha256,kind,owner,replacementHistorySha256,schemaVersion,sourcePlanSha256' &&
@@ -15687,7 +15754,7 @@ async function readAzureNativeNetworkGenerationCompletion(source, store, load) {
   );
   complete(source, row.checkpoint);
   if (load) require30(same14(await load(source), row.checkpoint), 'saved public generation completion differs');
-  const record = object27(await store.read(azureNativeReplacementHistoryName(source)));
+  const record = object28(await store.read(azureNativeReplacementHistoryName(source)));
   require30(
     row.replacementHistorySha256 === canonicalSha256(record) &&
       record.schemaVersion === 1 &&
@@ -15720,7 +15787,7 @@ async function readAzureNativeNetworkGenerationCompletion(source, store, load) {
     replacement.status === 'registered' && replacement.networkInventory,
     'completed registered generation missing',
   );
-  const launched = object27(record.launchedAtByNode);
+  const launched = object28(record.launchedAtByNode);
   require30(
     same14(record.bootstrappedNodes, [String(replacement.node)]) &&
       Object.keys(launched).join(',') === String(replacement.node) &&
@@ -15816,7 +15883,7 @@ async function qualifyAzureNativeNetworkGenerationBoundary(
   return { inventory, generationPlanSha256s: chain.map((p) => p.planSha256), receiptSha256: canonicalSha256(receipts) };
 }
 var same14,
-  object27 = (value) => {
+  object28 = (value) => {
     require30(value && typeof value === 'object' && !Array.isArray(value), 'malformed generation record');
     return value;
   },
@@ -16444,22 +16511,22 @@ async function resolveAzureLinuxHostCatalog(source, selection, api, signal) {
     });
     return response;
   };
-  const account = object28(await read(['account', 'show']));
+  const account = object29(await read(['account', 'show']));
   require35(
     same19(account.id, source.subscription.id) &&
       same19(account.tenantId, source.subscription.tenantId) &&
       account.environmentName === 'AzureCloud',
     'subscription, tenant or cloud differs',
   );
-  const host = object28(await read(['vm', 'image', 'show', '--urn', urn, '--location', source.region]));
+  const host = object29(await read(['vm', 'image', 'show', '--urn', urn, '--location', source.region]));
   require35(
-    same19(host.id, imageId) && object28(host.osDiskImage).operatingSystem === 'Linux' && host.architecture === 'x64',
+    same19(host.id, imageId) && object29(host.osDiskImage).operatingSystem === 'Linux' && host.architecture === 'x64',
     'exact Linux host image identity differs',
   );
   const rawSkus = await read(['vm', 'list-skus', '--size', selection.vmSize, '--location', source.region, '--all']);
   require35(Array.isArray(rawSkus), 'complete SKU list required');
   const skus = rawSkus
-    .map(object28)
+    .map(object29)
     .filter((sku) => same19(sku.name, selection.vmSize) && same19(sku.resourceType, 'virtualMachines'));
   require35(skus.length === 1, 'SKU missing or ambiguous');
   const sku = skus[0];
@@ -16468,16 +16535,16 @@ async function resolveAzureLinuxHostCatalog(source, selection, api, signal) {
     'SKU region differs',
   );
   require35(Array.isArray(sku.locationInfo), 'SKU regional details missing');
-  const infos = sku.locationInfo.map(object28).filter((info) => same19(info.location, source.region));
+  const infos = sku.locationInfo.map(object29).filter((info) => same19(info.location, source.region));
   require35(infos.length === 1, 'SKU regional details missing or ambiguous');
   require35(
     Array.isArray(sku.restrictions) && Array.isArray(sku.capabilities),
     'SKU restrictions or capabilities missing',
   );
-  const restricted = sku.restrictions.map(object28).some((restriction) => {
+  const restricted = sku.restrictions.map(object29).some((restriction) => {
     if (restriction.type === 'Zone') return false;
     if (restriction.type !== 'Location') return true;
-    const info = restriction.restrictionInfo === undefined ? undefined : object28(restriction.restrictionInfo);
+    const info = restriction.restrictionInfo === undefined ? undefined : object29(restriction.restrictionInfo);
     const locations = info?.locations ?? restriction.values;
     return (
       !Array.isArray(locations) ||
@@ -16485,7 +16552,7 @@ async function resolveAzureLinuxHostCatalog(source, selection, api, signal) {
       locations.some((location) => same19(location, source.region))
     );
   });
-  const capabilities = sku.capabilities.map(object28);
+  const capabilities = sku.capabilities.map(object29);
   const architectures = capabilities.filter((capability) => same19(capability.name, 'CpuArchitectureType'));
   require35(architectures.length === 1 && architectures[0].value === 'x64', 'host SKU architecture missing or differs');
   const number = (name, integer) => {
@@ -16535,7 +16602,7 @@ async function resolveAzureRelayCatalog(source, selection, api, signal) {
 var require35 = (condition, message) => {
     if (!condition) throw Error(`Azure relay catalog: ${message}`);
   },
-  object28 = (value) => {
+  object29 = (value) => {
     require35(value && typeof value === 'object' && !Array.isArray(value), 'malformed observation');
     const result = value;
     require35(
@@ -17155,7 +17222,7 @@ async function quotaAvailable(api, region, subscriptionId) {
     return;
   }
 }
-async function imageAvailable(api, region, urn, subscriptionId) {
+async function imageAvailable(api, region, urn, subscriptionId, hardware) {
   const result = await api.exec('az', [
     'vm',
     'image',
@@ -17169,7 +17236,17 @@ async function imageAvailable(api, region, urn, subscriptionId) {
     '--output',
     'json',
   ]);
-  if (result.exitCode === 0) return true;
+  if (result.exitCode === 0) {
+    try {
+      const observed = readAzureImageHardware(JSON.parse(result.stdout), { subscriptionId, region, urn });
+      if (observed.architecture === 'unknown' || observed.hyperVGeneration === 'unknown') return;
+      return observed.architecture === hardware.architecture && observed.hyperVGeneration === hardware.hyperVGeneration
+        ? true
+        : undefined;
+    } catch {
+      return;
+    }
+  }
   if (/not found|could not be found|invalid image reference|platform image/i.test(result.stderr)) return false;
   return;
 }
@@ -17331,6 +17408,7 @@ function skusForRegion(rawSkus, requestedSize, region) {
     });
     const observation = {
       name,
+      ...readAzureSkuHardware(sku),
       maxNics: Number(capability(sku, 'MaxNetworkInterfaces') ?? 0),
       vCpus: Number(capability(sku, 'vCPUs') ?? capability(sku, 'vCPUsAvailable') ?? 0),
       memoryGb: Number(capability(sku, 'MemoryGB') ?? 0),
@@ -17338,6 +17416,14 @@ function skusForRegion(rawSkus, requestedSize, region) {
       restricted,
     };
     const existing = byName.get(name.toLowerCase());
+    if (
+      existing &&
+      canonicalStringify({ architecture: existing.architecture, hyperVGenerations: existing.hyperVGenerations }) !==
+        canonicalStringify(readAzureSkuHardware(sku))
+    ) {
+      byName.set(name.toLowerCase(), { ...existing, architecture: 'unknown', hyperVGenerations: undefined });
+      continue;
+    }
     if (!existing || canonicalStringify(observation).localeCompare(canonicalStringify(existing)) < 0)
       byName.set(name.toLowerCase(), observation);
   }
@@ -17439,6 +17525,20 @@ async function discoverAzureCompute(input, api, fetcher = fetch) {
     .sort();
   const selected = await resolveMarketplaceImage(api, physicalRegions, subscriptionId, input);
   const urn = selected.urn;
+  const hardware = readAzureImageHardware(
+    await json(api, [
+      'vm',
+      'image',
+      'show',
+      '--location',
+      selected.catalogRegion,
+      '--urn',
+      urn,
+      '--subscription',
+      subscriptionId,
+    ]),
+    { subscriptionId, region: selected.catalogRegion, urn },
+  );
   const terms = await json(api, ['vm', 'image', 'terms', 'show', '--urn', urn, '--subscription', subscriptionId]);
   const routeServerLocations = new Set();
   const resourceTypes = Array.isArray(provider.resourceTypes) ? provider.resourceTypes : [];
@@ -17452,7 +17552,7 @@ async function discoverAzureCompute(input, api, fetcher = fetch) {
   if (imageLocations.size === 0) {
     const availabilityPairs = await mapLimit(physicalRegions, 8, async (region) => [
       region,
-      await imageAvailable(api, region, urn, subscriptionId),
+      await imageAvailable(api, region, urn, subscriptionId, hardware),
     ]);
     for (const [region, available] of availabilityPairs) imageAvailability.set(region, available);
   }
@@ -17494,7 +17594,12 @@ async function discoverAzureCompute(input, api, fetcher = fetch) {
   const preliminary = physicalRegions.map((region) => {
     const availableVmSizes = skusForRegion(rawSkus, input.vmSize, region);
     const eligibleVmSizes = availableVmSizes.filter(
-      (size) => !size.restricted && size.maxNics >= input.requiredNics && size.vCpus >= 8 && size.memoryGb >= 32,
+      (size) =>
+        !size.restricted &&
+        size.maxNics >= input.requiredNics &&
+        size.vCpus >= 8 &&
+        size.memoryGb >= 32 &&
+        classifyAzureImageHardwareCompatibility(hardware, size) === 'compatible',
     );
     const vmSize = eligibleVmSizes[0] ?? availableVmSizes[0];
     const policyDenied = policies.some(
@@ -17514,6 +17619,10 @@ async function discoverAzureCompute(input, api, fetcher = fetch) {
       if (availableVmSizes.every((size) => size.restricted)) blockers.push('sku-restricted');
       if (availableVmSizes.every((size) => size.maxNics < input.requiredNics)) blockers.push('nic-limit');
       if (availableVmSizes.every((size) => size.vCpus < 8 || size.memoryGb < 32)) blockers.push('ce-minimum-size');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'incompatible'))
+        blockers.push('vm-image-incompatible');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'unknown'))
+        blockers.push('vm-image-compatibility-unverified');
       if (blockers.length === 0) blockers.push('no-compatible-vm-size');
     } else if (input.nodeCount === 3 && vmSize.zones.length < 3) {
       reasons.push('fewer-than-three-zones');
@@ -17557,6 +17666,7 @@ async function discoverAzureCompute(input, api, fetcher = fetch) {
       version: selected.version,
       urn,
       termsAccepted: Boolean(terms.accepted),
+      ...hardware,
     },
     regions: preliminary,
     resources: resourceObservations,
@@ -18119,13 +18229,13 @@ var init_contract_auth = () => {};
 // plugins/platform/src/ce/verified-api-release.ts
 import { createHash as createHash6 } from 'node:crypto';
 
-function object29(value) {
+function object30(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
   return value;
 }
 function parse(bytes) {
   try {
-    return object29(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object30(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE API contract JSON');
   }
@@ -18185,10 +18295,10 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object29(receipt.assets)['openapi.json'] !== digest2)
+  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object30(receipt.assets)['openapi.json'] !== digest2)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
-    ? release.assets.map(object29).filter((asset) => asset.name === 'openapi.json')
+    ? release.assets.map(object30).filter((asset) => asset.name === 'openapi.json')
     : [];
   if (assets.length !== 1 || assets[0].digest !== digest2 || assets[0].browser_download_url !== assetUrl)
     throw new Error('CE API schema asset binding differs from the pinned contract');
@@ -18227,7 +18337,7 @@ var init_verified_api_release = __esm(() => {
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
-    const schema = object30(value);
+    const schema = object31(value);
     let resolved = {};
     if (schema.$ref) {
       if (typeof schema.$ref !== 'string' || !schema.$ref.startsWith('#/components/schemas/'))
@@ -18248,7 +18358,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     return {
       ...resolved,
       ...schema,
-      ...(schema.properties ? { properties: { ...resolved.properties, ...object30(schema.properties) } } : {}),
+      ...(schema.properties ? { properties: { ...resolved.properties, ...object31(schema.properties) } } : {}),
     };
   }
   function project(value, schemaValue, top = false) {
@@ -18264,12 +18374,12 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     if (value && typeof value === 'object') {
       if (schema.properties === undefined && schema.additionalProperties === undefined) return structuredClone(value);
-      const properties = object30(schema.properties ?? {});
+      const properties = object31(schema.properties ?? {});
       const result = {};
       for (const [key, item] of Object.entries(value)) {
         const canonicalKey = Object.hasOwn(properties, key)
           ? key
-          : Object.keys(properties).find((name) => object30(properties[name])['x-f5xc-wire-name'] === key);
+          : Object.keys(properties).find((name) => object31(properties[name])['x-f5xc-wire-name'] === key);
         if (canonicalKey === undefined) {
           if (top && ignoredRootFields.includes(key)) continue;
           if (schema.additionalProperties === true) {
@@ -18283,7 +18393,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
           }
           throw new Error('GET snapshot contains an unsupported replacement field');
         }
-        const wireName = object30(properties[canonicalKey])['x-f5xc-wire-name'];
+        const wireName = object31(properties[canonicalKey])['x-f5xc-wire-name'];
         const outputKey = typeof wireName === 'string' ? wireName : canonicalKey;
         if (Object.hasOwn(result, outputKey)) throw new Error('Duplicate canonical and wire field aliases');
         const projected = project(item, properties[canonicalKey]);
@@ -18293,9 +18403,9 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     return structuredClone(value);
   }
-  return object30(project(value, schemas[root], true));
+  return object31(project(value, schemas[root], true));
 }
-var object30 = (value) => {
+var object31 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement schema');
   return value;
 };
@@ -18494,7 +18604,7 @@ function buildSiteLocalHttpOrigin(input, validate) {
 var init_wire_origin = () => {};
 
 // plugins/platform/src/ce/ingress-contract.ts
-function object31(value) {
+function object32(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress contract');
   return value;
 }
@@ -18515,19 +18625,19 @@ class VerifiedIngressContract {
   }
   static async release(fetcher = fetch, signal) {
     const api = await loadPublishedCeApi(fetcher, signal);
-    const path = object31(object31(api.paths)['/api/config/namespaces/{metadata.namespace}/http_loadbalancers']);
-    const schema = object31(
-      object31(object31(object31(object31(path.post).requestBody).content)['application/json']).schema,
+    const path = object32(object32(api.paths)['/api/config/namespaces/{metadata.namespace}/http_loadbalancers']);
+    const schema = object32(
+      object32(object32(object32(object32(path.post).requestBody).content)['application/json']).schema,
     );
     if (schema.$ref !== '#/components/schemas/http_loadbalancerCreateRequest')
       throw new Error('Unsupported ingress request path');
-    const origin = object31(object31(api.paths)['/api/config/namespaces/{metadata.namespace}/origin_pools']);
-    const originSchema = object31(
-      object31(object31(object31(object31(origin.post).requestBody).content)['application/json']).schema,
+    const origin = object32(object32(api.paths)['/api/config/namespaces/{metadata.namespace}/origin_pools']);
+    const originSchema = object32(
+      object32(object32(object32(object32(origin.post).requestBody).content)['application/json']).schema,
     );
     if (originSchema.$ref !== '#/components/schemas/origin_poolCreateRequest')
       throw new Error('Unsupported origin request path');
-    return new VerifiedIngressContract(object31(object31(api.components).schemas));
+    return new VerifiedIngressContract(object32(object32(api.components).schemas));
   }
   build(input) {
     return buildInsideHttpListener(input, this.#validate);
@@ -18868,7 +18978,7 @@ function azureTerraformService(pi, signal) {
 }
 
 // plugins/azure/src/ce/ingress-interface-identity.ts
-function object32(value, message) {
+function object33(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
 }
@@ -18885,32 +18995,32 @@ async function read2(api, args, signal) {
   signal?.throwIfAborted();
   if (result.exitCode !== 0) throw detectAzError(result.stderr, result.exitCode);
   try {
-    return object32(JSON.parse(result.stdout), 'Malformed Azure CE ingress identity observation');
+    return object33(JSON.parse(result.stdout), 'Malformed Azure CE ingress identity observation');
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error('Malformed Azure CE ingress identity observation');
     throw error;
   }
 }
 function validateAzureIngressInterfaceIdentity(plan, value) {
-  const identity = object32(value, 'Malformed Azure ingress identity');
+  const identity = object33(value, 'Malformed Azure ingress identity');
   fields3(identity, ['vm', 'nic']);
-  const vm = object32(identity.vm, 'Malformed Azure ingress VM');
-  const nic = object32(identity.nic, 'Malformed Azure ingress NIC');
+  const vm = object33(identity.vm, 'Malformed Azure ingress VM');
+  const nic = object33(identity.nic, 'Malformed Azure ingress NIC');
   fields3(vm, ['id', 'provisioningState', 'tags', 'networkProfile']);
   fields3(nic, ['id', 'provisioningState', 'tags', 'macAddress', 'virtualMachine']);
   for (const tags of [vm.tags, nic.tags])
-    fields3(object32(tags, 'Malformed Azure ingress owner'), [
+    fields3(object33(tags, 'Malformed Azure ingress owner'), [
       'xcsh-plan-sha256',
       'xcsh-managed-by',
       'xcsh-deployment-id',
       'xcsh-execution-engine',
     ]);
-  const profile = object32(vm.networkProfile, 'Malformed Azure ingress attachments');
+  const profile = object33(vm.networkProfile, 'Malformed Azure ingress attachments');
   fields3(profile, ['networkInterfaces']);
   if (!Array.isArray(profile.networkInterfaces)) throw new Error('Malformed Azure ingress attachments');
   const seen = new Set();
   for (const raw of profile.networkInterfaces) {
-    const row = object32(raw, 'Malformed Azure ingress attachment');
+    const row = object33(raw, 'Malformed Azure ingress attachment');
     fields3(row, ['id'], ['primary']);
     if (
       typeof row.id !== 'string' ||
@@ -18920,7 +19030,7 @@ function validateAzureIngressInterfaceIdentity(plan, value) {
       throw new Error('Duplicate or malformed Azure ingress attachment');
     seen.add(row.id.toLowerCase());
   }
-  fields3(object32(nic.virtualMachine, 'Malformed Azure ingress back reference'), ['id']);
+  fields3(object33(nic.virtualMachine, 'Malformed Azure ingress back reference'), ['id']);
   const sli = plan.nics.filter((nic) => nic.role === 'sli');
   if (sli.length !== 1) throw new Error('Azure platform ingress requires exactly one SLI interface');
   const node = `${plan.deploymentName}-1`;
@@ -18934,10 +19044,10 @@ function validateAzureIngressInterfaceIdentity(plan, value) {
       )
     )
       throw new Error('Azure platform ingress interface is outside the owned inventory');
-  const vmTags = object32(vm.tags, 'Azure platform ingress VM ownership is unavailable');
-  const nicTags = object32(nic.tags, 'Azure platform ingress NIC ownership is unavailable');
+  const vmTags = object33(vm.tags, 'Azure platform ingress VM ownership is unavailable');
+  const nicTags = object33(nic.tags, 'Azure platform ingress NIC ownership is unavailable');
   const ownerPlanSha256 = vmTags['xcsh-plan-sha256'];
-  const attachments = object32(
+  const attachments = object33(
     vm.networkProfile,
     'Azure platform ingress VM network profile is unavailable',
   ).networkInterfaces;
@@ -18961,8 +19071,8 @@ function validateAzureIngressInterfaceIdentity(plan, value) {
     typeof nic.id !== 'string' ||
     nic.id.toLowerCase() !== nicResourceId.toLowerCase() ||
     nic.provisioningState !== 'Succeeded' ||
-    typeof object32(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id !== 'string' ||
-    String(object32(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id).toLowerCase() !==
+    typeof object33(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id !== 'string' ||
+    String(object33(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id).toLowerCase() !==
       vmResourceId.toLowerCase() ||
     !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac) ||
     typeof ownerPlanSha256 !== 'string' ||
@@ -19002,23 +19112,23 @@ async function observeAzureIngressInterface(plan, api, signal) {
     signal,
   );
   const ownerFields = ['xcsh-plan-sha256', 'xcsh-managed-by', 'xcsh-deployment-id', 'xcsh-execution-engine'];
-  const profile = object32(vm.networkProfile, 'Azure ingress attachments unavailable');
+  const profile = object33(vm.networkProfile, 'Azure ingress attachments unavailable');
   const identity = {
     vm: {
       ...project(vm, ['id', 'provisioningState']),
-      tags: project(object32(vm.tags, 'Azure ingress owner unavailable'), ownerFields),
+      tags: project(object33(vm.tags, 'Azure ingress owner unavailable'), ownerFields),
       networkProfile: {
         networkInterfaces: Array.isArray(profile.networkInterfaces)
           ? profile.networkInterfaces.map((row) =>
-              project(object32(row, 'Malformed Azure ingress attachment'), ['id', 'primary']),
+              project(object33(row, 'Malformed Azure ingress attachment'), ['id', 'primary']),
             )
           : [],
       },
     },
     nic: {
       ...project(nic, ['id', 'provisioningState', 'macAddress']),
-      tags: project(object32(nic.tags, 'Azure ingress owner unavailable'), ownerFields),
-      virtualMachine: project(object32(nic.virtualMachine, 'Azure ingress back reference unavailable'), ['id']),
+      tags: project(object33(nic.tags, 'Azure ingress owner unavailable'), ownerFields),
+      virtualMachine: project(object33(nic.virtualMachine, 'Azure ingress back reference unavailable'), ['id']),
     },
   };
   return { ...validateAzureIngressInterfaceIdentity(plan, identity), identity };
@@ -19030,7 +19140,7 @@ var init_ingress_interface_identity = __esm(() => {
 // plugins/azure/src/ce/traffic-source.ts
 import { isIP as isIP18 } from 'node:net';
 
-function object33(value, message) {
+function object34(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
 }
@@ -19040,7 +19150,7 @@ async function read3(api, args, signal) {
   signal?.throwIfAborted();
   if (result.exitCode !== 0) throw detectAzError(result.stderr, result.exitCode);
   try {
-    return object33(JSON.parse(result.stdout), 'Malformed Azure traffic source observation');
+    return object34(JSON.parse(result.stdout), 'Malformed Azure traffic source observation');
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error('Malformed Azure traffic source observation');
     throw error;
@@ -19068,9 +19178,9 @@ function validateVm(plan, vm) {
   if (plan.intent.ingress?.mode !== 'platform-http')
     throw new Error('Azure traffic source requires explicit platform HTTP ingress');
   const resourceId = plan.intent.ingress.probe.sourceVmResourceId;
-  const profile = object33(vm.networkProfile, 'Azure traffic source VM network profile is unavailable');
+  const profile = object34(vm.networkProfile, 'Azure traffic source VM network profile is unavailable');
   const attachments = Array.isArray(profile.networkInterfaces)
-    ? profile.networkInterfaces.map((value) => object33(value, 'Malformed Azure traffic source VM attachment'))
+    ? profile.networkInterfaces.map((value) => object34(value, 'Malformed Azure traffic source VM attachment'))
     : [];
   const primaryAttachments = attachments.filter((attachment) => attachment.primary === true);
   const attachment =
@@ -19100,20 +19210,20 @@ function validateVm(plan, vm) {
   return nicResourceId;
 }
 function validateAzureTrafficSourceIdentity(plan, identity) {
-  const snapshot = object33(identity, 'Malformed Azure traffic source identity');
+  const snapshot = object34(identity, 'Malformed Azure traffic source identity');
   fields4(snapshot, ['account', 'vm', 'nic']);
-  const account = object33(snapshot.account, 'Malformed Azure traffic source account');
-  const vm = object33(snapshot.vm, 'Malformed Azure traffic source VM');
-  const nic = object33(snapshot.nic, 'Malformed Azure traffic source NIC');
+  const account = object34(snapshot.account, 'Malformed Azure traffic source account');
+  const vm = object34(snapshot.vm, 'Malformed Azure traffic source VM');
+  const nic = object34(snapshot.nic, 'Malformed Azure traffic source NIC');
   fields4(account, ['id', 'tenantId', 'environmentName', 'state']);
   fields4(vm, ['id', 'vmId', 'location', 'provisioningState', 'powerState', 'networkProfile']);
   fields4(nic, ['id', 'provisioningState', 'virtualMachine', 'ipConfigurations']);
-  const network = object33(vm.networkProfile, 'Malformed Azure traffic source network profile');
+  const network = object34(vm.networkProfile, 'Malformed Azure traffic source network profile');
   fields4(network, ['networkInterfaces']);
   if (!Array.isArray(network.networkInterfaces)) throw new Error('Malformed Azure traffic source attachments');
   const attachedIds = new Set();
   for (const raw of network.networkInterfaces) {
-    const row = object33(raw, 'Malformed Azure traffic source attachment');
+    const row = object34(raw, 'Malformed Azure traffic source attachment');
     fields4(row, ['id'], ['primary']);
     if (
       typeof row.id !== 'string' ||
@@ -19123,11 +19233,11 @@ function validateAzureTrafficSourceIdentity(plan, identity) {
       throw new Error('Azure traffic source duplicate or malformed attachment');
     attachedIds.add(row.id.toLowerCase());
   }
-  fields4(object33(nic.virtualMachine, 'Malformed Azure traffic source back reference'), ['id']);
+  fields4(object34(nic.virtualMachine, 'Malformed Azure traffic source back reference'), ['id']);
   if (!Array.isArray(nic.ipConfigurations)) throw new Error('Malformed Azure traffic source IP configurations');
   const addresses = new Set();
   for (const raw of nic.ipConfigurations) {
-    const row = object33(raw, 'Malformed Azure traffic source IP configuration');
+    const row = object34(raw, 'Malformed Azure traffic source IP configuration');
     fields4(row, ['privateIPAddressVersion', 'privateIPAddress'], ['primary']);
     if (
       typeof row.privateIPAddress !== 'string' ||
@@ -19151,7 +19261,7 @@ function validateAzureTrafficSourceIdentity(plan, identity) {
   validateAccount(plan, account);
   const nicResourceId = validateVm(plan, vm);
   const ipConfigurations = Array.isArray(nic.ipConfigurations)
-    ? nic.ipConfigurations.map((value) => object33(value, 'Malformed Azure traffic source IP configuration'))
+    ? nic.ipConfigurations.map((value) => object34(value, 'Malformed Azure traffic source IP configuration'))
     : [];
   const primaryConfigurations = ipConfigurations.filter((configuration) => configuration.primary === true);
   const configuration =
@@ -19161,7 +19271,7 @@ function validateAzureTrafficSourceIdentity(plan, identity) {
         ? ipConfigurations[0]
         : undefined;
   const privateAddress = configuration?.privateIPAddress;
-  const attachedVm = object33(nic.virtualMachine, 'Azure traffic source NIC attachment is unavailable').id;
+  const attachedVm = object34(nic.virtualMachine, 'Azure traffic source NIC attachment is unavailable').id;
   if (
     typeof nic.id !== 'string' ||
     nic.id.toLowerCase() !== nicResourceId.toLowerCase() ||
@@ -19206,9 +19316,9 @@ async function observeAzureTrafficSource(plan, api, signal) {
     signal,
   );
   const nicId = validateVm(plan, vm);
-  const profile = object33(vm.networkProfile, 'Azure traffic source VM network profile is unavailable');
+  const profile = object34(vm.networkProfile, 'Azure traffic source VM network profile is unavailable');
   const attachments = profile.networkInterfaces.map((row) =>
-    object33(row, 'Malformed Azure traffic source VM attachment'),
+    object34(row, 'Malformed Azure traffic source VM attachment'),
   );
   const nic = await read3(
     api,
@@ -19223,12 +19333,12 @@ async function observeAzureTrafficSource(plan, api, signal) {
     },
     nic: {
       ...project2(nic, ['id', 'provisioningState']),
-      virtualMachine: project2(object33(nic.virtualMachine, 'Azure traffic source NIC attachment is unavailable'), [
+      virtualMachine: project2(object34(nic.virtualMachine, 'Azure traffic source NIC attachment is unavailable'), [
         'id',
       ]),
       ipConfigurations: Array.isArray(nic.ipConfigurations)
         ? nic.ipConfigurations.map((row) =>
-            project2(object33(row, 'Malformed Azure traffic source IP configuration'), [
+            project2(object34(row, 'Malformed Azure traffic source IP configuration'), [
               'primary',
               'privateIPAddressVersion',
               'privateIPAddress',
@@ -19348,7 +19458,7 @@ var init_ingress_source = __esm(() => {
 });
 
 // plugins/azure/src/ce/platform-ingress.ts
-function object34(value, message) {
+function object35(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
   return value;
 }
@@ -19396,7 +19506,7 @@ async function ensureAzurePlatformIngress(plan, runtime, storage, contract, api,
   const saved = await optional2(storage, 'azure-platform-ingress.json');
   let marker;
   if (saved !== undefined) {
-    const candidate = object34(saved, 'Malformed Azure platform ingress checkpoint');
+    const candidate = object35(saved, 'Malformed Azure platform ingress checkpoint');
     if (
       Object.keys(candidate).sort().join(',') !==
         [
@@ -19698,7 +19808,7 @@ async function observeAzureCeRetirementAbsence(source, api, signal) {
       deadline.removeEventListener('abort', abort);
     }
   };
-  const account = object35(await read(['account', 'show']));
+  const account = object36(await read(['account', 'show']));
   if (
     String(account.id).toLowerCase() !== source.subscription.id.toLowerCase() ||
     String(account.tenantId).toLowerCase() !== source.subscription.tenantId.toLowerCase() ||
@@ -19715,7 +19825,7 @@ async function observeAzureCeRetirementAbsence(source, api, signal) {
     source.ownershipInventory.filter((row) => row.action === 'create').map((row) => row.resourceId.toLowerCase()),
   );
   for (const row of inventory) {
-    const resource = object35(row);
+    const resource = object36(row);
     const id = typeof resource.id === 'string' ? resource.id.toLowerCase() : '';
     if (
       !id.startsWith(`/subscriptions/${source.subscription.id.toLowerCase()}/`) ||
@@ -19724,7 +19834,7 @@ async function observeAzureCeRetirementAbsence(source, api, signal) {
     )
       throw Error('Malformed, foreign or duplicate Azure CE retirement inventory');
     ids.add(id);
-    const tags = resource.tags === undefined || resource.tags === null ? {} : object35(resource.tags);
+    const tags = resource.tags === undefined || resource.tags === null ? {} : object36(resource.tags);
     if (Object.values(tags).some((value) => typeof value !== 'string'))
       throw Error('Malformed Azure CE retirement ownership tags');
     if (
@@ -19766,7 +19876,7 @@ async function runAzureNativeRelayKeyRetirement(source, teardown, runtime, contr
   const { planId, planSha256, ...teardownDraft } = teardown;
   if (canonicalSha256(teardownDraft) !== planSha256 || planId !== `azure-ce-teardown-${planSha256.slice(0, 24)}`)
     throw Error('Azure native relay teardown integrity differs');
-  const receipt = object35(await store.read('azure-native-teardown-receipt.json'));
+  const receipt = object36(await store.read('azure-native-teardown-receipt.json'));
   if (
     receipt.status !== 'retired' ||
     receipt.sourcePlanSha256 !== source.planSha256 ||
@@ -19781,7 +19891,7 @@ async function runAzureNativeRelayKeyRetirement(source, teardown, runtime, contr
   let marker = await optional3(store, markerName);
   const journal = await optional3(store, journalName);
   if (journal !== undefined) {
-    const value = object35(journal);
+    const value = object36(journal);
     if (
       Object.keys(value).sort().join(',') !==
         [
@@ -19817,7 +19927,7 @@ async function runAzureNativeRelayKeyRetirement(source, teardown, runtime, contr
     )
       throw Error('Azure relay key journal request binding differs');
     if (value.pending !== undefined) {
-      const pending = object35(value.pending);
+      const pending = object36(value.pending);
       const next = requests[value.completed.length];
       if (
         !next ||
@@ -19844,7 +19954,7 @@ async function runAzureNativeRelayKeyRetirement(source, teardown, runtime, contr
     signal.throwIfAborted();
     await store.write(markerName, marker);
   }
-  const value = object35(marker);
+  const value = object36(marker);
   const { phase, checkpointSha256, ...draft } = value;
   if (
     Object.keys(value).sort().join(',') !==
@@ -19958,7 +20068,7 @@ async function observeAzureNativeRetirementAbsence(source, teardown, runtime, co
 }
 var markerName = 'azure-native-relay-key-retirement.json',
   journalName = 'relay-native-execution.json',
-  object35 = (value) => {
+  object36 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Malformed Azure relay retirement evidence');
     return value;
@@ -19994,7 +20104,7 @@ function match(actual, expected, path = '') {
       match(actual[index], value, `${path}.${index}`);
     });
   } else if (expected && typeof expected === 'object') {
-    const value = object36(actual);
+    const value = object37(actual);
     for (const [key, item] of Object.entries(expected)) match(value[key], item, path ? `${path}.${key}` : key);
   } else {
     require38(
@@ -20049,7 +20159,7 @@ async function runAzureRelayNativeResources(source, plan, storage, api, signal, 
       if (/^(?:ResourceNotFound|\(ResourceNotFound\))(?::|\s|$)/.test(raw.stderr.trim())) return;
       throw Error('Azure relay native execution: cloud read unavailable');
     }
-    const value = object36(JSON.parse(raw.stdout));
+    const value = object37(JSON.parse(raw.stdout));
     require38(
       sameId3(value.id, id) && !['nextLink', 'nextPageToken', 'error', 'errors'].some((key) => value[key]),
       'resource identity incomplete or substituted',
@@ -20159,9 +20269,9 @@ async function runAzureRelayNativeResources(source, plan, storage, api, signal, 
   const parents = async () => {
     for (const id of [plan.vnetId, plan.sloSubnetId, plan.routeServerId]) {
       const value = await read(id, '2024-05-01');
-      require38(value && object36(value.properties).provisioningState === 'Succeeded', 'owned foundation unavailable');
+      require38(value && object37(value.properties).provisioningState === 'Succeeded', 'owned foundation unavailable');
       if (id === plan.sloSubnetId) {
-        const properties = object36(value?.properties);
+        const properties = object37(value?.properties);
         const prefixes =
           typeof properties.addressPrefix === 'string' ? [properties.addressPrefix] : properties.addressPrefixes;
         require38(
@@ -20171,19 +20281,19 @@ async function runAzureRelayNativeResources(source, plan, storage, api, signal, 
       }
       if (id !== plan.sloSubnetId) {
         require38(value?.location === plan.region, 'foundation region differs');
-        const observedTags = object36(value?.tags);
+        const observedTags = object37(value?.tags);
         for (const [key, expected] of Object.entries(tags))
           if (key !== 'xcsh-relay-plan-sha256') require38(observedTags[key] === expected, 'foundation owner differs');
       }
     }
   };
   const verify = (value, request) => {
-    require38(object36(value.properties).provisioningState === 'Succeeded', 'resource provisioning is incomplete');
+    require38(object37(value.properties).provisioningState === 'Succeeded', 'resource provisioning is incomplete');
     match(value, request.body);
     if (request.kind === 'relay-vm-create') {
       const relay = plan.relays.find((item) => item.vmId === request.resourceId);
-      const disk = object36(object36(object36(value.properties).storageProfile).osDisk);
-      require38(relay && sameId3(object36(disk.managedDisk).id, relay.osDiskId), 'OS disk identity differs');
+      const disk = object37(object37(object37(value.properties).storageProfile).osDisk);
+      require38(relay && sameId3(object37(disk.managedDisk).id, relay.osDiskId), 'OS disk identity differs');
     }
   };
   await parents();
@@ -20215,11 +20325,11 @@ async function runAzureRelayNativeResources(source, plan, storage, api, signal, 
         disk &&
           sameId3(disk.managedBy, request.resourceId) &&
           disk.location === plan.region &&
-          object36(disk.properties).provisioningState === 'Succeeded',
+          object37(disk.properties).provisioningState === 'Succeeded',
         'generated disk identity or attachment differs',
       );
       if (disk?.tags) {
-        const diskTags = object36(disk.tags);
+        const diskTags = object37(disk.tags);
         require38(
           Object.entries(diskTags).every(([key, value]) => tags[key] === value),
           'generated disk owner differs',
@@ -20349,7 +20459,7 @@ var name3 = 'relay-native-execution.json',
   require38 = (condition, message) => {
     if (!condition) throw Error(`Azure relay native execution: ${message}`);
   },
-  object36 = (value) => {
+  object37 = (value) => {
     require38(value && typeof value === 'object' && !Array.isArray(value), 'malformed resource or checkpoint');
     return value;
   },
@@ -20782,7 +20892,7 @@ var init_terraform_lifecycle = __esm(() => {
 });
 
 // plugins/azure/src/ce/network-operational-acceptance.ts
-function object37(value) {
+function object38(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error('Malformed operational acceptance evidence');
   return value;
@@ -20796,7 +20906,7 @@ function createAzureNetworkOperationalAcceptance(session) {
   const inspect = async (receipt, identity, mode, signal) => {
     signal?.throwIfAborted();
     seal();
-    const reference = object37(receipt),
+    const reference = object38(receipt),
       purpose = reference.purpose;
     if (!['preflight', 'restored', 'final'].includes(String(purpose)))
       throw Error('Operational acquisition purpose differs');
@@ -20814,12 +20924,12 @@ function createAzureNetworkOperationalAcceptance(session) {
       acquired.purpose !== purpose
     )
       throw Error('Operational acquisition identity changed');
-    const readings = object37(acquired.readings),
-      physical = object37(readings.identity),
-      readiness = object37(readings.nodeReadiness),
-      forwarding = object37(readings.forwarding),
-      sessions = object37(readings.sessions),
-      traffic = object37(readings.traffic);
+    const readings = object38(acquired.readings),
+      physical = object38(readings.identity),
+      readiness = object38(readings.nodeReadiness),
+      forwarding = object38(readings.forwarding),
+      sessions = object38(readings.sessions),
+      traffic = object38(readings.traffic);
     if (
       !canonicalEqual(readings.owner, expected.owner) ||
       readings.planSha256 !== expected.planSha256 ||
@@ -20832,8 +20942,8 @@ function createAzureNetworkOperationalAcceptance(session) {
       physical.expectedInventorySha256 !== canonicalSha256(expected.inventory.nodes)
     )
       throw Error('Operational reading ownership or inventory differs');
-    const registrations = object37(physical.registrations),
-      registered = Array.isArray(registrations.nodes) ? registrations.nodes.map(object37) : [],
+    const registrations = object38(physical.registrations),
+      registered = Array.isArray(registrations.nodes) ? registrations.nodes.map(object38) : [],
       instance = expected.inventory.nodes[String(expected.node)]?.vmId;
     const selected = registered.filter((row) => row.instanceId === instance);
     const missing = [];
@@ -20853,7 +20963,7 @@ function createAzureNetworkOperationalAcceptance(session) {
     )
       missing.push('selected-node-readiness');
     if (
-      object37(readings.routeExchange).status !== 'healthy' ||
+      object38(readings.routeExchange).status !== 'healthy' ||
       sessions.status !== 'healthy' ||
       sessions.establishedSessions !== sessions.expectedSessions ||
       typeof sessions.expectedSessions !== 'number' ||
@@ -20915,7 +21025,7 @@ var init_network_operational_acceptance = __esm(() => {
 function require39(value) {
   if (!value) throw Error('Node health schema, identity or evidence is unqualified');
 }
-function object38(value) {
+function object39(value) {
   require39(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
@@ -20923,7 +21033,7 @@ function parseNodeHealthJson(raw) {
   require39(typeof raw === 'string' && raw.length > 0 && raw.length <= 131072);
   let parsed;
   try {
-    parsed = object38(JSON.parse(raw));
+    parsed = object39(JSON.parse(raw));
   } catch {
     throw Error('Node health JSON is malformed or ambiguous');
   }
@@ -20994,7 +21104,7 @@ function validateExpectedNodeHealthIdentity(expected, nodes) {
       [1, 3].includes(nodes.length) &&
       new Set(nodes).size === nodes.length,
   );
-  const instances = object38(expected.instances);
+  const instances = object39(expected.instances);
   require39(
     Object.keys(instances).length === nodes.length &&
       nodes.every((node) => text3(instances[node])) &&
@@ -21032,7 +21142,7 @@ import { isIP as isIP19 } from 'node:net';
 function require40(value) {
   if (!value) throw Error('Replacement BGP owner, identity or complete scope differs');
 }
-function object39(value) {
+function object40(value) {
   require40(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
@@ -21129,7 +21239,7 @@ async function collectAzureReplacementBgp(request, expected, retainedSource, phy
       cloud.exec('az', [...args, '--subscription', plan.subscription.id, '--output', 'json'], { signal: deadline }),
     );
     require40(result.exitCode === 0);
-    return object39(JSON.parse(result.stdout));
+    return object40(JSON.parse(result.stdout));
   };
   let serviceAddresses = [];
   const serverArgs = [
@@ -21168,10 +21278,10 @@ async function collectAzureReplacementBgp(request, expected, retainedSource, phy
     '-rs';
   const peers = [];
   try {
-    const configuration = object39(JSON.parse(source.source)),
-      resources = object39(configuration.resource),
-      serverConfig = object39(object39(resources.azurerm_route_server).ce);
-    const expectedTags = object39(serverConfig.tags),
+    const configuration = object40(JSON.parse(source.source)),
+      resources = object40(configuration.resource),
+      serverConfig = object40(object40(resources.azurerm_route_server).ce);
+    const expectedTags = object40(serverConfig.tags),
       ownerPlan = expectedTags['xcsh-plan-sha256'];
     require40(
       sha5(ownerPlan) &&
@@ -21180,7 +21290,7 @@ async function collectAzureReplacementBgp(request, expected, retainedSource, phy
         expectedTags['xcsh-deployment-id'] === plan.deploymentName,
     );
     const server = await read(serverArgs),
-      tags = object39(server.tags),
+      tags = object40(server.tags),
       ips = server.virtualRouterIps;
     require40(
       lower10(server.id) === lower10(serverId) &&
@@ -21229,7 +21339,7 @@ async function collectAzureReplacementBgp(request, expected, retainedSource, phy
       const observations = roles.map((role) => {
         const rows = learned[role];
         require40(Array.isArray(rows));
-        const values = rows.map(object39);
+        const values = rows.map(object40);
         require40(
           values.every((row) => {
             if (typeof row.network !== 'string' || typeof row.nextHop !== 'string' || isIP19(row.nextHop) !== 4)
@@ -21403,13 +21513,13 @@ var init_network_replacement_bgp = __esm(() => {
 function require41(value) {
   if (!value) throw Error('Forwarding reading identity differs');
 }
-function object40(value) {
+function object41(value) {
   require41(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
 function rows(value) {
   require41(Array.isArray(value));
-  return value.map(object40);
+  return value.map(object41);
 }
 async function collectAzureNetworkForwardingReading(binding, expected, runtime, signal) {
   const identity = structuredClone(binding),
@@ -21422,7 +21532,7 @@ async function collectAzureNetworkForwardingReading(binding, expected, runtime, 
   }));
   const read = async () => {
     signal?.throwIfAborted();
-    const value = object40(
+    const value = object41(
       await runtime.observeForwardingRoutes(structuredClone(identity), structuredClone(wanted), signal),
     );
     signal?.throwIfAborted();
@@ -21671,7 +21781,7 @@ var init_network_replacement_forwarding = __esm(() => {
 });
 
 // plugins/azure/src/ce/network-replacement-node-readiness.ts
-function object41(value) {
+function object42(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed replacement readiness');
   return value;
 }
@@ -21729,9 +21839,9 @@ async function collectAzureReplacementNodeReadiness(request, expected, registrat
   };
   let rows;
   try {
-    const value = object41(registered);
+    const value = object42(registered);
     require43(value.status === 'observed' && Array.isArray(value.nodes) && value.nodes.length === binding.nodes.length);
-    rows = value.nodes.map(object41);
+    rows = value.nodes.map(object42);
     const instances = binding.nodes.map((node, index) => ({
       node,
       instanceId: identity.nodes[String(index + 1)]?.vmId,
@@ -21777,7 +21887,7 @@ async function collectAzureReplacementNodeReadiness(request, expected, registrat
     try {
       require43(typeof reader === 'function');
       const registration = rows.find((row) => row.node === node);
-      const value = object41(
+      const value = object42(
         await bounded(() =>
           reader.call(
             runtime,
@@ -21865,7 +21975,7 @@ import { isIP as isIP20 } from 'node:net';
 function require44(value, message) {
   if (!value) throw Error(`Azure network operational identity: ${message}`);
 }
-function object42(value) {
+function object43(value) {
   require44(value && typeof value === 'object' && !Array.isArray(value), 'malformed evidence');
   return value;
 }
@@ -21897,9 +22007,9 @@ async function collectAzureOperationalIdentityJoins(
   try {
     const cloud = () => bounded(() => observeCloud(deadline));
     const site = async () => {
-      const value = object42(await bounded(() => runtime.observeOwnedSite(binding, deadline)));
-      const metadata = object42(value.metadata),
-        system = object42(value.system_metadata);
+      const value = object43(await bounded(() => runtime.observeOwnedSite(binding, deadline)));
+      const metadata = object43(value.metadata),
+        system = object43(value.system_metadata);
       require44(
         metadata.name === binding.siteName &&
           metadata.namespace === 'system' &&
@@ -21985,7 +22095,7 @@ async function collectAzureOperationalIdentityJoins(
       };
     };
     const registrations = async () => {
-      const value = object42(await bounded(() => runtime.observeRegistrations(binding, { ...instances }, deadline)));
+      const value = object43(await bounded(() => runtime.observeRegistrations(binding, { ...instances }, deadline)));
       if (value.status !== 'healthy') return { status: 'unknown', nodes: [] };
       require44(
         same22(value.owner, binding.owner) &&
@@ -21995,7 +22105,7 @@ async function collectAzureOperationalIdentityJoins(
         'registration owner or cardinality differs',
       );
       for (const node of binding.nodes) {
-        const rows = value.nodes.map(object42).filter((row) => row.node === node);
+        const rows = value.nodes.map(object43).filter((row) => row.node === node);
         require44(
           rows.length === 1 &&
             rows[0].instanceId === instances[node] &&
@@ -22009,7 +22119,7 @@ async function collectAzureOperationalIdentityJoins(
       return {
         status: 'observed',
         nodes: value.nodes.map((raw) => {
-          const row = object42(raw);
+          const row = object43(raw);
           return { node: row.node, instanceId: row.instanceId, state: row.state, registration: row.registration };
         }),
       };
@@ -22081,14 +22191,14 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
   );
   let original;
   try {
-    original = object43(JSON.parse(source));
+    original = object44(JSON.parse(source));
   } catch {
     throw Error('Azure Terraform network update: malformed retained source JSON');
   }
   const next = structuredClone(original),
-    resources = object43(next.resource),
-    providers = object43(next.provider),
-    provider = object43(providers.azurerm);
+    resources = object44(next.resource),
+    providers = object44(next.provider),
+    provider = object44(providers.azurerm);
   require45(
     lower11(provider.subscription_id) === lower11(plan.subscription.id) &&
       lower11(provider.tenant_id) === lower11(plan.subscription.tenantId),
@@ -22102,7 +22212,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
       return value;
     }
     require45(match[1] === type, 'resource name references another type');
-    const name = object43(object43(resources[type])[match[2]]).name;
+    const name = object44(object44(resources[type])[match[2]]).name;
     require45(typeof name === 'string' && !name.includes('${'), 'resource name reference is unresolved');
     return name;
   };
@@ -22113,7 +22223,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
       require45(!value.includes('${'), 'NIC subnet expression is unresolved');
       return { id: value };
     }
-    const row = object43(object43(resources.azurerm_subnet)[match[1]]);
+    const row = object44(object44(resources.azurerm_subnet)[match[1]]);
     require45(
       Array.isArray(row.address_prefixes) &&
         row.address_prefixes.length === 1 &&
@@ -22129,7 +22239,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     };
   };
   const tags = (value, owner) => {
-    const row = object43(value);
+    const row = object44(value);
     require45(
       row['xcsh-managed-by'] === 'azure-ce' &&
         row['xcsh-execution-engine'] === 'terraform' &&
@@ -22138,12 +22248,12 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
       'retained resource owner differs',
     );
   };
-  const interfaces = object43(resources.azurerm_network_interface),
-    vms = object43(resources.azurerm_linux_virtual_machine);
-  const output = object43(object43(object43(next.output).ce_interfaces).value),
+  const interfaces = object44(resources.azurerm_network_interface),
+    vms = object44(resources.azurerm_linux_virtual_machine);
+  const output = object44(object44(object44(next.output).ce_interfaces).value),
     addresses = [];
   for (const [key, owner] of Object.entries(inventory.nodes)) {
-    const vm = object43(vms[`node_${key}`]);
+    const vm = object44(vms[`node_${key}`]);
     require45(
       named(vm.name, 'azurerm_linux_virtual_machine') === `${plan.deploymentName}-${key}` &&
         named(vm.resource_group_name, 'azurerm_resource_group') === plan.intent.resourceGroup &&
@@ -22155,7 +22265,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
     require45(same23(vm.network_interface_ids, attached), 'retained VM NIC graph differs');
     for (const [index, identity] of Object.entries(owner.nics)) {
       const address = `node_${key}_nic_${index}`,
-        nic = object43(interfaces[address]);
+        nic = object44(interfaces[address]);
       require45(
         named(nic.name, 'azurerm_network_interface') === `${plan.deploymentName}-${key}-nic${index}` &&
           named(nic.resource_group_name, 'azurerm_resource_group') === plan.intent.resourceGroup &&
@@ -22167,7 +22277,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
         Array.isArray(nic.ip_configuration) && nic.ip_configuration.length === 1,
         'retained single IP configuration required',
       );
-      const config = object43(nic.ip_configuration[0]),
+      const config = object44(nic.ip_configuration[0]),
         beforeSubnet = subnet(config.subnet_id);
       require45(
         config.name === identity.ipConfigurationName &&
@@ -22178,7 +22288,7 @@ function buildAzureNetworkUpdateTerraformStage(plan, source, inventory, node) {
           (identity.allocation !== 'Static' || config.private_ip_address === identity.privateIp),
         'retained IP configuration differs',
       );
-      const exported = object43(output[`${key}:${index}`]);
+      const exported = object44(output[`${key}:${index}`]);
       require45(
         exported.node === Number(key) &&
           exported.index === Number(index) &&
@@ -22276,16 +22386,16 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
   );
   let configuration;
   try {
-    configuration = object43(JSON.parse(stage.configuration));
+    configuration = object44(JSON.parse(stage.configuration));
   } catch {
     throw Error('Azure Terraform network update: malformed stage JSON');
   }
-  const resources = object43(configuration.resource);
-  const interfaces = object43(resources.azurerm_network_interface);
-  const output = object43(object43(object43(configuration.output).ce_interfaces).value);
+  const resources = object44(configuration.resource);
+  const interfaces = object44(resources.azurerm_network_interface);
+  const output = object44(object44(object44(configuration.output).ce_interfaces).value);
   for (const nic of plan.nics) {
     const key = `node_${stage.node}_nic_${nic.index}`;
-    const selected = object43(interfaces[key]);
+    const selected = object44(interfaces[key]);
     const changes = plan.actions.filter(
       (action) =>
         action.kind === 'nic-update' &&
@@ -22308,8 +22418,8 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
       Array.isArray(selected.ip_configuration) && selected.ip_configuration.length === 1,
       'single selected NIC IP configuration required',
     );
-    const ip = object43(selected.ip_configuration[0]);
-    const row = object43(output[`${stage.node}:${nic.index}`]);
+    const ip = object44(selected.ip_configuration[0]);
+    const row = object44(output[`${stage.node}:${nic.index}`]);
     require45(
       lower11(ip.subnet_id) === lower11(target) &&
         row.node === stage.node &&
@@ -22327,7 +22437,7 @@ function validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, provid
     const match =
       typeof change.address === 'string' ? /^([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$/.exec(change.address) : null;
     require45(
-      match && change.type === match[1] && object43(resources[match[1]])[match[2]] !== undefined,
+      match && change.type === match[1] && object44(resources[match[1]])[match[2]] !== undefined,
       'planned resource is outside retained configuration',
     );
     require45(
@@ -22358,7 +22468,7 @@ var hash2 = (value) => createHash9('sha256').update(value).digest('hex'),
   require45 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform network update: ${message}`);
   },
-  object43 = (value) => {
+  object44 = (value) => {
     require45(value && typeof value === 'object' && !Array.isArray(value), 'malformed retained configuration');
     return value;
   },
@@ -22375,7 +22485,7 @@ var init_network_update_terraform = __esm(() => {
 function require46(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC projection: ${message}`);
 }
-function object44(value) {
+function object45(value) {
   require46(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
@@ -22417,21 +22527,21 @@ function validateAzureTerraformNetworkNicProjection(
   validateAzureNetworkUpdateTerraformReceipt(plan, stage, receipt, providerLockSha256);
   require46(providerLockSha256 === AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256, 'unqualified provider lock');
   const selections = azureTerraformNetworkNicSelections(plan, stage, inventory);
-  const prior = object44(priorInput),
-    proposed = object44(proposedInput);
+  const prior = object45(priorInput),
+    proposed = object45(proposedInput);
   require46(
     same24(Object.keys(prior).sort(), Object.keys(selections.prior).sort()) &&
       same24(Object.keys(proposed).sort(), Object.keys(selections.proposed).sort()),
     'complete selected resource set required',
   );
-  const configuration = object44(JSON.parse(stage.configuration));
-  const resources = object44(configuration.resource);
-  const interfaces = object44(resources.azurerm_network_interface);
+  const configuration = object45(JSON.parse(stage.configuration));
+  const resources = object45(configuration.resource);
+  const interfaces = object45(resources.azurerm_network_interface);
   const name = (value) => {
     if (typeof value !== 'string' || !value.includes('${')) return value;
     const match = /^\$\{azurerm_resource_group\.([a-z0-9_]+)\.name\}$/.exec(value);
     require46(match, 'unqualified resource group expression');
-    const group = object44(object44(resources.azurerm_resource_group)[match[1]]);
+    const group = object45(object45(resources.azurerm_resource_group)[match[1]]);
     require46(group.name === plan.intent.resourceGroup, 'referenced group differs');
     return group.name;
   };
@@ -22439,7 +22549,7 @@ function validateAzureTerraformNetworkNicProjection(
     if (typeof value !== 'string' || !value.includes('${')) return value;
     const match = /^\$\{azurerm_public_ip\.([a-z0-9_]+)\.id\}$/.exec(value);
     require46(match, 'unqualified requested resource expression');
-    const target = object44(object44(resources.azurerm_public_ip)[match[1]]);
+    const target = object45(object45(resources.azurerm_public_ip)[match[1]]);
     require46(
       typeof target.name === 'string' &&
         resolved(target.name) &&
@@ -22453,8 +22563,8 @@ function validateAzureTerraformNetworkNicProjection(
   for (const nic of plan.nics) {
     const address = `azurerm_network_interface.node_${stage.node}_nic_${nic.index}`;
     const identity = vm.nics[String(nic.index)],
-      before = object44(prior[address]),
-      after = object44(proposed[address]);
+      before = object45(prior[address]),
+      after = object45(proposed[address]);
     for (const [value, fields] of [
       [before, selections.prior[address]],
       [after, selections.proposed[address]],
@@ -22463,12 +22573,12 @@ function validateAzureTerraformNetworkNicProjection(
         same24(Object.keys(value).sort(), fields.toSorted()) && Object.values(value).every(resolved),
         'missing, extra or unresolved selected field',
       );
-    const configured = object44(interfaces[address.split('.')[1]]);
+    const configured = object45(interfaces[address.split('.')[1]]);
     require46(
       Object.keys(configured).every((key) => [...roots, 'ip_configuration'].includes(key)),
       'unqualified NIC configuration field',
     );
-    const ipConfig = object44(configured.ip_configuration[0]);
+    const ipConfig = object45(configured.ip_configuration[0]);
     const effects = receipt.changes.filter((change) => change.address === address);
     require46(
       effects.length === 1 &&
@@ -22506,7 +22616,7 @@ function validateAzureTerraformNetworkNicProjection(
           lower12(side.virtual_machine_id) === lower12(vm.resourceId),
         'NIC, MAC or attachment identity differs',
       );
-      const tags = object44(side.tags);
+      const tags = object45(side.tags);
       require46(
         tags['xcsh-managed-by'] === 'azure-ce' &&
           tags['xcsh-execution-engine'] === 'terraform' &&
@@ -22536,10 +22646,10 @@ function validateAzureTerraformNetworkNicProjection(
       const timeouts = side.timeouts;
       require46(
         timeouts === null ||
-          Object.keys(object44(timeouts)).every(
+          Object.keys(object45(timeouts)).every(
             (key) =>
               ['create', 'delete', 'read', 'update'].includes(key) &&
-              (object44(timeouts)[key] === null || typeof object44(timeouts)[key] === 'string'),
+              (object45(timeouts)[key] === null || typeof object45(timeouts)[key] === 'string'),
           ),
         'unqualified timeouts',
       );
@@ -22634,13 +22744,13 @@ import { createHash as createHash10 } from 'node:crypto';
 function require47(value, message) {
   if (!value) throw Error(`Azure Terraform network dependent routing: ${message}`);
 }
-function object45(value) {
+function object46(value) {
   require47(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
 function parse2(value) {
   try {
-    return object45(JSON.parse(value));
+    return object46(JSON.parse(value));
   } catch {
     throw Error('Azure Terraform network dependent routing: malformed configuration');
   }
@@ -22648,18 +22758,18 @@ function parse2(value) {
 function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
   const nicStage = buildAzureNetworkUpdateTerraformStage(plan, source, before, node);
   const graph = parse2(nicStage.configuration),
-    resources = object45(graph.resource);
+    resources = object46(graph.resource);
   const dependencies = [];
   const base = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network`;
   const parent = (type, name, expectedName, owner) => {
-    const row = object45(object45(resources[type])[name]),
-      tags = object45(row.tags);
+    const row = object46(object46(resources[type])[name]),
+      tags = object46(row.tags);
     require47(
       row.name === expectedName &&
         lower13(row.location) === lower13(plan.region) &&
         (row.resource_group_name === plan.intent.resourceGroup ||
           (row.resource_group_name === `\${azurerm_resource_group.ce.name}` &&
-            object45(object45(resources.azurerm_resource_group).ce).name === plan.intent.resourceGroup)) &&
+            object46(object46(resources.azurerm_resource_group).ce).name === plan.intent.resourceGroup)) &&
         tags['xcsh-managed-by'] === 'azure-ce' &&
         tags['xcsh-execution-engine'] === 'terraform' &&
         tags['xcsh-deployment-id'] === plan.deploymentName &&
@@ -22668,7 +22778,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
     );
   };
   const add = (kind, address, field, index, resourceId) => {
-    const row = object45(object45(resources[address.split('.')[0]])[address.split('.')[1]]);
+    const row = object46(object46(resources[address.split('.')[0]])[address.split('.')[1]]);
     const ref = expression(node, index),
       identity = before.nodes[String(node)].nics[String(index)];
     require47(identity && row[field] === ref, 'exact retained dependent NIC expression required');
@@ -22684,7 +22794,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
     });
     row[field] = identity.privateIp;
   };
-  const routes = resources.azurerm_route === undefined ? {} : object45(resources.azurerm_route);
+  const routes = resources.azurerm_route === undefined ? {} : object46(resources.azurerm_route);
   if (plan.routing.udr) {
     require47(
       plan.routing.mode === 'udr' && plan.routing.destinationCidrs.length > 0,
@@ -22698,7 +22808,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
     const owner = before.nodes[String(selected.node)].nics[String(selected.nicIndex)].ownerPlanSha256;
     parent('azurerm_route_table', 'ce', `${plan.deploymentName}-rt`, owner);
     for (const [index, prefix] of plan.routing.destinationCidrs.entries()) {
-      const row = object45(routes[`route_${index}`]);
+      const row = object46(routes[`route_${index}`]);
       require47(
         same25(
           Object.keys(row).sort(),
@@ -22732,7 +22842,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
   const peers =
     resources.azurerm_route_server_bgp_connection === undefined
       ? {}
-      : object45(resources.azurerm_route_server_bgp_connection);
+      : object46(resources.azurerm_route_server_bgp_connection);
   if (plan.routing.mode === 'route-server' && !plan.relayProfile)
     require47(Object.keys(peers).length > 0, 'complete retained CE peer set required');
   require47(
@@ -22758,14 +22868,14 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
       `${plan.deploymentName}-rs`,
       before.nodes[String(node)].nics[String(slo.index)].ownerPlanSha256,
     );
-    const output = object45(object45(object45(graph.output).ce_route_server_peers).value);
+    const output = object46(object46(object46(graph.output).ce_route_server_peers).value);
     require47(
       same25(Object.keys(output).sort(), Object.keys(before.nodes).sort()),
       'complete peer output set required',
     );
     for (const key of Object.keys(before.nodes)) {
-      const row = object45(peers[`node_${key}`]),
-        exported = object45(output[key]);
+      const row = object46(peers[`node_${key}`]),
+        exported = object46(output[key]);
       require47(
         same25(Object.keys(row).sort(), ['name', 'peer_asn', 'peer_ip', 'route_server_id'].sort()) &&
           row.name === `${plan.deploymentName}-${key}` &&
@@ -22787,7 +22897,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
       slo.index,
       `${base}/virtualHubs/${plan.deploymentName}-rs/bgpConnections/${plan.deploymentName}-${node}`,
     );
-    object45(output[String(node)]).peer_ip = before.nodes[String(node)].nics[String(slo.index)].privateIp;
+    object46(output[String(node)]).peer_ip = before.nodes[String(node)].nics[String(slo.index)].privateIp;
   }
   const mentionsSelectedIp = (value) => {
     if (typeof value === 'string')
@@ -22797,7 +22907,7 @@ function prepareAzureTerraformNetworkRouting(plan, source, before, node) {
     return !!value && typeof value === 'object' && Object.values(value).some(mentionsSelectedIp);
   };
   for (const group of Object.values(resources))
-    for (const row of Object.values(object45(group)))
+    for (const row of Object.values(object46(group)))
       require47(!mentionsSelectedIp(row), 'unqualified resource depends on selected NIC address');
   const configuration = JSON.stringify(graph);
   return { ...nicStage, configuration, configurationSha256: hash3(configuration), dependencies };
@@ -22828,12 +22938,12 @@ function buildAzureTerraformNetworkRoutingStage(plan, source, before, current, n
   const dependencies = prepared.dependencies.map((dependency) => {
     const currentIp = current.nodes[String(node)].nics[String(dependency.nicIndex)].privateIp;
     const [type, name] = dependency.address.split('.');
-    object45(object45(object45(graph.resource)[type])[name])[dependency.field] = currentIp;
-    object45(object45(object45(released.resource)[type])[name])[dependency.field] = dependency.expression;
+    object46(object46(object46(graph.resource)[type])[name])[dependency.field] = currentIp;
+    object46(object46(object46(released.resource)[type])[name])[dependency.field] = dependency.expression;
     if (dependency.kind === 'route-server-peer') {
-      object45(object45(object45(object45(graph.output).ce_route_server_peers).value)[String(node)]).peer_ip =
+      object46(object46(object46(object46(graph.output).ce_route_server_peers).value)[String(node)]).peer_ip =
         currentIp;
-      object45(object45(object45(object45(released.output).ce_route_server_peers).value)[String(node)]).peer_ip =
+      object46(object46(object46(object46(released.output).ce_route_server_peers).value)[String(node)]).peer_ip =
         dependency.expression;
     }
     return { ...dependency, currentIp };
@@ -22858,7 +22968,7 @@ function buildAzureTerraformNetworkRoutingStage(plan, source, before, current, n
   };
 }
 function validateAzureTerraformNetworkRoutingPrepared(plan, source, before, expected, node, input) {
-  const saved = object45(input);
+  const saved = object46(input);
   require47(
     same25(Object.keys(saved).sort(), ['schemaVersion', 'kind', 'stage', 'before', 'current', 'appliedNics'].sort()) &&
       saved.schemaVersion === 2 &&
@@ -22921,7 +23031,7 @@ function validateAzureTerraformNetworkRoutingReceipt(plan, source, before, curre
       Array.isArray(receipt.changes),
     'exact saved scope and qualified lock required',
   );
-  const resources = object45(parse2(configuration).resource),
+  const resources = object46(parse2(configuration).resource),
     seen = new Set();
   for (const change of receipt.changes) {
     require47(
@@ -22930,7 +23040,7 @@ function validateAzureTerraformNetworkRoutingReceipt(plan, source, before, curre
     );
     const match = /^([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$/.exec(change.address);
     require47(
-      match && change.type === match[1] && object45(resources[match[1]])[match[2]] && !seen.has(change.address),
+      match && change.type === match[1] && object46(resources[match[1]])[match[2]] && !seen.has(change.address),
       'unknown or duplicate saved resource',
     );
     seen.add(change.address);
@@ -22970,8 +23080,8 @@ function validateAzureTerraformNetworkRoutingProjection(
   proposedInput,
 ) {
   validateAzureTerraformNetworkRoutingReceipt(plan, source, before, current, stage, receipt, phase);
-  const prior = object45(priorInput),
-    proposed = object45(proposedInput),
+  const prior = object46(priorInput),
+    proposed = object46(proposedInput),
     selections = azureTerraformNetworkRoutingSelections(stage);
   require47(
     same25(Object.keys(prior).sort(), Object.keys(selections).sort()) &&
@@ -22979,8 +23089,8 @@ function validateAzureTerraformNetworkRoutingProjection(
     'complete projection resource set required',
   );
   for (const dependency of stage.dependencies) {
-    const beforeRow = object45(prior[dependency.address]),
-      afterRow = object45(proposed[dependency.address]);
+    const beforeRow = object46(prior[dependency.address]),
+      afterRow = object46(proposed[dependency.address]);
     for (const row of [beforeRow, afterRow]) {
       require47(
         same25(Object.keys(row).sort(), selections[dependency.address].toSorted()) &&
@@ -22992,7 +23102,7 @@ function validateAzureTerraformNetworkRoutingProjection(
         dependency.kind === 'udr-next-hop' ? ['create', 'delete', 'read', 'update'] : ['create', 'delete', 'read'];
       require47(
         row.timeouts === null ||
-          Object.entries(object45(row.timeouts)).every(
+          Object.entries(object46(row.timeouts)).every(
             ([key, value]) => allowed.includes(key) && (value === null || typeof value === 'string'),
           ),
         'unqualified timeout fields',
@@ -23134,7 +23244,7 @@ async function powerDeployment(plan, node, operation, selected) {
 async function validateAzureTerraformNetworkPowerPlan(plan, inventory, node, operation, input, phase) {
   require48(['mutation', 'release', 'final'].includes(phase), 'exact plan phase required');
   const deployment = await azureTerraformNetworkPowerDeployment(plan, inventory, node, operation, phase !== 'mutation');
-  const row = object46(input);
+  const row = object47(input);
   const required = [
     'schemaVersion',
     'deploymentId',
@@ -23163,7 +23273,7 @@ async function validateAzureTerraformNetworkPowerPlan(plan, inventory, node, ope
       optional.every((key) => row[key] === undefined || (Array.isArray(row[key]) && row[key].length === 0)),
     'saved plan identity or metadata differs',
   );
-  const changes = row.changes.map(object46);
+  const changes = row.changes.map(object47);
   const allowed = phase === 'mutation' ? ['create', 'update', 'no-op'] : ['delete', 'no-op'];
   require48(
     changes.every(
@@ -23195,8 +23305,8 @@ async function validateAzureTerraformNetworkPowerProjection(
 ) {
   const receipt = await validateAzureTerraformNetworkPowerPlan(plan, inventory, node, operation, input, phase);
   const expected = action(plan, inventory, node, operation);
-  const prior = object46(priorInput),
-    proposed = object46(proposedInput);
+  const prior = object47(priorInput),
+    proposed = object47(proposedInput);
   require48(
     same26(Object.keys(prior), [address]) && same26(Object.keys(proposed), [address]),
     'complete exact state projection required',
@@ -23255,12 +23365,12 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
   require48(response.exitCode === 0, 'selected VM power observation unavailable');
   let vm;
   try {
-    vm = object46(JSON.parse(response.stdout));
+    vm = object47(JSON.parse(response.stdout));
   } catch {
     throw Error('Azure Terraform network power: malformed VM observation');
   }
   require48(!['nextLink', 'error', 'errors'].some((key) => vm[key]), 'partial or failed selected VM observation');
-  const tags = object46(vm.tags);
+  const tags = object47(vm.tags);
   require48(
     vm.id === selected.resourceId &&
       typeof vm.vmId === 'string' &&
@@ -23273,14 +23383,14 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
       tags['xcsh-execution-engine'] === 'terraform' &&
       tags['xcsh-deployment-id'] === plan.deploymentName &&
       tags['xcsh-plan-sha256'] === selected.ownerPlanSha256 &&
-      object46(vm.hardwareProfile).vmSize === plan.vm.size,
+      object47(vm.hardwareProfile).vmSize === plan.vm.size,
     'selected VM identity changed between inventory and power reads',
   );
-  const attachments = object46(vm.networkProfile).networkInterfaces;
+  const attachments = object47(vm.networkProfile).networkInterfaces;
   require48(
     Array.isArray(attachments) &&
       same26(
-        attachments.map((value) => object46(value).id).sort(),
+        attachments.map((value) => object47(value).id).sort(),
         Object.values(selected.nics)
           .map((nic) => nic.resourceId)
           .sort(),
@@ -23311,7 +23421,7 @@ async function observeAzureTerraformNetworkPower(plan, before, node, operation, 
 var address = 'azapi_resource_action.ce_network',
   hash4 = (value) => createHash11('sha256').update(value).digest('hex'),
   same26,
-  object46 = (value) => {
+  object47 = (value) => {
     require48(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
@@ -23331,12 +23441,12 @@ var init_terraform_network_power = __esm(() => {
 function require49(value, message) {
   if (!value) throw Error(`Azure Terraform network routing observation validation: ${message}`);
 }
-function object47(value) {
+function object48(value) {
   require49(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys2(value, expected) {
-  const row = object47(value);
+  const row = object48(value);
   require49(same27(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
   return row;
 }
@@ -23400,7 +23510,7 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
       (stage.dependencies.length ? 'configuration-installation-only' : 'no-selected-dependent-routing'),
     'saved evidence reason differs',
   );
-  const resources = object47(object47(JSON.parse(stage.configuration)).resource);
+  const resources = object48(object48(JSON.parse(stage.configuration)).resource);
   for (const [index, dependency] of stage.dependencies.entries()) {
     const row = keys2(routing.rows[index], [
         'kind',
@@ -23418,13 +23528,13 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
         'provisioningState',
         ...(dependency.kind === 'udr-next-hop' ? ['prefix', 'nextHopType'] : ['peerAsn']),
       ]),
-      config = object47(object47(resources[dependency.address.split('.')[0]])[dependency.address.split('.')[1]]);
+      config = object48(object48(resources[dependency.address.split('.')[0]])[dependency.address.split('.')[1]]);
     const udr = dependency.kind === 'udr-next-hop',
       parentId = dependency.resourceId.slice(
         0,
         dependency.resourceId.lastIndexOf(udr ? '/routes/' : '/bgpConnections/'),
       );
-    const owner = object47(object47(object47(resources[udr ? 'azurerm_route_table' : 'azurerm_route_server']).ce).tags)[
+    const owner = object48(object48(object48(resources[udr ? 'azurerm_route_table' : 'azurerm_route_server']).ce).tags)[
       'xcsh-plan-sha256'
     ];
     require49(
@@ -23464,7 +23574,7 @@ function validateAzureTerraformNetworkRoutingObservation(plan, source, before, c
       power.resourceId === current.nodes[String(node)].resourceId &&
       power.vmId === current.nodes[String(node)].vmId &&
       power.ownerPlanSha256 === current.nodes[String(node)].ownerPlanSha256 &&
-      same27(object47(power.inventory).nodes, current.nodes) &&
+      same27(object48(power.inventory).nodes, current.nodes) &&
       typeof power.observedAt === 'string' &&
       Number.isFinite(Date.parse(power.observedAt)),
     'saved current power/cloud identity differs',
@@ -23659,12 +23769,12 @@ import { createHash as createHash12 } from 'node:crypto';
 function require51(value, message) {
   if (!value) throw Error(`Azure Terraform network stage history: ${message}`);
 }
-function object48(value) {
+function object49(value) {
   require51(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys4(value, names) {
-  const row = object48(value);
+  const row = object49(value);
   require51(same29(Object.keys(row).sort(), names.toSorted()), 'saved packet schema differs');
   return row;
 }
@@ -24963,12 +25073,12 @@ var init_terraform_network_replacement_execution_journal = __esm(() => {
 });
 
 // plugins/platform/src/ce/bootstrap.ts
-function object49(value) {
+function object50(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed bootstrap response');
   return value;
 }
 function bindAwsCloudInit(response, jwt) {
-  const material = object49(response).cloud_init_config;
+  const material = object50(response).cloud_init_config;
   if (typeof material !== 'string' || material.length > 1024 * 1024 || !material.startsWith('#cloud-config'))
     throw new Error('Unsupported cloud-init material');
   if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(jwt)) throw new Error('Malformed site-bound JWT');
@@ -24976,12 +25086,12 @@ function bindAwsCloudInit(response, jwt) {
   if (/\{\{|\}\}/.test(bound)) throw new Error('Unresolved cloud-init placeholder');
   let parsed;
   try {
-    parsed = object49(Bun.YAML.parse(bound));
+    parsed = object50(Bun.YAML.parse(bound));
   } catch {
     throw new Error('Malformed cloud-init material');
   }
   if (!Array.isArray(parsed.write_files)) throw new Error('Cloud-init has no issued user data');
-  const files = parsed.write_files.map(object49);
+  const files = parsed.write_files.map(object50);
   if (files.some((file) => file.path === '/etc/vpm/config.yaml'))
     throw new Error('Cloud-init overwrites certified image configuration');
   const userData = files.filter((file) => file.path === '/etc/vpm/user_data');
@@ -26063,7 +26173,7 @@ function validateBootstrap(value) {
 }
 function parseReplacementConfiguration(value) {
   try {
-    return object50(JSON.parse(value));
+    return object51(JSON.parse(value));
   } catch {
     throw Error('Malformed Azure Terraform replacement configuration');
   }
@@ -26071,21 +26181,21 @@ function parseReplacementConfiguration(value) {
 function validateReplacementConfiguration(plan, value) {
   if (plan.relayProfile?.schemaVersion !== 2) return;
   const source = parseReplacementConfiguration(value);
-  const instances = object50(object50(source.resource).azurerm_linux_virtual_machine);
+  const instances = object51(object51(source.resource).azurerm_linux_virtual_machine);
   const original = azureRelayResourceSource(plan);
   const bootstrapByNode = {};
   for (let node = 1; node <= original.topology.nodeCount; node++) {
-    const encoded = object50(instances[`node_${node}`]).custom_data;
+    const encoded = object51(instances[`node_${node}`]).custom_data;
     if (typeof encoded !== 'string' || !encoded || Buffer.from(encoded, 'base64').toString('base64') !== encoded)
       throw Error('Azure Terraform replacement retained bootstrap encoding differs');
     const material = Buffer.from(encoded, 'base64').toString('utf8');
     validateBootstrap(material);
     bootstrapByNode[String(node)] = material;
   }
-  const expected = object50(JSON.parse(renderAzureTerraformFoundation(original, bootstrapByNode)));
-  const expectedVms = object50(object50(expected.resource).azurerm_linux_virtual_machine);
+  const expected = object51(JSON.parse(renderAzureTerraformFoundation(original, bootstrapByNode)));
+  const expectedVms = object51(object51(expected.resource).azurerm_linux_virtual_machine);
   for (let node = 1; node <= original.topology.nodeCount; node++)
-    object50(object50(expectedVms[`node_${node}`]).tags)['xcsh-plan-sha256'] = azureRelayReplacementRetainedOwner(
+    object51(object51(expectedVms[`node_${node}`]).tags)['xcsh-plan-sha256'] = azureRelayReplacementRetainedOwner(
       plan,
       vmResourceId(plan, node),
     );
@@ -26093,12 +26203,12 @@ function validateReplacementConfiguration(plan, value) {
     throw Error('Azure Terraform replacement retained configuration provenance differs');
 }
 function validateRetainedConfigurationIdentity(plan, source, cloud) {
-  const resources = object50(parseReplacementConfiguration(source).resource);
-  const vms = object50(resources.azurerm_linux_virtual_machine);
-  const nics = object50(resources.azurerm_network_interface);
+  const resources = object51(parseReplacementConfiguration(source).resource);
+  const vms = object51(resources.azurerm_linux_virtual_machine);
+  const nics = object51(resources.azurerm_network_interface);
   const macs = new Set();
   const requireOwner = (resource, owner) => {
-    const tags = object50(resource.tags);
+    const tags = object51(resource.tags);
     if (
       tags['xcsh-managed-by'] !== 'azure-ce' ||
       tags['xcsh-execution-engine'] !== 'terraform' ||
@@ -26108,10 +26218,10 @@ function validateRetainedConfigurationIdentity(plan, source, cloud) {
       throw Error('Azure Terraform replacement retained configuration identity differs');
   };
   for (let node = 1; node <= plan.topology.nodeCount; node++) {
-    requireOwner(object50(vms[`node_${node}`]), cloud.ownerPlanSha256ByNode[`${plan.deploymentName}-${node}`]);
+    requireOwner(object51(vms[`node_${node}`]), cloud.ownerPlanSha256ByNode[`${plan.deploymentName}-${node}`]);
     for (const nic of plan.nics) {
       const retained = cloud.retainedNics[`${node}:${nic.index}`];
-      requireOwner(object50(nics[`node_${node}_nic_${nic.index}`]), retained.ownerPlanSha256);
+      requireOwner(object51(nics[`node_${node}_nic_${nic.index}`]), retained.ownerPlanSha256);
       if (macs.has(retained.mac.toLowerCase()))
         throw Error('Azure Terraform replacement retained configuration identity has duplicate MACs');
       macs.add(retained.mac.toLowerCase());
@@ -26125,15 +26235,15 @@ function azureTerraformReplacementStages(plan, source, sourceSha256, bootstrap) 
   validateBootstrap(bootstrap);
   validateReplacementConfiguration(plan, source);
   const original = parseReplacementConfiguration(source);
-  const resources = object50(original.resource);
-  const instances = object50(resources.azurerm_linux_virtual_machine);
-  const outputs = object50(object50(object50(original.output).ce_instances).value);
+  const resources = object51(original.resource);
+  const instances = object51(resources.azurerm_linux_virtual_machine);
+  const outputs = object51(object51(object51(original.output).ce_instances).value);
   const name = `node_${node}`;
-  const instance = object50(instances[name]);
-  const tags = object50(instance.tags);
+  const instance = object51(instances[name]);
+  const tags = object51(instance.tags);
   const deleteAction = plan.actions.find((action) => action.kind === 'vm-delete' && action.node === node);
   const imageRows = instance.source_image_reference;
-  const image = Array.isArray(imageRows) && imageRows.length === 1 ? object50(imageRows[0]) : {};
+  const image = Array.isArray(imageRows) && imageRows.length === 1 ? object51(imageRows[0]) : {};
   const expectedNics = plan.nics.map((nic) => `\${azurerm_network_interface.${name}_nic_${nic.index}.id}`);
   if (
     !deleteAction?.resourceId ||
@@ -26152,18 +26262,18 @@ function azureTerraformReplacementStages(plan, source, sourceSha256, bootstrap) 
     image.offer !== plan.image.offer ||
     image.sku !== plan.image.plan ||
     image.version !== plan.image.version ||
-    object50(outputs[String(node)]).id !== `\${azurerm_linux_virtual_machine.${name}.id}` ||
-    object50(outputs[String(node)]).vm_id !== `\${azurerm_linux_virtual_machine.${name}.virtual_machine_id}`
+    object51(outputs[String(node)]).id !== `\${azurerm_linux_virtual_machine.${name}.id}` ||
+    object51(outputs[String(node)]).vm_id !== `\${azurerm_linux_virtual_machine.${name}.virtual_machine_id}`
   )
     throw new Error('Azure Terraform replacement source VM or output binding differs');
   const quiesced = structuredClone(original);
-  delete object50(object50(quiesced.resource).azurerm_linux_virtual_machine)[name];
-  delete object50(object50(object50(quiesced.output).ce_instances).value)[String(node)];
+  delete object51(object51(quiesced.resource).azurerm_linux_virtual_machine)[name];
+  delete object51(object51(object51(quiesced.output).ce_instances).value)[String(node)];
   const quiesceConfiguration = JSON.stringify(quiesced);
   const launched = structuredClone(original);
-  const replacement = object50(object50(object50(launched.resource).azurerm_linux_virtual_machine)[name]);
+  const replacement = object51(object51(object51(launched.resource).azurerm_linux_virtual_machine)[name]);
   replacement.custom_data = Buffer.from(bootstrap).toString('base64');
-  object50(replacement.tags)['xcsh-plan-sha256'] = plan.planSha256;
+  object51(replacement.tags)['xcsh-plan-sha256'] = plan.planSha256;
   const launchConfiguration = JSON.stringify(launched);
   const address = `azurerm_linux_virtual_machine.${name}`;
   const make = (phase, configuration, previousConfigurationSha256) => ({
@@ -26210,7 +26320,7 @@ async function azJson2(api, args, signal) {
   const result = await api.exec('az', [...args, '--output', 'json'], signal ? { signal } : undefined);
   if (result.exitCode !== 0) throw new Error('Azure Terraform replacement observation is unavailable');
   try {
-    const value = object50(JSON.parse(result.stdout));
+    const value = object51(JSON.parse(result.stdout));
     if (value.nextLink !== undefined) throw new Error('Incomplete Azure Terraform replacement observation');
     return value;
   } catch {
@@ -26238,7 +26348,7 @@ async function listVms(plan, api, signal) {
   try {
     const value = JSON.parse(result.stdout);
     if (!Array.isArray(value)) throw new Error('not an array');
-    return value.map((item) => object50(item));
+    return value.map((item) => object51(item));
   } catch {
     throw new Error('Malformed Azure Terraform replacement VM observation');
   }
@@ -26253,7 +26363,7 @@ async function account(plan, api, signal) {
   if (result.exitCode !== 0) throw new Error('Azure Terraform replacement account observation is unavailable');
   let value;
   try {
-    value = object50(JSON.parse(result.stdout));
+    value = object51(JSON.parse(result.stdout));
   } catch {
     throw new Error('Malformed Azure Terraform replacement account observation');
   }
@@ -26278,10 +26388,10 @@ async function initialCloudEvidence(plan, api, signal) {
     const resourceId = vmResourceId(plan, node);
     const matches = rows.filter((row) => lower14(row.id) === lower14(resourceId));
     const vm = matches.length === 1 ? matches[0] : undefined;
-    const tags = vm ? object50(vm.tags) : {};
+    const tags = vm ? object51(vm.tags) : {};
     const attachments =
-      vm && Array.isArray(object50(vm.networkProfile).networkInterfaces)
-        ? object50(vm.networkProfile).networkInterfaces.map((item) => lower14(object50(item).id))
+      vm && Array.isArray(object51(vm.networkProfile).networkInterfaces)
+        ? object51(vm.networkProfile).networkInterfaces.map((item) => lower14(object51(item).id))
         : [];
     const expectedAttachments = plan.nics.map((nic) => lower14(nicResourceId(plan, node, nic.index)));
     const ownerPlanSha256 = tags['xcsh-plan-sha256'];
@@ -26290,7 +26400,7 @@ async function initialCloudEvidence(plan, api, signal) {
       vm.name !== name ||
       lower14(vm.location) !== lower14(plan.region) ||
       vm.provisioningState !== 'Succeeded' ||
-      lower14(object50(vm.hardwareProfile).vmSize) !== lower14(plan.vm.size) ||
+      lower14(object51(vm.hardwareProfile).vmSize) !== lower14(plan.vm.size) ||
       attachments.length !== expectedAttachments.length ||
       expectedAttachments.some((id) => !attachments.includes(id)) ||
       !uuid2(vm.vmId) ||
@@ -26313,20 +26423,20 @@ async function initialCloudEvidence(plan, api, signal) {
         ['network', 'nic', 'show', '--ids', id, '--subscription', plan.subscription.id],
         signal,
       );
-      const nicTags = object50(value.tags);
-      const configs = Array.isArray(value.ipConfigurations) ? value.ipConfigurations.map((item) => object50(item)) : [];
+      const nicTags = object51(value.tags);
+      const configs = Array.isArray(value.ipConfigurations) ? value.ipConfigurations.map((item) => object51(item)) : [];
       const primary = configs.filter(
         (item) => item.primary === true || (configs.length === 1 && item.primary === undefined),
       );
       const config = primary.length === 1 ? primary[0] : {};
       const mac = lower14(value.macAddress).replaceAll('-', ':');
       const privateIp = config.privateIPAddress;
-      const subnetId = object50(config.subnet).id;
+      const subnetId = object51(config.subnet).id;
       if (
         lower14(value.id) !== lower14(id) ||
         lower14(value.location) !== lower14(plan.region) ||
         value.provisioningState !== 'Succeeded' ||
-        lower14(object50(value.virtualMachine).id) !== lower14(resourceId) ||
+        lower14(object51(value.virtualMachine).id) !== lower14(resourceId) ||
         nicTags['xcsh-managed-by'] !== 'azure-ce' ||
         nicTags['xcsh-execution-engine'] !== 'terraform' ||
         nicTags['xcsh-deployment-id'] !== plan.deploymentName ||
@@ -26376,10 +26486,10 @@ async function currentCloudEvidence(plan, checkpoint, api, phase, signal) {
       if (node === selected && phase === 'launched' && matches.length === 0)
         throw new Error('Azure Terraform replacement VM launch has not converged');
       const vm = matches.length === 1 ? matches[0] : undefined;
-      const tags = vm ? object50(vm.tags) : {};
+      const tags = vm ? object51(vm.tags) : {};
       const attachments =
-        vm && Array.isArray(object50(vm.networkProfile).networkInterfaces)
-          ? object50(vm.networkProfile).networkInterfaces.map((item) => lower14(object50(item).id))
+        vm && Array.isArray(object51(vm.networkProfile).networkInterfaces)
+          ? object51(vm.networkProfile).networkInterfaces.map((item) => lower14(object51(item).id))
           : [];
       const expectedAttachments = plan.nics.map((nic) => lower14(nicResourceId(plan, node, nic.index)));
       const expectedOwner =
@@ -26389,7 +26499,7 @@ async function currentCloudEvidence(plan, checkpoint, api, phase, signal) {
         vm.name !== name ||
         lower14(vm.location) !== lower14(plan.region) ||
         vm.provisioningState !== 'Succeeded' ||
-        lower14(object50(vm.hardwareProfile).vmSize) !== lower14(plan.vm.size) ||
+        lower14(object51(vm.hardwareProfile).vmSize) !== lower14(plan.vm.size) ||
         attachments.length !== expectedAttachments.length ||
         expectedAttachments.some((id) => !attachments.includes(id)) ||
         !uuid2(vm.vmId) ||
@@ -26413,8 +26523,8 @@ async function currentCloudEvidence(plan, checkpoint, api, phase, signal) {
         ['network', 'nic', 'show', '--ids', expected.resourceId, '--subscription', plan.subscription.id],
         signal,
       );
-      const tags = object50(value.tags);
-      const configs = Array.isArray(value.ipConfigurations) ? value.ipConfigurations.map((item) => object50(item)) : [];
+      const tags = object51(value.tags);
+      const configs = Array.isArray(value.ipConfigurations) ? value.ipConfigurations.map((item) => object51(item)) : [];
       const primary = configs.filter(
         (item) => item.primary === true || (configs.length === 1 && item.primary === undefined),
       );
@@ -26437,7 +26547,7 @@ async function currentCloudEvidence(plan, checkpoint, api, phase, signal) {
         tags['xcsh-plan-sha256'] !== expected.ownerPlanSha256 ||
         lower14(value.macAddress).replaceAll('-', ':') !== expected.mac ||
         config.privateIPAddress !== expected.privateIp ||
-        lower14(object50(config.subnet).id) !== lower14(expected.subnetId)
+        lower14(object51(config.subnet).id) !== lower14(expected.subnetId)
       )
         throw new Error('Azure Terraform retained NIC identity, attachment, or address changed');
       if (nic.role === 'slo' || nic.role === 'data' || nic.role === 'sli')
@@ -26454,8 +26564,8 @@ async function currentCloudEvidence(plan, checkpoint, api, phase, signal) {
 }
 async function validateOutputs(plan, session, checkpoint, currentVmIds, env, signal) {
   const outputs = await session.readOutputs(['ce_instances', 'ce_interfaces'], env, signal);
-  const instances = object50(outputs.ce_instances, 'Azure Terraform replacement instance outputs are unavailable');
-  const interfaces = object50(outputs.ce_interfaces, 'Azure Terraform replacement interface outputs are unavailable');
+  const instances = object51(outputs.ce_instances, 'Azure Terraform replacement instance outputs are unavailable');
+  const interfaces = object51(outputs.ce_interfaces, 'Azure Terraform replacement interface outputs are unavailable');
   if (
     Object.keys(instances).sort().join(',') !==
       Array.from({ length: plan.topology.nodeCount }, (_, index) => String(index + 1)).join(',') ||
@@ -26464,7 +26574,7 @@ async function validateOutputs(plan, session, checkpoint, currentVmIds, env, sig
     throw new Error('Azure Terraform replacement output inventory is incomplete');
   for (let node = 1; node <= plan.topology.nodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
-    const instance = object50(instances[String(node)]);
+    const instance = object51(instances[String(node)]);
     if (
       lower14(instance.id) !== lower14(vmResourceId(plan, node)) ||
       lower14(instance.vm_id) !== lower14(currentVmIds[name]) ||
@@ -26475,7 +26585,7 @@ async function validateOutputs(plan, session, checkpoint, currentVmIds, env, sig
     for (const nic of plan.nics) {
       const key = `${node}:${nic.index}`;
       const expected = checkpoint.retainedNics[key];
-      const value = object50(interfaces[key]);
+      const value = object51(interfaces[key]);
       if (
         lower14(value.id) !== lower14(expected.resourceId) ||
         lower14(value.subnet_id) !== lower14(expected.subnetId) ||
@@ -26491,7 +26601,7 @@ async function validateOutputs(plan, session, checkpoint, currentVmIds, env, sig
 }
 function validateAzureTerraformReplacementCheckpoint(plan, value) {
   verifyAzureCePlan(plan);
-  const checkpoint = object50(value);
+  const checkpoint = object51(value);
   const expectedKeys = [
     'schemaVersion',
     'engine',
@@ -26578,7 +26688,7 @@ function validateAzureTerraformReplacementCheckpoint(plan, value) {
 }
 function validateAzureTerraformReplacementSource(plan, checkpoint, value) {
   validateAzureTerraformReplacementCheckpoint(plan, checkpoint);
-  const snapshot = object50(value);
+  const snapshot = object51(value);
   if (
     Object.keys(snapshot).sort().join(',') !==
       [
@@ -26636,10 +26746,10 @@ function validateAzureTerraformReplacementStageHistory(plan, checkpoint, snapsho
       continue;
     }
     const stage = built[phase];
-    const record = object50(value);
-    const receipt = object50(record.receipt);
+    const record = object51(value);
+    const receipt = object51(record.receipt);
     validateAzureTerraformReplacementStageReceipt(plan, stage, receipt, providerLockSha256);
-    const identities = object50(record.identities);
+    const identities = object51(record.identities);
     const expected = phase === 'quiesce' ? (receipt.noChanges ? null : vmId) : receipt.noChanges ? vmId : null;
     if (
       Object.keys(record).sort().join(',') !==
@@ -26667,7 +26777,7 @@ function validateAzureTerraformReplacementStageHistory(plan, checkpoint, snapsho
     if (checkpoint.phase === 'complete')
       throw Error('Azure Terraform replacement final no-change history is unavailable');
   } else {
-    const receipt = object50(final);
+    const receipt = object51(final);
     validateAzureTerraformReplacementStageReceipt(plan, built.launch, receipt, providerLockSha256);
     if (!receipt.noChanges || !['launched', 'complete'].includes(checkpoint.phase))
       throw Error('Azure Terraform replacement final no-change history differs');
@@ -26742,7 +26852,7 @@ async function applyStage(
   let unsubmitted;
   if (currentSha256 === stage.configurationSha256) {
     try {
-      const previous = object50(await storage.read(receiptName));
+      const previous = object51(await storage.read(receiptName));
       const receipt = previous.receipt;
       validateAzureTerraformReplacementStageReceipt(plan, stage, receipt, providerLockSha256);
       if (guard) {
@@ -26989,7 +27099,7 @@ async function runAzureTerraformReplacement(
       if (snapshot === undefined) throw Error('Azure Terraform replacement private source snapshot is unavailable');
       checkpoint = validateAzureTerraformReplacementCheckpoint(
         plan,
-        persistedCheckpoint === undefined ? object50(snapshot).preparedCheckpoint : persistedCheckpoint,
+        persistedCheckpoint === undefined ? object51(snapshot).preparedCheckpoint : persistedCheckpoint,
       );
       if (guard && checkpoint.phase === 'complete') {
         try {
@@ -27030,7 +27140,7 @@ async function runAzureTerraformReplacement(
       validateRetainedConfigurationIdentity(plan, source, cloud);
       const binding = azureUpgradeBinding(plan);
       const site = await runtime.observeOwnedSite(binding, signal);
-      const siteUid = object50(site.system_metadata).uid;
+      const siteUid = object51(site.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid)
         throw new Error('Azure Terraform replacement site UID is unavailable');
       const siteConfigurationSha256 = canonicalSha256(runtime.ownedSiteConfiguration(binding, site));
@@ -27212,7 +27322,7 @@ async function runAzureTerraformReplacement(
       throw new Error('Azure Terraform replacement registration or configuration has not converged');
     const site = await runtime.observeOwnedSite(binding, signal);
     if (
-      object50(site.system_metadata).uid !== checkpoint.siteUid ||
+      object51(site.system_metadata).uid !== checkpoint.siteUid ||
       canonicalSha256(runtime.ownedSiteConfiguration(binding, site)) !== checkpoint.siteConfigurationSha256
     )
       throw new Error('Azure Terraform replacement changed the logical site identity or configuration');
@@ -27387,7 +27497,7 @@ var NetworkReplacementOperationalPending,
   digest6 = (value) => createHash20('sha256').update(value).digest('hex'),
   lower14 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   uuid2 = (value) => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value),
-  object50 = (value, message = 'Malformed Azure Terraform replacement data') => {
+  object51 = (value, message = 'Malformed Azure Terraform replacement data') => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
     return value;
   },
@@ -27420,12 +27530,12 @@ import { createHash as createHash21 } from 'node:crypto';
 function require59(v, message) {
   if (!v) throw Error(`Azure Terraform network replacement completion: ${message}`);
 }
-function object51(v) {
+function object52(v) {
   require59(v && typeof v === 'object' && !Array.isArray(v), 'complete private object required');
   return v;
 }
 function keys7(v, fields) {
-  require59(same35(Object.keys(object51(v)).sort(), fields.toSorted()), 'private completion schema differs');
+  require59(same35(Object.keys(object52(v)).sort(), fields.toSorted()), 'private completion schema differs');
 }
 function verification(v) {
   keys7(v, ['status', 'scope', 'evidenceSha256']);
@@ -28163,11 +28273,11 @@ function isAzureTerraformReplacementHistoricalArtifact(name) {
   );
 }
 function verifyRecovery(plan, checkpoint, phase, value) {
-  const record = object52(value);
+  const record = object53(value);
   exact(record, ['currentVmIds', 'expectedInterfaces', 'observedAt']);
   collectedAt(record.observedAt);
   const selected = `${plan.deploymentName}-${checkpoint.node}`;
-  const instances = object52(record.currentVmIds);
+  const instances = object53(record.currentVmIds);
   const nodes = Object.keys(checkpoint.oldVmIds).filter((node) => phase !== 'quiesce' || node !== selected);
   require61(same37(Object.keys(instances).sort(), nodes.sort()), 'recovery node inventory differs');
   for (const node of nodes) {
@@ -28214,20 +28324,20 @@ function verifyAzureTerraformNonRelayConfiguration(base, checkpoint, configurati
       validAzureRetainedNicsForSource(base, checkpoint.retainedNics),
     'original retained non-relay NIC graph differs',
   );
-  const instances = object52(object52(configuration.resource).azurerm_linux_virtual_machine);
+  const instances = object53(object53(configuration.resource).azurerm_linux_virtual_machine);
   const bootstrap = {};
   for (let index = 1; index <= base.topology.nodeCount; index++) {
-    const encoded = object52(instances[`node_${index}`]).custom_data;
+    const encoded = object53(instances[`node_${index}`]).custom_data;
     require61(
       typeof encoded === 'string' && Buffer.from(encoded, 'base64').toString('base64') === encoded,
       'retained bootstrap encoding differs',
     );
     bootstrap[String(index)] = Buffer.from(encoded, 'base64').toString('utf8');
   }
-  const expected = object52(JSON.parse(renderAzureTerraformFoundation(base, bootstrap)));
-  const expectedVms = object52(object52(expected.resource).azurerm_linux_virtual_machine);
+  const expected = object53(JSON.parse(renderAzureTerraformFoundation(base, bootstrap)));
+  const expectedVms = object53(object53(expected.resource).azurerm_linux_virtual_machine);
   for (let index = 1; index <= base.topology.nodeCount; index++)
-    object52(object52(expectedVms[`node_${index}`]).tags)['xcsh-plan-sha256'] =
+    object53(object53(expectedVms[`node_${index}`]).tags)['xcsh-plan-sha256'] =
       checkpoint.ownerPlanSha256ByNode[`${base.deploymentName}-${index}`];
   require61(same37(configuration, expected), 'retained non-relay configuration graph differs');
 }
@@ -28247,7 +28357,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
   const site = ownedSites[0];
   const sources = new Map([[base.planSha256, base]]);
   for (const [id, history] of generations) {
-    const source = object52(history.get(`${id}-terraform-replacement-plan.json`));
+    const source = object53(history.get(`${id}-terraform-replacement-plan.json`));
     verifyAzureCePlan(source);
     require61(
       source.planId === id &&
@@ -28273,7 +28383,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
         source.planSha256,
         validateAzureTerraformReplacementCheckpoint(
           source,
-          value === undefined ? object52(snapshot).preparedCheckpoint : value,
+          value === undefined ? object53(snapshot).preparedCheckpoint : value,
         ),
       );
   }
@@ -28293,7 +28403,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     const token = tokens.get(name);
     const record = records.get(`${name}.json`);
     if (material === undefined && record === undefined) return;
-    const value = object52(record);
+    const value = object53(record);
     exact(value, ['jwt', 'node', 'siteName', 'tokenName']);
     require61(
       token?.node === node &&
@@ -28307,7 +28417,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     if (material !== undefined) bindAwsCloudInit({ cloud_init_config: material }, value.jwt);
   };
   for (const [id, history] of generations) {
-    const source = object52(history.get(`${id}-terraform-replacement-plan.json`));
+    const source = object53(history.get(`${id}-terraform-replacement-plan.json`));
     const checkpointValue = history.get(`${id}-terraform-replacement.json`);
     const snapshotValue = history.get(`${id}-terraform-replacement-source.json`);
     if (checkpointValue === undefined && snapshotValue === undefined) {
@@ -28318,7 +28428,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
       bind(source, source.intent.replacementNode);
       continue;
     }
-    const snapshot = object52(snapshotValue);
+    const snapshot = object53(snapshotValue);
     const checkpoint = validateAzureTerraformReplacementCheckpoint(
       source,
       checkpointValue === undefined ? snapshot.preparedCheckpoint : checkpointValue,
@@ -28329,19 +28439,19 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     const material = validateAzureTerraformReplacementSource(source, checkpoint, snapshot);
     validateAzureTerraformReplacementStageHistory(source, checkpoint, snapshot, history, providerLockSha256);
     bind(source, checkpoint.node, material.bootstrap);
-    const configuration = object52(JSON.parse(material.source));
+    const configuration = object53(JSON.parse(material.source));
     if (!source.relayProfile) {
       verifyAzureTerraformNonRelayConfiguration(base, checkpoint, configuration);
       verifyAzureTerraformReplacementGenerationOwners(source, checkpoint, base, sources, checkpoints);
     }
-    const instances = object52(object52(configuration.resource).azurerm_linux_virtual_machine);
+    const instances = object53(object53(configuration.resource).azurerm_linux_virtual_machine);
     for (let index = 1; index <= source.topology.nodeCount; index++) {
       const owner = sources.get(checkpoint.ownerPlanSha256ByNode[`${source.deploymentName}-${index}`]);
       require61(
         owner && (owner.intent.operation === 'deploy' || owner.intent.replacementNode === index),
         'retained bootstrap generation source is unresolved',
       );
-      const encoded = object52(instances[`node_${index}`]).custom_data;
+      const encoded = object53(instances[`node_${index}`]).custom_data;
       require61(typeof encoded === 'string', 'retained bootstrap is unavailable');
       bind(owner, index, Buffer.from(encoded, 'base64').toString('utf8'));
     }
@@ -28372,7 +28482,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
     }
     const registrationValue = history.get(`${id}-terraform-replacement-registration.json`);
     if (registrationValue !== undefined) {
-      const registration = object52(registrationValue);
+      const registration = object53(registrationValue);
       exact(registration, ['action', 'instanceId', 'node', 'registration', 'siteName', 'state']);
       const selected = `${source.deploymentName}-${checkpoint.node}`;
       require61(
@@ -28405,7 +28515,7 @@ function verifyAzureTerraformReplacementHistoricalArtifacts(base, sites, records
 var require61 = (condition, message) => {
     if (!condition) throw Error(`Azure Terraform replacement artifact provenance: ${message}`);
   },
-  object52 = (value) => {
+  object53 = (value) => {
     require61(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
@@ -28457,8 +28567,8 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
     'owning Terraform inventory schema required',
   );
   const nodes = Object.keys(inventory.nodes),
-    instances = object53(outputs.ce_instances),
-    interfaces = object53(outputs.ce_interfaces);
+    instances = object54(outputs.ce_instances),
+    interfaces = object54(outputs.ce_interfaces);
   require62(
     keys8(instances, nodes) &&
       keys8(
@@ -28468,7 +28578,7 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
     'complete exact Terraform output inventory required',
   );
   for (const [node, vm] of Object.entries(inventory.nodes)) {
-    const instance = object53(instances[node]);
+    const instance = object54(instances[node]);
     require62(
       keys8(instance, ['id', 'vm_id', 'site_name', 'hostname']) &&
         lower17(instance.id) === lower17(vm.resourceId) &&
@@ -28478,7 +28588,7 @@ function verifyAzureTerraformNetworkPhysicalState(plan, inventory, outputs) {
       'Terraform VM UUID, resource or site differs',
     );
     for (const [index, nic] of Object.entries(vm.nics)) {
-      const row = object53(interfaces[`${node}:${index}`]);
+      const row = object54(interfaces[`${node}:${index}`]);
       require62(
         keys8(row, ['id', 'node', 'index', 'role', 'site_name', 'subnet_id']) &&
           lower17(row.id) === lower17(nic.resourceId) &&
@@ -28519,7 +28629,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     'resolved provider lock and owned site identity required',
   );
   await store.verify();
-  const workflow = object53(await store.read('terraform-workflow.json'));
+  const workflow = object54(await store.read('terraform-workflow.json'));
   require62(
     workflow.schemaVersion === 1 &&
       workflow.engine === 'terraform' &&
@@ -28547,8 +28657,8 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   const binding = azureUpgradeBinding(original),
     nodes = binding.nodes,
     indices = nodes.map((_, i) => String(i + 1));
-  const bootstrap = object53(workflow.bootstrapByNode),
-    launches = object53(workflow.launchedAtByNode);
+  const bootstrap = object54(workflow.bootstrapByNode),
+    launches = object54(workflow.launchedAtByNode);
   require62(
     keys8(bootstrap, indices) &&
       keys8(launches, indices) &&
@@ -28563,7 +28673,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
       workflow.configurationSha256 === hash8(renderAzureTerraformFoundation(original, bootstrap)),
     'original admitted bootstrap, launch or configuration differs',
   );
-  const reservation = object53(await store.read('terraform-site.json'));
+  const reservation = object54(await store.read('terraform-site.json'));
   require62(
     same38(reservation.owner, binding.owner) &&
       reservation.siteName === original.siteName &&
@@ -28574,7 +28684,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   );
   const originalOutcome = await loadOutcome(original);
   const qualifyOutcome = (owner, row, cp) => {
-    const configuration = object53(row.configuration);
+    const configuration = object54(row.configuration);
     require62(
       same38(configuration.owner, binding.owner) &&
         configuration.siteName === original.siteName &&
@@ -28588,7 +28698,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
     for (const [index, node] of nodes.entries())
       for (const nic of original.nics) {
         const matches = configuration.interfaces
-          .map(object53)
+          .map(object54)
           .filter((row) => row.node === node && row.role === nic.role);
         const observed = inventory.nodes[String(index + 1)].nics[String(nic.index)];
         require62(
@@ -28610,22 +28720,22 @@ async function qualifyAzureTerraformNetworkUpdateSource(
         configuration.siteUid === site.siteUid &&
         (cp
           ? row.status === 'complete' &&
-            object53(row.health).status === 'healthy' &&
+            object54(row.health).status === 'healthy' &&
             row.replacedNode === cp.node &&
             lower17(row.oldVmId) === lower17(cp.oldVmIds[`${owner.deploymentName}-${cp.node}`]) &&
             lower17(row.newVmId) === lower17(cp.newVmId) &&
             row.siteUid === site.siteUid &&
             row.terraformNoChanges === true
           : ['registered', 'accepted'].includes(String(row.status)) &&
-            object53(row.registrations).status === 'healthy') &&
+            object54(row.registrations).status === 'healthy') &&
         (owner.routing.mode !== 'route-server' || row.routing === 'healthy') &&
         (owner.intent.ingress?.mode !== 'platform-http' ||
-          (object53(row.traffic).status === 'healthy' && row.terraformNoChanges === true)),
+          (object54(row.traffic).status === 'healthy' && row.terraformNoChanges === true)),
       'prior public execution, site or acceptance differs',
     );
   };
   qualifyOutcome(original, originalOutcome);
-  const registration = object53(originalOutcome.registrations);
+  const registration = object54(originalOutcome.registrations);
   require62(
     same38(registration.owner, binding.owner) &&
       registration.siteName === original.siteName &&
@@ -28635,7 +28745,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   );
   const originalIds = new Map();
   for (const node of nodes) {
-    const rows = registration.nodes.map(object53).filter((row) => row.node === node);
+    const rows = registration.nodes.map(object54).filter((row) => row.node === node);
     require62(
       rows.length === 1 &&
         rows[0].status === 'healthy' &&
@@ -28707,7 +28817,7 @@ async function qualifyAzureTerraformNetworkUpdateSource(
         same38(cp.retainedNics, retainedNics),
       'completed replacement identity differs',
     );
-    const snapshot = object53(await store.read(`${owner.planId}-terraform-replacement-source.json`)),
+    const snapshot = object54(await store.read(`${owner.planId}-terraform-replacement-source.json`)),
       history = new Map();
     for (const suffix of ['quiesce-plan', 'launch-plan', 'replacement-final-plan']) {
       const name = `${owner.planId}-terraform-${suffix}.json`;
@@ -28768,15 +28878,15 @@ async function qualifyAzureTerraformNetworkUpdateSource(
   }
   let configuration;
   try {
-    configuration = object53(JSON.parse(source));
+    configuration = object54(JSON.parse(source));
   } catch {
     throw Error('Azure Terraform network source: retained configuration is malformed');
   }
   verifyAzureTerraformNonRelayConfiguration(original, current, configuration);
-  const vms = object53(object53(configuration.resource).azurerm_linux_virtual_machine);
+  const vms = object54(object54(configuration.resource).azurerm_linux_virtual_machine);
   for (const [index, node] of nodes.entries())
     require62(
-      Buffer.from(String(object53(vms[`node_${index + 1}`]).custom_data), 'base64').toString('utf8') ===
+      Buffer.from(String(object54(vms[`node_${index + 1}`]).custom_data), 'base64').toString('utf8') ===
         materials.get(`${current.ownerPlanSha256ByNode[node]}:${index + 1}`),
       'retained bootstrap differs from completed owning generation',
     );
@@ -28795,11 +28905,11 @@ async function qualifyAzureTerraformNetworkUpdateSource(
 var hash8 = (value) => createHash22('sha256').update(value).digest('hex'),
   same38,
   lower17 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
-  object53 = (value) => {
+  object54 = (value) => {
     require62(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
-  keys8 = (value, expected) => same38(Object.keys(object53(value)).sort(), expected.toSorted()),
+  keys8 = (value, expected) => same38(Object.keys(object54(value)).sort(), expected.toSorted()),
   scope3 = (plan, allowSubnet) => {
     const { operation: _operation, replacementNode: _node, nics, ...intent } = plan.intent;
     const { termsAccepted: _terms, ...image } = plan.image;
@@ -29236,12 +29346,12 @@ import { createHash as createHash24 } from 'node:crypto';
 function require64(value, message) {
   if (!value) throw Error(`Azure Terraform network completion history: ${message}`);
 }
-function object54(value) {
+function object55(value) {
   require64(value && typeof value === 'object' && !Array.isArray(value), 'malformed historical record');
   return value;
 }
 function keys9(value, fields) {
-  require64(same40(Object.keys(object54(value)).sort(), fields.toSorted()), 'historical schema differs');
+  require64(same40(Object.keys(object55(value)).sort(), fields.toSorted()), 'historical schema differs');
 }
 function verification2(value) {
   keys9(value, ['status', 'scope', 'evidenceSha256']);
@@ -29399,7 +29509,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
   for (const row of snapshot.checkpoint.nodes) {
     deadline.throwIfAborted();
     const stage = buildAzureTerraformNetworkPinnedNicStage(plan, nodeSource, row.before, row.node);
-    const preflight = object54(await read(`${prefix}-node-${row.node}-preflight.json`));
+    const preflight = object55(await read(`${prefix}-node-${row.node}-preflight.json`));
     keys9(preflight, ['schemaVersion', 'sourceBindingSha256', 'identity', 'receipt', 'verification']);
     require64(
       preflight.schemaVersion === 1 && preflight.sourceBindingSha256 === canonicalSha256(binding),
@@ -29453,7 +29563,7 @@ async function readAzureTerraformNetworkCompletionOne(source, store, loaders, qu
       row.node,
     ).releasedConfiguration;
   }
-  const packet = object54(await read(`${prefix}-driver-complete.json`));
+  const packet = object55(await read(`${prefix}-driver-complete.json`));
   keys9(packet, [
     'schemaVersion',
     'engine',
@@ -30181,7 +30291,7 @@ var init_terraform_network_replacement_source_binding = __esm(() => {
 function require67(value, message) {
   if (!value) throw Error(`Azure Terraform network replacement current identity: ${message}`);
 }
-function object55(value) {
+function object56(value) {
   require67(value && typeof value === 'object' && !Array.isArray(value), 'complete cloud object required');
   return value;
 }
@@ -30227,9 +30337,9 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       : input.newVmId === undefined,
     'exact distinct launched UUID required only after launch',
   );
-  const resources = object55(object55(JSON.parse(binding.source)).resource),
-    sourceVms = object55(resources.azurerm_linux_virtual_machine),
-    sourceNics = object55(resources.azurerm_network_interface);
+  const resources = object56(object56(JSON.parse(binding.source)).resource),
+    sourceVms = object56(resources.azurerm_linux_virtual_machine),
+    sourceNics = object56(resources.azurerm_network_interface);
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
   const bounded = async (task) => {
     deadline.throwIfAborted();
@@ -30256,7 +30366,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
     }
   };
   const collect = async () => {
-    const account = object55(await read(['account', 'show', '--subscription', plan.subscription.id]));
+    const account = object56(await read(['account', 'show', '--subscription', plan.subscription.id]));
     require67(
       lower18(account.id) === lower18(plan.subscription.id) &&
         lower18(account.tenantId) === lower18(plan.subscription.tenantId) &&
@@ -30274,7 +30384,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       '--show-details',
     ]);
     require67(Array.isArray(rows), 'complete VM discovery required');
-    const vms = rows.map(object55);
+    const vms = rows.map(object56);
     const nodes = {},
       seenVm = new Set(),
       seenMac = new Set();
@@ -30284,7 +30394,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
         require67(subnets.get(lower18(id)) === expected, 'conflicting frozen subnet CIDR');
         return;
       }
-      const value = object55(
+      const value = object56(
         await read(['network', 'vnet', 'subnet', 'show', '--ids', id, '--subscription', plan.subscription.id]),
       );
       require67(
@@ -30315,22 +30425,22 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       else {
         require67(matches.length === 1, 'VM discovery missing or duplicate');
         const vm = matches[0];
-        const tags = structuredClone(object55(object55(sourceVms[`node_${node}`]).tags));
+        const tags = structuredClone(object56(object56(sourceVms[`node_${node}`]).tags));
         tags['xcsh-plan-sha256'] = owner;
-        const attached = object55(vm.networkProfile).networkInterfaces;
+        const attached = object56(vm.networkProfile).networkInterfaces;
         const expectedVmId = node === selected && phase === 'launched' ? input.newVmId : old.vmId;
         require67(
           vm.nextLink === undefined &&
             vm.name === `${plan.deploymentName}-${node}` &&
             lower18(vm.location) === lower18(plan.region) &&
             vm.provisioningState === 'Succeeded' &&
-            lower18(object55(vm.hardwareProfile).vmSize) === lower18(plan.vm.size) &&
+            lower18(object56(vm.hardwareProfile).vmSize) === lower18(plan.vm.size) &&
             uuid5(vm.vmId) &&
             lower18(vm.vmId) === lower18(expectedVmId) &&
             same43(vm.tags, tags) &&
             Array.isArray(attached) &&
             same43(
-              attached.map((v) => lower18(object55(v).id)).sort(),
+              attached.map((v) => lower18(object56(v).id)).sort(),
               Object.values(old.nics)
                 .map((n) => lower18(n.resourceId))
                 .sort(),
@@ -30343,10 +30453,10 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
       }
       const nics = {};
       for (const [index, nic] of Object.entries(old.nics)) {
-        const value = object55(
+        const value = object56(
           await read(['network', 'nic', 'show', '--ids', nic.resourceId, '--subscription', plan.subscription.id]),
         );
-        const tags = object55(object55(sourceNics[`node_${node}_nic_${index}`]).tags);
+        const tags = object56(object56(sourceNics[`node_${node}_nic_${index}`]).tags);
         require67(
           value.nextLink === undefined &&
             lower18(value.id) === lower18(nic.resourceId) &&
@@ -30360,14 +30470,14 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
         const attachment =
           value.virtualMachine === undefined || value.virtualMachine === null
             ? null
-            : object55(value.virtualMachine).id;
+            : object56(value.virtualMachine).id;
         require67(
           absent
             ? attachment === null
             : typeof attachment === 'string' && lower18(attachment) === lower18(old.resourceId),
           'phase NIC attachment differs',
         );
-        const config = object55(value.ipConfigurations[0]),
+        const config = object56(value.ipConfigurations[0]),
           mac = lower18(value.macAddress).replaceAll('-', ':');
         require67(
           mac === nic.mac &&
@@ -30379,7 +30489,7 @@ async function observeAzureTerraformNetworkReplacementCurrent(request, api, sign
             config.privateIPAddressVersion === 'IPv4' &&
             config.privateIPAllocationMethod === nic.allocation &&
             config.privateIPAddress === nic.privateIp &&
-            lower18(object55(config.subnet).id) === lower18(nic.subnetId) &&
+            lower18(object56(config.subnet).id) === lower18(nic.subnetId) &&
             usableAzureNetworkAddress(config.privateIPAddress, nic.subnetCidr),
           'full retained NIC/IP-configuration identity or state differs',
         );
@@ -30747,7 +30857,7 @@ var init_network_replacement_operational_identity = __esm(() => {
 function require69(condition) {
   if (!condition) throw new Error('Persisted Azure traffic evidence checkpoint differs from the owning plan');
 }
-function object56(value) {
+function object57(value) {
   require69(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
@@ -30765,7 +30875,7 @@ function validateAzureTrafficCheckpoint(plan, input) {
   verifyAzureCePlan(plan);
   require69(plan.intent.ingress?.mode === 'platform-http');
   const probe = plan.intent.ingress?.mode === 'platform-http' ? plan.intent.ingress.probe : undefined;
-  const state = object56(input);
+  const state = object57(input);
   keys10(
     state,
     [
@@ -30799,7 +30909,7 @@ function validateAzureTrafficCheckpoint(plan, input) {
   if (state.attempts !== undefined) {
     require69(Array.isArray(state.attempts) && state.attempts.length > 0 && state.attempts.length <= 40);
     for (const raw of state.attempts) {
-      const attempt = object56(raw);
+      const attempt = object57(raw);
       keys10(attempt, ['stderrPresent', 'observedAt'], ['httpStatus', 'bodySha256']);
       require69(
         typeof attempt.stderrPresent === 'boolean' &&
@@ -30820,7 +30930,7 @@ function validateAzureTrafficCheckpoint(plan, input) {
     require69(state.evidence === undefined);
     return;
   }
-  const evidence = object56(state.evidence);
+  const evidence = object57(state.evidence);
   keys10(evidence, [
     'status',
     'source',
@@ -30856,8 +30966,8 @@ function validateAzureCurrentTrafficHistory(plan, checkpointKey, checkpoint, inp
   const name = azureCurrentTrafficArtifactIdentity(`${checkpointKey}-current-sample.json`);
   require69(name?.receipt);
   const evidence = validateAzureTrafficCheckpoint(plan, checkpoint),
-    state = object56(checkpoint),
-    receipt = object56(input);
+    state = object57(checkpoint),
+    receipt = object57(input);
   keys10(receipt, [
     'schemaVersion',
     'status',
@@ -30921,13 +31031,13 @@ var init_traffic_artifact_provenance = __esm(() => {
 // plugins/azure/src/ce/traffic-probe.ts
 import { randomUUID as randomUUID3 } from 'node:crypto';
 
-function object57(value) {
+function object58(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Azure traffic evidence');
   return value;
 }
 async function optional5(storage, name) {
   try {
-    return object57(await storage.read(name));
+    return object58(await storage.read(name));
   } catch (error) {
     if (error.code === 'ENOENT') return;
     throw error;
@@ -30997,12 +31107,12 @@ async function collectAzureTrafficProbe(plan, storage, api, signal, checkpointKe
   if (result.exitCode !== 0) throw detectAzError(result.stderr, result.exitCode);
   let response;
   try {
-    response = object57(JSON.parse(result.stdout));
+    response = object58(JSON.parse(result.stdout));
   } catch {
     throw new Error('Malformed Azure traffic probe response');
   }
   const rows = Array.isArray(response.value)
-    ? response.value.map((value) => object57(value))
+    ? response.value.map((value) => object58(value))
     : (() => {
         throw new Error('Malformed Azure traffic probe response');
       })();
@@ -31033,7 +31143,7 @@ async function collectAzureTrafficProbe(plan, storage, api, signal, checkpointKe
     evidence.httpStatus !== probe.expectedStatus ||
     evidence.bodySha256 !== probe.expectedBodySha256
   ) {
-    const attempts = Array.isArray(state.attempts) ? state.attempts.map(object57) : [];
+    const attempts = Array.isArray(state.attempts) ? state.attempts.map(object58) : [];
     attempts.push({
       httpStatus: evidence.httpStatus,
       bodySha256: evidence.bodySha256,
@@ -31118,12 +31228,12 @@ async function collectAzureCurrentTrafficProbe(request, storage, transport, sign
       if (raw.exitCode !== 0) return raw;
       let response;
       try {
-        response = object57(JSON.parse(raw.stdout));
+        response = object58(JSON.parse(raw.stdout));
       } catch {
         throw Error('Malformed Azure current traffic response');
       }
       if (!Array.isArray(response.value)) throw Error('Malformed Azure current traffic response');
-      const rows = response.value.map(object57),
+      const rows = response.value.map(object58),
         stdout = rows.filter((row) => row.code === 'ComponentStatus/StdOut/succeeded');
       const match =
         stdout.length === 1 && typeof stdout[0].message === 'string'
@@ -31138,7 +31248,7 @@ async function collectAzureCurrentTrafficProbe(request, storage, transport, sign
   const evidence = await collectAzureTrafficProbe(plan, store, challengedApi, deadline, key);
   seal();
   if (invocations !== 1) throw Error('Azure current traffic cannot use a completed historical checkpoint');
-  const checkpoint = object57(await store.read(`${key}.json`));
+  const checkpoint = object58(await store.read(`${key}.json`));
   if (canonicalSha256(validateAzureTrafficCheckpoint(plan, checkpoint)) !== canonicalSha256(evidence))
     throw Error('Azure current traffic checkpoint differs from collected evidence');
   const currentSource = await observeAzureTrafficSource(plan, boundedApi, deadline);
@@ -31471,12 +31581,12 @@ import { join as join8 } from 'node:path';
 function require72(value, reason) {
   if (!value) throw Error(`Azure operational acquisition provenance: ${reason}`);
 }
-function object58(value) {
+function object59(value) {
   require72(value && typeof value === 'object' && !Array.isArray(value), 'malformed private record');
   return value;
 }
 function keys11(value, names) {
-  require72(same45(Object.keys(object58(value)).sort(), names.toSorted()), 'private schema differs');
+  require72(same45(Object.keys(object59(value)).sort(), names.toSorted()), 'private schema differs');
 }
 function bytes(value, size) {
   require72(
@@ -31613,7 +31723,7 @@ function createAzureOperationalAcquisitionCustody(
         await store.write(keyName, secret, signal);
       }
       keys11(secret, ['schemaVersion', 'owner', 'publicKey', 'signingMaterial']);
-      const value = object58(secret);
+      const value = object59(secret);
       require72(value.schemaVersion === 1 && same45(value.owner, owner), 'private signing owner differs');
       const privateKey = createPrivateKey2({ key: bytes(value.signingMaterial), type: 'pkcs8', format: 'der' });
       require72(
@@ -31638,7 +31748,7 @@ function createAzureOperationalAcquisitionCustody(
       await store.write(anchorName, pointer, signal);
     }
     keys11(pointer, ['schemaVersion', 'owner', 'issuerSha256']);
-    const anchor = object58(pointer);
+    const anchor = object59(pointer);
     require72(
       anchor.schemaVersion === 1 &&
         same45(anchor.owner, owner) &&
@@ -31647,7 +31757,7 @@ function createAzureOperationalAcquisitionCustody(
       'pinned issuer differs',
     );
     const publication = await readImmutableCeReceipt(store, issuerPrefix, anchor.issuerSha256, signal);
-    const record = object58(publication.record);
+    const record = object59(publication.record);
     keys11(record, ['schemaVersion', 'kind', 'owner', 'publicKey']);
     require72(
       record.schemaVersion === 1 && record.kind === `azure-${family}-operational-issuer` && same45(record.owner, owner),
@@ -31659,7 +31769,7 @@ function createAzureOperationalAcquisitionCustody(
     return { digest: anchored, publicKey, record };
   };
   const signingKey = async (record) => {
-    const raw = object58(await store.read(keyName));
+    const raw = object59(await store.read(keyName));
     keys11(raw, ['schemaVersion', 'owner', 'publicKey', 'signingMaterial']);
     require72(
       raw.schemaVersion === 1 && same45(raw.owner, owner) && raw.publicKey === record.publicKey,
@@ -31676,12 +31786,12 @@ function createAzureOperationalAcquisitionCustody(
   const authenticateObservation = (original, published, source) => {
     verifyAzureCePlan(source);
     contract.validateSource(source, owner);
-    const record = object58(published.record);
+    const record = object59(published.record);
     keys11(record, ['payload', 'signature']);
-    const payload = object58(record.payload);
+    const payload = object59(record.payload);
     keys11(payload, ['schemaVersion', 'kind', 'issuerSha256', 'invocationId', 'purpose', 'identity', 'readings']);
-    const identity = object58(payload.identity),
-      readings = object58(payload.readings);
+    const identity = object59(payload.identity),
+      readings = object59(payload.readings);
     contract.validateIdentity(identity, source, owner);
     contract.validatePurpose(payload.purpose);
     require72(
@@ -31698,7 +31808,7 @@ function createAzureOperationalAcquisitionCustody(
   };
   const retirementMarker = (marker, original) => {
     keys11(marker, ['payload', 'signature']);
-    const value = object58(marker),
+    const value = object59(marker),
       expected = {
         schemaVersion: 1,
         kind: `azure-${family}-observer-key-retired`,
@@ -31759,7 +31869,7 @@ function createAzureOperationalAcquisitionCustody(
         const match = new RegExp(`^${publicationPrefix}-([a-f0-9]{64})\\.json$`).exec(path);
         require72(match, 'unclassified or incomplete observer artifact');
         const published = await readImmutableCeReceipt(store, publicationPrefix, match[1], deadline);
-        const sourceSha = object58(object58(object58(published.record).payload).identity).planSha256;
+        const sourceSha = object59(object59(object59(published.record).payload).identity).planSha256;
         require72(digest8(sourceSha), 'observation source digest malformed');
         const source = loadOriginalSource ? await loadOriginalSource(sourceSha, deadline) : plan;
         deadline.throwIfAborted();
@@ -32037,7 +32147,7 @@ var init_operational_acquisition_custody = __esm(() => {
 function require73(value, message) {
   if (!value) throw Error(`Azure replacement acquisition provenance: ${message}`);
 }
-function object59(value) {
+function object60(value) {
   require73(value && typeof value === 'object' && !Array.isArray(value), 'complete replacement record required');
   return value;
 }
@@ -32119,9 +32229,9 @@ function createAzureReplacementReadingsAcquisitionCollector(
         require73(purpose === 'preflight' || purpose === 'final', 'replacement purpose differs');
       },
       validateIdentity(raw, source, expectedOwner) {
-        const identity = object59(raw),
-          site = object59(identity.site),
-          nodes = object59(identity.nodes);
+        const identity = object60(raw),
+          site = object60(identity.site),
+          nodes = object60(identity.nodes);
         require73(
           same46(
             Object.keys(identity).sort(),
@@ -32154,9 +32264,9 @@ function createAzureReplacementReadingsAcquisitionCollector(
         );
       },
       validateReadings(raw, expected, source, expectedOwner) {
-        const readings = object59(raw),
-          expectedIdentity = object59(expected),
-          physical = object59(readings.identity);
+        const readings = object60(raw),
+          expectedIdentity = object60(expected),
+          physical = object60(readings.identity);
         require73(
           same46(
             Object.keys(readings).sort(),
@@ -32593,7 +32703,7 @@ function createAzureReplacementReadingsAcceptance(session) {
     signal?.throwIfAborted();
     seal();
     require75(mode === 'current' || mode === 'historical', 'exact authentication mode required');
-    const purpose = object60(receipt).purpose;
+    const purpose = object61(receipt).purpose;
     require75(
       (purpose === 'preflight' && identity.phase === 'intact') ||
         (purpose === 'final' && identity.phase === 'launched'),
@@ -32616,12 +32726,12 @@ function createAzureReplacementReadingsAcceptance(session) {
         sha15(acquired.evidenceSha256),
       'authenticated acquisition changed',
     );
-    const readings = object60(acquired.readings),
-      physical = object60(readings.identity),
-      readiness = object60(readings.nodeReadiness),
-      forwarding = object60(readings.forwarding),
-      bgp = object60(readings.bgp),
-      traffic = object60(readings.traffic);
+    const readings = object61(acquired.readings),
+      physical = object61(readings.identity),
+      readiness = object61(readings.nodeReadiness),
+      forwarding = object61(readings.forwarding),
+      bgp = object61(readings.bgp),
+      traffic = object61(readings.traffic);
     require75(
       canonicalEqual(expected.owner, binding.owner) &&
         expected.planSha256 === plan.planSha256 &&
@@ -32642,7 +32752,7 @@ function createAzureReplacementReadingsAcceptance(session) {
       'reading source or inventory differs',
     );
     const interfaces = rows2(physical.interfaces),
-      registrations = rows2(object60(physical.registrations).nodes),
+      registrations = rows2(object61(physical.registrations).nodes),
       nodes = rows2(readiness.nodes),
       missing = [];
     const completeInterfaces =
@@ -32681,7 +32791,7 @@ function createAzureReplacementReadingsAcceptance(session) {
       readiness.planSha256 !== plan.planSha256 ||
       readiness.siteUid !== expected.site.siteUid ||
       readiness.expectedIdentitySha256 !== identitySha256 ||
-      object60(physical.registrations).status !== 'observed' ||
+      object61(physical.registrations).status !== 'observed' ||
       registrations.length !== binding.nodes.length ||
       nodes.length !== binding.nodes.length ||
       !binding.nodes.every((node, i) => {
@@ -32720,9 +32830,9 @@ function createAzureReplacementReadingsAcceptance(session) {
     )
       missing.push('qualified-forwarding-scope-and-freshness');
     if (plan.routing.mode === 'route-server') {
-      const exchange = object60(bgp.routeExchange),
-        sessions = object60(bgp.sessions),
-        routes = object60(bgp.routes);
+      const exchange = object61(bgp.routeExchange),
+        sessions = object61(bgp.sessions),
+        routes = object61(bgp.routes);
       if (
         bgp.status !== 'observed' ||
         bgp.scope !== 'replacement-bgp-route-observations' ||
@@ -32788,8 +32898,8 @@ function createAzureReplacementReadingsAcceptance(session) {
     qualifyCompletedOperational,
   });
 }
-var object60 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
-  rows2 = (value) => (Array.isArray(value) ? value.map(object60) : []),
+var object61 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  rows2 = (value) => (Array.isArray(value) ? value.map(object61) : []),
   sha15 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   text4 = (value) => typeof value === 'string' && value.trim().length > 0,
   AzureReplacementReadingsAcceptanceUnavailable;
@@ -33078,7 +33188,7 @@ import { isIP as isIP21 } from 'node:net';
 function require76(value, message) {
   if (!value) throw Error(`Azure effective route evidence: ${message}`);
 }
-function object61(value) {
+function object62(value) {
   require76(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
   return value;
 }
@@ -33103,7 +33213,7 @@ function strings2(value, valid) {
   return [...value];
 }
 function parseAzureEffectiveRoutes(raw) {
-  const response = object61(raw);
+  const response = object62(raw);
   require76(
     (response.nextLink === undefined || response.nextLink === null || response.nextLink === '') &&
       !['error', 'errors', 'nextPageToken'].some((key) => response[key] !== undefined && response[key] !== null) &&
@@ -33111,7 +33221,7 @@ function parseAzureEffectiveRoutes(raw) {
     'incomplete terminal route inventory',
   );
   const routes = response.value.map((rawRoute) => {
-    const row = object61(rawRoute);
+    const row = object62(rawRoute);
     require76(
       typeof row.source === 'string' &&
         typeof row.state === 'string' &&
@@ -33355,7 +33465,7 @@ var init_network_operational_identity = __esm(() => {
 });
 
 // plugins/azure/src/ce/network-operational-readings.ts
-function object62(value) {
+function object63(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed operational reading');
   return value;
 }
@@ -33448,7 +33558,7 @@ async function collectAzureNetworkOperationalReadings(
   const unknown = (reason) => ({ status: 'unknown', reason });
   let siteHealth = unknown('site-global-health-unavailable');
   try {
-    const health = object62(await bounded(() => runtime.observeHealth(binding, deadline)));
+    const health = object63(await bounded(() => runtime.observeHealth(binding, deadline)));
     require78(
       same49(health.owner, binding.owner) &&
         health.siteName === binding.siteName &&
@@ -33484,7 +33594,7 @@ async function collectAzureNetworkOperationalReadings(
     const selectedRegistrations = initial.registrations.nodes.filter((row) => row.node === node);
     require78(selectedRegistrations.length === 1);
     const selected = selectedRegistrations[0];
-    const value = object62(
+    const value = object63(
       await bounded(() =>
         runtime.observeNodeReadiness(binding, { siteUid: identity.siteUid, node, instances }, deadline),
       ),
@@ -33790,7 +33900,7 @@ var init_network_operational_readings = __esm(() => {
 function require79(value, reason) {
   if (!value) throw Error(`Azure operational acquisition provenance: ${reason}`);
 }
-function object63(value) {
+function object64(value) {
   require79(value && typeof value === 'object' && !Array.isArray(value), 'malformed private record');
   return value;
 }
@@ -33848,7 +33958,7 @@ function createAzureOperationalAcquisitionCollector(
         );
       },
       validateIdentity(raw, source, expectedOwner) {
-        const identity = object63(raw);
+        const identity = object64(raw);
         require79(
           identity.planSha256 === source.planSha256 &&
             same50(identity.owner, expectedOwner) &&
@@ -33861,8 +33971,8 @@ function createAzureOperationalAcquisitionCollector(
         );
       },
       validateReadings(raw, expected, source, expectedOwner) {
-        const readings = object63(raw),
-          identity = object63(expected);
+        const readings = object64(raw),
+          identity = object64(expected);
         require79(
           readings.schemaVersion === 1 &&
             readings.scope === 'current-network-operational-readings' &&
@@ -34387,7 +34497,7 @@ var init_terraform_public_operational_verifiers = __esm(() => {
 });
 
 // plugins/azure/src/ce/terraform-network-public-replacement.ts
-function object64(value) {
+function object65(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error('Current owned replacement site unavailable');
   return value;
@@ -34444,8 +34554,8 @@ async function runAzureTerraformNetworkPublicReplacement(
   const observeSite = async () => {
     seal();
     const current = await runtime.observeOwnedSite(binding, signal),
-      metadata = object64(current.metadata),
-      system = object64(current.system_metadata);
+      metadata = object65(current.metadata),
+      system = object65(current.system_metadata);
     seal();
     if (
       metadata?.name !== binding.siteName ||
@@ -34727,7 +34837,7 @@ var init_terraform_network_nic_binding = __esm(() => {
 function require83(value, message) {
   if (!value) throw Error(`Azure Terraform network NIC execution: ${message}`);
 }
-function object65(value) {
+function object66(value) {
   require83(value && typeof value === 'object' && !Array.isArray(value), 'complete object required');
   return value;
 }
@@ -34846,7 +34956,7 @@ async function runAzureTerraformNetworkNicStage(
     throw Error('Azure Terraform network NIC execution: selected NIC subnets have not converged');
   };
   const validateCloud = (input) => {
-    const value = object65(input);
+    const value = object66(input);
     require83(
       same52(
         Object.keys(value).sort(),
@@ -34964,7 +35074,7 @@ async function runAzureTerraformNetworkNicStage(
       signal,
     );
     const validateCompletion = (input) => {
-      const value = object65(input);
+      const value = object66(input);
       require83(
         same52(Object.keys(value).sort(), ['outcome', 'receiptSha256', 'schemaVersion']) &&
           value.schemaVersion === 1 &&
@@ -35024,7 +35134,7 @@ async function runAzureTerraformNetworkNicStage(
     );
     const terminal = { schemaVersion: 1, receipt: final, cloud: terminalCloud, prior, proposed };
     const validateTerminal = (input) => {
-      const value = object65(input);
+      const value = object66(input);
       require83(
         same52(Object.keys(value).sort(), ['cloud', 'prior', 'proposed', 'receipt', 'schemaVersion']) &&
           value.schemaVersion === 1,
@@ -37130,7 +37240,7 @@ import { join as join14 } from 'node:path';
 function require90(value, message) {
   if (!value) throw Error(`Azure Terraform completed power retirement: ${message}`);
 }
-function object66(input) {
+function object67(input) {
   require90(input && typeof input === 'object' && !Array.isArray(input), 'malformed retirement packet');
   return input;
 }
@@ -37357,7 +37467,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
             ? graph
             : await step(() =>
                 readAzureTerraformNetworkRetirementGraphPrefix(
-                  object66(preparing).originalGraph,
+                  object67(preparing).originalGraph,
                   plan,
                   graphStore,
                   loaders,
@@ -37373,7 +37483,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
         (await optional(cancellationName)) === undefined,
         'cancelled stage requires its separate retirement contract',
       );
-      const finalized = object66(await store.read(finalizingName));
+      const finalized = object67(await store.read(finalizingName));
       const finalizingBound = {
         schemaVersion: 1,
         sourcePlanSha256: plan.planSha256,
@@ -37452,7 +37562,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
         finalizingSha256: canonicalSha256(finalized),
       };
       const packet = (input, fields) => {
-        const value = object66(input);
+        const value = object67(input);
         require90(
           same59(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
             Object.entries(bound).every(([key, expected]) => same59(value[key], expected)),
@@ -37494,9 +37604,9 @@ async function run(args, rawApi, environment = {}, driverLease) {
         return { ...power, inventory: network };
       };
       const validateOriginal = (input) => {
-        const value = object66(input);
+        const value = object67(input);
         require90(same59(Object.keys(value).sort(), ['current', 'phases']), 'frozen original schema differs');
-        const current = object66(value.current);
+        const current = object67(value.current);
         require90(
           same59(
             Object.keys(current).sort(),
@@ -37527,8 +37637,8 @@ async function run(args, rawApi, environment = {}, driverLease) {
         );
         require90(Array.isArray(value.phases) && value.phases.length === 2, 'frozen original phases differ');
         for (const [index, phase] of ['mutation', 'release'].entries()) {
-          const row = object66(value.phases[index]),
-            actual = object66(row.history),
+          const row = object67(value.phases[index]),
+            actual = object67(row.history),
             receipt = history.receipts[phase];
           require90(
             receipt &&
@@ -37561,7 +37671,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
           require90(
             new Set(actual.matches.map((entry) => canonicalSha256(entry))).size === actual.matches.length &&
               actual.matches.every((input) => {
-                const entry = object66(input);
+                const entry = object67(input);
                 return (
                   same59(
                     Object.keys(entry).sort(),
@@ -37586,7 +37696,7 @@ async function run(args, rawApi, environment = {}, driverLease) {
                 );
               }) &&
               (phase !== 'release' ||
-                actual.matches.some((input) => object66(input).journalSha256 === finalized.originalJournalSha256)),
+                actual.matches.some((input) => object67(input).journalSha256 === finalized.originalJournalSha256)),
             'frozen original submitted journal custody differs',
           );
         }
@@ -38550,7 +38660,7 @@ import { isIP as isIP22 } from 'node:net';
 function require93(value, message) {
   if (!value) throw Error(`Azure Terraform routing configuration: ${message}`);
 }
-function object67(value) {
+function object68(value) {
   require93(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
@@ -38577,8 +38687,8 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
           snapshot.expected.nodes[owner].nics[index].privateIp === nic.privateIp,
         'unsubmitted private address changed',
       );
-  const graph = object67(JSON.parse(source)),
-    resources = object67(graph.resource);
+  const graph = object68(JSON.parse(source)),
+    resources = object68(graph.resource);
   const execute = api.exec;
   require93(typeof execute === 'function', 'Azure executor unavailable');
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
@@ -38637,7 +38747,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         { signal: deadline },
       );
       require93(response.exitCode === 0, 'configuration observation unavailable');
-      const value = object67(JSON.parse(response.stdout));
+      const value = object68(JSON.parse(response.stdout));
       require93(
         value.error === undefined &&
           value.errors === undefined &&
@@ -38656,10 +38766,10 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
           0,
           dependency.resourceId.lastIndexOf(isUdr ? '/routes/' : '/bgpConnections/'),
         );
-        const configuredParent = object67(
-          object67(resources[isUdr ? 'azurerm_route_table' : 'azurerm_route_server']).ce,
+        const configuredParent = object68(
+          object68(resources[isUdr ? 'azurerm_route_table' : 'azurerm_route_server']).ce,
         );
-        const tags = object67(configuredParent.tags),
+        const tags = object68(configuredParent.tags),
           owner = tags['xcsh-plan-sha256'];
         require93(typeof owner === 'string' && /^[a-f0-9]{64}$/.test(owner), 'resolved parent owner required');
         if (!isUdr) {
@@ -38675,7 +38785,7 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
         }
         if (!parents.has(parentId)) {
           const parent = await read(['network', isUdr ? 'route-table' : 'routeserver', 'show', '--ids', parentId]);
-          const actualTags = object67(parent.tags);
+          const actualTags = object68(parent.tags);
           require93(
             lower20(parent.id) === lower20(parentId) &&
               parent.name === configuredParent.name &&
@@ -38696,8 +38806,8 @@ async function collectAzureTerraformNetworkRoutingConfiguration(
           '--ids',
           dependency.resourceId,
         ]);
-        const configured = object67(
-          object67(resources[dependency.address.split('.')[0]])[dependency.address.split('.')[1]],
+        const configured = object68(
+          object68(resources[dependency.address.split('.')[0]])[dependency.address.split('.')[1]],
         );
         const installedIp = row[isUdr ? 'nextHopIpAddress' : 'peerIp'];
         const nic = snapshot.expected.nodes[String(node)].nics[String(dependency.nicIndex)];
@@ -38784,12 +38894,12 @@ var init_terraform_network_routing_observation = __esm(() => {
 function require94(value, message) {
   if (!value) throw Error(`Azure Terraform network routing execution: ${message}`);
 }
-function object68(value) {
+function object69(value) {
   require94(value && typeof value === 'object' && !Array.isArray(value), 'complete saved record required');
   return value;
 }
 function keys16(value, expected) {
-  const row = object68(value);
+  const row = object69(value);
   require94(same61(Object.keys(row).sort(), expected.toSorted()), 'saved packet schema differs');
   return row;
 }
@@ -40315,7 +40425,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
     'network-bound replacement requires its dedicated owning source contract',
   );
   await store.verify();
-  const workflow = object69(await store.read('terraform-workflow.json'));
+  const workflow = object70(await store.read('terraform-workflow.json'));
   require97(
     workflow.schemaVersion === 1 &&
       workflow.engine === 'terraform' &&
@@ -40327,8 +40437,8 @@ async function qualifyAzureTerraformReplacementPublicSource(
   const original = await loadSource(workflow.planSha256);
   verifyAzureCePlan(original);
   require97(original.planSha256 === workflow.planSha256, 'original creation digest differs');
-  const bootstraps = object69(workflow.bootstrapByNode),
-    launches = object69(workflow.launchedAtByNode);
+  const bootstraps = object70(workflow.bootstrapByNode),
+    launches = object70(workflow.launchedAtByNode);
   require97(
     azureUpgradeBinding(original).nodes.every(
       (_, i) =>
@@ -40354,20 +40464,20 @@ async function qualifyAzureTerraformReplacementPublicSource(
       row.planSha256 === owner.planSha256 &&
         row.planId === owner.planId &&
         row.engine === 'terraform' &&
-        object69(row.configuration).status === 'configured' &&
+        object70(row.configuration).status === 'configured' &&
         (cp
           ? row.status === 'complete' &&
-            object69(row.health).status === 'healthy' &&
+            object70(row.health).status === 'healthy' &&
             row.replacedNode === cp.node &&
             row.oldVmId === cp.oldVmIds[`${owner.deploymentName}-${cp.node}`] &&
             row.newVmId === cp.newVmId &&
             row.siteUid === cp.siteUid &&
             row.terraformNoChanges === true
           : ['registered', 'accepted'].includes(String(row.status)) &&
-            object69(row.registrations).status === 'healthy') &&
+            object70(row.registrations).status === 'healthy') &&
         (owner.routing.mode !== 'route-server' || row.routing === 'healthy') &&
         (owner.intent.ingress?.mode !== 'platform-http' ||
-          (object69(row.traffic).status === 'healthy' && row.terraformNoChanges === true)),
+          (object70(row.traffic).status === 'healthy' && row.terraformNoChanges === true)),
       'prior generation public execution is incomplete',
     );
   };
@@ -40389,7 +40499,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
       const name = `${owner.planId}-terraform-${suffix}.json`;
       history.set(name, await store.read(name));
     }
-    const snapshot = object69(await store.read(`${owner.planId}-terraform-replacement-source.json`));
+    const snapshot = object70(await store.read(`${owner.planId}-terraform-replacement-source.json`));
     validateAzureTerraformReplacementStageHistory(owner, cp, snapshot, history, providerLockSha256);
     bootstrapMaterials.set(`${digest}:${cp.node}`, snapshot.bootstrap);
     await outcome(owner, cp);
@@ -40399,14 +40509,14 @@ async function qualifyAzureTerraformReplacementPublicSource(
   verifyAzureTerraformReplacementGenerationOwners(plan, current, original, sources, checkpoints);
   let configuration;
   try {
-    configuration = object69(JSON.parse(source));
+    configuration = object70(JSON.parse(source));
   } catch {
     throw Error('Azure Terraform retained source is malformed');
   }
   verifyAzureTerraformNonRelayConfiguration(original, current, configuration);
-  const instances = object69(object69(configuration.resource).azurerm_linux_virtual_machine);
+  const instances = object70(object70(configuration.resource).azurerm_linux_virtual_machine);
   for (const [index, node] of azureUpgradeBinding(original).nodes.entries()) {
-    const encoded = object69(instances[`node_${index + 1}`]).custom_data;
+    const encoded = object70(instances[`node_${index + 1}`]).custom_data;
     require97(
       typeof encoded === 'string' &&
         Buffer.from(encoded, 'base64').toString('utf8') ===
@@ -40415,7 +40525,7 @@ async function qualifyAzureTerraformReplacementPublicSource(
     );
   }
 }
-var object69 = (value) => {
+var object70 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Azure Terraform public source record is malformed');
     return value;
@@ -40530,7 +40640,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
     if (result.exitCode !== 0) throw new Error('Azure Terraform interface observation unavailable');
     let value;
     try {
-      value = object70(JSON.parse(result.stdout));
+      value = object71(JSON.parse(result.stdout));
     } catch {
       throw new Error('Malformed Azure Terraform interface observation');
     }
@@ -40547,8 +40657,8 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
   )
     throw new Error('Azure Terraform observation account differs from deployment');
   const scope = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/`;
-  const instances = object70(outputs.ce_instances);
-  const candidates = object70(outputs.ce_interfaces);
+  const instances = object71(outputs.ce_instances);
+  const candidates = object71(outputs.ce_interfaces);
   if (
     ![1, 3].includes(plan.topology.nodeCount) ||
     plan.nics.length < 1 ||
@@ -40561,7 +40671,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
     if (!lower21(id).startsWith(lower21(scope)))
       throw new Error('Terraform Azure resource is outside deployment scope');
     const value = await run([...(kind === 'nic' ? ['network', 'nic'] : ['vm']), 'show', '--ids', id]);
-    const tags = object70(value.tags);
+    const tags = object71(value.tags);
     if (
       lower21(value.id) !== lower21(id) ||
       lower21(value.location) !== lower21(plan.region) ||
@@ -40578,7 +40688,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
   const macs = new Set();
   const vmIds = new Set();
   for (let node = 1; node <= plan.topology.nodeCount; node++) {
-    const instance = object70(instances[String(node)]);
+    const instance = object71(instances[String(node)]);
     const plannedVms = plan.actions.filter((action) => action.kind === 'vm-create' && action.node === node);
     if (
       plannedVms.length !== 1 ||
@@ -40594,14 +40704,14 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
     if (!uuid6(vm.vmId) || lower21(vm.vmId) !== lower21(instance.vm_id) || vmIds.has(lower21(vm.vmId)))
       throw new Error('Terraform Azure VM instance identity is stale or ambiguous');
     vmIds.add(lower21(vm.vmId));
-    const attachments = object70(vm.networkProfile).networkInterfaces;
+    const attachments = object71(vm.networkProfile).networkInterfaces;
     if (!Array.isArray(attachments) || attachments.length !== plan.nics.length)
       throw new Error('Azure VM NIC attachment inventory is incomplete');
-    const attachedIds = attachments.map((entry) => lower21(object70(entry).id));
+    const attachedIds = attachments.map((entry) => lower21(object71(entry).id));
     if (attachedIds.some((id) => !id) || new Set(attachedIds).size !== attachedIds.length)
       throw new Error('Azure VM NIC attachment inventory is ambiguous');
     for (const nic of plan.nics) {
-      const candidate = object70(candidates[`${node}:${nic.index}`]);
+      const candidate = object71(candidates[`${node}:${nic.index}`]);
       const plannedSubnets = plan.actions.filter(
         (action) =>
           action.kind === 'subnet-create' &&
@@ -40636,7 +40746,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
       const current = await owned('nic', resourceId);
       const mac = lower21(current.macAddress).replaceAll('-', ':');
       if (
-        lower21(object70(current.virtualMachine).id) !== lower21(vmResourceId) ||
+        lower21(object71(current.virtualMachine).id) !== lower21(vmResourceId) ||
         !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac) ||
         macs.has(mac)
       )
@@ -40644,7 +40754,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
       const configs = current.ipConfigurations;
       if (!Array.isArray(configs)) throw new Error('Azure NIC IP configurations unavailable');
       const primary = configs
-        .map(object70)
+        .map(object71)
         .filter((config) => config.primary === true || (configs.length === 1 && config.primary === undefined));
       const config = primary[0] ?? {};
       if (
@@ -40652,7 +40762,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
         config.privateIPAddressVersion !== 'IPv4' ||
         typeof config.privateIPAddress !== 'string' ||
         isIP23(config.privateIPAddress) !== 4 ||
-        lower21(object70(config.subnet).id) !== lower21(candidate.subnet_id) ||
+        lower21(object71(config.subnet).id) !== lower21(candidate.subnet_id) ||
         (nic.subnet.resourceId && lower21(candidate.subnet_id) !== lower21(nic.subnet.resourceId))
       )
         throw new Error('Azure NIC primary address or subnet binding differs');
@@ -40684,7 +40794,7 @@ async function discoverAzureTerraformInterfaces(plan, outputs, api, signal) {
     interfaces,
   };
 }
-var object70 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+var object71 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
   lower21 = (value) => (typeof value === 'string' ? value.toLowerCase() : ''),
   uuid6 = (value) => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 var init_terraform_identities = () => {};
@@ -43266,7 +43376,7 @@ var init_azure_ce_status = __esm(() => {
 });
 
 // plugins/platform/src/ce/upgrade-contract.ts
-function object71(value) {
+function object72(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade contract');
   return value;
 }
@@ -43285,15 +43395,15 @@ class VerifiedUpgradeContract {
   }
   static async release(fetcher = fetch, signal) {
     const api = await loadPublishedCeApi(fetcher, signal);
-    const paths = object71(api.paths);
+    const paths = object72(api.paths);
     for (const [path, method, schemaName] of Object.values(routes)) {
-      const operation = object71(object71(paths[path])[method]);
+      const operation = object72(object72(paths[path])[method]);
       const container =
-        method === 'post' ? object71(operation.requestBody) : object71(object71(operation.responses)['200']);
-      const schema = object71(object71(object71(container.content)['application/json']).schema);
+        method === 'post' ? object72(operation.requestBody) : object72(object72(operation.responses)['200']);
+      const schema = object72(object72(object72(container.content)['application/json']).schema);
       if (schema.$ref !== `#/components/schemas/${schemaName}`) throw new Error('Upgrade API path or schema differs');
     }
-    return new VerifiedUpgradeContract(object71(object71(api.components).schemas));
+    return new VerifiedUpgradeContract(object72(object72(api.components).schemas));
   }
   observationPaths(siteName, current, targetSoftware) {
     initialSoftwareSettings(current);
@@ -43945,7 +44055,7 @@ async function optional12(storage, name) {
 function validateAzureFailoverTrafficHistory(base, failover, phase, input, checkpoints) {
   verifyAzureCeFailoverPlan(base, failover);
   require99(['baseline', 'outage', 'recovered'].includes(phase), 'phase differs');
-  const history = object72(input);
+  const history = object73(input);
   keys17(history, ['schemaVersion', 'sourcePlanSha256', 'failoverPlanSha256', 'phase', 'observations']);
   require99(
     history.schemaVersion === 1 &&
@@ -43962,7 +44072,7 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
     complete = 0,
     pending = 0;
   for (const raw of history.observations) {
-    const row = object72(raw);
+    const row = object73(raw);
     keys17(row, ['checkpointKey', 'requestedAt'], ['checkpointSha256']);
     require99(
       typeof row.checkpointKey === 'string' &&
@@ -43991,7 +44101,7 @@ function validateAzureFailoverTrafficHistory(base, failover, phase, input, check
     }
     const evidence = validateAzureTrafficCheckpoint(base, checkpoint);
     require99(
-      timestamp2(object72(checkpoint).sourceObservedAt) >= requested,
+      timestamp2(object73(checkpoint).sourceObservedAt) >= requested,
       'checkpoint predates the requested observation',
     );
     if (evidence) {
@@ -44021,12 +44131,12 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
     const name = azureFailoverTrafficHistoryName(failover, phase);
     let history = await optional12(storage, name);
     if (history) {
-      const raw = object72(history);
+      const raw = object73(history);
       require99(Array.isArray(raw.observations), 'malformed observation inventory');
       const scope = {
         ...raw,
         observations: raw.observations.map((row) => {
-          const { checkpointSha256: _digest, ...identity } = object72(row);
+          const { checkpointSha256: _digest, ...identity } = object73(row);
           return identity;
         }),
       };
@@ -44079,7 +44189,7 @@ async function collectAzureFailoverTraffic(base, failover, phase, storage, api, 
 var require99 = (value, message) => {
     if (!value) throw Error(`Azure failover traffic: ${message}`);
   },
-  object72 = (value) => {
+  object73 = (value) => {
     require99(value && typeof value === 'object' && !Array.isArray(value), 'malformed history');
     return value;
   },
@@ -44111,7 +44221,7 @@ import { isIP as isIP24 } from 'node:net';
 
 function validateAzureFailoverCheckpoint(base, failover, input) {
   verifyAzureCeFailoverPlan(base, failover);
-  const value = object73(input);
+  const value = object74(input);
   const required = ['schemaVersion', 'engine', 'sourcePlanSha256', 'failoverPlanSha256', 'phase'];
   if (
     required.some((key) => !(key in value)) ||
@@ -44124,7 +44234,7 @@ function validateAzureFailoverCheckpoint(base, failover, input) {
   )
     throw Error('Azure failover checkpoint differs');
   if (value.pending !== undefined) {
-    const pending = object73(value.pending);
+    const pending = object74(value.pending);
     if (
       Object.keys(pending).sort().join(',') !== 'phase,requestSha256' ||
       !['stop', 'start'].includes(String(pending.phase)) ||
@@ -44138,7 +44248,7 @@ function validateAzureFailoverCheckpoint(base, failover, input) {
 }
 function validateAzureFailoverReceipt(base, failover, input) {
   verifyAzureCeFailoverPlan(base, failover);
-  const value = object73(input);
+  const value = object74(input);
   if (
     Object.keys(value).sort().join(',') !==
       'engine,nodeIndex,observedAt,planId,planSha256,sessionSequence,status,traffic' ||
@@ -44185,7 +44295,7 @@ async function observeAzureFailoverVm(plan, nodeIndex, api, signal) {
     if (result.exitCode !== 0) throw new Error('Azure failover identity observation unavailable');
     let value;
     try {
-      value = object73(JSON.parse(result.stdout));
+      value = object74(JSON.parse(result.stdout));
     } catch {
       throw new Error('Malformed Azure failover identity observation');
     }
@@ -44205,7 +44315,7 @@ async function observeAzureFailoverVm(plan, nodeIndex, api, signal) {
   if (!lower22(vmResourceId).startsWith(expectedScope.toLowerCase()))
     throw new Error('Azure failover VM is outside the deployment scope');
   const vm = await run(['vm', 'show', '--ids', vmResourceId, '--show-details']);
-  const tags = object73(vm.tags);
+  const tags = object74(vm.tags);
   const power = lower22(vm.powerState).replace(/^vm\s+/, '');
   if (
     lower22(vm.id) !== lower22(vmResourceId) ||
@@ -44287,7 +44397,7 @@ function verifyAzureCeFailoverPlan(base, failover) {
 }
 function requireAzureFailoverExecutionContract(base, failover, value) {
   verifyAzureCeFailoverPlan(base, failover);
-  const checkpoint = object73(value);
+  const checkpoint = object74(value);
   const binding = azureUpgradeBinding(base);
   const expectedKeys = [
     'contractFingerprint',
@@ -44355,7 +44465,7 @@ async function observeAzureFailoverVmState(plan, failover, api, signal) {
     signal?.throwIfAborted();
     if (result.exitCode !== 0) throw new Error('Azure failover VM observation unavailable');
     try {
-      return object73(JSON.parse(result.stdout));
+      return object74(JSON.parse(result.stdout));
     } catch {
       throw new Error('Malformed Azure failover VM observation');
     }
@@ -44369,7 +44479,7 @@ async function observeAzureFailoverVmState(plan, failover, api, signal) {
   )
     throw new Error('Azure failover account observation differs from deployment');
   const vm = await execute(['vm', 'show', '--ids', failover.vmResourceId, '--show-details']);
-  const tags = object73(vm.tags);
+  const tags = object74(vm.tags);
   if (
     lower22(vm.id) !== lower22(failover.vmResourceId) ||
     lower22(vm.location) !== lower22(plan.region) ||
@@ -44586,7 +44696,7 @@ async function runAzureCeFailover(
     await unlock();
   }
 }
-var object73 = (value) => {
+var object74 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed Azure failover evidence');
     return value;
@@ -44614,7 +44724,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
       source.nics.some((nic) => nic.role === 'sli'),
     'complete three-node SLO/SLI relay topology required',
   );
-  const stored = object74(input);
+  const stored = object75(input);
   require100(
     Object.keys(stored).sort().join(',') ===
       'binding,contractFingerprint,expectedInterfaces,schemaVersion,siteUid,tenantOrigin' &&
@@ -44637,13 +44747,13 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
     'complete historical relay configuration required',
   );
   verifyAzureRelayHistoricalArtifacts(source, stored.siteUid, records);
-  const routing = object74(records.get('platform-relay-routing.json'));
+  const routing = object75(records.get('platform-relay-routing.json'));
   require100(
     routing.contractFingerprint === capabilities.contractFingerprint,
     'configured relay contract differs from active context',
   );
-  const journal = object74(records.get('relay-routing-workflow.json'));
-  const cloud = object74(object74(journal.identity).stable).cloud;
+  const journal = object75(records.get('relay-routing-workflow.json'));
+  const cloud = object75(object75(journal.identity).stable).cloud;
   require100(
     Array.isArray(cloud) && Array.isArray(stored.expectedInterfaces) && stored.expectedInterfaces.length === 6,
     'complete six-interface binding required',
@@ -44652,7 +44762,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
   const seen = new Set(),
     macs = new Set();
   for (const row of expected) {
-    const value = object74(row),
+    const value = object75(row),
       normalized = typeof value.mac === 'string' ? value.mac.toLowerCase().replaceAll('-', ':') : '';
     const key = `${value.node}/${value.role}`;
     require100(
@@ -44665,7 +44775,7 @@ function requireAzureRelayFailoverScope(source, input, capabilities, records) {
     );
     seen.add(key);
     macs.add(normalized);
-    const matches = cloud.map(object74).filter((item) => item.node === value.node && item.role === value.role);
+    const matches = cloud.map(object75).filter((item) => item.node === value.node && item.role === value.role);
     require100(
       matches.length === 1 && matches[0].mac === normalized,
       'expected interface MAC differs from retained cloud identity',
@@ -44705,7 +44815,7 @@ async function collectAzureRelayFailoverAcceptance(source, failover, phase, plat
   );
   require100(observation.siteUid === scope.siteUid, 'current site differs from trusted binding');
   for (const row of [observation.sessions, observation.finalSessions, observation.ceRoutes]) {
-    const current = object74(row);
+    const current = object75(row);
     require100(
       current.contractFingerprint === capabilities.contractFingerprint &&
         current.siteName === source.siteName &&
@@ -44724,7 +44834,7 @@ async function collectAzureRelayFailoverAcceptance(source, failover, phase, plat
   signal?.throwIfAborted();
   const traffic = await collectAzureFailoverTraffic(source, failover, phase, storage, api, signal);
   signal?.throwIfAborted();
-  const evidence = object74(observation);
+  const evidence = object75(observation);
   const qualified =
     evidence.routing === 'healthy' &&
     evidence.fib === 'healthy' &&
@@ -44748,7 +44858,7 @@ async function collectAzureRelayFailoverAcceptance(source, failover, phase, plat
     observedAt: new Date().toISOString(),
   };
 }
-var object74 = (value) => {
+var object75 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Azure relay failover: malformed scope');
     return value;
@@ -45442,7 +45552,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
       canonicalSha256(await store.read(`${teardown.planId}.json`)) !== canonicalSha256(teardown)
     )
       throw Error('Native bootstrap retirement source or teardown differs');
-    const authorization = object75(await store.read(`${teardown.planId}-authorization.json`));
+    const authorization = object76(await store.read(`${teardown.planId}-authorization.json`));
     if (
       authorization.schemaVersion !== 1 ||
       authorization.engine !== 'native' ||
@@ -45452,7 +45562,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
     )
       throw Error('Native bootstrap retirement mutation authorization differs');
     if (base.relayProfile) {
-      const key = object75(await store.read('azure-native-relay-key-retirement.json'));
+      const key = object76(await store.read('azure-native-relay-key-retirement.json'));
       const { phase, checkpointSha256, ...keyDraft } = key;
       if (
         phase !== 'retired' ||
@@ -45465,7 +45575,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
     } else if ((await optional16(store, 'azure-native-relay-key-retirement.json')) !== undefined) {
       throw Error('Standard native retirement has an orphan relay key marker');
     }
-    const receipt = object75(await store.read('azure-native-teardown-receipt.json'));
+    const receipt = object76(await store.read('azure-native-teardown-receipt.json'));
     if (
       (await optional16(store, 'relay-native-execution.json')) !== undefined ||
       receipt.status !== 'retired' ||
@@ -45510,7 +45620,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
           [cloud.planSha256, cloud],
         ]);
       for (const name of names.filter((name) => /^native-source-[a-f0-9]{64}\.json$/.test(name))) {
-        const source = object75(await store.read(name));
+        const source = object76(await store.read(name));
         verifyAzureCePlan(source);
         if (
           source.engine !== 'native' ||
@@ -45546,7 +45656,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
         const raw = await bytes(name);
         let value;
         try {
-          value = object75(JSON.parse(raw.toString()));
+          value = object76(JSON.parse(raw.toString()));
         } catch {
           throw Error('Malformed native enrollment staging');
         }
@@ -45579,22 +45689,22 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
                 canonicalSha256(azureRelayResourceSource(source)) !== canonicalSha256(azureRelayResourceSource(base))
               : source.relayProfile !== undefined ||
                 (source.intent.operation === 'replace-node'
-                  ? !object75(value.replacement).originalSourcePlan ||
-                    canonicalSha256(object75(value.replacement).originalSourcePlan) !== canonicalSha256(base)
+                  ? !object76(value.replacement).originalSourcePlan ||
+                    canonicalSha256(object76(value.replacement).originalSourcePlan) !== canonicalSha256(base)
                   : source.intent.operation === 'update-network'
                     ? verifyAzureNativeNetworkProfile(source).originalPlanSha256 !== base.planSha256 ||
                       canonicalSha256(azureNativeNetworkScope(source, true)) !==
                         canonicalSha256(azureNativeNetworkScope(base, true)) ||
                       value.siteReserved !== false ||
-                      Object.keys(object75(value.bootstrapByNode)).length !== 0 ||
-                      Object.keys(object75(value.launchedAtByNode)).length !== 0 ||
+                      Object.keys(object76(value.bootstrapByNode)).length !== 0 ||
+                      Object.keys(object76(value.launchedAtByNode)).length !== 0 ||
                       value.replacement !== undefined
                     : source.planSha256 !== base.planSha256)
           )
             throw Error('Native admission original resource owner differs');
           if (!source.relayProfile && source.intent.operation === 'replace-node') {
             if (source.networkReplacementProfile)
-              await verifyAzureNativeNetworkReplacementRetirementSource(source, object75(value.replacement), store);
+              await verifyAzureNativeNetworkReplacementRetirementSource(source, object76(value.replacement), store);
             else verifyAzureNativeReplacementOriginalSource(source, base);
           }
           validateAzureNativeAdmissionCheckpoint(source, value);
@@ -45613,7 +45723,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
               .join(',')
           )
             throw Error('Native admission staging fields differ');
-          for (const [node, material] of Object.entries(object75(value.bootstrapByNode))) {
+          for (const [node, material] of Object.entries(object76(value.bootstrapByNode))) {
             const tokenName = `${source.deploymentName.slice(0, 40)}-${node}-${source.planSha256.slice(0, 12)}`;
             const token = parsed.get(`${tokenName}.json`);
             if (
@@ -45631,7 +45741,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
             'binding,checkout,contractFingerprint,node,owner,schemaVersion,siteUid,tokenName'
           )
             throw Error('Native opaque bootstrap checkout fields differ');
-          const checkout = object75(value.checkout),
+          const checkout = object76(value.checkout),
             token = parsed.get(`${String(value.tokenName)}.json`);
           if (
             value.schemaVersion !== 1 ||
@@ -45668,7 +45778,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
       deadline.throwIfAborted();
       await store.write(markerName2, marker);
     }
-    const value = object75(marker),
+    const value = object76(marker),
       { phase: markerPhase, checkpointSha256: markerSha256, ...draft } = value;
     if (
       value.schemaVersion !== 1 ||
@@ -45688,7 +45798,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
       teardown.retirement.flatMap((site) => site.tokens.map((token) => `${token.name}.json`)),
     );
     for (const row of value.artifacts) {
-      const item = object75(row);
+      const item = object76(row);
       if (
         typeof item.name !== 'string' ||
         !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(item.name) ||
@@ -45730,7 +45840,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
         if (item.preserve) {
           await fresh();
           deadline.throwIfAborted();
-          const checkout = object75(await store.read(item.name)).checkout;
+          const checkout = object76(await store.read(item.name)).checkout;
           await retireBootstrapToken(checkout, String(value.absenceSha256), deadline);
         }
       for (const item of recorded.values())
@@ -45766,7 +45876,7 @@ async function retireAzureNativeBootstrapArtifacts(base, cloud, teardown, runtim
 var markerName2 = 'azure-native-bootstrap-retirement.json',
   sha20 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   hash20 = (value) => createHash44('sha256').update(value).digest('hex'),
-  object75 = (value) => {
+  object76 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Malformed native bootstrap retirement evidence');
     return value;
@@ -45821,8 +45931,8 @@ function directPhase(base, failover, phase, value, siteUid, records) {
   const expected = interfaces.flatMap((row) =>
     routing.routeServerAddresses.map((peerAddress) => ({ ...row, peerAddress })),
   );
-  const sessions = object76(value.sessions),
-    routes = object76(value.effectiveRoutes);
+  const sessions = object77(value.sessions),
+    routes = object77(value.effectiveRoutes);
   keys18(sessions, [
     'status',
     'expectedSessions',
@@ -45897,7 +46007,7 @@ function directPhase(base, failover, phase, value, siteUid, records) {
     })),
   };
   require101(same65(parseBgpRoutes(wire, nodes).nodes, routeNodes), 'direct CE route scope differs');
-  const paths = object76(routes.pathInventory);
+  const paths = object77(routes.pathInventory);
   const qualifiers = ['status', 'scope', 'freshness', 'traffic'];
   require101(
     paths.scope === 'unqualified' && paths.freshness === 'unqualified' && paths.traffic === 'unknown',
@@ -45928,7 +46038,7 @@ function directPhase(base, failover, phase, value, siteUid, records) {
       'direct CE path inventory differs',
     );
   }
-  const cloud = object76(value.routeServer);
+  const cloud = object77(value.routeServer);
   keys18(cloud, [
     'status',
     'phase',
@@ -46008,7 +46118,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     };
     const prep = read('-preparation-evidence');
     if (prep !== undefined) {
-      const value = object76(prep);
+      const value = object77(prep);
       keys18(value, [
         'schemaVersion',
         'source',
@@ -46079,7 +46189,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     for (const phase of phases2) {
       const input = read(`-${phase}-evidence`);
       if (input === undefined) continue;
-      const value = object76(input);
+      const value = object77(input);
       require101(
         value.phase === phase && value.expectedEstablishedSessions === (phase === 'outage' ? 4 : 6),
         'phase scope differs',
@@ -46160,7 +46270,7 @@ async function verifyAzureFailoverHistoricalArtifacts(base, siteUid, records) {
     if (receipt)
       require101(
         phaseEvidence.get('recovered') &&
-          timestamp3(object76(receipt).observedAt) >= timestamp3(phaseEvidence.get('recovered')?.observedAt),
+          timestamp3(object77(receipt).observedAt) >= timestamp3(phaseEvidence.get('recovered')?.observedAt),
         'completion receipt precedes recovery',
       );
     for (const phase of ['stop', 'start', 'release']) {
@@ -46213,7 +46323,7 @@ var phases2,
   require101 = (condition, message) => {
     if (!condition) throw Error(`Azure failover history: ${message}`);
   },
-  object76 = (input) => {
+  object77 = (input) => {
     require101(input && typeof input === 'object' && !Array.isArray(input), 'malformed record');
     return input;
   },
@@ -46233,7 +46343,7 @@ var phases2,
   },
   rows3 = (value) => {
     require101(Array.isArray(value), 'complete list required');
-    return value.map(object76);
+    return value.map(object77);
   };
 var init_failover_artifact_provenance = __esm(() => {
   init_bgp_evidence();
@@ -46340,7 +46450,7 @@ function listenerPlacements(intent, placements) {
       }))
     : placements.map((row) => ({ name: row.siteName, insideAddress: row.insideAddress }));
 }
-function object77(value) {
+function object78(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress evidence');
   return value;
 }
@@ -46362,7 +46472,7 @@ function text5(value) {
   return value;
 }
 function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint) {
-  const raw = object77(value);
+  const raw = object78(value);
   fields6(raw, [
     'schemaVersion',
     'kind',
@@ -46388,7 +46498,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
   )
     throw new Error('Obsolete, forged or foreign ingress plan');
   if (raw.source !== undefined) {
-    const source = object77(raw.source);
+    const source = object78(raw.source);
     fields6(source, ['schemaVersion', 'kind', 'sourcePlanSha256', 'sourceArtifactSha256']);
     if (
       owner.provider !== 'azure' ||
@@ -46401,7 +46511,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     )
       throw new Error('Ingress source binding differs');
   }
-  const material = object77(plan.material);
+  const material = object78(plan.material);
   fields6(material, [
     'owner',
     'contractFingerprint',
@@ -46434,15 +46544,15 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
   for (let i = 0; i < plan.material.selections.length; i++) {
     const selected = plan.material.selections[i],
       placement = plan.material.placements[i];
-    fields6(object77(selected), [
+    fields6(object78(selected), [
       'binding',
       'node',
       'mac',
       ...(selected.insideAddress !== undefined ? ['insideAddress'] : []),
     ]);
-    fields6(object77(placement), ['siteName', 'siteUid', 'interface', 'insideAddress']);
+    fields6(object78(placement), ['siteName', 'siteUid', 'interface', 'insideAddress']);
     const binding = selected.binding;
-    fields6(object77(binding), ['owner', 'siteName', 'nodes']);
+    fields6(object78(binding), ['owner', 'siteName', 'nodes']);
     if (
       !same66(binding.owner, owner) ||
       !['aws', 'azure'].includes(owner.provider) ||
@@ -46465,7 +46575,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     text5(selected.node);
     text5(placement.siteUid);
     const iface = placement.interface;
-    fields6(object77(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
+    fields6(object78(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
     if (
       iface.node !== selected.node ||
       iface.role !== 'sli' ||
@@ -46478,7 +46588,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
       throw new Error('Ingress historical SLI identity differs');
     text5(iface.device);
     text5(iface.interfaceName);
-    fields6(object77(iface.ipv4), ['address', 'prefixLength']);
+    fields6(object78(iface.ipv4), ['address', 'prefixLength']);
     if (
       isIP26(iface.ipv4.address) !== 4 ||
       !Number.isInteger(iface.ipv4.prefixLength) ||
@@ -46535,7 +46645,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   if (!selectedRecords.length) return;
   const binding = azureUpgradeBinding(base),
     owner = binding.owner,
-    drain = object78(rawDrain);
+    drain = object79(rawDrain);
   require102(
     same67(drain.owner, owner) &&
       drain.ingressContractFingerprint === contract.fingerprint &&
@@ -46576,7 +46686,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   function checkpoint(name, id, origin) {
     const raw = records.get(name);
     if (raw === undefined) return;
-    const record = object78(raw),
+    const record = object79(raw),
       plan = plans.get(id);
     require102(
       plan && record.planSha256 === plan.sha256 && ['creating', 'created', 'deleted'].includes(String(record.phase)),
@@ -46610,7 +46720,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     require102(!listener || origin, 'listener checkpoint has no preceding origin');
     require102(!listener || origin?.phase !== 'creating', 'listener preceded origin completion');
     const corrected = listener?.phase === 'deleted' && origin?.phase === 'deleted';
-    const matchingListeners = drain.listeners.map(object78).filter((row) => row.id === id);
+    const matchingListeners = drain.listeners.map(object79).filter((row) => row.id === id);
     require102(matchingListeners.length <= 1, 'duplicate drain listener');
     if (listener && listener.phase !== 'creating' && !corrected) {
       require102(
@@ -46621,8 +46731,8 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       );
     } else require102(matchingListeners.length === 0, 'incomplete or corrected listener entered current drain');
     if (origin && origin.phase !== 'creating' && !corrected) {
-      const origins = drain.origins.map(object78).filter((row) => {
-        const ref = object78(row.origin);
+      const origins = drain.origins.map(object79).filter((row) => {
+        const ref = object79(row.origin);
         return (
           ref.name === plan.material.intent.originPool.name &&
           ref.namespace === plan.material.intent.originPool.namespace
@@ -46630,7 +46740,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       });
       require102(origins.length === 1, 'origin not bound to completed drain');
       const snapshot = origins[0],
-        ref = object78(snapshot.origin);
+        ref = object79(snapshot.origin);
       require102(
         snapshot.schemaVersion === 1 &&
           same67(snapshot.owner, owner) &&
@@ -46643,7 +46753,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       time2(snapshot.observedAt);
     }
     if (!corrected) {
-      const site = drain.sites.map(object78).filter((row) => object78(row.binding).siteName === base.siteName);
+      const site = drain.sites.map(object79).filter((row) => object79(row.binding).siteName === base.siteName);
       require102(
         site.length === 1 &&
           same67(site[0].binding, plan.material.selections[0].binding) &&
@@ -46658,7 +46768,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
       require102(plans.has(String(name.match(/([a-f0-9]{24})\.json$/)?.[1])), 'orphan checkpoint has no compiled plan');
   const marker = records.get('azure-platform-ingress.json');
   if (marker !== undefined) {
-    const value = object78(marker);
+    const value = object79(marker);
     keys19(value, [
       'schemaVersion',
       'engine',
@@ -46690,7 +46800,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   const traffic = new Map();
   for (const [name, raw] of selectedRecords)
     if (name === 'azure-traffic-probe.json' || name.endsWith('-traffic-probe.json')) {
-      const state = object78(raw),
+      const state = object79(raw),
         journal = journals.get(String(state.planSha256));
       require102(journal, 'traffic source journal missing');
       const sourcePlan = journal?.plan;
@@ -46713,7 +46823,7 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
     const checkpointName = `${current.checkpointKey}.json`;
     const checkpoint = current.receipt ? records.get(checkpointName) : raw;
     require102(checkpoint !== undefined, 'current sample receipt has no checkpoint');
-    const state = object78(checkpoint),
+    const state = object79(checkpoint),
       journal = journals.get(String(state.planSha256));
     require102(journal, 'current sample source journal missing');
     require102(
@@ -46726,8 +46836,8 @@ function verifyAzureIngressHistoricalArtifacts(base, rawDrain, contract, records
   }
   for (const [name, raw] of records)
     if (name.startsWith('native-action-')) {
-      const action = object78(raw),
-        evidence = object78(action.evidence);
+      const action = object79(raw),
+        evidence = object79(action.evidence);
       if (evidence.ingressPlanId !== undefined) {
         const plan = plans.get(String(evidence.ingressPlanId)),
           checkpoint = checkpoints.get(String(evidence.ingressPlanId))?.listener;
@@ -46755,7 +46865,7 @@ var require102 = (value, message) => {
     if (!value) throw new Error(`Azure ingress history: ${message}`);
   },
   same67,
-  object78 = (value) => {
+  object79 = (value) => {
     require102(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
@@ -46950,8 +47060,8 @@ async function retireAzureNativeParentArtifacts(
       }),
       'lifecycle barrier differs',
     );
-    const bootstrap = object79(await store.read('azure-native-bootstrap-retirement.json'));
-    const key = relay ? object79(await store.read('azure-native-relay-key-retirement.json')) : undefined;
+    const bootstrap = object80(await store.read('azure-native-bootstrap-retirement.json'));
+    const key = relay ? object80(await store.read('azure-native-relay-key-retirement.json')) : undefined;
     require104(
       relay || (await optional17(store, 'azure-native-relay-key-retirement.json')) === undefined,
       'orphan relay key marker',
@@ -47004,7 +47114,7 @@ async function retireAzureNativeParentArtifacts(
       Array.isArray(bootstrap.artifacts) && bootstrap.inventorySha256 === canonicalSha256(bootstrap.artifacts),
       'bootstrap inventory differs',
     );
-    const receipt = object79(await store.read('azure-native-teardown-receipt.json'));
+    const receipt = object80(await store.read('azure-native-teardown-receipt.json'));
     keys21(receipt, [
       'status',
       'sourcePlanSha256',
@@ -47050,7 +47160,7 @@ async function retireAzureNativeParentArtifacts(
     };
     const checkouts = new Map();
     for (const row of bootstrap.artifacts) {
-      const item = object79(row);
+      const item = object80(row);
       keys21(item, ['name', 'sha256', 'preserve']);
       require104(
         typeof item.name === 'string' && sha22(item.sha256) && typeof item.preserve === 'boolean',
@@ -47109,7 +47219,7 @@ async function retireAzureNativeParentArtifacts(
         const raw = await bytes(name);
         let record;
         try {
-          record = object79(JSON.parse(raw.toString()));
+          record = object80(JSON.parse(raw.toString()));
         } catch {
           throw Error('Native parent retirement: malformed artifact');
         }
@@ -47149,7 +47259,7 @@ async function retireAzureNativeParentArtifacts(
           if (source.networkReplacementProfile) {
             const history = records.get(`native-replacement-history-${source.planSha256}.json`);
             if (history)
-              await verifyAzureNativeNetworkReplacementRetirementSource(source, object79(history).replacement, {
+              await verifyAzureNativeNetworkReplacementRetirementSource(source, object80(history).replacement, {
                 async read(name) {
                   require104(records.has(name), 'required network replacement record is missing');
                   return records.get(name);
@@ -47231,7 +47341,7 @@ async function retireAzureNativeParentArtifacts(
               name === `native-action-${source.planSha256}-${value.actionId}.json`,
             'action source, owner or action differs',
           );
-          const payload = object79(value.evidence);
+          const payload = object80(value.evidence);
           const action = actions?.[0];
           require104(
             action &&
@@ -47394,7 +47504,7 @@ async function retireAzureNativeParentArtifacts(
           const used = new Set(),
             roles = new Set();
           for (const raw of value.expectedInterfaces) {
-            const row = object79(raw);
+            const row = object80(raw);
             keys21(row, ['node', 'role', 'mac', ...(row.staticIp !== undefined ? ['staticIp'] : [])]);
             require104(
               binding.nodes.includes(String(row.node)) &&
@@ -47406,7 +47516,7 @@ async function retireAzureNativeParentArtifacts(
               'bound interface identity differs',
             );
             if (row.staticIp !== undefined) {
-              const configured = object79(row.staticIp);
+              const configured = object80(row.staticIp);
               keys21(configured, [
                 'ip_address',
                 ...(configured.default_gw !== undefined ? ['default_gw'] : []),
@@ -47433,7 +47543,7 @@ async function retireAzureNativeParentArtifacts(
           );
         } else if (name === `public-site-${base.siteName}.json`) {
           keys21(value, ['planId', 'record']);
-          const record = object79(value.record);
+          const record = object80(value.record);
           keys21(record, ['phase', 'resourceVersion', 'uid']);
           require104(
             typeof value.planId === 'string' &&
@@ -47513,7 +47623,7 @@ async function retireAzureNativeParentArtifacts(
       deadline.throwIfAborted();
       await store.write(markerName3, marker);
     }
-    const value = object79(marker),
+    const value = object80(marker),
       { phase, checkpointSha256, ...draft } = value;
     keys21(value, [
       'schemaVersion',
@@ -47544,7 +47654,7 @@ async function retireAzureNativeParentArtifacts(
     );
     const recorded = new Map();
     for (const raw of value.artifacts) {
-      const item = object79(raw);
+      const item = object80(raw);
       keys21(item, ['name', 'sha256', 'preserve']);
       require104(
         typeof item.name === 'string' &&
@@ -47566,7 +47676,7 @@ async function retireAzureNativeParentArtifacts(
     for (const name of checkouts.keys()) {
       await fresh();
       deadline.throwIfAborted();
-      const checkout = object79(await store.read(name)).checkout;
+      const checkout = object80(await store.read(name)).checkout;
       await retireBootstrapToken(checkout, String(bootstrap.absenceSha256), deadline);
     }
     for (const item of current.filter((item) => !item.preserve)) {
@@ -47607,7 +47717,7 @@ var markerName3 = 'azure-native-parent-artifact-retirement.json',
   require104 = (condition, message) => {
     if (!condition) throw Error(`Native parent retirement: ${message}`);
   },
-  object79 = (value) => {
+  object80 = (value) => {
     require104(value && typeof value === 'object' && !Array.isArray(value), 'malformed record');
     return value;
   },
@@ -47657,7 +47767,7 @@ async function read4(api, plan, args, signal) {
   signal?.throwIfAborted();
   if (result.exitCode !== 0) throw new Error('Azure Terraform teardown ownership observation unavailable');
   try {
-    return object80(JSON.parse(result.stdout));
+    return object81(JSON.parse(result.stdout));
   } catch {
     throw new Error('Malformed Azure Terraform teardown ownership observation');
   }
@@ -47699,7 +47809,7 @@ async function observeAzureTerraformDestroyBoundary(plan, api, signal) {
   if (exists === false) return { status: 'absent', resourceGroupId: groupId, observedAt: new Date().toISOString() };
   if (exists !== true) throw new Error('Malformed Azure Terraform teardown boundary observation');
   const group = await read4(api, plan, ['group', 'show', '--name', plan.intent.resourceGroup], signal);
-  const tags = object80(group.tags);
+  const tags = object81(group.tags);
   if (
     lower23(group.id) !== lower23(groupId) ||
     lower23(group.location) !== lower23(plan.region) ||
@@ -47768,7 +47878,7 @@ async function verifyAzureTerraformDestroyOwnership(plan, receipt, session, api,
     throw new Error('Incomplete Azure Terraform teardown identity projection');
   for (const change of receipt.changes) {
     if (change.type === 'azapi_resource_action') {
-      const terms = object80(fields[change.address]);
+      const terms = object81(fields[change.address]);
       const expectedResourceId = [
         `/subscriptions/${plan.subscription.id}`,
         'providers/Microsoft.MarketplaceOrdering',
@@ -47790,7 +47900,7 @@ async function verifyAzureTerraformDestroyOwnership(plan, receipt, session, api,
       continue;
     }
     if (udrTypes.has(change.type)) {
-      const value = object80(fields[change.address]),
+      const value = object81(fields[change.address]),
         udr = plan.routing.udr;
       if (!udr) throw Error('UDR teardown requires an explicit owning routing profile');
       const tableId = `${groupId}/providers/Microsoft.Network/routeTables/${plan.deploymentName}-rt`;
@@ -47825,7 +47935,7 @@ async function verifyAzureTerraformDestroyOwnership(plan, receipt, session, api,
       }
       continue;
     }
-    const id = object80(fields[change.address]).id;
+    const id = object81(fields[change.address]).id;
     if (typeof id !== 'string' || !id) throw new Error('Azure Terraform teardown resource ID is unavailable');
     if (localTypes.has(change.type)) continue;
     if (
@@ -47842,7 +47952,7 @@ var cloudTypes,
   localTypes,
   marketplaceTermsAddress = 'azapi_resource_action.marketplace_terms',
   marketplaceTermsType = 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01',
-  object80 = (value) => {
+  object81 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed Azure Terraform teardown identity');
     return value;
@@ -47891,15 +48001,15 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
       if (/ResourceNotFound|ResourceGroupNotFound/.test(r.stderr)) return;
       throw Error('Pending Azure VM observation unavailable');
     }
-    const vm = object81(JSON.parse(r.stdout)),
-      tags = object81(vm.tags);
+    const vm = object82(JSON.parse(r.stdout)),
+      tags = object82(vm.tags);
     const expected = base.nics
       .map((n) => n.index)
       .map(
         (i) =>
           `${id.split('/providers/')[0]}/providers/Microsoft.Network/networkInterfaces/${base.deploymentName}-1-nic${i}`,
       );
-    const nics = object81(vm.networkProfile).networkInterfaces;
+    const nics = object82(vm.networkProfile).networkInterfaces;
     if (
       vm.id !== id ||
       vm.name !== `${base.deploymentName}-1` ||
@@ -47907,7 +48017,7 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
       vm.provisioningState !== 'Failed' ||
       typeof vm.vmId !== 'string' ||
       !vm.vmId ||
-      object81(vm.hardwareProfile).vmSize !== base.vm.size ||
+      object82(vm.hardwareProfile).vmSize !== base.vm.size ||
       tags['xcsh-managed-by'] !== 'azure-ce' ||
       tags['xcsh-execution-engine'] !== 'terraform' ||
       tags['xcsh-deployment-id'] !== base.deploymentName ||
@@ -47916,7 +48026,7 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
       tags['ves-io-site-name'] !== base.siteName ||
       !Array.isArray(nics) ||
       nics.length !== base.nics.length ||
-      canonicalSha256(nics.map((n) => object81(n).id).sort()) !==
+      canonicalSha256(nics.map((n) => object82(n).id).sort()) !==
         canonicalSha256(expected.slice(0, base.nics.length).sort())
     )
       throw Error('Pending Azure VM is foreign, replaced or no longer failed');
@@ -47924,7 +48034,7 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
   };
   let saved;
   try {
-    saved = object81(await storage.read(journalName3));
+    saved = object82(await storage.read(journalName3));
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
@@ -47944,17 +48054,17 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
   if (!saved) {
     const configurationSha256 = await session.readConfigurationSha256();
     const originalConfiguration = await session.readConfiguration(configurationSha256);
-    const config = object81(JSON.parse(originalConfiguration)),
-      resources = object81(config.resource);
-    const desired = object81(object81(resources.azurerm_linux_virtual_machine).node_1);
-    const keys = object81(object81(object81(vm.osProfile).linuxConfiguration).ssh).publicKeys;
-    if (!Array.isArray(keys) || keys.length !== 1 || typeof object81(keys[0]).keyData !== 'string')
+    const config = object82(JSON.parse(originalConfiguration)),
+      resources = object82(config.resource);
+    const desired = object82(object82(resources.azurerm_linux_virtual_machine).node_1);
+    const keys = object82(object82(object82(vm.osProfile).linuxConfiguration).ssh).publicKeys;
+    if (!Array.isArray(keys) || keys.length !== 1 || typeof object82(keys[0]).keyData !== 'string')
       throw Error('Pending VM public bootstrap identity unavailable');
-    desired.admin_ssh_key = [{ username: object81(vm.osProfile).adminUsername, public_key: object81(keys[0]).keyData }];
+    desired.admin_ssh_key = [{ username: object82(vm.osProfile).adminUsername, public_key: object82(keys[0]).keyData }];
     desired.lifecycle = { ignore_changes: 'all' };
     if (!identities.some((r) => r.type === 'tls_private_key')) delete resources.tls_private_key;
     if (config.output) {
-      const names = Object.keys(object81(config.output));
+      const names = Object.keys(object82(config.output));
       const values = await session.readOutputs(names, env, signal, true);
       const output = {};
       for (const name of names) if (Object.hasOwn(values, name)) output[name] = { value: values[name] };
@@ -48154,7 +48264,7 @@ async function reconcileAzurePendingVm(base, session, storage, api, env, signal)
   return true;
 }
 var hash23 = (s) => createHash47('sha256').update(s).digest('hex'),
-  object81 = (v) => {
+  object82 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed pending Azure VM identity');
     return v;
   },
@@ -48364,7 +48474,7 @@ async function privateManifest(store, name) {
   const stat = await lstat15(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== process.getuid?.() || stat.mode & 63)
     throw Error('Azure foundation manifest ownership differs');
-  return object82(JSON.parse(await readFile12(file, 'utf8')));
+  return object83(JSON.parse(await readFile12(file, 'utf8')));
 }
 async function journal(base, store, reservedSite) {
   verifyAzureCePlan(base);
@@ -48375,8 +48485,8 @@ async function journal(base, store, reservedSite) {
     canonicalSha256(store.owner) !== canonicalSha256(azureUpgradeBinding(base).owner)
   )
     throw Error('Azure foundation retirement requires the original owning deployment');
-  const authorization = object82(await store.read(`terraform-authorization-${base.planSha256}.json`));
-  const workflow = object82(await store.read('terraform-workflow.json'));
+  const authorization = object83(await store.read(`terraform-authorization-${base.planSha256}.json`));
+  const workflow = object83(await store.read('terraform-workflow.json'));
   if (
     authorization.schemaVersion !== 1 ||
     authorization.engine !== 'terraform' ||
@@ -48387,14 +48497,14 @@ async function journal(base, store, reservedSite) {
     workflow.planSha256 !== base.planSha256 ||
     workflow.stage !== 'network-pending' ||
     !sha23(workflow.configurationSha256) ||
-    Object.keys(object82(workflow.bootstrapByNode)).length ||
-    Object.keys(object82(workflow.launchedAtByNode)).length
+    Object.keys(object83(workflow.bootstrapByNode)).length ||
+    Object.keys(object83(workflow.launchedAtByNode)).length
   )
     throw Error('Azure foundation retirement requires exact pre-admission authorization and journal');
   if (reservedSite) {
     const binding = azureUpgradeBinding(base);
-    const site = object82(await store.read('terraform-site.json'));
-    const saved = object82(await store.read(`site-binding-${base.siteName}.json`));
+    const site = object83(await store.read('terraform-site.json'));
+    const saved = object83(await store.read(`site-binding-${base.siteName}.json`));
     const origin = new URL(String(saved.tenantOrigin));
     if (
       site.siteName !== base.siteName ||
@@ -48533,7 +48643,7 @@ async function prepareAzureFoundationTeardown(base, runtime, contract, store, si
   const savedSite = await optional19(store, 'terraform-site.json');
   let reservedSite;
   if (savedSite !== undefined) {
-    const value = object82(savedSite);
+    const value = object83(savedSite);
     if (
       typeof value.uid !== 'string' ||
       !value.uid.trim() ||
@@ -48648,7 +48758,7 @@ async function runAzureFoundationTeardown(
     await journal(base, store, input.reservedSite);
     if (
       input.reservedSite &&
-      object82(await store.read('terraform-site.json')).contractFingerprint !== runtime.contract.fingerprint
+      object83(await store.read('terraform-site.json')).contractFingerprint !== runtime.contract.fingerprint
     )
       throw Error('Reserved Azure site contract changed');
     if (
@@ -48768,7 +48878,7 @@ async function runAzureFoundationTeardown(
   await fresh(true);
   if (!checkpoint.finalPlan || !checkpoint.artifacts || !sha23(checkpoint.retirementEvidenceSha256))
     throw Error('Azure foundation terminal receipt is incomplete');
-  const artifacts = object82(checkpoint.artifacts);
+  const artifacts = object83(checkpoint.artifacts);
   if (
     artifacts.status !== 'runner-artifacts-retired' ||
     artifacts.manifestSha256 !== canonicalSha256(manifest({ ...sourceDeployment, configuration: empty })) ||
@@ -48793,7 +48903,7 @@ async function runAzureFoundationTeardown(
 }
 var hash24 = (v) => createHash48('sha256').update(v).digest('hex'),
   sha23 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
-  object82 = (v) => {
+  object83 = (v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Azure foundation retirement evidence');
     return v;
   },
@@ -48840,9 +48950,9 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     canonicalSha256(storage.owner) !== canonicalSha256(binding.owner)
   )
     throw Error('Azure pending admission owner or profile differs');
-  const auth = object83(await storage.read(`terraform-authorization-${base.planSha256}.json`));
-  const workflow = object83(await storage.read('terraform-workflow.json'));
-  const bootstrap = object83(workflow.bootstrapByNode);
+  const auth = object84(await storage.read(`terraform-authorization-${base.planSha256}.json`));
+  const workflow = object84(await storage.read('terraform-workflow.json'));
+  const bootstrap = object84(workflow.bootstrapByNode);
   if (
     auth.schemaVersion !== 1 ||
     auth.engine !== 'terraform' ||
@@ -48852,7 +48962,7 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     workflow.engine !== 'terraform' ||
     workflow.planSha256 !== base.planSha256 ||
     workflow.stage !== 'network-pending' ||
-    Object.keys(object83(workflow.launchedAtByNode)).length ||
+    Object.keys(object84(workflow.launchedAtByNode)).length ||
     Object.keys(bootstrap).length !== 1 ||
     typeof bootstrap['1'] !== 'string'
   )
@@ -48860,8 +48970,8 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
   const deployment = await azureTerraformFoundationDeployment(base, { 1: bootstrap['1'] });
   if (workflow.configurationSha256 !== hash25(deployment.configuration))
     throw Error('Azure pending admission configuration differs');
-  const site = object83(await storage.read('terraform-site.json'));
-  const saved = object83(await storage.read(`site-binding-${base.siteName}.json`));
+  const site = object84(await storage.read('terraform-site.json'));
+  const saved = object84(await storage.read(`site-binding-${base.siteName}.json`));
   if (
     site.siteName !== base.siteName ||
     typeof site.uid !== 'string' ||
@@ -48887,7 +48997,7 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
   )
     throw Error('Azure pending tenant origin differs');
   const tokenName = `${base.deploymentName.slice(0, 40)}-1-${base.planSha256.slice(0, 12)}`;
-  const token = object83(await storage.read(`${tokenName}.json`));
+  const token = object84(await storage.read(`${tokenName}.json`));
   if (
     token.tokenName !== tokenName ||
     token.siteName !== base.siteName ||
@@ -48896,7 +49006,7 @@ async function azurePendingAdmissionJournal(base, storage, fingerprint, verifyMa
     !token.jwt
   )
     throw Error('Azure pending enrollment provenance differs');
-  const admission = object83(await storage.read('terraform-admission-plan-node-1.json'));
+  const admission = object84(await storage.read('terraform-admission-plan-node-1.json'));
   if (
     admission.schemaVersion !== 1 ||
     admission.engine !== 'terraform' ||
@@ -48980,7 +49090,7 @@ async function observeAzurePendingAdmission(base, runtime, contract, storage, si
   return { value, journal };
 }
 var hash25 = (value) => createHash49('sha256').update(value).digest('hex'),
-  object83 = (value) => {
+  object84 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('Invalid Azure pending admission journal');
     return value;
@@ -49206,7 +49316,7 @@ import { join as join24 } from 'node:path';
 function require106(v, message) {
   if (!v) throw Error(`Azure network empty-main binding: ${message}`);
 }
-function object84(v) {
+function object85(v) {
   require106(v && typeof v === 'object' && !Array.isArray(v), 'record object required');
   return v;
 }
@@ -49344,9 +49454,9 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
     same70(await readRecord('azure-terraform-terminal-cleanup.json'), terminal),
     'saved terminal checkpoint differs',
   );
-  const checkpoint = object84(terminal),
-    destroy = object84(checkpoint.destroy),
-    final = object84(checkpoint.final);
+  const checkpoint = object85(terminal),
+    destroy = object85(checkpoint.destroy),
+    final = object85(checkpoint.final);
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
   const { configuration: emptyConfiguration, providerLock, ...identity } = deployment;
   const emptySha256 = hash27(emptyConfiguration),
@@ -49385,8 +49495,8 @@ async function qualifyAzureTerraformNetworkEmptyMainBinding(request, store, cont
       hash27(checkpoint.retainedDestroyConfiguration) === destroy.configurationSha256,
     'retained destroy configuration or receipt differs',
   );
-  const retained = object84(parsePrivate(checkpoint.retainedDestroyConfiguration)),
-    retainedNetwork = object84(checkpoint.retainedNetworkCustody);
+  const retained = object85(parsePrivate(checkpoint.retainedDestroyConfiguration)),
+    retainedNetwork = object85(checkpoint.retainedNetworkCustody);
   require106(
     same70({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(emptyConfiguration)) &&
       retainedNetwork.scope === 'post-destroy-authenticated-network-stage-journal-custody' &&
@@ -49572,7 +49682,7 @@ async function validateAzureTerraformPowerCancellationPacket(
   input,
   publishedMutation,
 ) {
-  const packet = object85(input);
+  const packet = object86(input);
   const keys = [
     ...Object.keys(bound),
     'status',
@@ -49624,7 +49734,7 @@ async function validateAzureTerraformPowerCancellationPacket(
   return { packet, receipt, evidenceSha256: packet.evidenceSha256 };
 }
 var same71,
-  object85 = (input) => {
+  object86 = (input) => {
     require107(input && typeof input === 'object' && !Array.isArray(input), 'malformed cancellation packet');
     return input;
   };
@@ -49642,7 +49752,7 @@ import { join as join25 } from 'node:path';
 function require108(value, message) {
   if (!value) throw Error(`Azure Terraform cancelled power release: ${message}`);
 }
-function object86(value) {
+function object87(value) {
   require108(value && typeof value === 'object' && !Array.isArray(value), 'malformed release packet');
   return value;
 }
@@ -49850,7 +49960,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         ),
       );
       require108(original.packet.status === 'cancelled', 'completed original cancellation required');
-      const originalProvenance = object86(original.packet.provenance);
+      const originalProvenance = object87(original.packet.provenance);
       require108(
         same72(
           Object.keys(originalProvenance).sort(),
@@ -50044,7 +50154,7 @@ async function runCancelledPowerStage(args, retire, readOnly = false) {
         manifestSha256,
       };
       const packet = (input, fields) => {
-        const value = object86(input);
+        const value = object87(input);
         require108(
           same72(Object.keys(value).sort(), [...Object.keys(bound), ...fields].sort()) &&
             Object.entries(bound).every(([key, expected]) => same72(value[key], expected)),
@@ -54713,7 +54823,7 @@ var init_network_operational_parent_disposition = __esm(() => {
 function require120(value, message) {
   if (!value) throw Error(`Azure replacement acquisition provenance: ${message}`);
 }
-function object87(value) {
+function object88(value) {
   require120(value && typeof value === 'object' && !Array.isArray(value), 'complete replacement record required');
   return value;
 }
@@ -54779,9 +54889,9 @@ function createAzureReplacementAcquisitionCollector(
         require120(purpose === 'preflight' || purpose === 'final', 'replacement purpose differs');
       },
       validateIdentity(raw, source, expectedOwner) {
-        const identity = object87(raw),
-          site = object87(identity.site),
-          nodes = object87(identity.nodes);
+        const identity = object88(raw),
+          site = object88(identity.site),
+          nodes = object88(identity.nodes);
         require120(
           same82(
             Object.keys(identity).sort(),
@@ -54814,8 +54924,8 @@ function createAzureReplacementAcquisitionCollector(
         );
       },
       validateReadings(raw, expected, source, expectedOwner) {
-        const readings = object87(raw),
-          identity = object87(expected);
+        const readings = object88(raw),
+          identity = object88(expected);
         require120(
           readings.schemaVersion === 1 &&
             readings.scope === 'replacement-registration-interface-identity' &&
@@ -55978,12 +56088,12 @@ import { join as join38 } from 'node:path';
 function require124(v, message) {
   if (!v) throw Error(`Azure pending import provenance: ${message}`);
 }
-function object88(v) {
+function object89(v) {
   require124(v && typeof v === 'object' && !Array.isArray(v), 'record required');
   return v;
 }
 function keys23(v, fields) {
-  require124(same86(Object.keys(object88(v)).sort(), fields.toSorted()), 'schema fields differ');
+  require124(same86(Object.keys(object89(v)).sort(), fields.toSorted()), 'schema fields differ');
 }
 async function readAzureTerraformPendingImportProvenance(request, store, session, signal, emptyMainAdmission) {
   const base = structuredClone(request),
@@ -56065,7 +56175,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     );
     require124(same86(parsed, logical), 'logical and native packet differ');
     return {
-      value: object88(logical),
+      value: object89(logical),
       identity: native.identity,
       bytesSha256: hash34(native.bytes),
       packetSha256: canonicalSha256(logical),
@@ -56104,9 +56214,9 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       hash34(value.importedConfiguration) === value.importedConfigurationSha256,
     'completed owning import configuration required',
   );
-  const imported = object88(JSON.parse(value.importedConfiguration));
+  const imported = object89(JSON.parse(value.importedConfiguration));
   require124(same86(imported.import, [{ to: address, id }]), 'exact import declaration required');
-  const receipt = object88(value.receipt);
+  const receipt = object89(value.receipt);
   require124(
     receipt.schemaVersion === 1 &&
       receipt.engine === 'terraform' &&
@@ -56133,7 +56243,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
       receipt.changes.every((row) => row.actions.join(',') === 'no-op'),
     'nonmutating exact saved import receipt required',
   );
-  const application = object88(value.application);
+  const application = object89(value.application);
   keys23(application, [
     'schemaVersion',
     'receiptSha256',
@@ -56174,7 +56284,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
   require124(
     history.incompleteArchives === 0 &&
       history.receiptSha256 === canonicalSha256(receipt) &&
-      same86(history.matches, object88(application.history).matches) &&
+      same86(history.matches, object89(application.history).matches) &&
       history.matches.length > 0 &&
       history.matches.some((row) => row.state === 'applied') &&
       history.matches.every(
@@ -56199,7 +56309,7 @@ async function readAzureTerraformPendingImportProvenance(request, store, session
     `original/import configuration and applied native archives required: ${JSON.stringify({
       incompleteHistoryArchives: history.incompleteArchives,
       exactReceipt: history.receiptSha256 === canonicalSha256(receipt),
-      retainedMatchesEqual: same86(history.matches, object88(application.history).matches),
+      retainedMatchesEqual: same86(history.matches, object89(application.history).matches),
       historyMatches: history.matches.length,
       appliedMatch: history.matches.some((row) => row.state === 'applied'),
       manifestMatches: history.matches.every((row) => row.manifestSha256 === expectedImportedManifestSha256),
@@ -56265,12 +56375,12 @@ import { createHash as createHash63 } from 'node:crypto';
 function require125(value, message) {
   if (!value) throw Error(`Terraform upgrade history: ${message}`);
 }
-function object89(value) {
+function object90(value) {
   require125(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
   return value;
 }
 function keys24(value, fields) {
-  const names = Object.entries(object89(value))
+  const names = Object.entries(object90(value))
     .filter(([, item]) => item !== undefined)
     .map(([name]) => name)
     .sort();
@@ -56361,7 +56471,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
       continue;
     }
     require125(auth !== undefined, 'checkpoint authorization missing');
-    const checkpoint = object89(rawCheckpoint);
+    const checkpoint = object90(rawCheckpoint);
     keys24(checkpoint, [
       'schemaVersion',
       'engine',
@@ -56381,7 +56491,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
     );
     checkpoints.set(id, checkpoint);
     if (rawAction !== undefined) {
-      const action = object89(rawAction);
+      const action = object90(rawAction);
       keys24(action, [
         'schemaVersion',
         'engine',
@@ -56414,7 +56524,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
     if (checkpoint.phase === 'complete') require125(rawReceipt !== undefined, 'completed receipt missing');
     if (rawReceipt !== undefined) {
       require125(checkpoint.phase !== 'ready' && rawAction !== undefined, 'receipt predates submission');
-      const receipt = object89(rawReceipt),
+      const receipt = object90(rawReceipt),
         action = actions.get(id);
       keys24(receipt, [
         'status',
@@ -56450,7 +56560,7 @@ async function verifyAzureTerraformUpgradeHistoricalArtifacts(request, currentSi
   const rawSerial = records.get(serialName);
   let serial;
   if (rawSerial !== undefined) {
-    serial = object89(rawSerial);
+    serial = object90(rawSerial);
     keys24(serial, [
       'schemaVersion',
       'engine',
@@ -56528,12 +56638,12 @@ import { join as join39 } from 'node:path';
 function require126(v, message) {
   if (!v) throw Error(`Azure upgrade applied journal: ${message}`);
 }
-function object90(v) {
+function object91(v) {
   require126(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
 function keys25(v, names) {
-  require126(same88(Object.keys(object90(v)).sort(), names.toSorted()), 'journal fields differ');
+  require126(same88(Object.keys(object91(v)).sort(), names.toSorted()), 'journal fields differ');
 }
 async function qualifyAzureTerraformUpgradeAppliedJournal(
   request,
@@ -56639,13 +56749,13 @@ async function qualifyAzureTerraformUpgradeAppliedJournal(
     deadline,
   );
   require126(same88(rootHistory.sources.get(upgrade.planId), upgrade), 'exact saved upgrade source required');
-  const checkpoint = object90(first.records.get(`${upgrade.planId}-checkpoint.json`)),
-    serial = object90(first.records.get('terraform-ce-upgrade-serial.json'));
+  const checkpoint = object91(first.records.get(`${upgrade.planId}-checkpoint.json`)),
+    serial = object91(first.records.get('terraform-ce-upgrade-serial.json'));
   require126(
     checkpoint.phase === 'complete' && serial.status === 'idle' && serial.activePlanId === undefined,
     'complete inactive upgrade required',
   );
-  const action = object90(first.records.get(`${upgrade.planId}-action-plan.json`));
+  const action = object91(first.records.get(`${upgrade.planId}-action-plan.json`));
   const { configuration, providerLock, ...identity } = upgrade.deployment;
   const manifestSha256 = canonicalSha256({
     ...identity,
@@ -56724,7 +56834,7 @@ async function recheckAzureTerraformUpgradeAppliedJournal(
   await bound.recheck(signal);
 }
 function verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestSha256) {
-  const history = object90(raw);
+  const history = object91(raw);
   keys25(history, [
     'schemaVersion',
     'scope',
@@ -56750,7 +56860,7 @@ function verifyAzureTerraformUpgradeAppliedJournalHistory(raw, action, manifestS
   const seen = new Set();
   let applied = false;
   for (const rawMatch of history.matches) {
-    const match = object90(rawMatch);
+    const match = object91(rawMatch);
     keys25(match, [
       'location',
       'archiveSha256',
@@ -56798,14 +56908,14 @@ import { join as join40 } from 'node:path';
 function require127(v, message) {
   if (!v) throw Error(`Azure upgrade stage retirement: ${message}`);
 }
-function object91(v) {
+function object92(v) {
   require127(v && typeof v === 'object' && !Array.isArray(v), 'complete checkpoint required');
   return v;
 }
 function keys26(v, names) {
   require127(
     same89(
-      Object.entries(object91(v))
+      Object.entries(object92(v))
         .filter(([, value]) => value !== undefined)
         .map(([key]) => key)
         .sort(),
@@ -56910,20 +57020,20 @@ async function accessAzureTerraformUpgradeStage(
       );
       require127(
         same89(history.sources.get(upgrade.planId), upgrade) &&
-          object91(records.get(`${upgrade.planId}-checkpoint.json`)).phase === 'complete' &&
-          object91(records.get('terraform-ce-upgrade-serial.json')).status === 'idle',
+          object92(records.get(`${upgrade.planId}-checkpoint.json`)).phase === 'complete' &&
+          object92(records.get('terraform-ce-upgrade-serial.json')).status === 'idle',
         'complete inactive owning roots required',
       );
       return {
         names,
         records,
-        action: object91(records.get(`${upgrade.planId}-action-plan.json`)),
+        action: object92(records.get(`${upgrade.planId}-action-plan.json`)),
       };
     };
     const source = await roots(),
       action = source.action;
     const finalReceipt = (raw) => {
-      const receipt = object91(raw);
+      const receipt = object92(raw);
       keys26(receipt, [
         'schemaVersion',
         'engine',
@@ -56961,7 +57071,7 @@ async function accessAzureTerraformUpgradeStage(
       receiptSha256,
     });
     const validate = (raw) => {
-      const c = object91(raw),
+      const c = object92(raw),
         bound = [
           'schemaVersion',
           'status',
@@ -57004,7 +57114,7 @@ async function accessAzureTerraformUpgradeStage(
     if (checkpoint !== undefined) validate(checkpoint);
     if (observationOnly !== undefined)
       require127(
-        checkpoint !== undefined && object91(checkpoint).status === 'retired' && same89(checkpoint, observationOnly),
+        checkpoint !== undefined && object92(checkpoint).status === 'retired' && same89(checkpoint, observationOnly),
         'read-only completed stage checkpoint required',
       );
     const session = await step(() => terraform.open(owner, upgrade.deployment, 'current'));
@@ -57048,7 +57158,7 @@ async function accessAzureTerraformUpgradeStage(
       require127(same89(await step(() => store.read(name)), checkpoint), 'stage checkpoint changed across boundary');
       await roots();
     };
-    if (object91(checkpoint).status === 'preparing') {
+    if (object92(checkpoint).status === 'preparing') {
       const before = await step(() =>
         qualifyAzureTerraformUpgradeAppliedJournal(base, upgrade, site, contract, store, session, active),
       );
@@ -57057,10 +57167,10 @@ async function accessAzureTerraformUpgradeStage(
       );
       const receipt = finalReceipt(await step(() => session.plan(env, active)));
       await unchanged();
-      checkpoint = { ...object91(checkpoint), status: 'capturing', receipt, receiptSha256: canonicalSha256(receipt) };
+      checkpoint = { ...object92(checkpoint), status: 'capturing', receipt, receiptSha256: canonicalSha256(receipt) };
       await step(() => store.write(name, checkpoint));
     }
-    if (object91(checkpoint).status === 'capturing') {
+    if (object92(checkpoint).status === 'capturing') {
       const proof = await step(() =>
         qualifyAzureTerraformUpgradeAppliedJournal(base, upgrade, site, contract, store, session, active),
       );
@@ -57069,9 +57179,9 @@ async function accessAzureTerraformUpgradeStage(
         recheckAzureTerraformUpgradeAppliedJournal(proof, base, upgrade, site, contract, store, session, active),
       );
       const appliedJournalSha256 = canonicalSha256(proof),
-        retirementEvidence = envelope(appliedJournalSha256, String(object91(checkpoint).receiptSha256));
+        retirementEvidence = envelope(appliedJournalSha256, String(object92(checkpoint).receiptSha256));
       checkpoint = {
-        ...object91(checkpoint),
+        ...object92(checkpoint),
         status: 'retiring',
         appliedJournal: structuredClone(proof),
         appliedJournalSha256,
@@ -57087,7 +57197,7 @@ async function accessAzureTerraformUpgradeStage(
       receipt = finalReceipt(c.receipt),
       evidenceSha256 = String(c.evidenceSha256);
     const retained = async () => {
-      const proof = object91(c.appliedJournal);
+      const proof = object92(c.appliedJournal);
       keys26(proof, [
         'schemaVersion',
         'scope',
@@ -57125,7 +57235,7 @@ async function accessAzureTerraformUpgradeStage(
       );
       verifyAzureTerraformUpgradeAppliedJournalHistory(proof.history, action, manifestSha256);
       const current = await roots(),
-        files = proof.files.map(object91);
+        files = proof.files.map(object92);
       require127(same89(files.map((file) => file.path).sort(), current.names), 'retained root namespace differs');
       const root = await step(() => lstat32(directory));
       require127(
@@ -57146,7 +57256,7 @@ async function accessAzureTerraformUpgradeStage(
       await unchanged();
     };
     const result = (raw) => {
-      const value = object91(raw);
+      const value = object92(raw);
       keys26(value, [
         'status',
         'manifestSha256',
@@ -57245,7 +57355,7 @@ async function readAzureTerraformUpgradeStageRetirement(request, input, contract
   const name = `${input.planId}-stage-retirement.json`,
     path = join40(store.directory, name),
     before = await readAzureTerraformParentPrivateFile(path, signal),
-    checkpoint = object91(JSON.parse(before.bytes.toString()));
+    checkpoint = object92(JSON.parse(before.bytes.toString()));
   require127(
     checkpoint.schemaVersion === 2 && checkpoint.status === 'retired' && sha34(checkpoint.externalEvidenceSha256),
     'read-only completed stage checkpoint required',
@@ -57293,7 +57403,7 @@ async function finalizeAzureTerraformUpgradeStageRetirement(
       environment,
       signal,
     );
-  const checkpoint = object91(saved);
+  const checkpoint = object92(saved);
   require127(
     checkpoint.schemaVersion === 2 && sha34(checkpoint.externalEvidenceSha256),
     'original stage external evidence required',
@@ -57348,12 +57458,12 @@ import { join as join41 } from 'node:path';
 function require128(value, message) {
   if (!value) throw Error(`Azure parent disposition: ${message}`);
 }
-function object92(value) {
+function object93(value) {
   require128(value && typeof value === 'object' && !Array.isArray(value), 'complete schema record required');
   return value;
 }
 function keys27(value, fields) {
-  require128(same90(Object.keys(object92(value)).sort(), fields.toSorted()), 'record fields differ');
+  require128(same90(Object.keys(object93(value)).sort(), fields.toSorted()), 'record fields differ');
 }
 function timestamp5(value) {
   require128(
@@ -57362,8 +57472,8 @@ function timestamp5(value) {
   );
 }
 function validateAzureTerraformParentTeardownReceipt(raw, base, teardown, final) {
-  const receipt = object92(raw),
-    destroy = object92(final);
+  const receipt = object93(raw),
+    destroy = object93(final);
   keys27(receipt, [
     'status',
     'sourcePlanSha256',
@@ -57496,7 +57606,7 @@ async function collectAzureTerraformParentDispositions(
       decision.semanticProvenanceSha256 = file.semanticProvenanceSha256;
     }
   }
-  const record = (name) => object92(records.get(name));
+  const record = (name) => object93(records.get(name));
   keys27(record('owner.json'), ['schemaVersion', 'owner']);
   require128(same90(record('owner.json'), { schemaVersion: 2, owner }), 'owner manifest differs');
   generic('owner.json', 'preserve', 'ce-owner-v2', { owner });
@@ -57535,7 +57645,7 @@ async function collectAzureTerraformParentDispositions(
     'lifecycle retirement differs',
   );
   generic('azure-terraform-lifecycle-retirement.json', 'preserve', 'terraform-lifecycle-retirement-v1', teardown);
-  const terminal = object92(authority.terminal);
+  const terminal = object93(authority.terminal);
   require128(
     terminal.destroyJournalCustodyQualified === true &&
       terminal.publicJournalCustodyQualified === true &&
@@ -57551,7 +57661,7 @@ async function collectAzureTerraformParentDispositions(
     ['azure-terraform-cloud-destroy-final.json', 'final'],
   ]) {
     const receipt = record(name),
-      joins = terminal.consumed.map(object92).filter((row) => row.phase === phase);
+      joins = terminal.consumed.map(object93).filter((row) => row.phase === phase);
     require128(
       joins.length === 1 && joins[0].receiptSha256 === canonicalSha256(receipt) && sha35(joins[0].historySha256),
       'destroy receipt lacks owning native application provenance',
@@ -57576,7 +57686,7 @@ async function collectAzureTerraformParentDispositions(
     canonicalSha256(workflow) === original.checkpointSha256,
     'original workflow differs from owning completed public outcome',
   );
-  const bootstrap = object92(workflow.bootstrapByNode),
+  const bootstrap = object93(workflow.bootstrapByNode),
     payload = {};
   for (const [node, value] of Object.entries(bootstrap)) {
     require128(
@@ -57672,7 +57782,7 @@ async function collectAzureTerraformParentDispositions(
   }
   for (const [name, raw] of records) {
     if (rootGeneric.has(name)) continue;
-    const value = object92(raw);
+    const value = object93(raw);
     if (name === `terraform-authorization-${base.planSha256}.json`) {
       require128(
         same90(value, {
@@ -57717,7 +57827,7 @@ async function collectAzureTerraformParentDispositions(
       const macs = new Set(),
         roles = new Set();
       for (const rawInterface of value.expectedInterfaces) {
-        const row = object92(rawInterface);
+        const row = object93(rawInterface);
         keys27(row, ['node', 'role', 'mac', ...(row.staticIp === undefined ? [] : ['staticIp'])]);
         const role = row.role === 'data' ? 'sli' : row.role;
         require128(
@@ -57730,7 +57840,7 @@ async function collectAzureTerraformParentDispositions(
           'bound physical interface differs',
         );
         if (row.staticIp !== undefined) {
-          const ip = object92(row.staticIp),
+          const ip = object93(row.staticIp),
             configured = String(ip.ip_address).split('/');
           keys27(ip, [
             'ip_address',
@@ -57758,7 +57868,7 @@ async function collectAzureTerraformParentDispositions(
       generic(name, 'preserve', 'ce-deployment-site-binding-v1', { binding, siteUid: context.site.siteUid });
     } else if (name === `public-site-${base.siteName}.json`) {
       keys27(value, ['planId', 'record']);
-      const saved = object92(value.record);
+      const saved = object93(value.record);
       keys27(saved, ['phase', 'resourceVersion', 'uid']);
       require128(
         typeof value.planId === 'string' &&
@@ -57771,7 +57881,7 @@ async function collectAzureTerraformParentDispositions(
       );
       generic(name, 'preserve', 'public-site-replacement-journal', { siteUid: context.site.siteUid, value });
     } else if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name)) {
-      const checkout = object92(value.checkout),
+      const checkout = object93(value.checkout),
         token = tokens.get(`${String(value.tokenName)}.json`);
       require128(
         value.schemaVersion === 1 &&
@@ -57920,12 +58030,12 @@ async function collectAzureTerraformParentDispositions(
         !upgradeHistory.rootArtifacts.some((row) => row.path.startsWith(`${upgrade.planId}-`)) &&
           !upgradeHistory.stageRetirementPaths.includes(`${upgrade.planId}-stage-retirement.json`) &&
           (!serial ||
-            (object92(serial).activePlanId !== upgrade.planId && object92(serial).lastPlanId !== upgrade.planId)),
+            (object93(serial).activePlanId !== upgrade.planId && object93(serial).lastPlanId !== upgrade.planId)),
         'unstaged upgrade has execution or retirement records',
       );
       continue;
     }
-    stages.set(stage, { source: object92(upgrade), deployment: object92(upgrade.deployment), failover: false });
+    stages.set(stage, { source: object93(upgrade), deployment: object93(upgrade.deployment), failover: false });
   }
   for (const [name, raw] of records) {
     if (/^azure-ce-failover-[a-f0-9]{24}\.json$/.test(name)) {
@@ -57936,7 +58046,7 @@ async function collectAzureTerraformParentDispositions(
         name === `${source.planId}.json` && typeof deployment.stage === 'string' && !stages.has(deployment.stage),
         'failover stage source differs',
       );
-      stages.set(deployment.stage, { source: object92(raw), deployment: object92(deployment), failover: true });
+      stages.set(deployment.stage, { source: object93(raw), deployment: object93(deployment), failover: true });
     }
   }
   const networkStages = new Map(authority.children.map((child) => [child.stage, child]));
@@ -57947,9 +58057,9 @@ async function collectAzureTerraformParentDispositions(
     const stage = snapshot.directories.find((row) => row.path === `terraform-stages/${child.stage}`);
     require128(stage && same90(stage.names, [base.deploymentName]), 'network child runner owner differs');
     const prefix = `${stage.path}/${base.deploymentName}`,
-      proof = object92(child.proof),
-      observed = object92(proof.observed),
-      receipt = object92(observed.receipt);
+      proof = object93(child.proof),
+      observed = object93(proof.observed),
+      receipt = object93(observed.receipt);
     require128(
       byPath.get(`${prefix}/artifact-retirement.json`)?.sha256 === observed.markerSha256 &&
         byPath.get(`${prefix}/deployment.json`)?.packetSha256 === receipt.manifestSha256,
@@ -57972,13 +58082,13 @@ async function collectAzureTerraformParentDispositions(
         native.identity === byPath.get(path)?.identity && hash38(native.bytes) === byPath.get(path)?.sha256,
         'stage descriptor custody differs',
       );
-      return object92(JSON.parse(native.bytes.toString()));
+      return object93(JSON.parse(native.bytes.toString()));
     };
     const marker = await readStage('artifact-retirement.json'),
       manifest = await readStage('deployment.json');
     const retirementName = `${String(stage.source.planId)}-stage-retirement.json`,
       retirement = record(retirementName),
-      final = object92(retirement.receipt);
+      final = object93(retirement.receipt);
     const { configuration, providerLock, ...identity } = stage.deployment;
     require128(
       typeof configuration === 'string' &&
@@ -58208,12 +58318,12 @@ import { join as join42 } from 'node:path';
 function require129(value, message) {
   if (!value) throw Error(`Azure network parent inventory: ${message}`);
 }
-function object93(value) {
+function object94(value) {
   require129(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 function azureNetworkParentTerminalProjection(value) {
-  const record = structuredClone(object93(value));
+  const record = structuredClone(object94(value));
   for (const name of [
     'phase',
     'artifacts',
@@ -58344,8 +58454,8 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       ),
     'compiled original deployment or teardown differs',
   );
-  const terminal = object93(terminalWitness),
-    lineage = object93(terminal.retainedLineage);
+  const terminal = object94(terminalWitness),
+    lineage = object94(terminal.retainedLineage);
   require129(
     sha36(lineage.publicPlanInventorySha256) &&
       sha36(lineage.requestInventorySha256) &&
@@ -58359,7 +58469,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       Array.isArray(lineage.rows),
     'pre-main terminal custody required',
   );
-  const checkpointRecord = object93(checkpoint);
+  const checkpointRecord = object94(checkpoint);
   require129(
     checkpointRecord.phase === 'retiring' &&
       typeof checkpointRecord.retainedDestroyConfiguration === 'string' &&
@@ -58575,7 +58685,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   require129(same91(await semanticLoaders.loadSource(plan.planSha256), plan), 'original public source differs');
   await semanticLoaders.loadOutcome(plan);
   for (const raw of lineage.rows) {
-    const row = object93(raw);
+    const row = object94(raw);
     require129(sha36(row.planSha256), 'unresolved public execution source');
     const source = await semanticLoaders.loadSource(row.planSha256);
     let absent = false;
@@ -58599,7 +58709,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       native && expected && native.packetSha256 === expected && sha36(semanticProvenanceSha256),
       'sensitive decision lacks owning semantic and native provenance',
     );
-    const value = object93(await readonlyStore.read(name));
+    const value = object94(await readonlyStore.read(name));
     require129(
       value.schemaVersion === 1 &&
         (schema === 'completed-power-preparing-v1' ? value.sourcePlanSha256 : value.planSha256) === source.planSha256,
@@ -58639,7 +58749,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   };
   const allChildren = [];
   for (const raw of lineage.rows) {
-    const row = object93(raw);
+    const row = object94(raw);
     require129(
       ['staged-network', 'completed-replacement', 'unstaged-no-outcome'].includes(String(row.execution)),
       'unqualified public lineage',
@@ -58753,9 +58863,9 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
   allChildren.sort((a, b) => a.stage.localeCompare(b.stage));
   require129(same91(allChildren, terminal.retainedPowerChildren), 'retained native child identities differ');
   for (const child of allChildren) {
-    const proof = object93(child.proof),
-      observed = object93(proof.observed),
-      receipt = object93(observed.receipt);
+    const proof = object94(child.proof),
+      observed = object94(proof.observed),
+      receipt = object94(observed.receipt);
     const stage = first.directories.find((row) => row.path === `terraform-stages/${child.stage}`);
     require129(stage && stage.names.length === 1, 'missing child directory');
     const runner = stage.names[0];
@@ -58856,7 +58966,7 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
       );
       const active = AbortSignal.any([deadline, ...(parent ? [parent] : [])]);
       const retirementEvidence = {
-        ...object93(checkpointRecord.retirementEvidence),
+        ...object94(checkpointRecord.retirementEvidence),
         terminalNetwork: structuredClone(authenticatedTerminal),
         networkParentInventory: structuredClone(body),
       };
@@ -58913,8 +59023,8 @@ async function readAzureTerraformNetworkParentInventory(request, store, context,
         parent,
       );
       publicationSeal();
-      const { recordSha256: currentRecordSha256, ...currentProof } = object93(freshTerminal);
-      const { recordSha256: originalRecordSha256, ...originalProof } = object93(authenticatedTerminal);
+      const { recordSha256: currentRecordSha256, ...currentProof } = object94(freshTerminal);
+      const { recordSha256: originalRecordSha256, ...originalProof } = object94(authenticatedTerminal);
       require129(
         sha36(currentRecordSha256) && sha36(originalRecordSha256) && same91(currentProof, originalProof),
         'terminal custody changed across owning publication',
@@ -59005,17 +59115,17 @@ import { createHash as createHash68 } from 'node:crypto';
 function require130(value, message) {
   if (!value) throw Error(`Azure terminal staging projection: ${message}`);
 }
-function object94(value) {
+function object95(value) {
   require130(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
 function prepareAzureTerraformNetworkTerminalStagingProjection(checkpoint, observed) {
-  const terminal = structuredClone(object94(checkpoint)),
-    barrier = object94(observed),
-    evidence = object94(terminal.retirementEvidence),
-    inventory = object94(terminal.retainedNetworkParentInventory),
-    receipt = object94(barrier.receipt),
-    final = object94(terminal.final);
+  const terminal = structuredClone(object95(checkpoint)),
+    barrier = object95(observed),
+    evidence = object95(terminal.retirementEvidence),
+    inventory = object95(terminal.retainedNetworkParentInventory),
+    receipt = object95(barrier.receipt),
+    final = object95(terminal.final);
   require130(
     terminal.phase === 'retired' &&
       inventory.schemaVersion === 1 &&
@@ -59101,7 +59211,7 @@ import { join as join43 } from 'node:path';
 function require131(v, message) {
   if (!v) throw Error(`Azure network retired-main custody: ${message}`);
 }
-function object95(v) {
+function object96(v) {
   require131(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
@@ -59252,7 +59362,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     }),
     'saved authorization differs',
   );
-  const lifecycle = object95(await readRecord('azure-terraform-lifecycle-retirement.json'));
+  const lifecycle = object96(await readRecord('azure-terraform-lifecycle-retirement.json'));
   require131(
     lifecycle.schemaVersion === 1 &&
       lifecycle.kind === teardown.kind &&
@@ -59265,11 +59375,11 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     same93(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
     'saved terminal checkpoint differs',
   );
-  const terminal = object95(checkpoint),
-    final = object95(terminal.final),
-    destroy = object95(terminal.destroy),
-    retained = object95(terminal.retainedTerminalNetworkCustody),
-    evidence = object95(terminal.retirementEvidence);
+  const terminal = object96(checkpoint),
+    final = object96(terminal.final),
+    destroy = object96(terminal.destroy),
+    retained = object96(terminal.retainedTerminalNetworkCustody),
+    evidence = object96(terminal.retirementEvidence);
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
   const { configuration, providerLock, ...identity } = deployment;
   const configurationSha256 = hash41(configuration),
@@ -59351,7 +59461,7 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
       Array.isArray(retained.stages),
     'qualified retained terminal custody required',
   );
-  const emptyBinding = object95(retained.emptyMainBinding);
+  const emptyBinding = object96(retained.emptyMainBinding);
   require131(
     emptyBinding.scope === 'authenticated-terminal-empty-main-configuration-binding' &&
       same93(emptyBinding.owner, owner) &&
@@ -59551,9 +59661,9 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
           same93(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
-        const proof = object95(retirement.proof),
-          observedChild = object95(proof.observed),
-          childReceipt = object95(observedChild.receipt);
+        const proof = object96(retirement.proof),
+          observedChild = object96(proof.observed),
+          childReceipt = object96(observedChild.receipt);
         require131(
           observedChild.status === 'runner-artifacts-retired' &&
             sha38(observedChild.markerSha256) &&
@@ -59783,12 +59893,12 @@ import { join as join44 } from 'node:path';
 function require132(value, message) {
   if (!value) throw Error(`Azure Terraform network destroy journal custody: ${message}`);
 }
-function object96(value) {
+function object97(value) {
   require132(value && typeof value === 'object' && !Array.isArray(value), 'record object required');
   return value;
 }
 function keys28(value, fields) {
-  require132(same94(Object.keys(object96(value)).sort(), fields.toSorted()), 'native journal schema differs');
+  require132(same94(Object.keys(object97(value)).sort(), fields.toSorted()), 'native journal schema differs');
 }
 async function qualifyAzureTerraformNetworkJournalCustody(request, store, context, signal, emptyMainAdmission) {
   const original = structuredClone(request),
@@ -59915,8 +60025,8 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
   await step(() => store.verify());
   const root = await namespace();
   require132(same94(await readRecord(`${teardown.planId}.json`), teardown), 'saved teardown source differs');
-  const authorization = object96(await readRecord(`${teardown.planId}-authorization.json`)),
-    lifecycle = object96(await readRecord('azure-terraform-lifecycle-retirement.json'));
+  const authorization = object97(await readRecord(`${teardown.planId}-authorization.json`)),
+    lifecycle = object97(await readRecord('azure-terraform-lifecycle-retirement.json'));
   require132(
     same94(authorization, {
       schemaVersion: 1,
@@ -60014,10 +60124,10 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
       (await step(() => readConfigurationSha256.call(session))) === currentConfigurationSha256,
     'owning current configuration bytes differ',
   );
-  const resources = object96(object96(JSON.parse(source)).resource),
+  const resources = object97(object97(JSON.parse(source)).resource),
     addresses = new Set();
   for (const [type, rows] of Object.entries(resources))
-    for (const name of Object.keys(object96(rows))) addresses.add(`${type}.${name}`);
+    for (const name of Object.keys(object97(rows))) addresses.add(`${type}.${name}`);
   require132(
     plan.changes.every((change) => addresses.has(change.address) && change.address.startsWith(`${change.type}.`)),
     'destroy receipt includes resource outside authenticated current configuration',
@@ -60149,7 +60259,7 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
           parentSignal,
         )
       : undefined;
-    const pendingReceipt = pendingProof ? object96(await readRecord(pendingName)).receipt : undefined;
+    const pendingReceipt = pendingProof ? object97(await readRecord(pendingName)).receipt : undefined;
     if (pendingProof) {
       require132(
         pendingReceipt && canonicalSha256(pendingReceipt) === pendingProof.receiptSha256,
@@ -60234,9 +60344,9 @@ async function qualifyAzureTerraformNetworkJournalCustody(request, store, contex
               (retirement.operation === 'start' || retirement.operation === 'deallocate'),
             'retained child source, identity or retirement differs',
           );
-          const proof = object96(retirement.proof),
-            observed = object96(proof.observed),
-            receipt = object96(observed.receipt);
+          const proof = object97(retirement.proof),
+            observed = object97(proof.observed),
+            receipt = object97(observed.receipt);
           keys28(proof, ['preparingSha256', 'finalReceiptSha256', 'observed']);
           keys28(observed, ['status', 'markerSha256', 'receipt']);
           require132(
@@ -60423,7 +60533,7 @@ import { join as join45 } from 'node:path';
 function require133(v, message) {
   if (!v) throw Error(`Azure network cancellation/planning binding: ${message}`);
 }
-function object97(v) {
+function object98(v) {
   require133(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
@@ -60566,7 +60676,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     }),
     'saved authorization differs',
   );
-  const lifecycle = object97(await readRecord('azure-terraform-lifecycle-retirement.json'));
+  const lifecycle = object98(await readRecord('azure-terraform-lifecycle-retirement.json'));
   require133(
     lifecycle.schemaVersion === 1 &&
       lifecycle.kind === teardown.kind &&
@@ -60579,10 +60689,10 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
     same95(await readRecord('azure-terraform-terminal-cleanup.json'), checkpoint),
     'saved terminal checkpoint differs',
   );
-  const terminal = object97(checkpoint),
-    destroy = object97(terminal.destroy),
-    retained = object97(terminal.retainedNetworkCustody),
-    evidence = object97(terminal.evidence);
+  const terminal = object98(checkpoint),
+    destroy = object98(terminal.destroy),
+    retained = object98(terminal.retainedNetworkCustody),
+    evidence = object98(terminal.evidence);
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
   const { configuration, providerLock, ...identity } = deployment;
   const configurationSha256 = hash43(configuration),
@@ -60630,7 +60740,7 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
       hash43(terminal.retainedDestroyConfiguration) === destroy.configurationSha256,
     'retained destroy source differs',
   );
-  const retainedConfiguration = object97(JSON.parse(terminal.retainedDestroyConfiguration));
+  const retainedConfiguration = object98(JSON.parse(terminal.retainedDestroyConfiguration));
   require133(
     same95(
       { terraform: retainedConfiguration.terraform, provider: retainedConfiguration.provider },
@@ -60910,9 +61020,9 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
           same95(await nativeDirectory(path, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
-        const proof = object97(child.proof),
-          observed = object97(proof.observed),
-          receipt = object97(observed.receipt);
+        const proof = object98(child.proof),
+          observed = object98(proof.observed),
+          receipt = object98(observed.receipt);
         require133(
           observed.status === 'runner-artifacts-retired' &&
             sha40(observed.markerSha256) &&
@@ -61027,9 +61137,9 @@ async function qualifyAzureTerraformNetworkCancelledMainBinding(request, store, 
           same95(await nativeDirectory(runnerDirectory, parent), ['artifact-retirement.json', 'deployment.json']),
           'native child inventory differs',
         );
-        const proof = object97(retirement.proof),
-          observedChild = object97(proof.observed),
-          childReceipt = object97(observedChild.receipt);
+        const proof = object98(retirement.proof),
+          observedChild = object98(proof.observed),
+          childReceipt = object98(observedChild.receipt);
         require133(
           observedChild.status === 'runner-artifacts-retired' &&
             sha40(observedChild.markerSha256) &&
@@ -61265,7 +61375,7 @@ import { join as join46 } from 'node:path';
 function require135(v, message) {
   if (!v) throw Error(`Azure frozen retired services: ${message}`);
 }
-function object98(v) {
+function object99(v) {
   require135(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
@@ -61324,11 +61434,11 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       recheckAzureTerraformNetworkPostPlaintextParentCustody(parentWitness, request, store, context, deadline),
     );
   verifyAzureCePlan(original);
-  const checkpoint = object98(terminal),
+  const checkpoint = object99(terminal),
     frozen = structuredClone(checkpoint.retainedNetworkParentInventory);
   require135(
     frozen &&
-      same96(frozen, object98(checkpoint.retirementEvidence).networkParentInventory) &&
+      same96(frozen, object99(checkpoint.retirementEvidence).networkParentInventory) &&
       frozen.schemaVersion === 1 &&
       frozen.mainDirectory === request.deploymentName &&
       !Object.hasOwn(checkpoint, 'retainedDestroyConfiguration') &&
@@ -61398,7 +61508,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     return reader;
   };
   const mainReader = bind(mainSession),
-    final = object98(checkpoint.final);
+    final = object99(checkpoint.final);
   require135(
     sha41(checkpoint.retirementEvidenceSha256) &&
       checkpoint.retirementEvidenceSha256 === canonicalSha256(checkpoint.retirementEvidence),
@@ -61414,7 +61524,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
   require135(
     canonicalSha256(mainManifest) === main.receipt.manifestSha256 &&
       custody.get(`${deployment.deploymentId}/artifact-retirement.json`)?.bytesSha256 === main.markerSha256 &&
-      object98(mainMarker).status === 'runner-artifacts-retired',
+      object99(mainMarker).status === 'runner-artifacts-retired',
     'main native filesystem differs',
   );
   const rows = [];
@@ -61437,8 +61547,8 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     require135(child.operation === 'deallocate' || child.operation === 'start', 'exact selected operation required');
     const selected = await step(() => azureTerraformNetworkRetiredPowerDeployment(source, child.node, child.operation));
     require135(selected.stage === child.stage, 'selected native stage differs');
-    const proof = object98(child.proof),
-      expected = object98(proof.observed);
+    const proof = object99(child.proof),
+      expected = object99(proof.observed);
     require135(
       expected.status === 'runner-artifacts-retired' &&
         sha41(expected.markerSha256) &&
@@ -61456,7 +61566,7 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
       ? `azure-power-runner-retirement-${cancelId}-preparing.json`
       : `${source.planId}-terraform-network-node-${child.node}-${child.operation}-final-plan.json`;
     const packet = await frozenRecord(receiptPath),
-      receipt = cancelled ? object98(packet).finalReceipt : packet;
+      receipt = cancelled ? object99(packet).finalReceipt : packet;
     require135(canonicalSha256(receipt) === proof.finalReceiptSha256, 'exact preserved final receipt differs');
     const session = await step(() => terraform.open(owner, selected, 'current')),
       reader = bind(session);
@@ -62715,7 +62825,7 @@ import { isAbsolute as isAbsolute4, join as join49, resolve as resolve4 } from '
 function require139(value, message) {
   if (!value) throw Error(`Azure network opaque checkout retirement: ${message}`);
 }
-function object99(value) {
+function object100(value) {
   require139(value && typeof value === 'object' && !Array.isArray(value), 'record required');
   return value;
 }
@@ -62796,7 +62906,7 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
     );
     const path = join49(store.directory, row.path);
     const native = await readAzureTerraformParentPrivateFile(path, active);
-    const value = object99(JSON.parse(native.bytes.toString()));
+    const value = object100(JSON.parse(native.bytes.toString()));
     require139(
       native.identity === row.identity &&
         hash46(native.bytes) === row.sha256 &&
@@ -62817,7 +62927,7 @@ async function readAzureTerraformNetworkFrozenCheckouts(request, store, context,
       ),
       'checkout fields differ',
     );
-    const checkout = object99(value.checkout);
+    const checkout = object100(value.checkout);
     require139(
       same99(Object.keys(checkout).sort(), ['schemaVersion', 'reference', 'root', 'digest', 'expiresAt', 'uid'].sort()),
       'opaque binding fields differ',
@@ -62933,9 +63043,9 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
     active,
   );
   guard();
-  const inventory = structuredClone(object99(context.terminalCleanup).retainedNetworkParentInventory);
+  const inventory = structuredClone(object100(context.terminalCleanup).retainedNetworkParentInventory);
   require139(canonicalSha256(inventory) === custody.inventorySha256, 'completed native inventory differs');
-  const marker = object99(await store.read('azure-terraform-network-bootstrap-packet-retirement.json'));
+  const marker = object100(await store.read('azure-terraform-network-bootstrap-packet-retirement.json'));
   require139(
     marker.status === 'packets-retired' &&
       marker.pending === null &&
@@ -62984,7 +63094,7 @@ async function retireAzureTerraformNetworkOpaqueCheckouts(
     guard();
     const parts = row.binding.reference.slice('f5xc-ce://'.length).split('/');
     const directory = join49(row.binding.root, ...parts);
-    const metadata = object99(
+    const metadata = object100(
       JSON.parse(
         (await readAzureTerraformParentPrivateFile(join49(directory, 'metadata.json'), active)).bytes.toString(),
       ),
@@ -63076,7 +63186,7 @@ import { createHash as createHash75 } from 'node:crypto';
 function require140(v, message) {
   if (!v) throw Error(`Azure network terminal main retirement: ${message}`);
 }
-function object100(v) {
+function object101(v) {
   require140(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
@@ -63166,12 +63276,12 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
       }),
     'saved authorization differs',
   );
-  let checkpoint = object100(await step(() => store.read(name5)));
+  let checkpoint = object101(await step(() => store.read(name5)));
   require140(
     same100(checkpoint, originalContext) && ['retiring', 'retired'].includes(String(checkpoint.phase)),
     'owning final checkpoint required',
   );
-  const final = object100(checkpoint.final);
+  const final = object101(checkpoint.final);
   const deployment = await step(() => azureTerraformCurrentDeployment(original));
   require140(
     final.schemaVersion === 1 &&
@@ -63191,8 +63301,8 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
     'ordinary empty final receipt differs',
   );
   if (checkpoint.phase === 'retired') {
-    const frozen = object100(checkpoint.retainedNetworkParentInventory),
-      nativeEvidence = object100(checkpoint.retirementEvidence);
+    const frozen = object101(checkpoint.retainedNetworkParentInventory),
+      nativeEvidence = object101(checkpoint.retirementEvidence);
     require140(
       same100(nativeEvidence.networkParentInventory, frozen) &&
         frozen.schemaVersion === 1 &&
@@ -63222,7 +63332,7 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
       readAzureTerraformNetworkParentInventory(request, store, context, terminal, deadline),
     );
     const evidence = {
-      ...object100(checkpoint.retirementEvidence),
+      ...object101(checkpoint.retirementEvidence),
       terminalNetwork: structuredClone(terminal),
       networkParentInventory: structuredClone(parentInventory),
     };
@@ -63236,9 +63346,9 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
     await step(() => store.write(name5, checkpoint));
     sameCallParentInventory = parentInventory;
   }
-  const evidence = object100(checkpoint.retirementEvidence),
-    retained = object100(checkpoint.retainedTerminalNetworkCustody),
-    frozenInventory = object100(checkpoint.retainedNetworkParentInventory);
+  const evidence = object101(checkpoint.retirementEvidence),
+    retained = object101(checkpoint.retainedTerminalNetworkCustody),
+    frozenInventory = object101(checkpoint.retainedNetworkParentInventory);
   require140(
     same100(evidence.networkParentInventory, frozenInventory) &&
       frozenInventory.schemaVersion === 1 &&
@@ -63289,7 +63399,7 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
         const terminal = await step(() =>
           qualifyAzureTerraformNetworkTerminalJournalCustody(request, store, frozenContext, deadline),
         );
-        const { recordSha256: currentRecordSha256, ...currentProof } = object100(terminal);
+        const { recordSha256: currentRecordSha256, ...currentProof } = object101(terminal);
         const { recordSha256: frozenRecordSha256, ...frozenProof } = retained;
         require140(
           sha42(currentRecordSha256) && sha42(frozenRecordSha256) && same100(currentProof, frozenProof),
@@ -63301,8 +63411,8 @@ async function retireAzureTerraformNetworkTerminalMain(request, store, context, 
         const { terminalFile: currentTerminalFile, ...currentParentInventory } = currentInventory;
         const { terminalFile: frozenTerminalFile, ...retainedParentInventory } = frozenInventory;
         require140(
-          sha42(object100(currentTerminalFile).sha256) &&
-            sha42(object100(frozenTerminalFile).sha256) &&
+          sha42(object101(currentTerminalFile).sha256) &&
+            sha42(object101(frozenTerminalFile).sha256) &&
             same100(currentParentInventory, retainedParentInventory),
           'frozen parent inventory changed before retirement',
         );
@@ -63362,7 +63472,7 @@ import { join as join50 } from 'node:path';
 function require141(value, message) {
   if (!value) throw Error(`Azure terminal plaintext retirement: ${message}`);
 }
-function object101(value) {
+function object102(value) {
   require141(value && typeof value === 'object' && !Array.isArray(value), 'complete record required');
   return value;
 }
@@ -63425,7 +63535,7 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
     qualifyAzureTerraformNetworkRetiredMainCustody(request, store, context, deadline),
   );
   const native = structuredClone(nativeWitness);
-  const terminal = object101(checkpoint);
+  const terminal = object102(checkpoint);
   require141(
     native.mainRunnerRetirementQualified === true &&
       native.parentRetirementQualified === false &&
@@ -63441,7 +63551,7 @@ async function retireAzureTerraformNetworkTerminalPlaintext(request, store, cont
   const path = join50(root, name6),
     markerPath = join50(
       root,
-      String(object101(terminal.retainedNetworkParentInventory).mainDirectory),
+      String(object102(terminal.retainedNetworkParentInventory).mainDirectory),
       'artifact-retirement.json',
     );
   const before = await step(() => readAzureTerraformParentPrivateFile(path, deadline));
@@ -63509,7 +63619,7 @@ import { createHash as createHash77 } from 'node:crypto';
 function require142(v, message) {
   if (!v) throw Error(`Azure network terminal planning: ${message}`);
 }
-function object102(v) {
+function object103(v) {
   require142(v && typeof v === 'object' && !Array.isArray(v), 'complete record required');
   return v;
 }
@@ -63608,7 +63718,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     dependencies.push({ target: session, key, value: Reflect.get(session, key) });
   let checkpoint;
   try {
-    checkpoint = object102(await step(() => store.read(name7)));
+    checkpoint = object103(await step(() => store.read(name7)));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
@@ -63616,17 +63726,17 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     const custody = await step(() =>
       qualifyAzureTerraformNetworkDestroyJournalCustody(request, store, context, deadline),
     );
-    const destroy = object102(await step(() => store.read('azure-terraform-cloud-destroy-final.json')));
+    const destroy = object103(await step(() => store.read('azure-terraform-cloud-destroy-final.json')));
     const currentDigest = await step(() => readDigest.call(session));
     require142(currentDigest === destroy.configurationSha256, 'current destroy configuration differs');
     const retainedDestroyConfiguration = await step(() => readConfiguration.call(session, destroy.configurationSha256));
     require142(hash49(retainedDestroyConfiguration) === destroy.configurationSha256, 'retained destroy bytes differ');
-    const retained = object102(JSON.parse(retainedDestroyConfiguration));
+    const retained = object103(JSON.parse(retainedDestroyConfiguration));
     require142(
       same102({ terraform: retained.terraform, provider: retained.provider }, JSON.parse(deployment.configuration)),
       'retained provider identity differs',
     );
-    const evidence = { ...object102(await step(() => freshAbsence(deadline))), network: structuredClone(custody) };
+    const evidence = { ...object103(await step(() => freshAbsence(deadline))), network: structuredClone(custody) };
     await step(() => store.verify());
     checkpoint = {
       schemaVersion: 1,
@@ -63718,7 +63828,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     );
     await assertSaved(checkpoint);
     final = await step(() => plan.call(session, environment, deadline));
-    retirementEvidence = object102(await step(() => freshAbsence(deadline)));
+    retirementEvidence = object103(await step(() => freshAbsence(deadline)));
     const after = await step(() =>
       refreshAzureTerraformNetworkCancelledMainBinding(observed, request, store, boundContext, deadline),
     );
@@ -63733,7 +63843,7 @@ async function prepareAzureTerraformNetworkTerminalPlanning(request, store, cont
     'native ordinary continuation changed',
   );
   if (recoveredExistingPlan) {
-    retirementEvidence = object102(await step(() => freshAbsence(deadline)));
+    retirementEvidence = object103(await step(() => freshAbsence(deadline)));
     await step(() => recheckAzureTerraformNetworkCancelledMainBinding(current, request, store, boundContext, deadline));
   }
   require142(retirementEvidence, 'fresh retirement evidence required');
@@ -63784,9 +63894,9 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent retirement owner or source differs');
   signal?.throwIfAborted();
   await store.verify();
-  const lifecycle = object103(await store.read('azure-terraform-lifecycle-retirement.json')),
-    authorization = object103(await store.read(`${teardown.planId}-authorization.json`)),
-    terminal = object103(await store.read('azure-terraform-terminal-cleanup.json'));
+  const lifecycle = object104(await store.read('azure-terraform-lifecycle-retirement.json')),
+    authorization = object104(await store.read(`${teardown.planId}-authorization.json`)),
+    terminal = object104(await store.read('azure-terraform-terminal-cleanup.json'));
   if (
     lifecycle.sourcePlanSha256 !== base.planSha256 ||
     lifecycle.teardownPlanSha256 !== teardown.planSha256 ||
@@ -63847,15 +63957,15 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
   for (const name of (await readdir39(store.directory)).filter((name) =>
     /^azure-ce-upgrade-[a-f0-9]{24}\.json$/.test(name),
   )) {
-    const source = object103(await store.read(name)),
-      deployment = object103(source.deployment);
+    const source = object104(await store.read(name)),
+      deployment = object104(source.deployment);
     const { planId, planSha256, ...draft } = source;
     if (
       source.schemaVersion !== 2 ||
       source.engine !== 'terraform' ||
       source.kind !== 'azure-ce-terraform-upgrade' ||
       source.sourcePlanSha256 !== base.planSha256 ||
-      canonicalSha256(object103(source.expectation).binding) !== canonicalSha256(binding) ||
+      canonicalSha256(object104(source.expectation).binding) !== canonicalSha256(binding) ||
       !sha43(planSha256) ||
       canonicalSha256(draft) !== planSha256 ||
       planId !== `azure-ce-upgrade-${planSha256.slice(0, 24)}` ||
@@ -63870,7 +63980,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
       upgradeJournals.add(`${planId}${suffix}.json`);
   }
   if (upgrades.size) {
-    const serial = object103(await store.read('terraform-ce-upgrade-serial.json'));
+    const serial = object104(await store.read('terraform-ce-upgrade-serial.json'));
     const last = [...upgrades.values()].find((row) => row.planId === serial.lastPlanId);
     if (
       serial.schemaVersion !== 2 ||
@@ -63930,7 +64040,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
   );
   let saved;
   try {
-    saved = object103(await store.read(markerName4));
+    saved = object104(await store.read(markerName4));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
@@ -63978,14 +64088,14 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           if (canonicalSha256(names) !== canonicalSha256(expectedNames))
             throw Error('Azure original receipt metadata namespace changed');
         } else {
-          const workflow = object103(await store.read('terraform-workflow.json'));
+          const workflow = object104(await store.read('terraform-workflow.json'));
           if (
             workflow.schemaVersion !== 1 ||
             workflow.engine !== 'terraform' ||
             workflow.planSha256 !== base.planSha256
           )
             throw Error('Azure original receipt metadata workflow owner differs');
-          const prefix = object103(workflow.bootstrapByNode);
+          const prefix = object104(workflow.bootstrapByNode);
           const original = await readAzureTerraformOriginalReceiptInventory(base, prefix, store, signal);
           if (
             original.status !== 'complete' ||
@@ -64028,10 +64138,10 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           JSON.stringify(['artifact-retirement.json', 'deployment.json'])
         )
           throw Error('Azure runner has unretired artifacts');
-        const manifest = object103(JSON.parse((await file(join51(path, 'deployment.json'))).toString())),
-          marker = object103(JSON.parse((await file(join51(path, 'artifact-retirement.json'))).toString()));
-        const receipt = object103(terminal.artifacts),
-          final = object103(terminal.final);
+        const manifest = object104(JSON.parse((await file(join51(path, 'deployment.json'))).toString())),
+          marker = object104(JSON.parse((await file(join51(path, 'artifact-retirement.json'))).toString()));
+        const receipt = object104(terminal.artifacts),
+          final = object104(terminal.final);
         if (
           canonicalSha256(manifest) !== canonicalSha256(expectedManifest) ||
           marker.schemaVersion !== 1 ||
@@ -64081,15 +64191,15 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
             JSON.stringify(['artifact-retirement.json', 'deployment.json'])
           )
             throw Error('Azure stage has unretired artifacts');
-          const deployment = object103(upgrade.deployment),
+          const deployment = object104(upgrade.deployment),
             { configuration, providerLock, ...identity } = deployment;
-          const manifest = object103(JSON.parse((await file(join51(path, 'deployment.json'))).toString()));
-          const marker = object103(JSON.parse((await file(join51(path, 'artifact-retirement.json'))).toString()));
-          const retirement = object103(await store.read(`${upgrade.planId}-stage-retirement.json`));
+          const manifest = object104(JSON.parse((await file(join51(path, 'deployment.json'))).toString()));
+          const marker = object104(JSON.parse((await file(join51(path, 'artifact-retirement.json'))).toString()));
+          const retirement = object104(await store.read(`${upgrade.planId}-stage-retirement.json`));
           if (failover) {
             const { deployment: _deployment, ...source } = upgrade;
             await validateAzureTerraformFailoverRetirement(base, source, retirement, evidenceSha256);
-            const result = object103(retirement.result);
+            const result = object104(retirement.result);
             for (const key of [
               'manifestSha256',
               'evidenceSha256',
@@ -64101,11 +64211,11 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
             if (!Array.isArray(marker.artifacts) || result.retiredArtifacts !== marker.artifacts.length)
               throw Error('Failover runner artifact count differs');
           }
-          const final = object103(retirement.receipt);
+          const final = object104(retirement.receipt);
           const stageEvidenceSha256 = failover ? evidenceSha256 : retirement.evidenceSha256;
           if (!failover) {
             const exactKeys = (value, names) => {
-              if (canonicalSha256(Object.keys(object103(value)).sort()) !== canonicalSha256(names.toSorted()))
+              if (canonicalSha256(Object.keys(object104(value)).sort()) !== canonicalSha256(names.toSorted()))
                 throw Error('Azure upgrade retained checkpoint provenance differs');
             };
             exactKeys(retirement, [
@@ -64144,8 +64254,8 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
               final.changes.length !== 0
             )
               throw Error('Azure upgrade final plan provenance differs');
-            const proof = object103(retirement.appliedJournal),
-              action = object103(await store.read(`${upgrade.planId}-action-plan.json`)),
+            const proof = object104(retirement.appliedJournal),
+              action = object104(await store.read(`${upgrade.planId}-action-plan.json`)),
               envelope = {
                 schemaVersion: 2,
                 kind: 'azure-terraform-upgrade-stage-retirement',
@@ -64185,11 +64295,11 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
               proof.upgradePlanSha256 !== upgrade.planSha256 ||
               canonicalSha256(proof.site) !==
                 canonicalSha256({
-                  siteUid: object103(upgrade.expectation).siteUid,
-                  physicalSiteUid: object103(upgrade.expectation).physicalSiteUid,
-                  siteContractFingerprint: object103(upgrade.expectation).siteContractFingerprint,
+                  siteUid: object104(upgrade.expectation).siteUid,
+                  physicalSiteUid: object104(upgrade.expectation).physicalSiteUid,
+                  siteContractFingerprint: object104(upgrade.expectation).siteContractFingerprint,
                 }) ||
-              proof.contractFingerprint !== object103(upgrade.expectation).contractFingerprint ||
+              proof.contractFingerprint !== object104(upgrade.expectation).contractFingerprint ||
               proof.manifestSha256 !== canonicalSha256(manifest) ||
               proof.actionReceiptSha256 !== canonicalSha256(action) ||
               proof.historySha256 !== canonicalSha256(proof.history) ||
@@ -64211,11 +64321,11 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
                 .sort();
             if (
               proof.rootIdentity !== `${root.dev}:${root.ino}:${root.birthtimeMs}` ||
-              canonicalSha256(proof.files.map((raw) => object103(raw).path).sort()) !== canonicalSha256(names)
+              canonicalSha256(proof.files.map((raw) => object104(raw).path).sort()) !== canonicalSha256(names)
             )
               throw Error('Azure upgrade retained root provenance differs');
             for (const raw of proof.files) {
-              const retained = object103(raw);
+              const retained = object104(raw);
               exactKeys(retained, ['path', 'identity', 'bytesSha256', 'packetSha256']);
               if (typeof retained.path !== 'string' || !names.includes(retained.path))
                 throw Error('Azure upgrade retained file provenance differs');
@@ -64227,7 +64337,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
               )
                 throw Error('Azure upgrade retained file provenance differs');
             }
-            const result = object103(retirement.result);
+            const result = object104(retirement.result);
             exactKeys(result, [
               'status',
               'manifestSha256',
@@ -64310,8 +64420,8 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
       )
         throw Error('Unknown Azure parent artifact blocks retirement');
       if (name === `public-site-${base.siteName}.json`) {
-        const value = object103(await store.read(name)),
-          record = object103(value.record);
+        const value = object104(await store.read(name)),
+          record = object104(value.record);
         if (
           JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(['planId', 'record']) ||
           JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(['phase', 'resourceVersion', 'uid']) ||
@@ -64325,7 +64435,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           throw Error('Azure public site replacement journal provenance differs');
       }
       if (name === 'azure-terraform-cloud-destroy-reconciliation.json') {
-        const value = object103(await store.read(name));
+        const value = object104(await store.read(name));
         const observedAt = typeof value.observedAt === 'string' ? Date.parse(value.observedAt) : NaN;
         if (
           !['absent', 'owned'].includes(String(value.status)) ||
@@ -64338,7 +64448,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           throw Error('Azure destroy reconciliation provenance differs');
       }
       if (tokens.has(name) && !recorded?.has(name)) {
-        const value = object103(await store.read(name)),
+        const value = object104(await store.read(name)),
           token = tokens.get(name);
         if (
           !token ||
@@ -64352,8 +64462,8 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
           throw Error('Azure parent token identity differs');
       }
       if (checkout) {
-        const value = object103(await store.read(name)),
-          checkoutBinding = object103(value.checkout);
+        const value = object104(await store.read(name)),
+          checkoutBinding = object104(value.checkout);
         if (
           value.schemaVersion !== 1 ||
           canonicalSha256(value.owner) !== canonicalSha256(binding.owner) ||
@@ -64366,7 +64476,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
         )
           throw Error('Azure bootstrap checkout provenance differs');
         if (!recorded?.has(name)) {
-          const token = object103(await store.read(`${String(value.tokenName)}.json`));
+          const token = object104(await store.read(`${String(value.tokenName)}.json`));
           if (typeof token.jwt !== 'string' || hash50(token.jwt) !== checkoutBinding.digest)
             throw Error('Azure checkout upstream token differs');
         }
@@ -64425,7 +64535,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent checkpoint differs');
   const expected = new Map();
   for (const row of saved.artifacts) {
-    const item = object103(row);
+    const item = object104(row);
     if (
       typeof item.path !== 'string' ||
       item.path.split('/').some((part) => !part || part === '.' || part === '..') ||
@@ -64447,7 +64557,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
     throw Error('Azure parent inventory changed');
   for (const item of current.filter((item) => item.path.startsWith('bootstrap-checkout-'))) {
     signal?.throwIfAborted();
-    const value = object103(await store.read(item.path));
+    const value = object104(await store.read(item.path));
     await verifyTerminal();
     await retireBootstrapToken(value.checkout, evidenceSha256, signal);
     await verifyTerminal();
@@ -64481,7 +64591,7 @@ async function retireAzureTerraformParentArtifacts(base, teardown, evidenceSha25
 var markerName4 = 'azure-terraform-parent-artifact-retirement.json',
   hash50 = (value) => createHash78('sha256').update(value).digest('hex'),
   sha43 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  object103 = (value) => {
+  object104 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed Azure parent retirement');
     return value;
   },
@@ -64716,7 +64826,7 @@ async function finalizeAzureTerraformRunnerCleanup(
       throw Error('Azure owning runner cleanup unavailable');
     const configurationSha256 = await session.readConfigurationSha256();
     if (!sha44(configurationSha256)) throw Error('Azure current configuration is unresolved');
-    const configuration = object104(JSON.parse(await session.readConfiguration(configurationSha256)));
+    const configuration = object105(JSON.parse(await session.readConfiguration(configurationSha256)));
     const renderedEmpty = JSON.stringify({ terraform: configuration.terraform, provider: configuration.provider });
     if (canonicalSha256(JSON.parse(renderedEmpty)) !== canonicalSha256(JSON.parse(deployment.configuration)))
       throw Error('Azure empty configuration provider or execution identity differs');
@@ -64982,7 +65092,7 @@ async function finalizeAzureTerraformRunnerCleanup(
 var name8 = 'azure-terraform-terminal-cleanup.json',
   hash51 = (value) => createHash79('sha256').update(value).digest('hex'),
   sha44 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-  object104 = (value) => {
+  object105 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed Azure terminal cleanup');
     return value;
   };
@@ -65063,9 +65173,9 @@ async function collectAzureTeardownMaterial(base, runtime, contract, storage, si
   const namespaces = new Set(['default']);
   for (const entry of ingressFiles) {
     if (!entry.isFile()) throw new Error('Azure teardown ingress artifact is not a regular file');
-    const saved = object105(await storage.read(entry.name));
-    const namespace = object105(object105(saved.request).metadata).namespace;
-    const originNamespace = object105(object105(object105(saved.material).intent).originPool).namespace;
+    const saved = object106(await storage.read(entry.name));
+    const namespace = object106(object106(saved.request).metadata).namespace;
+    const originNamespace = object106(object106(object106(saved.material).intent).originPool).namespace;
     if (!safeName2(namespace) || !safeName2(originNamespace)) throw new Error('Azure teardown namespace is invalid');
     namespaces.add(namespace);
     namespaces.add(originNamespace);
@@ -65193,8 +65303,8 @@ async function prepareAzureTerraformTeardown(base, runtime, contract, storage, s
   }
   if (
     workflow !== undefined &&
-    object105(workflow).stage === 'network-pending' &&
-    Object.keys(object105(object105(workflow).bootstrapByNode)).length === 0
+    object106(workflow).stage === 'network-pending' &&
+    Object.keys(object106(object106(workflow).bootstrapByNode)).length === 0
   )
     return prepareAzureFoundationTeardown(base, runtime, contract, storage, signal);
   const { drain, retirement, pendingAdmissionJournalSha256 } = await collectAzureTeardownMaterial(
@@ -65348,8 +65458,8 @@ async function runAzureTerraformTeardown(
     if (error.code !== 'ENOENT') throw error;
   }
   if (completed !== undefined) {
-    const receipt = object105(completed),
-      final = object105(await storage.read('azure-terraform-cloud-destroy-final.json'));
+    const receipt = object106(completed),
+      final = object106(await storage.read('azure-terraform-cloud-destroy-final.json'));
     if (
       receipt.status !== 'retired' ||
       receipt.sourcePlanSha256 !== base.planSha256 ||
@@ -65435,7 +65545,7 @@ async function runAzureTerraformTeardown(
     stageAdmission,
   );
 }
-var object105 = (value) => {
+var object106 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed Azure teardown material');
     return value;

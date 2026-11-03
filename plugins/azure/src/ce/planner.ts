@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
+import { classifyAzureImageHardwareCompatibility } from './image-hardware-compatibility';
 import { normalizeAzureForwardingExpectations } from './network-forwarding-expectations';
 import type {
   AzureCeAction,
@@ -1675,6 +1676,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (!region?.eligible) fail(`region ${intent.region ?? '<recommended>'} is not eligible`);
   const size = region.vmSizes.find((candidate) => candidate.name.toLowerCase() === intent.vm.size.toLowerCase());
   if (!size || size.restricted) fail(`VM size ${intent.vm.size} is unavailable or restricted in ${region.name}`);
+  const hardware = classifyAzureImageHardwareCompatibility(observation.image, size);
+  if (hardware !== 'compatible') fail(`VM/image hardware compatibility is ${hardware} for ${intent.vm.size}`);
   if (!Number.isFinite(size.memoryGb) || !Number.isInteger(size.maxNics) || size.maxNics < 1)
     fail('VM size has incomplete observed memory or NIC capabilities');
   if (size.vCpus < 8 || size.memoryGb < 32)

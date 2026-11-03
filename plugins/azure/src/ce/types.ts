@@ -132,6 +132,8 @@ export interface AzureCeIntent {
 }
 
 export interface AzureCeVmSizeObservation {
+  architecture?: import('./image-hardware-compatibility').AzureCpuArchitecture;
+  hyperVGenerations?: Array<'V1' | 'V2'>;
   name: string;
   maxNics: number;
   vCpus: number;
@@ -173,6 +175,8 @@ export interface AzureCeObservation {
     version: string;
     urn: string;
     termsAccepted: boolean;
+    architecture?: import('./image-hardware-compatibility').AzureCpuArchitecture;
+    hyperVGeneration?: import('./image-hardware-compatibility').AzureHyperVGeneration;
   };
   regions: AzureCeRegionObservation[];
   resources: AzureCeResourceObservation[];
