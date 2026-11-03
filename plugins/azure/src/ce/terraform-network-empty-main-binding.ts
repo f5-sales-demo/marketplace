@@ -8,6 +8,7 @@ import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-c
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureOperationalRetirementSession } from './network-operational-retirement-session';
+import type { AzureReplacementOperationalRetirementSession } from './network-replacement-operational-retirement-session';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
 import { compileAzureTerraformTeardown } from './terraform-teardown';
@@ -22,6 +23,7 @@ export type AzureTerraformNetworkEmptyMainBindingContext = AzureTerraformNetwork
     ingress?: VerifiedIngressContract;
     upgrade?: VerifiedUpgradeContract;
     observer?: AzureOperationalRetirementSession;
+    replacementObserver?: AzureReplacementOperationalRetirementSession;
   };
 };
 const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });

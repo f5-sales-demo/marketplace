@@ -134,10 +134,11 @@ export async function readAzureTerraformNetworkParentInventory(
     ingress: parentContracts?.ingress,
     upgrade: parentContracts?.upgrade,
     observer: parentContracts?.observer,
+    replacementObserver: parentContracts?.replacementObserver,
   };
   const contractBindings = Object.entries(contracts).flatMap(([kind, contract]) =>
     contract
-      ? (kind === 'observer'
+      ? (kind === 'observer' || kind === 'replacementObserver'
           ? ['authenticateRetirementInventory', 'retireSigningMaterial']
           : [
               'identity',
@@ -161,6 +162,7 @@ export async function readAzureTerraformNetworkParentInventory(
       current.parentContracts?.ingress === contracts.ingress &&
       current.parentContracts?.upgrade === contracts.upgrade &&
       current.parentContracts?.observer === contracts.observer &&
+      current.parentContracts?.replacementObserver === contracts.replacementObserver &&
       contractBindings.every(
         ({ target, key, value }) => Reflect.get(target, key) === value,
       ), 'owning parent contract changed');
