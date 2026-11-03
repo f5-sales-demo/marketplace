@@ -13,6 +13,7 @@ import { ensureAzurePlatformIngress } from './platform-ingress';
 import { fingerprintCurrentObservation } from './recovery';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import { azureTerraformLifecycleDeployment, runAzureTerraformLifecycle } from './terraform-lifecycle';
+import { runAzureTerraformNetworkPublicReplacement } from './terraform-network-public-replacement';
 import { runAzureTerraformNetworkPublicUpdate } from './terraform-network-public-update';
 import { loadAzureTerraformOutcome, saveAzureTerraformOutcome } from './terraform-outcome';
 import { runAzureTerraformReplacement } from './terraform-replacement';
@@ -232,7 +233,7 @@ export async function executeAzureCeTerraformApply(
         }
       : undefined;
     const qualifySource =
-      !plan.relayProfile && plan.intent.operation === 'replace-node'
+      !plan.relayProfile && !plan.terraformNetworkReplacementProfile && plan.intent.operation === 'replace-node'
         ? async (source: string, state: Parameters<typeof qualifyAzureTerraformReplacementPublicSource>[2]) =>
             qualifyAzureTerraformReplacementPublicSource(
               plan,
@@ -253,17 +254,28 @@ export async function executeAzureCeTerraformApply(
         : ['start', 'stop', 'resize'].includes(plan.intent.operation)
           ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
           : plan.intent.operation === 'replace-node'
-            ? await runAzureTerraformReplacement(
-                plan,
-                terraform,
-                runtime,
-                storage,
-                api,
-                process.env,
-                signal,
-                acceptIngress,
-                qualifySource,
-              )
+            ? plan.terraformNetworkReplacementProfile
+              ? await runAzureTerraformNetworkPublicReplacement(
+                  plan,
+                  ctx,
+                  terraform,
+                  runtime,
+                  storage,
+                  api,
+                  signal,
+                  acceptIngress,
+                )
+              : await runAzureTerraformReplacement(
+                  plan,
+                  terraform,
+                  runtime,
+                  storage,
+                  api,
+                  process.env,
+                  signal,
+                  acceptIngress,
+                  qualifySource,
+                )
             : await runAzureTerraformAdmission(
                 plan,
                 terraform,

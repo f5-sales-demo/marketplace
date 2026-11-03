@@ -4,10 +4,9 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { type AzureCeToolContext, readAzureCePlanInventory, verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256 } from './canonical';
-import { createAzureNetworkOperationalAcceptance } from './network-operational-acceptance';
-import { createAzureOperationalAcquisitionSession } from './network-operational-session';
 import { runAzureTerraformNetworkUpdate } from './terraform-network-driver';
 import { createAzureTerraformPublicHistoryLoaders } from './terraform-public-history-loaders';
+import { createAzureTerraformPublicOperationalVerifiers } from './terraform-public-operational-verifiers';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -65,15 +64,30 @@ export async function runAzureTerraformNetworkPublicUpdate(
     siteUid: system.uid,
     siteConfigurationSha256: canonicalSha256(runtime.ownedSiteConfiguration(binding, current)),
   };
-  const acquisition = await createAzureOperationalAcquisitionSession(
-    plan,
+  const verifiers = createAzureTerraformPublicOperationalVerifiers(
+    originals[0],
+    ctx.sessionManager,
+    terraform,
     runtime,
     api,
     store,
-    ctx.sessionManager,
-    undefined,
+    loaders,
     signal,
   );
-  const acceptance = createAzureNetworkOperationalAcceptance(acquisition);
-  return runAzureTerraformNetworkUpdate(plan, terraform, store, api, process.env, loaders, site, acceptance, signal);
+  const acceptance = await verifiers.network(plan.planSha256, signal);
+  return runAzureTerraformNetworkUpdate(
+    plan,
+    terraform,
+    store,
+    api,
+    process.env,
+    loaders,
+    site,
+    {
+      collectAcceptance: acceptance.collectAcceptance,
+      qualifyAcceptance: verifiers.qualifyNetwork,
+      qualifyReplacementCompleted: verifiers.qualifyReplacement,
+    },
+    signal,
+  );
 }
