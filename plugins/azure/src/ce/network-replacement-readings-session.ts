@@ -7,6 +7,7 @@ import { canonicalEqual, canonicalSha256 } from './canonical';
 import { createAzureReplacementReadingsAcquisitionCollector } from './network-replacement-readings-provenance';
 import { verifyAzureTerraformNetworkReplacementProfile } from './terraform-network-replacement-plan';
 import { azureUpgradeBinding } from './terraform-upgrade';
+import type { AzureCePlan } from './types';
 
 type Arguments = Parameters<typeof createAzureReplacementReadingsAcquisitionCollector>;
 const toolType = 'azure-ce-replacement-readings-operational-issuer';
@@ -15,6 +16,16 @@ const same = canonicalEqual;
 const sha = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 function require(value: unknown, reason: string): asserts value {
   if (!value) throw Error(`Azure replacement readings issuer session: ${reason}`);
+}
+
+const nativeSessions = new WeakMap<object, { plan: AzureCePlan; seal: () => void }>();
+
+/** Only the factory's actual native facade carries original-source acceptance authority. */
+export function assertAzureReplacementReadingsAcquisitionSession(session: unknown): AzureCePlan {
+  const authority = session && typeof session === 'object' ? nativeSessions.get(session) : undefined;
+  require(authority, 'genuine native acquisition session required');
+  authority.seal();
+  return structuredClone(authority.plan);
 }
 
 /** The actual collector publishes its original issuer into the owning native artifact session
@@ -259,7 +270,7 @@ export async function createAzureReplacementReadingsAcquisitionSession(
   const check = async (active: AbortSignal) => {
     require((await readPins(active)) === retained, 'original public issuer binding changed');
   };
-  return Object.freeze({
+  const facade = Object.freeze({
     authenticateRetirementInventory(parent?: AbortSignal) {
       return bounded(async (active) => {
         require(retained !== undefined, 'original public issuer pin unavailable');
@@ -297,4 +308,6 @@ export async function createAzureReplacementReadingsAcquisitionSession(
       }, parent);
     },
   });
+  nativeSessions.set(facade, { plan, seal });
+  return facade;
 }

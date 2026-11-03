@@ -54429,7 +54429,7 @@ async function createAzureReplacementReadingsAcquisitionSession(
   const check = async (active) => {
     require121((await readPins(active)) === retained, 'original public issuer binding changed');
   };
-  return Object.freeze({
+  const facade = Object.freeze({
     authenticateRetirementInventory(parent) {
       return bounded(async (active) => {
         require121(retained !== undefined, 'original public issuer pin unavailable');
@@ -54467,11 +54467,14 @@ async function createAzureReplacementReadingsAcquisitionSession(
       }, parent);
     },
   });
+  nativeSessions.set(facade, { plan, seal });
+  return facade;
 }
 var toolType3 = 'azure-ce-replacement-readings-operational-issuer',
   suffix5,
   same84,
-  sha29 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+  sha29 = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
+  nativeSessions;
 var init_network_replacement_readings_session = __esm(() => {
   init_node_health();
   init_artifacts();
@@ -54481,6 +54484,7 @@ var init_network_replacement_readings_session = __esm(() => {
   init_terraform_upgrade();
   suffix5 = `.${toolType3}.log`;
   same84 = canonicalEqual;
+  nativeSessions = new WeakMap();
 });
 
 // plugins/azure/src/ce/network-replacement-readings-retirement-session.ts
