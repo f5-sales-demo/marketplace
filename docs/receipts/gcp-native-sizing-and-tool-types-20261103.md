@@ -15,7 +15,7 @@ uses injected CLI stubs and does not access real cloud services. Runtime behavio
 
 Twenty-four focused lifecycle tests passed with 79 assertions. The full GCloud suite passed
 487 tests with 1,780 assertions; fourteen shared runtime and tracker tests passed with 518
-assertions. Runtime builds passed. GCloud manifests, package and catalog are version 1.7.26.
+assertions. Runtime builds passed. GCloud manifests, package and catalog are version 1.7.27.
 Supported tracker reconciliation preserves historical evidence, receipts and retirements.
 
 The full direct TypeScript check now reports zero GCloud source or test diagnostics. It still
@@ -32,3 +32,8 @@ does not invent an independent closure claim for that helper.
 Source, runtime, SDK qualification, live GCP operation acceptance and publication remain
 separate. The PR stays draft, full issue acceptance remains incomplete and immutable v12.3.1
 assets are unchanged.
+
+The CI dependency gate rejected a type-only development-package import. Deriving the schema
+type from the real host extension API repaired that precondition. The commit hook then bumped
+GCloud after tracker generation, so reconciliation was repeated against the committed version.
+The static dependency check and historical evidence requirements remain enabled.
