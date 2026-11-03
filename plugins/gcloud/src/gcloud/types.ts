@@ -1,4 +1,4 @@
-import type { Type } from '@sinclair/typebox';
+import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 
 export interface GcloudConfig {
   project: string;
@@ -37,7 +37,7 @@ export interface GcloudRawResult {
 }
 
 export interface PluginInterface {
-  typebox: { Type: typeof Type };
+  typebox: Parameters<ExtensionFactory>[0]['typebox'];
   events?: unknown;
 }
 
