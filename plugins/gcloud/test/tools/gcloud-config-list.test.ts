@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'bun:test';
+import { Type } from '@sinclair/typebox';
 import { createGcloudConfigListTool } from '../../src/tools/gcloud-config-list';
 
-const mockTypebox = {
-  Type: {
-    Object: (schema: Record<string, unknown>) => schema,
-    String: (opts?: Record<string, unknown>) => ({ type: 'string', ...opts }),
-    Optional: (schema: unknown) => ({ optional: true, ...((schema as object) ?? {}) }),
-  },
-};
+const mockTypebox = { Type };
 
 describe('createGcloudConfigListTool metadata', () => {
   const tool = createGcloudConfigListTool({ typebox: mockTypebox });

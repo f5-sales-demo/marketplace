@@ -122,16 +122,19 @@ function fixture() {
     changes: Object.keys(fields).map((address) => ({ address, type: address.split('.')[0], actions: ['create'] })),
   } as PlanReceipt;
   const insertOperations = Object.values(fields)
-    .filter((v) => v?.creation_timestamp)
-    .map((v) => ({
-      operationType: 'insert',
-      status: 'DONE',
-      targetLink: v.self_link,
-      targetId: live.get(v.self_link)?.id,
-      insertTime: v.creation_timestamp,
-      startTime: v.creation_timestamp,
-      endTime: v.creation_timestamp,
-    }));
+    .filter((v): v is Record<string, unknown> => v !== null && typeof v.creation_timestamp === 'string')
+    .map((v) => {
+      if (typeof v.self_link !== 'string') throw new Error('Original fixture selfLink required');
+      return {
+        operationType: 'insert',
+        status: 'DONE',
+        targetLink: v.self_link,
+        targetId: live.get(v.self_link)?.id,
+        insertTime: v.creation_timestamp,
+        startTime: v.creation_timestamp,
+        endTime: v.creation_timestamp,
+      };
+    });
   let platformReads = 0;
   const runtime = {
     session: {
@@ -315,7 +318,9 @@ it('rejects changed firewall direction, network and replaced identity', async ()
 
 it('rejects an HA VM missing the bound firewall target tag', async () => {
   const f = fixture();
-  f.fields['google_compute_instance.node_b'].tags = [];
+  const original = f.fields['google_compute_instance.node_b'];
+  if (!original) throw new Error('Original fixture node required');
+  original.tags = [];
   await expect(inspectPublicTerraformOwnership(f.runtime, f.i, f.receipt)).rejects.toThrow('topology');
 });
 

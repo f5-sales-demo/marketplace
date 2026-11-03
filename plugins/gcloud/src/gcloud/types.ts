@@ -1,3 +1,5 @@
+import type { Type } from '@sinclair/typebox';
+
 export interface GcloudConfig {
   project: string;
   account: string;
@@ -35,8 +37,8 @@ export interface GcloudRawResult {
 }
 
 export interface PluginInterface {
-  typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
-  [key: string]: unknown;
+  typebox: { Type: typeof Type };
+  events?: unknown;
 }
 
 export const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;

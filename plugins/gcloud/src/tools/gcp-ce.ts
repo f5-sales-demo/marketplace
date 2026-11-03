@@ -38,7 +38,15 @@ import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import { makeExecApi } from './shared';
 
-function result(tool: string, data: Record<string, unknown>, isError = false) {
+function result(
+  tool: string,
+  data: Record<string, unknown>,
+  isError = false,
+): {
+  content: Array<{ type: 'text'; text: string }>;
+  details: Record<string, unknown> & { tool: string };
+  isError?: true;
+} {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
     details: { tool, ...data },

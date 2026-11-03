@@ -107,34 +107,35 @@ export async function fixture() {
   for (let n = 0; n < 6; n++) {
     const row = scope[n];
     const nic = i.sites[0].nodes[0].interfaces.find((nic) => row.selfLink.endsWith(`/${nic.subnet}`));
+    const extra: Partial<Record<typeof row.kind, Record<string, unknown>>> = {
+      instance: {
+        instance_id: String(n + 10),
+        'boot_disk.length': 1,
+        'boot_disk.0.source': scope[1].selfLink,
+        'boot_disk.0.auto_delete': false,
+        'network_interface.length': 2,
+        ...Object.fromEntries(
+          [0, 1].flatMap((n) => [
+            [`network_interface.${n}.network`, scope[2 + n * 2].selfLink],
+            [`network_interface.${n}.subnetwork`, scope[3 + n * 2].selfLink],
+          ]),
+        ),
+      },
+      disk: { disk_id: String(n + 10) },
+      network: { numeric_id: String(n + 10) },
+      subnetwork: {
+        subnetwork_id: String(n + 10),
+        region: i.region,
+        network: scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/${nic?.network}`))?.selfLink,
+        ip_cidr_range: nic?.cidr,
+      },
+    };
     complete[addresses[n]] = {
       name: row.selfLink.split('/').at(-1),
       project: i.project,
       self_link: row.selfLink,
       ...(n < 2 ? { zone: i.sites[0].nodes[0].zone } : {}),
-      ...{
-        instance: {
-          instance_id: String(n + 10),
-          'boot_disk.length': 1,
-          'boot_disk.0.source': scope[1].selfLink,
-          'boot_disk.0.auto_delete': false,
-          'network_interface.length': 2,
-          ...Object.fromEntries(
-            [0, 1].flatMap((n) => [
-              [`network_interface.${n}.network`, scope[2 + n * 2].selfLink],
-              [`network_interface.${n}.subnetwork`, scope[3 + n * 2].selfLink],
-            ]),
-          ),
-        },
-        disk: { disk_id: String(n + 10) },
-        network: { numeric_id: String(n + 10) },
-        subnetwork: {
-          subnetwork_id: String(n + 10),
-          region: i.region,
-          network: scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/${nic?.network}`))?.selfLink,
-          ip_cidr_range: nic?.cidr,
-        },
-      }[row.kind],
+      ...extra[row.kind],
     };
   }
   complete[addresses[6]] = {

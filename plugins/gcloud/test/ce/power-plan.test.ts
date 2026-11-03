@@ -61,3 +61,16 @@ it('rejects stale/wrong-engine/incomplete inventory and undersized resize', () =
     }),
   ).toThrow('sizing');
 });
+it('rejects non-finite and fractional original NIC counts before constructing resize actions', () => {
+  for (const currentNicCount of [NaN, Infinity, 1.5]) {
+    expect(() =>
+      planGcpNativePower('resize', [node], [observed()], {
+        machineType: 'n2-standard-16',
+        guestCpus: 16,
+        memoryMiB: 65536,
+        maxNics: 8,
+        currentNicCount,
+      }),
+    ).toThrow('sizing');
+  }
+});

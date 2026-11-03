@@ -34,9 +34,13 @@ it('Terraform NAT uses exact owned subnet and primary range only', () => {
   i.network.engine = 'terraform';
   i.sloSubnet.engine = 'terraform';
   const plan = planGcpCloudNat(i);
-  expect(plan.resources.google_compute_router_nat?.slo_nat).toMatchObject({
-    source_subnetwork_ip_ranges_to_nat: 'LIST_OF_SUBNETWORKS',
-    subnetwork: [{ name: i.sloSubnet.selfLink, source_ip_ranges_to_nat: ['PRIMARY_IP_RANGE'] }],
+  expect(plan.resources).toMatchObject({
+    google_compute_router_nat: {
+      slo_nat: {
+        source_subnetwork_ip_ranges_to_nat: 'LIST_OF_SUBNETWORKS',
+        subnetwork: [{ name: i.sloSubnet.selfLink, source_ip_ranges_to_nat: ['PRIMARY_IP_RANGE'] }],
+      },
+    },
   });
 });
 it('rejects wrong region/network/engine and missing firewall path', () => {

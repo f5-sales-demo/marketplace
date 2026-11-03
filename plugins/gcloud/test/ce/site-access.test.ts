@@ -52,7 +52,9 @@ it('puts the admin public key on the Site and enables SSH only on SLI', () => {
   expect(site.block_all_services).toBeUndefined();
   const blocked = site.blocked_services.blocked_service;
   expect(blocked).toContainEqual({ network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', ssh: {} });
-  expect(blocked.some((entry) => entry.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' && entry.ssh)).toBe(false);
+  expect(
+    blocked.some((entry) => entry.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' && 'ssh' in entry && entry.ssh),
+  ).toBe(false);
   for (const network of ['VIRTUAL_NETWORK_SITE_LOCAL', 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE']) {
     expect(blocked).toContainEqual({ network_type: network, dns: {} });
     expect(blocked).toContainEqual({ network_type: network, web_user_interface: {} });

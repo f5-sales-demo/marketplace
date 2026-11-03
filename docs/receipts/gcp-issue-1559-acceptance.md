@@ -654,3 +654,22 @@ managed CA bundle through the documented process environment property; global
 settings and credentials were unchanged. Actual original-provider refresh across
 expiry, apply-controller context integration and every subsequent acceptance
 gate remain open.
+
+Attempts 322 and 323 now qualify
+[real original-provider refresh and local cleanup](gcp-original-provider-refresh-live-20261103.md).
+One original Google 8.7.0 provider produced independently verified distinct tokens
+across real server expiry. Four raw kernel/SDK boundaries retained its original
+identity, and the shipped shared verifier accepted consistency. Four original
+groups were independently absent. Three owned local objects were deleted with
+empty state and destroy planning, stable state and two read-only resumes. Zero
+GCP resources were created. Production admission and every GCP lifecycle, guest,
+traffic, review and publication gate remain open.
+
+Attempt 324 repairs
+[native sizing and tool contracts](gcp-native-sizing-and-tool-types-20261103.md).
+GCloud 1.7.26 rejects invalid original NIC counts and uses typed schema builders
+and error replies. The full 487-test suite and fourteen shared runtime/tracker
+tests pass. Runtime builds pass and tracker history is preserved. The broader
+TypeScript check has zero plugin diagnostics but still exposes 29 installed SDK
+diagnostics; that qualification remains open. No lifecycle consumer or publication
+gate is enabled by this repair.

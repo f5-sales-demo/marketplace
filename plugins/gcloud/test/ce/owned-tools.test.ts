@@ -400,13 +400,18 @@ it('explicit Terraform reports its optional installation prerequisite without op
       },
     }),
     undefined,
-    async () =>
-      ({
-        storage: async () => {
-          opened++;
-          throw new Error('unexpected');
-        },
-      }) as CePlatformService,
+    async () => ({
+      storage: async () => {
+        opened++;
+        throw new Error('unexpected storage request');
+      },
+      capabilities: async () => {
+        throw new Error('unexpected capabilities request');
+      },
+      runtime: async () => {
+        throw new Error('unexpected runtime request');
+      },
+    }),
   );
   const planTool = tools.find((tool) => tool.name === 'gcp_ce_plan');
   if (!planTool) throw new Error('Plan tool missing');

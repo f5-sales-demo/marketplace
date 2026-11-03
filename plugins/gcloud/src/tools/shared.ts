@@ -30,11 +30,17 @@ export interface GcloudToolDetails {
 // Result helpers
 // ---------------------------------------------------------------------------
 
-export function textResult(text: string, details?: GcloudToolDetails) {
+export interface GcloudToolResult {
+  content: Array<{ type: 'text'; text: string }>;
+  details: GcloudToolDetails | undefined;
+  isError?: true;
+}
+
+export function textResult(text: string, details?: GcloudToolDetails): GcloudToolResult {
   return { content: [{ type: 'text' as const, text }], details };
 }
 
-export function errorResult(text: string, details?: GcloudToolDetails) {
+export function errorResult(text: string, details?: GcloudToolDetails): GcloudToolResult {
   return { content: [{ type: 'text' as const, text }], isError: true, details };
 }
 

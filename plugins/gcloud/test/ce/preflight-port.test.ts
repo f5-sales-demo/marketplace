@@ -53,10 +53,13 @@ it('cancellation and authentication errors prevent HTTP requests', async () => {
   const port = createGcpPreflightPort(
     { exec: async () => ({ stdout: '', stderr: 'PRIVATE', exitCode: 1 }) },
     'test-project',
-    (async () => {
-      requests++;
-      return Response.json({});
-    }) as typeof fetch,
+    Object.assign(
+      async () => {
+        requests++;
+        return Response.json({});
+      },
+      { preconnect: () => {} },
+    ),
   );
   await expect(port.query('/compute/v1/projects/test-project')).rejects.toThrow('authentication unavailable');
   const controller = new AbortController();
@@ -71,17 +74,20 @@ it('bounds responses and honors cancellation that arrives while obtaining the cr
   const oversized = createGcpPreflightPort(
     api,
     'test-project',
-    (async () =>
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(new Uint8Array(4 * 1024 * 1024 + 1));
-          },
-          cancel() {
-            cancelled = true;
-          },
-        }),
-      )) as typeof fetch,
+    Object.assign(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(4 * 1024 * 1024 + 1));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        ),
+      { preconnect: () => {} },
+    ),
   );
   await expect(oversized.query('/compute/v1/projects/test-project')).rejects.toThrow('size limit');
   expect(cancelled).toBe(true);
@@ -95,10 +101,13 @@ it('bounds responses and honors cancellation that arrives while obtaining the cr
       },
     },
     'test-project',
-    (async () => {
-      calls++;
-      return Response.json({});
-    }) as typeof fetch,
+    Object.assign(
+      async () => {
+        calls++;
+        return Response.json({});
+      },
+      { preconnect: () => {} },
+    ),
   );
   await expect(port.query('/compute/v1/projects/test-project', undefined, controller.signal)).rejects.toThrow();
   expect(calls).toBe(0);

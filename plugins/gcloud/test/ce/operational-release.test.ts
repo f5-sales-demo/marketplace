@@ -97,7 +97,7 @@ it('failed release reads never supply a prior qualification', async () => {
   await f.resolve();
   await expect(
     resolveGcpOperationalRelease(
-      (async () => new Response('', { status: 503 })) as typeof fetch,
+      Object.assign(async () => new Response('', { status: 503 }), { preconnect: () => {} }),
       undefined,
       f.pin,
       f.profile.sourceHashes,

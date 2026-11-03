@@ -72,6 +72,7 @@ export function planGcpNativePower(
         !Number.isInteger(target.memoryMiB) ||
         target.memoryMiB < 32768 ||
         !Number.isInteger(target.maxNics) ||
+        !Number.isInteger(target.currentNicCount) ||
         target.maxNics < target.currentNicCount ||
         target.currentNicCount < 1
       )

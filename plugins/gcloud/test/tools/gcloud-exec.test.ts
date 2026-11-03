@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { Type } from '@sinclair/typebox';
 import { createGcloudExecTool } from '../../src/tools/gcloud-exec';
 import {
   buildGcloudArgs,
@@ -32,13 +33,7 @@ it('arbitrary component installs are blocked before optional-group preparation, 
   expect(calls).toBe(0);
 });
 
-const mockTypebox = {
-  Type: {
-    Object: (schema: Record<string, unknown>) => schema,
-    String: (opts?: Record<string, unknown>) => ({ type: 'string', ...opts }),
-    Array: (items: unknown, opts?: Record<string, unknown>) => ({ type: 'array', items, ...opts }),
-  },
-};
+const mockTypebox = { Type };
 
 // ---------------------------------------------------------------------------
 // getPositionals — all-positionals model (NO flag-value exclusion)
