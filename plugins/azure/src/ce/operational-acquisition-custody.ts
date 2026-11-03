@@ -20,7 +20,7 @@ import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-cus
 import type { AzureCePlan } from './types';
 
 type Json = Record<string, unknown>;
-export type AzureAcquisitionFamily = 'network' | 'replacement';
+export type AzureAcquisitionFamily = 'network' | 'replacement' | 'replacement-readings';
 export interface AzureAcquisitionContract<Identity, Purpose extends string, Readings> {
   family: AzureAcquisitionFamily;
   verifyContext(): void;
@@ -100,14 +100,16 @@ export function createAzureOperationalAcquisitionCustody<
     directory = storage.directory,
     family = definition.family,
     requestMatches = canonicalSnapshot(request);
-  require(family === 'network' || family === 'replacement', 'distinct supported acquisition family required');
+  require(family === 'network' ||
+    family === 'replacement' ||
+    family === 'replacement-readings', 'distinct supported acquisition family required');
   const keyName = `azure-${family}-observer-key.json`,
     anchorName = `azure-${family}-observer-issuer.json`,
     retiredName = `azure-${family}-observer-retired.json`,
     publicationPrefix = `azure-${family}-observation`,
     issuerPrefix = `azure-${family}-issuer`,
     lockName =
-      family === 'network' ? '.azure-operational-acquisition-lock' : '.azure-replacement-operational-acquisition-lock';
+      family === 'network' ? '.azure-operational-acquisition-lock' : `.azure-${family}-operational-acquisition-lock`;
   require(trustedIssuerSha256 === undefined || digest(trustedIssuerSha256), 'retained issuer pin malformed');
   require(originalIssuerPublication === undefined ||
     typeof originalIssuerPublication === 'function', 'owning issuer publisher malformed');
