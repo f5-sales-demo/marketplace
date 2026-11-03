@@ -8,6 +8,7 @@ import type { CeTerraformService, TerraformSession } from '../../../terraform/sr
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
 import { createAzureOperationalRetirementSession } from './network-operational-retirement-session';
+import { createAzureReplacementOperationalRetirementSession } from './network-replacement-operational-retirement-session';
 import { observeAzureRelayRetirementAbsence } from './relay-retirement';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
 import { retireAzureTerraformFailoverStage } from './terraform-failover-retirement';
@@ -209,10 +210,30 @@ export async function finalizeAzureTerraformRunnerCleanup(
     ? await createAzureOperationalRetirementSession(base, runtime, api, store, networkContext.publicSession, signal)
     : undefined;
   if (observer) await observer.retireSigningMaterial(signal);
+  const replacementObserver = networkContext
+    ? await createAzureReplacementOperationalRetirementSession(
+        base,
+        runtime,
+        api,
+        store,
+        session,
+        {
+          loaders: networkContext.loaders,
+          qualifyHistorical: networkContext.verifier,
+          ...(networkContext.replacementVerifier
+            ? { qualifyReplacementCompleted: networkContext.replacementVerifier }
+            : {}),
+        },
+        networkContext.publicSession,
+        signal,
+      )
+    : undefined;
+  if (replacementObserver) await replacementObserver.retireSigningMaterial(signal);
   const parentContracts = Object.freeze({
     ingress: contract,
     ...(upgradeContract ? { upgrade: upgradeContract } : {}),
     ...(observer ? { observer } : {}),
+    ...(replacementObserver ? { replacementObserver } : {}),
   });
   await fresh();
   if (networkContext && (!checkpoint || ['cancelling', 'planning'].includes(checkpoint.phase))) {
