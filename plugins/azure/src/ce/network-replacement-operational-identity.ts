@@ -7,6 +7,7 @@ import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
+import { collectAzureReplacementForwarding } from './network-replacement-forwarding';
 import { collectAzureReplacementNodeReadiness } from './network-replacement-node-readiness';
 import {
   type AzureOperationalIdentityRuntime,
@@ -40,7 +41,8 @@ function require(value: unknown, message: string): asserts value {
 export async function collectAzureReplacementOperationalIdentity(
   request: AzureCePlan,
   expected: AzureTerraformNetworkReplacementOperationalIdentity,
-  transport: AzureOperationalIdentityRuntime & Partial<Pick<CeRuntime, 'observeNodeReadiness'>>,
+  transport: AzureOperationalIdentityRuntime &
+    Partial<Pick<CeRuntime, 'observeNodeReadiness' | 'observeForwardingRoutes'>>,
   cloud: AzExecApi,
   storage: CeDeploymentStore,
   terraform: TerraformSession,
@@ -49,7 +51,8 @@ export async function collectAzureReplacementOperationalIdentity(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
-  const readinessReader = transport.observeNodeReadiness;
+  const readinessReader = transport.observeNodeReadiness,
+    forwardingReader = transport.observeForwardingRoutes;
   const plan = structuredClone(request),
     identity = structuredClone(expected),
     requestMatches = canonicalSnapshot(request),
@@ -156,6 +159,7 @@ export async function collectAzureReplacementOperationalIdentity(
       same(storage.owner, owner) &&
       transport.engine === 'terraform' &&
       transport.observeNodeReadiness === readinessReader &&
+      transport.observeForwardingRoutes === forwardingReader &&
       pinned.every((v) => v.object[v.name] === v.callback), 'owning observation context changed');
   };
   seal();
@@ -268,7 +272,16 @@ export async function collectAzureReplacementOperationalIdentity(
     deadline,
   );
   require(transport.observeNodeReadiness === readinessReader, 'node readiness reader changed');
-  if (typeof readinessReader === 'function') {
+  const forwarding =
+    result.status !== 'unknown'
+      ? await collectAzureReplacementForwarding(plan, retainedPlan, identity, result.interfaces, transport, deadline)
+      : {
+          status: 'unknown' as const,
+          operationalAcceptance: 'unknown' as const,
+          reason: 'complete-interface-identity-unavailable',
+        };
+  require(transport.observeForwardingRoutes === forwardingReader, 'forwarding reader changed');
+  if (typeof readinessReader === 'function' || typeof forwardingReader === 'function') {
     const final = await collectAzureOperationalIdentityJoins(
       base,
       binding,
@@ -285,5 +298,5 @@ export async function collectAzureReplacementOperationalIdentity(
   await authenticate();
   await configuration();
   seal();
-  return { ...result, nodeReadiness };
+  return { ...result, nodeReadiness, forwarding };
 }
