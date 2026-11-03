@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evidence';
+import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { guardAzureCeApplyObject } from './apply-request';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
+import { collectAzureReplacementNodeReadiness } from './network-replacement-node-readiness';
 import {
   type AzureOperationalIdentityRuntime,
   collectAzureOperationalIdentityJoins,
@@ -38,7 +40,7 @@ function require(value: unknown, message: string): asserts value {
 export async function collectAzureReplacementOperationalIdentity(
   request: AzureCePlan,
   expected: AzureTerraformNetworkReplacementOperationalIdentity,
-  transport: AzureOperationalIdentityRuntime,
+  transport: AzureOperationalIdentityRuntime & Partial<Pick<CeRuntime, 'observeNodeReadiness'>>,
   cloud: AzExecApi,
   storage: CeDeploymentStore,
   terraform: TerraformSession,
@@ -47,6 +49,7 @@ export async function collectAzureReplacementOperationalIdentity(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
+  const readinessReader = transport.observeNodeReadiness;
   const plan = structuredClone(request),
     identity = structuredClone(expected),
     requestMatches = canonicalSnapshot(request),
@@ -152,6 +155,7 @@ export async function collectAzureReplacementOperationalIdentity(
       storage.directory === directory &&
       same(storage.owner, owner) &&
       transport.engine === 'terraform' &&
+      transport.observeNodeReadiness === readinessReader &&
       pinned.every((v) => v.object[v.name] === v.callback), 'owning observation context changed');
   };
   seal();
@@ -225,6 +229,27 @@ export async function collectAzureReplacementOperationalIdentity(
     traffic: 'unknown' as const,
   };
   const selected = String(plan.intent.replacementNode);
+  const observeCloud = async () => {
+    await authenticate();
+    await configuration();
+    const current = await bounded(() =>
+      observeAzureTerraformNetworkReplacementCurrent(
+        {
+          plan,
+          retainedPlan,
+          binding: source,
+          sourceBindingSha256: identity.sourceBindingSha256,
+          phase: identity.phase,
+          ...(identity.phase === 'launched' ? { newVmId: identity.nodes[selected].vmId as string } : {}),
+        },
+        api,
+        deadline,
+      ),
+    );
+    require(same(current.nodes, identity.nodes), 'current replacement generation differs');
+    await configuration();
+    return canonicalSha256(current.nodes);
+  };
   const result = await collectAzureOperationalIdentityJoins(
     base,
     binding,
@@ -232,32 +257,33 @@ export async function collectAzureReplacementOperationalIdentity(
     instances,
     interfaces,
     runtime,
-    async () => {
-      await authenticate();
-      await configuration();
-      const current = await bounded(() =>
-        observeAzureTerraformNetworkReplacementCurrent(
-          {
-            plan,
-            retainedPlan,
-            binding: source,
-            sourceBindingSha256: identity.sourceBindingSha256,
-            phase: identity.phase,
-            ...(identity.phase === 'launched' ? { newVmId: identity.nodes[selected].vmId as string } : {}),
-          },
-          api,
-          deadline,
-        ),
-      );
-      require(same(current.nodes, identity.nodes), 'current replacement generation differs');
-      await configuration();
-      return canonicalSha256(current.nodes);
-    },
+    observeCloud,
     deadline,
   );
+  const nodeReadiness = await collectAzureReplacementNodeReadiness(
+    plan,
+    identity,
+    'registrations' in result ? result.registrations : undefined,
+    transport,
+    deadline,
+  );
+  require(transport.observeNodeReadiness === readinessReader, 'node readiness reader changed');
+  if (typeof readinessReader === 'function') {
+    const final = await collectAzureOperationalIdentityJoins(
+      base,
+      binding,
+      identity.site,
+      instances,
+      interfaces,
+      runtime,
+      observeCloud,
+      deadline,
+    );
+    require(same(result, final), 'replacement identities changed across node readiness collection');
+  }
   // Do not hide guard failures, even if an unavailable observation already returned unknown.
   await authenticate();
   await configuration();
   seal();
-  return result;
+  return { ...result, nodeReadiness };
 }
