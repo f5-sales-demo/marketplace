@@ -29,7 +29,7 @@ export async function terraformNetworkDriverFixture(
   moveSlo = false,
 ) {
   const first = await networkStageHistoryFixture(1, move, ha, false, seed?.source, seed, routing, moveSlo);
-  const original = await terraformNetworkSourceFixture(ha, false, routing);
+  const original = await terraformNetworkSourceFixture(ha, false, routing, seed?.plan.intent.ingress);
   const originalRecords = seed?.originalRecords ?? original.records;
   if (seed?.originalRecords) {
     expect([...originalRecords.keys()].sort()).toEqual([...original.records.keys()].sort());

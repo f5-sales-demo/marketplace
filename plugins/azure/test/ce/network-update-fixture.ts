@@ -12,9 +12,15 @@ export function networkUpdateFixture(
   fakeReplacementOwner = true,
   routing?: AzureCeIntent['routing'],
   threeNics = false,
+  ingress?: AzureCeIntent['ingress'],
 ) {
   const initial = structuredClone(intent);
   initial.engine = engine;
+  if (ingress) {
+    initial.ingress = structuredClone(ingress);
+    if (ingress.mode === 'platform-http')
+      initial.brownfield.resourceIds.push(ingress.probe.sourceVmResourceId.toLowerCase());
+  }
   initial.routing = routing ? structuredClone(routing) : { ...initial.routing, mode: 'udr' };
   initial.topology.ha = ha;
   if (threeNics)
@@ -26,6 +32,8 @@ export function networkUpdateFixture(
   initial.nics.push({ name: 'sli', role: 'sli', subnet: { mode: 'greenfield', name: 'sli', cidr: '10.20.1.0/24' } });
   const observed = structuredClone(observation);
   observed.regions[0].quotaAvailable = 32;
+  if (ingress?.mode === 'platform-http')
+    observed.resources.push({ id: ingress.probe.sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} });
   const original = compileAzureCePlan(initial, observed);
   const nodes = Array.from({ length: original.topology.nodeCount }, (_, i) => `${original.deploymentName}-${i + 1}`);
   const vnetId = `/subscriptions/${original.subscription.id}/resourceGroups/${initial.resourceGroup}/providers/Microsoft.Network/virtualNetworks/${original.deploymentName}-vnet`;
@@ -96,14 +104,17 @@ export function networkUpdateFixture(
     tags: tags(original.planSha256),
   };
   const current = structuredClone(observed);
-  current.resources = [...vms, ...nics.values()].map((value) => ({
-    id: value.id as string,
-    exists: true,
-    owned: true,
-    location: original.region,
-    tags: value.tags as Record<string, string>,
-    state: { provisioningState: 'Succeeded' },
-  }));
+  current.resources = [
+    ...observed.resources,
+    ...[...vms, ...nics.values()].map((value) => ({
+      id: value.id as string,
+      exists: true,
+      owned: true,
+      location: original.region,
+      tags: value.tags as Record<string, string>,
+      state: { provisioningState: 'Succeeded' },
+    })),
+  ];
   if (initial.routing.mode === 'route-server')
     current.resources.push({
       id: `/subscriptions/${original.subscription.id}/resourceGroups/${initial.resourceGroup}/providers/Microsoft.Network/virtualHubs/${original.deploymentName}-rs`,
@@ -115,10 +126,10 @@ export function networkUpdateFixture(
     });
   const update = structuredClone(initial);
   update.operation = 'update-network';
-  const movedSli = update.nics.find((nic) => nic.role === 'sli');
-  if (!movedSli) throw Error('Synthetic SLI fixture is missing');
+  const movedInterface = update.nics.find((nic) => nic.role === (ingress?.mode === 'platform-http' ? 'slo' : 'sli'));
+  if (!movedInterface) throw Error('Synthetic selected network interface is missing');
   if (move)
-    movedSli.subnet = {
+    movedInterface.subnet = {
       mode: 'greenfield',
       name: 'updated-sli',
       cidr: '10.20.2.0/24',

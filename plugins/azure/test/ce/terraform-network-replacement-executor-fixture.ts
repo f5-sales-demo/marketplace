@@ -11,6 +11,7 @@ import type { AzureTerraformNetworkReplacementExecutionDependencies } from '../.
 import { bindAzureTerraformNetworkReplacementExecutionJournal } from '../../src/ce/terraform-network-replacement-execution-journal';
 import { bindAzureTerraformNetworkReplacementSource } from '../../src/ce/terraform-network-replacement-source-binding';
 import { runAzureTerraformReplacement } from '../../src/ce/terraform-replacement';
+import type { AzureCeIntent } from '../../src/ce/types';
 import { terraformNetworkBoundReplacementFixture } from './terraform-network-bound-replacement-fixture';
 
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -26,8 +27,10 @@ export async function networkReplacementExecutorFixture(
     replacementVerifier: AzureTerraformNetworkReplacementCompletedVerifier;
   },
   nativePower = false,
+  ingress?: AzureCeIntent['ingress'],
 ) {
-  const f = seed?.fixture ?? (await terraformNetworkBoundReplacementFixture(ha, restore, nativePower)),
+  const f =
+      seed?.fixture ?? (await terraformNetworkBoundReplacementFixture(ha, restore, nativePower, undefined, ingress)),
     plan = f.input.plan;
   const { binding } = await bindAzureTerraformNetworkReplacementSource(
     plan,

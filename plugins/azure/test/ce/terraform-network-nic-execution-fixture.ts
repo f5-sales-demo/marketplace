@@ -37,7 +37,7 @@ export async function nicExecutionFixture(
   seed?: TerraformNetworkFixtureSeed,
   routing?: AzureCeIntent['routing'],
 ) {
-  const f = networkUpdateFixture(ha, 'terraform', move, false, routing);
+  const f = networkUpdateFixture(ha, 'terraform', move, false, routing, false, seed?.plan.intent.ingress);
   if (bothMove) {
     const target = `${f.vnet.id}/subnets/updated-slo`;
     f.subnets.set(target, { id: target, provisioningState: 'Succeeded', addressPrefix: '10.20.3.0/24' });
@@ -59,7 +59,7 @@ export async function nicExecutionFixture(
       appliedNics.push(`${prior}:${nic.index}`);
       const row = [...f.nics.values()].find((row) => String(row.id).endsWith(`-${prior}-nic${nic.index}`));
       if (!row) throw Error('missing fixture NIC');
-      if (nic.index === 1 && move) {
+      if (move && nic.subnet.name === 'updated-sli') {
         f.config(row).subnet = { id: f.target };
         f.config(row).privateIPAddress = `10.20.2.${prior + 4}`;
         sourceObject.resource.azurerm_network_interface[

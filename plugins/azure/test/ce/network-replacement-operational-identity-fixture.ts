@@ -5,11 +5,16 @@ import { collectAzureReplacementOperationalIdentity } from '../../src/ce/network
 import { observeAzureTerraformNetworkReplacementCurrent } from '../../src/ce/terraform-network-replacement-current';
 import type { AzureTerraformNetworkReplacementOperationalIdentity } from '../../src/ce/terraform-network-replacement-execution';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
+import type { AzureCeIntent } from '../../src/ce/types';
 import { networkReplacementExecutorFixture } from './terraform-network-replacement-executor-fixture';
 
 type Runtime = Parameters<typeof collectAzureReplacementOperationalIdentity>[2];
-export async function replacementOperationalIdentityFixture(ha = false, phase: 'intact' | 'launched' = 'intact') {
-  const f = await networkReplacementExecutorFixture(ha),
+export async function replacementOperationalIdentityFixture(
+  ha = false,
+  phase: 'intact' | 'launched' = 'intact',
+  ingress?: AzureCeIntent['ingress'],
+) {
+  const f = await networkReplacementExecutorFixture(ha, false, undefined, false, ingress),
     plan = f.input.plan;
   f.state.phase = phase;
   const current = await observeAzureTerraformNetworkReplacementCurrent(

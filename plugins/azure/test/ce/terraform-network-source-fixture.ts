@@ -13,8 +13,9 @@ export async function terraformNetworkSourceFixture(
   ha: boolean,
   generations = false,
   routing?: AzureCeIntent['routing'],
+  ingress?: AzureCeIntent['ingress'],
 ) {
-  const f = networkUpdateFixture(ha, 'terraform', true, false, routing);
+  const f = networkUpdateFixture(ha, 'terraform', true, false, routing, false, ingress);
   const h = generations ? historicalFixture(ha) : undefined;
   if (h) {
     expect(h.base.planSha256).toBe(f.original.planSha256);
@@ -93,6 +94,17 @@ export async function terraformNetworkSourceFixture(
         engine: 'terraform',
         status: 'registered',
         ...(f.original.routing.mode === 'route-server' ? { routing: 'healthy' } : {}),
+        // Modeled prior creation outcome only; not installed/live traffic provenance.
+        ...(f.original.intent.ingress?.mode === 'platform-http'
+          ? {
+              traffic: {
+                status: 'healthy',
+                expectedStatus: f.original.intent.ingress.probe.expectedStatus,
+                bodySha256: f.original.intent.ingress.probe.expectedBodySha256,
+              },
+              terraformNoChanges: true,
+            }
+          : {}),
         configuration: { ...hardware, status: 'configured', siteUid: site.siteUid },
         registrations,
       },

@@ -5,6 +5,7 @@ import { qualifyAzureTerraformNetworkBoundReplacementSource } from '../../src/ce
 import { readAzureTerraformNetworkCompletionHistory } from '../../src/ce/terraform-network-completion-history';
 import { compileAzureTerraformNetworkUpdatePlan } from '../../src/ce/terraform-network-plan';
 import { compileAzureTerraformNetworkReplacementPlan } from '../../src/ce/terraform-network-replacement-plan';
+import type { AzureCeIntent } from '../../src/ce/types';
 import { terraformNetworkDriverFixture } from './terraform-network-driver-fixture';
 import { terraformNetworkSerialPowerFixture } from './terraform-network-driver-power-runner-fixture';
 import { lineageCleanupEvidence } from './terraform-network-lineage-fixture';
@@ -19,8 +20,9 @@ export async function terraformNetworkBoundReplacementFixture(
     network: ReturnType<typeof compileAzureTerraformNetworkUpdatePlan>;
     driver: Awaited<ReturnType<typeof terraformNetworkSerialPowerFixture>>;
   },
+  ingress?: AzureCeIntent['ingress'],
 ) {
-  const birth = seed?.birth ?? (await terraformNetworkSourceFixture(ha));
+  const birth = seed?.birth ?? (await terraformNetworkSourceFixture(ha, false, undefined, ingress));
   let network = seed?.network ?? compileAzureTerraformNetworkUpdatePlan(birth.plan, birth.original);
   const inventory = await captureAzureNetworkUpdateInventory(network, birth.api);
   const sources = new Map(birth.sources);
