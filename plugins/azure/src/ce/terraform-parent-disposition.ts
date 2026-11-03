@@ -12,6 +12,7 @@ import {
 import { isAzureIngressHistoricalArtifact, verifyAzureIngressHistoricalArtifacts } from './ingress-artifact-provenance';
 import { collectAzureOperationalParentDispositions } from './network-operational-parent-disposition';
 import { collectAzureReplacementOperationalParentDispositions } from './network-replacement-operational-parent-disposition';
+import { collectAzureReplacementReadingsOperationalParentDispositions } from './network-replacement-readings-parent-disposition';
 import { azureRelayHistoricalArtifacts, verifyAzureRelayHistoricalArtifacts } from './relay-artifact-provenance';
 import { azureTerraformFailoverDeployment, validateAzureTerraformFailoverRetirement } from './terraform-failover';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
@@ -208,6 +209,22 @@ export async function collectAzureTerraformParentDispositions(
       generic(file.path, file.action, file.schema, { observer: file.semanticProvenanceSha256 });
       const decision = decisions.get(file.path);
       require(decision, 'owning replacement observer decision missing');
+      decision.semanticProvenanceSha256 = file.semanticProvenanceSha256;
+    }
+  }
+  if (contracts.replacementReadingsObserver) {
+    const observer = await collectAzureReplacementReadingsOperationalParentDispositions(
+      base,
+      store,
+      context.publicSession,
+      files,
+      contracts.replacementReadingsObserver,
+      signal,
+    );
+    for (const file of observer) {
+      generic(file.path, file.action, file.schema, { observer: file.semanticProvenanceSha256 });
+      const decision = decisions.get(file.path);
+      require(decision, 'owning replacement readings observer decision missing');
       decision.semanticProvenanceSha256 = file.semanticProvenanceSha256;
     }
   }

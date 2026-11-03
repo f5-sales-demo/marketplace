@@ -9,6 +9,7 @@ import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
 import { createAzureOperationalRetirementSession } from './network-operational-retirement-session';
 import { createAzureReplacementOperationalRetirementSession } from './network-replacement-operational-retirement-session';
+import { createAzureReplacementReadingsOperationalRetirementSession } from './network-replacement-readings-retirement-session';
 import { observeAzureRelayRetirementAbsence } from './relay-retirement';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
 import { retireAzureTerraformFailoverStage } from './terraform-failover-retirement';
@@ -229,11 +230,31 @@ export async function finalizeAzureTerraformRunnerCleanup(
       )
     : undefined;
   if (replacementObserver) await replacementObserver.retireSigningMaterial(signal);
+  const replacementReadingsObserver = networkContext
+    ? await createAzureReplacementReadingsOperationalRetirementSession(
+        base,
+        runtime,
+        api,
+        store,
+        session,
+        {
+          loaders: networkContext.loaders,
+          qualifyHistorical: networkContext.verifier,
+          ...(networkContext.replacementVerifier
+            ? { qualifyReplacementCompleted: networkContext.replacementVerifier }
+            : {}),
+        },
+        networkContext.publicSession,
+        signal,
+      )
+    : undefined;
+  if (replacementReadingsObserver) await replacementReadingsObserver.retireSigningMaterial(signal);
   const parentContracts = Object.freeze({
     ingress: contract,
     ...(upgradeContract ? { upgrade: upgradeContract } : {}),
     ...(observer ? { observer } : {}),
     ...(replacementObserver ? { replacementObserver } : {}),
+    ...(replacementReadingsObserver ? { replacementReadingsObserver } : {}),
   });
   await fresh();
   if (networkContext && (!checkpoint || ['cancelling', 'planning'].includes(checkpoint.phase))) {

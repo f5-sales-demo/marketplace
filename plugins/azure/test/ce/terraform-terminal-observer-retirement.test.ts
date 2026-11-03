@@ -33,6 +33,7 @@ mock.module(root + '/plugins/azure/src/ce/terraform-network-terminal-planning.ts
 }));
 const { test } = await import(root + '/plugins/azure/test/ce/owned-fixture-test.ts');
 const { replacementOperationalIdentityFixture } = await import(root + '/plugins/azure/test/ce/network-replacement-operational-identity-fixture.ts');
+const { createAzureReplacementReadingsAcquisitionSession } = await import(root + '/plugins/azure/src/ce/network-replacement-readings-session.ts');
 const { createAzureReplacementAcquisitionSession } = await import(root + '/plugins/azure/src/ce/network-replacement-operational-session.ts');
 const { finalizeAzureTerraformRunnerCleanup } = await import(root + '/plugins/azure/src/ce/terraform-terminal-cleanup.ts');
 const { savePlanArtifact } = await import(root + '/plugins/azure/src/ce/artifacts.ts');
@@ -51,12 +52,18 @@ for (const absent of [false, true]) test('actual terminal observer retirement re
     const collector = await createAzureReplacementAcquisitionSession(f.plan, f.runtime, f.executionApi, f.store,
       f.session, f.observationDependencies, publicSession);
     const reference = await collector.collect(f.identity, 'preflight');
+    const richer = await createAzureReplacementReadingsAcquisitionSession(f.plan, f.runtime, f.executionApi, f.store, f.session, f.observationDependencies, publicSession);
+    const richerReference = await richer.collect(f.identity, 'preflight');
+    const richerKeyPath = join(f.store.directory, 'azure-replacement-readings-observer-key.json');
     const keyPath = join(f.store.directory, 'azure-replacement-observer-key.json');
     const keyExists = async () => { try { await lstat(keyPath); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } };
     const publicPath = [...paths.values()].find(path => path.endsWith('.azure-ce-replacement-operational-issuer.log'));
     if (!publicPath) throw Error('Original issuer binding missing');
     const hash = bytes => createHash('sha256').update(bytes).digest('hex');
     const originalPublic = hash(await readFile(publicPath));
+    const richerPublicPath = [...paths.values()].find(path => path.endsWith('.azure-ce-replacement-readings-operational-issuer.log'));
+    if (!richerPublicPath) throw Error('Richer original issuer binding missing');
+    const richerPublic = hash(await readFile(richerPublicPath));
     const siteFingerprint = 'sha256:' + 'a'.repeat(64), ingressFingerprint = 'sha256:' + 'b'.repeat(64);
     const teardown = { planId: 'modeled-terminal-teardown', sourcePlanSha256: f.birth.original.planSha256,
       drain: { siteContractFingerprint: siteFingerprint, ingressContractFingerprint: ingressFingerprint, listeners: [], origins: [] } };
@@ -75,6 +82,9 @@ for (const absent of [false, true]) test('actual terminal observer retirement re
     await expect(result).rejects.toThrow(absent ? 'modeled-next-native-phase' : 'Fresh Azure cloud absence unavailable');
     expect(absenceCalls).toBeGreaterThan(0);
     expect(await keyExists()).toBe(!absent);
+    try { await lstat(richerKeyPath); expect(absent).toBe(false); } catch(error) { if(error.code!=='ENOENT') throw error; expect(absent).toBe(true); }
+    expect(hash(await readFile(richerPublicPath))).toBe(richerPublic);
+    if(absent) expect((await (await createAzureReplacementReadingsAcquisitionSession(f.plan, f.runtime, f.executionApi, f.store, f.session, f.observationDependencies, publicSession)).authenticate(richerReference, f.identity, 'preflight', 'historical')).status).toBe('authenticated');
     expect(hash(await readFile(publicPath))).toBe(originalPublic);
     if (absent) expect((await (await createAzureReplacementAcquisitionSession(f.plan, f.runtime, f.executionApi,
       f.store, f.session, f.observationDependencies, publicSession)).authenticate(reference, f.identity, 'preflight', 'historical')).status).toBe('authenticated');

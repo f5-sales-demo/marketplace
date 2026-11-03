@@ -9,6 +9,7 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import { canonicalEqual, canonicalSha256 } from './canonical';
 import type { AzureOperationalRetirementSession } from './network-operational-retirement-session';
 import type { AzureReplacementOperationalRetirementSession } from './network-replacement-operational-retirement-session';
+import type { AzureReplacementReadingsOperationalRetirementSession } from './network-replacement-readings-retirement-session';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
 import { compileAzureTerraformTeardown } from './terraform-teardown';
@@ -24,6 +25,7 @@ export type AzureTerraformNetworkEmptyMainBindingContext = AzureTerraformNetwork
     upgrade?: VerifiedUpgradeContract;
     observer?: AzureOperationalRetirementSession;
     replacementObserver?: AzureReplacementOperationalRetirementSession;
+    replacementReadingsObserver?: AzureReplacementReadingsOperationalRetirementSession;
   };
 };
 const same = (a: unknown, b: unknown) => canonicalEqual({ value: a }, { value: b });
