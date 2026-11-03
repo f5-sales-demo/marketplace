@@ -22151,12 +22151,26 @@ async function finalizeAwsTerraformCleanup(
   const fresh = async () => {
     signal?.throwIfAborted();
     const start = Date.now();
-    const platform = await runtime.unregisteredAbsence(
-      siteBindings(base).map((row) => row.binding),
-      [...namespaces].sort(),
-      contract,
-      signal,
-    );
+    const [platformResult, cloudResult] = await Promise.allSettled([
+      Promise.resolve().then(() =>
+        runtime.unregisteredAbsence(
+          siteBindings(base).map((row) => row.binding),
+          [...namespaces].sort(),
+          contract,
+          signal,
+        ),
+      ),
+      Promise.resolve().then(() => collectAwsTerraformAbsence(base, inventory, api, signal)),
+    ]);
+    const failures = [];
+    if (platformResult.status === 'rejected') failures.push(platformResult.reason);
+    if (cloudResult.status === 'rejected') failures.push(cloudResult.reason);
+    if (failures.length > 1) throw new AggregateError(failures, 'Current cleanup absence collection failed');
+    if (platformResult.status === 'rejected') throw platformResult.reason;
+    if (cloudResult.status === 'rejected') throw cloudResult.reason;
+    signal?.throwIfAborted();
+    const platform = platformResult.value,
+      cloud = cloudResult.value;
     const at = Date.parse(platform.observedAt),
       began = Date.parse(platform.startedAt);
     if (
@@ -22174,7 +22188,6 @@ async function finalizeAwsTerraformCleanup(
       !platform.sources.length
     )
       throw Error('Current complete platform absence unavailable');
-    const cloud = await collectAwsTerraformAbsence(base, inventory, api, signal);
     if (cloud.status !== 'absent-or-retired') throw Error('Current exact cloud absence unavailable');
     return { platform, cloud };
   };

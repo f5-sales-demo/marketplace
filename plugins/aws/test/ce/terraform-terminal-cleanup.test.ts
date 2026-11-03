@@ -16,6 +16,15 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
+function observationGate() {
+  let release: () => void = () => {
+    throw Error('Observation gate not initialized');
+  };
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release: () => release() };
+}
 async function fixture(mode = 'absent') {
   const original = foundationPlan();
   original.intent.partition = 'aws';
@@ -231,6 +240,101 @@ async function fixture(mode = 'absent') {
     counts: () => ({ plans, retirements, observations, namespaces, metadataMutations }),
   };
 }
+test('independent cleanup absence probes begin together before the platform response', async () => {
+  const f = await fixture();
+  const entered = observationGate(),
+    platformGate = observationGate();
+  const platform = f.runtime.unregisteredAbsence,
+    cloud = f.api.exec;
+  let first = true,
+    cloudStarted = false;
+  f.runtime.unregisteredAbsence = async (bindings, namespaces) => {
+    if (first) {
+      first = false;
+      entered.release();
+      await platformGate.promise;
+    }
+    return platform(bindings, namespaces);
+  };
+  f.api.exec = async (command, args) => {
+    cloudStarted = true;
+    return cloud(command, args);
+  };
+  const pending = finalizeAwsTerraformCleanup(
+    f.base,
+    f.teardown,
+    f.teardown.planSha256,
+    f.runtime as never,
+    f.contract as never,
+    f.session as never,
+    f.store,
+    f.api,
+    {},
+  );
+  const outcome = pending.then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await entered.promise;
+  await Promise.resolve();
+  await Promise.resolve();
+  const startedBeforePlatformResponse = cloudStarted;
+  platformGate.release();
+  const result = await outcome;
+  if ('error' in result) throw result.error;
+  expect(startedBeforePlatformResponse).toBe(true);
+  expect(result.value.status).toBe('deployment-artifacts-retired');
+});
+test('a failed platform collection waits for its cloud probe and preserves source journals', async () => {
+  const f = await fixture();
+  const entered = observationGate(),
+    cloudGate = observationGate();
+  const cloud = f.api.exec,
+    failure = Error('platform collection unavailable');
+  let cloudStarted = false,
+    settled = false;
+  f.runtime.unregisteredAbsence = async () => {
+    entered.release();
+    throw failure;
+  };
+  f.api.exec = async (command, args) => {
+    cloudStarted = true;
+    await cloudGate.promise;
+    return cloud(command, args);
+  };
+  const pending = finalizeAwsTerraformCleanup(
+    f.base,
+    f.teardown,
+    f.teardown.planSha256,
+    f.runtime as never,
+    f.contract as never,
+    f.session as never,
+    f.store,
+    f.api,
+    {},
+  );
+  const outcome = pending.then(
+    (value) => {
+      settled = true;
+      return { value };
+    },
+    (error) => {
+      settled = true;
+      return { error };
+    },
+  );
+  await entered.promise;
+  await Promise.resolve();
+  await Promise.resolve();
+  const beforeRelease = { cloudStarted, settled };
+  cloudGate.release();
+  const result = await outcome;
+  expect(beforeRelease).toEqual({ cloudStarted: true, settled: false });
+  expect('error' in result && result.error).toBe(failure);
+  expect(f.counts().retirements).toBe(0);
+  expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+  expect(await readdir(f.store.directory)).not.toContain('aws-terraform-terminal-cleanup.json');
+});
 test('public terminal cleanup retires retained exact metadata before runner/parent artifacts and replays without another deletion', async () => {
   const f = await fixture('metadata');
   const run = () =>
