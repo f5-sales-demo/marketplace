@@ -17,8 +17,8 @@ SCRIPT = (
 )
 spec = importlib.util.spec_from_file_location("user_terraform_install", SCRIPT)
 if spec is None or spec.loader is None:
-    message = "Installer test module is unavailable"
-    raise RuntimeError(message)
+    MODULE_ERROR = "Installer test module is unavailable"
+    raise RuntimeError(MODULE_ERROR)
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 
