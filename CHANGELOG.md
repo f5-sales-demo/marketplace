@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.7
+- **`terraform`** bumped to v2.4.8
 
 - **`terraform` 2.4.5** checks original-provider Google ADC refresh evidence against reviewed input
   hashes, expiry and process identity. Live refresh qualification remains required (#1559).
@@ -182,7 +182,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.28 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.29 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Resize candidates reject non-integer and non-finite
@@ -192,7 +192,7 @@ and this project adheres to
   absence evidence. Installed qualification covers synthetic Compute identities
   and live owned XC cleanup; fresh installed native live cloud teardown and eight
   independent absence checks now pass on the narrow disposable single-node profile (#1559).
-- **`platform`** v6.3.11 registers shared CE storage/runtime service with portable
+- **`platform`** v6.3.12 registers shared CE storage/runtime service with portable
   process locks and GCP ownership scope while keeping unqualified mutation unavailable.
   Terraform HA ownership observations now bind each of the three original node tokens,
   allowing initial absence and partial cleanup reads while rejecting foreign or ambiguous nodes.
