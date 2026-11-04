@@ -186,7 +186,7 @@ ordinary Ubuntu `bun dev`, actual production ADC/capture integration and the ful
 live acceptance matrix. No cloud resources were submitted. Historical failures,
 collector bytes, q12, v12.3.1 and publication holds remain preserved.
 
-GCloud 1.7.29 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.12. Terraform 2.4.13 remains optional. Linux setup installs the pinned Terraform binary and prepares the observer runtime in user scope without sudo. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
+GCloud 1.7.30 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.12. Terraform 2.4.15 remains optional. Linux setup installs the pinned Terraform binary and prepares the observer runtime in user scope without sudo. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
 
 Every declared operation appears in the plan/apply schema. Operations without qualified consumer mappings return a schema-v2 refusal with their owning engine, exact requested operation and unmet mapping, reviewed-plan, identity and restoration requirements before cloud reads. Upgrade and failover aliases use that same refusal boundary. This exposes availability; it does not implement those mutations.
 
@@ -249,6 +249,40 @@ policy is unchanged. The original failure remains private.
 | 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Source checkpoint delivered to conflict-free draft PR; current-head CI and review remain separate gates | Historical isolated staging only; new snapshots unqualified | SDK prerequisite release verified; GCloud/Platform/Terraform publication remains held | Keep PR draft until source, installed and every applicable live gate passes; then qualified plugin release and published installation |
 
 The balanced-disk preflight now checks `SSD_TOTAL_GB`, with failing-first cases for exhausted standard quota and missing, duplicate or insufficient SSD quota. The shared Terraform runner accepts a minimal empty-state summary only when the stable raw state proves the pinned version, zero resources and zero outputs. These source repairs preserve original source and executor evidence; publication and changed-candidate installation remain open.
+
+## Session policy and authentication continuation
+
+The session-policy continuation at `3e30733a97c44ab01254cd16b83c25211caba079`
+adds a server-owned resolver after owner/stage validation. It clones requests and
+freezes the selected policy/executor for each session. Separate project sessions
+cannot share or redirect credentials through options mutation. Legacy execution
+options remain supported; a resolved ADC policy requires its own executor.
+
+New authentication code validates an authorized-user snapshot, refreshes through
+the fixed Google endpoint, uses the documented token inspection request and
+verifies selected project access. Original-input checks surround every request.
+HTTP status and independent input failures are retained without exposing token
+URLs. The input monitor latches write/restore or identity changes; admitted file
+and parent identities must be preserved rather than recaptured.
+
+A fresh real HTTPS authentication passed against a monitored private snapshot.
+The original credential file stayed unchanged. The first probe refused the
+group-writable global configuration directory; its failure remains preserved,
+and permissions were not changed. The corrected copy uses a no-follow owned
+file read and verifies identities before and after copying into the private
+workspace. The private authentication receipt has SHA-256
+`170cd7196ecd6a802cd4ee24877d6bb46158999ab0237d8f5c17ccfe509db120`.
+It qualifies that authentication component at its recorded source hashes;
+it does not qualify installed tools, the original provider or GCP lifecycle.
+
+A concrete CI failure exposed the root Terraform probe test's stale command
+count after runtime verification was added. The current contract and missing
+interpreter guidance now pass, including unexpected-error preservation. The
+combined Terraform/Platform/root integration suites pass 491 tests and 2,946
+assertions; both native typechecks and normal source hooks pass. Runtime builds
+and the tracker pass. The standard extension still needs the concrete resolver
+factory, original-budget executor and actual cloud/serial/SSH controller. All
+installed, live, review, publication and published user-scope gates remain open.
 
 ## Guest campaign boundary
 
