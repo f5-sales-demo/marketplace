@@ -1,6 +1,7 @@
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { readAzureSkuHardware } from './image-hardware-compatibility';
 import { type AzureRelayCatalog, type AzureRelaySelection, compileAzureRelayPlan } from './relay-plan';
 import type { AzureCePlan, AzureCeVmSizeObservation } from './types';
 
@@ -127,6 +128,7 @@ export async function resolveAzureLinuxHostCatalog(
     new Set(zones).size === zones.length, 'invalid SKU zones');
   const size: AzureCeVmSizeObservation = {
     name: selection.vmSize,
+    ...readAzureSkuHardware(sku),
     maxNics: number('MaxNetworkInterfaces', true),
     vCpus: number('vCPUs', true),
     memoryGb: number('MemoryGB', false),

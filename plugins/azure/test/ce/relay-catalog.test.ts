@@ -1295,3 +1295,35 @@ test('public relay replacement chains preserve per-resource owners across select
     }
   }
 });
+
+test('relay catalog preserves architecture and canonical Hyper-V generations', async () => {
+  const f = fixture();
+  f.skus[0].capabilities.push({ name: 'HyperVGenerations', value: 'V2, V1' });
+  const catalog = await resolveAzureRelayCatalog(source, selected, f.api);
+  expect(catalog.vmSizes[0].architecture).toBe('x64');
+  expect(catalog.vmSizes[0].hyperVGenerations).toEqual(['V1', 'V2']);
+  expect(
+    azureRelayPlanForDeployment(compileAzureRelayDeploymentPlan(source, selected, catalog)).catalog.vmSizes[0]
+      .hyperVGenerations,
+  ).toEqual(['V1', 'V2']);
+});
+
+test('relay catalog does not invent unknown or ambiguous Hyper-V support', async () => {
+  for (const value of ['', 'V3', 'V1,V1']) {
+    const f = fixture();
+    f.skus[0].capabilities.push({ name: 'HyperVGenerations', value });
+    const catalog = await resolveAzureRelayCatalog(source, selected, f.api);
+    expect(catalog.vmSizes[0].architecture).toBe('x64');
+    expect(catalog.vmSizes[0].hyperVGenerations).toBeUndefined();
+  }
+  const missing = await resolveAzureRelayCatalog(source, selected, fixture().api);
+  expect(missing.vmSizes[0].hyperVGenerations).toBeUndefined();
+  const duplicate = fixture();
+  duplicate.skus[0].capabilities.push(
+    { name: 'HyperVGenerations', value: 'V1' },
+    { name: 'HyperVGenerations', value: 'V2' },
+  );
+  expect(
+    (await resolveAzureRelayCatalog(source, selected, duplicate.api)).vmSizes[0].hyperVGenerations,
+  ).toBeUndefined();
+});

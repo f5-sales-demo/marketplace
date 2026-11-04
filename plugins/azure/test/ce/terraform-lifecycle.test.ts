@@ -43,6 +43,8 @@ function lifecyclePlan(operation: 'start' | 'stop' | 'resize', ha = false) {
   observed.regions[0].quotaAvailable = 96;
   observed.regions[0].vmSizes.push({
     name: 'Standard_D16s_v5',
+    architecture: 'x64',
+    hyperVGenerations: ['V1', 'V2'],
     maxNics: 8,
     vCpus: 16,
     memoryGb: 64,
@@ -445,6 +447,8 @@ test.each(['start', 'resize'] as const)(
     observed.regions[0].quotaAvailable = 96;
     observed.regions[0].vmSizes.push({
       name: 'Standard_D16s_v5',
+      architecture: 'x64',
+      hyperVGenerations: ['V1', 'V2'],
       maxNics: 8,
       vCpus: 16,
       memoryGb: 64,

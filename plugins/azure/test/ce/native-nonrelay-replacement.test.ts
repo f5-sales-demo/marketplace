@@ -446,13 +446,14 @@ for (const changed of [false, true])
         second = await f.complete(2, 2);
       const controller = new AbortController();
       const absence = f.runtime.unregisteredAbsence.bind(f.runtime);
-      let seen = false,
+      const historyNames = [first, second].map((generation) => azureNativeReplacementHistoryName(generation.plan));
+      let seenCompleteHistory = false,
         interrupted = false;
       f.runtime.unregisteredAbsence = async (...args) => {
         const names = await readdir(f.storage.directory);
-        const exists = names.includes(azureNativeReplacementHistoryName(first.plan));
-        if (exists) seen = true;
-        if (seen && !exists && !interrupted) {
+        const remaining = historyNames.filter((name) => names.includes(name));
+        if (remaining.length === 2) seenCompleteHistory = true;
+        if (seenCompleteHistory && remaining.length === 1 && !interrupted) {
           interrupted = true;
           controller.abort(new Error('simulated generation artifact deletion interruption'));
         }
@@ -465,7 +466,9 @@ for (const changed of [false, true])
       f.runtime.unregisteredAbsence = absence;
       const before = [...f.order];
       if (changed) {
-        const name = azureNativeReplacementHistoryName(second.plan);
+        const remaining = (await readdir(f.storage.directory)).filter((name) => historyNames.includes(name));
+        expect(remaining).toHaveLength(1);
+        const name = remaining[0];
         const record = (await f.storage.read(name)) as Record<string, unknown>;
         await f.storage.write(name, { ...record, kind: 'foreign' });
         await expect(f.retire([first, second])).rejects.toThrow();

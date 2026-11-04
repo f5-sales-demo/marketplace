@@ -16574,6 +16574,7 @@ async function resolveAzureLinuxHostCatalog(source, selection, api, signal) {
   );
   const size = {
     name: selection.vmSize,
+    ...readAzureSkuHardware(sku),
     maxNics: number('MaxNetworkInterfaces', true),
     vCpus: number('vCPUs', true),
     memoryGb: number('MemoryGB', false),

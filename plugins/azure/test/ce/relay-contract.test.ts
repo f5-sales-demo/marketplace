@@ -1075,6 +1075,9 @@ function nativeExecutionFixture(sourceOverride?: AzureCePlan) {
               restrictions: [],
               capabilities: [
                 { name: 'CpuArchitectureType', value: 'x64' },
+                ...(size.hyperVGenerations
+                  ? [{ name: 'HyperVGenerations', value: size.hyperVGenerations.join(',') }]
+                  : []),
                 { name: 'MaxNetworkInterfaces', value: String(size.maxNics) },
                 { name: 'vCPUs', value: String(size.vCpus) },
                 { name: 'MemoryGB', value: String(size.memoryGb) },
@@ -7886,3 +7889,21 @@ for (const engine of ['native', 'terraform'] as const)
         expect(f.mutations).toBe(0);
         expect(f.saved.has('relay-routing-workflow.json')).toBe(false);
       });
+
+test('changed relay SKU generations reject before native resource submission', async () => {
+  const f = nativeExecutionFixture();
+  const original = f.api.exec;
+  f.api.exec = async (command, args, options) => {
+    const result = await original(command, args, options);
+    if (args[0] === 'vm' && args[1] === 'list-skus') {
+      const skus = JSON.parse(result.stdout);
+      skus[0].capabilities.find((value: { name: string }) => value.name === 'HyperVGenerations').value = 'V1';
+      return { ...result, stdout: JSON.stringify(skus) };
+    }
+    return result;
+  };
+  await expect(ensureAzureRelayNativeResources(f.source, f.plan, f.storage, f.api)).rejects.toThrow(
+    'current catalog differs',
+  );
+  expect(f.puts).toBe(0);
+});
