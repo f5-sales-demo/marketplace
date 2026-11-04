@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
@@ -8,6 +8,7 @@ import { linuxMonotonicMs } from '../src/linux-clock';
 import {
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
+  signalFreeBootstrapSource,
   signalFreeTerraformExecutor,
 } from '../src/signal-free-executor';
 
@@ -56,6 +57,64 @@ async function fixture(
 }
 
 describe('signal-free original executor on Linux', () => {
+  test('bootstrap readiness is published only after the complete immutable JSON is durable', async () => {
+    const run = await fixture('print("must-not-execute")\n');
+    await mkdir(join(run.root, 'executor-diagnostics'));
+    const source = join(run.root, 'slow-bootstrap.py');
+    const ready = join(run.root, 'ready.json');
+    const slowWriter = `import json,time
+def slow_dump(value,stream):
+ raw=json.dumps(value)
+ stream.write(raw[:1]);stream.flush()
+ time.sleep(0.3)
+ stream.write(raw[1:])
+json.dump=slow_dump
+`;
+    await writeFile(source, slowWriter + signalFreeBootstrapSource, { mode: 0o400 });
+    const child = Bun.spawn([python, '-I', '-B', source, ready, python, run.script], {
+      cwd: run.root,
+      env: {},
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const output = new Response(child.stdout).text();
+    const errors = new Response(child.stderr).text();
+    try {
+      const deadline = linuxMonotonicMs() + 3000;
+      while (!(await Bun.file(ready).exists()) && linuxMonotonicMs() < deadline) await Bun.sleep(10);
+      expect(await Bun.file(ready).exists()).toBe(true);
+      const evidence = JSON.parse(await readFile(ready, 'utf8'));
+      expect(evidence.pid).toBe(child.pid);
+      expect((await lstat(ready)).mode & 0o777).toBe(0o400);
+    } finally {
+      await child.stdin.end();
+      await child.exited;
+      await Promise.all([output, errors]);
+    }
+    expect(await child.exited).toBe(73);
+  });
+
+  test('ambient Python and native-loader injection refuses before launching the original gate', async () => {
+    const run = await fixture('print("must-not-run")\n');
+    for (const key of [
+      'PYTHONPATH',
+      'PYTHONHOME',
+      'PYTHONSTARTUP',
+      'PYTHONINSPECT',
+      'PYTHONUSERBASE',
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'DYLD_INSERT_LIBRARIES',
+    ]) {
+      await expect(
+        run.executor({ cwd: run.root, args: [run.script], env: { [key]: '/foreign/loader' } }),
+      ).rejects.toThrow('loader substitution');
+    }
+    expect(run.captures).toHaveLength(0);
+    expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(false);
+  });
+
   test('trusted capture starts against the original gated identity before command release', async () => {
     let observed = false;
     const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {

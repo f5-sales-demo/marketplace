@@ -10,6 +10,11 @@ export function terraformInstallArgv(platform = process.platform): string[] {
   return ['python3', join(import.meta.dir, '../scripts/install_terraform.py')];
 }
 
+export function terraformRuntimeInstallArgv(platform = process.platform): string[] {
+  if (platform !== 'linux') throw new Error('Qualified observer runtime requires Linux AMD64');
+  return ['python3', '-I', '-B', join(import.meta.dir, '../scripts/install_runtime.py')];
+}
+
 export default function terraformIntegration(pi: ExtensionApi) {
   pi.integrations.register({
     id: 'terraform',
@@ -26,14 +31,24 @@ export default function terraformIntegration(pi: ExtensionApi) {
           argv: terraformInstallArgv(),
           timeoutMs: 300_000,
         },
+        ...(process.platform === 'linux'
+          ? [{ kind: 'install', argv: terraformRuntimeInstallArgv(), timeoutMs: 300_000 }]
+          : []),
       ],
-      verification: [{ argv: ['terraform', 'version'], timeoutMs: 30_000 }],
+      verification: [
+        { argv: ['terraform', 'version'], timeoutMs: 30_000 },
+        ...(process.platform === 'linux'
+          ? [{ argv: [...terraformRuntimeInstallArgv(), '--check'], timeoutMs: 30_000 }]
+          : []),
+      ],
     },
     async probe() {
       try {
-        return Bun.spawnSync(['terraform', 'version']).exitCode === 0
-          ? { state: 'ready' }
-          : { state: 'setup_required', reason: 'cli_missing' };
+        if (Bun.spawnSync(['terraform', 'version']).exitCode !== 0)
+          return { state: 'setup_required', reason: 'cli_missing' };
+        if (process.platform === 'linux' && Bun.spawnSync([...terraformRuntimeInstallArgv(), '--check']).exitCode !== 0)
+          return { state: 'setup_required', reason: 'observer_runtime_missing_or_unverified' };
+        return { state: 'ready' };
       } catch (error) {
         if ((error as { code?: string } | null)?.code === 'ENOENT')
           return { state: 'setup_required', reason: 'cli_missing' };

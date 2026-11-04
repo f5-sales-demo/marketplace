@@ -60,7 +60,7 @@ export interface SignalFreeExecutionPolicy {
 const hash = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
 const now = linuxMonotonicMs;
 const pause = () => Bun.sleep(25);
-const gate = `import hashlib,json,os,sys,time
+export const signalFreeBootstrapSource = `import hashlib,json,os,sys,time
 import psutil
 os.umask(0o077)
 os.setsid()
@@ -76,9 +76,12 @@ birth=btime+int(fields[19])/ticks
 if process.pid!=pid or process.ppid()!=int(fields[1]) or process.uids().real!=os.getuid() or abs(process.create_time()-birth)>1/ticks:
  raise RuntimeError('Independent original process identity differs')
 value={'pid':pid,'group':int(fields[2]),'start':fields[19],'boot':boot,'ppid':int(fields[1]),'pythonSha256':hashlib.sha256(open(exe,'rb').read()).hexdigest(),'sdkCreateTime':process.create_time(),'monotonicMs':time.monotonic_ns()//1000000}
-with open(sys.argv[1],'x') as out:
+partial=sys.argv[1]+'.partial'
+with open(partial,'x') as out:
  json.dump(value,out);out.flush();os.fsync(out.fileno())
-os.chmod(sys.argv[1],0o400)
+os.chmod(partial,0o400)
+os.link(partial,sys.argv[1])
+os.unlink(partial)
 if sys.stdin.buffer.readline(4)!=b'go\\n' or sys.stdin.buffer.read(1)!=b'': sys.exit(73)
 os.execve(sys.argv[2],[sys.argv[2],*sys.argv[3:]],dict(os.environ))
 `;
@@ -162,6 +165,19 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
   return async ({ cwd, args: inputArgs, env: inputEnvironment, signal }) => {
     const args = [...inputArgs];
     const env = { ...inputEnvironment };
+    if (
+      [
+        'PYTHONPATH',
+        'PYTHONHOME',
+        'PYTHONSTARTUP',
+        'PYTHONINSPECT',
+        'PYTHONUSERBASE',
+        'LD_PRELOAD',
+        'LD_LIBRARY_PATH',
+        'DYLD_INSERT_LIBRARIES',
+      ].some((key) => env[key] !== undefined)
+    )
+      throw new Error('Original execution loader substitution refused');
     const began = now();
     if (began < policy.originalStartMs || began >= policy.originalDeadlineMs)
       throw new Error('Original operation deadline exhausted');
@@ -189,7 +205,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     await mkdir(root, { recursive: true, mode: 0o700 });
     const script = join(root, 'gate.py');
     const bootstrap = join(root, 'bootstrap.json');
-    await writeFile(script, gate, { flag: 'wx', mode: 0o400 });
+    await writeFile(script, signalFreeBootstrapSource, { flag: 'wx', mode: 0o400 });
     const stdoutPath = join(root, 'stdout.private');
     const stderrPath = join(root, 'stderr.private');
     const stdout = await open(
@@ -252,7 +268,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       }
     };
     try {
-      child = Bun.spawn([policy.python.path, '-B', script, bootstrap, policy.executable.path, ...args], {
+      child = Bun.spawn([policy.python.path, '-I', '-B', script, bootstrap, policy.executable.path, ...args], {
         cwd,
         env: { ...env },
         stdin: 'pipe',
