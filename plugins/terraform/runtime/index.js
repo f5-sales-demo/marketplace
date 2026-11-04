@@ -1689,10 +1689,19 @@ async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
 
 // plugins/terraform/src/service.ts
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
-function createCeTerraformService(platform, options = {}) {
+function freezeRuntime(options) {
   const execute = options.execute;
-  const googleAdc = options.googleAdc ? { ...options.googleAdc, acquire: options.googleAdc.acquire } : undefined;
+  const googleAdc = options.googleAdc
+    ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
+    : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
+  return Object.freeze({ execute, googleAdc });
+}
+function createCeTerraformService(platform, options = {}) {
+  const defaults = freezeRuntime(options);
+  const resolveRuntime = options.resolveRuntime;
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc))
+    throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -1713,6 +1722,17 @@ function createCeTerraformService(platform, options = {}) {
       const directory = deployment.stage
         ? join3(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
+      const { execute, googleAdc } = resolveRuntime
+        ? freezeRuntime(
+            await resolveRuntime({
+              owner: structuredClone(owner),
+              deployment: structuredClone(deployment),
+              directory,
+              resume,
+              platform: shared,
+            }),
+          )
+        : defaults;
       let adcSession;
       let originalLease;
       let retiring = false;
