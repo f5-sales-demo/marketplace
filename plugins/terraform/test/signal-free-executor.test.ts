@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { linuxMonotonicMs } from '../src/linux-clock';
-import { type FinalExecutionCapture, signalFreeTerraformExecutor } from '../src/signal-free-executor';
+import {
+  type FinalExecutionCapture,
+  type SignalFreeExecutionPolicy,
+  signalFreeTerraformExecutor,
+} from '../src/signal-free-executor';
 
 const python = process.env.CE_TEST_PYTHON ?? Bun.which('python3') ?? '';
 const hash = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -24,7 +28,7 @@ afterEach(async () => {
 });
 async function fixture(
   body: string,
-  limits: { timeoutMs?: number; maxOutputBytes?: number; startupTimeoutMs?: number } = {},
+  limits: Pick<SignalFreeExecutionPolicy, 'timeoutMs' | 'maxOutputBytes' | 'startupTimeoutMs' | 'beforeRelease'> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-signal-free-'));
   directories.push(root);
@@ -52,6 +56,90 @@ async function fixture(
 }
 
 describe('signal-free original executor on Linux', () => {
+  test('trusted capture starts against the original gated identity before command release', async () => {
+    let observed = false;
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      beforeRelease: async (admission) => {
+        expect(await Bun.file(join(admission.directory, 'executed')).exists()).toBe(false);
+        const raw = await readFile(`/proc/${admission.identity.pid}/stat`, 'utf8');
+        const fields = raw
+          .slice(raw.lastIndexOf(') ') + 2)
+          .trim()
+          .split(/\s+/);
+        expect(admission.identity.start).toBe(fields[19]);
+        expect(admission.identity.group).toBe(admission.identity.pid);
+        expect(admission.identity.boot).toBe((await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim());
+        expect(Object.isFrozen(admission)).toBe(true);
+        expect(Object.isFrozen(admission.identity)).toBe(true);
+        expect(Object.isFrozen(admission.args)).toBe(true);
+        expect(await Bun.file(admission.stdoutPath).exists()).toBe(true);
+        observed = true;
+      },
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(observed).toBe(true);
+    expect(result.code).toBe(0);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(true);
+  });
+
+  test('capture startup failure prevents submission and still invokes independent final capture', async () => {
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      beforeRelease: async () => {
+        throw new Error('reader authentication unavailable');
+      },
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(result.code).toBe(1);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
+    expect(run.captures).toHaveLength(1);
+    expect(run.captures[0].submitted).toBe(false);
+    expect(run.captures[0].reason).toBe('startup');
+    expect(run.captures[0].originalGroupClosed).toBe(true);
+    expect(run.captures[0].signalsSent).toBe(false);
+  });
+
+  test('lost original capture stream refuses release and reaches final capture with an unresolved claim', async () => {
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      beforeRelease: async (admission) => {
+        await rm(admission.stdoutPath);
+      },
+    });
+    run.finalChecks.push(async () => {
+      throw new Error('required original stream unavailable');
+    });
+    await expect(run.executor({ cwd: run.root, args: [run.script], env: {} })).rejects.toThrow(
+      'required original stream unavailable',
+    );
+    expect(run.captures).toHaveLength(1);
+    expect(run.captures[0].submitted).toBe(false);
+    expect(run.captures[0].reason).toBe('input-changed');
+    expect(run.captures[0].signalsSent).toBe(false);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
+    expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json')).exists()).toBe(true);
+  });
+
+  test('late reader startup cannot submit after the original startup budget and must settle before final capture', async () => {
+    let readerFinished = false;
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      startupTimeoutMs: 1500,
+      beforeRelease: async () => {
+        await Bun.sleep(1800);
+        readerFinished = true;
+      },
+    });
+    run.finalChecks.push(async () => {
+      expect(readerFinished).toBe(true);
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(result.code).toBe(1);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
+    expect(run.captures[0].submitted).toBe(false);
+    expect(run.captures[0].reason).toBe('startup');
+    expect(run.captures[0].invocationStartedMs).toBeGreaterThanOrEqual(run.started);
+    expect(run.captures[0].originalDeadlineMs).toBe(run.started + 7_200_000);
+    expect(run.captures[0].signalsSent).toBe(false);
+  });
+
   test('uses exact argv, retains private streams and closes the original group naturally', async () => {
     const run = await fixture(
       'import json,sys\nprint(json.dumps(sys.argv[1:]))\nprint("private-stderr",file=sys.stderr)\n',

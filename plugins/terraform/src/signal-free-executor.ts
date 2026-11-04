@@ -8,6 +8,16 @@ import { linuxMonotonicMs } from './linux-clock';
 import type { Executor } from './runner';
 
 type Reason = 'startup' | 'deadline' | 'cancelled' | 'input-changed' | 'output-limit';
+export interface ExecutionCaptureAdmission {
+  readonly directory: string;
+  readonly args: readonly string[];
+  readonly identity: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly stdoutPath: string;
+  readonly stderrPath: string;
+  readonly originalStartMs: number;
+  readonly originalDeadlineMs: number;
+  readonly startupDeadlineMs: number;
+}
 export interface FinalExecutionCapture {
   invocationStartedMs: number;
   finalStartedMs: number;
@@ -34,6 +44,11 @@ export interface SignalFreeExecutionPolicy {
   originalDeadlineMs: number;
   /** Server-owned lifetime guard; must retain the original input monitor and owner. */
   assertOriginal(): Promise<void>;
+  /** Start trusted readers against the verified gated identity before command release.
+   * Failure or late completion prevents submission. Pending startup must settle
+   * before final capture can prove reader closure; its original reserve cannot reset.
+   */
+  beforeRelease?(admission: ExecutionCaptureAdmission): Promise<void>;
   /** Retain final evidence and independently close original readers before resolving.
    * Returning does not itself establish guest/cloud acceptance.
    */
@@ -127,6 +142,7 @@ async function pinned(binding: ExecutableBinding) {
 /** Signal-free execution for a trusted server policy. Never resumes or replaces an original child. */
 export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): Executor {
   const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
+  const beforeRelease = policy.beforeRelease;
   if (
     process.platform !== 'linux' ||
     !Number.isSafeInteger(policy.originalStartMs) ||
@@ -134,6 +150,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     policy.originalStartMs < 0 ||
     policy.originalDeadlineMs !== policy.originalStartMs + 7_200_000 ||
     typeof policy.assertOriginal !== 'function' ||
+    (beforeRelease !== undefined && typeof beforeRelease !== 'function') ||
     typeof policy.finalCapture !== 'function'
   )
     throw new Error('Original Linux operation budget and trusted lifetime policy required');
@@ -196,6 +213,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     let actualExitCode: number | null = null;
     let groupClosed = false;
     let captureClosed = false;
+    let captureStartup: Promise<void> | undefined;
     const fail = (value: Reason) => {
       if (!reason) reason = value;
       finalStarted ??= now();
@@ -214,7 +232,15 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
         [stdoutPath, outIdentity],
         [stderrPath, errIdentity],
       ] as const) {
-        const current = await lstat(path, { bigint: true });
+        let current: typeof original;
+        try {
+          current = await lstat(path, { bigint: true });
+        } catch {
+          // Lost or inaccessible evidence must still reach the original final
+          // capture window. Throwing here would skip that capture entirely.
+          fail('input-changed');
+          continue;
+        }
         if (
           current.ino !== original.ino ||
           current.dev !== original.dev ||
@@ -273,6 +299,42 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
           release = await acquireProcessLock(lock, child.pid, { trackProcessGroup: true });
           await check();
           if (now() >= startupDeadline) fail('startup');
+          if (!reason && beforeRelease) {
+            const admission: ExecutionCaptureAdmission = Object.freeze({
+              directory: cwd,
+              args: Object.freeze([...args]),
+              identity: Object.freeze({
+                pid: evidence.pid,
+                group: evidence.group,
+                start: evidence.start,
+                boot: evidence.boot,
+              }),
+              stdoutPath,
+              stderrPath,
+              originalStartMs: policy.originalStartMs,
+              originalDeadlineMs: policy.originalDeadlineMs,
+              startupDeadlineMs: startupDeadline,
+            });
+            captureStartup = Promise.resolve().then(() => beforeRelease(admission));
+            let startupTimer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              await Promise.race([
+                captureStartup,
+                new Promise<never>((_resolve, reject) => {
+                  startupTimer = setTimeout(
+                    () => reject(new Error('Original capture startup deadline exhausted')),
+                    Math.max(0, startupDeadline - now()),
+                  );
+                }),
+              ]);
+            } catch {
+              fail('startup');
+            } finally {
+              if (startupTimer) clearTimeout(startupTimer);
+            }
+            await check();
+            if (now() >= startupDeadline || actualExitCode !== null) fail('startup');
+          }
         }
       } else if (!reason) fail('startup');
       if (!reason) {
@@ -333,7 +395,13 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       let captureTimer: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
-          policy.finalCapture(Object.freeze(capture)),
+          (async () => {
+            // An abandoned startup callback can still open readers later. Do not
+            // accept closure evidence until that same callback has finished.
+            await captureStartup?.catch(() => undefined);
+            if (now() >= capture.finalDeadlineMs) throw new Error('Original final capture deadline exhausted');
+            await policy.finalCapture(Object.freeze(capture));
+          })(),
           new Promise<never>((_resolve, reject) => {
             captureTimer = setTimeout(
               () => reject(new Error('Original final capture deadline exhausted')),
