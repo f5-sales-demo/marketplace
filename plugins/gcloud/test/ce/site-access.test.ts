@@ -1,5 +1,5 @@
 import { expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import { translateGcpNativeCompute, translateGcpPublicTerraformSiteCompute } from '../../src/ce/compute-plan';
 import { collectGcpDeploymentPrerequisites } from '../../src/ce/deployment-review';
 import { fingerprint } from '../../src/ce/discovery';
@@ -168,12 +168,7 @@ it('public tools report the concrete unsupported Site access mapping before exte
     calls++;
     throw new Error('must not run');
   };
-  const tools = createGcpCeTools(
-    { typebox: { Type } } as unknown as PluginInterface,
-    () => ({ exec: never }),
-    undefined,
-    never,
-  );
+  const tools = createGcpCeTools({ typebox } as unknown as PluginInterface, () => ({ exec: never }), undefined, never);
   for (const name of ['gcp_ce_plan', 'gcp_ce_apply']) {
     const tool = tools.find((tool) => tool.name === name);
     if (!tool) throw new Error('tool missing');

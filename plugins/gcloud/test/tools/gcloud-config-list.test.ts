@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import { createGcloudConfigListTool } from '../../src/tools/gcloud-config-list';
 
-const mockTypebox = { Type };
+const mockTypebox = typebox;
 
 describe('createGcloudConfigListTool metadata', () => {
   const tool = createGcloudConfigListTool({ typebox: mockTypebox });

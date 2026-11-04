@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'bun:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { GCP_CE_API_RELEASE } from '../../src/ce/contract';
@@ -256,7 +256,7 @@ it('typed Terraform teardown preserves owning engine and never exports execution
     }),
   } as unknown as CePlatformService;
   const tools = createGcpCeTools(
-    { typebox: { Type } },
+    { typebox },
     () => f.runtime.api,
     async () => f.contract,
     async () => platform,

@@ -1,9 +1,11 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
+import { withTerraformSession } from '../../../terraform/src/session-lifetime';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { fingerprint } from './discovery';
 import { assertGcpSiteAccessProfile } from './site-access';
 import { publicTerraformContextHash } from './terraform-context';
+import { googleTerraformEnvironment } from './terraform-google-environment';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from './terraform-public-artifacts';
 import { openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
 import type { GcpCeIntent } from './types';
@@ -43,39 +45,47 @@ export async function openPublicTerraformRuntime(
   const session = inputs
     ? await resumeGcpTerraformSession(platform, intent, installedService)
     : await openGcpTerraformSession(platform, expected.inputs, false, installedService);
-  if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
-  const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
-  if (!observations.teardown || !observations.terraformEnvironment)
-    throw new Error('Qualified Terraform runtime channels unavailable');
-  const credentials = await observations.terraformEnvironment();
-  const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
-  let originalContext: unknown;
   try {
-    originalContext = await store.read('gcp-tf-public-platform-context.json');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    // A crash before the initial context receipt can resume only before authorization.
+    if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
+    const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
+    if (!observations.teardown || !observations.terraformEnvironment)
+      throw new Error('Qualified Terraform runtime channels unavailable');
+    const credentials = await observations.terraformEnvironment();
+    const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
+    let originalContext: unknown;
     try {
-      await store.read('gcp-tf-deploy-original-authorization.json');
-      throw new Error('Original authorized public Terraform context receipt unavailable');
-    } catch (authorizationError) {
-      if ((authorizationError as NodeJS.ErrnoException).code !== 'ENOENT') throw authorizationError;
+      originalContext = await store.read('gcp-tf-public-platform-context.json');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      // A crash before the initial context receipt can resume only before authorization.
+      try {
+        await store.read('gcp-tf-deploy-original-authorization.json');
+        throw new Error('Original authorized public Terraform context receipt unavailable');
+      } catch (authorizationError) {
+        if ((authorizationError as NodeJS.ErrnoException).code !== 'ENOENT') throw authorizationError;
+      }
+      await store.write('gcp-tf-public-platform-context.json', context);
+      originalContext = context;
     }
-    await store.write('gcp-tf-public-platform-context.json', context);
-    originalContext = context;
+    if (fingerprint(originalContext) !== fingerprint(context))
+      throw new Error('Original public Terraform context endpoint changed');
+    const environment = await googleTerraformEnvironment(
+      session,
+      api,
+      intent,
+      { ...process.env, ...credentials },
+      signal,
+    );
+    return {
+      store,
+      session,
+      api,
+      observePlatform: observations.teardown,
+      environment,
+    };
+  } catch (error) {
+    return withTerraformSession(session, async () => {
+      throw error;
+    });
   }
-  if (fingerprint(originalContext) !== fingerprint(context))
-    throw new Error('Original public Terraform context endpoint changed');
-  const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
-    signal,
-  });
-  if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
-    throw new Error('Scoped Terraform Google authentication unavailable');
-  return {
-    store,
-    session,
-    api,
-    observePlatform: observations.teardown,
-    environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
-  };
 }

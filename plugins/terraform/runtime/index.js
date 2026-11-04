@@ -1,18 +1,211 @@
 // @bun
 // plugins/terraform/src/service.ts
 
+// plugins/terraform/src/google-adc-session.ts
+import { createHash } from 'node:crypto';
+import { constants, watch } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, join as join3, resolve } from 'node:path';
+
+var googleCredentialAlternatives = Object.freeze([
+  'GOOGLE_OAUTH_ACCESS_TOKEN',
+  'GOOGLE_ACCESS_TOKEN',
+  'GOOGLE_CREDENTIALS',
+  'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT',
+  'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES',
+  'GCLOUD_KEYFILE_JSON',
+  'GOOGLE_CLOUD_KEYFILE_JSON',
+]);
+var hash = (value) => createHash('sha256').update(value).digest('hex');
+var validHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+var sameOwner = (a, b) =>
+  a?.engine === 'terraform' &&
+  a.provider === 'gcp' &&
+  b?.engine === a.engine &&
+  b.provider === a.provider &&
+  a.deploymentId === b.deploymentId &&
+  a.account === b.account &&
+  a.region === b.region;
+async function fileMetadata(path) {
+  const stat = await lstat(path, { bigint: true });
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== BigInt(process.getuid?.() ?? -1) ||
+    stat.nlink !== 1n ||
+    (stat.mode & 0o777n) !== 0o400n ||
+    stat.size < 1n ||
+    stat.size > 65536n
+  )
+    throw new Error('Immutable private Google ADC snapshot required');
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+    uid: stat.uid,
+    mode: stat.mode,
+    size: stat.size,
+    ctimeNs: stat.ctimeNs,
+    mtimeNs: stat.mtimeNs,
+  };
+}
+var sameMetadata = (a, b) => Object.keys(a).every((key) => a[key] === b[key]);
+async function openGoogleAdcSession(input, expectedInput) {
+  const expected = { ...expectedInput, owner: structuredClone(expectedInput.owner) };
+  const lease = { ...input, owner: structuredClone(input.owner) };
+  const now = Date.now();
+  if (
+    lease.schemaVersion !== 1 ||
+    lease.kind !== 'google-adc-snapshot' ||
+    !sameOwner(lease.owner, expected.owner) ||
+    typeof lease.assertOriginal !== 'function' ||
+    typeof lease.closeAfterExecutorExit !== 'function' ||
+    !isAbsolute(expected.directory) ||
+    resolve(expected.directory) !== expected.directory ||
+    !isAbsolute(lease.snapshotPath) ||
+    resolve(lease.snapshotPath) !== lease.snapshotPath ||
+    dirname(lease.snapshotPath) !== expected.directory ||
+    !Number.isSafeInteger(lease.verifiedAt) ||
+    !Number.isSafeInteger(lease.expiresNoEarlierThan) ||
+    lease.verifiedAt > now ||
+    now - lease.verifiedAt >= 300000 ||
+    lease.expiresNoEarlierThan - now <= 360000 ||
+    lease.expiresNoEarlierThan - lease.verifiedAt > 3600000
+  )
+    throw new Error('Fresh reviewed Google ADC lease and owning workspace required');
+  for (const key of [
+    'snapshotSha256',
+    'accountSha256',
+    'audienceSha256',
+    'authenticationReceiptSha256',
+    'qualificationSha256',
+  ])
+    if (!validHash(lease[key])) throw new Error('Exact Google ADC review hashes required');
+  for (const key of ['accountSha256', 'audienceSha256', 'qualificationSha256'])
+    if (!validHash(expected[key]) || expected[key] !== lease[key])
+      throw new Error('Google ADC principal, audience or qualification changed');
+  const originalDirectory = await lstat(expected.directory, { bigint: true });
+  const directory = async () => {
+    const current = await lstat(expected.directory, { bigint: true });
+    if (
+      !current.isDirectory() ||
+      current.isSymbolicLink() ||
+      current.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (current.mode & 0o777n) !== 0o700n ||
+      current.dev !== originalDirectory.dev ||
+      current.ino !== originalDirectory.ino ||
+      (await realpath(expected.directory)) !== expected.directory
+    )
+      throw new Error('Original private Google ADC workspace changed');
+  };
+  await directory();
+  const original = await fileMetadata(lease.snapshotPath);
+  let refused = false;
+  let retiring = false;
+  let closed = false;
+  let closure;
+  const watcher = watch(lease.snapshotPath, { persistent: false }, () => {
+    refused = true;
+    watcher.close();
+  });
+  watcher.on('error', () => {
+    refused = true;
+    watcher.close();
+  });
+  const watcherClosed = new Promise((resolve) => watcher.once('close', resolve));
+  const close = () => {
+    retiring = true;
+    if (closed) return Promise.resolve();
+    if (!closure)
+      closure = (async () => {
+        await lease.closeAfterExecutorExit();
+        watcher.close();
+        let timer;
+        try {
+          await Promise.race([
+            watcherClosed,
+            new Promise((_resolve, reject) => {
+              timer = setTimeout(() => reject(new Error('Original ADC observer closure unresolved')), 1000);
+            }),
+          ]);
+          closed = true;
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      })().catch((error) => {
+        closure = undefined;
+        throw error;
+      });
+    return closure;
+  };
+  const verify = async (env) => {
+    if (refused || retiring) throw new Error('Original Google ADC session remains refused');
+    try {
+      if (
+        env.GOOGLE_APPLICATION_CREDENTIALS !== lease.snapshotPath ||
+        googleCredentialAlternatives.some((key) => env[key] !== undefined)
+      )
+        throw new Error('Google ADC source substitution refused');
+      await lease.assertOriginal();
+      await directory();
+      if (!sameMetadata(original, await fileMetadata(lease.snapshotPath)))
+        throw new Error('Original Google ADC snapshot identity changed');
+      const handle = await open(lease.snapshotPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+      try {
+        const opened = await handle.stat({ bigint: true });
+        if (opened.dev !== original.dev || opened.ino !== original.ino || !opened.isFile())
+          throw new Error('Original Google ADC snapshot replaced during open');
+        const bytes = await handle.readFile();
+        if (hash(bytes) !== lease.snapshotSha256 || !sameMetadata(original, await fileMetadata(lease.snapshotPath)))
+          throw new Error('Original Google ADC snapshot bytes changed');
+        const credential = JSON.parse(bytes.toString('utf8'));
+        if (
+          credential?.type !== 'authorized_user' ||
+          typeof credential.client_id !== 'string' ||
+          hash(credential.client_id) !== lease.audienceSha256 ||
+          typeof credential.client_secret !== 'string' ||
+          !credential.client_secret ||
+          typeof credential.refresh_token !== 'string' ||
+          !credential.refresh_token ||
+          (credential.quota_project_id !== undefined && credential.quota_project_id !== lease.owner.account) ||
+          (credential.token_uri !== undefined && credential.token_uri !== 'https://oauth2.googleapis.com/token') ||
+          (credential.universe_domain !== undefined && credential.universe_domain !== 'googleapis.com') ||
+          (credential.account !== undefined &&
+            credential.account !== '' &&
+            (typeof credential.account !== 'string' || hash(credential.account) !== lease.accountSha256)) ||
+          ['client_id', 'client_secret', 'refresh_token'].some(
+            (key) => typeof credential[key] !== 'string' || !credential[key] || /[\0\r\n]/.test(credential[key]),
+          )
+        )
+          throw new Error('Qualified authorized-user Google ADC mapping required');
+      } finally {
+        await handle.close();
+      }
+      await directory();
+      await lease.assertOriginal();
+      if (refused || retiring) throw new Error('Original Google ADC input event observed');
+    } catch {
+      refused = true;
+      watcher.close();
+      throw new Error('Original reviewed Google ADC session verification failed');
+    }
+  };
+  const environment = () => Object.freeze({ GOOGLE_APPLICATION_CREDENTIALS: lease.snapshotPath });
+  await verify(environment());
+  return Object.freeze({ environment, verify, close });
+}
+
 // plugins/terraform/src/runner.ts
 // plugins/platform/src/ce/process-lock.ts
-import { createHash, randomUUID, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash2, randomUUID, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
-  lstat,
   lstat as lstat2,
+  lstat as lstat3,
   mkdir,
   mkdir as mkdir2,
   readFile,
   readFile as readFile2,
-  realpath,
+  realpath as realpath2,
   rename,
   rename as rename2,
   rm,
@@ -20,7 +213,14 @@ import {
   writeFile,
   writeFile as writeFile2,
 } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, join as join2, join as join3, resolve } from 'node:path';
+import {
+  basename,
+  dirname as dirname2,
+  isAbsolute as isAbsolute2,
+  join,
+  join as join2,
+  resolve as resolve2,
+} from 'node:path';
 
 var tokenPattern = /^[a-f0-9-]{36}$/;
 var bootPattern = /^[a-f0-9-]{36}$/;
@@ -98,12 +298,12 @@ function claim(value) {
   return row;
 }
 async function readClaim(path) {
-  const stat = await lstat(path);
+  const stat = await lstat2(path);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
     throw new Error('Operation lock evidence cannot be reconciled');
   try {
     const claimPath = join(path, 'claim.json');
-    const claimStat = await lstat(claimPath);
+    const claimStat = await lstat2(claimPath);
     if (
       !claimStat.isFile() ||
       claimStat.isSymbolicLink() ||
@@ -133,7 +333,7 @@ async function acquireProcessLock(path, ownerPid = process.pid) {
     bootId: currentBootId,
     processStartTicks: currentStart,
   };
-  const parent = dirname(path);
+  const parent = dirname2(path);
   for (let attempt = 0; attempt < 4; attempt++) {
     const candidate = join(parent, `${basename(path)}.claim-${mine.token}`);
     await mkdir(candidate, { mode: 448 });
@@ -208,7 +408,7 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `;
-var digest = (value) => createHash('sha256').update(value).digest('hex');
+var digest = (value) => createHash2('sha256').update(value).digest('hex');
 function object(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
@@ -294,18 +494,18 @@ function inspectActionInvocations(plan, expected) {
 }
 async function privateDirectory(path) {
   await mkdir2(path, { recursive: true, mode: 448 });
-  const stat = await lstat2(path);
+  const stat = await lstat3(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath(path)) !== path
+    (await realpath2(path)) !== path
   )
     throw new Error('Terraform storage ownership is invalid');
   await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat2(path);
+  const stat = await lstat3(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -586,7 +786,7 @@ class TerraformRunner {
   constructor(root, execute = executeTerraform) {
     this.root = root;
     this.execute = execute;
-    if (!isAbsolute(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (!isAbsolute2(root) || resolve2(root) !== root) throw new Error('Terraform storage must be an absolute path');
   }
   async prepare(deployment) {
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
@@ -795,7 +995,7 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat2(join2(this.#directory, 'configuration-transition.json'));
+      await lstat3(join2(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
@@ -1369,10 +1569,31 @@ class TerraformRunner {
   }
 }
 
+// plugins/terraform/src/session-lifetime.ts
+async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
+  const outcome = await (async () => {
+    try {
+      return { succeeded: true, value: await operation() };
+    } catch (error) {
+      return { succeeded: false, error };
+    }
+  })();
+  try {
+    await finalCheck();
+  } catch (failure) {
+    if (!outcome.succeeded) throw new AggregateError([outcome.error, failure], combinedFailureMessage);
+    throw failure;
+  }
+  if (!outcome.succeeded) throw outcome.error;
+  return outcome.value;
+}
+
 // plugins/terraform/src/service.ts
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 function createCeTerraformService(platform, options = {}) {
   const execute = options.execute;
+  const googleAdc = options.googleAdc ? { ...options.googleAdc, acquire: options.googleAdc.acquire } : undefined;
+  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -1390,16 +1611,110 @@ function createCeTerraformService(platform, options = {}) {
       const store = await shared.storage(owner);
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
-      const runner = new TerraformRunner(
-        deployment.stage ? join3(store.directory, 'terraform-stages', deployment.stage) : store.directory,
-        execute,
-      );
+      const directory = deployment.stage
+        ? join3(store.directory, 'terraform-stages', deployment.stage)
+        : store.directory;
+      let adcSession;
+      let originalLease;
+      let retiring = false;
+      let inFlight = 0;
+      let disposal;
+      const policy = owner.provider === 'gcp' ? googleAdc : undefined;
+      const acquireAdc = () =>
+        (adcSession ??= (async () => {
+          if (!policy) throw new Error('Trusted Google ADC policy unavailable');
+          await shared.storage(owner);
+          const lease = await policy.acquire({
+            owner: structuredClone(owner),
+            deployment: structuredClone(deployment),
+            directory,
+            resume,
+          });
+          originalLease = Object.freeze({ ...lease, owner: structuredClone(lease.owner) });
+          return openGoogleAdcSession(originalLease, {
+            owner,
+            directory,
+            accountSha256: policy.accountSha256,
+            audienceSha256: policy.audienceSha256,
+            qualificationSha256: policy.qualificationSha256,
+          });
+        })());
+      const withAdc = async (operation) => {
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        inFlight++;
+        try {
+          return await operation(await acquireAdc());
+        } finally {
+          inFlight--;
+        }
+      };
+      const guardedExecute =
+        policy && execute
+          ? (request) =>
+              withAdc(async (adc) => {
+                const environment = { ...request.env, ...adc.environment() };
+                if (
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== undefined &&
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== environment.GOOGLE_APPLICATION_CREDENTIALS
+                )
+                  throw new Error('Original Google ADC source changed');
+                await adc.verify(environment);
+                return withFinalCheck(
+                  () => execute({ ...request, env: environment }),
+                  () => adc.verify(environment),
+                  'Original Terraform invocation and ADC verification failed',
+                );
+              })
+          : execute;
+      const runner = new TerraformRunner(directory, guardedExecute);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);
       };
       return {
+        ...(policy
+          ? {
+              googleAdcEnvironment: () =>
+                withAdc(async (adc) => {
+                  await checkOwner();
+                  const environment = adc.environment();
+                  await adc.verify(environment);
+                  return environment;
+                }),
+              closeGoogleAdc: () => {
+                retiring = true;
+                if (inFlight) return Promise.reject(new Error('Original Google ADC invocation is in flight'));
+                if (!disposal)
+                  disposal = (async () => {
+                    await checkOwner();
+                    if (!adcSession) return;
+                    let adc;
+                    try {
+                      adc = await adcSession;
+                    } catch {
+                      if (
+                        !originalLease ||
+                        originalLease.owner.deploymentId !== owner.deploymentId ||
+                        originalLease.owner.engine !== owner.engine ||
+                        originalLease.owner.provider !== owner.provider ||
+                        originalLease.owner.account !== owner.account ||
+                        originalLease.owner.region !== owner.region ||
+                        typeof originalLease.closeAfterExecutorExit !== 'function'
+                      )
+                        throw new Error('Original Google ADC lease closure ownership unavailable');
+                      await originalLease.closeAfterExecutorExit();
+                      return;
+                    }
+                    await adc.close();
+                  })().catch((error) => {
+                    disposal = undefined;
+                    throw error;
+                  });
+                return disposal;
+              },
+            }
+          : {}),
         async readStateIdentity() {
           await checkOwner();
           return runner.readStateIdentity();

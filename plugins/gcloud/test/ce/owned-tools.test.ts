@@ -1,12 +1,12 @@
 import { expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import { fingerprint } from '../../src/ce/discovery';
 import type { PluginInterface } from '../../src/gcloud/types';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
 
-const schema = { typebox: { Type } } as unknown as PluginInterface;
+const schema = { typebox } as unknown as PluginInterface;
 
 it('public deploy rejects wrong scope, engine and missing review before cloud access', async () => {
   let calls = 0;
@@ -435,4 +435,64 @@ it('explicit Terraform reports its optional installation prerequisite without op
   });
   expect(response.details.required).toContain('xcsh plugin install terraform');
   expect(opened).toBe(0);
+});
+
+it('asynchronous session shutdown errors stay inside the public tool error boundary', async () => {
+  const i = structuredClone(intent());
+  i.engine = 'terraform';
+  i.routing.destinationCidrs = [];
+  let closures = 0;
+  let cloudCalls = 0;
+  for (const closureFails of [false, true]) {
+    const tools = createGcpCeTools(
+      schema,
+      () => ({
+        exec: async () => {
+          cloudCalls++;
+          throw new Error('unexpected cloud execution');
+        },
+      }),
+      async () => {
+        throw new Error('prerequisite unavailable');
+      },
+      async () => ({}) as CePlatformService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      async () =>
+        ({
+          session: {
+            closeGoogleAdc: async () => {
+              closures++;
+              if (closureFails) throw new Error('original closure unresolved');
+            },
+          },
+        }) as Awaited<ReturnType<typeof import('../../src/ce/terraform-public-runtime').openPublicTerraformRuntime>>,
+    );
+    for (const name of ['gcp_ce_plan', 'gcp_ce_apply']) {
+      const tool = tools.find((tool) => tool.name === name);
+      if (!tool) throw new Error('missing Terraform tool');
+      const outcome = await tool
+        .execute(
+          'id',
+          {
+            project: i.project,
+            region: i.region,
+            engine: 'terraform',
+            operation: 'deploy',
+            intent: i,
+            ...(name === 'gcp_ce_apply' ? { approvedPlanHash: fingerprint('review') } : {}),
+          },
+          undefined,
+          null,
+          { cwd: '/tmp' },
+        )
+        .catch((error) => error);
+      expect(outcome.isError).toBe(true);
+      expect(outcome.details.mutationAttempted).toBe(false);
+    }
+  }
+  expect(closures).toBe(4);
+  expect(cloudCalls).toBe(0);
 });

@@ -117,7 +117,7 @@ test('discovery summarizes counts and units; unavailable plans retain false and 
   });
 });
 test('typed previews equal executed argv including help whitespace and literal filters', async () => {
-  const { Type } = await import('@sinclair/typebox');
+  const typebox = await import('@sinclair/typebox');
   const { createGcloudProjectsListTool } = await import('../src/tools/gcloud-projects-list');
   const { createGcloudComputeInstancesListTool } = await import('../src/tools/gcloud-compute-instances-list');
   const { createGcloudStorageBucketsListTool } = await import('../src/tools/gcloud-storage-buckets-list');
@@ -130,10 +130,10 @@ test('typed previews equal executed argv including help whitespace and literal f
     },
   });
   const cases = [
-    [createGcloudProjectsListTool({ typebox: { Type } }, api), { filter: 'name="$literal"', limit: 1 }],
-    [createGcloudComputeInstancesListTool({ typebox: { Type } }, api), { zone: 'us-central1-a', limit: 2 }],
-    [createGcloudStorageBucketsListTool({ typebox: { Type } }, api), { filter: 'location=US' }],
-    [createGcloudHelpTool({ typebox: { Type } }, api), { command_path: ' compute  instances ' }],
+    [createGcloudProjectsListTool({ typebox }, api), { filter: 'name="$literal"', limit: 1 }],
+    [createGcloudComputeInstancesListTool({ typebox }, api), { zone: 'us-central1-a', limit: 2 }],
+    [createGcloudStorageBucketsListTool({ typebox }, api), { filter: 'location=US' }],
+    [createGcloudHelpTool({ typebox }, api), { command_path: ' compute  instances ' }],
   ] as const;
   for (const [tool, input] of cases) {
     await tool.execute('synthetic', input as never, undefined, undefined, { cwd: '/synthetic' });
@@ -156,9 +156,9 @@ for (const shell of ['bash', 'zsh']) {
   });
 }
 test('generic execution retains classified authentication corrective guidance', async () => {
-  const { Type } = await import('@sinclair/typebox');
+  const typebox = await import('@sinclair/typebox');
   const { createGcloudExecTool } = await import('../src/tools/gcloud-exec');
-  const tool = createGcloudExecTool({ typebox: { Type } }, () => ({
+  const tool = createGcloudExecTool({ typebox }, () => ({
     exec: async () => ({ stdout: '', stderr: 'invalid_grant: synthetic expired session', exitCode: 1 }),
   }));
   const outcome = await tool.execute('synthetic', { args: ['projects', 'list'] }, undefined, undefined, {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import { discoverGcp, fingerprint, selectF5Images } from '../../src/ce/discovery';
 import { planGcpCe } from '../../src/ce/planner';
 import type { GcpCeDiscovery, GcpCeIntent } from '../../src/ce/types';
@@ -223,7 +223,7 @@ describe('GCP typed tools', () => {
     i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
     let collections = 0;
     const tools = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async (_command, args) => {
           const value =
@@ -295,7 +295,7 @@ describe('GCP typed tools', () => {
   it('rejects every mutation before any cloud command', async () => {
     let calls = 0;
     const tools = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => {
           calls++;
@@ -316,7 +316,7 @@ describe('GCP typed tools', () => {
   it('rejects wrong engine before discovery', async () => {
     let calls = 0;
     const t = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => {
           calls++;
@@ -338,7 +338,7 @@ describe('GCP typed tools', () => {
   });
   it('allowlists inventory and keeps label ownership and health unknown', async () => {
     const t = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => ({
           stdout: JSON.stringify([

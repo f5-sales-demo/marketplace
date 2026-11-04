@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import { createGcpMarketplacePort, enableGcpMarketplaceApi } from '../../src/ce/marketplace-port';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
@@ -136,7 +136,7 @@ it('typed qualification gives the terms acceptance link and recovery steps witho
     };
     const platform = { storage: async () => ({ directory }) } as unknown as CePlatformService;
     const tool = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => api,
       undefined,
       async () => platform,

@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,6 +13,37 @@ afterEach(async () => {
   for (const dir of directories.splice(0)) await rm(dir, { recursive: true });
 });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
+type SignalRequest = Parameters<Bun.Subprocess['kill']>[0];
+function recordSignalRequests<T extends object>(
+  child: T,
+  requests: SignalRequest[],
+  cooperate?: (signal: SignalRequest) => void,
+): T {
+  // Keep real PID, streams and exit evidence; signal requests remain modeled.
+  return new Proxy(child, {
+    get(target, property) {
+      if (property === 'kill')
+        return (signal: SignalRequest) => {
+          requests.push(signal);
+          cooperate?.(signal);
+        };
+      return Reflect.get(target, property, target);
+    },
+  });
+}
+async function withRecordedSignals(operation: (requests: SignalRequest[]) => Promise<void>) {
+  const requests: SignalRequest[] = [];
+  const actualSpawn = Bun.spawn;
+  const recordedSpawn = ((...args: unknown[]) =>
+    recordSignalRequests(Reflect.apply(actualSpawn, Bun, args) as object, requests)) as typeof Bun.spawn;
+  const capture = spyOn(Bun, 'spawn').mockImplementation(recordedSpawn);
+  try {
+    await operation(requests);
+  } finally {
+    capture.mockRestore();
+  }
+}
+
 async function fixture(
   planOverrides: Record<string, unknown> = {},
   outputValues: Record<string, unknown> = {},
@@ -581,28 +612,35 @@ test('refuses a native-owned deployment and path traversal', async () => {
   }
 });
 
-test('executor bounds output and kills a process that ignores cancellation', async () => {
+test('executor bounds output and preserves cancellation/deadline failures through natural fixture exits', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-executor-'));
   directories.push(root);
   const executable = join(root, 'terraform');
-  // Successful fixture startup must not race the assertion's deliberate deadline check.
   const executor = terraformExecutor({ timeoutMs: 5000, applyTimeoutMs: 5000, maxOutputBytes: 64, killAfterMs: 20 });
-  await writeFile(executable, '#!/bin/sh\nprintf "%0100d" 0\n', { mode: 0o700 });
-  await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('size limit');
-  await writeFile(executable, '#!/bin/sh\ntrap "" TERM\nwhile :; do :; done\n');
-  const controller = new AbortController();
-  const running = executor({ cwd: root, args: [], env: { PATH: root }, signal: controller.signal });
-  setTimeout(() => controller.abort(), 50);
-  await expect(running).rejects.toThrow('cancelled');
-  const deadlineExecutor = terraformExecutor({
-    timeoutMs: 50,
-    applyTimeoutMs: 50,
-    maxOutputBytes: 64,
-    killAfterMs: 20,
+  await withRecordedSignals(async (requests) => {
+    await writeFile(executable, '#!/bin/sh\nprintf "%0100d" 0\n', { mode: 0o700 });
+    await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('size limit');
+    await writeFile(executable, '#!/bin/sh\n/bin/sleep 0.2\nprintf finished\n');
+    const controller = new AbortController();
+    const running = executor({ cwd: root, args: [], env: { PATH: root }, signal: controller.signal });
+    const timer = setTimeout(() => controller.abort(), 50);
+    try {
+      await expect(running).rejects.toThrow('cancelled');
+    } finally {
+      clearTimeout(timer);
+    }
+    const deadlineExecutor = terraformExecutor({
+      timeoutMs: 50,
+      applyTimeoutMs: 50,
+      maxOutputBytes: 64,
+      killAfterMs: 20,
+    });
+    await expect(deadlineExecutor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
+    expect(requests).toContain('SIGTERM');
+    expect(requests).toContain('SIGKILL');
+    expect(await lstat(join(root, '.terraform-executor-lock')).catch(() => undefined)).toBeUndefined();
   });
-  await expect(deadlineExecutor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
 });
-
 test('executor gives apply operations a dedicated cloud-convergence deadline', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-apply-deadline-'));
   directories.push(root);
@@ -614,10 +652,13 @@ test('executor gives apply operations a dedicated cloud-convergence deadline', a
     maxOutputBytes: 64,
     killAfterMs: 20,
   });
-  await expect(executor({ cwd: root, args: ['plan'], env: { PATH: root } })).rejects.toThrow('deadline');
-  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toEqual({
-    code: 0,
-    stdout: 'success',
+  await withRecordedSignals(async (requests) => {
+    await expect(executor({ cwd: root, args: ['plan'], env: { PATH: root } })).rejects.toThrow('deadline');
+    expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toEqual({
+      code: 0,
+      stdout: 'success',
+    });
+    expect(requests).toContain('SIGTERM');
   });
 });
 
@@ -1056,7 +1097,7 @@ test('refuses recovery mutation while the original Terraform child remains alive
   try {
     await expect(runner.plan({})).rejects.toThrow('live process');
   } finally {
-    child.kill('SIGKILL');
+    await child.stdin.end();
     await child.exited;
     await release();
   }
@@ -1153,10 +1194,14 @@ test('unresolved executor stop retains its acquired claim and blocks recovery', 
   expect(released).toBe(false);
 });
 
-test('stopped executor is killed before its process claim is released', async () => {
+test('modeled stopped-gate refusal releases its claim only after a real natural exit', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-stopped-gate-'));
   directories.push(root);
-  const child = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  const actualChild = Bun.spawn(['/bin/sh', '-c', 'read gate'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  const requests: SignalRequest[] = [];
+  const child = recordSignalRequests(actualChild, requests, (signal) => {
+    if (signal === 'SIGKILL') void actualChild.stdin.end();
+  });
   const path = join(root, '.terraform-executor-lock');
   await expect(
     startTerraformGate(
@@ -1172,7 +1217,8 @@ test('stopped executor is killed before its process claim is released', async ()
     ),
   ).rejects.toThrow('startup deadline');
   await Bun.sleep(150);
-  expect(await child.exited).toBeNumber();
+  expect(await actualChild.exited).toBeNumber();
+  expect(requests).toEqual(['SIGSTOP', 'SIGKILL']);
   expect(await lstat(path).catch(() => undefined)).toBeUndefined();
 });
 

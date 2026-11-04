@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
+import { type GoogleAdcLease, openGoogleAdcSession } from './google-adc-session';
 import {
   type AppliedResourceProjection,
   type ApplyAttemptResourceProjection,
@@ -14,9 +15,14 @@ import {
   type TerraformActionIntent,
   TerraformRunner,
 } from './runner';
+import { withFinalCheck } from './session-lifetime';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Present only when a trusted original-lifetime ADC policy is configured. */
+  googleAdcEnvironment?(): Promise<Readonly<{ GOOGLE_APPLICATION_CREDENTIALS: string }>>;
+  /** Retire new provider calls; disposal requires no in-flight call and independent original group closure. */
+  closeGoogleAdc?(): Promise<void>;
   /** Optional on older installed runners; required before recording post-apply ownership. */
   readStateIdentity?(): Promise<{ sha256: string; lineage: string; serial: number }>;
   assertApplied?(receipt: PlanReceipt): Promise<void>;
@@ -91,7 +97,21 @@ export interface TerraformSession {
 export interface CeTerraformService {
   open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
 }
+export interface GoogleAdcPolicy {
+  readonly accountSha256: string;
+  readonly audienceSha256: string;
+  readonly qualificationSha256: string;
+  /** Review, freeze and monitor the original snapshot; never return raw credentials. */
+  acquire(request: {
+    owner: CeOwner;
+    deployment: Deployment;
+    directory: string;
+    resume: boolean | 'current';
+  }): Promise<GoogleAdcLease>;
+}
 export interface CeTerraformServiceOptions {
+  /** Opt-in trusted policy; legacy stored sessions retain their original behavior. */
+  readonly googleAdc?: GoogleAdcPolicy;
   /** Trusted execution policy; the runner retains ownership, saved-plan and recovery checks. */
   readonly execute?: Executor;
 }
@@ -103,6 +123,8 @@ export function createCeTerraformService(
 ): CeTerraformService {
   // Capture the policy once so mutation of the options object cannot redirect later sessions.
   const execute = options.execute;
+  const googleAdc = options.googleAdc ? { ...options.googleAdc, acquire: options.googleAdc.acquire } : undefined;
+  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -120,16 +142,112 @@ export function createCeTerraformService(
       const store = await shared.storage(owner);
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
-      const runner = new TerraformRunner(
-        deployment.stage ? join(store.directory, 'terraform-stages', deployment.stage) : store.directory,
-        execute,
-      );
+      const directory = deployment.stage
+        ? join(store.directory, 'terraform-stages', deployment.stage)
+        : store.directory;
+      let adcSession: Promise<Awaited<ReturnType<typeof openGoogleAdcSession>>> | undefined;
+      let originalLease: GoogleAdcLease | undefined;
+      let retiring = false;
+      let inFlight = 0;
+      let disposal: Promise<void> | undefined;
+      const policy = owner.provider === 'gcp' ? googleAdc : undefined;
+      const acquireAdc = () =>
+        (adcSession ??= (async () => {
+          if (!policy) throw new Error('Trusted Google ADC policy unavailable');
+          await shared.storage(owner);
+          const lease = await policy.acquire({
+            owner: structuredClone(owner),
+            deployment: structuredClone(deployment),
+            directory,
+            resume,
+          });
+          originalLease = Object.freeze({ ...lease, owner: structuredClone(lease.owner) });
+          return openGoogleAdcSession(originalLease, {
+            owner,
+            directory,
+            accountSha256: policy.accountSha256,
+            audienceSha256: policy.audienceSha256,
+            qualificationSha256: policy.qualificationSha256,
+          });
+        })());
+      const withAdc = async <T>(operation: (adc: Awaited<ReturnType<typeof openGoogleAdcSession>>) => Promise<T>) => {
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        inFlight++;
+        try {
+          return await operation(await acquireAdc());
+        } finally {
+          inFlight--;
+        }
+      };
+      const guardedExecute: Executor | undefined =
+        policy && execute
+          ? (request) =>
+              withAdc(async (adc) => {
+                const environment = { ...request.env, ...adc.environment() };
+                if (
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== undefined &&
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== environment.GOOGLE_APPLICATION_CREDENTIALS
+                )
+                  throw new Error('Original Google ADC source changed');
+                await adc.verify(environment);
+                return withFinalCheck(
+                  () => execute({ ...request, env: environment }),
+                  () => adc.verify(environment),
+                  'Original Terraform invocation and ADC verification failed',
+                );
+              })
+          : execute;
+      const runner = new TerraformRunner(directory, guardedExecute);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);
       };
       return {
+        ...(policy
+          ? {
+              googleAdcEnvironment: () =>
+                withAdc(async (adc) => {
+                  await checkOwner();
+                  const environment = adc.environment();
+                  await adc.verify(environment);
+                  return environment;
+                }),
+              closeGoogleAdc: () => {
+                retiring = true;
+                if (inFlight) return Promise.reject(new Error('Original Google ADC invocation is in flight'));
+                if (!disposal)
+                  disposal = (async () => {
+                    await checkOwner();
+                    if (!adcSession) return;
+                    let adc: Awaited<ReturnType<typeof openGoogleAdcSession>>;
+                    try {
+                      adc = await adcSession;
+                    } catch {
+                      // Admission can fail after the trusted factory starts its monitor.
+                      // Only that same owner's independent closure callback can release it.
+                      if (
+                        !originalLease ||
+                        originalLease.owner.deploymentId !== owner.deploymentId ||
+                        originalLease.owner.engine !== owner.engine ||
+                        originalLease.owner.provider !== owner.provider ||
+                        originalLease.owner.account !== owner.account ||
+                        originalLease.owner.region !== owner.region ||
+                        typeof originalLease.closeAfterExecutorExit !== 'function'
+                      )
+                        throw new Error('Original Google ADC lease closure ownership unavailable');
+                      await originalLease.closeAfterExecutorExit();
+                      return;
+                    }
+                    await adc.close();
+                  })().catch((error) => {
+                    disposal = undefined;
+                    throw error;
+                  });
+                return disposal;
+              },
+            }
+          : {}),
         async readStateIdentity() {
           await checkOwner();
           return runner.readStateIdentity();

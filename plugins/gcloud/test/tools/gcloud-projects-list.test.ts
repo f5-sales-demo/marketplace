@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import { createGcloudProjectsListTool } from '../../src/tools/gcloud-projects-list';
 
 // Validation tests must never reach a real CLI: whether one is installed, and how long it
@@ -8,7 +8,7 @@ const stubExec = () => ({
   exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
 });
 
-const mockTypebox = { Type };
+const mockTypebox = typebox;
 
 describe('createGcloudProjectsListTool metadata', () => {
   const tool = createGcloudProjectsListTool({ typebox: mockTypebox }, stubExec);

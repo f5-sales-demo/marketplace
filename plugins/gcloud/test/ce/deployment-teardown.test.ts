@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'bun:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import { translateGcpNativeCompute } from '../../src/ce/compute-plan';
 import { GCP_CE_API_RELEASE } from '../../src/ce/contract';
@@ -197,7 +197,7 @@ it('typed teardown plans first, applies its exact saved hash, and rechecks cloud
   f.store.directory = directory;
   try {
     const tools = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => f.api,
       async () => f.boundary,
       async () => f.platform,

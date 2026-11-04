@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import { CE_SERVICE_CHANNEL, type CePlatformService } from '../../../platform/src/ce/service';
+import { withTerraformSession } from '../../../terraform/src/session-lifetime';
 import {
   assertGcpByolAuthorization,
   authorizeGcpByolTerms,
@@ -26,6 +27,7 @@ import { collectGcpLaunchPreflight, supportsGcpLaunchPreflight } from '../ce/pre
 import { createGcpPreflightPort } from '../ce/preflight-port';
 import { GcpTerraformSetupRequired, requestGcpTerraformService } from '../ce/runtime-prerequisites';
 import { assertGcpSiteAccessProfile, GcpSiteAccessMappingUnavailable } from '../ce/site-access';
+import { googleTerraformEnvironment } from '../ce/terraform-google-environment';
 import { applyPublicTerraformDeployment, planPublicTerraformDeployment } from '../ce/terraform-public';
 import { openPublicTerraformRuntime } from '../ce/terraform-public-runtime';
 import { applyPublicTerraformTeardown, planPublicTerraformTeardown } from '../ce/terraform-public-teardown';
@@ -267,26 +269,28 @@ export function createGcpCeTools(
           sources.funding = (intent, signal) => funding(api, intent.project, signal);
           if (intent.engine === 'terraform') {
             const runtime = await publicTerraformRuntime(platform, api, intent, signal);
-            if (tool === 'gcp_ce_plan') {
-              const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
-              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
-            }
-            const evidence = await applyPublicTerraformDeployment(
-              runtime,
-              platform,
-              intent,
-              params.approvedPlanHash as string,
-              sources,
-              signal,
-              () => {
-                mutationAttempted = true;
-              },
-            );
-            return result(
-              tool,
-              { availability: 'terraform-deployment', ...evidence, mutationAttempted },
-              evidence.state === 'reconciliation-required',
-            );
+            return await withTerraformSession(runtime.session, async () => {
+              if (tool === 'gcp_ce_plan') {
+                const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
+                return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+              }
+              const evidence = await applyPublicTerraformDeployment(
+                runtime,
+                platform,
+                intent,
+                params.approvedPlanHash as string,
+                sources,
+                signal,
+                () => {
+                  mutationAttempted = true;
+                },
+              );
+              return result(
+                tool,
+                { availability: 'terraform-deployment', ...evidence, mutationAttempted },
+                evidence.state === 'reconciliation-required',
+              );
+            });
           }
           if (tool === 'gcp_ce_apply') {
             const evidence = await applyGcpDeploymentReview(
@@ -420,33 +424,58 @@ export function createGcpCeTools(
               intent.platformContext,
               signal,
             );
-            if (!observations.teardown || !observations.terraformEnvironment)
+            const observeTeardown = observations.teardown?.bind(observations);
+            const readEnvironment = observations.terraformEnvironment?.bind(observations);
+            if (!observeTeardown || !readEnvironment)
               throw new Error('Qualified Terraform teardown channels unavailable');
             const session = await terraformSession(platform, intent);
-            const credentials = await observations.terraformEnvironment();
-            const access = await api.exec(
-              'gcloud',
-              ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'],
-              { signal },
-            );
-            if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
-              throw new Error('Scoped Terraform Google authentication unavailable');
-            const runtime = {
-              store,
-              session,
-              api,
-              observePlatform: observations.teardown,
-              environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
-            };
-            let storedInputs: { inputs?: { configurationVersion?: number } } | undefined;
-            try {
-              storedInputs = (await store.read('gcp-terraform-session-inputs.json')) as typeof storedInputs;
-            } catch (error) {
-              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-            }
-            if (storedInputs?.inputs?.configurationVersion === 2) {
+            return await withTerraformSession(session, async () => {
+              const credentials = await readEnvironment();
+              const environment = await googleTerraformEnvironment(
+                session,
+                api,
+                intent,
+                { ...process.env, ...credentials },
+                signal,
+              );
+              const runtime = {
+                store,
+                session,
+                api,
+                observePlatform: observeTeardown,
+                environment,
+              };
+              let storedInputs: { inputs?: { configurationVersion?: number } } | undefined;
+              try {
+                storedInputs = (await store.read('gcp-terraform-session-inputs.json')) as typeof storedInputs;
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+              }
+              if (storedInputs?.inputs?.configurationVersion === 2) {
+                if (params.approvedPlanHash) {
+                  const evidence = await applyPublicTerraformTeardown(
+                    runtime,
+                    intent,
+                    boundary,
+                    receipt,
+                    params.approvedPlanHash,
+                    signal,
+                    () => {
+                      mutationAttempted = true;
+                    },
+                  );
+                  return result(
+                    tool,
+                    { availability: 'terraform-teardown', ...evidence, mutationAttempted },
+                    evidence.state === 'reconciliation-required',
+                  );
+                }
+                if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
+                const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+                return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+              }
               if (params.approvedPlanHash) {
-                const evidence = await applyPublicTerraformTeardown(
+                const evidence = await applyGcpTerraformTeardown(
                   runtime,
                   intent,
                   boundary,
@@ -457,33 +486,12 @@ export function createGcpCeTools(
                     mutationAttempted = true;
                   },
                 );
-                return result(
-                  tool,
-                  { availability: 'terraform-teardown', ...evidence, mutationAttempted },
-                  evidence.state === 'reconciliation-required',
-                );
+                return result(tool, { availability: 'candidate-terraform-teardown', ...evidence, mutationAttempted });
               }
-              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
-              const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform hash required');
+              const plan = await planGcpTerraformTeardown(runtime, intent, boundary, receipt, signal);
               return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
-            }
-            if (params.approvedPlanHash) {
-              const evidence = await applyGcpTerraformTeardown(
-                runtime,
-                intent,
-                boundary,
-                receipt,
-                params.approvedPlanHash,
-                signal,
-                () => {
-                  mutationAttempted = true;
-                },
-              );
-              return result(tool, { availability: 'candidate-terraform-teardown', ...evidence, mutationAttempted });
-            }
-            if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform hash required');
-            const plan = await planGcpTerraformTeardown(runtime, intent, boundary, receipt, signal);
-            return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            });
           }
           if (params.approvedPlanHash) {
             const evidence = await applyGcpDeploymentTeardown(

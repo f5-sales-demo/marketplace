@@ -4113,6 +4113,34 @@ var init_service = __esm(() => {
   init_verified_contract();
 });
 
+// plugins/terraform/src/session-lifetime.ts
+async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
+  const outcome = await (async () => {
+    try {
+      return { succeeded: true, value: await operation() };
+    } catch (error) {
+      return { succeeded: false, error };
+    }
+  })();
+  try {
+    await finalCheck();
+  } catch (failure) {
+    if (!outcome.succeeded) throw new AggregateError([outcome.error, failure], combinedFailureMessage);
+    throw failure;
+  }
+  if (!outcome.succeeded) throw outcome.error;
+  return outcome.value;
+}
+function withTerraformSession(session, operation) {
+  return withFinalCheck(
+    operation,
+    async () => {
+      await session.closeGoogleAdc?.();
+    },
+    'Original Terraform operation and ADC closure failed',
+  );
+}
+
 // plugins/gcloud/skills/gcp-ce/references/byol-vm-contract.json
 var byol_vm_contract_default;
 var init_byol_vm_contract = __esm(() => {
@@ -7012,6 +7040,202 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
+// plugins/terraform/src/google-adc-session.ts
+import { createHash as createHash7 } from 'node:crypto';
+import { constants, watch } from 'node:fs';
+import { lstat as lstat5, open, realpath as realpath3 } from 'node:fs/promises';
+import { dirname as dirname2, isAbsolute as isAbsolute2, resolve } from 'node:path';
+
+async function fileMetadata(path) {
+  const stat = await lstat5(path, { bigint: true });
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== BigInt(process.getuid?.() ?? -1) ||
+    stat.nlink !== 1n ||
+    (stat.mode & 0o777n) !== 0o400n ||
+    stat.size < 1n ||
+    stat.size > 65536n
+  )
+    throw new Error('Immutable private Google ADC snapshot required');
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+    uid: stat.uid,
+    mode: stat.mode,
+    size: stat.size,
+    ctimeNs: stat.ctimeNs,
+    mtimeNs: stat.mtimeNs,
+  };
+}
+async function openGoogleAdcSession(input, expectedInput) {
+  const expected = { ...expectedInput, owner: structuredClone(expectedInput.owner) };
+  const lease = { ...input, owner: structuredClone(input.owner) };
+  const now = Date.now();
+  if (
+    lease.schemaVersion !== 1 ||
+    lease.kind !== 'google-adc-snapshot' ||
+    !sameOwner(lease.owner, expected.owner) ||
+    typeof lease.assertOriginal !== 'function' ||
+    typeof lease.closeAfterExecutorExit !== 'function' ||
+    !isAbsolute2(expected.directory) ||
+    resolve(expected.directory) !== expected.directory ||
+    !isAbsolute2(lease.snapshotPath) ||
+    resolve(lease.snapshotPath) !== lease.snapshotPath ||
+    dirname2(lease.snapshotPath) !== expected.directory ||
+    !Number.isSafeInteger(lease.verifiedAt) ||
+    !Number.isSafeInteger(lease.expiresNoEarlierThan) ||
+    lease.verifiedAt > now ||
+    now - lease.verifiedAt >= 300000 ||
+    lease.expiresNoEarlierThan - now <= 360000 ||
+    lease.expiresNoEarlierThan - lease.verifiedAt > 3600000
+  )
+    throw new Error('Fresh reviewed Google ADC lease and owning workspace required');
+  for (const key of [
+    'snapshotSha256',
+    'accountSha256',
+    'audienceSha256',
+    'authenticationReceiptSha256',
+    'qualificationSha256',
+  ])
+    if (!validHash(lease[key])) throw new Error('Exact Google ADC review hashes required');
+  for (const key of ['accountSha256', 'audienceSha256', 'qualificationSha256'])
+    if (!validHash(expected[key]) || expected[key] !== lease[key])
+      throw new Error('Google ADC principal, audience or qualification changed');
+  const originalDirectory = await lstat5(expected.directory, { bigint: true });
+  const directory = async () => {
+    const current = await lstat5(expected.directory, { bigint: true });
+    if (
+      !current.isDirectory() ||
+      current.isSymbolicLink() ||
+      current.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (current.mode & 0o777n) !== 0o700n ||
+      current.dev !== originalDirectory.dev ||
+      current.ino !== originalDirectory.ino ||
+      (await realpath3(expected.directory)) !== expected.directory
+    )
+      throw new Error('Original private Google ADC workspace changed');
+  };
+  await directory();
+  const original = await fileMetadata(lease.snapshotPath);
+  let refused = false;
+  let retiring = false;
+  let closed = false;
+  let closure;
+  const watcher = watch(lease.snapshotPath, { persistent: false }, () => {
+    refused = true;
+    watcher.close();
+  });
+  watcher.on('error', () => {
+    refused = true;
+    watcher.close();
+  });
+  const watcherClosed = new Promise((resolve) => watcher.once('close', resolve));
+  const close = () => {
+    retiring = true;
+    if (closed) return Promise.resolve();
+    if (!closure)
+      closure = (async () => {
+        await lease.closeAfterExecutorExit();
+        watcher.close();
+        let timer;
+        try {
+          await Promise.race([
+            watcherClosed,
+            new Promise((_resolve, reject) => {
+              timer = setTimeout(() => reject(new Error('Original ADC observer closure unresolved')), 1000);
+            }),
+          ]);
+          closed = true;
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      })().catch((error) => {
+        closure = undefined;
+        throw error;
+      });
+    return closure;
+  };
+  const verify = async (env) => {
+    if (refused || retiring) throw new Error('Original Google ADC session remains refused');
+    try {
+      if (
+        env.GOOGLE_APPLICATION_CREDENTIALS !== lease.snapshotPath ||
+        googleCredentialAlternatives.some((key) => env[key] !== undefined)
+      )
+        throw new Error('Google ADC source substitution refused');
+      await lease.assertOriginal();
+      await directory();
+      if (!sameMetadata(original, await fileMetadata(lease.snapshotPath)))
+        throw new Error('Original Google ADC snapshot identity changed');
+      const handle = await open(lease.snapshotPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+      try {
+        const opened = await handle.stat({ bigint: true });
+        if (opened.dev !== original.dev || opened.ino !== original.ino || !opened.isFile())
+          throw new Error('Original Google ADC snapshot replaced during open');
+        const bytes = await handle.readFile();
+        if (hash2(bytes) !== lease.snapshotSha256 || !sameMetadata(original, await fileMetadata(lease.snapshotPath)))
+          throw new Error('Original Google ADC snapshot bytes changed');
+        const credential = JSON.parse(bytes.toString('utf8'));
+        if (
+          credential?.type !== 'authorized_user' ||
+          typeof credential.client_id !== 'string' ||
+          hash2(credential.client_id) !== lease.audienceSha256 ||
+          typeof credential.client_secret !== 'string' ||
+          !credential.client_secret ||
+          typeof credential.refresh_token !== 'string' ||
+          !credential.refresh_token ||
+          (credential.quota_project_id !== undefined && credential.quota_project_id !== lease.owner.account) ||
+          (credential.token_uri !== undefined && credential.token_uri !== 'https://oauth2.googleapis.com/token') ||
+          (credential.universe_domain !== undefined && credential.universe_domain !== 'googleapis.com') ||
+          (credential.account !== undefined &&
+            credential.account !== '' &&
+            (typeof credential.account !== 'string' || hash2(credential.account) !== lease.accountSha256)) ||
+          ['client_id', 'client_secret', 'refresh_token'].some(
+            (key) => typeof credential[key] !== 'string' || !credential[key] || /[\0\r\n]/.test(credential[key]),
+          )
+        )
+          throw new Error('Qualified authorized-user Google ADC mapping required');
+      } finally {
+        await handle.close();
+      }
+      await directory();
+      await lease.assertOriginal();
+      if (refused || retiring) throw new Error('Original Google ADC input event observed');
+    } catch {
+      refused = true;
+      watcher.close();
+      throw new Error('Original reviewed Google ADC session verification failed');
+    }
+  };
+  const environment = () => Object.freeze({ GOOGLE_APPLICATION_CREDENTIALS: lease.snapshotPath });
+  await verify(environment());
+  return Object.freeze({ environment, verify, close });
+}
+var googleCredentialAlternatives,
+  hash2 = (value) => createHash7('sha256').update(value).digest('hex'),
+  validHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+  sameOwner = (a, b) =>
+    a?.engine === 'terraform' &&
+    a.provider === 'gcp' &&
+    b?.engine === a.engine &&
+    b.provider === a.provider &&
+    a.deploymentId === b.deploymentId &&
+    a.account === b.account &&
+    a.region === b.region,
+  sameMetadata = (a, b) => Object.keys(a).every((key) => a[key] === b[key]);
+var init_google_adc_session = __esm(() => {
+  googleCredentialAlternatives = Object.freeze([
+    'GOOGLE_OAUTH_ACCESS_TOKEN',
+    'GOOGLE_ACCESS_TOKEN',
+    'GOOGLE_CREDENTIALS',
+    'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT',
+    'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES',
+    'GCLOUD_KEYFILE_JSON',
+    'GOOGLE_CLOUD_KEYFILE_JSON',
+  ]);
+});
+
 // plugins/terraform/src/failure.ts
 function terraformFailureCategories(text) {
   const plain = Bun.stripANSI(text);
@@ -7047,18 +7271,18 @@ var init_failure = __esm(() => {
 });
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash7, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash8, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
-  lstat as lstat5,
+  lstat as lstat6,
   mkdir as mkdir3,
   readFile as readFile3,
-  realpath as realpath3,
+  realpath as realpath4,
   rename as rename2,
   rm as rm3,
   writeFile as writeFile3,
 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute2, join as join8, resolve } from 'node:path';
+import { isAbsolute as isAbsolute3, join as join8, resolve as resolve2 } from 'node:path';
 
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -7144,18 +7368,18 @@ function inspectActionInvocations(plan, expected) {
 }
 async function privateDirectory(path) {
   await mkdir3(path, { recursive: true, mode: 448 });
-  const stat = await lstat5(path);
+  const stat = await lstat6(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath3(path)) !== path
+    (await realpath4(path)) !== path
   )
     throw new Error('Terraform storage ownership is invalid');
   await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat5(path);
+  const stat = await lstat6(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -7435,7 +7659,7 @@ class TerraformRunner {
   constructor(root, execute = executeTerraform) {
     this.root = root;
     this.execute = execute;
-    if (!isAbsolute2(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (!isAbsolute3(root) || resolve2(root) !== root) throw new Error('Terraform storage must be an absolute path');
   }
   async prepare(deployment) {
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
@@ -7645,7 +7869,7 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat5(join8(this.#directory, 'configuration-transition.json'));
+      await lstat6(join8(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
@@ -8223,7 +8447,7 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash7('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash8('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -8238,6 +8462,8 @@ import { join as join9 } from 'node:path';
 
 function createCeTerraformService(platform, options = {}) {
   const execute = options.execute;
+  const googleAdc = options.googleAdc ? { ...options.googleAdc, acquire: options.googleAdc.acquire } : undefined;
+  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -8255,16 +8481,110 @@ function createCeTerraformService(platform, options = {}) {
       const store = await shared.storage(owner);
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
-      const runner = new TerraformRunner(
-        deployment.stage ? join9(store.directory, 'terraform-stages', deployment.stage) : store.directory,
-        execute,
-      );
+      const directory = deployment.stage
+        ? join9(store.directory, 'terraform-stages', deployment.stage)
+        : store.directory;
+      let adcSession;
+      let originalLease;
+      let retiring = false;
+      let inFlight = 0;
+      let disposal;
+      const policy = owner.provider === 'gcp' ? googleAdc : undefined;
+      const acquireAdc = () =>
+        (adcSession ??= (async () => {
+          if (!policy) throw new Error('Trusted Google ADC policy unavailable');
+          await shared.storage(owner);
+          const lease = await policy.acquire({
+            owner: structuredClone(owner),
+            deployment: structuredClone(deployment),
+            directory,
+            resume,
+          });
+          originalLease = Object.freeze({ ...lease, owner: structuredClone(lease.owner) });
+          return openGoogleAdcSession(originalLease, {
+            owner,
+            directory,
+            accountSha256: policy.accountSha256,
+            audienceSha256: policy.audienceSha256,
+            qualificationSha256: policy.qualificationSha256,
+          });
+        })());
+      const withAdc = async (operation) => {
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        inFlight++;
+        try {
+          return await operation(await acquireAdc());
+        } finally {
+          inFlight--;
+        }
+      };
+      const guardedExecute =
+        policy && execute
+          ? (request) =>
+              withAdc(async (adc) => {
+                const environment = { ...request.env, ...adc.environment() };
+                if (
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== undefined &&
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== environment.GOOGLE_APPLICATION_CREDENTIALS
+                )
+                  throw new Error('Original Google ADC source changed');
+                await adc.verify(environment);
+                return withFinalCheck(
+                  () => execute({ ...request, env: environment }),
+                  () => adc.verify(environment),
+                  'Original Terraform invocation and ADC verification failed',
+                );
+              })
+          : execute;
+      const runner = new TerraformRunner(directory, guardedExecute);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);
       };
       return {
+        ...(policy
+          ? {
+              googleAdcEnvironment: () =>
+                withAdc(async (adc) => {
+                  await checkOwner();
+                  const environment = adc.environment();
+                  await adc.verify(environment);
+                  return environment;
+                }),
+              closeGoogleAdc: () => {
+                retiring = true;
+                if (inFlight) return Promise.reject(new Error('Original Google ADC invocation is in flight'));
+                if (!disposal)
+                  disposal = (async () => {
+                    await checkOwner();
+                    if (!adcSession) return;
+                    let adc;
+                    try {
+                      adc = await adcSession;
+                    } catch {
+                      if (
+                        !originalLease ||
+                        originalLease.owner.deploymentId !== owner.deploymentId ||
+                        originalLease.owner.engine !== owner.engine ||
+                        originalLease.owner.provider !== owner.provider ||
+                        originalLease.owner.account !== owner.account ||
+                        originalLease.owner.region !== owner.region ||
+                        typeof originalLease.closeAfterExecutorExit !== 'function'
+                      )
+                        throw new Error('Original Google ADC lease closure ownership unavailable');
+                      await originalLease.closeAfterExecutorExit();
+                      return;
+                    }
+                    await adc.close();
+                  })().catch((error) => {
+                    disposal = undefined;
+                    throw error;
+                  });
+                return disposal;
+              },
+            }
+          : {}),
         async readStateIdentity() {
           await checkOwner();
           return runner.readStateIdentity();
@@ -8347,6 +8667,7 @@ function createCeTerraformService(platform, options = {}) {
 }
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 var init_service2 = __esm(() => {
+  init_google_adc_session();
   init_runner();
 });
 
@@ -8384,6 +8705,38 @@ var init_runtime_prerequisites = __esm(() => {
       super('Install and set up the Terraform plugin before selecting the Terraform engine');
     }
   };
+});
+
+// plugins/gcloud/src/ce/terraform-google-environment.ts
+import { isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
+
+async function googleTerraformEnvironment(session, api, intent, ambient, signal) {
+  if (intent.engine !== 'terraform') throw new Error('Explicit Terraform owning engine required');
+  signal?.throwIfAborted();
+  if (session.googleAdcEnvironment) {
+    const snapshot = await session.googleAdcEnvironment();
+    signal?.throwIfAborted();
+    if (
+      !snapshot ||
+      Object.keys(snapshot).join(',') !== 'GOOGLE_APPLICATION_CREDENTIALS' ||
+      typeof snapshot.GOOGLE_APPLICATION_CREDENTIALS !== 'string' ||
+      !isAbsolute4(snapshot.GOOGLE_APPLICATION_CREDENTIALS) ||
+      resolve3(snapshot.GOOGLE_APPLICATION_CREDENTIALS) !== snapshot.GOOGLE_APPLICATION_CREDENTIALS
+    )
+      throw new Error('Trusted original Google ADC environment unavailable');
+    const environment = { ...ambient };
+    for (const key of [...googleCredentialAlternatives, 'GOOGLE_APPLICATION_CREDENTIALS']) delete environment[key];
+    return { ...environment, ...snapshot };
+  }
+  const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
+    signal,
+  });
+  if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
+    throw new Error('Scoped Terraform Google authentication unavailable');
+  return { ...ambient, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() };
+}
+var init_terraform_google_environment = __esm(() => {
+  init_google_adc_session();
 });
 
 // plugins/gcloud/src/ce/terraform-context.ts
@@ -9699,45 +10052,54 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
   const session = inputs
     ? await resumeGcpTerraformSession(platform, intent, installedService)
     : await openGcpTerraformSession(platform, expected.inputs, false, installedService);
-  if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
-  const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
-  if (!observations.teardown || !observations.terraformEnvironment)
-    throw new Error('Qualified Terraform runtime channels unavailable');
-  const credentials = await observations.terraformEnvironment();
-  const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
-  let originalContext;
   try {
-    originalContext = await store.read('gcp-tf-public-platform-context.json');
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
+    const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
+    if (!observations.teardown || !observations.terraformEnvironment)
+      throw new Error('Qualified Terraform runtime channels unavailable');
+    const credentials = await observations.terraformEnvironment();
+    const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
+    let originalContext;
     try {
-      await store.read('gcp-tf-deploy-original-authorization.json');
-      throw new Error('Original authorized public Terraform context receipt unavailable');
-    } catch (authorizationError) {
-      if (authorizationError.code !== 'ENOENT') throw authorizationError;
+      originalContext = await store.read('gcp-tf-public-platform-context.json');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      try {
+        await store.read('gcp-tf-deploy-original-authorization.json');
+        throw new Error('Original authorized public Terraform context receipt unavailable');
+      } catch (authorizationError) {
+        if (authorizationError.code !== 'ENOENT') throw authorizationError;
+      }
+      await store.write('gcp-tf-public-platform-context.json', context);
+      originalContext = context;
     }
-    await store.write('gcp-tf-public-platform-context.json', context);
-    originalContext = context;
+    if (fingerprint(originalContext) !== fingerprint(context))
+      throw new Error('Original public Terraform context endpoint changed');
+    const environment = await googleTerraformEnvironment(
+      session,
+      api,
+      intent,
+      { ...process.env, ...credentials },
+      signal,
+    );
+    return {
+      store,
+      session,
+      api,
+      observePlatform: observations.teardown,
+      environment,
+    };
+  } catch (error) {
+    return withTerraformSession(session, async () => {
+      throw error;
+    });
   }
-  if (fingerprint(originalContext) !== fingerprint(context))
-    throw new Error('Original public Terraform context endpoint changed');
-  const access = await api.exec('gcloud', ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'], {
-    signal,
-  });
-  if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
-    throw new Error('Scoped Terraform Google authentication unavailable');
-  return {
-    store,
-    session,
-    api,
-    observePlatform: observations.teardown,
-    environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
-  };
 }
 var init_terraform_public_runtime = __esm(() => {
   init_discovery();
   init_site_access();
   init_terraform_context();
+  init_terraform_google_environment();
   init_terraform_public_artifacts();
   init_terraform_session();
 });
@@ -9941,26 +10303,28 @@ function createGcpCeTools(
           sources.funding = (intent, signal) => funding(api, intent.project, signal);
           if (intent.engine === 'terraform') {
             const runtime = await publicTerraformRuntime(platform, api, intent, signal);
-            if (tool === 'gcp_ce_plan') {
-              const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
-              return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
-            }
-            const evidence = await applyPublicTerraformDeployment(
-              runtime,
-              platform,
-              intent,
-              params.approvedPlanHash,
-              sources,
-              signal,
-              () => {
-                mutationAttempted = true;
-              },
-            );
-            return result(
-              tool,
-              { availability: 'terraform-deployment', ...evidence, mutationAttempted },
-              evidence.state === 'reconciliation-required',
-            );
+            return await withTerraformSession(runtime.session, async () => {
+              if (tool === 'gcp_ce_plan') {
+                const plan = await planPublicTerraformDeployment(runtime, platform, intent, sources, signal);
+                return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+              }
+              const evidence = await applyPublicTerraformDeployment(
+                runtime,
+                platform,
+                intent,
+                params.approvedPlanHash,
+                sources,
+                signal,
+                () => {
+                  mutationAttempted = true;
+                },
+              );
+              return result(
+                tool,
+                { availability: 'terraform-deployment', ...evidence, mutationAttempted },
+                evidence.state === 'reconciliation-required',
+              );
+            });
           }
           if (tool === 'gcp_ce_apply') {
             const evidence = await applyGcpDeploymentReview(
@@ -10094,33 +10458,58 @@ function createGcpCeTools(
               intent.platformContext,
               signal,
             );
-            if (!observations.teardown || !observations.terraformEnvironment)
+            const observeTeardown = observations.teardown?.bind(observations);
+            const readEnvironment = observations.terraformEnvironment?.bind(observations);
+            if (!observeTeardown || !readEnvironment)
               throw new Error('Qualified Terraform teardown channels unavailable');
             const session = await terraformSession(platform, intent);
-            const credentials = await observations.terraformEnvironment();
-            const access = await api.exec(
-              'gcloud',
-              ['auth', 'print-access-token', `--project=${intent.project}`, '--quiet'],
-              { signal },
-            );
-            if (access.exitCode !== 0 || !access.stdout.trim() || /\s/.test(access.stdout.trim()))
-              throw new Error('Scoped Terraform Google authentication unavailable');
-            const runtime = {
-              store,
-              session,
-              api,
-              observePlatform: observations.teardown,
-              environment: { ...process.env, ...credentials, GOOGLE_OAUTH_ACCESS_TOKEN: access.stdout.trim() },
-            };
-            let storedInputs;
-            try {
-              storedInputs = await store.read('gcp-terraform-session-inputs.json');
-            } catch (error) {
-              if (error.code !== 'ENOENT') throw error;
-            }
-            if (storedInputs?.inputs?.configurationVersion === 2) {
+            return await withTerraformSession(session, async () => {
+              const credentials = await readEnvironment();
+              const environment = await googleTerraformEnvironment(
+                session,
+                api,
+                intent,
+                { ...process.env, ...credentials },
+                signal,
+              );
+              const runtime = {
+                store,
+                session,
+                api,
+                observePlatform: observeTeardown,
+                environment,
+              };
+              let storedInputs;
+              try {
+                storedInputs = await store.read('gcp-terraform-session-inputs.json');
+              } catch (error) {
+                if (error.code !== 'ENOENT') throw error;
+              }
+              if (storedInputs?.inputs?.configurationVersion === 2) {
+                if (params.approvedPlanHash) {
+                  const evidence = await applyPublicTerraformTeardown(
+                    runtime,
+                    intent,
+                    boundary,
+                    receipt,
+                    params.approvedPlanHash,
+                    signal,
+                    () => {
+                      mutationAttempted = true;
+                    },
+                  );
+                  return result(
+                    tool,
+                    { availability: 'terraform-teardown', ...evidence, mutationAttempted },
+                    evidence.state === 'reconciliation-required',
+                  );
+                }
+                if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
+                const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+                return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+              }
               if (params.approvedPlanHash) {
-                const evidence = await applyPublicTerraformTeardown(
+                const evidence = await applyGcpTerraformTeardown(
                   runtime,
                   intent,
                   boundary,
@@ -10131,33 +10520,12 @@ function createGcpCeTools(
                     mutationAttempted = true;
                   },
                 );
-                return result(
-                  tool,
-                  { availability: 'terraform-teardown', ...evidence, mutationAttempted },
-                  evidence.state === 'reconciliation-required',
-                );
+                return result(tool, { availability: 'candidate-terraform-teardown', ...evidence, mutationAttempted });
               }
-              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform cleanup hash required');
-              const plan = await planPublicTerraformTeardown(runtime, intent, boundary, receipt, signal);
+              if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform hash required');
+              const plan = await planGcpTerraformTeardown(runtime, intent, boundary, receipt, signal);
               return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
-            }
-            if (params.approvedPlanHash) {
-              const evidence = await applyGcpTerraformTeardown(
-                runtime,
-                intent,
-                boundary,
-                receipt,
-                params.approvedPlanHash,
-                signal,
-                () => {
-                  mutationAttempted = true;
-                },
-              );
-              return result(tool, { availability: 'candidate-terraform-teardown', ...evidence, mutationAttempted });
-            }
-            if (tool === 'gcp_ce_apply') throw new Error('Exact reviewed Terraform hash required');
-            const plan = await planGcpTerraformTeardown(runtime, intent, boundary, receipt, signal);
-            return result(tool, { availability: 'review-required', plan, mutationAttempted: false });
+            });
           }
           if (params.approvedPlanHash) {
             const evidence = await applyGcpDeploymentTeardown(
@@ -10421,6 +10789,7 @@ var init_gcp_ce = __esm(() => {
   init_preflight_port();
   init_runtime_prerequisites();
   init_site_access();
+  init_terraform_google_environment();
   init_terraform_public();
   init_terraform_public_runtime();
   init_terraform_public_teardown();
