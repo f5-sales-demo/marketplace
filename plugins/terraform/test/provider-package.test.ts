@@ -83,7 +83,7 @@ test('symlinks, hard links and aliased roots are refused even when bytes match',
 });
 test('wrong platform and executable identity cannot be asserted by a matching package hash', async () => {
   const request = await fixture();
-  await expect(verifyProviderPackage({ ...request, platform: 'linux_amd64' } as never)).rejects.toThrow('platform');
+  await expect(verifyProviderPackage({ ...request, platform: 'windows_amd64' } as never)).rejects.toThrow('platform');
   await expect(verifyProviderPackage({ ...request, executable: '../foreign' })).rejects.toThrow('executable');
   const wrong = Buffer.from(binary);
   wrong.writeUInt32LE(0x01000007, 4);
@@ -109,4 +109,70 @@ test('comments cannot supply a version or an accepted hash', async () => {
   await expect(verifyProviderPackage({ ...request, lock: noVersion, lockSha256: sha(noVersion) })).rejects.toThrow(
     'version',
   );
+});
+
+function linuxBinary(): Buffer {
+  const bytes = Buffer.alloc(64);
+  bytes.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1]);
+  bytes.writeUInt16LE(2, 16); // ELF executable.
+  bytes.writeUInt16LE(62, 18); // AMD64.
+  bytes.writeUInt32LE(1, 20);
+  bytes.writeUInt16LE(64, 52);
+  return bytes;
+}
+async function linuxFixture(bytes = linuxBinary()): Promise<ProviderPackageRequest> {
+  const request = await fixture();
+  await writeFile(join(request.directory, executable), bytes, { mode: 0o700 });
+  const hash = `h1:${createHash('sha256')
+    .update(`${sha(license)}  LICENSE.txt\n${sha(bytes)}  ${executable}\n`)
+    .digest('base64')}`;
+  const lock = request.lock.replace(packageHash, hash);
+  return { ...request, platform: 'linux_amd64', lock, lockSha256: sha(lock) };
+}
+test('Linux AMD64 package verification binds original ELF bytes and exact lock', async () => {
+  const request = await linuxFixture();
+  const result = await verifyProviderPackage(request);
+  expect(result.platform).toBe('linux_amd64');
+  expect(result.executableSha256).toBe(sha(linuxBinary()));
+  expect(result.filesSha256['LICENSE.txt']).toBe(sha(license));
+  await writeFile(join(request.directory, 'LICENSE.txt'), 'changed');
+  await expect(verifyProviderPackage(request)).rejects.toThrow('locked package');
+});
+test('Linux rejects malformed, foreign and non-executable ELF headers even with matching locks', async () => {
+  const cases: Buffer[] = [Buffer.alloc(0), linuxBinary().subarray(0, 63), Buffer.from(binary)];
+  for (const [offset, value] of [
+    [0, 0],
+    [4, 1],
+    [5, 2],
+    [6, 0],
+    [16, 1],
+    [16, 4],
+    [18, 183],
+    [20, 0],
+    [52, 32],
+  ]) {
+    const bytes = linuxBinary();
+    bytes[offset] = value;
+    cases.push(bytes);
+  }
+  for (const bytes of cases) {
+    const request = await linuxFixture(bytes);
+    await expect(verifyProviderPackage(request)).rejects.toThrow('architecture');
+  }
+});
+test('platform labels cannot substitute Mach-O and ELF packages', async () => {
+  const elf = await linuxFixture();
+  await expect(verifyProviderPackage({ ...elf, platform: 'darwin_arm64' })).rejects.toThrow('architecture');
+  const macho = await fixture();
+  await expect(verifyProviderPackage({ ...macho, platform: 'linux_amd64' })).rejects.toThrow('architecture');
+});
+test('Linux shared-object executable header is accepted and missing execution permission is refused', async () => {
+  const bytes = linuxBinary();
+  bytes.writeUInt16LE(3, 16); // Position independent executable.
+  const request = await linuxFixture(bytes);
+  expect((await verifyProviderPackage(request)).executableSha256).toBe(sha(bytes));
+  await writeFile(join(request.directory, executable), bytes, { mode: 0o600 });
+  const { chmod } = await import('node:fs/promises');
+  await chmod(join(request.directory, executable), 0o600);
+  await expect(verifyProviderPackage(request)).rejects.toThrow('architecture');
 });

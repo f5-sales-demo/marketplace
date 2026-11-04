@@ -2,7 +2,7 @@ export interface ProviderPackageRequest {
   directory: string;
   source: string;
   version: string;
-  platform: 'darwin_arm64';
+  platform: 'darwin_arm64' | 'linux_amd64';
   executable: string;
   lock: string;
   lockSha256: string;
@@ -10,7 +10,7 @@ export interface ProviderPackageRequest {
 export interface VerifiedProviderPackage {
   source: string;
   version: string;
-  platform: 'darwin_arm64';
+  platform: 'darwin_arm64' | 'linux_amd64';
   packageHash: string;
   executableSha256: string;
   filesSha256: Record<string, string>;
@@ -89,13 +89,14 @@ function lockEntries(raw: string) {
   return result;
 }
 
-/** Go sumdb/dirhash Hash1, plus exact original executable and Mach-O architecture admission.
+/** Go sumdb/dirhash Hash1, plus exact original executable and platform architecture admission.
  * The caller must obtain lockSha256 from its trusted reviewed configuration; this is not a signature check.
  * Reading a package does not qualify provider execution or authorize a cloud operation.
  */
 export async function verifyProviderPackage(request: ProviderPackageRequest): Promise<VerifiedProviderPackage> {
   const { directory, source, version, platform, executable, lock, lockSha256 } = request;
-  if (platform !== 'darwin_arm64') throw new Error('Provider package platform is not qualified');
+  if (platform !== 'darwin_arm64' && platform !== 'linux_amd64')
+    throw new Error('Provider package platform is not qualified');
   if (!/^registry\.terraform\.io\/[a-z0-9-]+\/[a-z0-9-]+$/.test(source) || !/^\d+\.\d+\.\d+$/.test(version))
     throw new Error('Exact provider source and version required');
   const name = source.split('/')[2];
@@ -170,15 +171,25 @@ export async function verifyProviderPackage(request: ProviderPackageRequest): Pr
       after.uid !== process.getuid?.()
     )
       throw new Error('Original provider package changed during inspection');
-    if (
-      file === executable &&
-      (bytes.length < 32 ||
-        bytes.readUInt32LE(0) !== 0xfeedfacf ||
-        bytes.readUInt32LE(4) !== 0x0100000c ||
-        bytes.readUInt32LE(12) !== 2 ||
-        !(after.mode & 0o111))
-    )
-      throw new Error('Provider executable architecture differs from darwin_arm64');
+    if (file === executable) {
+      const architectureMatches =
+        platform === 'darwin_arm64'
+          ? bytes.length >= 32 &&
+            bytes.readUInt32LE(0) === 0xfeedfacf &&
+            bytes.readUInt32LE(4) === 0x0100000c &&
+            bytes.readUInt32LE(12) === 2
+          : bytes.length >= 64 &&
+            bytes.readUInt32LE(0) === 0x464c457f &&
+            bytes[4] === 2 && // ELFCLASS64.
+            bytes[5] === 1 && // Little endian.
+            bytes[6] === 1 &&
+            [2, 3].includes(bytes.readUInt16LE(16)) && // Executable or position independent executable.
+            bytes.readUInt16LE(18) === 62 && // EM_X86_64.
+            bytes.readUInt32LE(20) === 1 &&
+            bytes.readUInt16LE(52) === 64;
+      if (!architectureMatches || !(after.mode & 0o111))
+        throw new Error(`Provider executable architecture differs from ${platform}`);
+    }
     filesSha256[file] = digest(bytes);
   }
   const summary = files.map((file) => `${filesSha256[file]}  ${file}\n`).join('');
