@@ -80,7 +80,7 @@ jobs:
           # SDK process observations. A symlink to system Python does not meet
           # that ownership contract, including in the hermetic PATH pass.
           "$plugin_test_python_base" -m venv --copies "$plugin_test_python_root"
-          "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3' 'psutil==7.2.2'
+          "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3' 'psutil==7.2.2' 'pytest==8.4.2'
           plugin_test_python_site=$("$plugin_test_python_root/bin/python3" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
           printf 'PYTHONPATH=%s\n' "$plugin_test_python_site" >> "$GITHUB_ENV"
           printf 'CE_TEST_PYTHON=%s/bin/python3\n' "$plugin_test_python_root" >> "$GITHUB_ENV"

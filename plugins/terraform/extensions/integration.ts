@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 interface ExtensionApi {
   integrations: { register(definition: unknown): unknown };
 }
@@ -5,7 +7,7 @@ interface ExtensionApi {
 export function terraformInstallArgv(platform = process.platform): string[] {
   if (platform === 'darwin') return ['brew', 'install', 'terraform'];
   if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
-  return ['sudo', 'apt-get', 'install', '--yes', 'terraform'];
+  return ['python3', join(import.meta.dir, '../scripts/install_terraform.py')];
 }
 
 export default function terraformIntegration(pi: ExtensionApi) {
