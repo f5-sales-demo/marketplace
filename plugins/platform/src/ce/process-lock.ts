@@ -1,13 +1,105 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
+import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 interface Claim {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   token: string;
   pid: number;
   bootId: string;
   processStartTicks: string;
+  group?: number;
+}
+interface GroupLifetime extends Claim {
+  group: number;
+}
+export interface ProcessLockOptions {
+  trackProcessGroup?: boolean;
+}
+
+async function processGroup(pid: number): Promise<number> {
+  if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
+  const text = await readFile(`/proc/${pid}/stat`, 'utf8');
+  const fields = text
+    .slice(text.lastIndexOf(') ') + 2)
+    .trim()
+    .split(/\s+/);
+  const group = Number(fields[2]);
+  if (!/^\d+$/.test(fields[2] ?? '') || !Number.isSafeInteger(group) || group < 0)
+    throw new Error('Original executor group is unavailable');
+  return group;
+}
+
+async function readGroupLifetime(path: string, owner: Claim) {
+  const file = join(path, 'lifetime.json');
+  let metadata: Stats;
+  try {
+    metadata = await lstat(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && owner.schemaVersion === 1) return undefined;
+    throw error;
+  }
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.nlink !== 1 ||
+    metadata.uid !== process.getuid?.() ||
+    (metadata.mode & 0o777) !== 0o400
+  )
+    throw new Error('Original executor lifetime evidence is invalid');
+  const raw = await readFile(file, 'utf8');
+  const row = JSON.parse(raw) as GroupLifetime;
+  if (
+    !row ||
+    Object.keys(row).sort().join(',') !== 'bootId,group,pid,processStartTicks,schemaVersion,token' ||
+    row.schemaVersion !== owner.schemaVersion ||
+    row.token !== owner.token ||
+    row.pid !== owner.pid ||
+    row.bootId !== owner.bootId ||
+    row.processStartTicks !== owner.processStartTicks ||
+    row.group !== owner.pid
+  )
+    throw new Error('Original executor lifetime does not join its owner');
+  return { row, raw, metadata };
+}
+
+async function requireGroupClosed(path: string, owner: Claim): Promise<void> {
+  try {
+    await lstat(join(path, 'capture-unresolved.json'));
+    throw new Error('Original executor capture closure remains unresolved');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const original = await readGroupLifetime(path, owner);
+  if (!original) return; // Historical claims retain their original schema and behavior.
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  if ((await bootId()) === original.row.bootId) {
+    for (const name of await readdir('/proc')) {
+      if (!/^\d+$/.test(name)) continue;
+      try {
+        if ((await processGroup(Number(name))) === original.row.group)
+          throw new Error('Original executor process group remains live');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+  }
+  const current = await readGroupLifetime(path, owner);
+  if (
+    !current ||
+    current.raw !== original.raw ||
+    current.metadata.dev !== original.metadata.dev ||
+    current.metadata.ino !== original.metadata.ino ||
+    current.metadata.ctimeMs !== original.metadata.ctimeMs ||
+    current.metadata.mtimeMs !== original.metadata.mtimeMs
+  )
+    throw new Error('Original executor lifetime changed during closure inspection');
+}
+
+/** Does not release or reclaim a lock; all recorded original group members must be absent. */
+export async function assertExecutorGroupClosed(path: string): Promise<void> {
+  await requireGroupClosed(path, await readClaim(path));
 }
 
 const tokenPattern = /^[a-f0-9-]{36}$/;
@@ -72,12 +164,16 @@ function claim(value: unknown): Claim {
     !value ||
     typeof value !== 'object' ||
     Array.isArray(value) ||
-    Object.keys(value).sort().join(',') !== 'bootId,pid,processStartTicks,schemaVersion,token'
+    Object.keys(value).sort().join(',') !==
+      ((value as Claim).schemaVersion === 2
+        ? 'bootId,group,pid,processStartTicks,schemaVersion,token'
+        : 'bootId,pid,processStartTicks,schemaVersion,token')
   )
     throw new Error('Operation lock evidence cannot be reconciled');
   const row = value as Record<string, unknown>;
   if (
-    row.schemaVersion !== 1 ||
+    (row.schemaVersion !== 1 && row.schemaVersion !== 2) ||
+    (row.schemaVersion === 2 && row.group !== row.pid) ||
     typeof row.token !== 'string' ||
     !tokenPattern.test(row.token) ||
     !Number.isSafeInteger(row.pid) ||
@@ -118,30 +214,51 @@ async function readClaim(path: string): Promise<Claim> {
  * Acquire an atomic process-bound lock. A claim is reclaimed only when verified boot/process-start
  * evidence proves that its owner no longer exists, so PID reuse cannot authorize removal.
  */
-export async function acquireProcessLock(path: string, ownerPid = process.pid): Promise<() => Promise<void>> {
+export async function acquireProcessLock(
+  path: string,
+  ownerPid = process.pid,
+  options: ProcessLockOptions = {},
+): Promise<() => Promise<void>> {
   if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
     throw new Error('Invalid operation lock path');
   const currentBootId = await bootId();
   if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
   const currentStart = await processStartTicks(ownerPid);
   if (!currentStart) throw new Error('Current process identity is unavailable');
+  const trackGroup = options.trackProcessGroup ?? false;
+  if (typeof trackGroup !== 'boolean') throw new Error('Explicit process group tracking option required');
+  const group = trackGroup ? await processGroup(ownerPid) : undefined;
   const mine: Claim = {
-    schemaVersion: 1,
+    schemaVersion: trackGroup ? 2 : 1,
     token: randomUUID(),
     pid: ownerPid,
     bootId: currentBootId,
     processStartTicks: currentStart,
+    ...(group === undefined ? {} : { group }),
   };
+  const lifetime = group === undefined ? undefined : { ...mine, group };
+  if (lifetime && lifetime.group !== ownerPid) throw new Error('Executor must own a dedicated original process group');
   const parent = dirname(path);
   for (let attempt = 0; attempt < 4; attempt++) {
     const candidate = join(parent, `${basename(path)}.claim-${mine.token}`);
     await mkdir(candidate, { mode: 0o700 });
     await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 0o600, flag: 'wx' });
+    if (lifetime)
+      await writeFile(join(candidate, 'lifetime.json'), JSON.stringify(lifetime), { mode: 0o400, flag: 'wx' });
     try {
       await rename(candidate, path);
       return async () => {
         const owned = await readClaim(path);
-        if (owned.token !== mine.token) throw new Error('Operation lock ownership changed');
+        if (
+          owned.token !== mine.token ||
+          owned.pid !== mine.pid ||
+          owned.schemaVersion !== mine.schemaVersion ||
+          owned.bootId !== mine.bootId ||
+          owned.processStartTicks !== mine.processStartTicks ||
+          owned.group !== mine.group
+        )
+          throw new Error('Operation lock ownership changed');
+        await requireGroupClosed(path, owned);
         await rm(path, { recursive: true });
       };
     } catch (error) {
@@ -160,6 +277,7 @@ export async function acquireProcessLock(path: string, ownerPid = process.pid): 
     const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
     if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
       throw new Error('Operation lock is held by a live process');
+    await requireGroupClosed(path, existing);
     const stale = join(parent, `${basename(path)}.stale-${randomUUID()}`);
     try {
       await rename(path, stale);
