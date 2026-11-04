@@ -152,7 +152,41 @@ has been cleared.
 
 ## Current implementation and verification
 
-GCloud 1.7.29 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.12. Terraform 2.4.12 remains optional. Linux setup installs the pinned Terraform binary into user scope without sudo. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
+Source `9dd1b22fee06cd03a4d473c2e381a2c41d9c1f67` adds Linux user-scope
+observer runtime preparation to standard Terraform integration setup and status.
+The installer copies the qualified Python 3.15 interpreter, installs the exact
+psutil 7.2.2 wheel without pip, and verifies its 16 files, interpreter bytes,
+canonical configuration and real SDK/kernel process semantics. Foreign,
+incomplete, aliased or changed installations refuse and retain their files.
+Setup and status report a missing or unverified prerequisite explicitly.
+
+The first real installation rejected legitimate empty wheel directory records;
+a failing-first test and independent vendor inventory qualified the correction.
+The next attempt exposed the previously known interpreter-shim home problem.
+Its partial installation and failure receipt remain preserved; the initial
+temporary-file probe did not retain stderr, so that failed capture remains
+incomplete. The corrected constructor invokes the verified canonical interpreter,
+binds `pyvenv.cfg` to its base and retains private command output and results.
+A fresh isolated installation and subsequent inspection passed. This qualifies
+runtime dependency preparation, not normal marketplace or GCP acceptance.
+
+The executor now uses isolated Python startup and refuses the declared Python
+and native-loader overrides before launch. A shared test run exposed readiness
+visibility before the bootstrap JSON write completed. A slow-writer test failed
+first; the producer now flushes complete data, makes it immutable and publishes
+it atomically without overwriting an existing path. All 15 executor tests pass
+using the prepared interpreter. Seven installer safety cases pass. The combined
+Terraform/Platform/integration run passes 471 tests and 2,859 assertions; both
+native typechecks, Python lint/type/format checks and normal hooks pass.
+
+All three installer platforms, plugin, lint, security and linked-issue checks
+passed at the preceding delivered head `dd48c86647a3c0e4a316e91e04bc72c50286c865`.
+The new source still needs its own delivery and CI, supported marketplace setup,
+ordinary Ubuntu `bun dev`, actual production ADC/capture integration and the full
+live acceptance matrix. No cloud resources were submitted. Historical failures,
+collector bytes, q12, v12.3.1 and publication holds remain preserved.
+
+GCloud 1.7.29 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.12. Terraform 2.4.13 remains optional. Linux setup installs the pinned Terraform binary and prepares the observer runtime in user scope without sudo. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
 
 Every declared operation appears in the plan/apply schema. Operations without qualified consumer mappings return a schema-v2 refusal with their owning engine, exact requested operation and unmet mapping, reviewed-plan, identity and restoration requirements before cloud reads. Upgrade and failover aliases use that same refusal boundary. This exposes availability; it does not implement those mutations.
 
