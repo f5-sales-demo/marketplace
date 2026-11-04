@@ -62,7 +62,7 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
-## Source and SDK checkpoint on November 4
+## Earlier source and SDK checkpoint on November 4
 
 Source code at `b8d61bc6289863e419b7300849eea1354200ddf9` is delivered to
 draft PR #1698. It descends from current main without merge conflicts.
@@ -99,9 +99,58 @@ acceptance is established by this source checkpoint. Native/Terraform single-nod
 and HA campaigns, recovery, teardown/restoration, required review and CI,
 qualified plugin publication and published user-scope installation remain open.
 
+## Linux execution continuation on November 4
+
+Source commit `9000708486c72bb6a5ab086d9fff41bc4df56866` adds Linux AMD64
+provider-package verification and a trusted capture-startup hook. The verifier
+preserves exact provider source/version, reviewed lock bytes, Go package hashes,
+file ownership and executable identity. ELF architecture and executable-header
+checks reject malformed or foreign packages. Eleven package tests pass after
+four failing-first cases. The retained Google 8.7.0 and XC 15.13.0 Linux packages
+also pass against their original reviewed lock and executable hashes; the
+original files and receipts are unchanged. Package verification grants no
+execution authority.
+
+The capture hook receives an immutable original gated process identity and
+private stream paths before command release. Failed or late reader startup
+prevents submission. Final capture waits for that same startup callback to
+settle within the original reserve. A missing or inaccessible stream now reaches
+final capture; incomplete evidence retains its unresolved claim. Four new
+failing-first cases and the existing executor cases pass. A real pinned
+Terraform 1.16.6 version invocation exercised the hook, preserved the same
+original identity and independently closed its process group without signals.
+Its private transport receipt has SHA-256
+`c285def76ffa3eeb7dd8f7ab473a447a8d1c15e99747114930c89d03491f4282`.
+This is transport evidence, not installed-tool or GCP lifecycle acceptance.
+
+The focused Terraform/Platform run passes 404 tests and 2,230 assertions.
+Both native TypeScript checks, three runtime builds, source lint and normal
+commit hooks pass. The tracker preserves 2,678 tasks and 473 assertions.
+An initial run without the documented owned Python fixture failed its
+psutil/pytest prerequisites; those failures and diagnostic directories remain
+private. The corrected run uses the qualified fixture. Legacy TypeScript 5.9.3
+SDK diagnostics also remain retained; the required native compiler passes.
+
+Fresh Ubuntu credential checks verified selected AWS STS identity and both
+Google CLI and ADC principal, scope, audience, conservative expiry, project
+access and the original observer image. ADC bytes remained unchanged. Google's
+[OAuth discovery contract](https://www.googleapis.com/discovery/v1/apis/oauth2/v2/rest)
+specified the successful token-inspection endpoint and query parameter mapping.
+The earlier HTTP 429 cause remains unknown. Authentication is time-bound and
+must be checked again before planning. No cloud resources were submitted.
+
+The standard installed extension still lacks the production ADC policy bridge
+and actual cloud/serial/SSH reader/controller integration. Current source needs
+fresh supported marketplace installation and ordinary Ubuntu `bun dev` tool
+acceptance. Full native/Terraform networking, lifecycle, traffic, recovery,
+teardown/restoration, review, CI, publication and published user-scope gates
+remain open. The Mac installer capacity failure is retained separately from
+passing plugin, lint, security and Linux/Windows installer checks. PR #1698
+remains draft; no publication hold or historical failure has been cleared.
+
 ## Current implementation and verification
 
-GCloud 1.7.28 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.10. Terraform remains optional. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
+GCloud 1.7.29 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.12. Terraform 2.4.12 remains optional. Linux setup installs the pinned Terraform binary into user scope without sudo. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
 
 Every declared operation appears in the plan/apply schema. Operations without qualified consumer mappings return a schema-v2 refusal with their owning engine, exact requested operation and unmet mapping, reviewed-plan, identity and restoration requirements before cloud reads. Upgrade and failover aliases use that same refusal boundary. This exposes availability; it does not implement those mutations.
 
