@@ -62,9 +62,46 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
+## Source and SDK checkpoint on November 4
+
+Source code at `b8d61bc6289863e419b7300849eea1354200ddf9` is delivered to
+draft PR #1698. It descends from current main without merge conflicts.
+GCloud 1.7.28, Platform 6.3.10 and Terraform 2.4.6 use qualified SDK 23.10.8
+for development. The SDK release and installation CI passed, and downloaded
+Linux artifacts and published declaration bytes matched their reviewed source.
+
+The standard individual plugin typechecks and combined source/test check pass
+with zero diagnostics. GCloud has 491 passing tests, Terraform 119 and Platform
+263. Three runtime builds, strict dependency and minimum-runtime checks,
+twelve runtime/tracker tests, source lint, staged secret/privacy checks and
+normal commit hooks passed. The canonical tracker preserves all 2,678 tasks
+and historical receipts.
+
+Optional server-owned Google ADC sessions now bind private snapshot ownership,
+bytes, principal, audience, approved token endpoint and domain, original lifetime
+checks, retirement and independent executor closure. Selected ADC failures
+cannot fall back to another credential source. Existing stored deployments and
+their cleanup paths remain unchanged. The standard installed extension still
+needs the qualified production worker and policy bridge; source admission
+components alone do not enable cloud execution.
+
+An original Terraform test run used signal-producing disposable fixtures and
+remains unqualified for the no-signals constraint. Revised tests model signal
+requests and retain real natural-exit evidence. They do not prove termination
+of an actual kernel-stopped process. Original failures and historical executor
+locks remain preserved.
+
+New plugin bytes and SDK 23.10.8 require fresh ordinary Ubuntu `bun dev`,
+registered-tool and installed marketplace acceptance. Historical installed
+checks remain attributed to xcsh `33d1e443d` and their original plugin snapshots.
+No fresh GCP deployment, guest completeness, traffic, lifecycle or networking
+acceptance is established by this source checkpoint. Native/Terraform single-node
+and HA campaigns, recovery, teardown/restoration, required review and CI,
+qualified plugin publication and published user-scope installation remain open.
+
 ## Current implementation and verification
 
-GCloud 1.7.25 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.9. Terraform remains optional. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
+GCloud 1.7.28 declares Platform as its required marketplace and integration setup dependency. The current Platform manifest is 6.3.10. Terraform remains optional. Public Terraform paths request the installed shared runner before opening deployment storage; missing installation returns `terraform_setup_required` with installation and setup commands. The historical session helper retains its original optional runner behavior for stored executors.
 
 Every declared operation appears in the plan/apply schema. Operations without qualified consumer mappings return a schema-v2 refusal with their owning engine, exact requested operation and unmet mapping, reviewed-plan, identity and restoration requirements before cloud reads. Upgrade and failover aliases use that same refusal boundary. This exposes availability; it does not implement those mutations.
 
@@ -121,10 +158,10 @@ policy is unchanged. The original failure remains private.
 | 8 | Verified CE-interface backend binding and symmetric content traffic | Interface/identity tests and narrow observation implementation | No traffic acceptance claim | None | Disposable clients/origins, health/backend joins and independent route/traffic receipts required |
 | 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
 | 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
-| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Current suites/builds/typechecks/catalog pass | Normal install/status/enable/disable/upgrade, configured-model skill/tool prompts pass | No cloud mutations in runtime probes | Generic unauthenticated discovery refusal and isolated removal pass; finish precise authentication classification, doctor warnings and published artifact smoke gates |
+| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Source checkpoint: 873 plugin tests, zero type diagnostics, three runtime builds and strict source gates pass | Historical ordinary installed prompts passed; new SDK/plugin snapshots need fresh Ubuntu acceptance | No cloud mutations in runtime probes | Qualify current registered-tool execution, authentication behavior, doctor warnings and published artifact smoke |
 | 12 | Fresh original-bound guest capture and Terraform HA acceptance | Attempt 236 passes 467 collector, 198 trust, 167 admission, 25 focused Python and 166 Bun tests; two conditional fixtures exercised through Python | Attempt 235 normal installed runtime passed without a private PluginInterface | q31 created and independently cleaned 21 resources; CE host-algorithm negotiation failed; no accepted guest capture | Prepare fresh serial-verified RSA CE trust; both guest mappings remain held; q30 reader and locks stay unresolved |
 | 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
-| 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Conflicts reconciled; source acceptance receipt maintained | Isolated staging only | No publication or final user-scope installation | Keep PR draft; required review/CI, live gates, release and downloaded artifact acceptance remain |
+| 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Source checkpoint delivered to conflict-free draft PR; current-head CI and review remain separate gates | Historical isolated staging only; new snapshots unqualified | SDK prerequisite release verified; GCloud/Platform/Terraform publication remains held | Keep PR draft until source, installed and every applicable live gate passes; then qualified plugin release and published installation |
 
 The balanced-disk preflight now checks `SSD_TOTAL_GB`, with failing-first cases for exhausted standard quota and missing, duplicate or insufficient SSD quota. The shared Terraform runner accepts a minimal empty-state summary only when the stable raw state proves the pinned version, zero resources and zero outputs. These source repairs preserve original source and executor evidence; publication and changed-candidate installation remain open.
 
