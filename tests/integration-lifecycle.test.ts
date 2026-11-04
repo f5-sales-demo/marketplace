@@ -1117,7 +1117,14 @@ describe('provider integration lifecycle', () => {
       const module = await import(`../plugins/${plugin}/${entrypoint}`);
       const installArgv = module[exportName] as (platform: string) => string[];
       expect(installArgv('darwin')[0]).toBe('brew');
-      expect(installArgv('linux')).toEqual(expect.arrayContaining(['apt-get']));
+      if (plugin === 'terraform') {
+        const args = installArgv('linux');
+        expect(args[0]).toBe('python3');
+        expect(args[1]).toMatch(/\/scripts\/install_terraform\.py$/);
+        expect(args).not.toContain('sudo');
+      } else {
+        expect(installArgv('linux')).toEqual(expect.arrayContaining(['apt-get']));
+      }
       expect(installArgv('win32')).toEqual(['winget', 'install', '--exact', '--id', expectedWindowsId]);
     }
   });
@@ -2039,7 +2046,8 @@ describe('Ghostty unsupported host readiness', () => {
     'unsupported_platform:requires_ubuntu_24.04_amd64_or_arm64',
   ]) {
     it(`classifies ${reason} as unavailable and skips install-authorized setup`, async () => {
-      const definition = (await definitionsFor('ghostty'))[0]!;
+      const definition = (await definitionsFor('ghostty'))[0];
+      if (!definition) throw new Error('Ghostty integration fixture was not registered');
       const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
         exitCode: 1,
         stdout: new TextEncoder().encode(JSON.stringify({ state: 'unavailable', reason })),
