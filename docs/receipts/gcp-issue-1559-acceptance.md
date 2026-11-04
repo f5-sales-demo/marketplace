@@ -144,9 +144,11 @@ and actual cloud/serial/SSH reader/controller integration. Current source needs
 fresh supported marketplace installation and ordinary Ubuntu `bun dev` tool
 acceptance. Full native/Terraform networking, lifecycle, traffic, recovery,
 teardown/restoration, review, CI, publication and published user-scope gates
-remain open. The Mac installer capacity failure is retained separately from
-passing plugin, lint, security and Linux/Windows installer checks. PR #1698
-remains draft; no publication hold or historical failure has been cleared.
+remain open. Plugin, lint, security and all three platform installer checks
+passed at `c04dda619c282029722a35b980634bd59e69c371`; the earlier Mac installer
+capacity failure is retained. The changed capture-hook source requires its own
+CI results. PR #1698 remains draft; no publication hold or historical failure
+has been cleared.
 
 ## Current implementation and verification
 
@@ -207,7 +209,7 @@ policy is unchanged. The original failure remains private.
 | 8 | Verified CE-interface backend binding and symmetric content traffic | Interface/identity tests and narrow observation implementation | No traffic acceptance claim | None | Disposable clients/origins, health/backend joins and independent route/traffic receipts required |
 | 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
 | 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
-| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Source checkpoint: 873 plugin tests, zero type diagnostics, three runtime builds and strict source gates pass | Historical ordinary installed prompts passed; new SDK/plugin snapshots need fresh Ubuntu acceptance | No cloud mutations in runtime probes | Qualify current registered-tool execution, authentication behavior, doctor warnings and published artifact smoke |
+| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Earlier source checkpoint: 873 plugin tests; current Terraform/Platform continuation: 404 tests and both native typechecks; runtime builds, tracker and normal hooks pass | Historical ordinary installed prompts passed; new SDK/plugin snapshots need fresh Ubuntu acceptance | No cloud mutations in runtime probes | Qualify current registered-tool execution, authentication behavior, doctor warnings and published artifact smoke |
 | 12 | Fresh original-bound guest capture and Terraform HA acceptance | Attempt 236 passes 467 collector, 198 trust, 167 admission, 25 focused Python and 166 Bun tests; two conditional fixtures exercised through Python | Attempt 235 normal installed runtime passed without a private PluginInterface | q31 created and independently cleaned 21 resources; CE host-algorithm negotiation failed; no accepted guest capture | Prepare fresh serial-verified RSA CE trust; both guest mappings remain held; q30 reader and locks stay unresolved |
 | 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
 | 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Source checkpoint delivered to conflict-free draft PR; current-head CI and review remain separate gates | Historical isolated staging only; new snapshots unqualified | SDK prerequisite release verified; GCloud/Platform/Terraform publication remains held | Keep PR draft until source, installed and every applicable live gate passes; then qualified plugin release and published installation |
