@@ -104,6 +104,67 @@ test('selected trusted policy exposes one snapshot and rejects static caller cre
   await expect(session.plan({ GOOGLE_OAUTH_ACCESS_TOKEN: 'synthetic-static' })).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
 });
+
+test('trusted installed resolver selects and freezes a separate runtime for each owning session', async () => {
+  const first = await fixture();
+  const second = await fixture();
+  second.owner.account = 'second-project';
+  second.deployment.scope.account = 'second-project';
+  const requested: string[] = [];
+  const options = {
+    resolveRuntime: async (request: { owner: CeOwner; deployment: Deployment; directory: string }) => {
+      requested.push(request.owner.account);
+      const selected = request.owner.account === first.owner.account ? first : second;
+      request.owner.account = 'foreign-after-resolution';
+      request.deployment.configuration = 'foreign-after-resolution';
+      return { googleAdc: selected.policy, execute: selected.execute };
+    },
+  };
+  const service = createCeTerraformService(async () => first.platform, options);
+  options.resolveRuntime = async () => {
+    throw new Error('substituted resolver');
+  };
+  const a = await service.open(first.owner, first.deployment, false);
+  const b = await service.open(second.owner, second.deployment, false);
+  const [one, two] = await Promise.all([adcEnvironment(a), adcEnvironment(b)]);
+  expect(one.GOOGLE_APPLICATION_CREDENTIALS).not.toBe(two.GOOGLE_APPLICATION_CREDENTIALS);
+  expect(requested).toEqual(['example-project', 'second-project']);
+  expect(first.acquired()).toBe(1);
+  expect(second.acquired()).toBe(1);
+  expect(first.owner.account).toBe('example-project');
+  expect(second.owner.account).toBe('second-project');
+  expect(await a.readConfiguration(hash('{}'))).toBe('{}');
+  expect(await b.readConfiguration(hash('{}'))).toBe('{}');
+});
+
+test('a resolved ADC policy requires its own executor before preparing a deployment', async () => {
+  const f = await fixture();
+  const service = createCeTerraformService(async () => f.platform, {
+    resolveRuntime: async () => ({ googleAdc: f.policy }),
+  });
+  await expect(service.open(f.owner, f.deployment, false)).rejects.toThrow('qualified original-lifetime executor');
+  expect(f.acquired()).toBe(0);
+  expect(f.calls).toHaveLength(0);
+});
+
+test('owner validation precedes runtime resolution and legacy resolution retains static cleanup credentials', async () => {
+  const f = await fixture();
+  let selected = 0;
+  const service = createCeTerraformService(async () => f.platform, {
+    resolveRuntime: async () => {
+      selected++;
+      return { execute: f.execute };
+    },
+  });
+  await expect(service.open({ ...f.owner, engine: 'native' }, f.deployment, true)).rejects.toThrow('ownership');
+  expect(selected).toBe(0);
+  const session = await service.open(f.owner, f.deployment, false);
+  expect(session.googleAdcEnvironment).toBeUndefined();
+  await expect(session.plan({ GOOGLE_OAUTH_ACCESS_TOKEN: 'legacy-static' })).rejects.toThrow(
+    'fixture execution stopped',
+  );
+  expect(f.calls[0].env.GOOGLE_OAUTH_ACCESS_TOKEN).toBe('legacy-static');
+});
 test('original monitor is checked around actual execution and refuses later calls without resubmission', async () => {
   const f = await fixture();
   const service = createCeTerraformService(async () => f.platform, {

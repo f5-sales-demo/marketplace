@@ -109,11 +109,30 @@ export interface GoogleAdcPolicy {
     resume: boolean | 'current';
   }): Promise<GoogleAdcLease>;
 }
-export interface CeTerraformServiceOptions {
+export interface CeTerraformRuntimeOptions {
   /** Opt-in trusted policy; legacy stored sessions retain their original behavior. */
   readonly googleAdc?: GoogleAdcPolicy;
   /** Trusted execution policy; the runner retains ownership, saved-plan and recovery checks. */
   readonly execute?: Executor;
+}
+export interface CeTerraformRuntimeRequest {
+  readonly owner: CeOwner;
+  readonly deployment: Deployment;
+  readonly directory: string;
+  readonly resume: boolean | 'current';
+  readonly platform: CePlatformService;
+}
+export interface CeTerraformServiceOptions extends CeTerraformRuntimeOptions {
+  /** Installed server code selects the owning context; conversational callers cannot provide a resolver. */
+  readonly resolveRuntime?: (request: CeTerraformRuntimeRequest) => Promise<CeTerraformRuntimeOptions>;
+}
+function freezeRuntime(options: CeTerraformRuntimeOptions): CeTerraformRuntimeOptions {
+  const execute = options.execute;
+  const googleAdc = options.googleAdc
+    ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
+    : undefined;
+  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
+  return Object.freeze({ execute, googleAdc });
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -122,9 +141,10 @@ export function createCeTerraformService(
   options: CeTerraformServiceOptions = {},
 ): CeTerraformService {
   // Capture the policy once so mutation of the options object cannot redirect later sessions.
-  const execute = options.execute;
-  const googleAdc = options.googleAdc ? { ...options.googleAdc, acquire: options.googleAdc.acquire } : undefined;
-  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
+  const defaults = freezeRuntime(options);
+  const resolveRuntime = options.resolveRuntime;
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc))
+    throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
       owner = structuredClone(owner);
@@ -145,6 +165,17 @@ export function createCeTerraformService(
       const directory = deployment.stage
         ? join(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
+      const { execute, googleAdc } = resolveRuntime
+        ? freezeRuntime(
+            await resolveRuntime({
+              owner: structuredClone(owner),
+              deployment: structuredClone(deployment),
+              directory,
+              resume,
+              platform: shared,
+            }),
+          )
+        : defaults;
       let adcSession: Promise<Awaited<ReturnType<typeof openGoogleAdcSession>>> | undefined;
       let originalLease: GoogleAdcLease | undefined;
       let retiring = false;

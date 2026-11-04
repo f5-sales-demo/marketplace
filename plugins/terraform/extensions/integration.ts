@@ -46,8 +46,16 @@ export default function terraformIntegration(pi: ExtensionApi) {
       try {
         if (Bun.spawnSync(['terraform', 'version']).exitCode !== 0)
           return { state: 'setup_required', reason: 'cli_missing' };
-        if (process.platform === 'linux' && Bun.spawnSync([...terraformRuntimeInstallArgv(), '--check']).exitCode !== 0)
-          return { state: 'setup_required', reason: 'observer_runtime_missing_or_unverified' };
+        if (process.platform === 'linux') {
+          try {
+            if (Bun.spawnSync([...terraformRuntimeInstallArgv(), '--check']).exitCode !== 0)
+              return { state: 'setup_required', reason: 'observer_runtime_missing_or_unverified' };
+          } catch (error) {
+            if ((error as { code?: string } | null)?.code === 'ENOENT')
+              return { state: 'setup_required', reason: 'observer_runtime_missing_or_unverified' };
+            throw error;
+          }
+        }
         return { state: 'ready' };
       } catch (error) {
         if ((error as { code?: string } | null)?.code === 'ENOENT')
