@@ -16,6 +16,9 @@ SCRIPT = (
     / "plugins/terraform/scripts/install_terraform.py"
 )
 spec = importlib.util.spec_from_file_location("user_terraform_install", SCRIPT)
+if spec is None or spec.loader is None:
+    message = "Installer test module is unavailable"
+    raise RuntimeError(message)
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 
@@ -34,7 +37,9 @@ class UserInstallTests(unittest.TestCase):
     def test_wrong_archive_refuses_before_creating_target(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "bin"
-            with pytest.raises(ValueError, match="Pinned vendor archive checksum differs"):
+            with pytest.raises(
+                ValueError, match="Pinned vendor archive checksum differs"
+            ):
                 installer.install(fixture(), target)
             assert not (target / "terraform").exists()
 
@@ -83,7 +88,10 @@ class UserInstallTests(unittest.TestCase):
                     binary.symlink_to(foreign)
                 else:
                     binary.write_bytes(b"preserve")
-                with self.subTest(symlink=symlink), pytest.raises(ValueError, match="Existing Terraform differs"):
+                with (
+                    self.subTest(symlink=symlink),
+                    pytest.raises(ValueError, match="Existing Terraform differs"),
+                ):
                     installer.install(raw, target)
                 assert foreign.read_bytes() == b"preserve"
                 assert binary.read_bytes() == b"preserve"
@@ -97,7 +105,9 @@ class UserInstallTests(unittest.TestCase):
                     installer, "ARCHIVE_SHA256", hashlib.sha256(raw).hexdigest()
                 ),
                 self.subTest(extra=extra),
-                pytest.raises(ValueError, match="Exact vendor archive inventory required"),
+                pytest.raises(
+                    ValueError, match="Exact vendor archive inventory required"
+                ),
             ):
                 installer.install(raw, Path(directory) / "bin")
 

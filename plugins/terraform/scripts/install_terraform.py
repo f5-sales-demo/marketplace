@@ -117,7 +117,7 @@ def install(raw: bytes, directory: Path) -> dict[str, str | bool]:
     temporary = stage / "terraform"
     temporary.write_bytes(binary)
     temporary.chmod(0o755)
-    receipt = {
+    receipt: dict[str, str | bool] = {
         "version": VERSION,
         "scope": "user",
         "status": "installed",
