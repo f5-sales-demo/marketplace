@@ -2336,11 +2336,14 @@ function parseNodeHealthJson(raw) {
 function responseSchemas(value) {
   if (Array.isArray(value)) return value.map(responseSchemas);
   if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(
+  const normalized = Object.fromEntries(
     Object.entries(value)
       .filter(([key]) => key !== 'readOnly')
       .map(([key, child]) => [key, responseSchemas(child)]),
   );
+  if (Object.hasOwn(value, 'properties') && !Object.hasOwn(value, 'additionalProperties'))
+    normalized.additionalProperties = true;
+  return normalized;
 }
 function nodeHealthRequest(document, site, node) {
   require5(name2(site) && name2(node));
@@ -2466,12 +2469,13 @@ function parseNodeHealthResponse(document, value, expected) {
       ['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
         String(health.state),
       ) &&
-      Array.isArray(health.roles) &&
-      health.roles.length > 0 &&
-      health.roles.length <= 32 &&
-      health.roles.every(text2) &&
-      new Set(health.roles).size === health.roles.length &&
-      [health.software_version, health.os_version, health.version].every(text2),
+      (health.roles === undefined ||
+        (Array.isArray(health.roles) &&
+          health.roles.length <= 32 &&
+          health.roles.every(text2) &&
+          new Set(health.roles).size === health.roles.length)) &&
+      [health.software_version, health.os_version].every(text2) &&
+      buildMetadata(health.version),
   );
   return {
     status: 'observed',
@@ -2479,10 +2483,11 @@ function parseNodeHealthResponse(document, value, expected) {
     node: expected.node,
     fqdn: expected.expectedFqdn,
     state: health.state,
-    roles: [...health.roles],
+    roles: health.roles === undefined ? undefined : [...health.roles],
+    roleEvidence: health.roles === undefined ? 'unreported' : 'observed',
     softwareVersion: health.software_version,
     osVersion: health.os_version,
-    vpmVersion: health.version,
+    vpmVersion: health.version.trim(),
   };
 }
 var nodeHealthPath = '/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug/{node}/exec-user',
@@ -2493,6 +2498,11 @@ var nodeHealthPath = '/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug
     v.trim() === v &&
     [...v].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127) &&
     !['undefined', 'null'].includes(v),
+  buildMetadata = (v) =>
+    typeof v === 'string' &&
+    v.length <= 4096 &&
+    v.trim().length > 0 &&
+    [...v].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127),
   name2 = (v) =>
     typeof v === 'string' &&
     /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(v) &&

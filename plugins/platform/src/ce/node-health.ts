@@ -44,6 +44,11 @@ const text = (v: unknown): v is string =>
   v.trim() === v &&
   [...v].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127) &&
   !['undefined', 'null'].includes(v);
+const buildMetadata = (v: unknown): v is string =>
+  typeof v === 'string' &&
+  v.length <= 4096 &&
+  v.trim().length > 0 &&
+  [...v].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
 const name = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(v) &&
@@ -126,11 +131,15 @@ export function parseNodeHealthJson(raw: string): Json {
 function responseSchemas(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(responseSchemas);
   if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(
+  const normalized: Json = Object.fromEntries(
     Object.entries(value)
       .filter(([key]) => key !== 'readOnly')
       .map(([key, child]) => [key, responseSchemas(child)]),
   );
+  // Responses retain the OpenAPI default; mutation request schemas stay closed.
+  if (Object.hasOwn(value, 'properties') && !Object.hasOwn(value, 'additionalProperties'))
+    normalized.additionalProperties = true;
+  return normalized;
 }
 export function nodeHealthRequest(document: unknown, site: string, node: string) {
   require(name(site) && name(node));
@@ -266,12 +275,13 @@ export function parseNodeHealthResponse(document: unknown, value: unknown, expec
       ['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'].includes(
         String(health.state),
       ) &&
-      Array.isArray(health.roles) &&
-      health.roles.length > 0 &&
-      health.roles.length <= 32 &&
-      health.roles.every(text) &&
-      new Set(health.roles).size === health.roles.length &&
-      [health.software_version, health.os_version, health.version].every(text),
+      (health.roles === undefined ||
+        (Array.isArray(health.roles) &&
+          health.roles.length <= 32 &&
+          health.roles.every(text) &&
+          new Set(health.roles).size === health.roles.length)) &&
+      [health.software_version, health.os_version].every(text) &&
+      buildMetadata(health.version),
   );
   return {
     status: 'observed' as const,
@@ -279,9 +289,10 @@ export function parseNodeHealthResponse(document: unknown, value: unknown, expec
     node: expected.node,
     fqdn: expected.expectedFqdn,
     state: health.state as string,
-    roles: [...health.roles] as string[],
+    roles: health.roles === undefined ? undefined : ([...health.roles] as string[]),
+    roleEvidence: health.roles === undefined ? ('unreported' as const) : ('observed' as const),
     softwareVersion: health.software_version as string,
     osVersion: health.os_version as string,
-    vpmVersion: health.version as string,
+    vpmVersion: (health.version as string).trim(),
   };
 }

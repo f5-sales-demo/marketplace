@@ -401,3 +401,66 @@ for (const engine of ['native', 'terraform'] as const) {
     expect(await f.run()).toMatchObject({ status: 'unknown', readiness: 'unknown' });
   });
 }
+
+for (const engine of ['native', 'terraform'] as const)
+  for (const ha of [false, true])
+    test(`${engine} reads current ${ha ? 'HA' : 'single'} health with optional worker roles absent and rich build metadata`, async () => {
+      const f = harness(engine, ha);
+      delete f.health.roles;
+      const version = `branch: https://example.invalid/${'release-build/'.repeat(24)} <br>commit-sha: https://example.invalid/commit/${'a'.repeat(40)} 2026-10-12T01:51:34Z <br> `;
+      f.health.version = version;
+      const value = await f.run();
+      if (value.status !== 'observed') throw Error('Expected selected-node observation');
+      expect(value).toMatchObject({
+        status: 'observed',
+        readiness: 'ready',
+        roleEvidence: 'unreported',
+        vpmVersion: version.trim(),
+        softwareVersion: 'software-example',
+        osVersion: 'os-example',
+      });
+      expect(value.roles).toBeUndefined();
+      expect(value.canSatisfyInterfaceMutationGate).toBe(false);
+      expect(value.originalSampleFreshness).toBe('unqualified');
+    });
+
+for (const version of ['', ' ', 'x'.repeat(4097), 'build\u0000value', 'build\nvalue'])
+  test(`invalid build metadata remains unknown (${JSON.stringify(version.slice(0, 20))})`, async () => {
+    const f = harness('terraform');
+    delete f.health.roles;
+    f.health.version = version;
+    expect(await f.run()).toMatchObject({ status: 'unknown' });
+  });
+
+test('health response accepts additional published hardware fields while known field types remain strict', async () => {
+  const f = harness('terraform');
+  delete f.health.roles;
+  f.health.additional_hardware_report = { current: true };
+  expect(await f.run()).toMatchObject({ status: 'observed', readiness: 'ready' });
+  f.health.software_version = 42;
+  expect(await f.run()).toMatchObject({ status: 'unknown' });
+});
+
+test('published explicit response closure still rejects unknown fields', async () => {
+  const closed = structuredClone(api);
+  (closed.components.schemas.debugHealthResponse as Json).additionalProperties = false;
+  const C = VerifiedCeContract as unknown as new (...args: unknown[]) => VerifiedCeContract;
+  const schema = resolveCeSchemaFixture(compact);
+  const verified = new C(
+    schema.provenance.commit,
+    `sha256:${'f'.repeat(64)}`,
+    contract,
+    schema.schemas,
+    undefined,
+    'published-release',
+    undefined,
+    closed,
+  );
+  const f = harness('terraform');
+  const runtime = new CeRuntime(verified, 'terraform', 'https://tenant.test', 'test-credential', async (url, _init) => {
+    if (String(url).includes('securemesh_site_v2s')) return Response.json(f.site);
+    if (String(url).includes('registrations_by_site')) return Response.json(f.registrations);
+    return Response.json({ return_code: 0, output: JSON.stringify({ ...f.health, unknown_field: true }) });
+  });
+  expect(await runtime.observeNodeHealth(f.binding, f.expected)).toMatchObject({ status: 'unknown' });
+});
