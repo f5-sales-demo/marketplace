@@ -18,14 +18,16 @@ planning. This document is context, not saved-plan authorization.
 ## Prompt
 
 Complete issue 1559 qualification using the linked context and acceptance matrix.
-Use supported marketplace installation and ordinary `bun dev`, with the configured
-model and existing authenticated contexts. Preserve the requested engine throughout.
+Use supported marketplace installation and ordinary `bun dev` on the verified
+Ubuntu workstation, with the configured model and existing authenticated contexts.
+The managed MacBook cannot sign software. Preserve the requested engine throughout.
 Install Platform as GCloud's dependency; explicit Terraform also requires its
 installation and setup. Report concrete unavailable capabilities before execution.
 
-The user removed the numerical campaign cap. Six diagnostic campaigns have
-been submitted; q28 closed without submission and q30 finished independently
-verified cleanup after its original serial trust refusal. Continue sequentially
+The user removed the numerical campaign cap. Attribute prior diagnostic campaigns
+to their original receipts in the acceptance matrix; q28 closed without submission,
+and q30 and q31 finished independently verified cleanup after their distinct
+guest-access failures. Continue sequentially
 through the acceptance matrix. Historical launchers, plans, keys and
 authorization remain immutable and cannot be replayed.
 
@@ -45,8 +47,11 @@ parser/consumer tests do not qualify current guest access. Bind its exact bytes
 and fresh campaign scope before another guest campaign. Preserve frozen v14 and
 q30's stopped reader, failed capture and unresolved locks. Retain exact original
 serial provenance and reject changed, missing, ambiguous, truncated or stale
-host evidence. The MDM MacBook cannot use sudo; keep its authoritative Terraform
-backend in place and route independent cloud reads through verified Ubuntu SSH.
+host evidence. Current guest transport requires a new signal-free successor;
+do not invoke the frozen adapter's signal-producing cleanup. Preserve q30's
+historical backend in place. Use the current verified Ubuntu worktree and private
+evidence root for new execution. Do not use sudo, software signing, MDM changes
+or process signals.
 
 For the first Terraform HA diagnostic profile, account for all 21 resources:
 18 CE resources plus observer VM, disk and narrowly scoped SSH firewall. Preserve
@@ -79,13 +84,16 @@ partial captures and a separate 300-second final-capture window.
 Use one 60-second session-construction operation for ownership, trust, route
 verification and startup. Keep the SSH child's prompt startup within 15 seconds
 and the parent deadline; do not reset either clock or skip an ownership check.
-Close a returned session if deadline or durable-receipt validation fails.
-Bound natural original process-group completion to 500 milliseconds within the
-command deadline.
-Require a captured original identity and bracket signal-zero probes with current
-identity checks. Refuse reused identity, failed lookups and missing original
-identity. Preserve separate five-second termination closure with one
-absence probe and zero natural grace; resolving closure cannot accept late output.
+On deadline or durable-receipt failure, retain partial capture and retire further
+commands. Use supported logout or verified SSH protocol closure and wait for
+natural completion within the admitted deadline or its final-capture reserve.
+Do not send signals, including signal-zero probes, or close a live PTY master
+as a shortcut. Require captured original kernel and SDK identities, independently
+verify every original reader and process group absent, and reject reused
+identities or unavailable identity evidence. Unresolved readers, failed-capture
+flags and claims remain preserved; they cannot authorize replay or late acceptance.
+Keep five-minute freshness, forty-five-second observation spacing and the original
+operation and final-reserve clocks without resetting them.
 Measure failover and repair
 from the required disruption or restoration-command start; action completion
 cannot reset the 120-second clock. Record route recovery, application recovery,
