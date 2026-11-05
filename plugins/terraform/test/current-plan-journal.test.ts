@@ -47,7 +47,7 @@ async function fixture(planned = true, execution = false, loseApplyResponse = fa
                 terraform_version: '1.14.0',
                 errored: false,
                 complete: true,
-                applyable: true,
+                applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
                 resource_changes: [
                   {
                     address: 'terraform_data.ce',
