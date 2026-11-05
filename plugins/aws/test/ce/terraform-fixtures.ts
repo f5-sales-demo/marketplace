@@ -7,6 +7,7 @@ export function foundationPlan(ha = false): AwsCePlan {
     operation: 'deploy',
     awsProfile: 'ce-profile',
     accountId: '123456789012',
+    partition: 'aws',
     region: 'us-east-1',
     deploymentName: 'ce',
     siteName: 'site',

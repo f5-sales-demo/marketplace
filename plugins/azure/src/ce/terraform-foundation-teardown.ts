@@ -13,6 +13,7 @@ import { canonicalSha256 } from './canonical';
 import { runAzureTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
 import { azureTerraformFoundationDeployment } from './terraform-foundation';
+import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -153,6 +154,18 @@ async function journal(
   for (const entry of await readdir(store.directory, { withFileTypes: true })) {
     if (reservedSite && ['terraform-site.json', `site-binding-${base.siteName}.json`].includes(entry.name)) {
       if (!entry.isFile()) throw Error('Reserved Azure site artifact type differs');
+      continue;
+    }
+    if (entry.name === 'terraform-original-deployment-receipts') {
+      if (!entry.isDirectory()) throw Error('Azure foundation original receipt namespace type differs');
+      const inventory = await readAzureTerraformOriginalReceiptInventory(base, {}, store);
+      if (
+        inventory.status !== 'complete' ||
+        inventory.records.some(
+          (row) => row.record.stage.kind !== 'foundation' || Object.keys(row.record.bootstrapSha256ByNode).length !== 0,
+        )
+      )
+        throw Error('Azure foundation original receipt metadata is incomplete or contains admission');
       continue;
     }
     if (allowed.has(entry.name)) {

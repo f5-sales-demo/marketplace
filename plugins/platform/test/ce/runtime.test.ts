@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import { type CeStoredSiteBinding, createCePlatformService } from '../../src/ce/service';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
+import sixInterfaces from '../fixtures/aws-ha-six-interface-links.json';
 import routingSchemaCompact from '../fixtures/aws-routing-schema.json';
 import recordedInterfaces from '../fixtures/aws-site-publisher-links.json';
 import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
@@ -1415,7 +1417,11 @@ test('maintenance routing observation binds site and child identity before writa
       metadata: {
         name: bgp.name,
         namespace: 'system',
-        labels: { ...labels, 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': foreign ? 'foreign' : 'site-one' },
+        labels: {
+          ...labels,
+          'xcsh-ce-site': binding.siteName,
+          'xcsh-ce-site-uid': foreign ? 'foreign' : 'site-one',
+        },
       },
       system_metadata: { uid: 'bgp-one' },
       resource_version: missingVersion ? '' : 'v1',
@@ -1896,7 +1902,11 @@ for (const mode of ['stable', 'upgrading', 'offline', 'stale', 'replacement', 'c
     const calls: string[] = [];
     const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
       calls.push(init?.method ?? 'GET');
-      const metadata = { name: binding.siteName, namespace: 'system', labels: mode === 'foreign' ? {} : labels };
+      const metadata = {
+        name: binding.siteName,
+        namespace: 'system',
+        labels: mode === 'foreign' ? {} : labels,
+      };
       if (new URL(url).pathname.includes('securemesh_site_v2s'))
         return json({
           metadata,
@@ -2134,3 +2144,248 @@ for (const identity of ['same', 'foreign-site', 'foreign-contract', 'foreign-ten
     }
   });
 }
+
+for (const mode of ['stable', 'unknown', 'down', 'duplicate', 'partial', 'foreign-node', 'all-nodes'] as const)
+  test(`Azure surviving interface observation ${mode} preserves complete deployment bindings`, async () => {
+    const raw = structuredClone(sixInterfaces);
+    const configuration: Record<string, unknown> = {
+      ...raw.configuration,
+      metadata: { ...raw.configuration.metadata, labels: { ...labels, 'xcsh-ce-provider': 'azure' } },
+      spec: { azure: raw.configuration.spec.aws },
+    };
+    const nodes = [...new Set(raw.expected.map((row) => row.node))];
+    const selected: SiteBinding = {
+      ...binding,
+      owner: { ...binding.owner, provider: 'azure' },
+      siteName: raw.configuration.metadata.name,
+      nodes,
+    };
+    const complete = raw.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
+    const surviving = nodes.slice(0, -1);
+    let writes = 0,
+      reads = 0;
+    const runtime = new CeRuntime(
+      fixture(),
+      'native',
+      'https://tenant.test',
+      'test-credential',
+      async (url, init) => {
+        reads++;
+        expect(init?.method ?? 'GET').toBe('GET');
+        const path = new URL(url).pathname;
+        if (path.includes('securemesh_site_v2s')) return json(configuration);
+        if (mode === 'unknown' && path.includes('network_interfaces')) return json({}, 503);
+        const physical = structuredClone(raw.physical);
+        if (mode === 'down') physical.status[0].ver_status.intf_status[0].link_state = false;
+        return json(path.includes('network_interfaces') ? raw.objects : physical);
+      },
+      undefined,
+      async () => {
+        writes++;
+      },
+    );
+    const selectedNodes =
+      mode === 'duplicate'
+        ? [surviving[0], surviving[0]]
+        : mode === 'foreign-node'
+          ? ['foreign-node']
+          : mode === 'all-nodes'
+            ? nodes
+            : surviving;
+    const expected = mode === 'partial' ? complete.slice(1) : complete;
+    if (['duplicate', 'partial', 'foreign-node', 'all-nodes'].includes(mode)) {
+      await expect(runtime.observeAzureInterfacesForNodes(selected, expected, selectedNodes)).rejects.toThrow();
+      expect(reads).toBe(0);
+    } else {
+      const result = await runtime.observeAzureInterfacesForNodes(selected, expected, selectedNodes);
+      expect(result.status).toBe(mode === 'stable' ? 'observed' : mode === 'down' ? 'down' : 'unknown');
+      expect(result.interfaces.every((row) => surviving.includes(row.node))).toBe(true);
+      expect(result.interfaces.length).toBe(mode === 'unknown' ? 0 : surviving.length * 2);
+    }
+    expect(writes).toBe(0);
+  });
+
+for (const provider of ['aws', 'azure'] as const)
+  for (const engine of ['native', 'terraform'] as const)
+    test(`current issued bootstrap witness verifies ${provider}/${engine} without creation or secret exposure`, async () => {
+      const owned = { ...binding, owner: { ...binding.owner, provider, engine } },
+        expectedLabels = { ...labels, 'xcsh-ce-provider': provider, 'xcsh-ce-engine': engine };
+      const jwt = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.c2lnbmF0dXJl`,
+        sha = createHash('sha256').update(jwt).digest('hex');
+      let requests = 0;
+      const runtime = new CeRuntime(fixture(), engine, 'https://tenant.test', 'test-credential', async (url, init) => {
+        expect(init?.method ?? 'GET').toBe('GET');
+        requests++;
+        if (String(url).includes('/tokens/'))
+          return json({
+            metadata: {
+              name: 'node-token',
+              namespace: 'system',
+              labels: { ...expectedLabels, 'xcsh-ce-node': 'node-one' },
+            },
+            spec: { type: 1, site_name: 'ce-one', content: jwt },
+          });
+        return json({ metadata: { name: 'ce-one', namespace: 'system', labels: expectedLabels } });
+      });
+      const witness = await runtime.observeIssuedBootstrapToken(owned, 'node-one', 'node-token', sha);
+      expect(witness.tokenSha256).toBe(sha);
+      expect(witness.owner).toEqual(owned.owner);
+      expect(witness.expiresAt).toBeGreaterThan(Date.now() + 60000);
+      expect(JSON.stringify(witness)).not.toContain(jwt);
+      expect(requests).toBe(2);
+    });
+for (const mode of [
+  'foreign-digest',
+  'foreign-owner',
+  'wrong-site',
+  'wrong-node',
+  'expired',
+  'near-expiry',
+  'missing-expiry',
+  'overflow',
+  'malformed-jwt',
+  'unsigned-jwt',
+  'missing-token',
+  'unauthorized',
+  'service-failure',
+  'context-race',
+  'wrong-engine',
+  'unresolved',
+] as const)
+  test(`current issued bootstrap witness rejects ${mode} without creation or leaking the token`, async () => {
+    const owned = structuredClone(binding),
+      claims: Record<string, unknown> = { exp: Math.floor(Date.now() / 1000) + 3600 };
+    if (mode === 'expired') claims.exp = 1;
+    if (mode === 'near-expiry') claims.exp = Math.floor(Date.now() / 1000) + 30;
+    if (mode === 'missing-expiry') delete claims.exp;
+    if (mode === 'overflow') claims.exp = 1e308;
+    const jwt =
+        mode === 'unsigned-jwt'
+          ? `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.`
+          : mode === 'malformed-jwt'
+            ? 'SENSITIVE_INVALID_JWT'
+            : `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2lnbmF0dXJl`,
+      sha = createHash('sha256').update(jwt).digest('hex');
+    let writes = 0;
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      if (init?.method && init.method !== 'GET') writes++;
+      if (String(url).includes('/tokens/')) {
+        if (mode === 'missing-token') return json({}, 404);
+        if (mode === 'unauthorized') return json({ secret: jwt }, 403);
+        if (mode === 'service-failure') return json({ secret: jwt }, 500);
+        if (mode === 'context-race') owned.owner.account = 'example-foreign';
+        return json({
+          metadata: {
+            name: 'node-token',
+            namespace: 'system',
+            labels: {
+              ...labels,
+              'xcsh-ce-node': mode === 'wrong-node' ? 'foreign' : 'node-one',
+              ...(mode === 'foreign-owner' ? { 'xcsh-ce-account': 'foreign' } : {}),
+            },
+          },
+          spec: { type: 1, site_name: mode === 'wrong-site' ? 'foreign' : 'ce-one', content: jwt },
+        });
+      }
+      return json({ metadata: { name: 'ce-one', namespace: 'system', labels } });
+    });
+    if (mode === 'wrong-engine') owned.owner.engine = 'terraform';
+    const result = await runtime
+      .observeIssuedBootstrapToken(
+        owned,
+        'node-one',
+        'node-token',
+        mode === 'unresolved' ? '__JWT__' : mode === 'foreign-digest' ? 'a'.repeat(64) : sha,
+      )
+      .then(
+        () => ({ accepted: true, error: '' }),
+        (error) => ({ accepted: false, error: String(error) }),
+      );
+    expect(result.accepted).toBe(false);
+    expect(result.error).not.toContain(jwt);
+    expect(writes).toBe(0);
+  });
+
+for (const engine of ['native', 'terraform'] as const)
+  for (const mode of ['complete', 'missing-path', 'duplicate-path', 'caller-mutated'] as const)
+    test(`${engine} owned BGP membership ${mode} retains distinct exact path inventory`, async () => {
+      const scoped: SiteBinding = structuredClone(binding);
+      scoped.owner.engine = engine;
+      const expected = ['169.254.10.2', '169.254.10.3'].map((peerAddress) => ({
+        node: scoped.nodes[0],
+        interfaceName: 'ce-gre-one',
+        peerAddress,
+      }));
+      const tables = [{ node: scoped.nodes[0], routingInstance: 'site-local-inside', table: 'inet.0' }];
+      const prefixes = ['10.200.0.0/16'];
+      const original = structuredClone({ scoped, expected, tables, prefixes });
+      const route: Record<string, unknown> = { subnet: prefixes[0] };
+      const path = { peer: expected[0].peerAddress, nh: [expected[0].peerAddress], as_path: '65001' };
+      if (mode !== 'missing-path') route.path = mode === 'duplicate-path' ? [path, path] : [path];
+      const requests: string[] = [];
+      const runtime = new CeRuntime(fixture(true), engine, 'https://tenant.test', 'credential', async (url, init) => {
+        expect(init?.method ?? 'GET').toBe('GET');
+        requests.push(String(url));
+        if (String(url).includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: original.scoped.siteName,
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-ce-engine': engine },
+            },
+            system_metadata: { uid: 'site-one' },
+          });
+        if (mode === 'caller-mutated') {
+          scoped.siteName = 'foreign';
+          expected.length = 0;
+          tables.length = 0;
+          prefixes.length = 0;
+        }
+        if (String(url).includes('bgp_peers'))
+          return json({
+            ver: [
+              {
+                name: original.scoped.nodes[0],
+                peer: original.expected.map((peer) => ({
+                  interface_name: peer.interfaceName,
+                  peer_address: { ipv4: { addr: peer.peerAddress } },
+                  protocol_status: 'Established',
+                  received_prefix_count: 1,
+                  advertised_prefix_count: 1,
+                  up_down_timestamp: '2026-09-10T12:00:00Z',
+                })),
+              },
+            ],
+          });
+        return json({
+          ver: [
+            {
+              name: original.scoped.nodes[0],
+              ri_table: [
+                {
+                  routing_instance: 'site-local-inside',
+                  rt_table: [{ name: 'inet.0', imported: [], exported: [route] }],
+                },
+              ],
+            },
+          ],
+        });
+      });
+      const result = await runtime.observeBgpServiceMembership(scoped, 'site-one', expected, tables, prefixes);
+      expect(result).toMatchObject({
+        status: 'active',
+        freshness: 'unqualified',
+        traffic: 'unknown',
+        siteName: 'ce-one',
+      });
+      expect(result.pathInventory).toMatchObject({
+        status: ['missing-path', 'duplicate-path'].includes(mode) ? 'unknown' : 'observed',
+        scope: 'unqualified',
+        freshness: 'unqualified',
+        traffic: 'unknown',
+      });
+      if (result.pathInventory.status === 'observed')
+        expect(result.pathInventory.nodes[0].routingInstances[0].tables[0].exported[0].path).toEqual([path]);
+      expect(requests.every((url) => !url.includes('foreign'))).toBe(true);
+      expect(result.sessions[0].stateChangedAt).toBe('2026-09-10T12:00:00Z');
+    });

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as typebox from '@sinclair/typebox';
+import * as typebox from '/data/robin-GIT/worktrees/marketplace-1856-azure-relay-runtime/plugins/azure/node_modules/@sinclair/typebox/build/cjs/index.js';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
@@ -24,6 +24,7 @@ import {
   type AzureFoundationTeardownPlan,
   runAzureFoundationTeardown,
 } from '../../src/ce/terraform-foundation-teardown';
+import { publishAzureTerraformOriginalReceipt } from '../../src/ce/terraform-original-receipt-inventory';
 import { assertAzureTerraformDeploymentActive } from '../../src/ce/terraform-retirement';
 import { prepareAzureTerraformTeardown, runAzureTerraformTeardown } from '../../src/ce/terraform-teardown';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
@@ -65,7 +66,7 @@ async function fixture(version = '1.16.5') {
     stage: 'network-pending',
   });
   let observations = 0;
-  const runtime = {
+  const runtimeFixture = {
     engine: 'terraform',
     contract: { fingerprint: `sha256:${'a'.repeat(64)}` },
     async teardownInventory() {
@@ -81,7 +82,8 @@ async function fixture(version = '1.16.5') {
         observedAt: new Date().toISOString(),
       };
     },
-  } as unknown as CeRuntime;
+  };
+  const runtime = runtimeFixture as unknown as CeRuntime;
   const api: AzExecApi = {
     async exec(_command, args) {
       return {
@@ -102,6 +104,50 @@ async function fixture(version = '1.16.5') {
   };
   return { plan, store, deployment, runner, runtime, api, observations: () => observations };
 }
+async function originalFoundationReceipt(f: Awaited<ReturnType<typeof fixture>>) {
+  return publishAzureTerraformOriginalReceipt(
+    {
+      plan: f.plan,
+      bootstrapByNode: {},
+      stage: { kind: 'foundation' },
+      receipt: {
+        schemaVersion: 1,
+        engine: 'terraform',
+        deploymentId: f.plan.deploymentName,
+        backendIdentity: `local:${f.plan.deploymentName}`,
+        configurationSha256: hash(f.deployment.configuration),
+        providerLockSha256: hash(f.deployment.providerLock),
+        planSha256: hash('failed-foundation-native-plan'),
+        changes: [{ address: 'azurerm_resource_group.ce', type: 'azurerm_resource_group', actions: ['create'] }],
+        noChanges: false,
+      },
+    },
+    f.store,
+  );
+}
+test('retires pre-admission foundation with authenticated original receipt metadata', async () => {
+  const f = await fixture();
+  await originalFoundationReceipt(f);
+  const teardown = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
+  expect(teardown.kind).toBe('azure-ce-terraform-foundation-teardown');
+  expect(teardown.retirement).toEqual([]);
+  expect(f.observations()).toBeGreaterThanOrEqual(2);
+});
+test('rejects incomplete original receipt namespace before foundation retirement', async () => {
+  const f = await fixture();
+  await originalFoundationReceipt(f);
+  await Bun.write(join(f.store.directory, 'terraform-original-deployment-receipts', 'incomplete.pending'), 'partial');
+  await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+});
+test('rejects foreign original receipt metadata before foundation retirement', async () => {
+  const f = await fixture();
+  const receipt = await originalFoundationReceipt(f);
+  const path = join(f.store.directory, 'terraform-original-deployment-receipts', receipt.name);
+  const record = await Bun.file(path).json();
+  record.ownerSha256 = hash('foreign-owner');
+  await Bun.write(path, JSON.stringify(record));
+  await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+});
 test('prepares exact pre-admission Azure retirement without a registered site', async () => {
   const f = await fixture();
   const teardown = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
@@ -137,6 +183,31 @@ test('accepts independently absent Azure group only for an exact empty destroy p
   ).toMatchObject({ resourceCount: 0 });
 });
 
+test('accepts an output-only destroy without treating it as a no-change plan', async () => {
+  const f = await fixture();
+  const receipt: PlanReceipt = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    deploymentId: f.plan.deploymentName,
+    backendIdentity: `local:${f.plan.deploymentName}`,
+    operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('output-only-destroy'),
+    changes: [],
+    noChanges: false,
+  };
+  expect(
+    await verifyAzureTerraformDestroyOwnership(
+      f.plan,
+      receipt,
+      { readPlannedResourceFields: async () => ({ 'azurerm_resource_group.ce': null }) },
+      f.api,
+      {},
+    ),
+  ).toMatchObject({ resourceCount: 0 });
+  expect(receipt.noChanges).toBe(false);
+});
 for (const [label, change] of [
   ['unknown', { status: 'unknown' }],
   ['foreign owner', { owner: { deploymentId: 'foreign' } }],
@@ -171,15 +242,18 @@ test('rejects admission artifacts and unauthorized cloud absence reads', async (
   const f = await fixture();
   await f.store.write('terraform-site.json', { siteUid: 'generated-site' });
   await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow('admission');
-  const receipt = {
+  const receipt: PlanReceipt = {
     schemaVersion: 1,
     engine: 'terraform',
     deploymentId: f.plan.deploymentName,
     backendIdentity: `local:${f.plan.deploymentName}`,
     operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('synthetic-destroy-plan'),
     changes: [],
     noChanges: true,
-  } as PlanReceipt;
+  };
   await expect(
     verifyAzureTerraformDestroyOwnership(
       f.plan,
@@ -192,20 +266,24 @@ test('rejects admission artifacts and unauthorized cloud absence reads', async (
 });
 test('rejects nonempty or malformed state projections when the Azure group is absent', async () => {
   const f = await fixture();
-  const receipt = {
+  const receipt: PlanReceipt = {
     schemaVersion: 1,
     engine: 'terraform',
     deploymentId: f.plan.deploymentName,
     backendIdentity: `local:${f.plan.deploymentName}`,
     operation: 'destroy',
+    configurationSha256: hash(f.deployment.configuration),
+    providerLockSha256: hash(f.deployment.providerLock),
+    planSha256: hash('synthetic-destroy-plan'),
     changes: [],
     noChanges: true,
-  } as PlanReceipt;
-  for (const fields of [
+  };
+  const fieldCases: Record<string, Record<string, unknown> | null>[] = [
     { 'azurerm_resource_group.ce': { id: 'foreign-id' } },
     {},
     { 'azurerm_resource_group.ce': null, extra: null },
-  ])
+  ];
+  for (const fields of fieldCases)
     await expect(
       verifyAzureTerraformDestroyOwnership(
         f.plan,
@@ -371,7 +449,20 @@ test('public teardown prepares and applies frozen 1.16.1 foundation while preser
       return f.session;
     },
   } as CeTerraformService;
-  const tool = createAzureCeTeardownTool({ typebox } as PluginInterface, {
+  const pi: PluginInterface = {
+    typebox: {
+      Type: new Proxy<Record<string, (...args: unknown[]) => unknown>>(
+        {},
+        {
+          get:
+            (_target, name) =>
+            (...args: unknown[]) =>
+              Reflect.apply(Reflect.get(typebox.Type, name), typebox.Type, args),
+        },
+      ),
+    },
+  };
+  const tool = createAzureCeTeardownTool(pi, {
     platform: async () => platform,
     terraform: async () => terraform,
     contract: async () => contract,
@@ -416,6 +507,7 @@ test('public apply rejects retirement before cloud discovery and shares the tear
   const ctx: AzureCeToolContext = {
     cwd: f.store.directory,
     hasUI: false,
+    ui: { confirm: async () => false },
     sessionManager: {
       getSessionId: () => f.store.directory,
       getArtifactsDir: () => null,

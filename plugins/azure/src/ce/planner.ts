@@ -1,6 +1,8 @@
 import { isIP } from 'node:net';
 import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
+import { classifyAzureImageHardwareCompatibility } from './image-hardware-compatibility';
+import { normalizeAzureForwardingExpectations } from './network-forwarding-expectations';
 import type {
   AzureCeAction,
   AzureCeIntent,
@@ -10,6 +12,7 @@ import type {
   AzureCeResourceObservation,
 } from './types';
 import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
+import { AZURE_CE_WORKLOAD_FIXTURE_VCPUS } from './workload-fixture';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
@@ -116,9 +119,39 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
       fail('route subnet must be listed in brownfield.resourceIds');
   }
 
+  const udr = input.routing.udr === undefined ? undefined : structuredClone(input.routing.udr);
+  if (input.routing.udr !== undefined && (!udr || typeof udr !== 'object' || Array.isArray(udr)))
+    fail('greenfield UDR profile must be an object');
+  if (udr) {
+    if (
+      Object.keys(udr).sort().join(',') !== 'nextHop,subnetNames' ||
+      !udr.nextHop ||
+      Object.keys(udr.nextHop).sort().join(',') !== 'nicIndex,node' ||
+      !Number.isInteger(udr.nextHop.node) ||
+      udr.nextHop.node < 1 ||
+      udr.nextHop.node > (input.topology.ha ? 3 : 1) ||
+      !Number.isInteger(udr.nextHop.nicIndex) ||
+      !nics[udr.nextHop.nicIndex] ||
+      !Array.isArray(udr.subnetNames) ||
+      udr.subnetNames.length === 0 ||
+      new Set(udr.subnetNames).size !== udr.subnetNames.length ||
+      input.routing.destinationCidrs.length === 0 ||
+      input.brownfield.routeChanges.length !== 0 ||
+      nics.some((nic) => nic.subnet.mode !== 'greenfield')
+    )
+      fail('greenfield UDR requires exact node/NIC next hop, destinations and distinct owned subnet associations');
+    for (const name of udr.subnetNames) {
+      validateName('UDR subnet', name);
+      if (!nics.some((nic) => nic.subnet.name === name)) fail('UDR target subnet is not created by this deployment');
+    }
+    udr.subnetNames.sort();
+  }
+
   let ingress = input.ingress === undefined ? undefined : structuredClone(input.ingress);
   const workloadFixture = input.workloadFixture === undefined ? undefined : structuredClone(input.workloadFixture);
   if (workloadFixture) {
+    if (typeof workloadFixture.imageVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(workloadFixture.imageVersion))
+      fail('workload fixture requires an exact Ubuntu image version; latest or unresolved identifiers are forbidden');
     if (
       input.engine !== 'terraform' ||
       input.operation !== 'deploy' ||
@@ -233,6 +266,16 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
     nics,
     routing: {
       ...input.routing,
+      ...(udr ? { udr } : {}),
+      ...(input.routing.forwardingRoutes === undefined
+        ? {}
+        : {
+            forwardingRoutes: normalizeAzureForwardingExpectations(
+              input.routing.forwardingRoutes,
+              input.topology.ha ? 3 : 1,
+              nics.map((nic) => nic.role),
+            ),
+          }),
       destinationCidrs: input.routing.destinationCidrs.map((cidr) => validateCidr('routing destination', cidr)).sort(),
     },
     ingress,
@@ -958,7 +1001,9 @@ function buildDeployActions(
               '--next-hop-type',
               'VirtualAppliance',
               '--next-hop-ip-address',
-              '__NODE_1_DATA_PRIVATE_IP__',
+              intent.routing.udr
+                ? `__NODE_${intent.routing.udr.nextHop.node}_NIC_${intent.routing.udr.nextHop.nicIndex}_PRIVATE_IP__`
+                : '__NODE_1_DATA_PRIVATE_IP__',
               '--subscription',
               intent.subscriptionId,
             ],
@@ -966,6 +1011,43 @@ function buildDeployActions(
               intent.subscriptionId,
               intent.resourceGroup,
               `Microsoft.Network/routeTables/${intent.deploymentName}-rt/routes/ce-route-${index + 1}`,
+            ),
+            mutates: true,
+            destructive: false,
+          }),
+        );
+      }
+      for (const name of intent.routing.udr?.subnetNames ?? []) {
+        actions.push(
+          next({
+            phase: 'routing',
+            kind: 'route-association-update',
+            description: `Associate reviewed newly created subnet ${name} with the owned CE route table`,
+            command: 'az',
+            args: [
+              'network',
+              'vnet',
+              'subnet',
+              'update',
+              '--resource-group',
+              intent.resourceGroup,
+              '--vnet-name',
+              `${intent.deploymentName}-vnet`,
+              '--name',
+              name,
+              '--route-table',
+              managedId(
+                intent.subscriptionId,
+                intent.resourceGroup,
+                `Microsoft.Network/routeTables/${intent.deploymentName}-rt`,
+              ),
+              '--subscription',
+              intent.subscriptionId,
+            ],
+            resourceId: managedId(
+              intent.subscriptionId,
+              intent.resourceGroup,
+              `Microsoft.Network/virtualNetworks/${intent.deploymentName}-vnet/subnets/${name}`,
             ),
             mutates: true,
             destructive: false,
@@ -1027,8 +1109,11 @@ function buildLifecycleActions(
     stop: ['vm-stop', ['vm', 'deallocate']] as const,
     resize: ['vm-resize', ['vm', 'resize', '--size', intent.vm.size]] as const,
   };
-  if (intent.operation in verbByOperation) {
-    const [kind, baseArgs] = verbByOperation[intent.operation as keyof typeof verbByOperation];
+  // Reconciliation and repair restore existing owned nodes; creation/replacement stays explicit.
+  const lifecycleOperation =
+    intent.operation === 'reconcile' || intent.operation === 'repair' ? 'start' : intent.operation;
+  if (lifecycleOperation in verbByOperation) {
+    const [kind, baseArgs] = verbByOperation[lifecycleOperation as keyof typeof verbByOperation];
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
       const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
@@ -1269,7 +1354,7 @@ function buildLifecycleActions(
               '--nic-name',
               `${name}-nic${index}`,
               '--name',
-              'ipconfig1',
+              `__NODE_${node}_NIC_${index}_IPCONFIG_NAME__`,
               '--subnet',
               subnetId,
               '--subscription',
@@ -1594,6 +1679,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (!region?.eligible) fail(`region ${intent.region ?? '<recommended>'} is not eligible`);
   const size = region.vmSizes.find((candidate) => candidate.name.toLowerCase() === intent.vm.size.toLowerCase());
   if (!size || size.restricted) fail(`VM size ${intent.vm.size} is unavailable or restricted in ${region.name}`);
+  const hardware = classifyAzureImageHardwareCompatibility(observation.image, size);
+  if (hardware !== 'compatible') fail(`VM/image hardware compatibility is ${hardware} for ${intent.vm.size}`);
   if (!Number.isFinite(size.memoryGb) || !Number.isInteger(size.maxNics) || size.maxNics < 1)
     fail('VM size has incomplete observed memory or NIC capabilities');
   if (size.vCpus < 8 || size.memoryGb < 32)
@@ -1601,7 +1688,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (size.maxNics < intent.nics.length)
     fail(`VM size ${intent.vm.size} NIC limit ${size.maxNics} is below requested NIC count ${intent.nics.length}`);
   const nodeCount = intent.topology.ha ? 3 : 1;
-  const requiredCores = size.vCpus * nodeCount;
+  const workloadVcpus = intent.workloadFixture ? AZURE_CE_WORKLOAD_FIXTURE_VCPUS : 0;
+  const requiredCores = size.vCpus * nodeCount + workloadVcpus;
   if (!Number.isInteger(size.vCpus) || size.vCpus < 1)
     fail(`VM size ${intent.vm.size} has no valid observed vCPU capability`);
   if (region.quotaAvailable < requiredCores)
@@ -1648,6 +1736,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         ? 'route-server'
         : 'udr'
       : intent.routing.mode;
+  if (intent.routing.udr && routingMode !== 'udr') fail('greenfield UDR associations require UDR routing mode');
   if (routingMode === 'route-server') validateRouteServerIntent(intent);
   if (routingMode === 'route-server' && !allGreenfield)
     fail('same-VNet brownfield Route Server insertion is unsupported; use explicitly approved UDR associations');
@@ -1778,6 +1867,10 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     egress: intent.egress,
     routing: {
       mode: routingMode,
+      ...(intent.routing.udr ? { udr: intent.routing.udr } : {}),
+      ...(intent.routing.forwardingRoutes
+        ? { forwardingRoutes: structuredClone(intent.routing.forwardingRoutes) }
+        : {}),
       destinationCidrs: intent.routing.destinationCidrs,
       localAsn: intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010,
       peerAsn: intent.routing.peerAsn ?? intent.routing.localAsn ?? 65010,
@@ -1785,6 +1878,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     securityRules: intent.securityRules,
     image: observation.image,
     vm: intent.vm,
+    computeCapacity: { ceVcpus: size.vCpus, workloadVcpus, quotaAvailable: region.quotaAvailable },
     warnings,
     billableResources,
     actions,

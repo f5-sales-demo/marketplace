@@ -66,7 +66,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
     name: 'azure_ce_teardown',
     label: 'Teardown Azure Customer Edge',
     description:
-      'Prepare or apply an immutable Terraform-owned Azure Customer Edge teardown. It drains platform resources, applies the exact cloud destroy plan, retires enrollment and site identities, and verifies absence without manual state edits.',
+      'Prepare or apply an immutable native or Terraform Azure Customer Edge teardown. It drains platform resources, retires the exact cloud resources, enrollment and site identities, and verifies absence and private staging retirement.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -266,6 +266,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                   return observeAzureNativeGroupAbsence(plan, api, signal);
                 },
                 signal,
+                withAzureCeExecution(dependencies.makeApi(ctx.cwd), signal),
               );
         const artifactId = await ctx.sessionManager.saveArtifact(
           JSON.stringify(result),

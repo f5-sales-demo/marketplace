@@ -47,7 +47,7 @@ async function fixture(single = false, supplied?: ReturnType<typeof foundationPl
     : {
         ...draft,
         interfaces: initial.intent.interfaces,
-        topology: initial.intent.topology,
+        topology: { ...initial.topology, nodeCount: initial.intent.topology.nodeCount },
         routing: initial.intent.routing,
         deploymentName: initial.intent.deploymentName,
         accountId: initial.intent.accountId,
@@ -556,7 +556,11 @@ test('power terminal cleanup rejects forged attempt and maintenance chains', asy
   for (const mode of ['attempt', 'maintenance', 'evidence', 'pending', 'engine']) {
     const f = await fixture(true);
     const { stop } = await executedPower(f, 'stopped');
-    const cp = (await f.store.read(`${stop.planId}-checkpoint.json`)) as any;
+    const cp = (await f.store.read(`${stop.planId}-checkpoint.json`)) as {
+      attempts: { stop: { requestSha256: string } };
+      evidence: { stopped: { bindingsSha256: string } };
+      pending?: { requestSha256: string };
+    };
     if (mode === 'attempt') cp.attempts.stop.requestSha256 = '0'.repeat(64);
     if (mode === 'evidence') cp.evidence.stopped.bindingsSha256 = '0'.repeat(64);
     if (mode === 'pending') cp.pending = cp.attempts.stop;
@@ -565,7 +569,10 @@ test('power terminal cleanup rejects forged attempt and maintenance chains', asy
       await f.store.write(`${stop.planId}.json`, stop);
     }
     if (mode === 'maintenance') {
-      const m = (await f.store.read(`${stop.planId}-maintenance.json`)) as any;
+      const m = (await f.store.read(`${stop.planId}-maintenance.json`)) as {
+        stoppedEvidenceSha256: string;
+        receiptSha256: string;
+      };
       m.stoppedEvidenceSha256 = '0'.repeat(64);
       const { receiptSha256, ...body } = m;
       m.receiptSha256 = canonicalSha256(body);
@@ -841,7 +848,7 @@ test('BGP retirement rejects foreign snapshot and substituted creation or dispat
       await f.store.write(`${stem}-outcome.json`, p);
     }
     if (mode === 'publisher-site' || mode === 'partial-snapshot') {
-      const p = (await f.store.read(`${stem}-outcome.json`)) as any;
+      const p = (await f.store.read(`${stem}-outcome.json`)) as { observed: { snapshots: Array<{ siteUid: string }> } };
       if (mode === 'publisher-site') p.observed.snapshots[0].siteUid = 'foreign';
       else p.observed.snapshots = [];
       await f.store.write(`${stem}-outcome.json`, p);
@@ -930,7 +937,7 @@ for (const family of ['nlb', 'static-tgw'] as const)
             resource: {
               aws_lb_target_group_attachment: {
                 node_1: {
-                  target_group_arn: '${aws_lb_target_group.ce.arn}',
+                  target_group_arn: '$' + '{aws_lb_target_group.ce.arn}',
                   target_id: '10.0.4.10',
                   port: 443,
                   availability_zone: 'all',
@@ -1104,7 +1111,10 @@ test('restored BGP terminal retirement rejects wrong deletion identity and inval
   for (const mode of ['identity', 'status', 'time', 'services']) {
     const { f, start } = await restoredBgpRetirement('deleted');
     const name = `${start.planId}-restore-terraform-bgp-policy-retirement-outcome.json`;
-    const outcome = (await f.store.read(name)) as any;
+    const outcome = (await f.store.read(name)) as {
+      result: { uid: string; status: string; collectedAt: string };
+      observed: { servicesSha256: string };
+    };
     if (mode === 'identity') outcome.result.uid = 'foreign';
     if (mode === 'status') outcome.result.status = 'fabricated';
     if (mode === 'time') outcome.result.collectedAt = 'not-a-date';
@@ -1211,7 +1221,11 @@ for (const mode of ['node', 'mac', 'cloud', 'duplicate-plan', 'final-receipt'] a
   test(`state final retirement rejects substituted ${mode} evidence before removal`, async () => {
     const { f, finalStem } = await stateLifecycleRetirement();
     const path = `${finalStem}-${mode === 'duplicate-plan' ? 'final-plan' : 'complete'}.json`;
-    const value = (await f.store.read(path)) as any;
+    const value = (await f.store.read(path)) as {
+      fields: Record<string, Record<string, string>>;
+      cloud: { owner: { account: string } };
+      receipt: { changes: Array<{ address: string; actions: string[] }>; planSha256: string };
+    };
     if (mode === 'node') value.fields['aws_instance.node_1'].id = 'i-fffffffffffffffff';
     if (mode === 'mac') value.fields['aws_network_interface.node_1_nic_0'].mac_address = 'ff:ff:ff:ff:ff:ff';
     if (mode === 'cloud') value.cloud.owner.account = 'example-foreign-account';
@@ -1307,7 +1321,11 @@ for (const mode of ['applied', 'status', 'services', 'time'] as const)
   test(`direct restoration retirement rejects substituted ${mode} outcome`, async () => {
     const { f, stem } = await restoredDirectRetirement();
     const path = `${stem}-outcome.json`;
-    const outcome = (await f.store.read(path)) as any;
+    const outcome = (await f.store.read(path)) as {
+      applied: Record<string, unknown>;
+      observed: { status: string; servicesSha256: string };
+      collectedAt: string;
+    };
     if (mode === 'applied') outcome.applied = {};
     if (mode === 'status') outcome.observed.status = 'withdrawn';
     if (mode === 'services') outcome.observed.servicesSha256 = '0'.repeat(64);
@@ -1406,5 +1424,64 @@ test('parent retirement refuses altered or foreign alternative teardown plan and
     });
     await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
     expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+  }
+});
+
+test('public site replacement journal retires only with its exact owning site UID', async () => {
+  for (const phase of ['replace-prepared', 'replace-observed']) {
+    const f = await fixture(true);
+    const siteName = siteBindings(f.base)[0].binding.siteName;
+    const teardown = { ...f.teardown, retirement: [{ siteName, siteUid: 'example-site-uid' }] };
+    await f.store.write(teardown.planId + '.json', teardown);
+    const name = 'public-site-' + siteName + '.json';
+    const journal = {
+      planId: 'f5xc-ce-v2-' + 'a'.repeat(24),
+      record: { phase, uid: 'example-site-uid', resourceVersion: '123' },
+    };
+    await f.store.write(name, journal);
+    await retireAwsTerraformParentArtifacts(f.base, teardown, 'b'.repeat(64), f.store);
+    expect(await f.store.read(name)).toEqual(journal);
+    const marker = (await f.store.read('aws-terraform-parent-artifact-retirement.json')) as {
+      artifacts: Array<{ path: string; preserve: boolean }>;
+    };
+    expect(marker.artifacts.find((item) => item.path === name)?.preserve).toBe(true);
+  }
+});
+
+test('public site replacement journal rejects foreign, malformed and ambiguous provenance before deletion', async () => {
+  for (const mode of [
+    'uid',
+    'plan',
+    'phase',
+    'version',
+    'extra',
+    'record-extra',
+    'missing-retirement',
+    'duplicate-retirement',
+    'foreign-name',
+  ]) {
+    const f = await fixture(true);
+    const siteName = siteBindings(f.base)[0].binding.siteName;
+    const retirement = mode === 'missing-retirement' ? [] : [{ siteName, siteUid: 'example-site-uid' }];
+    if (mode === 'duplicate-retirement') retirement.push({ siteName, siteUid: 'example-site-uid' });
+    const teardown = { ...f.teardown, retirement };
+    await f.store.write(teardown.planId + '.json', teardown);
+    const name = 'public-site-' + (mode === 'foreign-name' ? 'example-foreign-site' : siteName) + '.json';
+    const record: Record<string, unknown> = {
+      phase: mode === 'phase' ? 'example-unqualified-phase' : 'replace-prepared',
+      uid: mode === 'uid' ? 'example-foreign-uid' : 'example-site-uid',
+      resourceVersion: mode === 'version' ? '' : '123',
+    };
+    if (mode === 'record-extra') record.unqualified = true;
+    const journal: Record<string, unknown> = {
+      planId: mode === 'plan' ? 'example-foreign-plan' : 'f5xc-ce-v2-' + 'a'.repeat(24),
+      record,
+    };
+    if (mode === 'extra') journal.unqualified = true;
+    await f.store.write(name, journal);
+    await expect(retireAwsTerraformParentArtifacts(f.base, teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
+    expect(await f.store.read(name)).toEqual(journal);
+    expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+    expect(await readdir(f.store.directory)).not.toContain('aws-terraform-parent-artifact-retirement.json');
   }
 });

@@ -3,7 +3,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AzExecApi } from '../../src/az/exec';
 import { type SessionManagerLike, saveCheckpoint, savePlanArtifact } from '../../src/ce/artifacts';
@@ -11,10 +10,12 @@ import { canonicalSha256 } from '../../src/ce/canonical';
 import { buildAzureNativePendingAction } from '../../src/ce/native-action-recovery';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { fingerprintCheckpointObservation } from '../../src/ce/recovery';
+import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import type { AzureCeObservation, AzureCePlan } from '../../src/ce/types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../../src/ce/types';
 import { executeAzureCeNativeApply } from '../../src/tools/azure-ce-apply';
 import { intent, observation } from '../ce/fixtures';
+import { createIngressHistoryFixture } from '../ce/ingress-history-fixture';
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -134,6 +135,7 @@ async function fixture(resourceKinds: Array<'vm' | 'vnet'>, missing: Array<'vm' 
     return {
       runtime: async () => ({ engine: 'native' }),
       storage: async () => ({
+        owner: azureUpgradeBinding(plan).owner,
         async read() {
           const error = new Error('missing') as NodeJS.ErrnoException;
           error.code = 'ENOENT';
@@ -195,7 +197,7 @@ describe('Azure CE native apply deletion recovery', () => {
     expect(f.events.some((event) => event.startsWith('mutate:'))).toBe(false);
   });
 
-  it('persists a legacy checkpoint upgrade before platform initialization and mutation', async () => {
+  it('rejects an older checkpoint before platform initialization and mutation', async () => {
     const f = await fixture(['vm'], []);
     await f.sessionManager.saveArtifact(
       JSON.stringify({
@@ -213,22 +215,21 @@ describe('Azure CE native apply deletion recovery', () => {
       'azure-ce-checkpoint',
     );
     f.events.length = 0;
-    const result = await executeAzureCeNativeApply(
-      { planId: f.plan.planId, planSha256: f.plan.planSha256 },
-      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager: f.sessionManager },
-      f.api,
-      f.platform,
-      undefined,
-      { observe: async () => f.current() },
-    );
-    expect(result.checkpoint.schemaVersion).toBe(AZURE_CE_CHECKPOINT_SCHEMA_VERSION);
-    const upgradeSave = f.events.indexOf('save:0:running');
-    expect(upgradeSave).toBeGreaterThanOrEqual(0);
-    expect(f.events.indexOf('platform')).toBeGreaterThan(upgradeSave);
-    expect(f.events.indexOf(`mutate:${f.ids.vm.toLowerCase()}`)).toBeGreaterThan(upgradeSave);
+    await expect(
+      executeAzureCeNativeApply(
+        { planId: f.plan.planId, planSha256: f.plan.planSha256 },
+        { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager: f.sessionManager },
+        f.api,
+        f.platform,
+        undefined,
+        { observe: async () => f.current() },
+      ),
+    ).rejects.toThrow(/unsupported schema version/);
+    expect(f.events).not.toContain('platform');
+    expect(f.events.some((event) => event.startsWith('mutate:') || event.startsWith('save:'))).toBe(false);
   });
 
-  it('rejects a stale incomplete legacy teardown without platform initialization or replay', async () => {
+  it('rejects an older incomplete teardown without platform initialization or replay', async () => {
     const f = await fixture(['vm', 'vnet'], ['vm', 'vnet']);
     await f.sessionManager.saveArtifact(
       JSON.stringify({
@@ -257,7 +258,7 @@ describe('Azure CE native apply deletion recovery', () => {
         undefined,
         { observe: async () => f.current() },
       ),
-    ).rejects.toThrow(/Stale incomplete legacy Azure teardown checkpoint/);
+    ).rejects.toThrow(/unsupported schema version/);
     expect(f.events).not.toContain('platform');
     expect(f.events.some((event) => event.startsWith('mutate:'))).toBe(false);
   });
@@ -340,6 +341,7 @@ describe('Azure CE native mutation recovery', () => {
             },
           }),
           storage: async () => ({
+            owner: azureUpgradeBinding(plan).owner,
             async read() {
               const error = new Error('missing') as NodeJS.ErrnoException;
               error.code = 'ENOENT';
@@ -519,7 +521,7 @@ describe('Azure CE native mutation recovery', () => {
     expect(result.checkpoint.state).toBe('complete');
     expect(events).toEqual(['probe', 'save:1:none']);
   });
-  it('reconciles a completed Route Server peer update without replaying its mutation', async () => {
+  it('rejects network-update peer recovery lacking original complete interface inventory before replay', async () => {
     const owner = 'a'.repeat(64);
     const selected = {
       ...intent,
@@ -571,66 +573,67 @@ describe('Azure CE native mutation recovery', () => {
       state: 'running',
     });
     events.length = 0;
-    const result = await executeAzureCeNativeApply(
-      { planId: plan.planId, planSha256: plan.planSha256 },
-      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
-      {
-        async exec(_command, args) {
-          if (args.includes('update')) throw new Error(`unexpected replay: ${args.join(' ')}`);
-          if (args[0] === 'network' && args[1] === 'nic')
-            return {
-              exitCode: 0,
-              stderr: '',
-              stdout: JSON.stringify({
-                id: nicId,
-                provisioningState: 'Succeeded',
-                tags,
-                virtualMachine: { id: vmId },
-                macAddress: '00-11-22-33-44-55',
-                ipConfigurations: [
-                  {
-                    primary: true,
-                    privateIPAddressVersion: 'IPv4',
-                    privateIPAddress: '10.20.0.4',
-                    subnet: { id: plan.nics[0].subnet.resourceId },
-                  },
-                ],
-              }),
-            };
-          if (args[0] === 'vm')
-            return {
-              exitCode: 0,
-              stderr: '',
-              stdout: JSON.stringify({
-                id: vmId,
-                provisioningState: 'Succeeded',
-                tags,
-                networkProfile: { networkInterfaces: [{ id: nicId }] },
-              }),
-            };
-          if (args[0] === 'resource' && args[3] === peer.resourceId)
-            return {
-              exitCode: 0,
-              stderr: '',
-              stdout: JSON.stringify({
-                id: peer.resourceId,
-                properties: { provisioningState: 'Succeeded', peerIp: '10.20.0.4', peerAsn: 64512 },
-              }),
-            };
-          if (args[0] === 'resource' && args[3] === routeServerId)
-            return { exitCode: 0, stderr: '', stdout: JSON.stringify({ id: routeServerId, tags }) };
-          throw new Error(`unexpected command: ${args.join(' ')}`);
+    await expect(
+      executeAzureCeNativeApply(
+        { planId: plan.planId, planSha256: plan.planSha256 },
+        { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+        {
+          async exec(_command, args) {
+            if (args.includes('update')) throw new Error(`unexpected replay: ${args.join(' ')}`);
+            if (args[0] === 'network' && args[1] === 'nic')
+              return {
+                exitCode: 0,
+                stderr: '',
+                stdout: JSON.stringify({
+                  id: nicId,
+                  provisioningState: 'Succeeded',
+                  tags,
+                  virtualMachine: { id: vmId },
+                  macAddress: '00-11-22-33-44-55',
+                  ipConfigurations: [
+                    {
+                      primary: true,
+                      privateIPAddressVersion: 'IPv4',
+                      privateIPAddress: '10.20.0.4',
+                      subnet: { id: plan.nics[0].subnet.resourceId },
+                    },
+                  ],
+                }),
+              };
+            if (args[0] === 'vm')
+              return {
+                exitCode: 0,
+                stderr: '',
+                stdout: JSON.stringify({
+                  id: vmId,
+                  provisioningState: 'Succeeded',
+                  tags,
+                  networkProfile: { networkInterfaces: [{ id: nicId }] },
+                }),
+              };
+            if (args[0] === 'resource' && args[3] === peer.resourceId)
+              return {
+                exitCode: 0,
+                stderr: '',
+                stdout: JSON.stringify({
+                  id: peer.resourceId,
+                  properties: { provisioningState: 'Succeeded', peerIp: '10.20.0.4', peerAsn: 64512 },
+                }),
+              };
+            if (args[0] === 'resource' && args[3] === routeServerId)
+              return { exitCode: 0, stderr: '', stdout: JSON.stringify({ id: routeServerId, tags }) };
+            throw new Error(`unexpected command: ${args.join(' ')}`);
+          },
         },
-      },
-      async () => {
-        events.push('platform');
-        throw new Error('platform must not initialize');
-      },
-      undefined,
-      { observe: async () => structuredClone(owned) },
-    );
-    expect(result.checkpoint.state).toBe('complete');
-    expect(events).toEqual(['save:3:none']);
+        async () => {
+          events.push('platform');
+          throw new Error('platform must not initialize');
+        },
+        undefined,
+        { observe: async () => structuredClone(owned) },
+      ),
+    ).rejects.toThrow(/original complete interface inventory/);
+    expect(events).toEqual([]);
   });
 });
 
@@ -713,6 +716,8 @@ it('checkpoints native platform ingress before collecting content-bound traffic 
   };
   const platform = async () =>
     ({ runtime: async () => runtime, storage: async () => store }) as unknown as CePlatformService;
+  const ingressFixture = await createIngressHistoryFixture('native', plan);
+  directories.push(ingressFixture.root);
   const result = await executeAzureCeNativeApply(
     { planId: plan.planId, planSha256: plan.planSha256 },
     { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
@@ -725,12 +730,12 @@ it('checkpoints native platform ingress before collecting content-bound traffic 
     undefined,
     {
       observe: async () => structuredClone(observed),
-      ingressContract: async () => ({ fingerprint: 'sha256:ingress' }) as VerifiedIngressContract,
+      ingressContract: async () => ingressFixture.contract,
       ensureIngress: async () => {
         events.push('ingress');
         return {
           ingressPlanId: 'a'.repeat(24),
-          contractFingerprint: 'sha256:ingress',
+          contractFingerprint: ingressFixture.contract.fingerprint,
           uid: 'listener-uid',
           listener: 'configured',
           routes: 'unknown',

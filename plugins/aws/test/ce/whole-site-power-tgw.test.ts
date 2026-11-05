@@ -56,7 +56,7 @@ function fixture(engine: 'native' | 'terraform' = 'native') {
   };
   const sha = canonicalSha256(body);
   const base = { ...body, planSha256: sha, planId: `aws-ce-${sha.slice(0, 24)}` };
-  const values = {
+  const values: Record<string, string> = {
     ...f.resolved,
     __VPC_ID__: 'vpc-12345678',
     __TGW_TRANSPORT_ATTACHMENT__: 'tgw-attach-12345678',

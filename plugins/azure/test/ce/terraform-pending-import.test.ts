@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../../src/az/exec';
+import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { reconcileAzurePendingVm } from '../../src/ce/terraform-pending-import';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
@@ -139,6 +140,32 @@ for (const fault of [
               actions: [fault === 'mutating-plan' ? 'update' : 'no-op'],
             },
           ],
+        };
+      },
+      // Synthetic session history is bound to the exact saved receipt and applied state.
+      // Actual archive authentication is exercised by the native provenance suite.
+      async readPlanApplicationHistory(
+        receipt: Parameters<NonNullable<TerraformSession['readPlanApplicationHistory']>>[0],
+      ) {
+        return {
+          schemaVersion: 1,
+          scope: 'exact-saved-plan-journal-history',
+          receiptSha256: canonicalSha256(receipt),
+          manifestSha256: hash(config),
+          matches: [
+            {
+              location: 'revision',
+              archiveSha256: hash(receipt.configurationSha256),
+              state: imported ? 'applied' : 'planned',
+              journalSha256: canonicalSha256({ receipt, imported }),
+              savedPlanSha256: receipt.planSha256,
+              configurationSha256: receipt.configurationSha256,
+              manifestSha256: hash(receipt.configurationSha256),
+            },
+          ],
+          incompleteArchives: 0,
+          applicationOutcomeQualified: false,
+          retirementQualified: false,
         };
       },
       async readPlanApplicationState() {

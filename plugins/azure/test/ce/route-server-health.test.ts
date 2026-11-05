@@ -19,7 +19,7 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
   const action = (kind: string) => {
     const matches = plan.actions.filter((candidate) => candidate.kind === kind);
     if (matches.length !== 1 || !matches[0].resourceId) throw new Error(`missing ${kind}`);
-    return matches[0];
+    return { ...matches[0], resourceId: matches[0].resourceId };
   };
   const server = action('route-server-create');
   const peer = action('route-server-peer-create');
@@ -60,7 +60,15 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
               primary: true,
               privateIPAddressVersion: 'IPv4',
               privateIPAddress: peerIp,
-              subnet: { id: plan.nics[0].subnet.resourceId },
+              subnet: {
+                id:
+                  plan.nics[0].subnet.resourceId ??
+                  plan.actions.find(
+                    (action) =>
+                      action.kind === 'subnet-create' &&
+                      action.args?.[(action.args?.indexOf('--name') ?? -1) + 1] === plan.nics[0].subnet.name,
+                  )?.resourceId,
+              },
             },
           ],
         };
@@ -130,6 +138,13 @@ test('captures all three retained Terraform Route Server peer IDs before HA repl
   const server = plan.actions.find((action) => action.kind === 'route-server-create');
   const peers = plan.actions.filter((action) => action.kind === 'route-server-peer-create');
   if (!server?.resourceId || peers.length !== 3) throw new Error('HA Route Server fixture is incomplete');
+  const routeServerId = server.resourceId;
+  const peerIds = Object.fromEntries(
+    peers.map((peer) => {
+      if (!peer.resourceId) throw Error('HA peer identity missing');
+      return [String(peer.node), peer.resourceId];
+    }),
+  );
   const api: AzExecApi = {
     async exec(_command, args) {
       if (args.includes('peering')) {
@@ -150,7 +165,7 @@ test('captures all three retained Terraform Route Server peer IDs before HA repl
         exitCode: 0,
         stderr: '',
         stdout: JSON.stringify({
-          id: server.resourceId.toUpperCase(),
+          id: routeServerId.toUpperCase(),
           location: plan.region,
           provisioningState: 'Succeeded',
           virtualRouterAsn: 65515,
@@ -165,16 +180,18 @@ test('captures all three retained Terraform Route Server peer IDs before HA repl
     },
   };
   expect(await captureAzureRouteServerOwnership(plan, api)).toEqual({
-    routeServerId: server.resourceId,
+    routeServerId,
     ownerPlanSha256: 'a'.repeat(64),
-    peerIds: Object.fromEntries(peers.map((peer) => [String(peer.node), peer.resourceId])),
+    peerIds,
   });
 });
 
 test('binds both Route Server service-role route exchanges to the authoritative SLO address', async () => {
   const { plan, api } = fixture();
+  const routeServerId = plan.actions.find((action) => action.kind === 'route-server-create')?.resourceId;
+  if (!routeServerId) throw Error('Route Server fixture identity missing');
   expect(await discoverAzureRouteServerIdentity(plan, api)).toEqual({
-    routeServerId: plan.actions.find((action) => action.kind === 'route-server-create')?.resourceId,
+    routeServerId,
     asn: 65515,
     serviceAddresses: ['10.255.0.4', '10.255.0.5'],
   });
@@ -280,7 +297,9 @@ test('revalidates immutable retained Route Server ownership and updated SLO rout
                     primary: true,
                     privateIPAddressVersion: 'IPv4',
                     privateIPAddress: '10.20.0.4',
-                    subnet: { id: plan.nics[0].subnet.resourceId },
+                    subnet: {
+                      id: `${groupId}/providers/Microsoft.Network/virtualNetworks/${plan.deploymentName}-vnet/subnets/${plan.nics[0].subnet.name}`,
+                    },
                   },
                 ],
               }

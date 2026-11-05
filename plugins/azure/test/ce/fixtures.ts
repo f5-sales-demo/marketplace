@@ -36,6 +36,8 @@ export const observation: AzureCeObservation = {
     version: '1.0.0',
     urn: 'f5-networks:f5xc-customer-edge:f5xc-ce:1.0.0',
     termsAccepted: true,
+    architecture: 'x64',
+    hyperVGeneration: 'V1',
   },
   regions: [
     {
@@ -47,7 +49,18 @@ export const observation: AzureCeObservation = {
       routeServerSupported: true,
       quotaAvailable: 8,
       policyAllowed: true,
-      vmSizes: [{ name: 'Standard_D8s_v5', maxNics: 8, vCpus: 8, memoryGb: 32, zones: ['1'], restricted: false }],
+      vmSizes: [
+        {
+          architecture: 'x64',
+          hyperVGenerations: ['V1', 'V2'],
+          name: 'Standard_D8s_v5',
+          maxNics: 8,
+          vCpus: 8,
+          memoryGb: 32,
+          zones: ['1'],
+          restricted: false,
+        },
+      ],
     },
   ],
   resources: [],

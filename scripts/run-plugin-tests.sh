@@ -138,7 +138,13 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
       printf 'FATAL: dependency installation failed for %s\n' "$plugin" >&2
       exit 1
     fi
-    (cd "plugins/$plugin" && bun test .) || ok=1
+    if [ "$plugin" = azure ]; then
+      # Bun 1.4.4 isolates each file in its own worker. Keep tests within a file serial.
+      # Two workers bound resource use while preserving the complete discovered suite.
+      (cd "plugins/$plugin" && bun test . --parallel=2) || ok=1
+    else
+      (cd "plugins/$plugin" && bun test .) || ok=1
+    fi
   fi
 
   [ "$ok" -ne 0 ] && failed+=("$plugin")
@@ -151,7 +157,7 @@ fi
 
 # Frozen installs must also materialize the graph the manifests and locks declare. This
 # postcondition catches installer/linker regressions rather than trusting a zero exit code.
-if ! bash scripts/check-plugin-runtime-dependencies.sh; then
+if ! bash scripts/check-plugin-runtime-dependencies.sh --verify-installed; then
   echo "FATAL: plugin runtime dependency postcondition failed" >&2
   exit 1
 fi

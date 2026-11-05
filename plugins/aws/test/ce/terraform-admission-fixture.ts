@@ -3,10 +3,12 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { WireSiteIntent } from '../../../platform/src/ce/wire-site';
 import type { TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { qualifyAwsTerraformBrownfieldPlacement } from '../../src/ce/terraform-brownfield-placement';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
+import type { AwsCeIntent } from '../../src/ce/types';
 import { brownfieldPlacementFixture } from './terraform-brownfield-fixture';
 import { foundationPlan } from './terraform-fixtures';
 
@@ -15,9 +17,15 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-export function admissionFixture(ha = false, staticAddressing = false, brownfield = false) {
+export function admissionFixture(
+  ha = false,
+  staticAddressing = false,
+  brownfield = false,
+  configureInterfaces?: (interfaces: AwsCeIntent['interfaces']) => void,
+) {
   const brownfieldFixture = brownfield ? brownfieldPlacementFixture() : undefined;
   const base = brownfieldFixture?.plan ?? foundationPlan(ha);
+  configureInterfaces?.(base.intent.interfaces);
   if (staticAddressing) {
     for (const item of base.intent.interfaces)
       item.addressing = {
@@ -74,7 +82,8 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
       ]),
     ),
   });
-  const session: TerraformSession = {
+  // Omitted lifecycle readers remain unavailable in this admission fixture.
+  const session: Pick<TerraformSession, 'readOutputs' | 'reviseConfiguration' | 'plan' | 'apply'> = {
     async readOutputs() {
       if (!applied) throw new Error('Terraform outputs require an applied or converged current configuration');
       return outputs();
@@ -172,12 +181,12 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
     },
   };
   const bootstrapped: string[] = [];
-  const ensuredSites: unknown[] = [];
+  const ensuredSites: WireSiteIntent[] = [];
   let healthy = false;
   const runtime = {
     async reserveSite() {},
     async ensureSite(_binding: unknown, intent: unknown) {
-      ensuredSites.push(structuredClone(intent));
+      ensuredSites.push(structuredClone(intent) as WireSiteIntent);
     },
     async ensureAwsInterfaceMtu() {},
     async observeAwsRegisteredConfiguration() {
@@ -197,7 +206,7 @@ export function admissionFixture(ha = false, staticAddressing = false, brownfiel
   return {
     plan,
     brownfieldObservation: brownfieldFixture?.observation,
-    session,
+    session: session as TerraformSession,
     storage,
     api,
     runtime,

@@ -57,6 +57,7 @@ export async function prepareAzureNativeUpgrade(
   contract: VerifiedUpgradeContract,
   signal?: AbortSignal,
 ): Promise<AzureNativeUpgrade> {
+  signal?.throwIfAborted();
   verifyAzureCePlan(base);
   if (base.engine !== 'native') throw new Error('Azure native upgrade requires a native-owned plan');
   contract.build({ siteName: base.siteName, ...target });
@@ -67,6 +68,7 @@ export async function prepareAzureNativeUpgrade(
     target.kind === 'software' ? target.version : undefined,
     signal,
   );
+  signal?.throwIfAborted();
   if (observation.status !== 'observed') throw new Error('Fresh Azure native upgrade version evidence is unavailable');
   const expectation: CeUpgradeExpectation = {
     binding,
@@ -94,7 +96,7 @@ export function verifyAzureNativeUpgrade(
     throw new Error('Saved Azure native upgrade plan changed');
 }
 
-export function runAzureNativeUpgrade(
+export async function runAzureNativeUpgrade(
   base: AzureCePlan,
   upgrade: AzureNativeUpgrade,
   authorizedPlanSha256: string,
@@ -103,6 +105,14 @@ export function runAzureNativeUpgrade(
   storage: CeDeploymentStore,
   signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
+  await storage.verify();
+  try {
+    await storage.read('azure-native-lifecycle-retirement.json');
+    throw Error('Azure native lifecycle is retired; upgrade cannot execute');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   return runNativeCeUpgrade(
     upgrade,
     authorizedPlanSha256,

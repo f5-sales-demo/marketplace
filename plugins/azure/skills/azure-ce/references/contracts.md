@@ -40,6 +40,15 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   platform-connectivity NSG rules. Surface broad CIDRs and management exposure.
 - For single-node insertion, create explicit UDRs whose next hop is the CE data-plane
   private address.
+  Greenfield insertion uses `routing.udr` with an explicit `subnetNames` list and
+  `nextHop: { node, nicIndex }`. Targets must name subnets created by this deployment.
+  Both engines preserve the selected physical NIC index; no SLI/data substitution is made.
+  Terraform emits the owned route table, each destination route, and the selected subnet
+  associations. Native execution verifies current VNet/table ownership before association,
+  including recovery from a lost response. Unassociated destinations remain rejected.
+  This translates configuration; effective forwarding, traffic, interface state and original
+  publication freshness require separate operational evidence. Address-changing network updates
+  still need the separately qualified dependent-routing stage before admission.
 - Route Server peering uses the observed SLO address. Explicit Route Server selection supports
   a single CE as well as the planner's HA topology; Route Server redundancy does not require
   selecting a three-node XC cluster. Use a dedicated `/26` `RouteServerSubnet` without an NSG
@@ -48,6 +57,20 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 - Three-NIC intent validation, role-based discovery, and Azure Terraform lifecycle execution have
   automated coverage. Fresh Azure native and Terraform acceptance remains pending; AWS receipts
   do not establish Azure runtime support or parity.
+- `azure_ce_plan` accepts `intent.routing.forwardingRoutes` with explicit `before` and `after`
+  lists. Each row contains a one-based `node`, role `slo` or `sli`, canonical IPv4 network `prefix`,
+  and the exact API `routeType`: `REMOTE_SITE_ROUTE`, `LOCAL_ROUTE`, `STATIC_ROUTE`, or `BGP_ROUTE`.
+  Both lists must cover every node/SLO/SLI pair. Duplicate prefixes within a pair, foreign nodes,
+  host-bit CIDRs, extra row fields, and serial combinations exceeding 1,024 routes are rejected.
+  These expectations are included in the immutable plan and do not change provider routing.
+  When a completed predecessor has expectations, its `after` list must match the next `before` list.
+- Terraform operational acquisition resolves route interface names and devices from current
+  registration/interface observations joined to exact cloud MAC identities. During serial updates,
+  earlier nodes use `after` expectations, later nodes use `before`, and the selected node changes
+  from `before` at preflight to `after` at restoration. Signed receipts retain that phase.
+  Matched reported routes remain read-only observations: interface namespace and original sample
+  freshness are unqualified, operational acceptance stays unknown, and node interruption still
+  requires separately verified interface, routing, and traffic evidence.
 - Preserve the exact pre-change route-table, subnet association, and etag state for each
   allowlisted brownfield change.
 

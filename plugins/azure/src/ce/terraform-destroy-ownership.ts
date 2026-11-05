@@ -17,6 +17,7 @@ const cloudTypes = new Set([
   'azurerm_subnet',
   'azurerm_virtual_network',
 ]);
+const udrTypes = new Set(['azurerm_route', 'azurerm_route_table', 'azurerm_subnet_route_table_association']);
 const localTypes = new Set(['tls_private_key']);
 const marketplaceTermsAddress = 'azapi_resource_action.marketplace_terms';
 const marketplaceTermsType = 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01';
@@ -124,6 +125,7 @@ export async function verifyAzureTerraformDestroyOwnership(
         change.actions.join(',') !== 'delete' ||
         !new RegExp(`^${change.type}\\.[a-z][a-z0-9_]*$`).test(change.address) ||
         (!cloudTypes.has(change.type) &&
+          !(plan.routing.udr && udrTypes.has(change.type)) &&
           !localTypes.has(change.type) &&
           !(change.type === 'azapi_resource_action' && change.address === marketplaceTermsAddress)),
     ) ||
@@ -131,14 +133,22 @@ export async function verifyAzureTerraformDestroyOwnership(
   )
     throw new Error('Exact owning Azure Terraform destroy plan with supported resource types required');
   const boundary = await observeAzureTerraformDestroyBoundary(plan, api, signal);
-  if (boundary.status !== 'owned' && (!receipt.noChanges || receipt.changes.length))
+  // Output-only changes still require the owning apply and a final empty refresh.
+  // The resource projection below must prove there are no resource identities.
+  if (boundary.status !== 'owned' && receipt.changes.length)
     throw new Error('Azure Terraform teardown resource group is absent');
   const groupId = boundary.resourceGroupId;
   const selections = receipt.changes.length
     ? Object.fromEntries(
         receipt.changes.map((change) => [
           change.address,
-          change.type === 'azapi_resource_action' ? ['resource_id', 'type', 'method', 'when'] : ['id'],
+          change.type === 'azapi_resource_action'
+            ? ['resource_id', 'type', 'method', 'when']
+            : change.type === 'azurerm_subnet_route_table_association'
+              ? ['id', 'subnet_id', 'route_table_id']
+              : change.type === 'azurerm_route'
+                ? ['id', 'name', 'address_prefix', 'route_table_name']
+                : ['id'],
         ]),
       )
     : { 'azurerm_resource_group.ce': ['id'] };
@@ -173,13 +183,49 @@ export async function verifyAzureTerraformDestroyOwnership(
         );
       continue;
     }
+    if (udrTypes.has(change.type)) {
+      const value = object(fields[change.address]),
+        udr = plan.routing.udr;
+      if (!udr) throw Error('UDR teardown requires an explicit owning routing profile');
+      const tableId = `${groupId}/providers/Microsoft.Network/routeTables/${plan.deploymentName}-rt`;
+      if (change.type === 'azurerm_route_table') {
+        if (change.address !== 'azurerm_route_table.ce' || lower(value.id) !== lower(tableId))
+          throw Error('UDR teardown route table identity differs');
+      } else if (change.type === 'azurerm_route') {
+        const match = /^azurerm_route\.route_(\d+)$/.exec(change.address),
+          index = match ? Number(match[1]) : -1;
+        const name = `ce-route-${index + 1}`,
+          prefix = plan.routing.destinationCidrs[index];
+        if (
+          !prefix ||
+          lower(value.id) !== lower(`${tableId}/routes/${name}`) ||
+          value.name !== name ||
+          value.route_table_name !== `${plan.deploymentName}-rt` ||
+          value.address_prefix !== prefix
+        )
+          throw Error('UDR teardown route destination or table identity differs');
+      } else {
+        const match = /^azurerm_subnet_route_table_association\.udr_(\d+)$/.exec(change.address),
+          index = match ? Number(match[1]) : -1;
+        const name = udr.subnetNames[index],
+          subnetId = `${groupId}/providers/Microsoft.Network/virtualNetworks/${plan.deploymentName}-vnet/subnets/${name}`;
+        if (
+          !name ||
+          lower(value.id) !== lower(subnetId) ||
+          lower(value.subnet_id) !== lower(subnetId) ||
+          lower(value.route_table_id) !== lower(tableId)
+        )
+          throw Error('UDR teardown approved subnet association differs');
+      }
+      continue;
+    }
     const id = object(fields[change.address]).id;
     if (typeof id !== 'string' || !id) throw new Error('Azure Terraform teardown resource ID is unavailable');
     if (localTypes.has(change.type)) continue;
     if (
       change.type === 'azurerm_resource_group'
         ? lower(id) !== lower(groupId)
-        : !lower(id).includes(`${lower(groupId)}/`)
+        : !lower(id).startsWith(`${lower(groupId)}/`)
     )
       throw new Error('Azure Terraform destroy target is outside the owned resource group');
   }

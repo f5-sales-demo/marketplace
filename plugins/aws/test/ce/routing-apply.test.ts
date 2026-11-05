@@ -80,7 +80,20 @@ test('configures XC from observed AWS endpoints and authoritative XC interface o
   const runtime = {
     observeAwsInterfaces: async () => ({
       status: 'observed',
-      interfaces: [{ node: 'demo-1', mac, role: 'slo', interfaceName: 'realized-eth-interface', mtu: 1500 }],
+      freshness: 'verified',
+      canSatisfyInterfaceMutationGate: true,
+      interfaces: [
+        {
+          node: 'demo-1',
+          mac,
+          role: 'slo',
+          device: 'ens5',
+          interfaceName: 'realized-eth-interface',
+          mtu: 1500,
+          linkUp: true,
+          ipv4: null,
+        },
+      ],
     }),
     ensureAwsRouting: async (
       _binding: unknown,

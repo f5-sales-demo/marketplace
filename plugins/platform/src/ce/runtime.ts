@@ -1,12 +1,32 @@
+import { createHash } from 'node:crypto';
 import { type ExpectedBgpSession, parseBgpSessions } from './bgp-evidence';
-import { parseBgpRoutes } from './bgp-route-evidence';
+import { parseBgpRoutePaths, parseBgpRoutes } from './bgp-route-evidence';
 import { type ExpectedBgpServiceTable, parseBgpServiceMembership } from './bgp-service-membership';
 import { bindAwsCloudInit } from './bootstrap';
+import { parseComponentCatalog } from './component-catalog';
+import {
+  type ExpectedCeComponentStatus,
+  parseComponentStatus,
+  validateExpectedComponentStatus,
+} from './component-status';
 import type { CeDeploymentStore } from './deployment-store';
+import {
+  type ExpectedCeForwardingRoutes,
+  parseForwardingRoutes,
+  validateExpectedForwardingRoutes,
+} from './forwarding-route';
 import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
-import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
+import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
+import {
+  type ExpectedCeNodeHealth,
+  type ExpectedCeNodeHealthIdentity,
+  parseNodeHealthJson,
+  validateExpectedNodeHealth,
+  validateExpectedNodeHealthIdentity,
+} from './node-health';
+import { readCeObservation } from './observation-deadline';
 import { CeOriginTeardown } from './origin-teardown';
 import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
@@ -28,7 +48,7 @@ import {
 } from './upgrade-evidence';
 import type { VerifiedCeContract } from './verified-contract';
 import type { CeUpgradeObservationStage } from './version-observation-diagnostic';
-import type { AwsGreBinding, AzureSloBinding } from './wire-routing';
+import type { AwsGreBinding, AzureRelayPeer, AzureRelaySloBinding, AzureSloBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
 import type { SiteUpgradeIntent } from './wire-upgrade';
 
@@ -142,7 +162,12 @@ export class CeRuntime {
       throw new Error('Explicit HTTPS tenant and credential required');
     this.#credential = credential;
   }
-  async #request(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Json> {
+  async #request(
+    path: string,
+    init: RequestInit = {},
+    signal?: AbortSignal,
+    parser?: (text: string) => Json,
+  ): Promise<Json> {
     const url = new URL(path, this.#base);
     if (!path.startsWith('/api/') || url.origin !== this.#base.origin)
       throw new Error('F5 request escaped tenant scope');
@@ -209,7 +234,7 @@ export class CeRuntime {
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text) return {};
       try {
-        return object(JSON.parse(text));
+        return parser ? parser(text) : object(JSON.parse(text));
       } catch {
         throw new CeApiError('malformed');
       }
@@ -659,7 +684,7 @@ export class CeRuntime {
     const request = this.ownedSiteConfiguration(binding, before);
     const interfaces = devices.interfaces.map((device) => {
       const desired = expected.find((item) => item.node === device.node && item.mac.toLowerCase() === device.mac);
-      if (!desired || !Number.isInteger(desired.mtu) || desired.mtu < 576 || desired.mtu > 9000)
+      if (!desired || !Number.isInteger(desired.mtu) || desired.mtu < 576 || desired.mtu > 8000)
         throw new Error('Replacement interface MTU is invalid');
       return { ...device, mtu: desired.mtu };
     });
@@ -734,7 +759,7 @@ export class CeRuntime {
           !expected ||
           !Number.isInteger(expected.mtu) ||
           expected.mtu < 576 ||
-          expected.mtu > 9000 ||
+          expected.mtu > 8000 ||
           iface.mtu !== expected.mtu
         )
           throw new Error('Prepared MTU differs from the replacement requirement');
@@ -799,6 +824,9 @@ export class CeRuntime {
   }
   requireBootstrapContract(provider: 'aws' | 'azure'): void {
     this.contract.bootstrapQuery(provider);
+  }
+  requireAzureRelayRoutingContract(): void {
+    this.contract.requireAzureRelayRoutingContract();
   }
   requireRoutingContract(provider: 'aws' | 'azure'): void {
     this.contract.requireRoutingContract(provider);
@@ -967,7 +995,7 @@ export class CeRuntime {
     signal?: AbortSignal,
   ): Promise<void> {
     this.#binding(binding, true);
-    if (expected.some((item) => !Number.isInteger(item.mtu) || item.mtu < 576 || item.mtu > 9000))
+    if (expected.some((item) => !Number.isInteger(item.mtu) || item.mtu < 576 || item.mtu > 8000))
       throw new Error('Explicit supported interface MTU is required');
     const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
     if (devices.status !== 'observed') throw new Error('Guest interface inventory has not converged');
@@ -1032,7 +1060,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'aws') throw new Error('AWS interface observation requires AWS ownership');
     return this.observeInterfaces(binding, expected, signal);
   }
@@ -1040,9 +1068,36 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+  ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
     return this.observeInterfaces(binding, expected, signal);
+  }
+  /** Read-only surviving-node scope; never replaces the complete persisted deployment interface binding. */
+  async observeAzureInterfacesForNodes(
+    binding: SiteBinding,
+    complete: ExpectedCeInterface[],
+    nodes: string[],
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding);
+    if (
+      binding.owner.provider !== 'azure' ||
+      binding.nodes.length !== 3 ||
+      nodes.length !== 2 ||
+      new Set(nodes).size !== 2 ||
+      nodes.some((node) => !binding.nodes.includes(node)) ||
+      complete.length !== 6 ||
+      new Set(complete.map((row) => `${row.node}/${row.role}`)).size !== 6 ||
+      complete.some((row) => !binding.nodes.includes(row.node) || !['slo', 'sli'].includes(row.role)) ||
+      binding.nodes.some((node) => complete.filter((row) => row.node === node).length !== 2)
+    )
+      throw new Error('Azure surviving interface scope requires complete three-node SLO/SLI bindings');
+    return this.observeInterfaces(
+      binding,
+      complete.filter((row) => nodes.includes(row.node)),
+      signal,
+      false,
+    );
   }
   /** Current owned route/session membership; collection time never substitutes for original publisher freshness. */
   async observeBgpServiceMembership(
@@ -1053,6 +1108,11 @@ export class CeRuntime {
     prefixes: string[],
     signal?: AbortSignal,
   ) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    tables = structuredClone(tables);
+    prefixes = structuredClone(prefixes);
     this.#binding(binding);
     const nodes = [...new Set(expected.map((s) => s.node))];
     if (!siteUid.trim() || nodes.length !== binding.nodes.length || nodes.some((node) => !binding.nodes.includes(node)))
@@ -1070,8 +1130,10 @@ export class CeRuntime {
     const routeResponse = await this.#request(sources.routes, {}, signal);
     const observation = parseBgpServiceMembership(peerResponse, routeResponse, expected, tables, prefixes);
     await checkSite();
+    signal?.throwIfAborted();
     return {
       ...observation,
+      pathInventory: parseBgpRoutePaths(routeResponse, nodes),
       owner: structuredClone(binding.owner),
       siteName: binding.siteName,
       siteUid,
@@ -1109,9 +1171,11 @@ export class CeRuntime {
       throw new Error('BGP route observation nodes differ from the owned site');
     this.#owned(await this.observeSite(binding, signal), binding);
     const source = this.contract.bgpRoutesPath(binding.owner.provider, binding.siteName);
-    const evidence = parseBgpRoutes(await this.#request(source, {}, signal), expectedNodes);
+    const response = await this.#request(source, {}, signal);
+    const evidence = parseBgpRoutes(response, expectedNodes);
     return {
       ...evidence,
+      pathInventory: parseBgpRoutePaths(response, expectedNodes),
       owner: structuredClone(binding.owner),
       siteName: binding.siteName,
       source,
@@ -1123,7 +1187,8 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
-  ): Promise<{ status: 'observed' | 'down' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+    persistBinding = true,
+  ): Promise<CeInterfaceObservation> {
     this.#binding(binding);
     const observedAt = new Date().toISOString();
     try {
@@ -1153,15 +1218,24 @@ export class CeRuntime {
         JSON.stringify(finalConfiguration.spec) !== JSON.stringify(configuration.spec)
       )
         throw new CeApiError('conflict');
-      await this.recordBinding?.(binding, String(object(configuration.system_metadata).uid), expected);
+      if (persistBinding)
+        await this.recordBinding?.(binding, String(object(configuration.system_metadata).uid), expected);
       return {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
         interfaces,
         observedAt,
+        freshness: 'unqualified',
+        canSatisfyInterfaceMutationGate: false,
       };
     } catch (error) {
       if (signal?.aborted) throw error;
-      return { status: 'unknown', interfaces: [], observedAt };
+      return {
+        status: 'unknown',
+        interfaces: [],
+        observedAt,
+        freshness: 'unqualified',
+        canSatisfyInterfaceMutationGate: false,
+      };
     }
   }
   async ensureAwsRouting(
@@ -1318,6 +1392,101 @@ export class CeRuntime {
           contractFingerprint: this.contract.fingerprint,
         });
       }
+  }
+  /** Configure ordinary CE-to-relay BGP. Cloud relay identity, current CE evidence and transit/traffic are separate coordinator gates. */
+  async ensureAzureRelayRouting(
+    binding: SiteBinding,
+    localAsn: number,
+    interfaces: AzureRelaySloBinding[],
+    relays: AzureRelayPeer[],
+    checkpoint: (resource: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    binding = structuredClone(binding);
+    interfaces = structuredClone(interfaces);
+    relays = structuredClone(relays);
+    this.#binding(binding, true);
+    if (
+      binding.owner.provider !== 'azure' ||
+      interfaces.length !== binding.nodes.length ||
+      interfaces.some((item) => !binding.nodes.includes(item.node))
+    )
+      throw new Error('Azure relay routing interface and site ownership differ');
+    this.requireAzureRelayRoutingContract();
+    const routing = this.contract.buildAzureRelayRouting(binding.siteName, localAsn, interfaces, relays);
+    if (this.engine === 'terraform') await this.reconcileTerraformResources(binding.owner, signal);
+    const original = await this.observeOwnedSite(binding, signal);
+    const siteUid = object(original.system_metadata).uid;
+    if (typeof siteUid !== 'string' || !siteUid.trim())
+      throw new Error('Azure relay routing requires a logical site UID');
+    const assertSite = async () => {
+      const current = await this.observeOwnedSite(binding, signal);
+      if (object(current.system_metadata).uid !== siteUid) throw new Error('Azure relay logical site UID changed');
+    };
+    const resource = routing.bgp;
+    const path = `/api/config/namespaces/system/bgps/${resource.name}`;
+    const observe = () => this.#request(path, {}, signal);
+    let existing: Json | undefined;
+    try {
+      existing = await observe();
+    } catch (error) {
+      if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+    }
+    if (!existing) {
+      await assertSite();
+      this.contract.validateRouting('bgp', resource.spec);
+      const init = {
+        method: 'POST',
+        body: JSON.stringify(
+          this.contract.routingCreateRequest(
+            'bgp',
+            {
+              name: resource.name,
+              namespace: 'system',
+              labels: { ...this.#labels(binding), 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': siteUid },
+            },
+            resource.spec,
+          ),
+        ),
+      };
+      if (this.engine === 'terraform') {
+        if (!this.resourceMutation) throw new Error('Terraform relay routing resource executor is unavailable');
+        // The owning provider executor reconciles submitted work and returns only after its saved apply/state contract passes.
+        await this.resourceMutation(binding.owner, '/api/config/namespaces/system/bgps', init, signal);
+      } else {
+        try {
+          await this.#request('/api/config/namespaces/system/bgps', init, signal);
+        } catch (error) {
+          if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+        }
+      }
+      existing = await observe();
+    }
+    this.#owned(existing, { ...binding, siteName: resource.name });
+    const labels = object(object(existing.metadata).labels);
+    if (
+      labels['xcsh-ce-site'] !== binding.siteName ||
+      labels['xcsh-ce-site-uid'] !== siteUid ||
+      !subset(existing.spec, resource.spec)
+    )
+      throw new Error('Existing Azure relay routing object differs from site-bound intent');
+    const uid = object(existing.system_metadata).uid;
+    if (typeof uid !== 'string' || !uid.trim()) throw new CeApiError('malformed');
+    await assertSite();
+    await checkpoint({
+      kind: 'bgp',
+      name: resource.name,
+      uid,
+      siteName: binding.siteName,
+      siteUid,
+      owner: binding.owner,
+      localAsn,
+      interfaces,
+      relays,
+      expectedSessions: routing.expectedSessions,
+      expectedPeers: routing.expectedPeers,
+      contractFingerprint: this.contract.fingerprint,
+    });
   }
   async ensureAzureRouting(
     binding: SiteBinding,
@@ -2002,6 +2171,68 @@ export class CeRuntime {
       };
     }
   }
+  #validateIssuedBootstrapToken(binding: SiteBinding, node: string, tokenName: string, token: Json) {
+    const metadata = object(token.metadata);
+    if (
+      metadata.name !== tokenName ||
+      metadata.namespace !== 'system' ||
+      !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
+    )
+      throw new Error('Registration token ownership does not match node');
+    const spec = object(token.spec);
+    if (
+      spec.site_name !== binding.siteName ||
+      ![1, 'JWT'].includes(spec.type as string | number) ||
+      typeof spec.content !== 'string'
+    )
+      throw new Error('Registration JWT is not bound to the site');
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(spec.content))
+      throw Error('Malformed site-bound registration JWT');
+    let expiresAt: number;
+    try {
+      const claims = object(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
+      expiresAt = typeof claims.exp === 'number' ? claims.exp * 1000 : NaN;
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60_000) throw new Error();
+    } catch {
+      throw new Error('Registration JWT expiry is missing or too near');
+    }
+    return { jwt: spec.content as string, expiresAt };
+  }
+
+  /** Read-only current enrollment witness. Expected JWT digest comes from the owning private
+   * compiled bootstrap, never a public acknowledgment. No token is created or renewed here. */
+  async observeIssuedBootstrapToken(
+    binding: SiteBinding,
+    node: string,
+    tokenName: string,
+    expectedJwtSha256: string,
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding, true);
+    if (!binding.nodes.includes(node) || !safeName.test(tokenName) || !/^[a-f0-9]{64}$/.test(expectedJwtSha256))
+      throw Error('Bootstrap witness requires resolved owning node, token and digest');
+    const fixed = structuredClone(binding);
+    this.contract.bootstrapQuery(fixed.owner.provider);
+    this.#owned(await this.observeSite(fixed, signal), fixed);
+    const token = await this.#request(`/api/register/namespaces/system/tokens/${tokenName}`, {}, signal);
+    const { jwt, expiresAt } = this.#validateIssuedBootstrapToken(fixed, node, tokenName, token);
+    const tokenSha256 = createHash('sha256').update(jwt).digest('hex');
+    if (tokenSha256 !== expectedJwtSha256) throw Error('Current registration token differs from compiled bootstrap');
+    this.#binding(binding, true);
+    if (JSON.stringify(binding) !== JSON.stringify(fixed)) throw Error('Bootstrap witness owning request changed');
+    signal?.throwIfAborted();
+    return {
+      schemaVersion: 1 as const,
+      kind: 'ce-issued-bootstrap-current' as const,
+      owner: structuredClone(fixed.owner),
+      node,
+      tokenName,
+      siteName: fixed.siteName,
+      tokenSha256,
+      expiresAt,
+    };
+  }
+
   async bootstrap(
     binding: SiteBinding,
     node: string,
@@ -2043,29 +2274,9 @@ export class CeRuntime {
       }
       token = await this.#request(path, {}, signal);
     }
-    const metadata = object(token.metadata);
-    if (
-      metadata.name !== tokenName ||
-      metadata.namespace !== 'system' ||
-      !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
-    )
-      throw new Error('Registration token ownership does not match node');
-    const spec = object(token.spec);
-    if (
-      spec.site_name !== binding.siteName ||
-      ![1, 'JWT'].includes(spec.type as string | number) ||
-      typeof spec.content !== 'string'
-    )
-      throw new Error('Registration JWT is not bound to the site');
-    try {
-      const claims = object(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
-      if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp * 1000 <= Date.now() + 60_000)
-        throw new Error();
-    } catch {
-      throw new Error('Registration JWT expiry is missing or too near');
-    }
+    const { jwt } = this.#validateIssuedBootstrapToken(binding, node, tokenName, token);
     // The checkpoint is restricted secret storage, never a public plan or evidence artifact.
-    await persistIssuedToken({ tokenName, siteName: binding.siteName, node, jwt: spec.content });
+    await persistIssuedToken({ tokenName, siteName: binding.siteName, node, jwt });
     const query = new URLSearchParams({
       provider: bootstrap.provider,
       site_name: binding.siteName,
@@ -2073,7 +2284,7 @@ export class CeRuntime {
     });
     return bindAwsCloudInit(
       await this.#request(`/api/register/namespaces/system/get-cloud-init-config?${query}`, {}, signal),
-      spec.content,
+      jwt,
     );
   }
   async deleteBootstrapTokenExact(
@@ -2134,6 +2345,225 @@ export class CeRuntime {
       throw error;
     }
     throw new Error('Registration token deletion is still converging; resume revocation');
+  }
+  /** Structured observational route requests; no cloud/configuration mutation and no heartbeat inference. */
+  async observeForwardingRoutes(binding: SiteBinding, expected: ExpectedCeForwardingRoutes, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      contractFingerprint: this.contract.fingerprint,
+      collectedAt: new Date().toISOString(),
+      scope: 'reported-forwarding-interface' as const,
+      interfaceNamespace: 'unqualified' as const,
+      freshness: 'unqualified' as const,
+      operationalAcceptance: 'unknown' as const,
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    try {
+      this.#binding(binding);
+      validateExpectedForwardingRoutes(expected, binding.nodes);
+      const requests = expected.interfaces.map((v) => ({
+        identity: v,
+        request: this.contract.forwardingRouteRequest(binding.siteName, v.node, v.role),
+      }));
+      const site = async () => {
+        const value = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
+        if (object(value.system_metadata).uid !== expected.siteUid) throw Error('Forwarding owned site UID differs');
+      };
+      await site();
+      const routes: ReturnType<typeof parseForwardingRoutes> = [];
+      for (const { identity, request } of requests) {
+        const response = await readCeObservation(deadline, () =>
+          this.#request(request.path, { method: request.method, body: JSON.stringify(request.body) }, deadline),
+        );
+        routes.push(...parseForwardingRoutes(response, expected, identity.node, identity.role));
+        await site();
+      }
+      deadline.throwIfAborted();
+      return { ...base, status: 'observed' as const, routes, reads: requests.map((v) => structuredClone(v.request)) };
+    } catch (error) {
+      if (deadline.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        routes: [],
+        reason: error instanceof CeApiError ? error.category : 'forwarding-schema-identity-or-evidence-unverified',
+      };
+    }
+  }
+  /** Read-only component readiness. cached=false is a request option, not a publisher heartbeat contract. */
+  /** Match scoped Ready observations to a separately obtained, stable managed-service catalog. */
+  async observeCataloguedComponentStatus(
+    binding: SiteBinding,
+    expected: { siteUid: string; vesNamespace: string },
+    signal?: AbortSignal,
+  ) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      nodes: [...binding.nodes],
+      contractFingerprint: this.contract.fingerprint,
+      scope: 'catalogued-component-readiness' as const,
+      statusNamespace: expected.vesNamespace,
+      collectedAt: new Date().toISOString(),
+      freshness: 'unqualified' as const,
+      nodeHealth: 'unknown' as const,
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    let phase = 'catalog';
+    try {
+      this.#binding(binding);
+      this.contract.componentStatusRequest(binding.siteName, expected.vesNamespace);
+      const catalog = await readCeObservation(deadline, () =>
+        this.observeComponentCatalog(binding, { siteUid: expected.siteUid }, deadline),
+      );
+      if (catalog.status !== 'observed') throw Error('Managed-service catalog is unverified');
+      phase = 'status';
+      const status = await readCeObservation(deadline, () =>
+        this.observeComponentStatus(
+          binding,
+          {
+            siteUid: expected.siteUid,
+            vesNamespace: expected.vesNamespace,
+            services: catalog.services.map(({ node, value }) => ({ node, name: value })),
+          },
+          deadline,
+        ),
+      );
+      if (status.status !== 'observed' || status.readiness !== 'ready')
+        throw Error('Catalogued readiness is unverified');
+      phase = 'final-catalog';
+      const final = await readCeObservation(deadline, () =>
+        this.observeComponentCatalog(binding, { siteUid: expected.siteUid }, deadline),
+      );
+      if (final.status !== 'observed' || JSON.stringify(catalog.services) !== JSON.stringify(final.services))
+        throw Error('Managed-service catalog changed during readiness observation');
+      deadline.throwIfAborted();
+      return {
+        ...base,
+        status: 'observed' as const,
+        readiness: 'ready' as const,
+        catalog: catalog.services,
+        components: status.components,
+        sources: { catalog: catalog.source, status: status.source },
+      };
+    } catch (error) {
+      if (deadline.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        catalog: [],
+        components: [],
+        reason: `${phase}-readiness-unverified`,
+      };
+    }
+  }
+  /** Independent managed-service inventory. Catalog values are not namespace identifiers. */
+  async observeComponentCatalog(binding: SiteBinding, expected: { siteUid: string }, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      nodes: [...binding.nodes],
+      contractFingerprint: this.contract.fingerprint,
+      scope: 'component-catalog' as const,
+      collectedAt: new Date().toISOString(),
+      freshness: 'unqualified' as const,
+      nodeHealth: 'unknown' as const,
+      statusNamespace: 'unqualified' as const,
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    try {
+      this.#binding(binding);
+      if (
+        typeof expected.siteUid !== 'string' ||
+        !expected.siteUid ||
+        expected.siteUid.length > 1024 ||
+        expected.siteUid.trim() !== expected.siteUid
+      )
+        throw Error('Exact expected site UID required');
+      const request = this.contract.componentCatalogRequest(binding.siteName);
+      const owned = async () => {
+        const site = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
+        if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
+      };
+      const catalog = async () =>
+        parseComponentCatalog(
+          await readCeObservation(deadline, () => this.#request(request.path, { method: request.method }, deadline)),
+          binding.nodes,
+        );
+      await owned();
+      const services = await catalog(),
+        finalServices = await catalog();
+      if (JSON.stringify(services) !== JSON.stringify(finalServices)) throw Error('Managed service inventory changed');
+      await owned();
+      deadline.throwIfAborted();
+      return { ...base, source: request.path, status: 'observed' as const, services };
+    } catch (error) {
+      if (deadline.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        services: [],
+        reason:
+          error instanceof CeApiError ? error.category : 'component-catalog-schema-identity-or-evidence-unverified',
+      };
+    }
+  }
+  async observeComponentStatus(binding: SiteBinding, expected: ExpectedCeComponentStatus, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      nodes: [...binding.nodes],
+      contractFingerprint: this.contract.fingerprint,
+      scope: 'component-readiness' as const,
+      collectedAt: new Date().toISOString(),
+      freshness: 'unqualified' as const,
+      nodeHealth: 'unknown' as const,
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    try {
+      this.#binding(binding);
+      validateExpectedComponentStatus(expected, binding.nodes);
+      const request = this.contract.componentStatusRequest(binding.siteName, expected.vesNamespace);
+      const owned = async () => {
+        const site = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
+        if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
+      };
+      await owned();
+      const response = await readCeObservation(deadline, () =>
+        this.#request(request.path, { method: request.method }, deadline),
+      );
+      const components = parseComponentStatus(response, expected);
+      await owned();
+      deadline.throwIfAborted();
+      return { ...base, source: request.path, status: 'observed' as const, readiness: 'ready' as const, components };
+    } catch (error) {
+      if (deadline.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        components: [],
+        reason: error instanceof CeApiError ? error.category : 'component-schema-identity-or-evidence-unverified',
+      };
+    }
   }
   async observeHealth(binding: SiteBinding, signal?: AbortSignal, readOnly = false): Promise<Json> {
     this.#binding(binding);
@@ -2197,6 +2627,167 @@ export class CeRuntime {
         ...base,
         status: 'unknown',
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
+      };
+    }
+  }
+  /** Selected-node built-in VPM readiness, under lower-privilege ExecUser. The FQDN and
+   * complete instance map come from a separately acquired trusted deployment binding.
+   * A successful command is neither original interface freshness nor all-node acceptance.
+   */
+  async #readNodeHealthCommand(binding: SiteBinding, expected: ExpectedCeNodeHealthIdentity, deadline: AbortSignal) {
+    this.#binding(binding);
+    if (binding.owner.engine !== this.engine) throw Error('Node health owning engine differs');
+    validateExpectedNodeHealthIdentity(expected, binding.nodes);
+    const observeSite = this.observeOwnedSite,
+      observeRegistrations = this.observeRegistrations;
+    const request = this.contract.nodeHealthRequest(binding.siteName, expected.node);
+    const boundary = async () => {
+      if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+        throw Error('Node health observer changed');
+      const site = await readCeObservation(deadline, () => observeSite.call(this, binding, deadline));
+      if (object(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
+      const registration = await readCeObservation(deadline, () =>
+        observeRegistrations.call(this, binding, expected.instances, deadline),
+      );
+      if (
+        registration.status !== 'healthy' ||
+        !Array.isArray(registration.nodes) ||
+        registration.nodes.length !== binding.nodes.length
+      )
+        throw Error('Node health registrations unavailable');
+      const selected = registration.nodes.filter((row) => row.node === expected.node);
+      if (
+        selected.length !== 1 ||
+        selected[0].instanceId !== expected.instances[expected.node] ||
+        selected[0].state !== 'ONLINE' ||
+        typeof selected[0].registration !== 'string'
+      )
+        throw Error('Node health selected registration differs');
+      if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
+        throw Error('Node health observer changed');
+      return { siteUid: expected.siteUid, nodes: registration.nodes, selected: selected[0] };
+    };
+    const before = await boundary();
+    const commandDeadline = AbortSignal.any([deadline, AbortSignal.timeout(request.timeoutMs)]);
+    const response = await readCeObservation(commandDeadline, () =>
+      this.#request(
+        request.path,
+        { method: request.method, body: JSON.stringify(request.body) },
+        commandDeadline,
+        parseNodeHealthJson,
+      ),
+    );
+
+    const after = await boundary();
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw Error('Node health registration changed');
+    deadline.throwIfAborted();
+    return { response, request, before };
+  }
+  async observeNodeHealth(binding: SiteBinding, expected: ExpectedCeNodeHealth, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      node: expected.node,
+      contractFingerprint: this.contract.fingerprint,
+      scope: 'selected-node-vpm-readiness' as const,
+      originalSampleFreshness: 'unqualified' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+      allNodeHealthQualified: false as const,
+      routingTrafficQualified: false as const,
+      startedAt: new Date().toISOString(),
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    try {
+      validateExpectedNodeHealth(expected, binding.nodes);
+      const { response, request, before } = await this.#readNodeHealthCommand(binding, expected, deadline);
+      const reading = this.contract.parseNodeHealthResponse(response, expected);
+      deadline.throwIfAborted();
+      return {
+        ...base,
+        ...reading,
+        instanceId: before.selected.instanceId,
+        registration: before.selected.registration,
+        registrationIdentitySha256: createHash('sha256').update(JSON.stringify(before.nodes)).digest('hex'),
+        source: request.path,
+        outputSha256: createHash('sha256').update(String(response.output)).digest('hex'),
+        completedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      signal?.throwIfAborted();
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        reason: error instanceof CeApiError ? error.category : 'node-health-schema-identity-or-evidence-unverified',
+        completedAt: new Date().toISOString(),
+      };
+    }
+  }
+  /** Acquire the selected node's registration FQDN from its current authenticated command,
+   * then verify readiness in a separate request. The route, complete registrations and site
+   * UID authorize discovery; the acquired FQDN is never fabricated from cloud-provider domain.
+   * The two collection intervals do not establish original interface heartbeat freshness.
+   */
+  async observeNodeReadiness(binding: SiteBinding, expected: ExpectedCeNodeHealthIdentity, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    binding = structuredClone(binding);
+    expected = structuredClone(expected);
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expected.siteUid,
+      node: expected.node,
+      scope: 'selected-node-vpm-readiness' as const,
+      originalSampleFreshness: 'unqualified' as const,
+      canSatisfyInterfaceMutationGate: false as const,
+      allNodeHealthQualified: false as const,
+      routingTrafficQualified: false as const,
+      startedAt: new Date().toISOString(),
+    };
+    const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+    const observer = this.observeNodeHealth,
+      ownedSite = this.observeOwnedSite,
+      registrations = this.observeRegistrations;
+    try {
+      const first = await this.#readNodeHealthCommand(binding, expected, deadline);
+      const resolved = this.contract.parseNodeHealthBindingResponse(first.response, expected, binding.nodes);
+      const bindingObservedAt = new Date().toISOString();
+      if (
+        this.observeNodeHealth !== observer ||
+        this.observeOwnedSite !== ownedSite ||
+        this.observeRegistrations !== registrations
+      )
+        throw Error('Node readiness acquisition observer changed');
+      const value = await readCeObservation(deadline, () => observer.call(this, binding, resolved, deadline));
+      if (
+        this.observeNodeHealth !== observer ||
+        this.observeOwnedSite !== ownedSite ||
+        this.observeRegistrations !== registrations ||
+        value.status !== 'observed' ||
+        value.fqdn !== resolved.expectedFqdn ||
+        value.registrationIdentitySha256 !==
+          createHash('sha256').update(JSON.stringify(first.before.nodes)).digest('hex')
+      )
+        throw Error('Node readiness acquisition or verification identity changed');
+      deadline.throwIfAborted();
+      return {
+        ...value,
+        startedAt: base.startedAt,
+        bindingObservedAt,
+        bindingOutputSha256: createHash('sha256').update(String(first.response.output)).digest('hex'),
+      };
+    } catch (error) {
+      signal?.throwIfAborted();
+      return {
+        ...base,
+        status: 'unknown' as const,
+        readiness: 'unknown' as const,
+        reason: error instanceof CeApiError ? error.category : 'node-readiness-binding-or-evidence-unverified',
+        completedAt: new Date().toISOString(),
       };
     }
   }

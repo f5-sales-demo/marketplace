@@ -100,12 +100,25 @@ export function createF5xcCeV2SiteTool(
         if (params.config) runtime.contract.buildSite(params.config);
         if (params.action === 'read') {
           const site = await runtime.observeOwnedSite(params.binding, signal);
+          const siteUid = (site.system_metadata as Record<string, unknown> | undefined)?.uid;
+          if (typeof siteUid !== 'string' || !siteUid.trim() || siteUid !== siteUid.trim())
+            throw new PublicCeError('The owned site UID is missing or malformed');
+          if (params.expectedUid !== undefined && siteUid !== params.expectedUid)
+            throw new PublicCeError('The owned site UID changed; replan required');
+          const resourceVersion = site.resource_version;
+          if (
+            resourceVersion !== undefined &&
+            (typeof resourceVersion !== 'string' ||
+              !resourceVersion.trim() ||
+              resourceVersion !== resourceVersion.trim())
+          )
+            throw new PublicCeError('The owned site resource version is malformed');
           return {
             content: [{ type: 'text' as const, text: `Read ${params.siteName}.` }],
             details: {
               tool: 'f5xc_ce_v2_site',
-              siteUid: (site.system_metadata as Record<string, unknown>).uid,
-              resourceVersion: site.resource_version,
+              siteUid,
+              resourceVersion,
             },
           };
         }
@@ -151,7 +164,26 @@ export function createF5xcCeV2SiteTool(
           );
         } else {
           if (!params.expectedUid) throw new PublicCeError('Exact deletion UID is required');
-          await runtime.deleteSiteExact(params.binding, params.expectedUid, signal);
+          const deletion = await runtime.deleteSiteExact(params.binding, params.expectedUid, signal);
+          await checkpoint({ phase: 'delete-observed', ...deletion });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text:
+                  deletion.status === 'pending'
+                    ? `Logical site deletion is pending for ${params.siteName}.`
+                    : `Logical site deletion completed for ${params.siteName}.`,
+              },
+            ],
+            details: {
+              tool: 'f5xc_ce_v2_site',
+              planId: plan.planId,
+              status: deletion.status,
+              scope: 'logical-site' as const,
+              deletion,
+            },
+          };
         }
         return {
           content: [{ type: 'text' as const, text: `${params.action} completed for ${params.siteName}.` }],

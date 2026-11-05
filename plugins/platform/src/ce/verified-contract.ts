@@ -1,4 +1,16 @@
 import { createHash } from 'node:crypto';
+import { componentCatalogPath, componentCatalogRequest } from './component-catalog';
+import { componentStatusPath, componentStatusRequest } from './component-status';
+import { forwardingRoutePath, forwardingRouteRequest, forwardingRouteSchemas } from './forwarding-route';
+import {
+  type ExpectedCeNodeHealth,
+  type ExpectedCeNodeHealthIdentity,
+  nodeHealthPath,
+  nodeHealthRequest,
+  nodeHealthSchemaClosure,
+  parseNodeHealthBindingResponse,
+  parseNodeHealthResponse,
+} from './node-health';
 import { parseKvmImageResolution, type Smsv2KvmImageResolution } from './release-contract';
 import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
@@ -53,6 +65,7 @@ export class VerifiedCeContract {
   readonly publication: 'published-release';
   readonly #contract: Json;
   readonly #schemas: Json;
+  readonly #readOnlyOperationalApi?: Json;
   readonly #validate: (spec: unknown) => void;
   readonly #routing?: ReturnType<typeof routingValidators>;
   readonly #routingSchemas?: { network: Json; marketplace: Json };
@@ -64,10 +77,12 @@ export class VerifiedCeContract {
     networking: { network: Json; marketplace: Json } | undefined,
     publication: 'published-release',
     readonly kvmImageResolution?: Smsv2KvmImageResolution,
+    readOnlyOperationalApi?: Json,
   ) {
     this.publication = publication;
     this.#contract = contract;
     this.#schemas = schemas;
+    this.#readOnlyOperationalApi = readOnlyOperationalApi ? structuredClone(readOnlyOperationalApi) : undefined;
     this.#validate = createWireValidator(schemas);
     if (networking) {
       this.#routing = routingValidators(networking.network, networking.marketplace);
@@ -118,7 +133,43 @@ export class VerifiedCeContract {
           sha256: CE_API_RELEASE.fingerprint,
         },
       },
+      {
+        paths: {
+          [componentStatusPath]: object(api.paths)[componentStatusPath],
+          [componentCatalogPath]: object(api.paths)[componentCatalogPath],
+          [forwardingRoutePath]: object(api.paths)[forwardingRoutePath],
+          [nodeHealthPath]: object(api.paths)[nodeHealthPath],
+        },
+        components: {
+          schemas: {
+            debugStatus: schemas.debugStatus,
+            debugService: schemas.debugService,
+            debugListServicesResponse: schemas.debugListServicesResponse,
+            debugStatusResponse: schemas.debugStatusResponse,
+            ...Object.fromEntries(forwardingRouteSchemas.map((name) => [name, schemas[name]])),
+            ...nodeHealthSchemaClosure(schemas),
+          },
+        },
+      },
     );
+  }
+  componentCatalogRequest(site: string) {
+    return componentCatalogRequest(this.#readOnlyOperationalApi, site);
+  }
+  nodeHealthRequest(site: string, node: string) {
+    return nodeHealthRequest(this.#readOnlyOperationalApi, site, node);
+  }
+  parseNodeHealthResponse(response: unknown, expected: ExpectedCeNodeHealth) {
+    return parseNodeHealthResponse(this.#readOnlyOperationalApi, response, expected);
+  }
+  parseNodeHealthBindingResponse(response: unknown, expected: ExpectedCeNodeHealthIdentity, nodes: string[]) {
+    return parseNodeHealthBindingResponse(this.#readOnlyOperationalApi, response, expected, nodes);
+  }
+  componentStatusRequest(site: string, namespace: string) {
+    return componentStatusRequest(this.#readOnlyOperationalApi, site, namespace);
+  }
+  forwardingRouteRequest(site: string, node: string, role: 'slo' | 'sli') {
+    return forwardingRouteRequest(this.#readOnlyOperationalApi, site, node, role);
   }
   get awsRoutingAvailable(): boolean {
     return this.#routing !== undefined;
@@ -182,6 +233,14 @@ export class VerifiedCeContract {
   validateRouting(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json): void {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     this.#routing(kind, spec);
+  }
+  /** Ordinary CE-to-relay BGP uses the published single-hop contract, independently of direct Route Server multihop. */
+  requireAzureRelayRoutingContract(): void {
+    if (!this.#routing || !this.#routingSchemas) throw new Error('Pinned CE relay routing schemas are unavailable');
+    createWireValidator(this.#routingSchemas.network, 'bgpCreateRequest');
+    this.configurationPath('azure', 'contract-check');
+    this.bgpPeersPath('azure', 'contract-check');
+    this.bgpRoutesPath('azure', 'contract-check');
   }
   requireRoutingContract(providerName: 'aws' | 'azure'): void {
     if (providerName === 'azure') this.requireAzureRouteServerEbgpMultihop();
