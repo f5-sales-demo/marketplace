@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Ensure committed text lockfiles stay readable by the Bun release installed in CI.
 #
-# Bun 1.4.2 writes lockfile version 2. Keep one generated format across every
+# Bun 1.4.4 writes lockfile version 2. Keep one generated format across every
 # plugin so a developer cannot silently regenerate a legacy version-1 lock with
 # an older Bun. Reject a future format until its parser support has been
 # explicitly verified and the pinned runtime updated.
 set -euo pipefail
 
 repo_root="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-expected_bun_version="1.4.2"
+expected_bun_version="1.4.4"
 supported_lockfile_versions="2"
 
 if ! command -v bun >/dev/null 2>&1; then

@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-10-22T08:12:28.377087+00:00",
+  "repository": "f5-sales-demo/vscode-xcsh",
+  "issue": 1695,
+  "pr": 1697,
+  "testedSourceCommit": "9b8b5efd70e3b5416ac76053864b5847630459c8",
+  "testedCiHead": "69142194501a4b94720d9acbb38445e377481866",
+  "mergedCommit": "ae39ec5cd6be01afd7e1db97d45accbae7741c20",
+  "localTests": {
+    "suites": 89,
+    "tests": 1371,
+    "passed": true
+  },
+  "securityAuditVulnerabilities": 0,
+  "typecheckPassed": true,
+  "lintPassedWithExistingWarnings": true,
+  "packageBuildPassed": true,
+  "owningGenerationRepeatPassed": true,
+  "allApplicableCiPassed": true,
+  "ciRun": 39743404231,
+  "standaloneGenerationValidatorGapIssue": 1696,
+  "priorScannerPrSecurityFailureRetained": true,
+  "ignoredValidationArtifactsPreservedPrivately": true,
+  "taskWorktreeRemoved": true,
+  "localBranchRetainedAfterOrdinaryDeleteRefusal": true,
+  "fullCeAcceptance": false
+}

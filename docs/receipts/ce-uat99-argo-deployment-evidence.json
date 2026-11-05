@@ -1,0 +1,147 @@
+{
+  "observedAt": "2026-10-22T08:22:51.321646+00:00",
+  "source": "authenticated read-only Maurice upgrade progress; deployment-state evidence only",
+  "privateSourceSha256": "26b40eeb4c697d298fd3df15789ad382beace2750e8734d5833ffd6e2b517c4b",
+  "softwareTarget": "crt-20260801-0209",
+  "progressStatus": "COMPLETED",
+  "argoApplications": [
+    {
+      "name": "argo",
+      "status": "COMPLETED",
+      "objects": [
+        {
+          "kind": "Namespace",
+          "name": "ves-system",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "ServiceAccount",
+          "name": "argo",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "ConfigMap",
+          "name": "argo-config",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "ClusterRoleBinding",
+          "name": "argo",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "DaemonSet",
+          "name": "argo",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "PriorityClass",
+          "name": "argo-priority",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "kind": "ClusterRole",
+          "name": "argo",
+          "conditions": [
+            {
+              "type": "load",
+              "result": "success"
+            },
+            {
+              "type": "apply",
+              "result": "success"
+            },
+            {
+              "type": "running",
+              "result": "success"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "argoPreserved": true,
+  "argoDeprecated": false,
+  "deprecationQualified": false,
+  "supportedSliControlQualified": false,
+  "freshnessQualified": false,
+  "fullCeAcceptance": false
+}

@@ -1,0 +1,39 @@
+{
+  "observedAt": "2026-10-22T08:43:25.036608+00:00",
+  "sanitized": true,
+  "liveCandidateRevision": 99,
+  "liveSourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+  "publicTool": "azure_ce_teardown",
+  "failureAt": "2026-10-22T08:38:40.959Z",
+  "failure": "Upgrade retirement authorization or completion differs",
+  "cloudTerraformState": {
+    "resources": 0,
+    "outputs": 0,
+    "serial": 25,
+    "independentWitnessAt": "2026-10-22T08:37:47.856562+00:00",
+    "retirementMarkerAbsentAtWitness": true
+  },
+  "rootCause": {
+    "publicUpgradeAuthorizationSchema": 2,
+    "retirementReaderExpectedSchema": 1,
+    "regressionBeforeFix": {
+      "pass": 10,
+      "fail": 4
+    },
+    "repair": "Require current schema 2 and reject obsolete schema 1",
+    "focusedAfterFix": {
+      "testsPassed": 22,
+      "assertions": 118
+    },
+    "fullSuiteAfterFix": {
+      "testsPassed": 2161,
+      "assertions": 12905
+    }
+  },
+  "changedCandidateRevision": 101,
+  "installedRepairQualification": "pending",
+  "independentCloudApiAbsence": "pending",
+  "sensitiveStagingRetirement": "pending",
+  "fullCleanupAcceptance": false,
+  "fullCeAcceptance": false
+}
