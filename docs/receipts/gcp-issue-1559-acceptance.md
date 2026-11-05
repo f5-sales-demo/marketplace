@@ -327,6 +327,25 @@ native/Terraform networking and lifecycle matrix, guest capture, content traffic
 independent cleanup, review, merge and qualified publication remain open.
 Historical q12, immutable v12.3.1, failed captures and unresolved locks are preserved.
 
+Attempt 388 repairs account inspection to use the same selected server environment
+as the ADC source, instead of ambient gcloud configuration. The new regression
+reproduced the missing environment binding before repair; 21 focused factory and
+session tests, the required Terraform typecheck, three runtime builds and seven
+installed-bundle/integration regressions now pass. Privacy enforcement and secret
+scanning pass. A fresh real authentication/no-change factory probe retained the
+unsubmitted checkpoint and independently verified original group closure; its
+private receipt has SHA-256
+`3e9c479de4b1e016fcfc4fa542e29ded3a2f8157ca01acdecaa97ce6aae4f445`.
+It remains source component evidence with zero cloud submissions.
+
+Review of the frozen guest adapter found signal-producing cleanup. The frozen
+files remain unchanged; their successor must close SSH sessions naturally,
+independently prove all original reader groups absent and retain unresolved
+readers and claims. This discovered defect remains part of the capture work.
+Plugin and lint CI at the delivered factory checkpoint remain queued; installer,
+linked-issue and workflow-security checks passed. No queued check is counted as
+acceptance, and all remaining installed, live and publication gates stay open.
+
 ## Guest campaign boundary
 
 The original three-campaign allowance covered q24, q25 and q26. The user then authorized q27 and subsequently removed the numerical cap. q31 is the seventh submitted campaign; q28's unused plan remains sealed and must never be submitted. The [q30 diagnostic receipt](gcp-q30-disposable-diagnostic-20261026.md) records the serial trust refusal, isolated read-only child and independently completed cleanup. The [q31 receipt](gcp-q31-installed-runtime-and-diagnostic-20261026.md) records the different CE SSH negotiation failure and completed cleanup. Continue changed successors within the existing task authorization, with fresh scope, executable bindings, current prerequisites and independent plan review. Complete cleanup before another campaign. No historical launcher, plan or authorization may be replayed.
