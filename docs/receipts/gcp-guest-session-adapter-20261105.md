@@ -9,7 +9,9 @@ Full issue acceptance remains incomplete.
 Terraform now includes a source-owned guest-session adapter and the qualified
 PTY transport. The adapter checks original VM, token and NIC bindings, private
 SSH input identities and independent observer and CE serial trust before commands.
-It checks token expiry again after ownership and trust reads.
+It checks token expiry again after ownership and trust reads. The retained
+GCP profile binds the observer login to `observer` and CE access to the SLI
+interface; both SSH clients disable agent use.
 
 Command dispatch requires fresh completion from the same session and exact
 command scope. Container inspection and logs require an unambiguous ID from
@@ -26,8 +28,8 @@ independent process-group absence checks and descriptor release.
 | Check | Result |
 | --- | --- |
 | Failing-first regressions | Missing adapter, completion clearing, malformed listings and token expiry during ownership reads reproduced |
-| Focused adapter and PTY regressions | 29 tests covered by the shared Python run |
-| Shared Python regressions | 58 passed |
+| Focused adapter and PTY regressions | 31 tests covered by the shared Python run |
+| Shared Python regressions | 60 passed |
 | Shared TypeScript regressions | 830 passed, 4,379 assertions, Bun 1.4.2 |
 | Source Ruff and strict mypy | Passed with the existing policy and qualified development type stubs |
 | Fresh local SSH sessions | Ed25519 logout, protocol disconnect and RSA host keys passed |
@@ -35,8 +37,10 @@ independent process-group absence checks and descriptor release.
 
 The transport retains its two previously reviewed, narrow validated-execution
 annotations. The repository lint policy and actual runtime SDK are unchanged.
-Shared tests include their existing disposable process-termination fixture;
-their success is not evidence of a signal-free production executor.
+The shared TypeScript run exercised legacy process-termination fixtures,
+conflicting with the goal execution constraint. The green result is retained;
+these fixtures and reachable signal-based probes need repair and requalification
+before further live execution.
 
 The first shared TypeScript run selected ambient Bun 1.4.3. The preserved
 Bun 1.4.2 binary was independently hashed and selected for qualification.

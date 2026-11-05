@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import replace
 
 import pytest
@@ -70,7 +71,7 @@ def binding(tmp_path):
         observer_id="987654321",
         observer_address="192.0.2.1",
         address="192.0.2.2",
-        original_interfaces=("192.0.2.2", "192.0.2.3"),
+        original_interfaces=("192.0.2.3", "192.0.2.2"),
         token_node=node_name,
         token_site=site_name,
         token_expires=2000.0,
@@ -286,3 +287,27 @@ def test_token_expiry_during_ownership_read_refuses_before_write(tmp_path, bindi
     with pytest.raises(ValueError, match="Original unexpired"):
         guest.run("health")
     assert len(guest.transport.calls) == before
+
+
+def test_documented_observer_route_retains_both_host_pins(tmp_path, binding):
+    guest = session(tmp_path, binding)
+    argv = guest.transport.argv
+    proxy = next(
+        value.removeprefix("ProxyCommand=")
+        for value in argv
+        if value.startswith("ProxyCommand=")
+    )
+    inner = shlex.split(proxy)
+    assert inner[-1] == "observer@" + binding.observer_address
+    assert argv[-1] == "admin@" + binding.address
+    assert "UserKnownHostsFile=" + str(binding.observer_hosts) in inner
+    assert "UserKnownHostsFile=" + str(binding.ce_hosts) in argv
+    assert "IdentityAgent=none" in inner
+    assert "IdentityAgent=none" in argv
+
+
+def test_unqualified_slo_guest_access_refuses_before_spawn(tmp_path, binding):
+    bad = replace(binding, address=binding.original_interfaces[0])
+    with pytest.raises(ValueError, match="Original two-interface CE NIC join"):
+        session(tmp_path, bad)
+    assert not (tmp_path / "guest").exists()

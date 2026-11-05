@@ -23,6 +23,7 @@ FRESHNESS_MS = 300000
 COMMAND_MS = 60000
 LOG_LINES = 200
 CE_NIC_COUNT = 2
+CE_SLI_INDEX = 1
 NAME = re.compile(r"[a-z][a-z0-9-]{0,62}")
 NUMERIC_ID = re.compile(r"[1-9][0-9]{0,19}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -136,7 +137,7 @@ class GuestBinding:
             not isinstance(self.original_interfaces, tuple)
             or len(self.original_interfaces) != CE_NIC_COUNT
             or len(set(self.original_interfaces)) != CE_NIC_COUNT
-            or self.address not in self.original_interfaces
+            or self.address != self.original_interfaces[CE_SLI_INDEX]
             or self.observer_address in self.original_interfaces
         ):
             reject("Original two-interface CE NIC join required")
@@ -191,6 +192,8 @@ def ssh_options(key: Path, hosts: Path, algorithm: str) -> list[str]:
         "BatchMode=yes",
         "-o",
         "IdentitiesOnly=yes",
+        "-o",
+        "IdentityAgent=none",
         "-o",
         "StrictHostKeyChecking=yes",
         "-o",
@@ -314,7 +317,7 @@ class GuestSession:
             ),
             "-W",
             binding.address + ":22",
-            "ubuntu@" + binding.observer_address,
+            "observer@" + binding.observer_address,
         ]
         argv = [
             str(executable),

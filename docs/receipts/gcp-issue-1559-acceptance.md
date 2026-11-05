@@ -944,7 +944,7 @@ diagnostics; that qualification remains open. No lifecycle consumer or publicati
 gate is enabled by this repair.
 
 Attempt 393 qualifies the [guest session adapter](gcp-guest-session-adapter-20261105.md).
-The original-bound dispatcher and shipped PTY pass 58 shared Python tests,
+The original-bound dispatcher and shipped PTY pass 60 shared Python tests,
 830 shared TypeScript tests on Bun 1.4.2, strict source checks and three fresh
 local SSH fixtures. The actual cloud and serial controller remains absent;
 GCP Terraform apply, live guest capture, operational evidence, ordinary installed
