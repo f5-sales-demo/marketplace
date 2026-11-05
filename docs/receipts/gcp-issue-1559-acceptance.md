@@ -955,3 +955,10 @@ with cooperative stdin closure and verified natural exit. Five focused lock
 tests and 831 shared tests pass on Bun 1.4.2. The earlier constrained-execution
 hold is resolved for this successor; actual cloud and serial capture, live
 GCP acceptance, installed runtime, review, CI and publication remain open.
+
+Attempt 395 qualifies [original-invocation final capture](gcp-final-capture-20261105.md).
+Six dispatcher regressions and a real original-child timing regression pass,
+with 27 focused and 838 shared tests on Bun 1.4.2. Final capture starts at the
+failure boundary before natural completion waiting; original deadlines and
+independent group-closure gates remain fixed. The actual cloud/serial controller
+and all subsequent live, installed, review, CI and publication gates stay open.

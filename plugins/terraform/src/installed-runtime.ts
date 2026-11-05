@@ -12,6 +12,11 @@ import {
   freezeAdmittedCaptureInputs,
   type InstalledCaptureContext,
 } from './installed-capture-context';
+import {
+  finalizeInstalledCapture,
+  type InstalledCaptureInvocation,
+  InstalledCaptureInvocations,
+} from './installed-final-capture';
 import pins from './installed-runtime-pins.json';
 import { linuxMonotonicMs } from './linux-clock';
 import {
@@ -291,7 +296,6 @@ export function createInstalledRuntimeResolver(
     let providerInputs: Readonly<Record<string, OriginalInputBinding>> | undefined;
     let executor: Executor | undefined;
     let capture: InstalledGcpCapture | undefined;
-    let captureAttempted = false;
     let active = 0;
     const groups: string[] = [];
     let originalEnvironment: { XCSH_API_URL: string; XCSH_API_TOKEN: string } | undefined;
@@ -420,7 +424,27 @@ export function createInstalledRuntimeResolver(
               },
             }),
           );
-          let currentGroup: string | undefined;
+          const captureInvocations = new InstalledCaptureInvocations();
+          const verifyCaptureGroup = async (record: InstalledCaptureInvocation) => {
+            const rows: Record<string, Record<string, unknown>> = {};
+            for (const [name, input] of Object.entries(record.groupInputs)) {
+              const current = await owned(input.path);
+              assertSameOriginalInput(input, current.binding);
+              rows[name] = JSON.parse(current.bytes.toString());
+            }
+            for (const row of Object.values(rows)) {
+              if (
+                row.schemaVersion !== 2 ||
+                row.pid !== record.identity.pid ||
+                row.group !== record.identity.group ||
+                row.bootId !== record.identity.boot ||
+                row.processStartTicks !== record.identity.start
+              )
+                throw new Error('Original installed executor group identity differs');
+            }
+            if (rows.claim.token !== rows.lifetime.token)
+              throw new Error('Original installed executor group token differs');
+          };
           const bindProviders = async () => {
             if (providers) return;
             const providerBindings: Record<string, OriginalInputBinding> = {};
@@ -466,7 +490,7 @@ export function createInstalledRuntimeResolver(
             originalDeadlineMs: deadline,
             assertOriginal,
             beforeRelease: async (admission) => {
-              currentGroup = join(directory, 'google-runtime-groups', randomUUID());
+              const currentGroup = join(directory, 'google-runtime-groups', randomUUID());
               await privateDirectory(currentGroup);
               for (const name of ['claim.json', 'lifetime.json'])
                 await writeFile(
@@ -475,26 +499,31 @@ export function createInstalledRuntimeResolver(
                   { flag: 'wx', mode: 0o400 },
                 );
               groups.push(currentGroup);
+              const groupInputs: Record<string, OriginalInputBinding> = {};
+              for (const name of ['claim', 'lifetime'])
+                groupInputs[name] = (await owned(join(currentGroup, `${name}.json`))).binding;
+              const originalCapture = captureInvocations.admit({
+                identity: admission.identity,
+                groupDirectory: currentGroup,
+                groupInputs,
+                capture: admission.args[0] === 'apply' ? capture : undefined,
+              });
+              await verifyCaptureGroup(originalCapture);
               if (!['version', 'init'].includes(admission.args[0])) await bindProviders();
               if (admission.args[0] === 'apply') {
                 if (!capture) throw new Error('Original GCP guest capture controller is not qualified');
-                captureAttempted = true;
                 await capture.start(admission);
               }
             },
-            finalCapture: async (finished) => {
-              const resultPath = join(directory, `google-runtime-final-${randomUUID()}.private.json`);
-              await writeFile(resultPath, JSON.stringify(finished), { flag: 'wx', mode: 0o400 });
-              if (
-                !currentGroup ||
-                JSON.parse((await owned(join(currentGroup, 'claim.json'))).bytes.toString()).pid !== finished.pid
-              )
-                throw new Error('Original installed executor group evidence unavailable');
-              await assertExecutorGroupClosed(currentGroup);
-              if (capture && captureAttempted) await capture.finalCapture(finished);
-              await assertInputs();
-              await capture?.assertOriginal();
-            },
+            finalCapture: async (finished) =>
+              finalizeInstalledCapture(captureInvocations, finished, {
+                persist: async (value) => {
+                  const resultPath = join(directory, `google-runtime-final-${randomUUID()}.private.json`);
+                  await writeFile(resultPath, JSON.stringify(value), { flag: 'wx', mode: 0o400 });
+                },
+                verify: verifyCaptureGroup,
+                assertInputs,
+              }),
           });
           return {
             schemaVersion: 1,

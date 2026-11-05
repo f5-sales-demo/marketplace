@@ -19,6 +19,7 @@ export interface ExecutionCaptureAdmission {
   readonly startupDeadlineMs: number;
 }
 export interface FinalExecutionCapture {
+  readonly identity?: ExecutionCaptureAdmission['identity'];
   invocationStartedMs: number;
   finalStartedMs: number;
   finalDeadlineMs: number;
@@ -224,6 +225,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     let release: (() => Promise<void>) | undefined;
     let child: Bun.Subprocess<'pipe', number, number> | undefined;
     let submitted = false;
+    let originalIdentity: ExecutionCaptureAdmission['identity'] | undefined;
     let reason: Reason | undefined;
     let finalStarted: number | undefined;
     let actualExitCode: number | null = null;
@@ -312,6 +314,12 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
         )
           fail('startup');
         else {
+          originalIdentity = Object.freeze({
+            pid: evidence.pid,
+            group: evidence.group,
+            start: evidence.start,
+            boot: evidence.boot,
+          });
           release = await acquireProcessLock(lock, child.pid, { trackProcessGroup: true });
           await check();
           if (now() >= startupDeadline) fail('startup');
@@ -371,7 +379,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
         await child.stdin?.flush();
       }
       await child.stdin?.end(); // EOF also closes an unreleased bootstrap without any signal.
-      while (actualExitCode === null) {
+      while (actualExitCode === null && !reason) {
         await check();
         if (finalStarted !== undefined && now() >= finalStarted + 300_000) break;
         await pause();
@@ -379,17 +387,15 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       if (actualExitCode !== null) await childDone;
       finalStarted ??= now();
       await check();
+      // Capture starts at the original failure boundary. A live group cannot
+      // spend the five-minute reserve before the collector is invoked.
       if (release && actualExitCode !== null) {
-        while (now() < finalStarted + 300_000) {
-          try {
-            await assertExecutorGroupClosed(lock);
-            groupClosed = true;
-            break;
-          } catch (error) {
-            if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
-              throw error;
-            await pause();
-          }
+        try {
+          await assertExecutorGroupClosed(lock);
+          groupClosed = true;
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
+            fail('input-changed');
         }
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture: FinalExecutionCapture = {
@@ -401,6 +407,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
         stdoutPath,
         stderrPath,
         pid: child.pid,
+        identity: originalIdentity,
         submitted,
         actualExitCode,
         originalGroupClosed: groupClosed,
@@ -429,6 +436,35 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       } finally {
         if (captureTimer) clearTimeout(captureTimer);
       }
+      // Observe natural completion only after the collector had its original
+      // reserve. Neither action completion nor capture completion resets it.
+      while (!groupClosed && now() < capture.finalDeadlineMs) {
+        await check();
+        if (actualExitCode !== null) {
+          await childDone;
+          if (release) {
+            try {
+              await assertExecutorGroupClosed(lock);
+              groupClosed = true;
+            } catch (error) {
+              if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
+                throw error;
+            }
+          } else groupClosed = true;
+        }
+        if (!groupClosed) await pause();
+      }
+      await writeFile(
+        join(root, 'completion.private.json'),
+        JSON.stringify({
+          ...capture,
+          finishedMs: now(),
+          actualExitCode,
+          originalGroupClosed: groupClosed,
+          captureClosed,
+        }),
+        { mode: 0o400, flag: 'wx' },
+      );
       if (!groupClosed || actualExitCode === null)
         throw new Error('Original executor closure unresolved; lock remains held');
       if (release) {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { linuxMonotonicMs } from '../src/linux-clock';
 import {
@@ -153,7 +153,10 @@ json.dump=slow_dump
     expect(run.captures).toHaveLength(1);
     expect(run.captures[0].submitted).toBe(false);
     expect(run.captures[0].reason).toBe('startup');
-    expect(run.captures[0].originalGroupClosed).toBe(true);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .originalGroupClosed,
+    ).toBe(true);
     expect(run.captures[0].signalsSent).toBe(false);
   });
 
@@ -209,7 +212,10 @@ json.dump=slow_dump
     expect(JSON.parse(result.stdout)).toEqual(args);
     expect(run.captures).toHaveLength(1);
     expect(run.captures[0].signalsSent).toBe(false);
-    expect(run.captures[0].originalGroupClosed).toBe(true);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .originalGroupClosed,
+    ).toBe(true);
     expect(run.captures[0].submitted).toBe(true);
     expect((await readFile(run.captures[0].stderrPath, 'utf8')).trim()).toBe('private-stderr');
     expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(false);
@@ -224,7 +230,10 @@ json.dump=slow_dump
     expect(run.captures[0].invocationStartedMs).toBeGreaterThanOrEqual(run.started);
     expect(run.captures[0].finalStartedMs).toBeLessThan(run.captures[0].finishedMs);
     expect(run.captures[0].finalDeadlineMs).toBe(run.captures[0].finalStartedMs + 300_000);
-    expect(run.captures[0].actualExitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .actualExitCode,
+    ).toBe(0);
     expect((await readFile(run.captures[0].stdoutPath, 'utf8')).trim()).toBe('natural-exit');
     expect(run.captures[0].signalsSent).toBe(false);
   });
@@ -242,7 +251,10 @@ json.dump=slow_dump
     const result = await executing;
     expect(result.code).toBe(1);
     expect(run.captures[0].reason).toBe('cancelled');
-    expect(run.captures[0].actualExitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .actualExitCode,
+    ).toBe(0);
     expect(run.captures[0].signalsSent).toBe(false);
   });
 
@@ -252,7 +264,10 @@ json.dump=slow_dump
     expect(result.code).toBe(1);
     expect(result.stdout).toBe('');
     expect(run.captures[0].reason).toBe('output-limit');
-    expect(run.captures[0].actualExitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .actualExitCode,
+    ).toBe(0);
     expect((await readFile(run.captures[0].stdoutPath)).length).toBeGreaterThan(100000);
   });
 
@@ -276,7 +291,10 @@ json.dump=slow_dump
     const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
     expect(result.code).toBe(1);
     expect(run.captures[0].reason).toBe('input-changed');
-    expect(run.captures[0].actualExitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'))
+        .actualExitCode,
+    ).toBe(0);
   });
 
   test('startup deadline expires through EOF and cannot submit', async () => {
@@ -314,4 +332,20 @@ json.dump=slow_dump
     expect(await Bun.file(join(lock, 'claim.json')).exists()).toBe(true);
     await expect(acquireProcessLock(lock)).rejects.toThrow();
   });
+});
+
+test('final capture begins before a timed-out original child finishes', async () => {
+  const run = await fixture('import time\ntime.sleep(2)\nprint("natural-exit")\n', { timeoutMs: 1500 });
+  run.finalChecks.push(async () => {
+    const capture = run.captures.at(-1);
+    if (!capture) throw new Error('Original capture unavailable');
+    expect(capture.actualExitCode).toBeNull();
+    expect(capture.originalGroupClosed).toBe(false);
+    expect(await Bun.file(`/proc/${capture.pid}/stat`).exists()).toBe(true);
+    expect(capture.finalDeadlineMs).toBe(capture.finalStartedMs + 300000);
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(1);
+  expect((await readFile(run.captures[0].stdoutPath, 'utf8')).trim()).toBe('natural-exit');
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock')).exists()).toBe(false);
 });
