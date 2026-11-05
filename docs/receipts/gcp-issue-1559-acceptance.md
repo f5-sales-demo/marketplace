@@ -280,9 +280,52 @@ count after runtime verification was added. The current contract and missing
 interpreter guidance now pass, including unexpected-error preservation. The
 combined Terraform/Platform/root integration suites pass 491 tests and 2,946
 assertions; both native typechecks and normal source hooks pass. Runtime builds
-and the tracker pass. The standard extension still needs the concrete resolver
-factory, original-budget executor and actual cloud/serial/SSH controller. All
+and the tracker pass. At that checkpoint the standard extension still needed the
+concrete resolver factory, original-budget executor and actual cloud/serial/SSH controller. All
 installed, live, review, publication and published user-scope gates remain open.
+
+## Installed runtime factory continuation on November 5
+
+Attempt 387 wires the standard Terraform extension to a concrete server-owned
+runtime resolver. New GCP sessions verify installed Python 3.15, psutil 7.2.2,
+Terraform 1.16.6 and the pinned Google 8.7.0 and XC 15.13.0 provider packages.
+The factory freezes owned Google ADC and selected Platform credential snapshots,
+retains original input monitors and the two-hour monotonic budget, executes
+through the signal-free runner and independently verifies original group closure.
+Existing legacy manifests retain their original credential and executor path;
+opening an existing deployment as new refuses before writing a mode receipt.
+Linux setup and verification honor the same server-selected runtime directory.
+
+The trusted capture prerequisite now runs before saved-plan consumption and
+before GCloud records submission or invokes its mutation notification. Three
+failing-first cases became 20 passing regressions. The actual command-release
+boundary still checks capture startup independently. No capture implementation
+is configured in the standard factory, so new GCP Terraform apply remains refused.
+This preserves the plan for review rather than recording a false submission.
+
+A fresh real ADC factory probe ran Terraform version, initialization, validation,
+planning and saved-plan inspection with zero resource changes. An attempted
+apply refused for unavailable capture and left its exact checkpoint in `planned`.
+Natural session disposal independently verified its original execution groups.
+The private receipt has SHA-256
+`1ca4711b611528d301f1891137cb922289539ba9c2fb731893ac8b2c25597ae1`.
+AWS STS authentication also passed independently. These are source component
+checks; they do not establish ordinary installed-tool or GCP lifecycle acceptance.
+
+The combined GCloud, Terraform, Platform and root integration/lifecycle suites
+passed 977 tests with 4,662 assertions. Both provider typechecks, dependency
+validation, three runtime builds and isolated bundle-loading tests passed.
+Privacy enforcement found synthetic fixture labels; corrected labels and their
+assertions pass enforcement and all 13 session regressions. Original privacy
+failures, stale assertion failure and earlier factory probe failures remain private.
+Normal local commit hooks passed. The delivered predecessor's plugin, lint and
+all three installer checks passed; the changed head needs its own CI results.
+
+The actual original-bound cloud/serial/SSH capture controller remains unfinished.
+Fresh supported marketplace installation, ordinary Ubuntu `bun dev`, the full
+native/Terraform networking and lifecycle matrix, guest capture, content traffic,
+independent cleanup, review, merge and qualified publication remain open.
+Historical q12, immutable v12.3.1, failed captures and unresolved locks are preserved.
 
 ## Guest campaign boundary
 
