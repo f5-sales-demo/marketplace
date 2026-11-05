@@ -33,7 +33,7 @@ test('pins lifecycle mutations and release to the qualified Terraform runtime', 
   }
 });
 
-function lifecyclePlan(operation: 'start' | 'stop' | 'resize', ha = false) {
+function lifecyclePlan(operation: 'start' | 'stop' | 'resize' | 'reconcile' | 'repair', ha = false) {
   const selected = structuredClone(intent);
   selected.engine = 'terraform';
   selected.operation = operation;
@@ -68,12 +68,16 @@ function lifecyclePlan(operation: 'start' | 'stop' | 'resize', ha = false) {
   return { plan: compileAzureCePlan(selected as AzureCeIntent, observed), ownerPlanSha256 };
 }
 
-function fixture(operation: 'start' | 'stop' | 'resize', ha = false, options: { failAfterMutation?: boolean } = {}) {
+function fixture(
+  operation: 'start' | 'stop' | 'resize' | 'reconcile' | 'repair',
+  ha = false,
+  options: { failAfterMutation?: boolean } = {},
+) {
   const { plan, ownerPlanSha256 } = lifecyclePlan(operation, ha);
   const power = new Map<number, string>(
     Array.from({ length: plan.topology.nodeCount }, (_, index) => [
       index + 1,
-      operation === 'start' ? 'deallocated' : 'running',
+      ['start', 'reconcile', 'repair'].includes(operation) ? 'deallocated' : 'running',
     ]),
   );
   const size = new Map<number, string>(
@@ -415,7 +419,7 @@ test('Terraform lifecycle authorization reads only the exact plan scope', async 
   ).rejects.toThrow('denied');
 });
 
-test.each(['start', 'resize'] as const)(
+test.each(['start', 'resize', 'reconcile', 'repair'] as const)(
   'requires %s ingress and content-bound traffic before a final refresh no-change plan',
   async (operation) => {
     const sourceVmResourceId =
@@ -509,3 +513,80 @@ test.each(['start', 'resize'] as const)(
     expect(events).toEqual(['ingress', 'traffic', 'final-plan']);
   },
 );
+
+for (const operation of ['reconcile', 'repair'] as const) {
+  test(`owned recovery ${operation} restores nodes, retains identity, and never repeats a converged mutation`, async () => {
+    const f = fixture(operation);
+    const action = f.plan.actions.find((item) => item.kind === 'vm-start');
+    expect(action?.expectedOwnerPlanSha256).toBe('a'.repeat(64));
+    expect(f.plan.actions.some((item) => item.kind === 'vm-create' || item.kind === 'vm-delete')).toBe(false);
+    const deployed = await azureTerraformLifecycleDeployment(f.plan, 1);
+    expect(JSON.parse(deployed.configuration).resource.azapi_resource_action.ce).toMatchObject({
+      action: 'start',
+      resource_id: action?.resourceId,
+      method: 'POST',
+    });
+    const root = await mkdtemp(join(tmpdir(), 'azure-owned-recovery-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(f.plan).owner);
+    const options = { attempts: 2, intervalMs: 0, wait: async () => {} };
+    const result = await runAzureTerraformLifecycle(
+      f.plan,
+      f.terraform,
+      f.runtime,
+      storage,
+      f.api,
+      {},
+      undefined,
+      options,
+    );
+    expect(result).toMatchObject({
+      planId: f.plan.planId,
+      planSha256: f.plan.planSha256,
+      engine: 'terraform',
+      status: 'complete',
+    });
+    expect(f.power.get(1)).toBe('running');
+    expect(f.mutationCount()).toBe(1);
+    await runAzureTerraformLifecycle(f.plan, f.terraform, f.runtime, storage, f.api, {}, undefined, options);
+    expect(f.mutationCount()).toBe(1);
+    expect(await storage.read(`${f.plan.planId}-node-1-final-plan.json`)).toMatchObject({
+      noChanges: true,
+      changes: [],
+    });
+  });
+
+  test(`owned recovery ${operation} reconciles a lost response using VM evidence without replay`, async () => {
+    const f = fixture(operation, false, { failAfterMutation: true });
+    const root = await mkdtemp(join(tmpdir(), 'azure-owned-lost-response-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(f.plan).owner);
+    await runAzureTerraformLifecycle(f.plan, f.terraform, f.runtime, storage, f.api, {}, undefined, {
+      attempts: 2,
+      intervalMs: 0,
+      wait: async () => {},
+    });
+    expect(f.mutationCount()).toBe(1);
+    expect(f.reconciliationCount()).toBe(1);
+    expect(f.power.get(1)).toBe('running');
+  });
+
+  test(`owned recovery ${operation} stops serial restoration on unknown health and resumes without repeated mutation`, async () => {
+    const f = fixture(operation, true);
+    const root = await mkdtemp(join(tmpdir(), 'azure-owned-health-recovery-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(f.plan).owner);
+    const observeHealth = f.runtime.observeHealth;
+    f.runtime.observeHealth = async () => ({ status: 'unknown' }) as never;
+    const options = { attempts: 2, intervalMs: 0, wait: async () => {} };
+    await expect(
+      runAzureTerraformLifecycle(f.plan, f.terraform, f.runtime, storage, f.api, {}, undefined, options),
+    ).rejects.toThrow(/health has not converged/);
+    expect([...f.power.values()]).toEqual(['running', 'deallocated', 'deallocated']);
+    expect(f.mutationCount()).toBe(1);
+    f.runtime.observeHealth = observeHealth;
+    await runAzureTerraformLifecycle(f.plan, f.terraform, f.runtime, storage, f.api, {}, undefined, options);
+    expect([...f.power.values()]).toEqual(['running', 'running', 'running']);
+    expect(f.mutationCount()).toBe(3);
+  });
+}

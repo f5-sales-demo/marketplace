@@ -5752,8 +5752,10 @@ function buildLifecycleActions(intent, observation, zones) {
     stop: ['vm-stop', ['vm', 'deallocate']],
     resize: ['vm-resize', ['vm', 'resize', '--size', intent.vm.size]],
   };
-  if (intent.operation in verbByOperation) {
-    const [kind, baseArgs] = verbByOperation[intent.operation];
+  const lifecycleOperation =
+    intent.operation === 'reconcile' || intent.operation === 'repair' ? 'start' : intent.operation;
+  if (lifecycleOperation in verbByOperation) {
+    const [kind, baseArgs] = verbByOperation[lifecycleOperation];
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
       const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
@@ -20627,8 +20629,9 @@ import { createHash as createHash7 } from 'node:crypto';
 import { readFile as readFile5 } from 'node:fs/promises';
 
 function lifecycleOperation(plan) {
+  if (plan.intent.operation === 'reconcile' || plan.intent.operation === 'repair') return 'start';
   if (!['start', 'stop', 'resize'].includes(plan.intent.operation))
-    throw new Error('Azure Terraform lifecycle supports start, stop, or resize plans');
+    throw new Error('Azure Terraform lifecycle supports start, stop, resize, reconcile, or repair plans');
   return plan.intent.operation;
 }
 function mutationFor(plan, node) {
@@ -42018,7 +42021,11 @@ function reconcileAzureTerraformMarketplaceTermsAcceptance(plan, current) {
   return fingerprintCurrentObservation(plan, current);
 }
 function assertAzureTerraformApplyOperation(plan) {
-  if (!['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network'].includes(plan.intent.operation))
+  if (
+    !['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network', 'reconcile', 'repair'].includes(
+      plan.intent.operation,
+    )
+  )
     throw new Error(`Terraform ${plan.intent.operation} is not executable through Azure CE apply`);
 }
 async function acceptAzureTerraformLifecycleTraffic(
@@ -42031,8 +42038,13 @@ async function acceptAzureTerraformLifecycleTraffic(
   signal,
   dependencies = {},
 ) {
-  if (!['start', 'resize'].includes(plan.intent.operation) || plan.intent.ingress?.mode !== 'platform-http')
-    throw new Error('Azure Terraform lifecycle traffic acceptance requires start or resize with platform ingress');
+  if (
+    !['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) ||
+    plan.intent.ingress?.mode !== 'platform-http'
+  )
+    throw new Error(
+      'Azure Terraform lifecycle traffic acceptance requires a running-state lifecycle plan with platform ingress',
+    );
   const ingress = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
     plan,
     runtime,
@@ -42213,7 +42225,7 @@ ${plan.planSha256}`,
     let result =
       plan.intent.operation === 'update-network'
         ? await runAzureTerraformNetworkPublicUpdate(plan, ctx, terraform, runtime, storage, api, signal)
-        : ['start', 'stop', 'resize'].includes(plan.intent.operation)
+        : ['start', 'stop', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation)
           ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
           : plan.intent.operation === 'replace-node'
             ? plan.terraformNetworkReplacementProfile
@@ -42251,7 +42263,7 @@ ${plan.planSha256}`,
                 acceptIngress,
               );
     if (
-      ['start', 'resize'].includes(plan.intent.operation) &&
+      ['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) &&
       ingressContract &&
       plan.intent.ingress?.mode === 'platform-http'
     ) {

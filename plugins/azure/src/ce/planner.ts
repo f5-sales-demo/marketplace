@@ -1109,8 +1109,11 @@ function buildLifecycleActions(
     stop: ['vm-stop', ['vm', 'deallocate']] as const,
     resize: ['vm-resize', ['vm', 'resize', '--size', intent.vm.size]] as const,
   };
-  if (intent.operation in verbByOperation) {
-    const [kind, baseArgs] = verbByOperation[intent.operation as keyof typeof verbByOperation];
+  // Reconciliation and repair restore existing owned nodes; creation/replacement stays explicit.
+  const lifecycleOperation =
+    intent.operation === 'reconcile' || intent.operation === 'repair' ? 'start' : intent.operation;
+  if (lifecycleOperation in verbByOperation) {
+    const [kind, baseArgs] = verbByOperation[lifecycleOperation as keyof typeof verbByOperation];
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
       const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);

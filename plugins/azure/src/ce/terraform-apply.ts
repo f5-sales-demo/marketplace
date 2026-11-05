@@ -49,7 +49,11 @@ export function reconcileAzureTerraformMarketplaceTermsAcceptance(
 
 /** Keep unsupported lifecycle intents from falling through to the deployment-only admission workflow. */
 export function assertAzureTerraformApplyOperation(plan: Awaited<ReturnType<typeof loadPlanArtifact>>['plan']): void {
-  if (!['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network'].includes(plan.intent.operation))
+  if (
+    !['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network', 'reconcile', 'repair'].includes(
+      plan.intent.operation,
+    )
+  )
     throw new Error(`Terraform ${plan.intent.operation} is not executable through Azure CE apply`);
 }
 
@@ -66,8 +70,13 @@ export async function acceptAzureTerraformLifecycleTraffic(
     collectTraffic?: typeof collectAzureTrafficProbe;
   } = {},
 ) {
-  if (!['start', 'resize'].includes(plan.intent.operation) || plan.intent.ingress?.mode !== 'platform-http')
-    throw new Error('Azure Terraform lifecycle traffic acceptance requires start or resize with platform ingress');
+  if (
+    !['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) ||
+    plan.intent.ingress?.mode !== 'platform-http'
+  )
+    throw new Error(
+      'Azure Terraform lifecycle traffic acceptance requires a running-state lifecycle plan with platform ingress',
+    );
   const ingress = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
     plan,
     runtime,
@@ -251,7 +260,7 @@ export async function executeAzureCeTerraformApply(
     let result: Record<string, unknown> =
       plan.intent.operation === 'update-network'
         ? await runAzureTerraformNetworkPublicUpdate(plan, ctx, terraform, runtime, storage, api, signal)
-        : ['start', 'stop', 'resize'].includes(plan.intent.operation)
+        : ['start', 'stop', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation)
           ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
           : plan.intent.operation === 'replace-node'
             ? plan.terraformNetworkReplacementProfile
@@ -289,7 +298,7 @@ export async function executeAzureCeTerraformApply(
                 acceptIngress,
               );
     if (
-      ['start', 'resize'].includes(plan.intent.operation) &&
+      ['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) &&
       ingressContract &&
       plan.intent.ingress?.mode === 'platform-http'
     ) {

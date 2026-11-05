@@ -31,8 +31,9 @@ interface LifecycleCheckpoint {
 }
 
 function lifecycleOperation(plan: AzureCePlan): LifecycleOperation {
+  if (plan.intent.operation === 'reconcile' || plan.intent.operation === 'repair') return 'start';
   if (!['start', 'stop', 'resize'].includes(plan.intent.operation))
-    throw new Error('Azure Terraform lifecycle supports start, stop, or resize plans');
+    throw new Error('Azure Terraform lifecycle supports start, stop, resize, reconcile, or repair plans');
   return plan.intent.operation as LifecycleOperation;
 }
 

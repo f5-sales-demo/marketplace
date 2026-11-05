@@ -494,6 +494,21 @@ describe('Azure CE apply protections', () => {
       policyAllowed: true,
       vmSizes: [],
     });
+    lifecycleObservation.resources = [
+      {
+        id: `/subscriptions/${intent.subscriptionId}/resourceGroups/${intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${intent.deploymentName}-1`,
+        location: intent.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': intent.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': 'a'.repeat(64),
+        },
+      },
+    ];
     for (const operation of ['reconcile', 'teardown'] as const) {
       const lifecycle = compileAzureCePlan({ ...intent, operation }, lifecycleObservation);
       const current = structuredClone(lifecycleObservation);
@@ -602,14 +617,14 @@ it('preserves explicit Terraform intent and forbids native execution of that pla
   ).not.toThrow();
 });
 
-it('fails closed instead of routing unsupported Terraform operations through initial admission', () => {
+it('admits executable Terraform lifecycle operations and keeps teardown on its separate public path', () => {
   for (const operation of ['reconcile', 'repair', 'update-network', 'teardown'] as const) {
     const selected = structuredClone(intent);
     selected.engine = 'terraform';
     selected.operation = operation;
     if (operation === 'teardown') selected.image = { ...selected.image };
     const observed = structuredClone(observation);
-    if (operation === 'update-network') {
+    if (operation !== 'teardown') {
       const owner = 'a'.repeat(64);
       observed.resources = [
         {
@@ -641,7 +656,7 @@ it('fails closed instead of routing unsupported Terraform operations through ini
       ];
     }
     const lifecycle = compileAzureCePlan(selected, observed);
-    if (operation === 'update-network') expect(() => assertAzureTerraformApplyOperation(lifecycle)).not.toThrow();
+    if (operation !== 'teardown') expect(() => assertAzureTerraformApplyOperation(lifecycle)).not.toThrow();
     else expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
   }
 });
