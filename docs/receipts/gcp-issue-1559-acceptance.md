@@ -949,3 +949,9 @@ The original-bound dispatcher and shipped PTY pass 60 shared Python tests,
 local SSH fixtures. The actual cloud and serial controller remains absent;
 GCP Terraform apply, live guest capture, operational evidence, ordinary installed
 runtime acceptance and all remaining delivery gates stay open.
+
+Attempt 394 repairs the [process-lock fixture](gcp-lock-fixture-20261105.md)
+with cooperative stdin closure and verified natural exit. Five focused lock
+tests and 831 shared tests pass on Bun 1.4.2. The earlier constrained-execution
+hold is resolved for this successor; actual cloud and serial capture, live
+GCP acceptance, installed runtime, review, CI and publication remain open.

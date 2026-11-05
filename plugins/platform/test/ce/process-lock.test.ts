@@ -35,22 +35,29 @@ test('process lock safely reclaims a verified dead-process claim', async () => {
   await recovered();
 });
 
-test('process lock recovers after the owning process is killed', async () => {
+test('process lock recovers after its original owner exits naturally', async () => {
   const path = join(await root(), '.runner-lock');
   const module = new URL('../../src/ce/process-lock.ts', import.meta.url).href;
   const child = Bun.spawn(
     [
       process.execPath,
       '-e',
-      `import { acquireProcessLock } from ${JSON.stringify(module)}; await acquireProcessLock(${JSON.stringify(path)}); console.log('ready'); await new Promise(() => {});`,
+      `import { acquireProcessLock } from ${JSON.stringify(module)}; await acquireProcessLock(${JSON.stringify(path)}); console.log('ready'); for await (const chunk of Bun.stdin.stream()) { if (chunk.length) throw new Error('Unexpected fixture input'); }`,
     ],
-    { stdout: 'pipe', stderr: 'pipe' },
+    { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
   );
   const reader = child.stdout.getReader();
-  const first = await reader.read();
-  expect(new TextDecoder().decode(first.value)).toContain('ready');
-  child.kill('SIGKILL');
-  await child.exited;
+  try {
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain('ready');
+    const original = JSON.parse(await readFile(join(path, 'claim.json'), 'utf8'));
+    expect(original.pid).toBe(child.pid);
+    await expect(acquireProcessLock(path)).rejects.toThrow('lock is held by a live process');
+  } finally {
+    await child.stdin.end();
+    expect(await child.exited).toBe(0);
+    reader.releaseLock();
+  }
   const recovered = await acquireProcessLock(path);
   await recovered();
 });
@@ -61,4 +68,9 @@ test('process lock refuses malformed evidence instead of deleting an unknown loc
   await writeFile(join(path, 'claim.json'), '{}', { mode: 0o600 });
   await expect(acquireProcessLock(path)).rejects.toThrow('cannot be reconciled');
   expect(await readFile(join(path, 'claim.json'), 'utf8')).toBe('{}');
+});
+
+test('process-lock fixtures reject direct signal calls', async () => {
+  const source = await Bun.file(import.meta.path).text();
+  expect(source).not.toMatch(/\bchild\s*\.\s*kill\s*\(/);
 });
