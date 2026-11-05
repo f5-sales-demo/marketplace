@@ -8560,16 +8560,17 @@ import { join as join9 } from 'node:path';
 
 function freezeRuntime(options) {
   const execute = options.execute;
+  const assertApplyReady = options.assertApplyReady;
   const googleAdc = options.googleAdc
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc });
+  return Object.freeze({ execute, googleAdc, assertApplyReady });
 }
 function createCeTerraformService(platform, options = {}) {
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc))
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady))
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -8591,7 +8592,7 @@ function createCeTerraformService(platform, options = {}) {
       const directory = deployment.stage
         ? join9(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -8660,7 +8661,13 @@ function createCeTerraformService(platform, options = {}) {
       const checkOwner = async () => {
         await shared.storage(owner);
       };
+      const checkApplyReady = async () => {
+        await checkOwner();
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        await assertApplyReady?.();
+      };
       return {
+        ...(assertApplyReady ? { assertApplyReady: checkApplyReady } : {}),
         ...(policy
           ? {
               googleAdcEnvironment: () =>
@@ -8681,6 +8688,10 @@ function createCeTerraformService(platform, options = {}) {
                     try {
                       adc = await adcSession;
                     } catch {
+                      if (!originalLease && policy.closeFailedAcquisition) {
+                        await policy.closeFailedAcquisition();
+                        return;
+                      }
                       if (
                         !originalLease ||
                         originalLease.owner.deploymentId !== owner.deploymentId ||
@@ -8776,7 +8787,9 @@ function createCeTerraformService(platform, options = {}) {
           return runner.plan(env, signal);
         },
         async apply(receipt, env, signal) {
-          await checkOwner();
+          signal?.throwIfAborted();
+          await checkApplyReady();
+          signal?.throwIfAborted();
           await runner.apply(receipt, env, signal);
         },
       };
@@ -9250,6 +9263,8 @@ async function applyGcpTerraformTeardown(runtime, intent, contract, policy, appr
       assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'teardown', gcpTerraformResourceAddresses(intent));
       if ((await projectSavedPlan(runtime, intent, plan.savedPlan, resources, signal)) !== plan.projectionHash)
         throw new Error('Saved destroy ownership projection changed');
+      await runtime.session.assertApplyReady?.();
+      signal?.throwIfAborted();
       checkpoint = { planHash: approvedHash, state: 'submitting' };
       await runtime.store.write(checkpointName, checkpoint);
       onMutation?.();
@@ -9528,6 +9543,8 @@ async function applyPublicTerraformTeardown(runtime, intent, contract, policy, a
         if (checkpoint.state === 'planned') {
           if (fingerprint(await stableState(runtime)) !== fingerprint(plan.state))
             throw new Error('Authorized cleanup state changed before submission');
+          await runtime.session.assertApplyReady?.();
+          signal?.throwIfAborted();
           journal.phase = 'submitting';
           await runtime.store.write(name, journal);
           signal?.throwIfAborted();
@@ -9824,6 +9841,8 @@ async function applyPublicTerraformDeployment(runtime, platform, intent, approve
       const age = Date.now() - Date.parse(plan.createdAt);
       if (!Number.isFinite(age) || age < 0 || age > 300000)
         throw new Error('Initial Terraform review expired during qualification');
+      await runtime.session.assertApplyReady?.();
+      signal?.throwIfAborted();
       await runtime.store.write('gcp-tf-deploy-original-authorization.json', authorization);
     }
     journal ??= {
@@ -9858,6 +9877,8 @@ async function applyPublicTerraformDeployment(runtime, platform, intent, approve
         if (checkpoint.state === 'planned') {
           if (!['authorized', 'submitting'].includes(journal.phase))
             throw new Error('Consumed submission reverted to planned');
+          await runtime.session.assertApplyReady?.();
+          signal?.throwIfAborted();
           journal.phase = 'submitting';
           await runtime.store.write('gcp-tf-public-deployment.json', journal);
           signal?.throwIfAborted();
@@ -10042,6 +10063,7 @@ var init_funding_session = __esm(() => {
 // plugins/gcloud/src/ce/terraform-session.ts
 async function openGcpTerraformSession(platform, inputs, resume = false, installedService) {
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
+  if (!resume) await installedService?.assertNewRuntime?.('gcp');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
   const { createHash } = await import('node:crypto');
   const digest = `sha256:${createHash('sha256').update(inputs.providerLock).digest('hex')}`;
