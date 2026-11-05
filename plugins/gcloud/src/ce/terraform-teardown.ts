@@ -411,6 +411,8 @@ export async function applyGcpTerraformTeardown(
       assertGcpTerraformOwnedTransition(intent, plan.savedPlan, 'teardown', gcpTerraformResourceAddresses(intent));
       if ((await projectSavedPlan(runtime, intent, plan.savedPlan, resources, signal)) !== plan.projectionHash)
         throw new Error('Saved destroy ownership projection changed');
+      await runtime.session.assertApplyReady?.();
+      signal?.throwIfAborted();
       checkpoint = { planHash: approvedHash, state: 'submitting' };
       await runtime.store.write(checkpointName, checkpoint);
       onMutation?.();

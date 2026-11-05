@@ -19,6 +19,8 @@ import { withFinalCheck } from './session-lifetime';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Trusted mutation prerequisites; cloud adapters call this before recording submission. Older runtimes retain their path. */
+  assertApplyReady?(): Promise<void>;
   /** Present only when a trusted original-lifetime ADC policy is configured. */
   googleAdcEnvironment?(): Promise<Readonly<{ GOOGLE_APPLICATION_CREDENTIALS: string }>>;
   /** Retire new provider calls; disposal requires no in-flight call and independent original group closure. */
@@ -95,9 +97,13 @@ export interface TerraformSession {
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
 export interface CeTerraformService {
+  /** Source-owned prerequisite inspection before new cloud adapters create their local preparation receipts. */
+  assertNewRuntime?(provider: 'aws' | 'azure' | 'gcp'): Promise<void>;
   open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
 }
 export interface GoogleAdcPolicy {
+  /** The same owning factory must close a failed admission that did not return a lease. */
+  closeFailedAcquisition?(): Promise<void>;
   readonly accountSha256: string;
   readonly audienceSha256: string;
   readonly qualificationSha256: string;
@@ -110,6 +116,8 @@ export interface GoogleAdcPolicy {
   }): Promise<GoogleAdcLease>;
 }
 export interface CeTerraformRuntimeOptions {
+  /** Source-owned preflight before consuming a saved plan; invocation release still rechecks live capture. */
+  readonly assertApplyReady?: () => Promise<void>;
   /** Opt-in trusted policy; legacy stored sessions retain their original behavior. */
   readonly googleAdc?: GoogleAdcPolicy;
   /** Trusted execution policy; the runner retains ownership, saved-plan and recovery checks. */
@@ -128,11 +136,12 @@ export interface CeTerraformServiceOptions extends CeTerraformRuntimeOptions {
 }
 function freezeRuntime(options: CeTerraformRuntimeOptions): CeTerraformRuntimeOptions {
   const execute = options.execute;
+  const assertApplyReady = options.assertApplyReady;
   const googleAdc = options.googleAdc
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc });
+  return Object.freeze({ execute, googleAdc, assertApplyReady });
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -143,7 +152,7 @@ export function createCeTerraformService(
   // Capture the policy once so mutation of the options object cannot redirect later sessions.
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc))
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady))
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -165,7 +174,7 @@ export function createCeTerraformService(
       const directory = deployment.stage
         ? join(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -234,7 +243,13 @@ export function createCeTerraformService(
       const checkOwner = async () => {
         await shared.storage(owner);
       };
+      const checkApplyReady = async () => {
+        await checkOwner();
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        await assertApplyReady?.();
+      };
       return {
+        ...(assertApplyReady ? { assertApplyReady: checkApplyReady } : {}),
         ...(policy
           ? {
               googleAdcEnvironment: () =>
@@ -257,6 +272,10 @@ export function createCeTerraformService(
                     } catch {
                       // Admission can fail after the trusted factory starts its monitor.
                       // Only that same owner's independent closure callback can release it.
+                      if (!originalLease && policy.closeFailedAcquisition) {
+                        await policy.closeFailedAcquisition();
+                        return;
+                      }
                       if (
                         !originalLease ||
                         originalLease.owner.deploymentId !== owner.deploymentId ||
@@ -352,7 +371,9 @@ export function createCeTerraformService(
           return runner.plan(env, signal);
         },
         async apply(receipt, env, signal) {
-          await checkOwner();
+          signal?.throwIfAborted();
+          await checkApplyReady();
+          signal?.throwIfAborted();
           await runner.apply(receipt, env, signal);
         },
       };

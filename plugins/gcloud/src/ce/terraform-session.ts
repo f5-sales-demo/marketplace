@@ -26,6 +26,7 @@ export async function openGcpTerraformSession(
   installedService?: CeTerraformService,
 ): Promise<TerraformSession> {
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
+  if (!resume) await installedService?.assertNewRuntime?.('gcp');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
   // Hash raw lock bytes; structural JSON canonicalization is for plans, not artifacts.
   const { createHash } = await import('node:crypto');

@@ -12,7 +12,13 @@ export function terraformInstallArgv(platform = process.platform): string[] {
 
 export function terraformRuntimeInstallArgv(platform = process.platform): string[] {
   if (platform !== 'linux') throw new Error('Qualified observer runtime requires Linux AMD64');
-  return ['python3', '-I', '-B', join(import.meta.dir, '../scripts/install_runtime.py')];
+  return [
+    'python3',
+    '-I',
+    '-B',
+    join(import.meta.dir, '../scripts/install_runtime.py'),
+    ...(process.env.XCSH_TERRAFORM_RUNTIME_DIR ? ['--runtime-dir', process.env.XCSH_TERRAFORM_RUNTIME_DIR] : []),
+  ];
 }
 
 export default function terraformIntegration(pi: ExtensionApi) {

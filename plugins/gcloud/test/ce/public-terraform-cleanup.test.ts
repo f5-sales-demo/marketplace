@@ -75,6 +75,26 @@ it('deletes partial disk state with separate exact authorization and all eight a
   await applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash);
   expect(f.deletes()).toBe(1);
 });
+it('unavailable cleanup capture retains the unsubmitted delete plan and does not notify mutation', async () => {
+  const f = await cleanupFixture();
+  const plan = await planPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy);
+  Object.assign(f.runtime.session, {
+    assertApplyReady: async () => {
+      throw new Error('capture unavailable');
+    },
+  });
+  let mutations = 0;
+  await expect(
+    applyPublicTerraformTeardown(f.runtime, f.i, f.boundary, f.policy, plan.planHash, undefined, () => {
+      mutations++;
+    }),
+  ).rejects.toThrow('capture unavailable');
+  expect(f.deletes()).toBe(0);
+  expect(mutations).toBe(0);
+  expect((await f.runtime.session.readApplyCheckpoint?.(plan.savedPlan))?.state).toBe('planned');
+  const journal = f.files.get(`gcp-tf-public-cleanup-authorized-${plan.planHash.slice(7)}.json`) as { phase: string };
+  expect(journal.phase).toBe('authorized');
+});
 it('rejects changed stable state, replacement identities, foreign state and altered cleanup reviews', async () => {
   for (const change of ['state', 'replacement', 'foreign', 'review', 'context-endpoint']) {
     const f = await cleanupFixture();

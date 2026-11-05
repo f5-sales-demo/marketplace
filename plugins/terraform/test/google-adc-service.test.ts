@@ -206,6 +206,28 @@ test('ADC policy requires an explicit trusted executor and legacy service keeps 
   );
   expect(f.calls[0].env.GOOGLE_OAUTH_ACCESS_TOKEN).toBe('synthetic-static');
 });
+test('the owning factory independently closes failed acquisition before a lease was returned', async () => {
+  const f = await fixture();
+  let closed = 0;
+  const service = createCeTerraformService(async () => f.platform, {
+    googleAdc: {
+      ...f.policy,
+      acquire: async () => {
+        throw new Error('original authentication refused');
+      },
+      closeFailedAcquisition: async () => {
+        closed++;
+      },
+    },
+    execute: f.execute,
+  });
+  const session = await service.open(f.owner, f.deployment, false);
+  await expect(adcEnvironment(session)).rejects.toThrow('original authentication refused');
+  if (!session.closeGoogleAdc) throw new Error('Closure capability missing');
+  await session.closeGoogleAdc();
+  expect(closed).toBe(1);
+  expect(f.calls).toHaveLength(0);
+});
 
 async function closeAdc(session: TerraformSession) {
   if (!session.closeGoogleAdc) throw new Error('Trusted ADC close capability missing');

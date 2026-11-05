@@ -5,6 +5,27 @@ import { inspectPublicTerraformOwnership, publicTerraformCloudScope } from '../.
 import { planPublicTerraformTeardown } from '../../src/ce/terraform-public-teardown';
 import { fixture } from './public-terraform-fixtures';
 
+it('unavailable capture refuses before original authorization, submission journal or mutation notification', async () => {
+  const f = await fixture();
+  const plan = await planPublicTerraformDeployment(f.runtime, f.platform, f.i, f.sources);
+  Object.assign(f.runtime.session, {
+    assertApplyReady: async () => {
+      throw new Error('capture unavailable');
+    },
+  });
+  let mutations = 0;
+  await expect(
+    applyPublicTerraformDeployment(f.runtime, f.platform, f.i, plan.planHash, f.sources, undefined, () => {
+      mutations++;
+    }),
+  ).rejects.toThrow('capture unavailable');
+  expect(f.applies()).toBe(0);
+  expect(mutations).toBe(0);
+  expect(f.files.has('gcp-tf-deploy-original-authorization.json')).toBe(false);
+  expect(f.files.has('gcp-tf-public-deployment.json')).toBe(false);
+  expect((await f.runtime.session.readApplyCheckpoint?.(plan.savedPlan))?.state).toBe('planned');
+});
+
 it('HA ownership preparation cannot admit public deployment or cleanup through the single-node contract', async () => {
   const f = await fixture();
   const node = f.i.sites[0].nodes[0];

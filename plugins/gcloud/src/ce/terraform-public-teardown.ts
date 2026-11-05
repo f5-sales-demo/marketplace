@@ -283,6 +283,8 @@ export async function applyPublicTerraformTeardown(
         if (checkpoint.state === 'planned') {
           if (fingerprint(await stableState(runtime)) !== fingerprint(plan.state))
             throw new Error('Authorized cleanup state changed before submission');
+          await runtime.session.assertApplyReady?.();
+          signal?.throwIfAborted();
           journal.phase = 'submitting';
           await runtime.store.write(name, journal);
           signal?.throwIfAborted();

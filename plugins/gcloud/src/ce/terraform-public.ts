@@ -286,6 +286,8 @@ export async function applyPublicTerraformDeployment(
       const age = Date.now() - Date.parse(plan.createdAt);
       if (!Number.isFinite(age) || age < 0 || age > 300_000)
         throw new Error('Initial Terraform review expired during qualification');
+      await runtime.session.assertApplyReady?.();
+      signal?.throwIfAborted();
       await runtime.store.write('gcp-tf-deploy-original-authorization.json', authorization);
     }
     journal ??= {
@@ -320,6 +322,8 @@ export async function applyPublicTerraformDeployment(
         if (checkpoint.state === 'planned') {
           if (!['authorized', 'submitting'].includes(journal.phase))
             throw new Error('Consumed submission reverted to planned');
+          await runtime.session.assertApplyReady?.();
+          signal?.throwIfAborted();
           journal.phase = 'submitting';
           await runtime.store.write('gcp-tf-public-deployment.json', journal);
           signal?.throwIfAborted();
