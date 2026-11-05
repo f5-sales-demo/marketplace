@@ -1,7 +1,7 @@
 import { expect } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from './owned-fixture-test';
 
 // Keep modeled external/stage boundaries in a separate process. The actual finalizer,
@@ -97,7 +97,9 @@ test('actual terminal entry retires replacement keys only after external absence
   const directory = await mkdtemp(join(tmpdir(), 'terminal-observer-worker-'));
   try {
     const path = join(directory, 'isolated-terminal-observer.test.ts');
-    await writeFile(path, worker.replace('__SOURCE_ROOT__', JSON.stringify(process.cwd())), { mode: 0o600 });
+    await writeFile(path, worker.replace('__SOURCE_ROOT__', JSON.stringify(resolve(import.meta.dir, '../../../..'))), {
+      mode: 0o600,
+    });
     const child = Bun.spawn([process.execPath, 'test', '--max-concurrency=1', path], {
       cwd: process.cwd(),
       stdout: 'pipe',

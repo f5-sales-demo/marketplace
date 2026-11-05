@@ -113,7 +113,7 @@ EOF
   printf '#!/bin/sh\nexit 0\n' >"$root/bin/python3"
   chmod +x "$root/bin/python3"
   chmod +x "$root/bin/bun" "$root/plugins/demo/scripts/tests/run-tests.sh"
-  for tool in bash basename dirname find git grep jq ln mktemp rm sort env touch node; do
+  for tool in bash basename dirname find git grep jq ln mkdir mktemp rm sort env touch node; do
     ln -s "$(command -v "$tool")" "$root/tools/$tool"
   done
   printf '%s\n' "$root"
@@ -146,4 +146,21 @@ if [ -e "$MISSING_LOCK/state/test-ran" ]; then
   fail "the plugin's Bun tests must not run without its lockfile"
 else
   pass "a missing plugin lockfile stops before that plugin's Bun tests"
+fi
+
+PARALLEL_AZURE=$(new_fixture parallel-azure)
+printf '{"lockfileVersion":2}\n' >"$PARALLEL_AZURE/plugins/demo/bun.lock"
+mkdir -p "$PARALLEL_AZURE/plugins/azure/scripts/tests" "$PARALLEL_AZURE/plugins/azure/test"
+printf '#!/bin/sh\nexit 0\n' >"$PARALLEL_AZURE/plugins/azure/scripts/tests/run-tests.sh"
+printf 'test("azure", () => {});\n' >"$PARALLEL_AZURE/plugins/azure/test/azure.test.ts"
+if ! PATH="$PARALLEL_AZURE/bin:$PARALLEL_AZURE/tools" TEST_STATE="$PARALLEL_AZURE/state" \
+  bash "$PARALLEL_AZURE/scripts/run-plugin-tests.sh" >"$PARALLEL_AZURE/state/output" 2>&1; then
+  cat "$PARALLEL_AZURE/state/output" >&2
+  fail "bounded Azure file workers must preserve the full runner workflow"
+fi
+if grep -Fq 'test . --parallel=2|' "$PARALLEL_AZURE/state/calls" &&
+  ! grep -Eq -- '--concurrent|--no-isolate|--shard|--test-name-pattern' "$PARALLEL_AZURE/state/calls"; then
+  pass "Azure executes its complete suite with two isolated file workers"
+else
+  fail "Azure must retain all tests, file isolation, and serial tests within each file"
 fi
