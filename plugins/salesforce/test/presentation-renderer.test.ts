@@ -165,25 +165,35 @@ test('empty unavailable partial and failed results retain complete corrective gu
 test('runtime progress advances and stops after completion, cancellation and late updates', async () => {
   for (const end of ['complete', 'cancel', 'shutdown', 'replace']) {
     let renders = 0;
-    const c = await registered('sf_pipeline_report', {}, () => renders++);
+    const observed = new Set<string>();
+    const c = await registered('sf_pipeline_report', {}, () => {
+      renders++;
+      observed.add(plain(c.render(76)));
+    });
     const result = {
       content: [{ type: 'text', text: 'Pipeline queries: 1 completed, 1 running.' }],
       details: { tool: 'sf_pipeline_report' },
     };
-    c.updateResult(result, true);
-    const first = plain(c.render(76));
-    await Bun.sleep(180);
-    expect(renders).toBeGreaterThan(0);
-    expect(plain(c.render(76))).not.toBe(first);
-    if (end === 'complete') c.updateResult({ content: [] }, false);
-    else {
-      c.stopAnimation();
+    try {
       c.updateResult(result, true);
-      c.updateArgs({ late: true });
+      const first = plain(c.render(76));
+      // The first timer delivery repeats frame zero; observe a changed rendered frame
+      // even when the event loop delays delivery or a later sample wraps the spinner.
+      const deadline = performance.now() + 1000;
+      while (performance.now() < deadline && ![...observed].some((frame) => frame !== first)) await Bun.sleep(20);
+      expect(renders).toBeGreaterThan(0);
+      expect([...observed].some((frame) => frame !== first)).toBe(true);
+      if (end === 'complete') c.updateResult({ content: [] }, false);
+      else {
+        c.stopAnimation();
+        c.updateResult(result, true);
+        c.updateArgs({ late: true });
+      }
+      const stopped = renders;
+      await Bun.sleep(180);
+      expect(renders).toBe(stopped);
+    } finally {
+      c.stopAnimation();
     }
-    const stopped = renders;
-    await Bun.sleep(180);
-    expect(renders).toBe(stopped);
-    c.stopAnimation();
   }
 });

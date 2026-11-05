@@ -1,3 +1,5 @@
+import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+
 export interface GcloudConfig {
   project: string;
   account: string;
@@ -35,8 +37,8 @@ export interface GcloudRawResult {
 }
 
 export interface PluginInterface {
-  typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
-  [key: string]: unknown;
+  typebox: Parameters<ExtensionFactory>[0]['typebox'];
+  events?: unknown;
 }
 
 export const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;

@@ -115,3 +115,47 @@ test('platform observes active context switches and explicit environment precede
   active = { XCSH_API_URL: 'not-a-url', XCSH_API_TOKEN: 'ignored', XCSH_TENANT: 'ignored' };
   expect((await probe?.())?.state).toBe('ready');
 });
+
+test('shared CE service registration remains available without tools and uses current session context', async () => {
+  delete process.env.XCSH_API_URL;
+  delete process.env.XCSH_API_TOKEN;
+  delete process.env.XCSH_TENANT;
+  let handler: ((request: unknown) => void) | undefined;
+  let sessionHandler: ((event: unknown, context: { settings: { get(key: string): unknown } }) => void) | undefined;
+  await platformExtension({
+    presentation,
+    typebox: { Type: new Proxy({}, { get: () => () => ({}) }) as never },
+    setLabel: () => {},
+    registerTool: () => {},
+    integrations: { register: (d) => d },
+    events: {
+      on: (_channel, fn) => {
+        handler = fn;
+        return () => {};
+      },
+      emit: () => {},
+    },
+    on: (_event, fn) => {
+      sessionHandler = fn as typeof sessionHandler;
+    },
+  });
+  const service = await new Promise<import('../src/ce/service').CePlatformService>((resolve) =>
+    handler?.({ version: 2, resolve }),
+  );
+  await expect(service.runtime('native')).rejects.toThrow('Select an F5 context');
+  globalThis.fetch = (async () => {
+    throw new Error('simulated transport failure');
+  }) as unknown as typeof fetch;
+  sessionHandler?.(
+    {},
+    { settings: { get: () => ({ XCSH_API_URL: 'https://example.test', XCSH_API_TOKEN: 'fixture' }) } },
+  );
+  let failure = '';
+  try {
+    await service.runtime('native');
+  } catch (error) {
+    failure = (error as Error).message;
+  }
+  expect(failure).not.toContain('Select an F5 context');
+  expect(failure).not.toBe('');
+});

@@ -171,7 +171,7 @@ function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest:
     body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '7.0.9' })} -->`,
     assets: options.malformed ? metadata.slice(1) : metadata,
   };
-  const fetcher = (async (input: RequestInfo | URL) => {
+  const fetcher = (async (input: Parameters<typeof fetch>[0]) => {
     const url = String(input);
     if (url === releaseUrl) return new Response(JSON.stringify(release), { status: 200 });
     if (url === tagUrl) return new Response(JSON.stringify({ sha: commit }), { status: 200 });
