@@ -625,6 +625,27 @@ import { basename as basename2, dirname as dirname2, isAbsolute as isAbsolute2, 
 
 var keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys2 = ['dev', 'ino', 'uid', 'mode'];
+function assertSameOriginalInput(original, current) {
+  if (
+    original.path !== current.path ||
+    original.sha256 !== current.sha256 ||
+    !original.expectedIdentity ||
+    !current.expectedIdentity ||
+    !original.expectedParentIdentity ||
+    !current.expectedParentIdentity ||
+    keys.some(
+      (key) =>
+        typeof original.expectedIdentity?.[key] !== 'string' ||
+        original.expectedIdentity[key] !== current.expectedIdentity?.[key],
+    ) ||
+    parentKeys2.some(
+      (key) =>
+        typeof original.expectedParentIdentity?.[key] !== 'string' ||
+        original.expectedParentIdentity[key] !== current.expectedParentIdentity?.[key],
+    )
+  )
+    throw new Error('Original selected input identity or bytes changed');
+}
 var hash2 = (raw) => createHash3('sha256').update(raw).digest('hex');
 var maximum2 = 256n * 1024n * 1024n;
 var identity = (stat) => Object.fromEntries(keys.map((key) => [key, stat[key].toString()]));
@@ -1621,7 +1642,6 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
       env.GOOGLE_APPLICATION_CREDENTIALS ??
       join4(env.CLOUDSDK_CONFIG ?? join4(homedir(), '.config/gcloud'), 'application_default_credentials.json');
     const source = await owned(sourcePath, 65536);
-    const originalSourceHash = source.binding.sha256;
     const credential = JSON.parse(source.bytes.toString());
     if (credential.type !== 'authorized_user' || typeof credential.client_id !== 'string')
       throw new Error('Qualified authorized-user ADC mapping required');
@@ -1663,8 +1683,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
       acquire: async () => {
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
-        if (currentSource.binding.sha256 !== originalSourceHash)
-          throw new Error('Selected original ADC source changed');
+        assertSameOriginalInput(source.binding, currentSource.binding);
         const snapshotPath = join4(directory, `google-adc-${randomUUID3()}.private.json`);
         await writeFile3(snapshotPath, currentSource.bytes, { flag: 'wx', mode: 256 });
         const saved = await store.read('gcp-terraform-input-identity.json');
