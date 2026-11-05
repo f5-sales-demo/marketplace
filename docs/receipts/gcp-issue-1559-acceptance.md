@@ -381,6 +381,22 @@ content, historical evidence, collectors and locks were preserved. Task-scoped
 temporary files now use the data volume. The corrected tracker and staged
 privacy checks pass, retaining all 2,678 tasks and 473 assertions.
 
+Attempt 390 closes a credential-admission gap before private snapshot creation.
+The factory previously compared only credential bytes between initial source
+selection and acquisition. It now requires the original file and parent
+identities to match as well, rejecting same-byte replacement or writes without
+recapturing an identity. The global configuration directory remains unchanged;
+its existing permissions do not weaken the private snapshot monitor.
+
+Three failing-first regressions became four passing source-admission tests.
+The focused 27-test run and shared 509-test run with 2,995 assertions pass, along
+with the Terraform typecheck, builds, bundle/integration checks and privacy
+enforcement. A real current-source admission and Google authentication probe
+passed with independent closure and zero cloud submissions. Its private receipt
+has SHA-256 `a53a91f01b459619a15ab82cb90676b82aff39c0291a95e0630c06668ec51343`.
+This admission evidence does not qualify the unfinished SSH transport or any
+installed, guest, networking, lifecycle or publication gate.
+
 ## Guest campaign boundary
 
 The original three-campaign allowance covered q24, q25 and q26. The user then authorized q27 and subsequently removed the numerical cap. q31 is the seventh submitted campaign; q28's unused plan remains sealed and must never be submitted. The [q30 diagnostic receipt](gcp-q30-disposable-diagnostic-20261026.md) records the serial trust refusal, isolated read-only child and independently completed cleanup. The [q31 receipt](gcp-q31-installed-runtime-and-diagnostic-20261026.md) records the different CE SSH negotiation failure and completed cleanup. Continue changed successors within the existing task authorization, with fresh scope, executable bindings, current prerequisites and independent plan review. Complete cleanup before another campaign. No historical launcher, plan or authorization may be replayed.
