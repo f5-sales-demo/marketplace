@@ -6,6 +6,28 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 const keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'] as const;
 export type OriginalInputIdentity = Readonly<Record<(typeof keys)[number], string>>;
 const parentKeys = ['dev', 'ino', 'uid', 'mode'] as const;
+/** Compare a selected source before the private snapshot handoff. */
+export function assertSameOriginalInput(original: OriginalInputBinding, current: OriginalInputBinding) {
+  if (
+    original.path !== current.path ||
+    original.sha256 !== current.sha256 ||
+    !original.expectedIdentity ||
+    !current.expectedIdentity ||
+    !original.expectedParentIdentity ||
+    !current.expectedParentIdentity ||
+    keys.some(
+      (key) =>
+        typeof original.expectedIdentity?.[key] !== 'string' ||
+        original.expectedIdentity[key] !== current.expectedIdentity?.[key],
+    ) ||
+    parentKeys.some(
+      (key) =>
+        typeof original.expectedParentIdentity?.[key] !== 'string' ||
+        original.expectedParentIdentity[key] !== current.expectedParentIdentity?.[key],
+    )
+  )
+    throw new Error('Original selected input identity or bytes changed');
+}
 export type OriginalInputParentIdentity = Readonly<Pick<OriginalInputIdentity, (typeof parentKeys)[number]>>;
 export interface OriginalInputBinding {
   readonly path: string;

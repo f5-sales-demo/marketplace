@@ -14,7 +14,12 @@ import {
 } from './installed-capture-context';
 import pins from './installed-runtime-pins.json';
 import { linuxMonotonicMs } from './linux-clock';
-import { monitorOriginalInputs, type OriginalInputBinding, type OriginalInputIdentity } from './original-input-monitor';
+import {
+  assertSameOriginalInput,
+  monitorOriginalInputs,
+  type OriginalInputBinding,
+  type OriginalInputIdentity,
+} from './original-input-monitor';
 import { verifyProviderPackage } from './provider-package';
 import type { Executor } from './runner';
 import type { CeTerraformRuntimeOptions, CeTerraformRuntimeRequest, GoogleAdcPolicy } from './service';
@@ -266,7 +271,6 @@ export function createInstalledRuntimeResolver(
       env.GOOGLE_APPLICATION_CREDENTIALS ??
       join(env.CLOUDSDK_CONFIG ?? join(homedir(), '.config/gcloud'), 'application_default_credentials.json');
     const source = await owned(sourcePath, 65536);
-    const originalSourceHash = source.binding.sha256;
     const credential = JSON.parse(source.bytes.toString());
     if (credential.type !== 'authorized_user' || typeof credential.client_id !== 'string')
       throw new Error('Qualified authorized-user ADC mapping required');
@@ -308,8 +312,7 @@ export function createInstalledRuntimeResolver(
       acquire: async () => {
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
-        if (currentSource.binding.sha256 !== originalSourceHash)
-          throw new Error('Selected original ADC source changed');
+        assertSameOriginalInput(source.binding, currentSource.binding);
         const snapshotPath = join(directory, `google-adc-${randomUUID()}.private.json`);
         await writeFile(snapshotPath, currentSource.bytes, { flag: 'wx', mode: 0o400 });
         const saved = (await store.read('gcp-terraform-input-identity.json')) as {
