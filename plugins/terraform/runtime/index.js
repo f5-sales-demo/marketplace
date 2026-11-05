@@ -1480,8 +1480,9 @@ async function assertInstalledRuntime(env = process.env) {
     throw new InstalledTerraformSetupRequired();
   }
 }
-function selectedAccount() {
+function selectedGoogleAccountSha256(environment = process.env) {
   const command = Bun.spawnSync(['gcloud', 'config', 'get-value', 'account', '--quiet'], {
+    env: { ...environment },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -1517,7 +1518,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
       terraformFile = await owned(terraformPath);
     if (terraformFile.binding.sha256 !== installed_runtime_pins_default.terraformSha256)
       throw new Error('Qualified installed Terraform executable required');
-    const accountSha256 = selectedAccount();
+    const accountSha256 = selectedGoogleAccountSha256(env);
     const sourcePath =
       env.GOOGLE_APPLICATION_CREDENTIALS ??
       join4(env.CLOUDSDK_CONFIG ?? join4(homedir(), '.config/gcloud'), 'application_default_credentials.json');
