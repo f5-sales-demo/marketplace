@@ -7,6 +7,11 @@ import { fingerprint } from '../../gcloud/src/ce/discovery';
 import { assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { authenticateGoogleAdc } from './google-adc-authentication';
 import type { GoogleAdcLease } from './google-adc-session';
+import {
+  createInstalledCaptureContext,
+  freezeAdmittedCaptureInputs,
+  type InstalledCaptureContext,
+} from './installed-capture-context';
 import pins from './installed-runtime-pins.json';
 import { linuxMonotonicMs } from './linux-clock';
 import { monitorOriginalInputs, type OriginalInputBinding, type OriginalInputIdentity } from './original-input-monitor';
@@ -36,10 +41,7 @@ export interface InstalledGcpCapture {
 }
 export interface InstalledRuntimeFactoryOptions {
   /** Compiled server implementation only; never accepted as a tool argument or receipt flag. */
-  capture?: (
-    request: CeTerraformRuntimeRequest,
-    budget: Readonly<{ start: number; deadline: number }>,
-  ) => InstalledGcpCapture;
+  capture?: (request: CeTerraformRuntimeRequest, context: InstalledCaptureContext) => InstalledGcpCapture;
 }
 async function owned(path: string, maximum = 256 * 1024 * 1024) {
   if (!isAbsolute(path) || resolve(path) !== path || (await realpath(path)) !== path)
@@ -282,6 +284,7 @@ export function createInstalledRuntimeResolver(
     if (!mode) await writeFile(join(directory, modeName), JSON.stringify(expectedMode), { flag: 'wx', mode: 0o400 });
     let monitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
     let providers: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
+    let providerInputs: Readonly<Record<string, OriginalInputBinding>> | undefined;
     let executor: Executor | undefined;
     let capture: InstalledGcpCapture | undefined;
     let captureAttempted = false;
@@ -374,11 +377,14 @@ export function createInstalledRuntimeResolver(
           await store.verify();
           await monitor?.assertOriginal();
           await providers?.assertOriginal();
-          await capture?.assertOriginal();
         };
-        const assertOriginal = async () => {
+        const assertWithinDeadline = async () => {
           if (linuxMonotonicMs() >= deadline) throw new Error('Original installed operation deadline exhausted');
           await assertInputs();
+        };
+        const assertOriginal = async () => {
+          await assertWithinDeadline();
+          await capture?.assertOriginal();
         };
         try {
           const authenticated = await authenticateGoogleAdc({
@@ -393,7 +399,24 @@ export function createInstalledRuntimeResolver(
             JSON.stringify(authenticated),
             { flag: 'wx', mode: 0o400 },
           );
-          capture = captureFactory?.(request, Object.freeze({ start, deadline }));
+          capture = captureFactory?.(
+            request,
+            createInstalledCaptureContext({
+              owner,
+              executionDirectory,
+              budget: { start, deadline },
+              environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
+              inputs: bindings,
+              assertInputs,
+              assertWithinDeadline,
+              readProviderInputs: async () => {
+                if (!providers || !providerInputs)
+                  throw new Error('Original capture provider packages are not admitted');
+                await providers.assertOriginal();
+                return providerInputs;
+              },
+            }),
+          );
           let currentGroup: string | undefined;
           const bindProviders = async () => {
             if (providers) return;
@@ -431,6 +454,7 @@ export function createInstalledRuntimeResolver(
               }
             }
             providers = await monitorOriginalInputs(providerBindings);
+            providerInputs = freezeAdmittedCaptureInputs(providerBindings);
           };
           executor = signalFreeTerraformExecutor({
             python: { path: runtime.python, sha256: pins.pythonSha256 },
@@ -466,6 +490,7 @@ export function createInstalledRuntimeResolver(
               await assertExecutorGroupClosed(currentGroup);
               if (capture && captureAttempted) await capture.finalCapture(finished);
               await assertInputs();
+              await capture?.assertOriginal();
             },
           });
           return {
