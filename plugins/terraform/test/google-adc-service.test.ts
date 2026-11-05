@@ -115,7 +115,7 @@ test('trusted installed resolver selects and freezes a separate runtime for each
     resolveRuntime: async (request: { owner: CeOwner; deployment: Deployment; directory: string }) => {
       requested.push(request.owner.account);
       const selected = request.owner.account === first.owner.account ? first : second;
-      request.owner.account = 'foreign-after-resolution';
+      request.owner.account = 'example-foreign-after-resolution';
       request.deployment.configuration = 'foreign-after-resolution';
       return { googleAdc: selected.policy, execute: selected.execute };
     },
@@ -132,7 +132,7 @@ test('trusted installed resolver selects and freezes a separate runtime for each
   expect(first.acquired()).toBe(1);
   expect(second.acquired()).toBe(1);
   expect(first.owner.account).toBe('example-project');
-  expect(second.owner.account).toBe('second-project');
+  expect(second.owner.account).toBe('example-secondary-project');
   expect(await a.readConfiguration(hash('{}'))).toBe('{}');
   expect(await b.readConfiguration(hash('{}'))).toBe('{}');
 });
