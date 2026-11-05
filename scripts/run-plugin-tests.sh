@@ -151,7 +151,7 @@ fi
 
 # Frozen installs must also materialize the graph the manifests and locks declare. This
 # postcondition catches installer/linker regressions rather than trusting a zero exit code.
-if ! bash scripts/check-plugin-runtime-dependencies.sh; then
+if ! bash scripts/check-plugin-runtime-dependencies.sh --verify-installed; then
   echo "FATAL: plugin runtime dependency postcondition failed" >&2
   exit 1
 fi

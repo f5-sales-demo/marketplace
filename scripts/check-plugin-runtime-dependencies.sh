@@ -3,12 +3,20 @@ set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 REPAIR=false
-if [ "${1:-}" = "--repair" ]; then
+VERIFY_INSTALLED=false
+case "${1:-}" in
+--repair)
   REPAIR=true
+  VERIFY_INSTALLED=true
   shift
-fi
+  ;;
+--verify-installed)
+  VERIFY_INSTALLED=true
+  shift
+  ;;
+esac
 if [ "$#" -ne 0 ]; then
-  echo "Usage: $0 [--repair]" >&2
+  echo "Usage: $0 [--repair|--verify-installed]" >&2
   exit 2
 fi
 
@@ -21,7 +29,10 @@ EXPECTED_TYPEBOX_RANGE="^0.34.52"
 EXPECTED_BUN_TYPES_RANGE="^1.4.2"
 EXPECTED_TYPEBOX="0.34.52"
 EXPECTED_BUN_TYPES="1.4.2"
-RUNTIME_PLUGINS=(aws azure gcloud platform github gitlab salesforce)
+CE_DEVELOPMENT_XCSH="23.10.7"
+CE_BUN_TYPES_RANGE="^1.4.4"
+CE_BUN_TYPES="1.4.4"
+RUNTIME_PLUGINS=(aws azure gcloud platform terraform github gitlab salesforce)
 STATIC_FAILURES=0
 INSTALLED_FAILURES=0
 
@@ -121,11 +132,23 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     fail_static "$plugin development runtime is missing"
     continue
   }
-  # Migrate plugins individually; preserve the qualified Salesforce/discovery graph.
-  # The exact minimum stays in peerDependencies and gets its own execution lane.
-  if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
-    fail_static "$plugin development runtime must be its retained minimum or latest stable $LATEST_DEVELOPMENT_XCSH"
-  fi
+  expected_bun_types_range="$EXPECTED_BUN_TYPES_RANGE"
+  expected_bun_types="$EXPECTED_BUN_TYPES"
+  case "$plugin" in
+  aws | azure | platform | terraform)
+    # The unreleased CE suite has one current SDK ABI; no retained older CE lane.
+    if [ "$minimum_xcsh" != "$CE_DEVELOPMENT_XCSH" ] || [ "$development_xcsh" != "$CE_DEVELOPMENT_XCSH" ]; then
+      fail_static "$plugin CE minimum and development runtime must both be $CE_DEVELOPMENT_XCSH"
+    fi
+    expected_bun_types_range="$CE_BUN_TYPES_RANGE"
+    expected_bun_types="$CE_BUN_TYPES"
+    ;;
+  *)
+    if [ "$development_xcsh" != "$minimum_xcsh" ] && [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
+      fail_static "$plugin development runtime must be its declared minimum or a qualified development runtime"
+    fi
+    ;;
+  esac
   if ! jq -en --arg minimum "$minimum_xcsh" --arg development "$development_xcsh" \
     '($development | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) and
      (($development | split(".") | map(tonumber)) >= ($minimum | split(".") | map(tonumber)))' >/dev/null; then
@@ -141,7 +164,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   require_json_value "$package_json" '.devDependencies["@sinclair/typebox"]' \
     "$EXPECTED_TYPEBOX_RANGE" "$plugin TypeBox development range"
   require_json_value "$package_json" '.devDependencies["bun-types"]' \
-    "$EXPECTED_BUN_TYPES_RANGE" "$plugin Bun types development range"
+    "$expected_bun_types_range" "$plugin Bun types development range"
   if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
       ">=$minimum_xcsh" "$plugin pi-utils peer range"
@@ -170,8 +193,8 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     require_installed_json_value "$node_modules/@sinclair/typebox/package.json" '.version' \
       "$EXPECTED_TYPEBOX" "$plugin installed TypeBox version"
     require_installed_json_value "$node_modules/bun-types/package.json" '.version' \
-      "$EXPECTED_BUN_TYPES" "$plugin installed Bun types version"
-  elif $REPAIR; then
+      "$expected_bun_types" "$plugin installed Bun types version"
+  elif $VERIFY_INSTALLED; then
     # A fresh checkout has no physical graph yet. The test runner calls this checker with
     # --repair as its precondition, so that mode must materialize every runtime plugin graph.
     fail_installed "$plugin node_modules is missing"
@@ -198,7 +221,7 @@ if [ "$INSTALLED_FAILURES" -ne 0 ] && $REPAIR; then
       PUPPETEER_SKIP_DOWNLOAD=1 bun install --force --frozen-lockfile
     ) || exit 1
   done
-  exec bash "$0"
+  exec bash "$0" --verify-installed
 fi
 
 if [ "$INSTALLED_FAILURES" -ne 0 ]; then

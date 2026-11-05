@@ -19,7 +19,7 @@ fail() {
 copy_runtime_state() {
   local destination="$1"
   mkdir -p "$destination/plugins"
-  for plugin in aws azure gcloud platform github gitlab salesforce; do
+  for plugin in aws azure gcloud platform terraform github gitlab salesforce; do
     mkdir -p "$destination/plugins/$plugin/.xcsh-plugin"
     cp "$REPO_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$destination/plugins/$plugin/.xcsh-plugin/plugin.json"
     cp "$REPO_ROOT/plugins/$plugin/package.json" "$destination/plugins/$plugin/package.json"
@@ -37,16 +37,37 @@ fi
 
 LATEST="$WORK/latest-development"
 copy_runtime_state "$LATEST"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
-  "$LATEST/plugins/aws/package.json" >"$LATEST/package.tmp"
-mv "$LATEST/package.tmp" "$LATEST/plugins/aws/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.5\.1/@f5-sales-demo\/xcsh@23.9.3/g; s/@f5-sales-demo\/pi-utils@23\.5\.1/@f5-sales-demo\/pi-utils@23.9.3/g' \
-  "$LATEST/plugins/aws/bun.lock" >"$LATEST/lock.tmp"
-mv "$LATEST/lock.tmp" "$LATEST/plugins/aws/bun.lock"
+# A normal plugin's qualified development pin remains independent of its own minimum.
+jq '.minimumRuntimeVersion = "23.8.0"' "$LATEST/plugins/github/.xcsh-plugin/plugin.json" >"$LATEST/manifest.tmp"
+mv "$LATEST/manifest.tmp" "$LATEST/plugins/github/.xcsh-plugin/plugin.json"
+jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=23.8.0" |
+  if .peerDependencies["@f5-sales-demo/pi-utils"] then
+    .peerDependencies["@f5-sales-demo/pi-utils"] = ">=23.8.0" else . end' \
+  "$LATEST/plugins/github/package.json" >"$LATEST/package.tmp"
+mv "$LATEST/package.tmp" "$LATEST/plugins/github/package.json"
 if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
-  pass "latest development pin is independent of minimum peer"
+  pass "qualified development pin is independent of minimum peer"
 else
-  fail "latest development pin must pass with original minimum peer"
+  fail "qualified development pin must pass with its declared minimum peer"
+fi
+
+OLD_CE="$WORK/old-ce-runtime"
+copy_runtime_state "$OLD_CE"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
+  "$OLD_CE/plugins/aws/package.json" >"$OLD_CE/package.tmp"
+mv "$OLD_CE/package.tmp" "$OLD_CE/plugins/aws/package.json"
+if REPO_ROOT="$OLD_CE" bash "$CHECK" >/dev/null 2>&1; then
+  fail "the clean-break CE suite cannot use the older runtime"
+else
+  pass "older CE runtime rejects before installation"
+fi
+
+MISSING_GRAPH="$WORK/missing-physical-graph"
+copy_runtime_state "$MISSING_GRAPH"
+if REPO_ROOT="$MISSING_GRAPH" bash "$CHECK" --verify-installed >/dev/null 2>&1; then
+  fail "explicit installed verification cannot accept absent packages"
+else
+  pass "explicit installed verification rejects absent packages"
 fi
 
 STALE="$WORK/stale-development"
@@ -146,12 +167,12 @@ mkdir -p \
   "$AWS_NODE_MODULES/@agentclientprotocol/sdk" \
   "$AWS_NODE_MODULES/@google/genai" \
   "$AWS_NODE_MODULES/bun-types"
-printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
-printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"23.10.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"23.10.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
 printf '{"version":"0.124.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
 printf '{"version":"1.4.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
 printf '{"version":"2.21.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
-printf '{"version":"1.4.2"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
+printf '{"version":"1.4.4"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
 if REPO_ROOT="$MISSING_TYPEBOX" bash "$CHECK" >/dev/null 2>&1; then
   fail "a physical installation missing TypeBox must fail"
 else
@@ -212,7 +233,8 @@ printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
-printf '{"version":"1.4.2"}\n' >node_modules/bun-types/package.json
+bun_types_version=$(jq -er '.devDependencies["bun-types"] | ltrimstr("^")' package.json)
+jq -n --arg version "$bun_types_version" '{version: $version}' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
