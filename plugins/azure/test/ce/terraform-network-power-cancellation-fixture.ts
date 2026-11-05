@@ -66,7 +66,7 @@ export async function terraformNetworkPowerCancellationFixture(
           terraform_version: deployment.terraformVersion,
           errored: false,
           complete: true,
-          applyable: !!effect && effect !== 'no-op',
+          applyable: !!effect && effect !== 'no-op', // codespell:ignore applyable (exact Terraform JSON field)
           planned_values: {
             root_module: {
               resources: proposed

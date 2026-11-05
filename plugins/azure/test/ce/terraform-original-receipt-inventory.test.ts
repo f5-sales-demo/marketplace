@@ -35,7 +35,7 @@ async function fixture() {
         terraform_version: deployment.terraformVersion,
         errored: false,
         complete: true,
-        applyable: !noChanges,
+        applyable: !noChanges, // codespell:ignore applyable (exact Terraform JSON field)
         output_changes: {},
         resource_changes: noChanges
           ? []

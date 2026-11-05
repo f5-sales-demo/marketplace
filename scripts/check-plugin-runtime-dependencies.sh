@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+RESOLVER="$(cd "$(dirname "$0")" && pwd)/resolve-plugin-runtime-package.cjs"
 REPAIR=false
 VERIFY_INSTALLED=false
 case "${1:-}" in
@@ -76,6 +77,23 @@ require_installed_json_value() {
   if [ "$actual" != "$expected" ]; then
     fail_installed "$label is $actual, expected $expected"
   fi
+}
+
+require_sdk_dependency_version() {
+  local sdk_package="$1"
+  local package="$2"
+  local expected="$3"
+  local label="$4"
+  local metadata
+  local owners=()
+  case "$package" in
+  '@anthropic-ai/sdk' | '@google/genai') owners=('@f5-sales-demo/pi-ai') ;;
+  esac
+  if ! metadata=$(node "$RESOLVER" "$sdk_package" "${owners[@]}" "$package" 2>/dev/null); then
+    fail_installed "$label cannot be resolved from the installed xcsh SDK"
+    return
+  fi
+  require_installed_json_value "$metadata" '.version' "$expected" "$label"
 }
 
 require_lock_version() {
@@ -182,13 +200,13 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   if [ -d "$node_modules" ]; then
     require_installed_json_value "$node_modules/@f5-sales-demo/xcsh/package.json" '.version' \
       "$expected_xcsh" "$plugin installed xcsh version"
-    require_installed_json_value "$node_modules/@f5-sales-demo/pi-utils/package.json" '.version' \
+    require_sdk_dependency_version "$node_modules/@f5-sales-demo/xcsh/package.json" '@f5-sales-demo/pi-utils' \
       "$expected_pi_utils" "$plugin installed pi-utils version"
-    require_installed_json_value "$node_modules/@anthropic-ai/sdk/package.json" '.version' \
+    require_sdk_dependency_version "$node_modules/@f5-sales-demo/xcsh/package.json" '@anthropic-ai/sdk' \
       "$expected_anthropic" "$plugin installed Anthropic SDK version"
-    require_installed_json_value "$node_modules/@agentclientprotocol/sdk/package.json" '.version' \
+    require_sdk_dependency_version "$node_modules/@f5-sales-demo/xcsh/package.json" '@agentclientprotocol/sdk' \
       "$expected_acp" "$plugin installed ACP SDK version"
-    require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
+    require_sdk_dependency_version "$node_modules/@f5-sales-demo/xcsh/package.json" '@google/genai' \
       "$expected_google_genai" "$plugin installed Google GenAI version"
     require_installed_json_value "$node_modules/@sinclair/typebox/package.json" '.version' \
       "$EXPECTED_TYPEBOX" "$plugin installed TypeBox version"

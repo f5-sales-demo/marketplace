@@ -62,7 +62,7 @@ export async function replacementNativeReceiptsFixture() {
         terraform_version: deployment.terraformVersion,
         errored: false,
         complete: true,
-        applyable: true,
+        applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
         output_changes: {},
         resource_changes: selected.changes.map((change) => ({
           ...change,

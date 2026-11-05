@@ -181,6 +181,7 @@ fi
 
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
+cp "$REPO_ROOT/scripts/resolve-plugin-runtime-package.cjs" "$BAD_INSTALL/scripts/resolve-plugin-runtime-package.cjs"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
 mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
 # The canonical runner now includes a real Python capture regression before Bun suites.
@@ -216,6 +217,7 @@ case " $* " in
 esac
 mkdir -p \
   node_modules/@f5-sales-demo/xcsh \
+  node_modules/@f5-sales-demo/pi-ai \
   node_modules/@f5-sales-demo/pi-utils \
   node_modules/@anthropic-ai/sdk \
   node_modules/@agentclientprotocol/sdk \
@@ -228,6 +230,7 @@ anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
 jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/xcsh/package.json
+jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-ai/package.json
 jq -n --arg version "$pi_utils_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json

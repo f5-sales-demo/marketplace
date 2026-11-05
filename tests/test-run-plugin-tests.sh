@@ -74,6 +74,7 @@ new_fixture() {
   cp "$SOURCE_ROOT/scripts/run-plugin-tests.sh" "$root/scripts/run-plugin-tests.sh"
   cp "$SOURCE_ROOT/scripts/check-plugin-runtime-dependencies.sh" \
     "$root/scripts/check-plugin-runtime-dependencies.sh"
+  cp "$SOURCE_ROOT/scripts/resolve-plugin-runtime-package.cjs" "$root/scripts/resolve-plugin-runtime-package.cjs"
   for plugin in aws azure gcloud platform terraform github gitlab salesforce; do
     mkdir -p "$root/plugins/$plugin/.xcsh-plugin"
     cp "$SOURCE_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$root/plugins/$plugin/.xcsh-plugin/plugin.json"
@@ -92,9 +93,9 @@ printf '%s|%s\n' "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"
 if [ "${1:-}" = install ]; then
   [ "${INSTALL_EXIT:-0}" = 0 ] || exit "$INSTALL_EXIT"
   if sdk=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"] // empty' package.json); then
-    for package in @f5-sales-demo/xcsh @f5-sales-demo/pi-utils @anthropic-ai/sdk @agentclientprotocol/sdk @google/genai @sinclair/typebox bun-types; do
+    for package in @f5-sales-demo/xcsh @f5-sales-demo/pi-ai @f5-sales-demo/pi-utils @anthropic-ai/sdk @agentclientprotocol/sdk @google/genai @sinclair/typebox bun-types; do
       case "$package" in
-      @f5-sales-demo/xcsh | @f5-sales-demo/pi-utils) version="$sdk" ;;
+      @f5-sales-demo/xcsh | @f5-sales-demo/pi-ai | @f5-sales-demo/pi-utils) version="$sdk" ;;
       @anthropic-ai/sdk) version=0.124.0 ;;
       @agentclientprotocol/sdk) version=1.4.0 ;;
       @google/genai) version=2.21.0 ;;
@@ -112,7 +113,7 @@ EOF
   printf '#!/bin/sh\nexit 0\n' >"$root/bin/python3"
   chmod +x "$root/bin/python3"
   chmod +x "$root/bin/bun" "$root/plugins/demo/scripts/tests/run-tests.sh"
-  for tool in bash basename dirname find git grep jq ln mktemp rm sort env touch; do
+  for tool in bash basename dirname find git grep jq ln mktemp rm sort env touch node; do
     ln -s "$(command -v "$tool")" "$root/tools/$tool"
   done
   printf '%s\n' "$root"

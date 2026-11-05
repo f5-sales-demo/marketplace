@@ -238,7 +238,7 @@ export async function originalNativeWorkflowFixture(
             terraform_version: version,
             errored: false,
             complete: true,
-            applyable: true,
+            applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
             output_changes: {},
             resource_changes: receipt.changes.map((change) => ({
               ...change,
@@ -279,7 +279,7 @@ export async function originalNativeWorkflowFixture(
                 terraform_version: version,
                 errored: false,
                 complete: true,
-                applyable: true,
+                applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
                 output_changes: {},
                 resource_changes: [
                   {
@@ -333,14 +333,14 @@ export async function originalNativeWorkflowFixture(
           deletionAttempts += changes.filter((row) =>
             (row.change as { actions: string[] }).actions.includes('delete'),
           ).length;
-          const applyable = changes.some((row) => (row.change as { actions: string[] }).actions[0] !== 'no-op');
-          if (!applyable) noChangesSeen++;
+          const applyable = changes.some((row) => (row.change as { actions: string[] }).actions[0] !== 'no-op'); // codespell:ignore applyable (exact Terraform JSON field)
+          if (!applyable) noChangesSeen++; // codespell:ignore applyable (exact Terraform JSON field)
           const raw = {
               format_version: '1.2',
               terraform_version: version,
               errored: false,
               complete: true,
-              applyable,
+              applyable, // codespell:ignore applyable (exact Terraform JSON field)
               output_changes: {},
               resource_changes: changes,
               ...(retirementReady && Object.keys(source.resource ?? {}).length === 0

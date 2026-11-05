@@ -783,7 +783,7 @@ test('native relay requests preserve exact graph, software and parent ownership 
     const actions = compileAzureRelayNativeRequests(f.source, f.plan, key);
     expect(actions).toHaveLength(8);
     for (const relay of f.plan.relays) {
-      expect(relay.osDiskId).toBe(relay.vmId.replace('/virtualMachines/', '/disks/') + '-osdisk');
+      expect(relay.osDiskId).toBe(`${relay.vmId.replace('/virtualMachines/', '/disks/')}-osdisk`);
       const vm = actions.find((action) => action.resourceId === relay.vmId);
       if (!vm) throw Error('VM request missing');
       const properties = vm.body.properties as {
@@ -1443,7 +1443,7 @@ test('generated guest activation executes with real files, resumes partial confi
     'daemon-diagnostics',
     'foreign-mount',
   ]) {
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({ python: request.python, expected: request.expected, bootstrap, configuration, scenario }),
       ]),
@@ -1534,7 +1534,7 @@ test('generated guest scripts execute for both engines, both relay owners and on
           endpoints,
           f.plan.returnPrefixes,
         ).config;
-        const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+        const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
           stdin: new Blob([
             JSON.stringify({ python: request.python, expected: request.expected, bootstrap, configuration }),
           ]),
@@ -1584,7 +1584,7 @@ test('guest response-loss recovery probes current runtime without publishing con
     f.plan.returnPrefixes,
   ).config;
   for (const scenario of ['observe-complete', 'observe-absent']) {
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({ python: request.python, expected: request.expected, bootstrap, configuration, scenario }),
       ]),
@@ -2190,7 +2190,7 @@ test('generated FRR session probe verifies exact neighbors for both engines and 
         const bootstrap = JSON.parse(
           renderAzureRelayCloudInit(f.source, f.plan, relay.name).slice('#cloud-config\n'.length),
         );
-        const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+        const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
           stdin: new Blob([
             JSON.stringify({
               ...request,
@@ -2271,7 +2271,7 @@ test('generated FRR session probe rejects unavailable, foreign, missing and non-
     'sessions-diagnostics',
     'sessions-container-changed',
   ]) {
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({ ...request, bootstrap, configuration: request.observation.configuration, scenario }),
       ]),
@@ -2317,7 +2317,7 @@ test('FRR received/advertised prefix probes bind current peers and preserve impl
             const bootstrap = JSON.parse(
               renderAzureRelayCloudInit(f.source, f.plan, relay.name).slice('#cloud-config\n'.length),
             );
-            const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+            const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
               stdin: new Blob([
                 JSON.stringify({
                   ...request,
@@ -2407,7 +2407,7 @@ test('FRR prefix probes reject missing, stale, duplicate, partial and foreign ro
         ? ['routes-duplicate', 'routes-duplicate-identity', 'routes-stale', 'routes-foreign-source']
         : []),
     ]) {
-      const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+      const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
         stdin: new Blob([
           JSON.stringify({
             ...request,
@@ -2478,7 +2478,7 @@ test('generated route probe consumes sanitized actual pinned FRR RIB and adverti
       prefix,
       direction === 'advertised' ? server.serviceAddresses[0] : undefined,
     );
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({
           ...request,
@@ -2873,7 +2873,7 @@ test('exact guest FIB observer joins Zebra, Linux route and lookup for VIP and r
           const bootstrap = JSON.parse(
             renderAzureRelayCloudInit(f.source, f.plan, relay.name).slice('#cloud-config\n'.length),
           );
-          const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+          const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
             stdin: new Blob([
               JSON.stringify({
                 python: request.python,
@@ -2948,7 +2948,7 @@ test('FIB observer rejects missing, default, static, duplicate, uninstalled, for
     'fib-diagnostics',
     'fib-container-changed',
   ]) {
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({
           python: request.python,
@@ -3008,7 +3008,7 @@ test('FIB probe consumes actual pinned-image Zebra and Linux kernel schemas with
       'received',
       prefix,
     );
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({
           python: request.python,
@@ -4998,7 +4998,7 @@ test('read-only relay failover neighbor probe retains all identities and proves 
         renderAzureRelayCloudInit(f.source, f.plan, relay.name).slice('#cloud-config\n'.length),
       );
       for (const state of ['Idle', 'Connect', 'Active']) {
-        const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+        const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
           stdin: new Blob([
             JSON.stringify({
               ...request,
@@ -5077,7 +5077,7 @@ test('relay outage neighbor probe rejects unrelated or administrative loss, miss
     'sessions-outage-missing-state',
     'sessions-outage-disappeared',
   ]) {
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({ ...request, bootstrap, configuration: request.observation.configuration, scenario }),
       ]),
@@ -5150,7 +5150,7 @@ test('relay neighbor probe consumes actual pinned FRR transition fields with exp
     const bootstrap = JSON.parse(
       renderAzureRelayCloudInit(f.source, f.plan, f.plan.relays[0].name).slice('#cloud-config\n'.length),
     );
-    const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+    const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
       stdin: new Blob([
         JSON.stringify({
           ...request,
@@ -5225,7 +5225,7 @@ test('relay outage route and FIB probes preserve configuration and use surviving
         const bootstrap = JSON.parse(
           renderAzureRelayCloudInit(f.source, f.plan, relay.name).slice('#cloud-config\n'.length),
         );
-        const child = Bun.spawn(['python3', new URL('./relay-guest-harness.py', import.meta.url).pathname], {
+        const child = Bun.spawn(['python3', new URL('./relay_guest_harness.py', import.meta.url).pathname], {
           stdin: new Blob([
             JSON.stringify({
               ...request,

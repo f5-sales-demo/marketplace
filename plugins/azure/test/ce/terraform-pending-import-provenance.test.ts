@@ -254,7 +254,7 @@ if a[0]=='version':print(json.dumps({'terraform_version':v}))
 elif a[0] in ['init','validate']:print('{}')
 elif a[0]=='plan':
  i=c['import'][0];t,n=i['to'].split('.')
- plan={'format_version':'1.2','terraform_version':v,'errored':False,'complete':True,'applyable':True,'resource_changes':[{'address':i['to'],'mode':'managed','type':t,'name':n,'provider_name':'registry.terraform.io/hashicorp/azurerm','change':{'actions':['no-op'],'importing':{'id':i['id']}}}],'output_changes':{},'planned_values':{'root_module':{}}}
+ plan={'format_version':'1.2','terraform_version':v,'errored':False,'complete':True,'applyable':True,'resource_changes':[{'address':i['to'],'mode':'managed','type':t,'name':n,'provider_name':'registry.terraform.io/hashicorp/azurerm','change':{'actions':['no-op'],'importing':{'id':i['id']}}}],'output_changes':{},'planned_values':{'root_module':{}}} # codespell:ignore applyable (exact Terraform JSON field)
  target=next(x.split('=',1)[1] for x in a if x.startswith('-out='));Path(target).write_text(json.dumps(plan,sort_keys=True));os.chmod(target,0o600);print('{}')
 elif a[0]=='show':
  if len(a)>2:print(Path(a[-1]).read_text())

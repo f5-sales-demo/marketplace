@@ -473,7 +473,7 @@ async function actualRunnerFixture(operation: 'deallocate' | 'start') {
         terraform_version: f.deployment.terraformVersion,
         errored: false,
         complete: true,
-        applyable: true,
+        applyable: true, // codespell:ignore applyable (exact Terraform JSON field)
         resource_changes: effect
           ? [
               {

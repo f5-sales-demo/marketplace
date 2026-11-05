@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import ledger from '../benchmarks/ce-uat-ledger.json';
 import { type TSchema, Type } from '../plugins/aws/node_modules/@sinclair/typebox';
+import { ceUatLedger as ledger } from './ce-uat-ledger';
 import { assertCePublicInventory, registeredCePublicInterfaces } from './ce-uat-public-inventory';
 
 // Ledger parameters are partial execution constraints, not complete executable requests.
@@ -36,10 +36,10 @@ test('every ledger execution constraint exists in the actual public tool schema'
   }
 });
 test('rejects invented top-level and nested engine parameters', () => {
-  expect(() => assertConstraints({ engine: 'native' }, { properties: { planId: {} } })).toThrow('engine');
-  expect(() =>
-    assertConstraints({ intent: { engine: 'native' } }, { properties: { intent: { properties: {} } } }),
-  ).toThrow('intent.engine');
+  expect(() => assertConstraints({ engine: 'native' }, Type.Object({ planId: Type.String() }))).toThrow('engine');
+  expect(() => assertConstraints({ intent: { engine: 'native' } }, Type.Object({ intent: Type.Object({}) }))).toThrow(
+    'intent.engine',
+  );
 });
 
 test('ledger inventories every actually registered CE public tool', async () => {
