@@ -108,8 +108,8 @@ test('selected trusted policy exposes one snapshot and rejects static caller cre
 test('trusted installed resolver selects and freezes a separate runtime for each owning session', async () => {
   const first = await fixture();
   const second = await fixture();
-  second.owner.account = 'second-project';
-  second.deployment.scope.account = 'second-project';
+  second.owner.account = 'example-secondary-project';
+  second.deployment.scope.account = 'example-secondary-project';
   const requested: string[] = [];
   const options = {
     resolveRuntime: async (request: { owner: CeOwner; deployment: Deployment; directory: string }) => {
@@ -128,7 +128,7 @@ test('trusted installed resolver selects and freezes a separate runtime for each
   const b = await service.open(second.owner, second.deployment, false);
   const [one, two] = await Promise.all([adcEnvironment(a), adcEnvironment(b)]);
   expect(one.GOOGLE_APPLICATION_CREDENTIALS).not.toBe(two.GOOGLE_APPLICATION_CREDENTIALS);
-  expect(requested).toEqual(['example-project', 'second-project']);
+  expect(requested).toEqual(['example-project', 'example-secondary-project']);
   expect(first.acquired()).toBe(1);
   expect(second.acquired()).toBe(1);
   expect(first.owner.account).toBe('example-project');
