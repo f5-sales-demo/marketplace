@@ -346,6 +346,41 @@ Plugin and lint CI at the delivered factory checkpoint remain queued; installer,
 linked-issue and workflow-security checks passed. No queued check is counted as
 acceptance, and all remaining installed, live and publication gates stay open.
 
+Attempt 389 binds the compiled capture callback to explicit original ADC,
+Platform, workspace and runtime input identities. The context copies and freezes
+the admitted decimal file and parent identities without filesystem recapture.
+Original provider packages are inspected through the owning monitor and cannot
+be replaced by a later or concurrent handoff. Final input checks remain separate
+from the operation deadline; capture assertions cannot recurse through themselves.
+Serialized flags cannot replace the trusted callback functions.
+
+A failing-first concurrent-provider test exposed two different identities being
+accepted during overlapping final checks. Comparison and admission now occur
+after the final check without an intervening asynchronous gap. Five context tests
+and the complete 984-test suite with 4,685 assertions pass, as do the Terraform
+typecheck, three builds, seven bundle/integration regressions and privacy enforcement.
+
+The first corrected-source probe failed during provider signature retrieval.
+Its exact initialization diagnostics and independent original group closures
+are retained. After the home-address SSH timeout, the explicit travel jump
+verified the same Ubuntu machine and helper; direct SSH subsequently recovered.
+A fresh bounded request retrieved the exact release signature without bypassing
+Terraform verification. A changed successor then passed real authentication,
+normal provider initialization, validation, no-change planning, original context
+and provider input inspection, and independent closure. Its private receipt has
+SHA-256 `db03e44d231a81409402bfa3db0f93db3f400f2f8be8b484d6883cdc084cbd44`.
+This source component recorder cannot start cloud mutation or qualify guest capture.
+Zero cloud resources were submitted. The actual cloud/serial/SSH transport and
+controller, source-matched installed runtime and every remaining live, delivery
+and publication gate remain open.
+
+The tracker initially failed with `ENOSPC` on Ubuntu's root filesystem.
+A private archive retained and verified all 2,981 inactive npm content-cache
+files before that regenerable cache was reset, recovering 853 MB. Repository
+content, historical evidence, collectors and locks were preserved. Task-scoped
+temporary files now use the data volume. The corrected tracker and staged
+privacy checks pass, retaining all 2,678 tasks and 473 assertions.
+
 ## Guest campaign boundary
 
 The original three-campaign allowance covered q24, q25 and q26. The user then authorized q27 and subsequently removed the numerical cap. q31 is the seventh submitted campaign; q28's unused plan remains sealed and must never be submitted. The [q30 diagnostic receipt](gcp-q30-disposable-diagnostic-20261026.md) records the serial trust refusal, isolated read-only child and independently completed cleanup. The [q31 receipt](gcp-q31-installed-runtime-and-diagnostic-20261026.md) records the different CE SSH negotiation failure and completed cleanup. Continue changed successors within the existing task authorization, with fresh scope, executable bindings, current prerequisites and independent plan review. Complete cleanup before another campaign. No historical launcher, plan or authorization may be replayed.
