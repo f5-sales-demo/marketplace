@@ -962,3 +962,11 @@ with 27 focused and 838 shared tests on Bun 1.4.2. Final capture starts at the
 failure boundary before natural completion waiting; original deadlines and
 independent group-closure gates remain fixed. The actual cloud/serial controller
 and all subsequent live, installed, review, CI and publication gates stay open.
+
+Attempt 396 qualifies [engine persistence failure handling](gcp-engine-persistence-20261109.md).
+Six failing-first regressions and 844 shared tests pass on Bun 1.4.2. Receipt
+persistence failures cannot suppress matching final capture, erase earlier
+failures or release a claim without required evidence. The original five-minute
+reserve and independent closure checks remain fixed. Actual cloud/serial/SSH
+capture and every subsequent live, installed, delivery and publication gate
+remain open.

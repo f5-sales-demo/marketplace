@@ -349,3 +349,125 @@ test('final capture begins before a timed-out original child finishes', async ()
   expect((await readFile(run.captures[0].stdoutPath, 'utf8')).trim()).toBe('natural-exit');
   expect(await Bun.file(join(run.root, '.terraform-executor-lock')).exists()).toBe(false);
 });
+
+test('final receipt persistence failure still captures within the original reserve and retains the claim', async () => {
+  const run = await fixture('print("natural-exit")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'final.private.json'));
+    },
+  });
+  await expect(run.executor({ cwd: run.root, args: [run.script], env: {} })).rejects.toThrow();
+  expect(run.captures).toHaveLength(1);
+  expect(run.captures[0].finalDeadlineMs).toBe(run.captures[0].finalStartedMs + 300_000);
+  expect(linuxMonotonicMs()).toBeLessThan(run.captures[0].finalDeadlineMs);
+  const lock = join(run.root, '.terraform-executor-lock');
+  expect(await Bun.file(join(lock, 'claim.json')).exists()).toBe(true);
+  expect(await Bun.file(join(lock, 'capture-unresolved.json')).exists()).toBe(true);
+  await expect(acquireProcessLock(lock)).rejects.toThrow();
+});
+
+test('completion receipt persistence failure retains a closed original group claim', async () => {
+  const run = await fixture('print("natural-exit")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'completion.private.json'));
+    },
+  });
+  await expect(run.executor({ cwd: run.root, args: [run.script], env: {} })).rejects.toThrow();
+  expect(run.captures).toHaveLength(1);
+  expect(run.captures[0].originalGroupClosed).toBe(true);
+  const lock = join(run.root, '.terraform-executor-lock');
+  expect(await Bun.file(join(lock, 'claim.json')).exists()).toBe(true);
+  expect(await Bun.file(join(lock, 'capture-unresolved.json')).exists()).toBe(true);
+  await expect(acquireProcessLock(lock)).rejects.toThrow();
+});
+
+test('unresolved flag persistence failure preserves the original capture error and claim', async () => {
+  const run = await fixture('print("natural-exit")\n');
+  const original = new Error('original final reader failure');
+  run.finalChecks.push(async () => {
+    await mkdir(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json'));
+    throw original;
+  });
+  let failure: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    failure = error;
+  }
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) throw new Error('Aggregate capture failure required');
+  expect(failure.errors).toContain(original);
+  expect(failure.errors).toHaveLength(2);
+  const lock = join(run.root, '.terraform-executor-lock');
+  expect(await Bun.file(join(lock, 'claim.json')).exists()).toBe(true);
+  await expect(acquireProcessLock(lock)).rejects.toThrow();
+});
+
+test('final persistence and callback failures are both retained', async () => {
+  const run = await fixture('print("natural-exit")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'final.private.json'));
+    },
+  });
+  const original = new Error('independent final reader failure');
+  run.finalChecks.push(async () => {
+    throw original;
+  });
+  let failure: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    failure = error;
+  }
+  expect(run.captures).toHaveLength(1);
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) throw new Error('Aggregate capture failure required');
+  expect(failure.errors).toContain(original);
+  expect(failure.errors).toHaveLength(2);
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(true);
+});
+
+test('completion persistence does not mask an independent callback failure', async () => {
+  const run = await fixture('print("natural-exit")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'completion.private.json'));
+    },
+  });
+  const original = new Error('original callback failure before completion');
+  run.finalChecks.push(async () => {
+    throw original;
+  });
+  let failure: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    failure = error;
+  }
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) throw new Error('Aggregate capture failure required');
+  expect(failure.errors).toContain(original);
+  expect(failure.errors).toHaveLength(2);
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(true);
+});
+
+test('late group closure refusal retains the earlier callback failure', async () => {
+  const run = await fixture('import time\ntime.sleep(2)\nprint("natural-exit")\n', { timeoutMs: 1500 });
+  const original = new Error('original final capture failure before group closure');
+  run.finalChecks.push(async () => {
+    expect(run.captures[0].actualExitCode).toBeNull();
+    await mkdir(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json'));
+    throw original;
+  });
+  let failure: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    failure = error;
+  }
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) throw new Error('Aggregate capture failure required');
+  expect(failure.errors.flatMap((error) => (error instanceof AggregateError ? error.errors : [error]))).toContain(
+    original,
+  );
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(true);
+});
