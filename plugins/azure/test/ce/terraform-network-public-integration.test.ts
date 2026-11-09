@@ -19,6 +19,8 @@ afterEach(async () => {
 
 // Synthetic provider observations test actual public dispatch, storage, history, signing,
 // and pending/resume ordering. They do not qualify vendor freshness or live networking.
+// Saved plans, authenticated issuer history and repeated store reads use a bounded
+// 15-second filesystem integration budget, independent of live recovery criteria.
 for (const owningApply of [false, true])
   test(`actual ${owningApply ? 'owning apply dispatch' : 'public network adapter'} persists authenticated incomplete preflight and resumes without interruption`, async () => {
     const f = await terraformNetworkSourceFixture(false);
@@ -156,4 +158,4 @@ for (const owningApply of [false, true])
       if (before === undefined) delete process.env.XCSH_CE_HEADLESS_MUTATIONS;
       else process.env.XCSH_CE_HEADLESS_MUTATIONS = before;
     }
-  });
+  }, 15_000);
