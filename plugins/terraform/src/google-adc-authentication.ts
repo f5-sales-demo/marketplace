@@ -226,6 +226,7 @@ export class GoogleComputeReadError extends AggregateError {
 }
 const computeMaximum = 4 * 1024 * 1024;
 const resourceName = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const operationName = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
 const offset = /^(?:0|[1-9][0-9]{0,19})$/;
 const serialOffset = (value: string) =>
   typeof value === 'string' && offset.test(value) && BigInt(value) <= 9223372036854775807n;
@@ -250,8 +251,13 @@ export async function openGoogleAdcComputeReader(
       throw new Error('Original Google Compute reader inputs changed');
     }
   };
-  const read = async (zone: string, name: string, start?: string): Promise<GoogleComputeRead> => {
-    if (!resourceName.test(zone) || !resourceName.test(name) || (start !== undefined && !serialOffset(start)))
+  const read = async (zone: string, name: string, start?: string, operation = false): Promise<GoogleComputeRead> => {
+    if (
+      !resourceName.test(zone) ||
+      !(operation ? operationName : resourceName).test(name) ||
+      (operation && /^[0-9]+$/.test(name) && BigInt(name) > 18446744073709551615n) ||
+      (start !== undefined && (!serialOffset(start) || operation))
+    )
       throw new Error('Fixed named Google Compute read required');
     await guard();
     if (Date.now() >= session.receipt.expiresNoEarlierThan - 60_000) {
@@ -263,7 +269,7 @@ export async function openGoogleAdcComputeReader(
       }
     }
     await guard();
-    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/instances/${name}`;
+    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/${operation ? 'operations' : 'instances'}/${name}`;
     const url = start === undefined ? base : `${base}/serialPort?port=1&start=${start}`;
     const began = Date.now();
     const chunks: Uint8Array[] = [];
@@ -330,5 +336,6 @@ export async function openGoogleAdcComputeReader(
     authentication: session.receipt,
     instance: (zone: string, name: string) => read(zone, name),
     serial: (zone: string, name: string, start: string) => read(zone, name, start),
+    operation: (zone: string, name: string) => read(zone, name, undefined, true),
   });
 }

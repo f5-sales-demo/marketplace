@@ -18,6 +18,10 @@ type Json = Record<string, unknown>;
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
 const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
+const uint64 = (value: unknown): value is string =>
+  typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
+const operationName = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
+const returnedOperationName = /^[a-z][a-z0-9-]{0,254}$/;
 const offset = /^(?:0|[1-9][0-9]{0,19})$/;
 const serialOffset = (value: string) =>
   typeof value === 'string' && offset.test(value) && BigInt(value) <= 9223372036854775807n;
@@ -37,6 +41,17 @@ export interface OriginalGcpVm extends GcpCloudReadEvidence {
   readonly zone: string;
   readonly name: string;
   readonly value: Readonly<Json & { id: string }>;
+}
+export interface GcpInsertOperationCandidate extends GcpCloudReadEvidence {
+  readonly kind: 'compute-insert-operation-candidate';
+  readonly operationId: string;
+  readonly operationName: string;
+  readonly targetId: string | null;
+  readonly targetName: string;
+  readonly zone: string;
+  readonly status: 'PENDING' | 'RUNNING' | 'DONE';
+  readonly applyPhaseQualified: false;
+  readonly originalInsertQualified: false;
 }
 export interface GcpCloudSerialReaderOptions {
   readonly root: string;
@@ -270,7 +285,63 @@ export async function openGcpCloudSerialReader(
       return Object.freeze({ ...evidence, instanceId: original.value.id, value: Object.freeze(value) });
     });
   };
-  return Object.freeze({ instance, serial });
+  const operations = new Map<string, GcpInsertOperationCandidate>();
+  const insertOperation = async (
+    zone: string,
+    operation: string,
+    node: string,
+  ): Promise<GcpInsertOperationCandidate> => {
+    validate(zone, node);
+    if (!operationName.test(operation) || (/^[0-9]+$/.test(operation) && !uint64(operation)))
+      throw new Error('Exact named Compute operation scope required');
+    return run(async () => {
+      const response = await read(() => client.operation(zone, operation), 'insert-operation', zone, node);
+      const evidence = await retain(response, 'insert-operation', zone, node);
+      const value = decode(response.raw);
+      const scope = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
+      if (
+        response.status !== 200 ||
+        !uint64(value.id) ||
+        typeof value.name !== 'string' ||
+        !returnedOperationName.test(value.name) ||
+        (/^[0-9]+$/.test(operation) ? value.id !== operation : value.name !== operation) ||
+        value.operationType !== 'insert' ||
+        value.zone !== scope ||
+        value.selfLink !== `${scope}/operations/${value.name}` ||
+        value.targetLink !== `${scope}/instances/${node}` ||
+        !['PENDING', 'RUNNING', 'DONE'].includes(value.status as string) ||
+        typeof value.insertTime !== 'string' ||
+        !Number.isFinite(Date.parse(value.insertTime)) ||
+        (value.targetId !== undefined && !uint64(value.targetId))
+      )
+        throw new Error('Exact scoped Compute insert operation identity required');
+      const targetId = value.targetId === undefined ? null : (value.targetId as string);
+      const candidate: GcpInsertOperationCandidate = Object.freeze({
+        ...evidence,
+        kind: 'compute-insert-operation-candidate',
+        operationId: value.id,
+        operationName: value.name,
+        targetId,
+        targetName: node,
+        zone,
+        status: value.status as GcpInsertOperationCandidate['status'],
+        applyPhaseQualified: false,
+        originalInsertQualified: false,
+      });
+      const key = `${zone}/${value.name}`;
+      const original = operations.get(key);
+      if (
+        original &&
+        (original.operationId !== candidate.operationId ||
+          original.targetName !== node ||
+          (original.targetId !== null && original.targetId !== candidate.targetId))
+      )
+        throw new Error('Original Compute insert operation changed');
+      operations.set(key, candidate);
+      return candidate;
+    });
+  };
+  return Object.freeze({ instance, serial, insertOperation });
 }
 
 export interface InstalledCloudFinalCapture {

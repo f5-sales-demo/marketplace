@@ -1038,3 +1038,13 @@ invocation/final reserve, with zero managed resources and all sixteen original
 groups independently absent. The default full controller, cloud apply/insert,
 live guest/network/lifecycle/traffic, installed runtime and all delivery gates
 remain required.
+
+Attempt 405 qualifies the [insert operation candidate reader](gcp-insert-operation-candidate-20261109.md).
+The official zonal operation GET supports names and numeric IDs. Five failing-first
+cases preserve exact target identities, pending reconciliation, refusal and raw
+evidence; 973 shared tests pass. A fresh default Compute GET verifies an attributed
+probe-operation absence with zero cloud submissions. Green exact-head CI at the
+prior reader checkpoint is verified. Legacy HTTP/protocol logging cannot alone
+join original RPCs safely; operation candidates retain false qualification flags.
+Original apply/audit/target joins, full capture and all live/delivery gates remain
+required.
