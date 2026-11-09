@@ -307,7 +307,7 @@ function decode(raw) {
     throw new Error('Google ADC authentication response is malformed');
   return value;
 }
-async function authenticateGoogleAdc(input, signal, fetcher = fetch) {
+async function authenticateGoogleAdcSession(input, signal, fetcher = fetch) {
   const credentialBytes = Buffer.from(input.credentialBytes);
   const { project, accountSha256, audienceSha256, assertOriginal } = input;
   if (
@@ -465,8 +465,15 @@ async function authenticateGoogleAdc(input, signal, fetcher = fetch) {
     expiresNoEarlierThan,
     executionAuthorized: false,
   };
-  return Object.freeze({ ...receipt, authenticationReceiptSha256: hash(JSON.stringify(receipt)) });
+  return {
+    receipt: Object.freeze({ ...receipt, authenticationReceiptSha256: hash(JSON.stringify(receipt)) }),
+    accessToken: refresh.access_token,
+  };
 }
+async function authenticateGoogleAdc(input, signal, fetcher = fetch) {
+  return (await authenticateGoogleAdcSession(input, signal, fetcher)).receipt;
+}
+var _computeMaximum = 4 * 1024 * 1024;
 
 // plugins/terraform/src/installed-capture-context.ts
 import { isAbsolute, resolve } from 'node:path';
