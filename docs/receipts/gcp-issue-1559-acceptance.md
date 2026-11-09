@@ -986,3 +986,13 @@ admitted ADC snapshot. Ten real local process cases and 860 shared tests pass;
 provider candidates remain explicitly unqualified for apply. Original Google
 provider/reader live qualification, the full controller and all subsequent
 acceptance gates remain open.
+
+Attempt 399 qualifies the [provider reader exit boundary and independent cleanup](gcp-provider-reader-exit-and-cleanup-20261109.md).
+The shipped reader retained the same real original Google provider twice and
+independently observed original group closure after natural Terraform exit.
+Both local objects and all 39 original process groups were independently absent.
+A separate destroy-only recovery cleaned the earlier failed fixture without
+resolving its failed capture or deleting locks. Fifteen Python cases and 960
+shared tests pass. These are local component checks with zero GCP resources;
+actual cloud apply attribution, the full cloud/serial/SSH controller and every
+subsequent live, runtime, review, CI and publication gate remain open.

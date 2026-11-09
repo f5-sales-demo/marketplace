@@ -71,6 +71,10 @@ async function requireGroupClosed(path: string, owner: Claim): Promise<void> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  await requirePhysicalGroupClosed(path, owner);
+}
+
+async function requirePhysicalGroupClosed(path: string, owner: Claim): Promise<void> {
   const original = await readGroupLifetime(path, owner);
   if (!original) return; // Historical claims retain their original schema and behavior.
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
@@ -95,6 +99,14 @@ async function requireGroupClosed(path: string, owner: Claim): Promise<void> {
     current.metadata.mtimeMs !== original.metadata.mtimeMs
   )
     throw new Error('Original executor lifetime changed during closure inspection');
+}
+
+/** Physical closure only. Does not resolve capture, reclaim the claim or change failed flags. */
+export async function assertExecutorProcessGroupAbsent(path: string): Promise<void> {
+  const owner = await readClaim(path);
+  if (owner.schemaVersion !== 2 || owner.group !== owner.pid)
+    throw new Error('Original tracked executor lifetime required for independent cleanup');
+  await requirePhysicalGroupClosed(path, owner);
 }
 
 /** Does not release or reclaim a lock; all recorded original group members must be absent. */

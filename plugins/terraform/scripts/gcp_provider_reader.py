@@ -11,10 +11,12 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, NoReturn, cast
 
 if TYPE_CHECKING:
-    from .gcp_provider_process import ProviderCandidate
+    from collections.abc import Callable
+
+    from .gcp_provider_process import OriginalProviderCandidates, ProviderCandidate
 
 FILE_FIELDS = ("dev", "ino", "uid", "nlink", "mode", "size", "mtimeNs", "ctimeNs")
 PARENT_FIELDS = ("dev", "ino", "uid", "mode")
@@ -132,10 +134,39 @@ def inspect_executor(executor: dict[str, object]) -> tuple[bool, bool]:
         (__package__ or "xcsh_provider_capture") + ".guest_pty"
     )
     try:
-        available = transport.process_identity(executor["pid"]) == executor
+        current = transport.process_identity(executor["pid"])
     except (FileNotFoundError, ProcessLookupError, ValueError):
         available = False
+    else:
+        if current != executor:
+            reject("Original executor identity changed")
+        available = True
     return available, transport.group_absent(executor)
+
+
+def collect_cohort(
+    executor: dict[str, object],
+    discover: Callable[[], tuple[ProviderCandidate, ...]],
+    *,
+    assert_inputs: Callable[[], None] | None = None,
+) -> tuple[bool, bool, tuple[ProviderCandidate, ...]]:
+    """Accept an exit race only after independent original group absence."""
+    if assert_inputs is not None:
+        assert_inputs()
+    available, closed = inspect_executor(executor)
+    candidates: tuple[ProviderCandidate, ...] = ()
+    if available:
+        try:
+            candidates = discover()
+        except (FileNotFoundError, ProcessLookupError):
+            if assert_inputs is not None:
+                assert_inputs()
+            available, closed = inspect_executor(executor)
+            if available or not closed:
+                raise
+    if assert_inputs is not None:
+        assert_inputs()
+    return available, closed, candidates
 
 
 def main() -> None:
@@ -232,21 +263,28 @@ def main() -> None:
     )
     transport = importlib.import_module("xcsh_provider_capture.guest_pty")
     reader = transport.process_identity(os.getpid())
-    available, closed = inspect_executor(request["executor"])
-    candidates: tuple[ProviderCandidate, ...] = ()
-    if available:
-        monitor = monitor_module.OriginalProviderCandidates(
-            root / "provider-captures",
-            request["executor"],
-            terraform=canonical(request["executables"]["terraform"]["path"]),
-            terraform_sha256=PINS["terraform"],
-            provider=canonical(request["executables"]["provider"]["path"]),
-            provider_sha256=PINS["provider"],
-            bootstrap=canonical(request["executables"]["bootstrap"]["path"]),
-            bootstrap_sha256=PINS["bootstrap"],
-            assert_inputs=verify,
+
+    def discover() -> tuple[ProviderCandidate, ...]:
+        """Admit a monitor only while inspecting this original cohort."""
+        monitor = cast(
+            "OriginalProviderCandidates",
+            monitor_module.OriginalProviderCandidates(
+                root / "provider-captures",
+                request["executor"],
+                terraform=canonical(request["executables"]["terraform"]["path"]),
+                terraform_sha256=PINS["terraform"],
+                provider=canonical(request["executables"]["provider"]["path"]),
+                provider_sha256=PINS["provider"],
+                bootstrap=canonical(request["executables"]["bootstrap"]["path"]),
+                bootstrap_sha256=PINS["bootstrap"],
+                assert_inputs=verify,
+            ),
         )
-        candidates = monitor.discover()
+        return monitor.discover()
+
+    available, closed, candidates = collect_cohort(
+        request["executor"], discover, assert_inputs=verify
+    )
     verify()
     if time.monotonic_ns() // 1000000 >= deadline:
         reject("Original provider observation deadline exhausted")

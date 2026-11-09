@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -219,6 +220,26 @@ class ProviderProcessTests(unittest.TestCase):
         assert not available
         assert closed
 
+    def test_reader_exit_race_keeps_closed_original_group_without_adopting_replacement(
+        self,
+    ) -> None:
+        """A vanished executor after discovery starts still requires group closure."""
+
+        def disappeared() -> tuple[object, ...]:
+            self.parent.stdin.close()
+            if self.parent.wait(timeout=15) != 0:
+                message = "Original fixture exit failed"
+                raise RuntimeError(message)
+            message = "original executor naturally exited"
+            raise FileNotFoundError(message)
+
+        available, closed, candidates = reader.collect_cohort(
+            self.original, disappeared
+        )
+        assert not available
+        assert closed
+        assert not candidates
+
     def test_reader_final_capture_uses_the_original_separate_reserve(self) -> None:
         """Permit final reads after the operation deadline without resetting it."""
         request = {"originalStartMs": 1000, "deadlineMs": 7201000}
@@ -234,6 +255,72 @@ class ProviderProcessTests(unittest.TestCase):
         request["finalCapture"]["finalDeadlineMs"] += 1
         with pytest.raises(ValueError, match="budget"):
             reader.require_capture_budget(request, 7201001)
+
+    def test_reader_discovery_error_with_live_original_group_is_not_closure(
+        self,
+    ) -> None:
+        """A missing unrelated file cannot hide the still-live original actor."""
+
+        def failed() -> tuple[object, ...]:
+            message = "unrelated missing input"
+            raise FileNotFoundError(message)
+
+        with pytest.raises(FileNotFoundError, match="unrelated"):
+            reader.collect_cohort(self.original, failed, assert_inputs=self.guard)
+        assert pty.process_identity(self.original["pid"]) == self.original
+
+    def test_reader_changed_inputs_during_exit_cannot_be_accepted(self) -> None:
+        """Independent group absence cannot excuse changed admitted inputs."""
+
+        def disappeared() -> tuple[object, ...]:
+            self.parent.stdin.close()
+            assert self.parent.wait(timeout=15) == 0
+            message = "original executor naturally exited"
+            raise FileNotFoundError(message)
+
+        checks = 0
+
+        def changed() -> None:
+            nonlocal checks
+            checks += 1
+            if checks > 1:
+                message = "original input changed"
+                raise ValueError(message)
+
+        with pytest.raises(ValueError, match="input changed"):
+            reader.collect_cohort(self.original, disappeared, assert_inputs=changed)
+
+    def test_reader_replacement_group_and_unrelated_errors_remain_failed(self) -> None:
+        """Never turn an identity replacement or an unrelated error into closure."""
+
+        def missing() -> tuple[object, ...]:
+            message = "discovery failed"
+            raise FileNotFoundError(message)
+
+        with (
+            patch.object(
+                reader, "inspect_executor", side_effect=[(True, False), (False, False)]
+            ),
+            pytest.raises(FileNotFoundError),
+        ):
+            reader.collect_cohort(self.original, missing)
+
+        def unrelated() -> tuple[object, ...]:
+            message = "original identity changed"
+            raise ValueError(message)
+
+        with pytest.raises(ValueError, match="identity changed"):
+            reader.collect_cohort(self.original, unrelated)
+
+    def test_reader_changed_original_identity_is_not_group_closure(self) -> None:
+        """A reused PID cannot be accepted even if the old group is absent."""
+        replacement = {**self.original, "start": str(int(self.original["start"]) + 1)}
+        with (
+            patch.object(pty, "process_identity", return_value=replacement),
+            patch.object(pty, "group_absent", return_value=True),
+            pytest.raises(ValueError, match="identity changed"),
+        ):
+            reader.inspect_executor(self.original)
 
     def test_source_never_sends_signals_or_selects_by_latest_pid(self) -> None:
         """Verify source never sends signals or selects by latest pid."""

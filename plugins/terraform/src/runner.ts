@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { acquireProcessLock } from '../../platform/src/ce/process-lock';
+import { acquireProcessLock, assertExecutorProcessGroupAbsent } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
+import { freezeAdmittedCaptureInputs } from './installed-capture-context';
+import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 
 export interface Invocation {
   cwd: string;
@@ -474,18 +476,67 @@ function projectResourceFields(values: Json, sensitivity: unknown, fields: strin
 /** Fixed argv wrapper sets child permissions without changing the host's umask. */
 export const executeTerraform = terraformExecutor(undefined, true);
 
+/** Compiled recovery adapter only; never accepted as conversational/tool input.
+ * Domain adapters independently verify live ownership and all original reader groups.
+ * This admits destroy-only work without resolving or deleting a failed capture claim.
+ */
+export interface CaptureCleanupRecovery {
+  readonly deploymentId: string;
+  readonly deploymentManifestSha256: string;
+  readonly state: Readonly<{ sha256: string; lineage: string; serial: number }>;
+  readonly resources: readonly Readonly<{ address: string; id: string }>[];
+  readonly retainedLockInputs: Readonly<Record<string, OriginalInputBinding>>;
+  readonly retainedLockSha256: Readonly<Record<'claim.json' | 'lifetime.json' | 'capture-unresolved.json', string>>;
+  assertIndependentClosure(): Promise<void>;
+}
+
 /** Internal lifecycle adapter. Cloud translators must validate scope before invoking it. */
 export class TerraformRunner {
   #directory?: string;
   #manifest?: Manifest;
   #busy = false;
+  #cleanup?: CaptureCleanupRecovery;
+  #cleanupEmpty = false;
+  #cleanupMonitor?: Awaited<ReturnType<typeof monitorOriginalInputs>>;
   constructor(
     readonly root: string,
     readonly execute: Executor = executeTerraform,
+    cleanup?: CaptureCleanupRecovery,
   ) {
     if (!isAbsolute(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (cleanup) {
+      if (
+        execute === executeTerraform ||
+        !safeId.test(cleanup.deploymentId) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.deploymentManifestSha256) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.state.sha256) ||
+        !cleanup.state.lineage ||
+        !Number.isSafeInteger(cleanup.state.serial) ||
+        cleanup.state.serial < 0 ||
+        !cleanup.resources.length ||
+        new Set(cleanup.resources.map((r) => r.address)).size !== cleanup.resources.length ||
+        cleanup.resources.some((r) => !r.address || !r.id) ||
+        typeof cleanup.assertIndependentClosure !== 'function' ||
+        ['claim.json', 'lifetime.json', 'capture-unresolved.json'].some(
+          (name) =>
+            !/^[a-f0-9]{64}$/.test(
+              cleanup.retainedLockSha256[name as keyof CaptureCleanupRecovery['retainedLockSha256']],
+            ),
+        )
+      )
+        throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      this.#cleanup = Object.freeze({
+        ...cleanup,
+        state: Object.freeze({ ...cleanup.state }),
+        resources: Object.freeze(cleanup.resources.map((r) => Object.freeze({ ...r }))),
+        retainedLockInputs: freezeAdmittedCaptureInputs(cleanup.retainedLockInputs),
+        retainedLockSha256: Object.freeze({ ...cleanup.retainedLockSha256 }),
+        assertIndependentClosure: cleanup.assertIndependentClosure,
+      });
+    }
   }
   async prepare(deployment: Deployment): Promise<void> {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot prepare a new deployment');
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
     if (deployment.stage !== undefined && !safeId.test(deployment.stage))
@@ -539,6 +590,7 @@ export class TerraformRunner {
   }
   /** The cloud adapter has independently proved the exact isolated action outcome. */
   async reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string): Promise<void> {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot reconcile creation');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -563,6 +615,7 @@ export class TerraformRunner {
   }
   /** Advance desired configuration without changing cloud ownership, providers or backend. */
   async reviseConfiguration(expectedSha256: string, configuration: string): Promise<string> {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot revise configuration');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -749,14 +802,74 @@ export class TerraformRunner {
     try {
       release = await acquireProcessLock(lock);
       // A dead runner parent cannot establish that its Terraform executor has stopped.
-      const executorStopped = await acquireProcessLock(join(this.#directory, '.terraform-executor-lock'));
-      await executorStopped();
+      if (this.#cleanup) await this.#verifyCaptureCleanup();
+      else {
+        const executorStopped = await acquireProcessLock(join(this.#directory, '.terraform-executor-lock'));
+        await executorStopped();
+      }
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
   }
+  async #verifyCaptureCleanup(): Promise<void> {
+    const scope = this.#cleanup;
+    if (!scope || !this.#directory || this.#manifest?.deploymentId !== scope.deploymentId)
+      throw new Error('Original cleanup owner differs');
+    const directory = this.#directory;
+    if (digest(await privateRead(join(directory, 'deployment.json'))) !== scope.deploymentManifestSha256)
+      throw new Error('Original cleanup manifest changed');
+    const lock = join(directory, '.terraform-executor-lock');
+    for (const name of ['claim.json', 'lifetime.json', 'capture-unresolved.json'])
+      if (
+        scope.retainedLockInputs[name]?.path !== join(lock, name) ||
+        scope.retainedLockInputs[name]?.sha256 !==
+          scope.retainedLockSha256[name as keyof CaptureCleanupRecovery['retainedLockSha256']]
+      )
+        throw new Error('Original retained cleanup lock admission differs');
+    this.#cleanupMonitor ??= await monitorOriginalInputs(scope.retainedLockInputs);
+    await this.#cleanupMonitor.assertOriginal();
+    for (const [name, expected] of Object.entries(scope.retainedLockSha256))
+      if (digest(await privateRead(join(lock, name))) !== expected)
+        throw new Error('Original failed cleanup lock changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
+    const raw = await privateRead(join(directory, 'terraform.tfstate'));
+    const state = decode(raw.toString());
+    if (
+      state.lineage !== scope.state.lineage ||
+      !Number.isSafeInteger(state.serial) ||
+      (state.serial as number) < scope.state.serial
+    )
+      throw new Error('Original reviewed cleanup state identity changed');
+    if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
+    const resources = state.resources.map(object);
+    const actual = resources
+      .filter((r) => r.mode === 'managed')
+      .flatMap((r) => {
+        if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
+          throw new Error('Original cleanup state resource malformed');
+        return r.instances.map((instance) => {
+          const row = object(instance),
+            attributes = object(row.attributes);
+          const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
+          const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
+          return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
+        });
+      });
+    if (this.#cleanupEmpty) {
+      if (actual.length) throw new Error('Owned cleanup resources remain');
+    } else if (
+      digest(raw) !== scope.state.sha256 ||
+      canonical(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
+        canonical([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
+    )
+      throw new Error('Original reviewed cleanup state or owned resources changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
+  }
+
   /** Restricted stable state binding for a separately reviewed recovery destroy. */
   async readStateIdentity(): Promise<{ sha256: string; lineage: string; serial: number }> {
     return this.#exclusive(async () => {
@@ -871,6 +984,7 @@ export class TerraformRunner {
     action?: TerraformActionIntent,
     destroy = false,
   ): Promise<PlanReceipt> {
+    if (this.#cleanup && !destroy) throw new Error('Capture-independent cleanup permits destroy plans only');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       await this.#preserveActionSubmission();
@@ -1318,6 +1432,17 @@ export class TerraformRunner {
     });
   }
   async apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void> {
+    if (
+      this.#cleanup &&
+      (receipt.operation !== 'destroy' ||
+        receipt.actionInvocations?.length ||
+        receipt.changes.some(
+          (change) =>
+            !this.#cleanup?.resources.some((resource) => resource.address === change.address) ||
+            JSON.stringify(change.actions) !== '["delete"]',
+        ))
+    )
+      throw new Error('Capture-independent cleanup cannot apply creates, unrelated objects or provider actions');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const journal = decode((await privateRead(join(this.#state().directory, 'plan-receipt.json'))).toString());
@@ -1353,6 +1478,10 @@ export class TerraformRunner {
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+      if (this.#cleanup) {
+        this.#cleanupEmpty = true;
+        await this.#verifyCaptureCleanup();
+      }
     });
   }
 }
