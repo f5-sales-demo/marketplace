@@ -293,6 +293,18 @@ async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
   }
   throw new Error('Operation lock could not be acquired');
 }
+// plugins/terraform/src/gcp-capture-source-pins.json
+var gcp_capture_source_pins_default = {
+  schemaVersion: 1,
+  kind: 'gcp-original-capture-sources',
+  files: {
+    '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
+    'guest_pty.py': '265fa1444f8139e465aa9d8f2c44f0553a2e6052d36cab084cdd4f4ed243a987',
+    'gcp_guest_session.py': 'b9853f928b493bdf9dd0273b985b3a10838f605c5fbc29982e57ccf88a496978',
+    'gcp_provider_process.py': '17b4f80fbe09f9337f3c482545ae94ae62af85a29e61d36d0f0bfeb30453d228',
+    'gcp_provider_reader.py': '4afc32be9c9b57478ad8de0bc645198d2837f55a4c6083b2b1341bb3384203b0',
+  },
+};
 
 // plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash2 } from 'node:crypto';
@@ -1694,6 +1706,39 @@ class InstalledTerraformSetupRequired extends Error {
     super('Install and set up the Terraform plugin observer runtime before selecting GCP Terraform');
   }
 }
+
+class InstalledCaptureSourcesUnavailable extends Error {
+  constructor() {
+    super('Verified Terraform plugin capture sources are missing or changed; reinstall the plugin');
+  }
+}
+async function inspectInstalledCaptureScripts(directory = join5(import.meta.dir, '../scripts')) {
+  try {
+    const parent = await lstat5(directory);
+    if (
+      !isAbsolute6(directory) ||
+      resolve6(directory) !== directory ||
+      (await realpath4(directory)) !== directory ||
+      !parent.isDirectory() ||
+      parent.isSymbolicLink() ||
+      parent.uid !== process.getuid?.() ||
+      (parent.mode & 18) !== 0 ||
+      gcp_capture_source_pins_default.schemaVersion !== 1 ||
+      gcp_capture_source_pins_default.kind !== 'gcp-original-capture-sources'
+    )
+      throw new InstalledCaptureSourcesUnavailable();
+    const inputs = {};
+    for (const [name, expected] of Object.entries(gcp_capture_source_pins_default.files)) {
+      const actual = await owned(join5(directory, name));
+      if (actual.binding.sha256 !== expected) throw new InstalledCaptureSourcesUnavailable();
+      inputs[`script:${name}`] = actual.binding;
+    }
+    return freezeAdmittedCaptureInputs(inputs);
+  } catch (error) {
+    if (error instanceof InstalledCaptureSourcesUnavailable) throw error;
+    throw new InstalledCaptureSourcesUnavailable();
+  }
+}
 async function owned(path, maximum = 256 * 1024 * 1024) {
   if (!isAbsolute6(path) || resolve6(path) !== path || (await realpath4(path)) !== path)
     throw new Error('Canonical owned runtime input required');
@@ -1817,6 +1862,7 @@ async function assertInstalledRuntime(env = process.env) {
       bindings[`sdk:${name}`] = actual.binding;
     }
     bindings.review = (await owned(join5(root, 'review.json'), 65536)).binding;
+    Object.assign(bindings, await inspectInstalledCaptureScripts());
     const monitor = await monitorOriginalInputs(bindings);
     let inspectionDirectory;
     let inspectionClosed = false;
