@@ -197,8 +197,11 @@ export class TerraformApplyHookParser {
       throw new Error('Malformed original Terraform instance key');
     if (typeof key === 'string') text(key);
     const suffix = key === null ? '' : `[${JSON.stringify(key)}]`;
-    const expectedResource = `${reviewed.type}.${resource.resource_name}${suffix}`;
+    const baseResource = `${reviewed.type}.${resource.resource_name}${suffix}`;
     const module = text(resource.module);
+    const modulePrefix = module ? `${module}.` : '';
+    const mode = address === `${modulePrefix}data.${baseResource}` ? 'data.' : '';
+    const expectedResource = `${mode}${baseResource}`;
     if (
       resource.resource !== expectedResource ||
       address !== `${module ? `${module}.` : ''}${expectedResource}` ||

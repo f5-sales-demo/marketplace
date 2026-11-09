@@ -242,3 +242,25 @@ test('escaped nested duplicate keys refuse and reviewed keyed module resources r
   for (let i = 0; i < 65; i++) nested = [nested];
   expect(() => new TerraformApplyHookParser(deep).push(bytes(version + line('log', { state: nested })))).toThrow();
 });
+
+test('reviewed deferred data-source hooks preserve data mode and cannot impersonate a managed resource', () => {
+  const dataResource = {
+    ...resource,
+    addr: 'data.google_compute_instance.node',
+    resource: 'data.google_compute_instance.node',
+  };
+  const dataPlan = { ...plan, changes: [{ ...plan.changes[0], address: dataResource.addr, actions: ['read'] }] };
+  const parser = new TerraformApplyHookParser(dataPlan);
+  const candidates = parser.push(
+    bytes(
+      version +
+        event('apply_start', { resource: dataResource, action: 'read' }) +
+        event('apply_complete', { resource: dataResource, action: 'read', elapsed_seconds: 0 }),
+    ),
+  );
+  expect(candidates.map((c) => c.address)).toEqual([dataResource.addr, dataResource.addr]);
+  expect(parser.finish().applySuccessful).toBe(true);
+  expect(candidates.every((c) => c.applyRpcQualified === false && c.originalInsertQualified === false)).toBe(true);
+  const managed = new TerraformApplyHookParser(plan);
+  expect(() => managed.push(bytes(version + event('apply_start', { resource: dataResource })))).toThrow();
+});

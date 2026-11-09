@@ -1058,3 +1058,14 @@ without signals. Zero cloud requests were submitted. The installed apply gate
 remains closed; core hooks do not establish original RPC, request/audit or insert
 attribution. Full capture and all subsequent live, runtime and delivery gates
 remain required.
+
+Attempt 407 qualifies [deferred data hooks and the original Google trace contract](gcp-deferred-data-and-trace-contract-20261109.md).
+The failing-first data-mode repair passes fourteen cases and 68 assertions.
+An authenticated pinned provider read retains complete split HTTP blocks inside
+a matching SDK read RPC, with the explicit reviewed reason in its header record.
+A separate disposition corrects the marker-only metric while preserving the
+original trace and receipt. Reviewed local teardown leaves stable empty state;
+all eight original groups are independently absent and no cloud mutation occurs.
+Google SDK normalization also has a documented fallback for an empty reason;
+explicit configuration prevents it here. Original producer admission and create/
+audit/insert joins, full capture and all subsequent acceptance gates remain open.

@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.48** preserves reviewed deferred data-source identities in core apply hooks
+  while retaining original provider RPC and GCP insert qualification holds (#1559).
+
 - **`terraform` 2.4.47** parses bounded reviewed core apply hooks while preserving explicit
   provider RPC and GCP insert qualification holds (#1559).
 
