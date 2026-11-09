@@ -996,3 +996,12 @@ resolving its failed capture or deleting locks. Fifteen Python cases and 960
 shared tests pass. These are local component checks with zero GCP resources;
 actual cloud apply attribution, the full cloud/serial/SSH controller and every
 subsequent live, runtime, review, CI and publication gate remain open.
+
+Attempt 400 qualifies the [original final reader reserve](gcp-final-reader-reserve-20261109.md).
+A matching installed callback delivers the original parent's fixed five-minute
+reserve to an isolated Python reader without extending Terraform's deadline.
+Clones, changed original metadata and renewed actor windows refuse. The shipped
+reader ran through a real local timeout boundary with all three original groups
+independently absent. Six reader and two dispatcher regressions plus 968 shared
+tests pass. Actual two-hour expiry and all cloud apply, full capture, lifecycle,
+networking, traffic, installed runtime, review, CI and publication gates stay open.

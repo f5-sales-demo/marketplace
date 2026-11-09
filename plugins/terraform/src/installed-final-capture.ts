@@ -1,14 +1,16 @@
 import { isAbsolute, join, resolve } from 'node:path';
 import { freezeAdmittedCaptureInputs } from './installed-capture-context';
 import type { OriginalInputBinding } from './original-input-monitor';
+import { admitFinalReaderReserve, type FinalReaderReserve } from './reader-final-reserve';
 import type { ExecutionCaptureAdmission, FinalExecutionCapture } from './signal-free-executor';
 
 type Identity = ExecutionCaptureAdmission['identity'];
 export interface InstalledCaptureInvocation {
   readonly identity: Identity;
+  readonly budget?: Readonly<{ start: number; deadline: number }>;
   readonly groupDirectory: string;
   readonly groupInputs: Readonly<Record<string, OriginalInputBinding>>;
-  readonly capture?: { finalCapture(capture: FinalExecutionCapture): Promise<void> };
+  readonly capture?: { finalCapture(capture: FinalExecutionCapture, reserve?: FinalReaderReserve): Promise<void> };
 }
 function key(identity: Identity) {
   if (
@@ -29,6 +31,14 @@ export class InstalledCaptureInvocations {
   admit(input: InstalledCaptureInvocation) {
     const identityKey = key(input.identity);
     if (this.records.has(identityKey)) throw new Error('Original installed capture already admitted');
+    if (
+      input.budget &&
+      (!Number.isSafeInteger(input.budget.start) ||
+        input.budget.start < 0 ||
+        !Number.isSafeInteger(input.budget.deadline) ||
+        input.budget.deadline - input.budget.start !== 7_200_000)
+    )
+      throw new Error('Original installed capture operation budget required');
     if (!isAbsolute(input.groupDirectory) || resolve(input.groupDirectory) !== input.groupDirectory)
       throw new Error('Original installed capture directory required');
     const groupInputs = freezeAdmittedCaptureInputs(input.groupInputs);
@@ -40,6 +50,7 @@ export class InstalledCaptureInvocations {
       throw new Error('Original installed capture group inputs required');
     const record = Object.freeze({
       identity: Object.freeze({ ...input.identity }),
+      ...(input.budget ? { budget: Object.freeze({ ...input.budget }) } : {}),
       groupDirectory: input.groupDirectory,
       groupInputs,
       capture: input.capture,
@@ -90,7 +101,29 @@ export async function finalizeInstalledCapture(
     const original = record;
     await attempt(() => hooks.verify(original));
     const capture = original.capture;
-    if (capture) await attempt(() => capture.finalCapture(finished));
+    if (capture) {
+      let reserve: FinalReaderReserve | undefined;
+      if (original.budget)
+        await attempt(async () => {
+          if (finished.originalDeadlineMs !== original.budget?.deadline)
+            throw new Error('Original final capture operation budget changed');
+          const verify = hooks.verify,
+            assertInputs = hooks.assertInputs;
+          reserve = admitFinalReaderReserve({
+            identity: original.identity,
+            originalStartMs: original.budget.start,
+            originalDeadlineMs: original.budget.deadline,
+            finalStartedMs: finished.finalStartedMs,
+            finalDeadlineMs: finished.finalDeadlineMs,
+            assertOriginal: async () => {
+              await verify(original);
+              await assertInputs();
+              await verify(original);
+            },
+          });
+        });
+      await attempt(() => capture.finalCapture(finished, reserve));
+    }
   }
   await attempt(hooks.assertInputs);
   if (record) {

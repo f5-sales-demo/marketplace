@@ -5,6 +5,12 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { type TerraformFailureCategory, terraformFailureCategories } from './failure';
 import { linuxMonotonicMs } from './linux-clock';
+import {
+  assertFinalReaderReserve,
+  type FinalReaderReserve,
+  type FinalReaderReserveSnapshot,
+  inspectFinalReaderReserve,
+} from './reader-final-reserve';
 import type { Executor } from './runner';
 
 type Reason = 'startup' | 'deadline' | 'cancelled' | 'input-changed' | 'output-limit';
@@ -19,6 +25,7 @@ export interface ExecutionCaptureAdmission {
   readonly startupDeadlineMs: number;
 }
 export interface FinalExecutionCapture {
+  readonly inheritedReaderReserve?: FinalReaderReserveSnapshot;
   readonly identity?: ExecutionCaptureAdmission['identity'];
   invocationStartedMs: number;
   finalStartedMs: number;
@@ -145,7 +152,42 @@ async function pinned(binding: ExecutableBinding) {
 
 /** Signal-free execution for a trusted server policy. Never resumes or replaces an original child. */
 export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): Executor {
+  return originalExecutor(input);
+}
+
+/** Only isolated Python readers can consume an already admitted parent's final reserve.
+ * The caller must bind its shipped reader sources and request through assertOriginal.
+ * This is a compiled capture adapter, never a Terraform tool argument or budget renewal.
+ */
+export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, reserve: FinalReaderReserve): Executor {
+  const original = inspectFinalReaderReserve(reserve);
+  if (input.python.path !== input.executable.path || input.python.sha256 !== input.executable.sha256)
+    throw new Error('Original final readers require the same pinned interpreter');
+  if (input.originalStartMs !== original.originalStartMs || input.originalDeadlineMs !== original.originalDeadlineMs)
+    throw new Error('Original parent reader operation budget differs');
+  if (input.timeoutMs !== undefined && input.timeoutMs > 60_000)
+    throw new Error('Final reader commands have a sixty-second limit');
+  const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 60_000 }, reserve);
+  return async (invocation) => {
+    if (
+      invocation.args.length < 3 ||
+      invocation.args[0] !== '-I' ||
+      invocation.args[1] !== '-B' ||
+      !isAbsolute(invocation.args[2])
+    )
+      throw new Error('Exact isolated final reader script arguments required');
+    return execute(invocation);
+  };
+}
+
+function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReaderReserve): Executor {
   const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
+  const inherited = reserve ? inspectFinalReaderReserve(reserve) : undefined;
+  const executionDeadline = inherited?.finalDeadlineMs ?? policy.originalDeadlineMs;
+  const assertOriginal = async () => {
+    await policy.assertOriginal();
+    if (reserve) await assertFinalReaderReserve(reserve);
+  };
   const beforeRelease = policy.beforeRelease;
   if (
     process.platform !== 'linux' ||
@@ -180,10 +222,10 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     )
       throw new Error('Original execution loader substitution refused');
     const began = now();
-    if (began < policy.originalStartMs || began >= policy.originalDeadlineMs)
+    if (began < policy.originalStartMs || began >= executionDeadline)
       throw new Error('Original operation deadline exhausted');
     signal?.throwIfAborted();
-    await policy.assertOriginal();
+    await assertOriginal();
     const directory = await lstat(cwd);
     if (
       !directory.isDirectory() ||
@@ -238,11 +280,11 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
     };
     const check = async () => {
       if (signal?.aborted) fail('cancelled');
-      if (now() >= Math.min(began + timeout, policy.originalDeadlineMs)) fail('deadline');
+      if (now() >= Math.min(began + timeout, executionDeadline)) fail('deadline');
       try {
         await python.require();
         await executable.require();
-        await policy.assertOriginal();
+        await assertOriginal();
       } catch {
         fail('input-changed');
       }
@@ -280,7 +322,7 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       const childDone = child.exited.then((code) => {
         actualExitCode = code;
       });
-      const startupDeadline = Math.min(began + startup, policy.originalDeadlineMs);
+      const startupDeadline = Math.min(began + startup, executionDeadline);
       while (!(await Bun.file(bootstrap).exists()) && actualExitCode === null && !reason) {
         await check();
         if (now() >= startupDeadline) fail('startup');
@@ -400,8 +442,9 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture: FinalExecutionCapture = {
         invocationStartedMs: began,
-        finalStartedMs: finalStarted,
-        finalDeadlineMs: finalStarted + 300_000,
+        finalStartedMs: inherited?.finalStartedMs ?? finalStarted,
+        finalDeadlineMs: inherited?.finalDeadlineMs ?? finalStarted + 300_000,
+        ...(inherited ? { inheritedReaderReserve: inherited } : {}),
         originalDeadlineMs: policy.originalDeadlineMs,
         finishedMs: now(),
         stdoutPath,

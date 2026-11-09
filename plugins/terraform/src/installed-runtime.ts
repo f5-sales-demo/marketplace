@@ -26,6 +26,7 @@ import {
   type OriginalInputIdentity,
 } from './original-input-monitor';
 import { verifyProviderPackage } from './provider-package';
+import type { FinalReaderReserve } from './reader-final-reserve';
 import type { Executor } from './runner';
 import type { CeTerraformRuntimeOptions, CeTerraformRuntimeRequest, GoogleAdcPolicy } from './service';
 import {
@@ -46,7 +47,7 @@ export class InstalledTerraformSetupRequired extends Error {
 export interface InstalledGcpCapture {
   start(admission: ExecutionCaptureAdmission): Promise<void>;
   assertOriginal(): Promise<void>;
-  finalCapture(capture: FinalExecutionCapture): Promise<void>;
+  finalCapture(capture: FinalExecutionCapture, reserve?: FinalReaderReserve): Promise<void>;
   closeAfterExecutorExit(): Promise<void>;
 }
 export interface InstalledRuntimeFactoryOptions {
@@ -509,6 +510,7 @@ export function createInstalledRuntimeResolver(
                 groupInputs[name] = (await owned(join(currentGroup, `${name}.json`))).binding;
               const originalCapture = captureInvocations.admit({
                 identity: admission.identity,
+                budget: { start: admission.originalStartMs, deadline: admission.originalDeadlineMs },
                 groupDirectory: currentGroup,
                 groupInputs,
                 capture: admission.args[0] === 'apply' ? capture : undefined,

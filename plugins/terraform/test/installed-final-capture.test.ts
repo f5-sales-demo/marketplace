@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import { finalizeInstalledCapture, InstalledCaptureInvocations } from '../src/installed-final-capture';
+import { linuxMonotonicMs } from '../src/linux-clock';
+import { assertFinalReaderReserve, inspectFinalReaderReserve } from '../src/reader-final-reserve';
 import type { FinalExecutionCapture } from '../src/signal-free-executor';
 
 const identity = { pid: 12345, group: 12345, start: '987654', boot: '00000000-0000-4000-8000-000000000001' };
@@ -144,4 +146,83 @@ test('duplicate admission and mutation of admitted values cannot redirect captur
   value.groupDirectory = '/example/changed';
   expect(invocations.find(finished()).groupDirectory).toBe('/example/original');
   expect(() => invocations.admit({ ...value, identity })).toThrow('already admitted');
+});
+
+test('matching final callback receives its original admitted reader reserve despite elapsed operation budget', async () => {
+  const now = linuxMonotonicMs();
+  const budget = { start: now - 7_200_100, deadline: now - 100 };
+  const frame = {
+    ...finished(),
+    originalDeadlineMs: budget.deadline,
+    finalStartedMs: now - 50,
+    finalDeadlineMs: now + 299_950,
+  };
+  const invocations = new InstalledCaptureInvocations();
+  let observed = false;
+  let checks = 0;
+  invocations.admit({
+    identity,
+    budget,
+    groupDirectory: '/example/final-group',
+    groupInputs: groupInputs('/example/final-group'),
+    capture: {
+      finalCapture: async (value, reserve) => {
+        expect(reserve).toBeDefined();
+        if (!reserve) throw new Error('Original reader reserve unavailable');
+        await assertFinalReaderReserve(reserve);
+        const admitted = inspectFinalReaderReserve(reserve);
+        if (!value.identity) throw new Error('Original final identity unavailable');
+        expect(admitted.identity).toEqual(value.identity);
+        expect(admitted.originalDeadlineMs).toBe(frame.originalDeadlineMs);
+        expect(admitted.finalDeadlineMs).toBe(frame.finalDeadlineMs);
+        observed = true;
+      },
+    },
+  });
+  budget.start += 1;
+  budget.deadline += 1;
+  await finalizeInstalledCapture(invocations, frame, {
+    persist: async () => {},
+    verify: async () => {
+      checks++;
+    },
+    assertInputs: async () => {
+      checks++;
+    },
+  });
+  expect(observed).toBe(true);
+  expect(checks).toBeGreaterThan(3);
+});
+
+test('changed original final metadata cannot grant reader authority or suppress matching partial capture', async () => {
+  const now = linuxMonotonicMs();
+  const budget = { start: now - 7_200_100, deadline: now - 100 };
+  const frame = {
+    ...finished(),
+    originalDeadlineMs: budget.deadline + 1,
+    finalStartedMs: now - 50,
+    finalDeadlineMs: now + 299_950,
+  };
+  const invocations = new InstalledCaptureInvocations();
+  let partials = 0;
+  invocations.admit({
+    identity,
+    budget,
+    groupDirectory: '/example/final-group',
+    groupInputs: groupInputs('/example/final-group'),
+    capture: {
+      finalCapture: async (_value, reserve) => {
+        expect(reserve).toBeUndefined();
+        partials++;
+      },
+    },
+  });
+  await expect(
+    finalizeInstalledCapture(invocations, frame, {
+      persist: async () => {},
+      verify: async () => {},
+      assertInputs: async () => {},
+    }),
+  ).rejects.toThrow(AggregateError);
+  expect(partials).toBe(1);
 });
