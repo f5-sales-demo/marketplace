@@ -537,6 +537,14 @@ function createInstalledCaptureContext(admission) {
     throw new Error('Trusted original GCP capture admission required');
   const inputs = freezeAdmittedCaptureInputs(admission.inputs);
   const environment = Object.freeze({ ...admission.environment });
+  const authentication = Object.freeze({ ...admission.authentication });
+  if (
+    ['accountSha256', 'audienceSha256', 'snapshotSha256'].some(
+      (key) => !/^[a-f0-9]{64}$/.test(authentication[key] ?? ''),
+    ) ||
+    authentication.snapshotSha256 !== inputs.adc?.sha256
+  )
+    throw new Error('Original authenticated principal and admitted ADC snapshot required');
   if (
     !inputs.adc ||
     !inputs.platform ||
@@ -552,12 +560,13 @@ function createInstalledCaptureContext(admission) {
   const { assertInputs, assertWithinDeadline, readProviderInputs: readProviders } = admission;
   let originalProviders;
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'original-installed-gcp-capture-context',
     owner: Object.freeze(structuredClone(admission.owner)),
     executionDirectory: admission.executionDirectory,
     budget: Object.freeze({ ...admission.budget }),
     environment,
+    authentication,
     inputs,
     assertInputs,
     assertWithinDeadline,
@@ -1916,6 +1925,11 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           capture = captureFactory?.(
             request,
             createInstalledCaptureContext({
+              authentication: {
+                accountSha256: authenticated.accountSha256,
+                audienceSha256: authenticated.audienceSha256,
+                snapshotSha256: authenticated.snapshotSha256,
+              },
               owner,
               executionDirectory,
               budget: { start, deadline },
