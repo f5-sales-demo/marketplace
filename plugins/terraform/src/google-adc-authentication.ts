@@ -27,7 +27,7 @@ function decode(raw: Uint8Array): Json {
 }
 
 /** Authenticate an original authorized-user snapshot. This produces evidence, never an execution grant. */
-export async function authenticateGoogleAdc(
+async function authenticateGoogleAdcSession(
   input: GoogleAdcAuthenticationRequest,
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
@@ -193,5 +193,142 @@ export async function authenticateGoogleAdc(
     expiresNoEarlierThan,
     executionAuthorized: false,
   };
-  return Object.freeze({ ...receipt, authenticationReceiptSha256: hash(JSON.stringify(receipt)) });
+  return {
+    receipt: Object.freeze({ ...receipt, authenticationReceiptSha256: hash(JSON.stringify(receipt)) }),
+    accessToken: refresh.access_token,
+  };
+}
+
+/** Authenticate without returning a bearer token to the caller or a receipt. */
+export async function authenticateGoogleAdc(
+  input: GoogleAdcAuthenticationRequest,
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+) {
+  return (await authenticateGoogleAdcSession(input, signal, fetcher)).receipt;
+}
+
+export interface GoogleComputeRead {
+  readonly raw: Uint8Array;
+  readonly status: number;
+  readonly startedAt: number;
+  readonly finishedAt: number;
+  readonly complete: boolean;
+  readonly truncated: boolean;
+}
+export class GoogleComputeReadError extends AggregateError {
+  constructor(
+    readonly capture: GoogleComputeRead,
+    failures: unknown[],
+  ) {
+    super(failures, 'Original Google Compute read incomplete');
+  }
+}
+const computeMaximum = 4 * 1024 * 1024;
+const resourceName = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const offset = /^(?:0|[1-9][0-9]{0,19})$/;
+const serialOffset = (value: string) =>
+  typeof value === 'string' && offset.test(value) && BigInt(value) <= 9223372036854775807n;
+
+/** Fixed read-only Compute capability backed by the same original ADC bytes.
+ * Reader refresh is independent of Terraform-provider refresh qualification.
+ * Raw cloud responses are private evidence; no token is returned or serialized.
+ */
+export async function openGoogleAdcComputeReader(
+  input: GoogleAdcAuthenticationRequest,
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+) {
+  const original = Object.freeze({ ...input, credentialBytes: Buffer.from(input.credentialBytes) });
+  let session = await authenticateGoogleAdcSession(original, signal, fetcher);
+  let refreshing: Promise<typeof session> | undefined;
+  const guard = async () => {
+    signal?.throwIfAborted();
+    try {
+      await original.assertOriginal();
+    } catch {
+      throw new Error('Original Google Compute reader inputs changed');
+    }
+  };
+  const read = async (zone: string, name: string, start?: string): Promise<GoogleComputeRead> => {
+    if (!resourceName.test(zone) || !resourceName.test(name) || (start !== undefined && !serialOffset(start)))
+      throw new Error('Fixed named Google Compute read required');
+    await guard();
+    if (Date.now() >= session.receipt.expiresNoEarlierThan - 60_000) {
+      refreshing ??= authenticateGoogleAdcSession(original, signal, fetcher);
+      try {
+        session = await refreshing;
+      } finally {
+        refreshing = undefined;
+      }
+    }
+    await guard();
+    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/instances/${name}`;
+    const url = start === undefined ? base : `${base}/serialPort?port=1&start=${start}`;
+    const began = Date.now();
+    const chunks: Uint8Array[] = [];
+    const failures: unknown[] = [];
+    let size = 0;
+    let status = 0;
+    let complete = false;
+    let truncated = false;
+    try {
+      const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+      const response = await fetcher(url, {
+        method: 'GET',
+        redirect: 'error',
+        signal: bounded,
+        headers: { Accept: 'application/json', Authorization: `Bearer ${session.accessToken}` },
+      });
+      status = response.status;
+      if (!response.body) throw new Error('Missing cloud body');
+      const stream = response.body.getReader();
+      try {
+        for (;;) {
+          bounded.throwIfAborted();
+          const { value, done } = await stream.read();
+          if (done) break;
+          const available = Math.max(0, computeMaximum - size);
+          chunks.push(value.subarray(0, available));
+          size += value.length;
+          if (size > computeMaximum) {
+            truncated = true;
+            throw new Error('Cloud read exceeds bound');
+          }
+        }
+        complete = true;
+      } finally {
+        await stream.cancel().catch(() => undefined);
+        stream.releaseLock();
+      }
+    } catch {
+      failures.push(new Error('Google Compute read transport failed'));
+    }
+    try {
+      await guard();
+    } catch (error) {
+      complete = false;
+      failures.push(error);
+    }
+    const finishedAt = Date.now();
+    if (finishedAt < began || finishedAt - began > 60_000) {
+      complete = false;
+      failures.push(new Error('Bounded original Compute response required'));
+    }
+    const result: GoogleComputeRead = {
+      raw: Buffer.concat(chunks),
+      status,
+      startedAt: began,
+      finishedAt,
+      complete,
+      truncated,
+    };
+    if (failures.length) throw new GoogleComputeReadError(result, failures);
+    return result;
+  };
+  return Object.freeze({
+    authentication: session.receipt,
+    instance: (zone: string, name: string) => read(zone, name),
+    serial: (zone: string, name: string, start: string) => read(zone, name, start),
+  });
 }

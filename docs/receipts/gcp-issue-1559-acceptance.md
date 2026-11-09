@@ -970,3 +970,12 @@ failures or release a claim without required evidence. The original five-minute
 reserve and independent closure checks remain fixed. Actual cloud/serial/SSH
 capture and every subsequent live, installed, delivery and publication gate
 remain open.
+
+Attempt 397 implements the [source-owned cloud/serial reader](gcp-cloud-serial-reader-20261109.md).
+Thirteen new regressions, 857 shared tests and a fresh actual Compute GET pass.
+The installed-context entry point preserves admitted ADC/provider identities;
+raw partial replies, original VM checks and documented serial offsets remain
+bounded. The live read establishes one probe-name absence, with zero cloud
+submissions. Live serial/guest evidence, original apply-provider and insert
+attribution, the default controller and every subsequent acceptance gate
+remain open.
