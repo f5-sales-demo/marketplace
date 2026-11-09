@@ -1,21 +1,18 @@
 import ast
 import hashlib
-import importlib.util
 import shutil
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from plugins.terraform.scripts import guest_pty as module
+
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location(
-    "natural_pty", HERE.parent / "plugins/terraform/scripts/guest_pty.py"
-)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
 
 FIXTURE = """import os,select,sys,time,tty
 tty.setraw(0)
@@ -45,7 +42,7 @@ class NaturalPtyTests(unittest.TestCase):
         self.script.chmod(0o400)
         self.exe = Path(sys.executable).resolve()
         self.exe_hash = hashlib.sha256(self.exe.read_bytes()).hexdigest()
-        self.session = None
+        self.session: module.OriginalPtySession | None = None
 
     def tearDown(self) -> None:
         if self.session:
@@ -213,16 +210,14 @@ class NaturalPtyTests(unittest.TestCase):
         end = time.monotonic() + 1
         while session.child.poll() is None and time.monotonic() < end:
             time.sleep(0.01)
-        actual = module.group_absent
-        module.group_absent = lambda _original: (_ for _ in ()).throw(
-            ValueError("independent identity unavailable")
-        )
-        try:
+        with patch.object(
+            module,
+            "group_absent",
+            side_effect=ValueError("independent identity unavailable"),
+        ):
             assert not session.close()
             assert session.fd is not None
             assert (session.root / "unresolved.private.json").exists()
-        finally:
-            module.group_absent = actual
         assert session.close()
         assert (session.root / "unresolved.private.json").exists()
 

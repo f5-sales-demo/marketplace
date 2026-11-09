@@ -1,7 +1,6 @@
 """Original provider candidate process tests; no cloud calls or process signals."""
 
 import hashlib
-import importlib.util
 import json
 import select
 import subprocess
@@ -10,23 +9,28 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import IO, NoReturn
 from unittest.mock import patch
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "plugins/terraform/scripts"
-spec = importlib.util.spec_from_file_location(
-    "provider_test_package",
-    SCRIPTS / "__init__.py",
-    submodule_search_locations=[str(SCRIPTS)],
+from plugins.terraform.scripts import (
+    gcp_provider_process as module,
+    gcp_provider_reader as reader,
+    guest_pty as pty,
 )
-package = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = package
-spec.loader.exec_module(package)
-module = importlib.import_module("provider_test_package.gcp_provider_process")
-pty = importlib.import_module("provider_test_package.guest_pty")
-reader = importlib.import_module("provider_test_package.gcp_provider_reader")
+
+SCRIPTS = Path(__file__).resolve().parents[1] / "plugins/terraform/scripts"
+
 BODY = "import json,os,subprocess,sys\nchildren=[]\ndef spawn():\n child=subprocess.Popen([sys.executable,'-I','-B','-c','import sys; sys.stdin.buffer.read()'],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n children.append(child)\n print(json.dumps({'parent':os.getpid(),'child':child.pid}),flush=True)\nspawn()\nfor line in sys.stdin:\n if line.strip()=='replace':\n  children[0].stdin.close();children[0].wait();children.pop(0);spawn()\n elif line.strip()=='extra':spawn()\n elif line.startswith('reader-main '):\n  import importlib.util,hashlib\n  path,checksum=line.strip().split()[1:]\n  spec=importlib.util.spec_from_file_location('reader_main',sys.argv[1]);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)\n  # Offline fixture pins only; this does not qualify the published Go provider.\n  checksum_exe=hashlib.sha256(open(sys.executable,'rb').read()).hexdigest()\n  module.PINS={key:checksum_exe for key in module.PINS}\n  sys.argv=['gcp_provider_reader.py','--request',path,'--sha256',checksum]\n  module.main()\n  print(json.dumps({'parent':os.getpid(),'child':children[0].pid}),flush=True)\n elif line.strip()=='reader-session':\n  import importlib.util\n  spec=importlib.util.spec_from_file_location('reader_session',sys.argv[1]);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)\n  module.ensure_reader_session()\n  print(json.dumps({'parent':os.getpid(),'session':os.getsid(0),'group':os.getpgrp()}),flush=True)\nfor child in children:\n child.stdin.close();child.wait()\n"
+
+
+def original_pipe(value: IO[bytes] | None) -> IO[bytes]:
+    """Require the original explicitly piped fixture descriptor."""
+    if value is None:
+        message = "Original fixture process pipe unavailable"
+        raise RuntimeError(message)
+    return value
 
 
 class ProviderProcessTests(unittest.TestCase):
@@ -37,7 +41,7 @@ class ProviderProcessTests(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="ce-provider-process-"))
         self.exe = Path(sys.executable).resolve()
         self.sha = hashlib.sha256(self.exe.read_bytes()).hexdigest()
-        self.parents = []
+        self.parents: list[subprocess.Popen[bytes]] = []
         self.parent, self.row = self.spawn_parent()
         self.original = pty.process_identity(self.row["parent"])
         self.checks = 0
@@ -73,27 +77,27 @@ class ProviderProcessTests(unittest.TestCase):
             start_new_session=True,
         )
         self.parents.append(child)
-        if not select.select([child.stdout], [], [], 15)[0]:
+        if not select.select([original_pipe(child.stdout)], [], [], 15)[0]:
             msg = "Original fixture startup exhausted"
             raise RuntimeError(msg)
-        return (child, json.loads(child.stdout.readline()))
+        return (child, json.loads(original_pipe(child.stdout).readline()))
 
     def request(self, command: str) -> dict[str, int]:
         """Send a cooperative fixture command without using process signals."""
-        self.parent.stdin.write((command + "\n").encode())
-        self.parent.stdin.flush()
-        if not select.select([self.parent.stdout], [], [], 15)[0]:
+        original_pipe(self.parent.stdin).write((command + "\n").encode())
+        original_pipe(self.parent.stdin).flush()
+        if not select.select([original_pipe(self.parent.stdout)], [], [], 15)[0]:
             msg = "Original fixture command exhausted"
             raise RuntimeError(msg)
-        return json.loads(self.parent.stdout.readline())
+        return json.loads(original_pipe(self.parent.stdout).readline())
 
     def tearDown(self) -> None:
         """Close original stdin and require natural fixture exits."""
         for parent in self.parents:
-            parent.stdin.close()
+            original_pipe(parent.stdin).close()
             assert parent.wait(timeout=15) == 0
-            parent.stdout.close()
-            parent.stderr.close()
+            original_pipe(parent.stdout).close()
+            original_pipe(parent.stderr).close()
 
     def test_actual_original_child_has_independent_kernel_sdk_and_executable_witnesses(
         self,
@@ -214,9 +218,9 @@ class ProviderProcessTests(unittest.TestCase):
         self,
     ) -> None:
         """Final inspection can prove closure after its original executor exits."""
-        self.parent.stdin.close()
+        original_pipe(self.parent.stdin).close()
         assert self.parent.wait(timeout=15) == 0
-        available, closed = reader.inspect_executor(self.original)
+        available, closed = reader.inspect_executor(dict(self.original))
         assert not available
         assert closed
 
@@ -225,8 +229,8 @@ class ProviderProcessTests(unittest.TestCase):
     ) -> None:
         """A vanished executor after discovery starts still requires group closure."""
 
-        def disappeared() -> tuple[object, ...]:
-            self.parent.stdin.close()
+        def disappeared() -> NoReturn:
+            original_pipe(self.parent.stdin).close()
             if self.parent.wait(timeout=15) != 0:
                 message = "Original fixture exit failed"
                 raise RuntimeError(message)
@@ -234,7 +238,7 @@ class ProviderProcessTests(unittest.TestCase):
             raise FileNotFoundError(message)
 
         available, closed, candidates = reader.collect_cohort(
-            self.original, disappeared
+            dict(self.original), disappeared
         )
         assert not available
         assert closed
@@ -242,17 +246,18 @@ class ProviderProcessTests(unittest.TestCase):
 
     def test_reader_final_capture_uses_the_original_separate_reserve(self) -> None:
         """Permit final reads after the operation deadline without resetting it."""
-        request = {"originalStartMs": 1000, "deadlineMs": 7201000}
+        request: dict[str, object] = {"originalStartMs": 1000, "deadlineMs": 7201000}
         with pytest.raises(ValueError, match="budget"):
             reader.require_capture_budget(request, 7201001)
-        request["finalCapture"] = {
+        final_capture = {
             "finalStartedMs": 7201000,
             "finalDeadlineMs": 7501000,
         }
+        request["finalCapture"] = final_capture
         assert reader.require_capture_budget(request, 7201001) == 7501000
         with pytest.raises(ValueError, match="budget"):
             reader.require_capture_budget(request, 7501000)
-        request["finalCapture"]["finalDeadlineMs"] += 1
+        final_capture["finalDeadlineMs"] += 1
         with pytest.raises(ValueError, match="budget"):
             reader.require_capture_budget(request, 7201001)
 
@@ -261,19 +266,19 @@ class ProviderProcessTests(unittest.TestCase):
     ) -> None:
         """A missing unrelated file cannot hide the still-live original actor."""
 
-        def failed() -> tuple[object, ...]:
+        def failed() -> NoReturn:
             message = "unrelated missing input"
             raise FileNotFoundError(message)
 
         with pytest.raises(FileNotFoundError, match="unrelated"):
-            reader.collect_cohort(self.original, failed, assert_inputs=self.guard)
+            reader.collect_cohort(dict(self.original), failed, assert_inputs=self.guard)
         assert pty.process_identity(self.original["pid"]) == self.original
 
     def test_reader_changed_inputs_during_exit_cannot_be_accepted(self) -> None:
         """Independent group absence cannot excuse changed admitted inputs."""
 
-        def disappeared() -> tuple[object, ...]:
-            self.parent.stdin.close()
+        def disappeared() -> NoReturn:
+            original_pipe(self.parent.stdin).close()
             assert self.parent.wait(timeout=15) == 0
             message = "original executor naturally exited"
             raise FileNotFoundError(message)
@@ -288,12 +293,14 @@ class ProviderProcessTests(unittest.TestCase):
                 raise ValueError(message)
 
         with pytest.raises(ValueError, match="input changed"):
-            reader.collect_cohort(self.original, disappeared, assert_inputs=changed)
+            reader.collect_cohort(
+                dict(self.original), disappeared, assert_inputs=changed
+            )
 
     def test_reader_replacement_group_and_unrelated_errors_remain_failed(self) -> None:
         """Never turn an identity replacement or an unrelated error into closure."""
 
-        def missing() -> tuple[object, ...]:
+        def missing() -> NoReturn:
             message = "discovery failed"
             raise FileNotFoundError(message)
 
@@ -303,14 +310,14 @@ class ProviderProcessTests(unittest.TestCase):
             ),
             pytest.raises(FileNotFoundError),
         ):
-            reader.collect_cohort(self.original, missing)
+            reader.collect_cohort(dict(self.original), missing)
 
-        def unrelated() -> tuple[object, ...]:
+        def unrelated() -> NoReturn:
             message = "original identity changed"
             raise ValueError(message)
 
         with pytest.raises(ValueError, match="identity changed"):
-            reader.collect_cohort(self.original, unrelated)
+            reader.collect_cohort(dict(self.original), unrelated)
 
     def test_reader_changed_original_identity_is_not_group_closure(self) -> None:
         """A reused PID cannot be accepted even if the old group is absent."""
@@ -320,7 +327,7 @@ class ProviderProcessTests(unittest.TestCase):
             patch.object(pty, "group_absent", return_value=True),
             pytest.raises(ValueError, match="identity changed"),
         ):
-            reader.inspect_executor(self.original)
+            reader.inspect_executor(dict(self.original))
 
     def test_source_never_sends_signals_or_selects_by_latest_pid(self) -> None:
         """Verify source never sends signals or selects by latest pid."""
