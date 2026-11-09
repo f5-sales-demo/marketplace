@@ -1426,7 +1426,12 @@ function signalFreeTerraformExecutor(input) {
         signalsSent: false,
         reason,
       };
-      await writeFile2(join4(root, 'final.private.json'), JSON.stringify(capture), { mode: 256, flag: 'wx' });
+      const finalErrors = [];
+      try {
+        await writeFile2(join4(root, 'final.private.json'), JSON.stringify(capture), { mode: 256, flag: 'wx' });
+      } catch (error) {
+        finalErrors.push(error);
+      }
       let captureTimer;
       try {
         await Promise.race([
@@ -1445,6 +1450,8 @@ function signalFreeTerraformExecutor(input) {
           }),
         ]);
         captureClosed = true;
+      } catch (error) {
+        finalErrors.push(error);
       } finally {
         if (captureTimer) clearTimeout(captureTimer);
       }
@@ -1457,26 +1464,38 @@ function signalFreeTerraformExecutor(input) {
               await assertExecutorGroupClosed(lock);
               groupClosed = true;
             } catch (error) {
-              if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
-                throw error;
+              if (!(error instanceof Error) || error.message !== 'Original executor process group remains live') {
+                finalErrors.push(error);
+                break;
+              }
             }
           } else groupClosed = true;
         }
         if (!groupClosed) await pause();
       }
-      await writeFile2(
-        join4(root, 'completion.private.json'),
-        JSON.stringify({
-          ...capture,
-          finishedMs: now(),
-          actualExitCode,
-          originalGroupClosed: groupClosed,
-          captureClosed,
-        }),
-        { mode: 256, flag: 'wx' },
-      );
-      if (!groupClosed || actualExitCode === null)
-        throw new Error('Original executor closure unresolved; lock remains held');
+      try {
+        await writeFile2(
+          join4(root, 'completion.private.json'),
+          JSON.stringify({
+            ...capture,
+            finishedMs: now(),
+            actualExitCode,
+            originalGroupClosed: groupClosed,
+            captureClosed,
+          }),
+          { mode: 256, flag: 'wx' },
+        );
+      } catch (error) {
+        finalErrors.push(error);
+      }
+      if (!groupClosed || actualExitCode === null) {
+        const closureError = new Error('Original executor closure unresolved; lock remains held');
+        if (finalErrors.length)
+          throw new AggregateError([...finalErrors, closureError], 'Original final capture evidence unresolved');
+        throw closureError;
+      }
+      if (finalErrors.length === 1) throw finalErrors[0];
+      if (finalErrors.length) throw new AggregateError(finalErrors, 'Original final capture evidence unresolved');
       if (release) {
         await release();
         release = undefined;
@@ -1491,24 +1510,35 @@ function signalFreeTerraformExecutor(input) {
         ...(actualExitCode ? { failureCategory: category } : {}),
       };
     } catch (error) {
-      if (child && !submitted && actualExitCode === null) await child.stdin.end();
-      if (release && !captureClosed) {
-        await writeFile2(
-          join4(lock, 'capture-unresolved.json'),
-          JSON.stringify({
-            schemaVersion: 1,
-            pid: child?.pid,
-            originalStartMs: policy.originalStartMs,
-            originalDeadlineMs: policy.originalDeadlineMs,
-            finalStartedMs: finalStarted,
-            errorType: error instanceof Error ? error.name : 'unknown',
-          }),
-          { mode: 256, flag: 'wx' },
-        );
+      const failures = [error];
+      if (child && !submitted && actualExitCode === null) {
+        try {
+          await child.stdin.end();
+        } catch (closureError) {
+          failures.push(closureError);
+        }
       }
+      if (release) {
+        try {
+          await writeFile2(
+            join4(lock, 'capture-unresolved.json'),
+            JSON.stringify({
+              schemaVersion: 1,
+              pid: child?.pid,
+              originalStartMs: policy.originalStartMs,
+              originalDeadlineMs: policy.originalDeadlineMs,
+              finalStartedMs: finalStarted,
+              errorType: error instanceof Error ? error.name : 'unknown',
+            }),
+            { mode: 256, flag: 'wx' },
+          );
+        } catch (persistenceError) {
+          failures.push(persistenceError);
+        }
+      }
+      if (failures.length > 1) throw new AggregateError(failures, 'Original executor evidence unresolved');
       throw error;
     } finally {
-      if (release && groupClosed && captureClosed) await release();
       await stdout.close();
       await stderr.close();
       python.close();
