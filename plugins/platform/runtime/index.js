@@ -2188,6 +2188,9 @@ async function requireGroupClosed(path, owner) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  await requirePhysicalGroupClosed(path, owner);
+}
+async function requirePhysicalGroupClosed(path, owner) {
   const original = await readGroupLifetime(path, owner);
   if (!original) return;
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');

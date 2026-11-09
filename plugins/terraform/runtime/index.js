@@ -87,6 +87,9 @@ async function requireGroupClosed(path, owner) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  await requirePhysicalGroupClosed(path, owner);
+}
+async function requirePhysicalGroupClosed(path, owner) {
   const original = await readGroupLifetime(path, owner);
   if (!original) return;
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
@@ -111,6 +114,12 @@ async function requireGroupClosed(path, owner) {
     current.metadata.mtimeMs !== original.metadata.mtimeMs
   )
     throw new Error('Original executor lifetime changed during closure inspection');
+}
+async function assertExecutorProcessGroupAbsent(path) {
+  const owner = await readClaim(path);
+  if (owner.schemaVersion !== 2 || owner.group !== owner.pid)
+    throw new Error('Original tracked executor lifetime required for independent cleanup');
+  await requirePhysicalGroupClosed(path, owner);
 }
 async function assertExecutorGroupClosed(path) {
   await requireGroupClosed(path, await readClaim(path));
@@ -2683,12 +2692,43 @@ class TerraformRunner {
   #directory;
   #manifest;
   #busy = false;
-  constructor(root, execute = executeTerraform) {
+  #cleanup;
+  #cleanupEmpty = false;
+  #cleanupMonitor;
+  constructor(root, execute = executeTerraform, cleanup) {
     this.root = root;
     this.execute = execute;
     if (!isAbsolute8(root) || resolve8(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (cleanup) {
+      if (
+        execute === executeTerraform ||
+        !safeId.test(cleanup.deploymentId) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.deploymentManifestSha256) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.state.sha256) ||
+        !cleanup.state.lineage ||
+        !Number.isSafeInteger(cleanup.state.serial) ||
+        cleanup.state.serial < 0 ||
+        !cleanup.resources.length ||
+        new Set(cleanup.resources.map((r) => r.address)).size !== cleanup.resources.length ||
+        cleanup.resources.some((r) => !r.address || !r.id) ||
+        typeof cleanup.assertIndependentClosure !== 'function' ||
+        ['claim.json', 'lifetime.json', 'capture-unresolved.json'].some(
+          (name) => !/^[a-f0-9]{64}$/.test(cleanup.retainedLockSha256[name]),
+        )
+      )
+        throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      this.#cleanup = Object.freeze({
+        ...cleanup,
+        state: Object.freeze({ ...cleanup.state }),
+        resources: Object.freeze(cleanup.resources.map((r) => Object.freeze({ ...r }))),
+        retainedLockInputs: freezeAdmittedCaptureInputs(cleanup.retainedLockInputs),
+        retainedLockSha256: Object.freeze({ ...cleanup.retainedLockSha256 }),
+        assertIndependentClosure: cleanup.assertIndependentClosure,
+      });
+    }
   }
   async prepare(deployment) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot prepare a new deployment');
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
     if (deployment.stage !== undefined && !safeId.test(deployment.stage))
@@ -2738,6 +2778,7 @@ class TerraformRunner {
     });
   }
   async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot reconcile creation');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -2761,6 +2802,7 @@ class TerraformRunner {
     });
   }
   async reviseConfiguration(expectedSha256, configuration) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot revise configuration');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -2938,13 +2980,71 @@ class TerraformRunner {
     let release;
     try {
       release = await acquireProcessLock(lock);
-      const executorStopped = await acquireProcessLock(join6(this.#directory, '.terraform-executor-lock'));
-      await executorStopped();
+      if (this.#cleanup) await this.#verifyCaptureCleanup();
+      else {
+        const executorStopped = await acquireProcessLock(join6(this.#directory, '.terraform-executor-lock'));
+        await executorStopped();
+      }
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
+  }
+  async #verifyCaptureCleanup() {
+    const scope = this.#cleanup;
+    if (!scope || !this.#directory || this.#manifest?.deploymentId !== scope.deploymentId)
+      throw new Error('Original cleanup owner differs');
+    const directory = this.#directory;
+    if (digest2(await privateRead(join6(directory, 'deployment.json'))) !== scope.deploymentManifestSha256)
+      throw new Error('Original cleanup manifest changed');
+    const lock = join6(directory, '.terraform-executor-lock');
+    for (const name of ['claim.json', 'lifetime.json', 'capture-unresolved.json'])
+      if (
+        scope.retainedLockInputs[name]?.path !== join6(lock, name) ||
+        scope.retainedLockInputs[name]?.sha256 !== scope.retainedLockSha256[name]
+      )
+        throw new Error('Original retained cleanup lock admission differs');
+    this.#cleanupMonitor ??= await monitorOriginalInputs(scope.retainedLockInputs);
+    await this.#cleanupMonitor.assertOriginal();
+    for (const [name, expected] of Object.entries(scope.retainedLockSha256))
+      if (digest2(await privateRead(join6(lock, name))) !== expected)
+        throw new Error('Original failed cleanup lock changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
+    const raw = await privateRead(join6(directory, 'terraform.tfstate'));
+    const state = decode2(raw.toString());
+    if (
+      state.lineage !== scope.state.lineage ||
+      !Number.isSafeInteger(state.serial) ||
+      state.serial < scope.state.serial
+    )
+      throw new Error('Original reviewed cleanup state identity changed');
+    if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
+    const resources = state.resources.map(object);
+    const actual = resources
+      .filter((r) => r.mode === 'managed')
+      .flatMap((r) => {
+        if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
+          throw new Error('Original cleanup state resource malformed');
+        return r.instances.map((instance) => {
+          const row = object(instance),
+            attributes = object(row.attributes);
+          const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
+          const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
+          return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
+        });
+      });
+    if (this.#cleanupEmpty) {
+      if (actual.length) throw new Error('Owned cleanup resources remain');
+    } else if (
+      digest2(raw) !== scope.state.sha256 ||
+      canonical2(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
+        canonical2([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
+    )
+      throw new Error('Original reviewed cleanup state or owned resources changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
   }
   async readStateIdentity() {
     return this.#exclusive(async () => {
@@ -3043,6 +3143,7 @@ class TerraformRunner {
     return { changes, noChanges, actionInvocations };
   }
   async #plan(env, signal, action, destroy = false) {
+    if (this.#cleanup && !destroy) throw new Error('Capture-independent cleanup permits destroy plans only');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       await this.#preserveActionSubmission();
@@ -3431,6 +3532,17 @@ class TerraformRunner {
     });
   }
   async apply(receipt, env, signal) {
+    if (
+      this.#cleanup &&
+      (receipt.operation !== 'destroy' ||
+        receipt.actionInvocations?.length ||
+        receipt.changes.some(
+          (change) =>
+            !this.#cleanup?.resources.some((resource) => resource.address === change.address) ||
+            JSON.stringify(change.actions) !== '["delete"]',
+        ))
+    )
+      throw new Error('Capture-independent cleanup cannot apply creates, unrelated objects or provider actions');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const journal = decode2((await privateRead(join6(this.#state().directory, 'plan-receipt.json'))).toString());
@@ -3466,6 +3578,10 @@ class TerraformRunner {
       await persist(join6(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
       await persist(join6(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+      if (this.#cleanup) {
+        this.#cleanupEmpty = true;
+        await this.#verifyCaptureCleanup();
+      }
     });
   }
 }

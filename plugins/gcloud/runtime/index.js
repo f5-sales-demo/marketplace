@@ -259,6 +259,9 @@ async function requireGroupClosed(path, owner) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  await requirePhysicalGroupClosed(path, owner);
+}
+async function requirePhysicalGroupClosed(path, owner) {
   const original = await readGroupLifetime(path, owner);
   if (!original) return;
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
@@ -283,6 +286,12 @@ async function requireGroupClosed(path, owner) {
     current.metadata.mtimeMs !== original.metadata.mtimeMs
   )
     throw new Error('Original executor lifetime changed during closure inspection');
+}
+async function assertExecutorProcessGroupAbsent(path) {
+  const owner = await readClaim(path);
+  if (owner.schemaVersion !== 2 || owner.group !== owner.pid)
+    throw new Error('Original tracked executor lifetime required for independent cleanup');
+  await requirePhysicalGroupClosed(path, owner);
 }
 async function bootId() {
   let value;
@@ -7368,19 +7377,210 @@ var init_failure = __esm(() => {
   };
 });
 
+// plugins/terraform/src/installed-capture-context.ts
+import { isAbsolute as isAbsolute3, resolve as resolve2 } from 'node:path';
+
+function canonical(path) {
+  return typeof path === 'string' && isAbsolute3(path) && resolve2(path) === path && !controls(path);
+}
+function freezeAdmittedCaptureInputs(input) {
+  if (!input || typeof input !== 'object' || !Object.keys(input).length)
+    throw new Error('Original admitted capture inputs required');
+  const paths = new Set();
+  const output = {};
+  for (const name of Object.keys(input).sort()) {
+    const binding = input[name];
+    if (
+      !binding ||
+      !canonical(binding.path) ||
+      !/^[a-f0-9]{64}$/.test(binding.sha256) ||
+      paths.has(binding.path) ||
+      !binding.expectedIdentity ||
+      !binding.expectedParentIdentity ||
+      fileKeys.some(
+        (key) =>
+          typeof binding.expectedIdentity?.[key] !== 'string' ||
+          !/^(?:0|[1-9][0-9]*)$/.test(binding.expectedIdentity[key]),
+      ) ||
+      parentKeys.some(
+        (key) =>
+          typeof binding.expectedParentIdentity?.[key] !== 'string' ||
+          !/^(?:0|[1-9][0-9]*)$/.test(binding.expectedParentIdentity[key]),
+      )
+    )
+      throw new Error('Exact admitted capture file and parent identities required');
+    paths.add(binding.path);
+    output[name] = Object.freeze({
+      path: binding.path,
+      sha256: binding.sha256,
+      expectedIdentity: Object.freeze({ ...binding.expectedIdentity }),
+      expectedParentIdentity: Object.freeze({ ...binding.expectedParentIdentity }),
+    });
+  }
+  return Object.freeze(output);
+}
+var fileKeys,
+  parentKeys,
+  controls = (value) =>
+    Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
+var init_installed_capture_context = __esm(() => {
+  fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+  parentKeys = ['dev', 'ino', 'uid', 'mode'];
+});
+
+// plugins/terraform/src/original-input-monitor.ts
+import { createHash as createHash8 } from 'node:crypto';
+import { constants as constants2, watch as watch2 } from 'node:fs';
+import { lstat as lstat6, open as open2, realpath as realpath4 } from 'node:fs/promises';
+import { basename as basename3, dirname as dirname3, isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
+
+async function metadata(path) {
+  const stat = await lstat6(path, { bigint: true });
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== BigInt(process.getuid?.() ?? -1) ||
+    stat.nlink !== 1n ||
+    (stat.mode & 0o022n) !== 0n ||
+    stat.size < 1n ||
+    stat.size > maximum
+  )
+    throw new Error('Original input monitor requires owned bounded single-link files');
+  return stat;
+}
+async function monitorOriginalInputs(input) {
+  const bindings = Object.values(input).map((binding) => ({
+    ...binding,
+    expectedIdentity: binding.expectedIdentity ? { ...binding.expectedIdentity } : undefined,
+    expectedParentIdentity: binding.expectedParentIdentity ? { ...binding.expectedParentIdentity } : undefined,
+  }));
+  if (!bindings.length || new Set(bindings.map((b) => b.path)).size !== bindings.length)
+    throw new Error('Original input monitor requires a unique nonempty input set');
+  const watchers = [];
+  const originals = [];
+  let refused = false;
+  let closed = false;
+  const close = () => {
+    closed = true;
+    for (const watcher of watchers.splice(0)) watcher.close();
+  };
+  const observe = (watcher) => {
+    watchers.push(watcher);
+    watcher.on('error', () => {
+      refused = true;
+    });
+  };
+  const assertOriginal = async () => {
+    if (refused || closed) throw new Error('Original input monitor remains refused or closed');
+    try {
+      for (const { binding, file, parent } of originals) {
+        const current = await metadata(binding.path);
+        if (keys2.some((key) => current[key].toString() !== file[key]))
+          throw new Error('Original input identity changed');
+        const currentParent = await lstat6(dirname3(binding.path), { bigint: true });
+        if (
+          !currentParent.isDirectory() ||
+          currentParent.isSymbolicLink() ||
+          parentKeys2.some((key) => currentParent[key].toString() !== parent[key]) ||
+          (await realpath4(binding.path)) !== binding.path
+        )
+          throw new Error('Original input parent changed');
+        const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+        try {
+          const opened = await handle.stat({ bigint: true });
+          if (keys2.some((key) => opened[key].toString() !== file[key]))
+            throw new Error('Original input changed during open');
+          if (hash3(await handle.readFile()) !== binding.sha256) throw new Error('Original input bytes changed');
+        } finally {
+          await handle.close();
+        }
+        const after = await metadata(binding.path);
+        if (keys2.some((key) => after[key].toString() !== file[key]) || refused || closed)
+          throw new Error('Original input changed during read');
+      }
+    } catch {
+      refused = true;
+      throw new Error('Original input monitor detected a changed identity or bytes');
+    }
+  };
+  try {
+    for (const binding of bindings) {
+      if (
+        !isAbsolute4(binding.path) ||
+        resolve3(binding.path) !== binding.path ||
+        (await realpath4(binding.path)) !== binding.path ||
+        !/^[a-f0-9]{64}$/.test(binding.sha256)
+      )
+        throw new Error('Original input monitor requires canonical reviewed bindings');
+      const stat = await metadata(binding.path);
+      const parent = await lstat6(dirname3(binding.path), { bigint: true });
+      if (
+        !parent.isDirectory() ||
+        parent.isSymbolicLink() ||
+        parent.uid !== BigInt(process.getuid?.() ?? -1) ||
+        (parent.mode & 0o022n) !== 0n
+      )
+        throw new Error('Original input monitor requires an owned parent');
+      const file = binding.expectedIdentity ?? identity(stat);
+      if (binding.expectedIdentity && !binding.expectedParentIdentity)
+        throw new Error('Original input monitor requires the admitted parent identity');
+      const parentIdentity = binding.expectedParentIdentity ?? {
+        dev: parent.dev.toString(),
+        ino: parent.ino.toString(),
+        uid: parent.uid.toString(),
+        mode: parent.mode.toString(),
+      };
+      if (parentKeys2.some((key) => !/^(?:0|[1-9][0-9]*)$/.test(parentIdentity[key])))
+        throw new Error('Original input monitor requires exact admitted parent identities');
+      if (keys2.some((key) => typeof file[key] !== 'string' || !/^(?:0|[1-9][0-9]*)$/.test(file[key])))
+        throw new Error('Original input monitor requires exact admitted identities');
+      observe(
+        watch2(binding.path, { persistent: false }, () => {
+          refused = true;
+        }),
+      );
+      observe(
+        watch2(dirname3(binding.path), { persistent: false }, (_event, name) => {
+          if (!name || name.toString() === basename3(binding.path)) refused = true;
+        }),
+      );
+      originals.push({
+        binding,
+        file,
+        parent: parentIdentity,
+      });
+    }
+    await assertOriginal();
+    return Object.freeze({ assertOriginal, close });
+  } catch (error) {
+    close();
+    throw error;
+  }
+}
+var keys2,
+  parentKeys2,
+  hash3 = (raw) => createHash8('sha256').update(raw).digest('hex'),
+  maximum,
+  identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
+var init_original_input_monitor = __esm(() => {
+  keys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+  parentKeys2 = ['dev', 'ino', 'uid', 'mode'];
+  maximum = 256n * 1024n * 1024n;
+});
+
 // plugins/terraform/src/runner.ts
-import { createHash as createHash8, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash9, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
-  lstat as lstat6,
+  lstat as lstat7,
   mkdir as mkdir3,
   readFile as readFile3,
-  realpath as realpath4,
+  realpath as realpath5,
   rename as rename2,
   rm as rm3,
   writeFile as writeFile3,
 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute3, join as join8, resolve as resolve2 } from 'node:path';
+import { isAbsolute as isAbsolute5, join as join8, resolve as resolve4 } from 'node:path';
 
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -7403,12 +7603,12 @@ function decode(value) {
     throw new Error('Terraform returned malformed JSON');
   }
 }
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+function canonical2(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical2(item)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -7459,25 +7659,25 @@ function inspectActionInvocations(plan, expected) {
     Object.keys(object5(action.invoke_action_trigger)).length ||
     !allFalse(action.config_unknown) ||
     !allFalse(action.config_sensitive) ||
-    digest2(canonical(object5(action.config_values))) !== expected.configValuesSha256
+    digest2(canonical2(object5(action.config_values))) !== expected.configValuesSha256
   )
     throw new Error('Terraform action identity, trigger or configuration differs');
   return [{ ...expected }];
 }
 async function privateDirectory(path) {
   await mkdir3(path, { recursive: true, mode: 448 });
-  const stat = await lstat6(path);
+  const stat = await lstat7(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath4(path)) !== path
+    (await realpath5(path)) !== path
   )
     throw new Error('Terraform storage ownership is invalid');
   await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat6(path);
+  const stat = await lstat7(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -7754,12 +7954,43 @@ class TerraformRunner {
   #directory;
   #manifest;
   #busy = false;
-  constructor(root, execute = executeTerraform) {
+  #cleanup;
+  #cleanupEmpty = false;
+  #cleanupMonitor;
+  constructor(root, execute = executeTerraform, cleanup) {
     this.root = root;
     this.execute = execute;
-    if (!isAbsolute3(root) || resolve2(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (!isAbsolute5(root) || resolve4(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (cleanup) {
+      if (
+        execute === executeTerraform ||
+        !safeId.test(cleanup.deploymentId) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.deploymentManifestSha256) ||
+        !/^[a-f0-9]{64}$/.test(cleanup.state.sha256) ||
+        !cleanup.state.lineage ||
+        !Number.isSafeInteger(cleanup.state.serial) ||
+        cleanup.state.serial < 0 ||
+        !cleanup.resources.length ||
+        new Set(cleanup.resources.map((r) => r.address)).size !== cleanup.resources.length ||
+        cleanup.resources.some((r) => !r.address || !r.id) ||
+        typeof cleanup.assertIndependentClosure !== 'function' ||
+        ['claim.json', 'lifetime.json', 'capture-unresolved.json'].some(
+          (name) => !/^[a-f0-9]{64}$/.test(cleanup.retainedLockSha256[name]),
+        )
+      )
+        throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      this.#cleanup = Object.freeze({
+        ...cleanup,
+        state: Object.freeze({ ...cleanup.state }),
+        resources: Object.freeze(cleanup.resources.map((r) => Object.freeze({ ...r }))),
+        retainedLockInputs: freezeAdmittedCaptureInputs(cleanup.retainedLockInputs),
+        retainedLockSha256: Object.freeze({ ...cleanup.retainedLockSha256 }),
+        assertIndependentClosure: cleanup.assertIndependentClosure,
+      });
+    }
   }
   async prepare(deployment) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot prepare a new deployment');
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
     if (deployment.stage !== undefined && !safeId.test(deployment.stage))
@@ -7809,13 +8040,14 @@ class TerraformRunner {
     });
   }
   async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot reconcile creation');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -7832,6 +8064,7 @@ class TerraformRunner {
     });
   }
   async reviseConfiguration(expectedSha256, configuration) {
+    if (this.#cleanup) throw new Error('Capture-independent cleanup cannot revise configuration');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -7865,7 +8098,7 @@ class TerraformRunner {
     if (previousConfiguration !== undefined) {
       const previous = decode(previousConfiguration);
       for (const key of ['terraform', 'provider'])
-        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
+        if (canonical2(previous[key] ?? {}) !== canonical2(next[key] ?? {}))
           throw new Error('Terraform configuration revision cannot change provider or execution identity');
     }
   }
@@ -7890,7 +8123,7 @@ class TerraformRunner {
       typeof transition.archiveId !== 'string' ||
       !/^[0-9a-f-]{36}$/.test(transition.archiveId) ||
       !/^[0-9a-f]{64}$/.test(previous.configurationSha256) ||
-      canonical({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical(next) ||
+      canonical2({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical2(next) ||
       next.configurationSha256 !== digest2(transition.configuration)
     )
       throw new Error('Terraform configuration transition is malformed');
@@ -7898,7 +8131,7 @@ class TerraformRunner {
     const owner = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
     const current = await privateRead(join8(directory, 'main.tf.json'));
     if (
-      ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
+      ![canonical2(previous), canonical2(next)].includes(canonical2(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
       digest2(await privateRead(join8(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
       digest2(await privateRead(join8(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
@@ -7951,7 +8184,7 @@ class TerraformRunner {
           configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest2(configuration),
         providerLockSha256: digest2(providerLock),
       };
-      if (canonical(recoveredManifest) !== canonical(expectedManifest))
+      if (canonical2(recoveredManifest) !== canonical2(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
         this.#validateRevision((await privateRead(join8(directory, 'main.tf.json'))).toString(), configuration);
@@ -7967,13 +8200,13 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat6(join8(this.#directory, 'configuration-transition.json'));
+      await lstat7(join8(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
     const owner = decode((await privateRead(join8(this.#directory, 'deployment.json'))).toString());
-    if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
+    if (canonical2(owner) !== canonical2(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
       ['main.tf.json', this.#manifest.configurationSha256],
@@ -8009,13 +8242,71 @@ class TerraformRunner {
     let release;
     try {
       release = await acquireProcessLock(lock);
-      const executorStopped = await acquireProcessLock(join8(this.#directory, '.terraform-executor-lock'));
-      await executorStopped();
+      if (this.#cleanup) await this.#verifyCaptureCleanup();
+      else {
+        const executorStopped = await acquireProcessLock(join8(this.#directory, '.terraform-executor-lock'));
+        await executorStopped();
+      }
       return await operation();
     } finally {
       if (release) await release();
       this.#busy = false;
     }
+  }
+  async #verifyCaptureCleanup() {
+    const scope = this.#cleanup;
+    if (!scope || !this.#directory || this.#manifest?.deploymentId !== scope.deploymentId)
+      throw new Error('Original cleanup owner differs');
+    const directory = this.#directory;
+    if (digest2(await privateRead(join8(directory, 'deployment.json'))) !== scope.deploymentManifestSha256)
+      throw new Error('Original cleanup manifest changed');
+    const lock = join8(directory, '.terraform-executor-lock');
+    for (const name of ['claim.json', 'lifetime.json', 'capture-unresolved.json'])
+      if (
+        scope.retainedLockInputs[name]?.path !== join8(lock, name) ||
+        scope.retainedLockInputs[name]?.sha256 !== scope.retainedLockSha256[name]
+      )
+        throw new Error('Original retained cleanup lock admission differs');
+    this.#cleanupMonitor ??= await monitorOriginalInputs(scope.retainedLockInputs);
+    await this.#cleanupMonitor.assertOriginal();
+    for (const [name, expected] of Object.entries(scope.retainedLockSha256))
+      if (digest2(await privateRead(join8(lock, name))) !== expected)
+        throw new Error('Original failed cleanup lock changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
+    const raw = await privateRead(join8(directory, 'terraform.tfstate'));
+    const state = decode(raw.toString());
+    if (
+      state.lineage !== scope.state.lineage ||
+      !Number.isSafeInteger(state.serial) ||
+      state.serial < scope.state.serial
+    )
+      throw new Error('Original reviewed cleanup state identity changed');
+    if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
+    const resources = state.resources.map(object5);
+    const actual = resources
+      .filter((r) => r.mode === 'managed')
+      .flatMap((r) => {
+        if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
+          throw new Error('Original cleanup state resource malformed');
+        return r.instances.map((instance) => {
+          const row = object5(instance),
+            attributes = object5(row.attributes);
+          const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
+          const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
+          return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
+        });
+      });
+    if (this.#cleanupEmpty) {
+      if (actual.length) throw new Error('Owned cleanup resources remain');
+    } else if (
+      digest2(raw) !== scope.state.sha256 ||
+      canonical2(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
+        canonical2([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
+    )
+      throw new Error('Original reviewed cleanup state or owned resources changed');
+    await assertExecutorProcessGroupAbsent(lock);
+    await scope.assertIndependentClosure();
   }
   async readStateIdentity() {
     return this.#exclusive(async () => {
@@ -8114,6 +8405,7 @@ class TerraformRunner {
     return { changes, noChanges, actionInvocations };
   }
   async #plan(env, signal, action, destroy = false) {
+    if (this.#cleanup && !destroy) throw new Error('Capture-independent cleanup permits destroy plans only');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       await this.#preserveActionSubmission();
@@ -8231,7 +8523,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'applied' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.engine !== 'terraform' ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -8274,7 +8566,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
       )
@@ -8380,7 +8672,7 @@ class TerraformRunner {
         noChanges,
         ...(stored.operation === 'destroy' ? { operation: 'destroy' } : {}),
       };
-      if (canonical(stored) !== canonical(receipt))
+      if (canonical2(stored) !== canonical2(receipt))
         throw new Error('Current resource receipt differs from saved binary plan');
       const state = await this.#verifyApplyReceipt(receipt, ['planned']);
       if (
@@ -8405,7 +8697,7 @@ class TerraformRunner {
     const state = journal.state;
     if (
       !states.includes(state) ||
-      canonical(journal.receipt) !== canonical(receipt) ||
+      canonical2(journal.receipt) !== canonical2(receipt) ||
       receipt.engine !== 'terraform' ||
       receipt.deploymentId !== manifest.deploymentId ||
       receipt.backendIdentity !== manifest.backendIdentity ||
@@ -8502,12 +8794,23 @@ class TerraformRunner {
     });
   }
   async apply(receipt, env, signal) {
+    if (
+      this.#cleanup &&
+      (receipt.operation !== 'destroy' ||
+        receipt.actionInvocations?.length ||
+        receipt.changes.some(
+          (change) =>
+            !this.#cleanup?.resources.some((resource) => resource.address === change.address) ||
+            JSON.stringify(change.actions) !== '["delete"]',
+        ))
+    )
+      throw new Error('Capture-independent cleanup cannot apply creates, unrelated objects or provider actions');
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const journal = decode((await privateRead(join8(this.#state().directory, 'plan-receipt.json'))).toString());
       if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
       if (
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
@@ -8537,6 +8840,10 @@ class TerraformRunner {
       await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
       await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
+      if (this.#cleanup) {
+        this.#cleanupEmpty = true;
+        await this.#verifyCaptureCleanup();
+      }
     });
   }
 }
@@ -8545,12 +8852,14 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash8('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash9('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
   init_process_lock();
   init_failure();
+  init_installed_capture_context();
+  init_original_input_monitor();
   safeId = /^[a-z][a-z0-9-]{0,62}$/;
   executeTerraform = terraformExecutor(undefined, true);
 });
@@ -8839,7 +9148,7 @@ var init_runtime_prerequisites = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/terraform-google-environment.ts
-import { isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
+import { isAbsolute as isAbsolute6, resolve as resolve5 } from 'node:path';
 
 async function googleTerraformEnvironment(session, api, intent, ambient, signal) {
   if (intent.engine !== 'terraform') throw new Error('Explicit Terraform owning engine required');
@@ -8851,8 +9160,8 @@ async function googleTerraformEnvironment(session, api, intent, ambient, signal)
       !snapshot ||
       Object.keys(snapshot).join(',') !== 'GOOGLE_APPLICATION_CREDENTIALS' ||
       typeof snapshot.GOOGLE_APPLICATION_CREDENTIALS !== 'string' ||
-      !isAbsolute4(snapshot.GOOGLE_APPLICATION_CREDENTIALS) ||
-      resolve3(snapshot.GOOGLE_APPLICATION_CREDENTIALS) !== snapshot.GOOGLE_APPLICATION_CREDENTIALS
+      !isAbsolute6(snapshot.GOOGLE_APPLICATION_CREDENTIALS) ||
+      resolve5(snapshot.GOOGLE_APPLICATION_CREDENTIALS) !== snapshot.GOOGLE_APPLICATION_CREDENTIALS
     )
       throw new Error('Trusted original Google ADC environment unavailable');
     const environment = { ...ambient };
