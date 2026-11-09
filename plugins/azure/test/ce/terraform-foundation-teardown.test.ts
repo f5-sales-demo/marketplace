@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as typebox from '/data/robin-GIT/worktrees/marketplace-1856-azure-relay-runtime/plugins/azure/node_modules/@sinclair/typebox/build/cjs/index.js';
+import * as typebox from '@sinclair/typebox';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';

@@ -140,8 +140,8 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
     fi
     if [ "$plugin" = azure ]; then
       # Bun 1.4.4 isolates each file in its own worker. Keep tests within a file serial.
-      # Two workers bound resource use while preserving the complete discovered suite.
-      (cd "plugins/$plugin" && bun test . --parallel=2) || ok=1
+      # One worker avoids competing expensive lifecycle fixtures without changing test deadlines.
+      (cd "plugins/$plugin" && bun test . --parallel=1) || ok=1
     else
       (cd "plugins/$plugin" && bun test .) || ok=1
     fi

@@ -158,9 +158,9 @@ if ! PATH="$PARALLEL_AZURE/bin:$PARALLEL_AZURE/tools" TEST_STATE="$PARALLEL_AZUR
   cat "$PARALLEL_AZURE/state/output" >&2
   fail "bounded Azure file workers must preserve the full runner workflow"
 fi
-if grep -Fq 'test . --parallel=2|' "$PARALLEL_AZURE/state/calls" &&
+if grep -Fq 'test . --parallel=1|' "$PARALLEL_AZURE/state/calls" &&
   ! grep -Eq -- '--concurrent|--no-isolate|--shard|--test-name-pattern' "$PARALLEL_AZURE/state/calls"; then
-  pass "Azure executes its complete suite with two isolated file workers"
+  pass "Azure executes its complete suite with one isolated file worker"
 else
   fail "Azure must retain all tests, file isolation, and serial tests within each file"
 fi
