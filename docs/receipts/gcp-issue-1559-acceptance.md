@@ -1048,3 +1048,13 @@ prior reader checkpoint is verified. Legacy HTTP/protocol logging cannot alone
 join original RPCs safely; operation candidates retain false qualification flags.
 Original apply/audit/target joins, full capture and all live/delivery gates remain
 required.
+
+Attempt 406 qualifies [Terraform core apply hook candidates](gcp-terraform-apply-hook-candidates-20261109.md).
+Thirteen tests and 64 assertions cover bounded framing, reviewed ordering,
+identity, concurrency, replay, timing, malformed and ambiguous output. A fresh
+pinned Terraform 1.16.6 builtin fixture passes original create and reviewed
+teardown parsing, no-change planning, empty state and ten original group closures
+without signals. Zero cloud requests were submitted. The installed apply gate
+remains closed; core hooks do not establish original RPC, request/audit or insert
+attribution. Full capture and all subsequent live, runtime and delivery gates
+remain required.

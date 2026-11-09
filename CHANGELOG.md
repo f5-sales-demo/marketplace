@@ -10,7 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.46
+- **`terraform` 2.4.47** parses bounded reviewed core apply hooks while preserving explicit
+  provider RPC and GCP insert qualification holds (#1559).
 
 - **`terraform` 2.4.5** checks original-provider Google ADC refresh evidence against reviewed input
   hashes, expiry and process identity. Live refresh qualification remains required (#1559).
