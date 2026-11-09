@@ -37,6 +37,23 @@ class ProviderCandidate:
     executable_sha256: str
 
 
+@dataclass(frozen=True)
+class PinnedExecutable:
+    """One original canonical executable and its reviewed digest."""
+
+    path: Path
+    sha256: str
+
+
+@dataclass(frozen=True)
+class ProviderExecutables:
+    """The original Terraform, Google provider and optional bootstrap images."""
+
+    terraform: PinnedExecutable
+    provider: PinnedExecutable
+    bootstrap: PinnedExecutable | None = None
+
+
 class OriginalProviderCandidates:
     """Retain all original candidates without latest-PID or replacement adoption."""
 
@@ -45,13 +62,8 @@ class OriginalProviderCandidates:
         root: Path,
         parent: ActorIdentity,
         *,
-        terraform: Path,
-        terraform_sha256: str,
-        provider: Path,
-        provider_sha256: str,
+        executables: ProviderExecutables,
         assert_inputs: Callable[[], None],
-        bootstrap: Path | None = None,
-        bootstrap_sha256: str | None = None,
     ) -> None:
         """Admit the original executor and immutable executable inputs."""
         if (
@@ -64,16 +76,14 @@ class OriginalProviderCandidates:
         self.root = root
         root.mkdir(mode=448)
         self.root_identity = self.directory_identity(root)
-        self.terraform, self.provider, self.bootstrap = (terraform, provider, bootstrap)
-        self.provider_sha256 = provider_sha256
+        self.executables = executables
         self.files = {
-            terraform: pinned(terraform, terraform_sha256),
-            provider: pinned(provider, provider_sha256),
+            binding.path: pinned(binding.path, binding.sha256)
+            for binding in (executables.terraform, executables.provider)
         }
-        if bootstrap is not None:
-            if bootstrap_sha256 is None:
-                _reject("Original bootstrap executable hash required")
-            self.files[bootstrap] = pinned(bootstrap, bootstrap_sha256)
+        if executables.bootstrap is not None:
+            binding = executables.bootstrap
+            self.files[binding.path] = pinned(binding.path, binding.sha256)
         self.parents = {
             path.parent: self.directory_identity(path.parent, private=False)
             for path in self.files
@@ -82,6 +92,26 @@ class OriginalProviderCandidates:
         self.retired = False
         self.admitted: dict[int, ProviderCandidate] = {}
         self.check_inputs()
+
+    @property
+    def terraform(self) -> Path:
+        """Return an original admitted executable binding."""
+        return self.executables.terraform.path
+
+    @property
+    def provider(self) -> Path:
+        """Return an original admitted executable binding."""
+        return self.executables.provider.path
+
+    @property
+    def provider_sha256(self) -> str:
+        """Return an original admitted executable binding."""
+        return self.executables.provider.sha256
+
+    @property
+    def bootstrap(self) -> Path | None:
+        """Return an original admitted executable binding."""
+        return self.executables.bootstrap.path if self.executables.bootstrap else None
 
     @staticmethod
     def directory_identity(

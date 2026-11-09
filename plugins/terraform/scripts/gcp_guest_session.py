@@ -9,11 +9,20 @@ import re
 import shlex
 import stat
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, NoReturn, Protocol
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, NamedTuple, NoReturn, Protocol
 from uuid import uuid4
 
-from .guest_pty import PROMPT, OriginalPtySession, digest, now_ms, record, visible
+from .guest_pty import (
+    PROMPT,
+    OriginalPtySession,
+    PtyGuards,
+    PtyOptions,
+    digest,
+    now_ms,
+    record,
+    visible,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -72,8 +81,7 @@ def reject(message: str) -> NoReturn:
     raise ValueError(message)
 
 
-@dataclass(frozen=True)
-class GuestBinding:
+class GuestBinding(NamedTuple):
     """Immutable joins supplied by the original cloud and serial controller."""
 
     project: str
@@ -123,11 +131,14 @@ class GuestBinding:
         if (
             self.token_node != self.node_name
             or self.token_site != self.site_name
-            or not math.isfinite(self.token_expires)
-            or not math.isfinite(epoch)
-            or epoch >= self.token_expires
             or not SHA256.fullmatch(self.token_sha256)
             or not SHA256.fullmatch(self.ownership_sha256)
+        ):
+            reject("Original unexpired token and ownership joins required")
+        if (
+            not math.isfinite(self.token_expires)
+            or not math.isfinite(epoch)
+            or epoch >= self.token_expires
         ):
             reject("Original unexpired token and ownership joins required")
         addresses = (self.observer_address, self.address, *self.original_interfaces)
@@ -239,60 +250,83 @@ class Transport(Protocol):
     """Qualified transport contract; test doubles provide offline evidence only."""
 
     root: Path
-    failed: bool
-    truncated: bool
+
+    @property
+    def failed(self) -> bool:
+        """Read preserved transport failure evidence."""
+
+    @property
+    def truncated(self) -> bool:
+        """Read incomplete capture evidence."""
 
     def exchange(
         self, command: bytes, suffix: bytes = b"\r", *, _deadline_ms: int | None = None
     ) -> bytes:
         """Exchange bounded framed bytes on the original terminal."""
-        ...
 
     def disconnect(self) -> None:
         """Request protocol closure of the original SSH client."""
-        ...
 
     def clear_pending(self, *, deadline_ms: int) -> bytes:
         """Clear only unfinished completion input within the original budget."""
-        ...
 
     def close(self) -> bool:
         """Retain unresolved descriptors until independently verified absence."""
-        ...
+
+
+@dataclass
+class GuestGuards:
+    """Independent original input, ownership and serial-trust checks."""
+
+    inputs: Callable[[], None]
+    original: Callable[[GuestBinding], None]
+    trust: Callable[[GuestBinding, str], None]
+
+
+@dataclass
+class GuestEvidence:
+    """Retained observations belong to one original guest session."""
+
+    retained: list[dict[str, object]] = field(default_factory=list)
+    completions: dict[str, tuple[int, frozenset[str], str]] = field(
+        default_factory=dict
+    )
+    listings: dict[str, tuple[int, tuple[str, ...], str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GuestOptions:
+    """Original executable, guards, budgets and supported transport."""
+
+    executable: Path
+    executable_sha256: str
+    guards: GuestGuards
+    deadlines: tuple[int, int]
+    epoch: Callable[[], float] = time.time
+    monotonic: Callable[[], int] = now_ms
+    transport: Callable[..., Transport] = OriginalPtySession
 
 
 class GuestSession:
     """Use scoped fresh completion and original-node container listings."""
 
     def __init__(
-        self,
-        root: Path,
-        binding: GuestBinding,
-        *,
-        executable: Path,
-        executable_sha256: str,
-        verify_inputs: Callable[[], None],
-        verify_original: Callable[[GuestBinding], None],
-        verify_trust: Callable[[GuestBinding, str], None],
-        operation_deadline_ms: int,
-        closure_deadline_ms: int,
-        epoch: Callable[[], float] = time.time,
-        monotonic: Callable[[], int] = now_ms,
-        transport: Callable[..., Transport] = OriginalPtySession,
+        self, root: Path, binding: GuestBinding, *, options: GuestOptions
     ) -> None:
         """Admit original joins and serial trust before opening a single session."""
-        self._binding = binding
-        self.verify_inputs, self.verify_original, self.verify_trust = (
-            verify_inputs,
-            verify_original,
-            verify_trust,
+        executable, executable_sha256 = options.executable, options.executable_sha256
+        operation_deadline_ms, closure_deadline_ms = options.deadlines
+        epoch, monotonic, transport = (
+            options.epoch,
+            options.monotonic,
+            options.transport,
         )
+        self._binding = binding
+        self.guards = options.guards
         self.epoch, self.monotonic = epoch, monotonic
         self._deadlines = (operation_deadline_ms, closure_deadline_ms)
         self.failed = self.closed = False
-        self.retained: list[dict[str, object]] = []
-        self.completions: dict[str, tuple[int, frozenset[str], str]] = {}
-        self.listings: dict[str, tuple[int, tuple[str, ...], str]] = {}
+        self.evidence = GuestEvidence()
         binding.validate(epoch())
         self.inputs = {
             path: private_identity(path)
@@ -330,11 +364,12 @@ class GuestSession:
         self.transport = transport(
             root,
             argv,
-            executable_sha256=executable_sha256,
-            assert_inputs=self.check_inputs,
-            assert_owner=self.check_owner,
-            operation_deadline_ms=operation_deadline_ms,
-            closure_deadline_ms=closure_deadline_ms,
+            options=PtyOptions(
+                executable_sha256=executable_sha256,
+                guards=PtyGuards(self.check_inputs, self.check_owner),
+                operation_deadline_ms=operation_deadline_ms,
+                closure_deadline_ms=closure_deadline_ms,
+            ),
         )
 
     @property
@@ -346,6 +381,51 @@ class GuestSession:
     def deadlines(self) -> tuple[int, int]:
         """Return the original operation and closure deadlines."""
         return self._deadlines
+
+    @property
+    def retained(self) -> list[dict[str, object]]:
+        """Return evidence from this original session."""
+        return self.evidence.retained
+
+    @property
+    def completions(self) -> dict[str, tuple[int, frozenset[str], str]]:
+        """Return evidence from this original session."""
+        return self.evidence.completions
+
+    @property
+    def listings(self) -> dict[str, tuple[int, tuple[str, ...], str]]:
+        """Return evidence from this original session."""
+        return self.evidence.listings
+
+    @property
+    def verify_inputs(self) -> Callable[[], None]:
+        """Read the independently supplied original guard."""
+        return self.guards.inputs
+
+    @verify_inputs.setter
+    def verify_inputs(self, value: Callable[[], None]) -> None:
+        """Replace only a compiled caller's guard callback."""
+        self.guards.inputs = value
+
+    @property
+    def verify_original(self) -> Callable[[GuestBinding], None]:
+        """Read the independently supplied original guard."""
+        return self.guards.original
+
+    @verify_original.setter
+    def verify_original(self, value: Callable[[GuestBinding], None]) -> None:
+        """Replace only a compiled caller's guard callback."""
+        self.guards.original = value
+
+    @property
+    def verify_trust(self) -> Callable[[GuestBinding, str], None]:
+        """Read the independently supplied original guard."""
+        return self.guards.trust
+
+    @verify_trust.setter
+    def verify_trust(self, value: Callable[[GuestBinding, str], None]) -> None:
+        """Replace only a compiled caller's guard callback."""
+        self.guards.trust = value
 
     def check_inputs(self) -> None:
         """Check immutable local inputs separately from the operation deadline."""
@@ -482,8 +562,7 @@ class GuestSession:
         except BaseException as error:
             self.failure("completion-" + scope, error)
             raise
-        else:
-            return raw
+        return raw
 
     def command(self, kind: str, container_id: str | None) -> str:
         """Construct commands only from supported mappings and fresh local IDs."""
@@ -587,8 +666,7 @@ class GuestSession:
         except BaseException as error:
             self.failure(kind, error)
             raise
-        else:
-            return raw
+        return raw
 
     def close(self) -> bool:
         """Use verified SSH protocol closure and retain unresolved transports."""

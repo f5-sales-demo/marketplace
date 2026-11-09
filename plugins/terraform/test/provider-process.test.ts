@@ -13,7 +13,17 @@ test.skipIf(process.platform !== 'linux')(
     const stdout = await open(join(root, 'stdout.private.log'), 'wx', 0o600);
     const stderr = await open(join(root, 'stderr.private.log'), 'wx', 0o600);
     const child = Bun.spawn(
-      [python, '-I', '-B', resolve(import.meta.dir, '../../../tests/test_gcp_provider_process.py')],
+      [
+        python,
+        '-I',
+        '-B',
+        '-m',
+        'pytest',
+        '-q',
+        '-o',
+        `pythonpath=${resolve(import.meta.dir, '../../..')}`,
+        resolve(import.meta.dir, '../../../tests/test_gcp_provider_process.py'),
+      ],
       { stdin: 'ignore', stdout: stdout.fd, stderr: stderr.fd, env: { ...process.env } },
     );
     try {

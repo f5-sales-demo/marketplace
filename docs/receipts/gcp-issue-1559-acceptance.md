@@ -1026,3 +1026,15 @@ final no-change plan retain zero managed resources; all sixteen original process
 groups were independently absent. Existing Python structure/module-resolution
 CI failures are reproduced and require repair. The full installed controller,
 cloud apply/insert attribution and every subsequent acceptance gate remain open.
+
+Attempt 404 qualifies [reader structure and startup handling](gcp-reader-structure-and-startup-20261109.md).
+Original executable, guard, budget, actor and capture structures now pass every
+configured Python lint/type check. The frozen constructor reproduced two leaked
+descriptors; the current failure path preserves unknown actor closure and
+aggregates startup/persistence failures. All 49 Python regressions, 968 shared
+tests and the complete hermetic plugin check pass. Fresh authenticated source
+composition completed two SDK reads and two Compute absences against the same
+invocation/final reserve, with zero managed resources and all sixteen original
+groups independently absent. The default full controller, cloud apply/insert,
+live guest/network/lifecycle/traffic, installed runtime and all delivery gates
+remain required.

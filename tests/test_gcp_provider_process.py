@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from typing import IO, NoReturn
 from unittest.mock import patch
@@ -42,16 +43,18 @@ class ProviderProcessTests(unittest.TestCase):
         self.exe = Path(sys.executable).resolve()
         self.sha = hashlib.sha256(self.exe.read_bytes()).hexdigest()
         self.parents: list[subprocess.Popen[bytes]] = []
+        self.process_lifetimes = ExitStack()
+        self.addCleanup(self.close_parents)
         self.parent, self.row = self.spawn_parent()
         self.original = pty.process_identity(self.row["parent"])
         self.checks = 0
         self.monitor = module.OriginalProviderCandidates(
             self.root / "captures",
             self.original,
-            terraform=self.exe,
-            terraform_sha256=self.sha,
-            provider=self.exe,
-            provider_sha256=self.sha,
+            executables=module.ProviderExecutables(
+                module.PinnedExecutable(self.exe, self.sha),
+                module.PinnedExecutable(self.exe, self.sha),
+            ),
             assert_inputs=self.guard,
         )
 
@@ -62,19 +65,21 @@ class ProviderProcessTests(unittest.TestCase):
     def spawn_parent(self) -> tuple[subprocess.Popen[bytes], dict[str, int]]:
         """Start only the pinned original Python fixture and retain its child."""
         pty.pinned(self.exe, self.sha)
-        child = subprocess.Popen(  # noqa: S603 - fixed original executable and constant fixture bytes; pinned above.
-            [
-                str(self.exe),
-                "-I",
-                "-B",
-                "-c",
-                BODY,
-                str(SCRIPTS / "gcp_provider_reader.py"),
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
+        child = self.process_lifetimes.enter_context(
+            subprocess.Popen(  # noqa: S603 - fixed original executable and constant fixture bytes; pinned above.
+                [
+                    str(self.exe),
+                    "-I",
+                    "-B",
+                    "-c",
+                    BODY,
+                    str(SCRIPTS / "gcp_provider_reader.py"),
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
         )
         self.parents.append(child)
         if not select.select([original_pipe(child.stdout)], [], [], 15)[0]:
@@ -93,11 +98,16 @@ class ProviderProcessTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         """Close original stdin and require natural fixture exits."""
+        self.close_parents()
+
+    def close_parents(self) -> None:
+        """Close lifetimes only after every original fixture naturally exits."""
         for parent in self.parents:
             original_pipe(parent.stdin).close()
             assert parent.wait(timeout=15) == 0
             original_pipe(parent.stdout).close()
             original_pipe(parent.stderr).close()
+        self.process_lifetimes.close()
 
     def test_actual_original_child_has_independent_kernel_sdk_and_executable_witnesses(
         self,

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import shlex
-from dataclasses import replace
 
 import pytest
 
 from plugins.terraform.scripts import gcp_guest_session as module
+
+
+def replace(binding, **changes):
+    """Copy a flat immutable original binding for invalid-input tests."""
+    return binding._replace(**changes)
 
 
 class Transport:
@@ -90,16 +94,17 @@ def session(tmp_path, binding, **kwargs):
     return module.GuestSession(
         tmp_path / "guest",
         binding,
-        executable=tmp_path / "ssh",
-        executable_sha256="c" * 64,
-        verify_inputs=lambda: None,
-        verify_original=lambda _value: None,
-        verify_trust=lambda _value, _role: None,
-        operation_deadline_ms=1000000,
-        closure_deadline_ms=1001000,
-        epoch=lambda: 1000.0,
-        monotonic=lambda: 1000,
-        transport=Transport,
+        options=module.GuestOptions(
+            executable=tmp_path / "ssh",
+            executable_sha256="c" * 64,
+            guards=module.GuestGuards(
+                lambda: None, lambda _value: None, lambda _value, _role: None
+            ),
+            deadlines=(1000000, 1001000),
+            epoch=lambda: 1000.0,
+            monotonic=lambda: 1000,
+            transport=Transport,
+        ),
         **kwargs,
     )
 

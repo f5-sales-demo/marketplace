@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -48,21 +49,25 @@ class NaturalPtyTests(unittest.TestCase):
         if self.session:
             # Only the fixture's own fixed three-second lifetime may end it.
             end = time.monotonic() + 4
-            while self.session.child.poll() is None and time.monotonic() < end:
-                time.sleep(0.01)
-            self.session.close()
+            child = self.session.actor.child
+            if child is not None:
+                while child.poll() is None and time.monotonic() < end:
+                    time.sleep(0.01)
+            if not self.session.close():
+                return  # Retain unresolved original evidence rather than removing it.
         shutil.rmtree(self.root)
 
     def open(self, close_after_ms=5000, **kwargs):
         self.session = module.OriginalPtySession(
             self.root / "capture",
             [str(self.exe), "-I", "-B", str(self.script)],
-            executable_sha256=self.exe_hash,
-            assert_inputs=lambda: None,
-            assert_owner=lambda: None,
-            operation_deadline_ms=module.now_ms() + 5000,
-            closure_deadline_ms=module.now_ms() + close_after_ms,
-            **kwargs,
+            options=module.PtyOptions(
+                executable_sha256=self.exe_hash,
+                guards=module.PtyGuards(lambda: None, lambda: None),
+                operation_deadline_ms=module.now_ms() + 5000,
+                closure_deadline_ms=module.now_ms() + close_after_ms,
+                **kwargs,
+            ),
         )
         return self.session
 
@@ -70,19 +75,19 @@ class NaturalPtyTests(unittest.TestCase):
         session = self.open()
         result = session.exchange(b"show status")
         assert b"response:show status" in result
-        assert session.original["pid"] == session.child.pid
-        assert session.original["group"] == session.child.pid
+        assert session.actor.original["pid"] == session.actor.child.pid
+        assert session.actor.original["group"] == session.actor.child.pid
         session.discover()
         session.request_logout()
         assert session.close()
-        assert session.child.returncode == 0
+        assert session.actor.child.returncode == 0
         assert (session.root / "terminal.private.bin").read_bytes()
         assert not session.receipt()["signalsSent"]
         assert not session.receipt()["guestAcceptanceComplete"]
 
     def test_command_injection_is_rejected_before_terminal_write(self) -> None:
         session = self.open()
-        before = session.total
+        before = session.capture.total
         for text in (
             b"show;exit",
             b"show\nexit",
@@ -94,7 +99,7 @@ class NaturalPtyTests(unittest.TestCase):
         ):
             with pytest.raises(ValueError, match="Command injection"):
                 session.exchange(text)
-        assert session.total == before
+        assert session.capture.total == before
         session.discover()
         session.request_logout()
 
@@ -102,11 +107,11 @@ class NaturalPtyTests(unittest.TestCase):
         session = self.open(command_timeout_ms=30, close_after_ms=250)
         with pytest.raises(TimeoutError):
             session.exchange(b"show slow")
-        assert session.failed
+        assert session.capture.failed
         with pytest.raises(ValueError, match="capture is retired"):
             session.exchange(b"exit")
         assert not session.close()
-        assert session.fd is not None
+        assert session.actor.fd is not None
         assert (session.root / "unresolved.private.json").exists()
 
     def test_ownership_change_retires_capture_without_further_commands(self) -> None:
@@ -118,18 +123,18 @@ class NaturalPtyTests(unittest.TestCase):
                 raise ValueError(msg)
 
         session = self.open()
-        session.assert_owner = guard
+        session.options.guards.owner = guard
         changed = True
         with pytest.raises(ValueError, match="ownership changed"):
             session.exchange(b"show status")
-        assert session.failed
+        assert session.capture.failed
         assert (session.root / "terminal.private.bin").exists()
 
     def test_truncation_remains_incomplete(self) -> None:
         session = self.open(max_output_bytes=30)
         with pytest.raises(ValueError, match="Truncated"):
             session.exchange(b"show longer-status-output")
-        assert session.truncated
+        assert session.capture.truncated
         assert not session.receipt()["guestAcceptanceComplete"]
 
     def test_gate_rejects_changed_arguments_before_publication(self) -> None:
@@ -159,12 +164,86 @@ class NaturalPtyTests(unittest.TestCase):
             module.OriginalPtySession(
                 self.root / "rejected-capture",
                 [str(self.exe), "-I", "-B", str(self.script)],
-                executable_sha256="0" * 64,
-                assert_inputs=lambda: None,
-                assert_owner=lambda: None,
-                operation_deadline_ms=module.now_ms() + 5000,
-                closure_deadline_ms=module.now_ms() + 5000,
+                options=module.PtyOptions(
+                    executable_sha256="0" * 64,
+                    guards=module.PtyGuards(lambda: None, lambda: None),
+                    operation_deadline_ms=module.now_ms() + 5000,
+                    closure_deadline_ms=module.now_ms() + 5000,
+                ),
             )
+
+    def test_failed_spawn_releases_local_descriptors_without_claiming_actor_closure(
+        self,
+    ) -> None:
+        before = {path.name for path in Path("/proc/self/fd").iterdir()}
+        with (
+            patch.object(
+                module.subprocess,
+                "Popen",
+                side_effect=OSError("synthetic spawn failure"),
+            ),
+            pytest.raises(module.PtyStartupError) as failure,
+        ):
+            self.open()
+        session = failure.value.session
+        assert {path.name for path in Path("/proc/self/fd").iterdir()} == before
+        assert session.failed
+        assert session.actor.child is None
+        assert session.actor.fd is None
+        assert session.actor.stream is None
+        assert not session.capture.closed
+        assert not session.close()
+        assert (session.root / "startup-failed.private.json").exists()
+        assert (session.root / "unresolved.private.json").exists()
+        self.session = session  # tearDown retains the unresolved original evidence.
+
+    def test_failed_startup_persistence_keeps_the_original_failure_and_owned_descriptors(
+        self,
+    ) -> None:
+        before = {path.name for path in Path("/proc/self/fd").iterdir()}
+        with (
+            patch.object(
+                module.subprocess,
+                "Popen",
+                side_effect=OSError("synthetic spawn failure"),
+            ),
+            patch.object(
+                module, "record", side_effect=OSError("synthetic persistence failure")
+            ),
+            pytest.raises(BaseExceptionGroup) as failure,
+        ):
+            self.open()
+        assert {path.name for path in Path("/proc/self/fd").iterdir()} == before
+        session = module.RETAINED[str(self.root / "capture")]
+        assert isinstance(session, module.OriginalPtySession)
+        assert session.failed
+        assert session.actor.child is None
+        assert session.actor.fd is None
+        assert session.actor.stream is None
+        assert any(
+            isinstance(item, module.PtyStartupError)
+            for item in failure.value.exceptions
+        )
+        assert any("spawn failure" in str(item) for item in failure.value.exceptions)
+        assert not session.close()
+        self.session = session
+
+    def test_bytes_subclass_cannot_bypass_inspected_command_bytes(self) -> None:
+        class ForeignBytes(bytes):
+            """A Python caller must not redefine terminal byte inspection."""
+
+            def __getattribute__(self, name):
+                if name == "__class__":
+                    return bytes
+                return super().__getattribute__(name)
+
+        session = self.open()
+        before = session.capture.total
+        with pytest.raises(ValueError, match="injection"):
+            session.exchange(ForeignBytes(b"show status"))
+        assert session.capture.total == before
+        session.discover()
+        session.request_logout()
 
     def test_source_has_no_signal_or_forced_child_termination_calls(self) -> None:
         tree = ast.parse(
@@ -200,6 +279,11 @@ class NaturalPtyTests(unittest.TestCase):
             session.operation_deadline_ms += 1000
         with pytest.raises(AttributeError):
             session.closure_deadline_ms += 1000
+        with pytest.raises(AttributeError):
+            session.options = replace(
+                session.options,
+                operation_deadline_ms=session.operation_deadline_ms + 1000,
+            )
         session.discover()
         session.request_logout()
 
@@ -208,7 +292,7 @@ class NaturalPtyTests(unittest.TestCase):
         session.discover()
         session.request_logout()
         end = time.monotonic() + 1
-        while session.child.poll() is None and time.monotonic() < end:
+        while session.actor.child.poll() is None and time.monotonic() < end:
             time.sleep(0.01)
         with patch.object(
             module,
@@ -216,14 +300,14 @@ class NaturalPtyTests(unittest.TestCase):
             side_effect=ValueError("independent identity unavailable"),
         ):
             assert not session.close()
-            assert session.fd is not None
+            assert session.actor.fd is not None
             assert (session.root / "unresolved.private.json").exists()
         assert session.close()
         assert (session.root / "unresolved.private.json").exists()
 
     def test_ownership_work_spends_command_budget_before_terminal_write(self) -> None:
         session = self.open(command_timeout_ms=30)
-        session.assert_owner = lambda: time.sleep(0.05)
+        session.options.guards.owner = lambda: time.sleep(0.05)
         actual = module.os.write
         writes = []
 
@@ -235,7 +319,7 @@ class NaturalPtyTests(unittest.TestCase):
         try:
             with pytest.raises(TimeoutError):
                 session.exchange(b"show status")
-            assert writes == []
+            assert not writes
         finally:
             module.os.write = actual
 
@@ -249,10 +333,10 @@ class NaturalPtyTests(unittest.TestCase):
             if calls == 2:
                 time.sleep(0.15)
 
-        session.assert_owner = owner
+        session.options.guards.owner = owner
         with pytest.raises(TimeoutError):
             session.exchange(b"show status")
-        assert session.failed
+        assert session.capture.failed
 
     def test_ssh_disconnect_cannot_be_sent_to_an_unqualified_terminal(self) -> None:
         session = self.open()
@@ -278,12 +362,12 @@ class NaturalPtyTests(unittest.TestCase):
             writes.append(raw)
             return actual(fd, raw)
 
-        session.assert_owner = lambda: time.sleep(0.05)
+        session.options.guards.owner = lambda: time.sleep(0.05)
         module.os.write = observed
         try:
             with pytest.raises(TimeoutError):
                 session.clear_pending(deadline_ms=module.now_ms() + 30)
-            assert writes == []
+            assert not writes
         finally:
             module.os.write = actual
 

@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.43
+- **`terraform`** bumped to v2.4.44
 
 - **`terraform` 2.4.5** checks original-provider Google ADC refresh evidence against reviewed input
   hashes, expiry and process identity. Live refresh qualification remains required (#1559).

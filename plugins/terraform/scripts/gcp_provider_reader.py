@@ -11,7 +11,7 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, cast
+from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -97,12 +97,18 @@ def ensure_reader_session() -> None:
         reject("Original provider reader process group required")
 
 
+def exact_integer(value: object) -> TypeGuard[int]:
+    """JSON clock integers exclude booleans and floating-point values."""
+    value_type = type(value)
+    return isinstance(value, int) and value_type is int
+
+
 def require_capture_budget(request: dict[str, object], now: int) -> int:
     """Keep the original operation budget and its separately supplied final reserve."""
     start, deadline = request.get("originalStartMs"), request.get("deadlineMs")
     if (
-        type(start) is not int
-        or type(deadline) is not int
+        not exact_integer(start)
+        or not exact_integer(deadline)
         or deadline - start != ORIGINAL_BUDGET_MS
         or now < start
     ):
@@ -116,8 +122,8 @@ def require_capture_budget(request: dict[str, object], now: int) -> int:
             final.get("finalDeadlineMs"),
         )
         if (
-            type(final_start) is not int
-            or type(final_deadline) is not int
+            not exact_integer(final_start)
+            or not exact_integer(final_deadline)
             or final_deadline - final_start != FINAL_RESERVE_MS
             or not start <= final_start <= now
         ):
@@ -169,6 +175,17 @@ def collect_cohort(
     return available, closed, candidates
 
 
+def require_private_root(root: Path) -> None:
+    """Keep the original request's owned private evidence directory."""
+    parent = root.lstat()
+    if (
+        not stat.S_ISDIR(parent.st_mode)
+        or parent.st_uid != os.getuid()
+        or parent.st_mode & 0o077
+    ):
+        reject("Original private provider reader directory required")
+
+
 def main() -> None:
     """Inspect one original provider cohort and exit naturally without signals."""
     os.umask(0o077)
@@ -185,13 +202,7 @@ def main() -> None:
         reject("Original provider request bytes changed")
     request = json.loads(raw)
     root = request_path.parent
-    parent = root.lstat()
-    if (
-        not stat.S_ISDIR(parent.st_mode)
-        or parent.st_uid != os.getuid()
-        or parent.st_mode & 0o077
-    ):
-        reject("Original private provider reader directory required")
+    require_private_root(root)
     if request.get("schemaVersion") != 1 or not isinstance(request.get("inputs"), dict):
         reject("Original provider reader admission required")
     deadline = require_capture_budget(request, time.monotonic_ns() // 1000000)
@@ -271,12 +282,20 @@ def main() -> None:
             monitor_module.OriginalProviderCandidates(
                 root / "provider-captures",
                 request["executor"],
-                terraform=canonical(request["executables"]["terraform"]["path"]),
-                terraform_sha256=PINS["terraform"],
-                provider=canonical(request["executables"]["provider"]["path"]),
-                provider_sha256=PINS["provider"],
-                bootstrap=canonical(request["executables"]["bootstrap"]["path"]),
-                bootstrap_sha256=PINS["bootstrap"],
+                executables=monitor_module.ProviderExecutables(
+                    terraform=monitor_module.PinnedExecutable(
+                        canonical(request["executables"]["terraform"]["path"]),
+                        PINS["terraform"],
+                    ),
+                    provider=monitor_module.PinnedExecutable(
+                        canonical(request["executables"]["provider"]["path"]),
+                        PINS["provider"],
+                    ),
+                    bootstrap=monitor_module.PinnedExecutable(
+                        canonical(request["executables"]["bootstrap"]["path"]),
+                        PINS["bootstrap"],
+                    ),
+                ),
                 assert_inputs=verify,
             ),
         )

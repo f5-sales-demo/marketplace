@@ -13,8 +13,10 @@ import select
 import subprocess
 import sys
 import time
+from contextlib import ExitStack
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypedDict
+from typing import TYPE_CHECKING, NoReturn, TypedDict, TypeGuard
 
 import psutil
 
@@ -201,6 +203,54 @@ def pinned(path: str | Path, expected: str) -> tuple[int, int, int, int, int]:
     )
 
 
+def _csi_end(raw: bytes, index: int) -> int | None:
+    """Recognize one complete CSI sequence or a bounded partial prefix."""
+    match = CSI.match(raw, index)
+    if match:
+        return match.end()
+    if all(
+        ASCII_GRAPHIC_MIN <= value <= CSI_PARAMETER_MAX for value in raw[index + 2 :]
+    ):
+        return None
+    _source_error("Malformed CSI terminal control")
+
+
+def _osc_end(raw: bytes, index: int) -> int | None:
+    """Permit only bounded title updates, never clipboard or embedded controls."""
+    header = raw[index + 2 : index + 4]
+    if len(header) < OSC_HEADER_SIZE:
+        if header in (b"", b"0", b"2"):
+            return None
+        _source_error("Unsupported OSC terminal control")
+    if header not in (b"0;", b"2;"):
+        _source_error("Unsupported OSC terminal control")
+    index += 4
+    start = index
+    while True:
+        if index - start > OSC_TITLE_LIMIT:
+            _source_error("Overlong OSC window title")
+        if index == len(raw):
+            return None
+        value = raw[index]
+        if value == OSC_BELL:
+            return index + 1
+        if value == ESCAPE:
+            if index + 1 == len(raw):
+                return None
+            if raw[index + 1] != OSC_TERMINATOR:
+                _source_error("Embedded OSC terminal control")
+            return index + 2
+        if not ASCII_GRAPHIC_MIN <= value <= ASCII_GRAPHIC_MAX:
+            _source_error("Invalid OSC title")
+        index += 1
+
+
+def exact_bytes(value: object) -> TypeGuard[bytes]:
+    """Only builtin bytes may supply the inspected terminal buffer."""
+    value_type = type(value)
+    return isinstance(value, bytes) and value_type is bytes
+
+
 def visible(raw: bytes) -> bytes | None:
     """Parse bounded terminal controls while preserving original bytes."""
     result = bytearray()
@@ -208,61 +258,21 @@ def visible(raw: bytes) -> bytes | None:
     while index < len(raw):
         if raw[index] != ESCAPE:
             if raw[index] == 0:
-                msg = "NUL in terminal output"
-                _source_error(msg)
+                _source_error("NUL in terminal output")
             result.append(raw[index])
             index += 1
             continue
         if index + 1 == len(raw):
             return None
         if raw[index + 1] == CSI_START:
-            match = CSI.match(raw, index)
-            if match:
-                index = match.end()
-                continue
-            if all(
-                ASCII_GRAPHIC_MIN <= value <= CSI_PARAMETER_MAX
-                for value in raw[index + 2 :]
-            ):
-                return None
-            msg = "Malformed CSI terminal control"
-            _source_error(msg)
-        if raw[index + 1] != OSC_START:
-            msg = "Unsupported terminal escape"
-            _source_error(msg)
-        header = raw[index + 2 : index + 4]
-        if len(header) < OSC_HEADER_SIZE:
-            if header in (b"", b"0", b"2"):
-                return None
-            msg = "Unsupported OSC terminal control"
-            _source_error(msg)
-        if header not in (b"0;", b"2;"):
-            msg = "Unsupported OSC terminal control"
-            _source_error(msg)
-        index += 4
-        start = index
-        while True:
-            if index - start > OSC_TITLE_LIMIT:
-                msg = "Overlong OSC window title"
-                _source_error(msg)
-            if index == len(raw):
-                return None
-            value = raw[index]
-            if value == OSC_BELL:
-                index += 1
-                break
-            if value == ESCAPE:
-                if index + 1 == len(raw):
-                    return None
-                if raw[index + 1] != OSC_TERMINATOR:
-                    msg = "Embedded OSC terminal control"
-                    _source_error(msg)
-                index += 2
-                break
-            if not ASCII_GRAPHIC_MIN <= value <= ASCII_GRAPHIC_MAX:
-                msg = "Invalid OSC title"
-                _source_error(msg)
-            index += 1
+            end = _csi_end(raw, index)
+        elif raw[index + 1] == OSC_START:
+            end = _osc_end(raw, index)
+        else:
+            _source_error("Unsupported terminal escape")
+        if end is None:
+            return None
+        index = end
     return bytes(result)
 
 
@@ -275,211 +285,302 @@ class PtyStartupError(RuntimeError):
         self.session = session
 
 
+@dataclass
+class PtyGuards:
+    """Original source and independently refreshed ownership guards."""
+
+    inputs: Callable[[], None]
+    owner: Callable[[], None]
+
+
+@dataclass(frozen=True)
+class PtyOptions:
+    """Original executable and immutable operation, closure and output limits."""
+
+    executable_sha256: str
+    guards: PtyGuards
+    operation_deadline_ms: int
+    closure_deadline_ms: int
+    command_timeout_ms: int = COMMAND_MAX_MS
+    max_output_bytes: int = 4 * 1024 * 1024
+
+
+@dataclass
+class PtyCapture:
+    """Durable partial capture state belongs to this original terminal."""
+
+    total: int = 0
+    kept: int = 0
+    tail: bytearray = field(default_factory=bytearray)
+    failed: bool = False
+    truncated: bool = False
+    closed: bool = False
+    commands: list[dict[str, int | bool]] = field(default_factory=list)
+    capabilities: set[bytes] = field(default_factory=set)
+    discovery_ms: int | None = None
+
+
+@dataclass
+class PtyActor:
+    """Retain original process and descriptors until independently verified closure."""
+
+    child: subprocess.Popen[bytes] | None = None
+    fd: int | None = None
+    stream: IO[bytes] | None = None
+    original: ActorIdentity | None = None
+    released: bool = False
+    exe_identity: tuple[int, int, int, int, int] | None = None
+    lifetime: ExitStack = field(default_factory=ExitStack)
+
+
 class OriginalPtySession:
     """Retain original gated PTY capture and independently verify closure."""
 
     def __init__(
-        self,
-        root: str | Path,
-        argv: Sequence[str],
-        *,
-        executable_sha256: str,
-        assert_inputs: Callable[[], None],
-        assert_owner: Callable[[], None],
-        operation_deadline_ms: int,
-        closure_deadline_ms: int,
-        command_timeout_ms: int = 60000,
-        max_output_bytes: int = 4 * 1024 * 1024,
+        self, root: str | Path, argv: Sequence[str], *, options: PtyOptions
     ) -> None:
-        """Prepare an original owned capture without replaying an actor."""
-        construction_deadline = min(operation_deadline_ms, now_ms() + 60000)
+        """Prepare one original owned capture without replaying an actor."""
+        construction_deadline = min(
+            options.operation_deadline_ms, now_ms() + COMMAND_MAX_MS
+        )
         if (
-            not callable(assert_inputs)
-            or not callable(assert_owner)
+            not callable(options.guards.inputs)
+            or not callable(options.guards.owner)
             or not argv
             or any(
                 not isinstance(arg, str) or bytes([0]).decode() in arg for arg in argv
             )
         ):
-            msg = "Trusted original arguments and guards required"
-            _source_error(msg)
+            _source_error("Trusted original arguments and guards required")
         if (
-            not isinstance(operation_deadline_ms, int)
-            or not isinstance(closure_deadline_ms, int)
-            or now_ms() >= min(operation_deadline_ms, closure_deadline_ms)
+            not isinstance(options.operation_deadline_ms, int)
+            or not isinstance(options.closure_deadline_ms, int)
+            or now_ms()
+            >= min(options.operation_deadline_ms, options.closure_deadline_ms)
         ):
-            msg = "Original operation and closure deadline required"
-            _source_error(msg)
+            _source_error("Original operation and closure deadline required")
         if (
-            not 0 < command_timeout_ms <= COMMAND_MAX_MS
-            or not 0 < max_output_bytes <= 4 * 1024 * 1024
+            not 0 < options.command_timeout_ms <= COMMAND_MAX_MS
+            or not 0 < options.max_output_bytes <= 4 * 1024 * 1024
         ):
-            msg = "Bounded command and capture limits required"
-            _source_error(msg)
+            _source_error("Bounded command and capture limits required")
         self.root = Path(root)
         self.root.mkdir(mode=0o700)
         self.argv = tuple(argv)
-        self.assert_inputs, self.assert_owner = assert_inputs, assert_owner
-        self._deadlines = (operation_deadline_ms, closure_deadline_ms)
-        self.command_timeout_ms, self.limit = command_timeout_ms, max_output_bytes
-        self.total = self.kept = 0
-        self.tail = bytearray()
-        self.failed = self.truncated = self.closed = False
-        self.commands: list[dict[str, int | bool]] = []
-        self.capabilities: set[bytes] = set()
-        self.discovery_ms: int | None = None
-        self.original = None
-        self.exe_identity = pinned(self.argv[0], executable_sha256)
-        self.exe_sha256 = executable_sha256
-        assert_inputs()
-        assert_owner()
+        self._options = options
+        self.capture = PtyCapture()
+        self.actor = PtyActor()
+        self.actor.exe_identity = pinned(self.argv[0], options.executable_sha256)
+        options.guards.inputs()
+        options.guards.owner()
         if now_ms() >= construction_deadline:
-            msg = "Original construction budget exhausted before spawn"
-            _deadline_error(msg)
-        self.fd: int | None
-        self.fd, slave = pty.openpty()
-        self.stream = os.fdopen(
-            os.open(
-                self.root / "terminal.private.bin",
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-            ),
-            "wb",
-        )
-        identity_path = self.root / "bootstrap.private.json"
-        gate = [
-            sys.executable,
-            "-I",
-            "-B",
-            str(Path(__file__).resolve()),
-            "--gate",
-            str(identity_path),
-            str(slave),
-            executable_sha256,
-            digest(json.dumps(self.argv).encode()),
-            *self.argv,
-        ]
-        self.released = False
-        gate_out = (self.root / "gate.stdout.private").open("xb")
-        gate_err = (self.root / "gate.stderr.private").open("xb")
+            _deadline_error("Original construction budget exhausted before spawn")
         try:
-            # S603 false positive: fixed isolated interpreter/gate and pinned
-            # executable arguments; the child re-verifies the exact argument hash.
-            self.child = subprocess.Popen(  # noqa: S603
-                gate,
-                stdin=subprocess.PIPE,
-                stdout=gate_out,
-                stderr=gate_err,
-                pass_fds=(slave,),
-                start_new_session=True,
-                env={"PATH": "/usr/bin:/bin", "TERM": "dumb"},
-            )
-        finally:
-            os.close(slave)
-            gate_out.close()
-            gate_err.close()
-        startup = min(construction_deadline, now_ms() + 15000)
-        try:
-            while not identity_path.exists():
-                if self.child.poll() is not None or now_ms() >= startup:
-                    msg = "Original gated actor did not publish identity"
-                    _deadline_error(msg)
-                time.sleep(0.005)
-            value = json.loads(identity_path.read_text())
-            self.original = process_identity(self.child.pid)
-            if value != self.original or self.original["group"] != self.child.pid:
-                msg = "Original gated actor identity differs"
-                _source_error(msg)
-            record(
-                self.root / "admitted.private.json",
-                {
-                    "identity": self.original,
-                    "argvSha256": digest(json.dumps(self.argv).encode()),
-                },
-            )
-            assert_inputs()
-            assert_owner()
-            release = self._release_pipe()
-            release.write(b"go\n")
-            release.close()
-            self.released = True
-            while True:
-                self._guard(actor=False)
-                if self.child.poll() is not None or now_ms() >= startup:
-                    msg = "Original exec phase did not start"
-                    _deadline_error(msg)
-                parts = (
-                    (Path("/proc") / str(self.child.pid) / "cmdline")
-                    .read_bytes()
-                    .split(bytes([0]))
-                )
-                if parts[:-1] == [arg.encode() for arg in self.argv]:
-                    break
-                time.sleep(0.005)
-            self._guard()
-            self._read_prompt(startup)
+            self._spawn_gate()
+            self._await_gate(construction_deadline)
         except BaseException as error:
-            self.failed = True
-            pending_release = self.child.stdin
-            if (
-                not self.released
-                and pending_release is not None
-                and not pending_release.closed
-            ):
-                # EOF retires only the unreleased gate; it cannot execute SSH.
-                pending_release.close()
-            self._flush()
-            record(
-                self.root / "startup-failed.private.json",
-                {
-                    "errorType": type(error).__name__,
-                    "pid": self.child.pid,
-                    "signalsSent": False,
-                },
-            )
-            RETAINED[str(self.root)] = self
+            try:
+                self._startup_failure(error)
+            except BaseException as persistence_error:
+                message = "Original PTY startup and capture persistence failed"
+                raise BaseExceptionGroup(
+                    message,
+                    [PtyStartupError(self), error, persistence_error],
+                ) from None
             raise PtyStartupError(self) from error
+
+    def _spawn_gate(self) -> None:
+        """Own local descriptors separately from the long-lived original process."""
+        with ExitStack() as descriptors:
+            self.actor.fd, slave = pty.openpty()
+            descriptors.callback(os.close, slave)
+            self.actor.stream = os.fdopen(
+                os.open(
+                    self.root / "terminal.private.bin",
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                ),
+                "wb",
+            )
+            gate = [
+                sys.executable,
+                "-I",
+                "-B",
+                str(Path(__file__).resolve()),
+                "--gate",
+                str(self.root / "bootstrap.private.json"),
+                str(slave),
+                self.options.executable_sha256,
+                digest(json.dumps(self.argv).encode()),
+                *self.argv,
+            ]
+            gate_out = descriptors.enter_context(
+                (self.root / "gate.stdout.private").open("xb")
+            )
+            gate_err = descriptors.enter_context(
+                (self.root / "gate.stderr.private").open("xb")
+            )
+            # Fixed isolated interpreter/gate and pinned argv; retained process lifetime
+            # is closed only after original group absence, never to force termination.
+            self.actor.child = self.actor.lifetime.enter_context(
+                subprocess.Popen(  # noqa: S603
+                    gate,
+                    stdin=subprocess.PIPE,
+                    stdout=gate_out,
+                    stderr=gate_err,
+                    pass_fds=(slave,),
+                    start_new_session=True,
+                    env={"PATH": "/usr/bin:/bin", "TERM": "dumb"},
+                )
+            )
+
+    def _child(self) -> subprocess.Popen[bytes]:
+        """Never replace an unavailable original process handle."""
+        if self.actor.child is None:
+            _source_error("Original gated process handle unavailable")
+        return self.actor.child
+
+    def _stream(self) -> IO[bytes]:
+        """Require the original retained terminal stream."""
+        if self.actor.stream is None:
+            _source_error("Original terminal stream unavailable")
+        return self.actor.stream
+
+    def _await_gate(self, construction_deadline: int) -> None:
+        """Verify one original identity and release its single-use gate."""
+        startup = min(construction_deadline, now_ms() + 15000)
+        identity_path = self.root / "bootstrap.private.json"
+        while not identity_path.exists():
+            if self._child().poll() is not None or now_ms() >= startup:
+                _deadline_error("Original gated actor did not publish identity")
+            time.sleep(0.005)
+        value = json.loads(identity_path.read_text())
+        self.actor.original = process_identity(self._child().pid)
+        if (
+            value != self.actor.original
+            or self.actor.original["group"] != self._child().pid
+        ):
+            _source_error("Original gated actor identity differs")
+        record(
+            self.root / "admitted.private.json",
+            {
+                "identity": self.actor.original,
+                "argvSha256": digest(json.dumps(self.argv).encode()),
+            },
+        )
+        self.options.guards.inputs()
+        self.options.guards.owner()
+        release = self._release_pipe()
+        release.write(b"go\n")
+        release.close()
+        self.actor.released = True
+        self._await_exec(startup)
+        self._guard()
+        self._read_prompt(startup)
+
+    def _await_exec(self, startup: int) -> None:
+        """Preserve the original startup bound across the bootstrap transition."""
+        while True:
+            self._guard(actor=False)
+            if self._child().poll() is not None or now_ms() >= startup:
+                _deadline_error("Original exec phase did not start")
+            parts = (
+                (Path("/proc") / str(self._child().pid) / "cmdline")
+                .read_bytes()
+                .split(bytes([0]))
+            )
+            if parts[:-1] == [arg.encode() for arg in self.argv]:
+                return
+            time.sleep(0.005)
+
+    def _startup_failure(self, error: BaseException) -> None:
+        """Preserve partial evidence and unresolved actors without signals."""
+        self.capture.failed = True
+        RETAINED[str(self.root)] = self
+        child = self.actor.child
+        if child is not None:
+            release = child.stdin
+            if not self.actor.released and release is not None and not release.closed:
+                release.close()
+        elif self.actor.fd is not None:
+            # A missing process handle cannot prove group absence. Release only
+            # these locally owned descriptors and retain the unresolved capture.
+            os.close(self.actor.fd)
+            self.actor.fd = None
+        if self.actor.stream is not None:
+            try:
+                self._flush()
+            finally:
+                if child is None:
+                    self.actor.stream.close()
+                    self.actor.stream = None
+        record(
+            self.root / "startup-failed.private.json",
+            {
+                "errorType": type(error).__name__,
+                "pid": child.pid if child else None,
+                "actorHandleAvailable": child is not None,
+                "signalsSent": False,
+            },
+        )
+        RETAINED[str(self.root)] = self
+
+    @property
+    def options(self) -> PtyOptions:
+        """Return the original frozen admission without permitting a new budget."""
+        return self._options
+
+    @property
+    def failed(self) -> bool:
+        """Read irreversible capture failure evidence."""
+        return self.capture.failed
+
+    @property
+    def truncated(self) -> bool:
+        """Read incomplete retained-byte evidence."""
+        return self.capture.truncated
 
     @property
     def operation_deadline_ms(self) -> int:
         """Return the original immutable operation deadline."""
-        return self._deadlines[0]
+        return self.options.operation_deadline_ms
 
     @property
     def closure_deadline_ms(self) -> int:
         """Return the original immutable closure deadline."""
-        return self._deadlines[1]
+        return self.options.closure_deadline_ms
 
     def _guard(self, *, actor: bool = True) -> None:
         """Verify original inputs, deadline and actor identity."""
-        self.assert_inputs()
+        self.options.guards.inputs()
         if now_ms() >= self.operation_deadline_ms:
             msg = "Original operation deadline exhausted"
             _deadline_error(msg)
         if actor and (
-            process_identity(self.child.pid) != self.original
-            or pinned(self.argv[0], self.exe_sha256) != self.exe_identity
+            process_identity(self._child().pid) != self.actor.original
+            or pinned(self.argv[0], self.options.executable_sha256)
+            != self.actor.exe_identity
         ):
             msg = "Original executable or actor changed"
             _source_error(msg)
 
     def _live_fd(self) -> int:
         """Require the original descriptor before a terminal operation."""
-        if self.fd is None:
+        if self.actor.fd is None:
             _source_error("Original PTY descriptor is released")
-        return self.fd
+        return self.actor.fd
 
     def _release_pipe(self) -> IO[bytes]:
         """Require the original private gate pipe without substituting stdin."""
-        release = self.child.stdin
+        release = self._child().stdin
         if release is None:
             _source_error("Original gate pipe is unavailable")
         return release
 
     def _flush(self) -> None:
         """Durably retain partial terminal bytes."""
-        self.stream.flush()
-        os.fsync(self.stream.fileno())
+        self._stream().flush()
+        os.fsync(self._stream().fileno())
 
     def _drain(self, wait: float) -> bool:
         """Read bounded bytes without accepting incomplete capture."""
@@ -495,13 +596,13 @@ class OriginalPtySession:
         if not raw:
             msg = "Original PTY closed"
             raise EOFError(msg)
-        self.total += len(raw)
-        retained = raw[: max(0, self.limit - self.kept)]
-        self.stream.write(retained)
+        self.capture.total += len(raw)
+        retained = raw[: max(0, self.options.max_output_bytes - self.capture.kept)]
+        self._stream().write(retained)
         self._flush()
-        self.kept += len(retained)
-        self.truncated = self.total > self.kept
-        self.tail.extend(retained)
+        self.capture.kept += len(retained)
+        self.capture.truncated = self.capture.total > self.capture.kept
+        self.capture.tail.extend(retained)
         return True
 
     def _read_prompt(self, deadline: int) -> bytes:
@@ -509,17 +610,17 @@ class OriginalPtySession:
         while now_ms() < deadline:
             self._guard()
             self._drain(min(0.02, max(0, (deadline - now_ms()) / 1000)))
-            if self.truncated:
+            if self.capture.truncated:
                 msg = "Truncated terminal capture"
                 _source_error(msg)
-            value = visible(bytes(self.tail))
+            value = visible(bytes(self.capture.tail))
             if value is None:
                 continue
             if any(match.end() == len(value) for match in PROMPT.finditer(value)):
                 if deadline - now_ms() < PROMPT_QUIET_MS:
                     break
                 if not self._drain(0.1):
-                    return bytes(self.tail)
+                    return bytes(self.capture.tail)
         msg = "Original command or prompt deadline exhausted"
         _deadline_error(msg)
 
@@ -527,11 +628,11 @@ class OriginalPtySession:
         self, command: bytes, suffix: bytes = b"\r", *, _deadline_ms: int | None = None
     ) -> bytes:
         """Execute an approved framed command within one original budget."""
-        if self.failed or self.closed or self.truncated:
+        if self.capture.failed or self.capture.closed or self.capture.truncated:
             msg = "Original capture is retired"
             _source_error(msg)
         if (
-            type(command) is not bytes
+            not exact_bytes(command)
             or len(command) > COMMAND_MAX_BYTES
             or any(byte < ASCII_GRAPHIC_MIN or byte == DELETE for byte in command)
             or any(byte in command for byte in b";&|$\x60<>~")
@@ -539,48 +640,57 @@ class OriginalPtySession:
         ):
             msg = "Command injection or invalid framing"
             _source_error(msg)
-        start = self.total
-        deadline = min(self.operation_deadline_ms, now_ms() + self.command_timeout_ms)
+        start = self.capture.total
+        deadline = min(
+            self.operation_deadline_ms, now_ms() + self.options.command_timeout_ms
+        )
         if _deadline_ms is not None:
             deadline = min(deadline, _deadline_ms)
         try:
-            self.assert_owner()
+            self.options.guards.owner()
             self._guard()
             if now_ms() >= deadline:
                 msg = "Original command budget exhausted before write"
                 _deadline_error(msg)
-            self.tail.clear()
+            self.capture.tail.clear()
             os.write(self._live_fd(), command)
             os.write(self._live_fd(), suffix)
             value = self._read_prompt(deadline)
-            self.assert_owner()
+            self.options.guards.owner()
             self._guard()
             if now_ms() >= deadline:
                 msg = "Original command budget exhausted during final ownership check"
                 _deadline_error(msg)
         except BaseException:
-            self.failed = True
+            self.capture.failed = True
             raise
         else:
             return value
         finally:
-            self.commands.append(
-                {"startByte": start, "endByte": self.total, "failed": self.failed}
+            self.capture.commands.append(
+                {
+                    "startByte": start,
+                    "endByte": self.capture.total,
+                    "failed": self.capture.failed,
+                }
             )
             record(
-                self.root / ("command-" + str(len(self.commands)) + ".private.json"),
-                self.commands[-1],
+                self.root
+                / ("command-" + str(len(self.capture.commands)) + ".private.json"),
+                self.capture.commands[-1],
             )
 
     def clear_pending(self, *, deadline_ms: int) -> bytes:
         """Clear unfinished completion input within its original command budget."""
-        if self.failed or self.closed or self.truncated:
+        if self.capture.failed or self.capture.closed or self.capture.truncated:
             _source_error("Original capture is retired")
         deadline = min(
-            deadline_ms, self.operation_deadline_ms, now_ms() + self.command_timeout_ms
+            deadline_ms,
+            self.operation_deadline_ms,
+            now_ms() + self.options.command_timeout_ms,
         )
         try:
-            self.assert_owner()
+            self.options.guards.owner()
             self._guard()
             if now_ms() >= deadline:
                 _deadline_error(
@@ -589,42 +699,44 @@ class OriginalPtySession:
             os.write(self._live_fd(), bytes([21]))
             return self.exchange(b"", _deadline_ms=deadline)
         except BaseException:
-            self.failed = True
+            self.capture.failed = True
             raise
 
     def discover(self) -> set[bytes]:
         """Discover completion and clear input within the same budget."""
-        deadline = min(self.operation_deadline_ms, now_ms() + self.command_timeout_ms)
+        deadline = min(
+            self.operation_deadline_ms, now_ms() + self.options.command_timeout_ms
+        )
         raw = self.exchange(b"", b"\t", _deadline_ms=deadline)
         completion = visible(raw)
         if completion is None:
             _source_error("Original completion has incomplete controls")
-        self.capabilities = set(
+        self.capture.capabilities = set(
             re.findall(rb"(?m)^\s*([a-z][a-z0-9-]*)(?=\s|$)", completion)
         )
-        self.discovery_ms = now_ms()
+        self.capture.discovery_ms = now_ms()
         self.clear_pending(deadline_ms=deadline)
-        return self.capabilities
+        return self.capture.capabilities
 
     def request_logout(self) -> None:
         """Request only a freshly discovered supported logout."""
         if (
-            self.failed
-            or self.closed
-            or b"exit" not in self.capabilities
-            or self.discovery_ms is None
-            or now_ms() - self.discovery_ms > DISCOVERY_MAX_AGE_MS
+            self.capture.failed
+            or self.capture.closed
+            or b"exit" not in self.capture.capabilities
+            or self.capture.discovery_ms is None
+            or now_ms() - self.capture.discovery_ms > DISCOVERY_MAX_AGE_MS
         ):
             msg = "Fresh supported logout command required"
             _source_error(msg)
-        self.assert_owner()
+        self.options.guards.owner()
         self._guard()
         os.write(self._live_fd(), b"exit")
         os.write(self._live_fd(), b"\r")
 
     def disconnect(self) -> None:
         """Close only the verified owned SSH client through its protocol escape."""
-        if self.closed or self.child.poll() is not None:
+        if self.capture.closed or self._child().poll() is not None:
             return
         pairs = [self.argv[index : index + 2] for index in range(len(self.argv) - 1)]
         if (
@@ -638,16 +750,17 @@ class OriginalPtySession:
         if now_ms() >= self.closure_deadline_ms:
             msg = "Original SSH closure reserve exhausted"
             _deadline_error(msg)
-        self.assert_inputs()
+        self.options.guards.inputs()
         if (
-            process_identity(self.child.pid) != self.original
-            or pinned(self.argv[0], self.exe_sha256) != self.exe_identity
+            process_identity(self._child().pid) != self.actor.original
+            or pinned(self.argv[0], self.options.executable_sha256)
+            != self.actor.exe_identity
         ):
             msg = "Original SSH client identity changed"
             _source_error(msg)
         record(
             self.root / "protocol-close.private.json",
-            {"identity": self.original, "signalsSent": False},
+            {"identity": self.actor.original, "signalsSent": False},
         )
         os.write(self._live_fd(), b"\r")
         os.write(self._live_fd(), b"~.")
@@ -655,21 +768,26 @@ class OriginalPtySession:
     def receipt(self) -> dict[str, object]:
         """Describe transport evidence without claiming guest acceptance."""
         return {
-            "identity": self.original,
+            "identity": self.actor.original,
             "signalsSent": False,
-            "failed": self.failed,
-            "truncated": self.truncated,
-            "totalBytes": self.total,
-            "retainedBytes": self.kept,
-            "closed": self.closed,
+            "failed": self.capture.failed,
+            "truncated": self.capture.truncated,
+            "totalBytes": self.capture.total,
+            "retainedBytes": self.capture.kept,
+            "closed": self.capture.closed,
             "guestAcceptanceComplete": False,
         }
 
     def close(self) -> bool:
         """Release descriptors only after original group absence."""
-        if self.closed:
+        if self.capture.closed:
             return True
-        while self.child.poll() is None and now_ms() < self.closure_deadline_ms:
+        if self.actor.child is None:
+            if not (self.root / "unresolved.private.json").exists():
+                record(self.root / "unresolved.private.json", self.receipt())
+            RETAINED[str(self.root)] = self
+            return False
+        while self._child().poll() is None and now_ms() < self.closure_deadline_ms:
             try:
                 self._drain(
                     min(0.02, max(0, (self.closure_deadline_ms - now_ms()) / 1000))
@@ -678,14 +796,14 @@ class OriginalPtySession:
                 time.sleep(0.005)
         try:
             absent = (
-                self.original is not None
-                and self.child.poll() is not None
-                and group_absent(self.original)
+                self.actor.original is not None
+                and self._child().poll() is not None
+                and group_absent(self.actor.original)
             )
         except (ValueError, OSError, psutil.Error):
             absent = False
         if not absent:
-            self.failed = True
+            self.capture.failed = True
             self._flush()
             if not (self.root / "unresolved.private.json").exists():
                 record(self.root / "unresolved.private.json", self.receipt())
@@ -697,10 +815,12 @@ class OriginalPtySession:
         except EOFError:
             pass
         self._flush()
-        self.stream.close()
+        self._stream().close()
         os.close(self._live_fd())
-        self.fd = None
-        self.closed = True
+        self.actor.fd = None
+        self.actor.stream = None
+        self.actor.lifetime.close()
+        self.capture.closed = True
         record(self.root / "closure.private.json", self.receipt())
         RETAINED.pop(str(self.root), None)
         return True
@@ -732,8 +852,8 @@ if __name__ == "__main__":
     if len(sys.argv) > GATE_MIN_ARGUMENTS and sys.argv[1] == "--gate":
         gate()
     else:
-        msg = "This module requires a trusted owning controller"
-        raise SystemExit(msg)
+        MESSAGE = "This module requires a trusted owning controller"
+        raise SystemExit(MESSAGE)
 
 
 StartupFailure = PtyStartupError
