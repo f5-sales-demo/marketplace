@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { decodeEvidenceObject } from './evidence-json';
 import type { PlanReceipt } from './runner';
 
 type Json = Record<string, unknown>;
@@ -51,37 +52,6 @@ const text = (value: unknown): string => {
   for (const char of value) if (char.charCodeAt(0) < 32) throw new Error('Malformed Terraform UI identity');
   return value;
 };
-
-function decodeLine(raw: Uint8Array): Json {
-  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
-  const value = object(JSON.parse(source));
-  // JSON.parse discards duplicate keys. Check even escaped/nested identities
-  // before using its projection; never select the last ambiguous identity.
-  const scopes: Array<Set<string> | null> = [];
-  for (let i = 0; i < source.length; i++) {
-    const char = source[i];
-    if (char === '{' || char === '[') {
-      if (scopes.length >= 64) throw new Error('Terraform UI nesting exceeded');
-      scopes.push(char === '{' ? new Set() : null);
-    } else if (char === '}' || char === ']') scopes.pop();
-    else if (char === '"') {
-      const start = i++;
-      while (i < source.length && source[i] !== '"') {
-        if (source[i] === '\\') i++;
-        i++;
-      }
-      let next = i + 1;
-      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
-      if (source[next] === ':') {
-        const key: string = JSON.parse(source.slice(start, i + 1));
-        const keys = scopes.at(-1);
-        if (!keys || keys.has(key)) throw new Error('Duplicate Terraform UI identity');
-        keys.add(key);
-      }
-    }
-  }
-  return value;
-}
 
 /** Pinned Terraform 1.16.6 / JSON UI 1.3 core hooks, in serialized apply order.
  * Callers retain original stream bytes before parsing. These hooks establish
@@ -159,7 +129,7 @@ export class TerraformApplyHookParser {
   #parse(raw: Uint8Array): TerraformApplyHookCandidate | undefined {
     let event: Json;
     try {
-      event = decodeLine(raw);
+      event = decodeEvidenceObject(raw);
     } catch {
       throw new Error('Malformed original Terraform JSON UI line');
     }

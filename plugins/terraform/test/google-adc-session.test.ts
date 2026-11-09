@@ -32,6 +32,7 @@ async function fixture() {
   await writeFile(snapshotPath, bytes, { mode: 0o400 });
   let latched = false;
   let checks = 0;
+  const verifiedAt = Date.now();
   const lease: GoogleAdcLease = {
     schemaVersion: 1,
     kind: 'google-adc-snapshot',
@@ -42,8 +43,8 @@ async function fixture() {
     audienceSha256: hash('fixture-client'),
     authenticationReceiptSha256: hash('fresh-authentication'),
     qualificationSha256: hash('reviewed-linux-expiry'),
-    verifiedAt: Date.now(),
-    expiresNoEarlierThan: Date.now() + 3600000,
+    verifiedAt,
+    expiresNoEarlierThan: verifiedAt + 3600000,
     closeAfterExecutorExit: async () => {},
     assertOriginal: async () => {
       checks++;

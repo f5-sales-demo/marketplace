@@ -1069,3 +1069,13 @@ all eight original groups are independently absent and no cloud mutation occurs.
 Google SDK normalization also has a documented fallback for an empty reason;
 explicit configuration prevents it here. Original producer admission and create/
 audit/insert joins, full capture and all subsequent acceptance gates remain open.
+
+Attempt 408 qualifies [bounded HTTP/RPC trace candidates](gcp-http-rpc-trace-candidates-20261109.md).
+Twelve trace and fourteen core-hook cases pass with 134 assertions. A fresh
+authenticated pinned read matches one complete original RPC/HTTP transaction
+against a scope fixed before apply. Reviewed local teardown leaves stable empty
+state and all eight original groups independently absent. A failed predecessor
+retains its capture and a separate reviewed recovery proves empty destroy and
+ten group absences. No cloud mutation occurs. Original stream/producer admission,
+reviewed apply and insert-incarnation joins, full capture and every subsequent
+acceptance gate remain open.

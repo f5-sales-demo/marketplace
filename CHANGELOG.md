@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.49** inspects bounded HTTP dump blocks inside original RPC traces,
+  retaining explicit source/insert admission holds and fixed credential lifetimes (#1559).
+
 - **`terraform` 2.4.48** preserves reviewed deferred data-source identities in core apply hooks
   while retaining original provider RPC and GCP insert qualification holds (#1559).
 
