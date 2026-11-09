@@ -1015,3 +1015,14 @@ reserve. The empty plan has zero managed resources and all sixteen original
 groups were independently absent. Cloud apply/insert attribution, full guest
 capture, live lifecycle/network/traffic, ordinary installed runtime and every
 review, CI and publication gate remain open.
+
+Attempt 402 qualifies the [installed cloud reader lifetime](gcp-cloud-reader-lifetime-20261109.md).
+Every authentication and Compute/serial request checks the original operation
+or an admitted original final reserve. Five lifetime regressions failed first;
+all fourteen isolated clock cases and 968 top-level shared tests pass. The fresh
+authenticated source composition completed two default SDK reads and two real
+Compute absence reads, including final capture. Its empty reviewed plan and
+final no-change plan retain zero managed resources; all sixteen original process
+groups were independently absent. Existing Python structure/module-resolution
+CI failures are reproduced and require repair. The full installed controller,
+cloud apply/insert attribution and every subsequent acceptance gate remain open.

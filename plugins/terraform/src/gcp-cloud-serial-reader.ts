@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import {
   type GoogleAdcAuthenticationRequest,
@@ -8,7 +8,11 @@ import {
   openGoogleAdcComputeReader,
 } from './google-adc-authentication';
 import type { InstalledCaptureContext } from './installed-capture-context';
+import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import { assertSameOriginalInput } from './original-input-monitor';
+import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
+import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
 type Json = Record<string, unknown>;
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
@@ -269,35 +273,70 @@ export async function openGcpCloudSerialReader(
   return Object.freeze({ instance, serial });
 }
 
+export interface InstalledCloudFinalCapture {
+  readonly admission: ExecutionCaptureAdmission;
+  readonly reserve: FinalReaderReserve;
+}
+
 /** The installed controller supplies its original authenticated principal hashes.
  * Read only the already admitted ADC path; never inspect ambient gcloud settings.
- * The controller owns the original operation/final deadlines around these reads.
+ * Every authentication and cloud read checks the original operation or fixed parent reserve.
  */
 export async function openInstalledGcpCloudSerialReader(
   context: InstalledCaptureContext,
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
+  finalCapture?: InstalledCloudFinalCapture,
 ) {
   if (
     context.schemaVersion !== 2 ||
     context.kind !== 'original-installed-gcp-capture-context' ||
     context.owner.provider !== 'gcp' ||
     context.owner.engine !== 'terraform' ||
-    context.environment.GOOGLE_APPLICATION_CREDENTIALS !== context.inputs.adc.path
+    context.environment.GOOGLE_APPLICATION_CREDENTIALS !== context.inputs.adc?.path
   )
     throw new Error('Trusted original installed cloud reader context required');
   const expected = context.authentication;
-  await context.assertWithinDeadline();
+  const reserve = finalCapture?.reserve;
+  if (finalCapture) {
+    const snapshot = inspectFinalReaderReserve(finalCapture.reserve);
+    const admission = finalCapture.admission;
+    if (
+      !admission ||
+      admission.directory !== context.executionDirectory ||
+      admission.args[0] !== 'apply' ||
+      admission.originalStartMs !== context.budget.start ||
+      admission.originalDeadlineMs !== context.budget.deadline ||
+      snapshot.originalStartMs !== context.budget.start ||
+      snapshot.originalDeadlineMs !== context.budget.deadline ||
+      !admission.identity ||
+      (['pid', 'group', 'start', 'boot'] as const).some((key) => admission.identity[key] !== snapshot.identity[key])
+    )
+      throw new Error('Original installed cloud final reader parent differs');
+  }
+  const assertClock = async () => {
+    if (reserve) await assertFinalReaderReserve(reserve);
+    else {
+      if (linuxMonotonicMs() >= context.budget.deadline)
+        throw new Error('Original installed cloud operation deadline exhausted');
+      await context.assertWithinDeadline();
+      if (linuxMonotonicMs() >= context.budget.deadline)
+        throw new Error('Original installed cloud operation deadline exhausted');
+    }
+  };
   const assertOriginal = async () => {
+    await assertClock();
     await context.assertInputs();
     const providers = await context.readProviderInputs();
     if (Object.keys(providers).length !== 6)
       throw new Error('All six original admitted provider-package inputs required');
     await context.assertInputs();
+    await assertClock();
   };
   await assertOriginal();
-  const bytes = await readFile(context.inputs.adc.path);
-  if (hash(bytes) !== context.inputs.adc.sha256) throw new Error('Original admitted ADC bytes changed');
+  const originalAdc = await readOwnedInstalledInput(context.inputs.adc.path, 65536);
+  assertSameOriginalInput(context.inputs.adc, originalAdc.binding);
+  const bytes = originalAdc.bytes;
   await assertOriginal();
   return openGcpCloudSerialReader(
     {

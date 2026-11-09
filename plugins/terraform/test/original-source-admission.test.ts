@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdtemp, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { assertSameOriginalInput, type OriginalInputBinding } from '../src/original-input-monitor';
@@ -62,8 +62,8 @@ test('same-byte writes and parent permission changes cannot reset the original a
   for (const change of ['write', 'parent']) {
     const f = await fixture();
     if (change === 'write') {
-      await new Promise((resolve) => setTimeout(resolve, 2));
       await writeFile(f.path, await readFile(f.path));
+      await utimes(f.path, new Date(0), new Date(0));
     } else await chmod(f.root, 0o775);
     const current = await binding(f.path);
     expect(current.sha256).toBe(f.original.sha256);

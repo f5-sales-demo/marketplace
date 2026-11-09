@@ -26,8 +26,8 @@ async function fixture(body = 'print("final-reader-complete")\n') {
   const script = join(root, 'reader.py');
   await writeFile(script, body, { flag: 'wx', mode: 0o400 });
   const now = linuxMonotonicMs();
-  const originalDeadlineMs = now - 100;
-  const originalStartMs = originalDeadlineMs - 7_200_000;
+  const originalStartMs = Math.max(0, now - 7_200_100);
+  const originalDeadlineMs = originalStartMs + 7_200_000;
   const finalStartedMs = now - 50;
   const finalDeadlineMs = finalStartedMs + 300_000;
   const captures: FinalExecutionCapture[] = [];
@@ -56,10 +56,17 @@ async function fixture(body = 'print("final-reader-complete")\n') {
   return { root, script, captures, reserve, policy, finalStartedMs, finalDeadlineMs, guards: () => guards };
 }
 
-test('final reader executes after operation expiry without renewing either original clock', async () => {
+test('final reader preserves both original clocks after the normal operation guard refuses', async () => {
   const run = await fixture();
   const invocation = { cwd: run.root, args: ['-I', '-B', run.script], env: {} };
-  await expect(signalFreeTerraformExecutor(run.policy)(invocation)).rejects.toThrow('deadline');
+  await expect(
+    signalFreeTerraformExecutor({
+      ...run.policy,
+      assertOriginal: async () => {
+        throw new Error('Original operation deadline exhausted');
+      },
+    })(invocation),
+  ).rejects.toThrow('deadline');
   const execute = signalFreeFinalReaderExecutor(run.policy, run.reserve);
   const result = await execute(invocation);
   expect(result.code).toBe(0);
@@ -144,7 +151,7 @@ test('final reader authority refuses Terraform, changed budgets and excessive co
   await expect(execute({ cwd: run.root, args: ['-c', 'print("unexpected")'], env: {} })).rejects.toThrow('isolated');
 });
 
-test('changed original guards or an exhausted inherited reserve refuse before submission', async () => {
+test('changed original guards or an unavailable inherited reserve refuse before submission', async () => {
   const run = await fixture();
   const values = inspectFinalReaderReserve(run.reserve);
   const changed = admitFinalReaderReserve({
@@ -159,8 +166,8 @@ test('changed original guards or an exhausted inherited reserve refuse before su
   expect(() =>
     admitFinalReaderReserve({
       ...values,
-      finalStartedMs: values.finalStartedMs - 300_001,
-      finalDeadlineMs: values.finalDeadlineMs - 300_001,
+      finalStartedMs: values.finalDeadlineMs + 1,
+      finalDeadlineMs: values.finalDeadlineMs + 300_001,
       assertOriginal: async () => {},
     }),
   ).toThrow('exhausted');
