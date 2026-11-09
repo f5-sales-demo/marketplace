@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "kind": "gcp-original-capture-sources",
+  "files": {
+    "__init__.py": "e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb",
+    "guest_pty.py": "265fa1444f8139e465aa9d8f2c44f0553a2e6052d36cab084cdd4f4ed243a987",
+    "gcp_guest_session.py": "b9853f928b493bdf9dd0273b985b3a10838f605c5fbc29982e57ccf88a496978",
+    "gcp_provider_process.py": "17b4f80fbe09f9337f3c482545ae94ae62af85a29e61d36d0f0bfeb30453d228",
+    "gcp_provider_reader.py": "4afc32be9c9b57478ad8de0bc645198d2837f55a4c6083b2b1341bb3384203b0"
+  }
+}

@@ -1,8 +1,37 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gcpOperationalSourceIdentity } from './gcp-operational-source-identity';
 
 const root = join(import.meta.dir, '..');
+const captureScripts = [
+  '__init__.py',
+  'guest_pty.py',
+  'gcp_guest_session.py',
+  'gcp_provider_process.py',
+  'gcp_provider_reader.py',
+];
+await writeFile(
+  join(root, 'plugins/terraform/src/gcp-capture-source-pins.json'),
+  `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      kind: 'gcp-original-capture-sources',
+      files: Object.fromEntries(
+        await Promise.all(
+          captureScripts.map(async (name) => [
+            name,
+            createHash('sha256')
+              .update(await readFile(join(root, 'plugins/terraform/scripts', name)))
+              .digest('hex'),
+          ]),
+        ),
+      ),
+    },
+    null,
+    2,
+  )}\n`,
+);
 await writeFile(
   join(root, 'plugins/gcloud/src/ce/operational-source-hashes.json'),
   `${JSON.stringify(await gcpOperationalSourceIdentity(root), null, 2)}\n`,

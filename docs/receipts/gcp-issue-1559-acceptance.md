@@ -1005,3 +1005,13 @@ reader ran through a real local timeout boundary with all three original groups
 independently absent. Six reader and two dispatcher regressions plus 968 shared
 tests pass. Actual two-hour expiry and all cloud apply, full capture, lifecycle,
 networking, traffic, installed runtime, review, CI and publication gates stay open.
+
+Attempt 401 qualifies the [installed provider bridge](gcp-installed-provider-bridge-20261109.md).
+Five shipped scripts are verified against compiled hashes before runtime use.
+Three admission and eight bridge regressions plus 979 shared tests pass. The
+actual installed resolver and authenticated contexts completed two default SDK
+reads against one original Terraform invocation, including its fixed final
+reserve. The empty plan has zero managed resources and all sixteen original
+groups were independently absent. Cloud apply/insert attribution, full guest
+capture, live lifecycle/network/traffic, ordinary installed runtime and every
+review, CI and publication gate remain open.

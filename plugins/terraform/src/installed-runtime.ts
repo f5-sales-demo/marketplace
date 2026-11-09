@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
 import { assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
+import captureSources from './gcp-capture-source-pins.json';
 import { authenticateGoogleAdc } from './google-adc-authentication';
 import type { GoogleAdcLease } from './google-adc-session';
 import {
@@ -49,6 +50,39 @@ export interface InstalledGcpCapture {
   assertOriginal(): Promise<void>;
   finalCapture(capture: FinalExecutionCapture, reserve?: FinalReaderReserve): Promise<void>;
   closeAfterExecutorExit(): Promise<void>;
+}
+export class InstalledCaptureSourcesUnavailable extends Error {
+  constructor() {
+    super('Verified Terraform plugin capture sources are missing or changed; reinstall the plugin');
+  }
+}
+/** Admit shipped script bytes against the hashes compiled into the installed runtime. */
+export async function inspectInstalledCaptureScripts(directory = join(import.meta.dir, '../scripts')) {
+  try {
+    const parent = await lstat(directory);
+    if (
+      !isAbsolute(directory) ||
+      resolve(directory) !== directory ||
+      (await realpath(directory)) !== directory ||
+      !parent.isDirectory() ||
+      parent.isSymbolicLink() ||
+      parent.uid !== process.getuid?.() ||
+      (parent.mode & 0o022) !== 0 ||
+      captureSources.schemaVersion !== 1 ||
+      captureSources.kind !== 'gcp-original-capture-sources'
+    )
+      throw new InstalledCaptureSourcesUnavailable();
+    const inputs: Record<string, OriginalInputBinding> = {};
+    for (const [name, expected] of Object.entries(captureSources.files)) {
+      const actual = await owned(join(directory, name));
+      if (actual.binding.sha256 !== expected) throw new InstalledCaptureSourcesUnavailable();
+      inputs[`script:${name}`] = actual.binding;
+    }
+    return freezeAdmittedCaptureInputs(inputs);
+  } catch (error) {
+    if (error instanceof InstalledCaptureSourcesUnavailable) throw error;
+    throw new InstalledCaptureSourcesUnavailable();
+  }
 }
 export interface InstalledRuntimeFactoryOptions {
   /** Compiled server implementation only; never accepted as a tool argument or receipt flag. */
@@ -95,6 +129,9 @@ async function owned(path: string, maximum = 256 * 1024 * 1024) {
     await handle.close();
   }
 }
+
+export { owned as readOwnedInstalledInput };
+
 async function privateDirectory(path: string) {
   if (!isAbsolute(path) || resolve(path) !== path) throw new Error('Canonical private runtime directory required');
   await mkdir(path, { recursive: true, mode: 0o700 });
@@ -174,6 +211,7 @@ export async function assertInstalledRuntime(env: Record<string, string | undefi
       bindings[`sdk:${name}`] = actual.binding;
     }
     bindings.review = (await owned(join(root, 'review.json'), 65536)).binding;
+    Object.assign(bindings, await inspectInstalledCaptureScripts());
     const monitor = await monitorOriginalInputs(bindings);
     let inspectionDirectory: string | undefined;
     let inspectionClosed = false;

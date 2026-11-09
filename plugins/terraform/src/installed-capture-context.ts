@@ -21,6 +21,7 @@ export interface InstalledCaptureAdmission {
   readonly inputs: Inputs;
   assertInputs(): Promise<void>;
   assertWithinDeadline(): Promise<void>;
+  /** Producer rechecks original inputs before and after the original provider getter. */
   readProviderInputs(): Promise<Inputs>;
 }
 export interface InstalledCaptureContext extends InstalledCaptureAdmission {
