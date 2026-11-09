@@ -591,9 +591,102 @@ function createInstalledCaptureContext(admission) {
   });
 }
 
+// plugins/terraform/src/linux-clock.ts
+import { dlopen, FFIType, ptr } from 'bun:ffi';
 // plugins/terraform/src/installed-final-capture.ts
 import { isAbsolute as isAbsolute2, join as join2, resolve as resolve2 } from 'node:path';
 
+var sample;
+function linuxMonotonicMs() {
+  if (process.platform !== 'linux') throw new Error('Original Linux monotonic clock is unavailable');
+  if (!sample) {
+    const libc = dlopen('libc.so.6', {
+      clock_gettime: { args: [FFIType.i32, FFIType.ptr], returns: FFIType.i32 },
+    });
+    const value = new BigInt64Array(2);
+    sample = () => {
+      if (libc.symbols.clock_gettime(1, ptr(value)) !== 0 || value[0] < 0n || value[1] < 0n || value[1] >= 1000000000n)
+        throw new Error('Original Linux monotonic clock capture failed');
+      const result = value[0] * 1000n + value[1] / 1000000n;
+      if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Original monotonic clock exceeds safe bound');
+      return Number(result);
+    };
+  }
+  return sample();
+}
+
+// plugins/terraform/src/reader-final-reserve.ts
+var admissions = new WeakMap();
+var windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'];
+var originalWindows = new Map();
+function withinWindow(snapshot) {
+  const current = linuxMonotonicMs();
+  if (current < snapshot.finalStartedMs || current >= snapshot.finalDeadlineMs)
+    throw new Error('Original final reader reserve is exhausted or has not started');
+}
+function admitFinalReaderReserve(input) {
+  if (
+    !input ||
+    typeof input.assertOriginal !== 'function' ||
+    !input.identity ||
+    !Number.isSafeInteger(input.identity.pid) ||
+    input.identity.pid <= 0 ||
+    input.identity.group !== input.identity.pid ||
+    typeof input.identity.start !== 'string' ||
+    !/^[0-9]+$/.test(input.identity.start) ||
+    typeof input.identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(input.identity.boot) ||
+    ![input.originalStartMs, input.originalDeadlineMs, input.finalStartedMs, input.finalDeadlineMs].every(
+      Number.isSafeInteger,
+    ) ||
+    input.originalStartMs < 0 ||
+    input.originalDeadlineMs - input.originalStartMs !== 7200000 ||
+    input.finalStartedMs < input.originalStartMs ||
+    input.finalDeadlineMs - input.finalStartedMs !== 300000
+  )
+    throw new Error('Trusted original fixed operation and final reader budgets required');
+  const snapshot = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-final-reader-reserve',
+    identity: Object.freeze({ ...input.identity }),
+    originalStartMs: input.originalStartMs,
+    originalDeadlineMs: input.originalDeadlineMs,
+    finalStartedMs: input.finalStartedMs,
+    finalDeadlineMs: input.finalDeadlineMs,
+  });
+  withinWindow(snapshot);
+  const key = `${snapshot.identity.boot}:${snapshot.identity.pid}:${snapshot.identity.start}`;
+  const original = originalWindows.get(key);
+  if (original && windowKeys.some((field) => original[field] !== snapshot[field]))
+    throw new Error('Original final reader window cannot be renewed');
+  if (!original)
+    originalWindows.set(
+      key,
+      Object.freeze({
+        originalStartMs: snapshot.originalStartMs,
+        originalDeadlineMs: snapshot.originalDeadlineMs,
+        finalStartedMs: snapshot.finalStartedMs,
+        finalDeadlineMs: snapshot.finalDeadlineMs,
+      }),
+    );
+  admissions.set(snapshot, { snapshot, assertOriginal: input.assertOriginal });
+  return snapshot;
+}
+function inspectFinalReaderReserve(reserve) {
+  const admission = admissions.get(reserve);
+  if (!admission) throw new Error('An admitted original final reader reserve is required');
+  return admission.snapshot;
+}
+async function assertFinalReaderReserve(reserve) {
+  const snapshot = inspectFinalReaderReserve(reserve);
+  withinWindow(snapshot);
+  const admission = admissions.get(reserve);
+  if (!admission) throw new Error('An admitted original final reader reserve is required');
+  await admission.assertOriginal();
+  withinWindow(snapshot);
+}
+
+// plugins/terraform/src/installed-final-capture.ts
 function key(identity) {
   if (
     !identity ||
@@ -612,6 +705,14 @@ class InstalledCaptureInvocations {
   admit(input) {
     const identityKey = key(input.identity);
     if (this.records.has(identityKey)) throw new Error('Original installed capture already admitted');
+    if (
+      input.budget &&
+      (!Number.isSafeInteger(input.budget.start) ||
+        input.budget.start < 0 ||
+        !Number.isSafeInteger(input.budget.deadline) ||
+        input.budget.deadline - input.budget.start !== 7200000)
+    )
+      throw new Error('Original installed capture operation budget required');
     if (!isAbsolute2(input.groupDirectory) || resolve2(input.groupDirectory) !== input.groupDirectory)
       throw new Error('Original installed capture directory required');
     const groupInputs = freezeAdmittedCaptureInputs(input.groupInputs);
@@ -623,6 +724,7 @@ class InstalledCaptureInvocations {
       throw new Error('Original installed capture group inputs required');
     const record = Object.freeze({
       identity: Object.freeze({ ...input.identity }),
+      ...(input.budget ? { budget: Object.freeze({ ...input.budget }) } : {}),
       groupDirectory: input.groupDirectory,
       groupInputs,
       capture: input.capture,
@@ -658,7 +760,28 @@ async function finalizeInstalledCapture(invocations, finished, hooks) {
     const original = record;
     await attempt(() => hooks.verify(original));
     const capture = original.capture;
-    if (capture) await attempt(() => capture.finalCapture(finished));
+    if (capture) {
+      let reserve;
+      if (original.budget)
+        await attempt(async () => {
+          if (finished.originalDeadlineMs !== original.budget?.deadline)
+            throw new Error('Original final capture operation budget changed');
+          const { verify, assertInputs } = hooks;
+          reserve = admitFinalReaderReserve({
+            identity: original.identity,
+            originalStartMs: original.budget.start,
+            originalDeadlineMs: original.budget.deadline,
+            finalStartedMs: finished.finalStartedMs,
+            finalDeadlineMs: finished.finalDeadlineMs,
+            assertOriginal: async () => {
+              await verify(original);
+              await assertInputs();
+              await verify(original);
+            },
+          });
+        });
+      await attempt(() => capture.finalCapture(finished, reserve));
+    }
   }
   await attempt(hooks.assertInputs);
   if (record) {
@@ -696,28 +819,6 @@ var installed_runtime_pins_default = {
   xcProviderSha256: 'c25cc2562047d72ef3b10d2cd8319f13f8c5b6785aa62cc9006b6370ae68fd67',
   refreshQualificationSha256: '613a5979c06e99b57a9ae34855f8d0f4724ebe641e22d7b6ed973cca378fbc0c',
 };
-
-// plugins/terraform/src/linux-clock.ts
-import { dlopen, FFIType, ptr } from 'bun:ffi';
-
-var sample;
-function linuxMonotonicMs() {
-  if (process.platform !== 'linux') throw new Error('Original Linux monotonic clock is unavailable');
-  if (!sample) {
-    const libc = dlopen('libc.so.6', {
-      clock_gettime: { args: [FFIType.i32, FFIType.ptr], returns: FFIType.i32 },
-    });
-    const value = new BigInt64Array(2);
-    sample = () => {
-      if (libc.symbols.clock_gettime(1, ptr(value)) !== 0 || value[0] < 0n || value[1] < 0n || value[1] >= 1000000000n)
-        throw new Error('Original Linux monotonic clock capture failed');
-      const result = value[0] * 1000n + value[1] / 1000000n;
-      if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Original monotonic clock exceeds safe bound');
-      return Number(result);
-    };
-  }
-  return sample();
-}
 
 // plugins/terraform/src/original-input-monitor.ts
 import { createHash as createHash3 } from 'node:crypto';
@@ -1193,7 +1294,16 @@ async function pinned(binding) {
   };
 }
 function signalFreeTerraformExecutor(input) {
+  return originalExecutor(input);
+}
+function originalExecutor(input, reserve) {
   const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
+  const inherited = reserve ? inspectFinalReaderReserve(reserve) : undefined;
+  const executionDeadline = inherited?.finalDeadlineMs ?? policy.originalDeadlineMs;
+  const assertOriginal = async () => {
+    await policy.assertOriginal();
+    if (reserve) await assertFinalReaderReserve(reserve);
+  };
   const beforeRelease = policy.beforeRelease;
   if (
     process.platform !== 'linux' ||
@@ -1228,10 +1338,10 @@ function signalFreeTerraformExecutor(input) {
     )
       throw new Error('Original execution loader substitution refused');
     const began = now();
-    if (began < policy.originalStartMs || began >= policy.originalDeadlineMs)
+    if (began < policy.originalStartMs || began >= executionDeadline)
       throw new Error('Original operation deadline exhausted');
     signal?.throwIfAborted();
-    await policy.assertOriginal();
+    await assertOriginal();
     const directory = await lstat4(cwd);
     if (
       !directory.isDirectory() ||
@@ -1286,11 +1396,11 @@ function signalFreeTerraformExecutor(input) {
     };
     const check = async () => {
       if (signal?.aborted) fail('cancelled');
-      if (now() >= Math.min(began + timeout, policy.originalDeadlineMs)) fail('deadline');
+      if (now() >= Math.min(began + timeout, executionDeadline)) fail('deadline');
       try {
         await python.require();
         await executable.require();
-        await policy.assertOriginal();
+        await assertOriginal();
       } catch {
         fail('input-changed');
       }
@@ -1326,7 +1436,7 @@ function signalFreeTerraformExecutor(input) {
       const childDone = child.exited.then((code) => {
         actualExitCode = code;
       });
-      const startupDeadline = Math.min(began + startup, policy.originalDeadlineMs);
+      const startupDeadline = Math.min(began + startup, executionDeadline);
       while (!(await Bun.file(bootstrap).exists()) && actualExitCode === null && !reason) {
         await check();
         if (now() >= startupDeadline) fail('startup');
@@ -1437,8 +1547,9 @@ function signalFreeTerraformExecutor(input) {
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture = {
         invocationStartedMs: began,
-        finalStartedMs: finalStarted,
-        finalDeadlineMs: finalStarted + 300000,
+        finalStartedMs: inherited?.finalStartedMs ?? finalStarted,
+        finalDeadlineMs: inherited?.finalDeadlineMs ?? finalStarted + 300000,
+        ...(inherited ? { inheritedReaderReserve: inherited } : {}),
         originalDeadlineMs: policy.originalDeadlineMs,
         finishedMs: now(),
         stdoutPath,
@@ -2034,6 +2145,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
                 groupInputs[name] = (await owned(join5(currentGroup, `${name}.json`))).binding;
               const originalCapture = captureInvocations.admit({
                 identity: admission.identity,
+                budget: { start: admission.originalStartMs, deadline: admission.originalDeadlineMs },
                 groupDirectory: currentGroup,
                 groupInputs,
                 capture: admission.args[0] === 'apply' ? capture : undefined,
