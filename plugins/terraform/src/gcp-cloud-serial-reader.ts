@@ -275,19 +275,18 @@ export async function openGcpCloudSerialReader(
  */
 export async function openInstalledGcpCloudSerialReader(
   context: InstalledCaptureContext,
-  authenticationIdentity: Readonly<{ accountSha256: string; audienceSha256: string }>,
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ) {
   if (
-    context.schemaVersion !== 1 ||
+    context.schemaVersion !== 2 ||
     context.kind !== 'original-installed-gcp-capture-context' ||
     context.owner.provider !== 'gcp' ||
     context.owner.engine !== 'terraform' ||
     context.environment.GOOGLE_APPLICATION_CREDENTIALS !== context.inputs.adc.path
   )
     throw new Error('Trusted original installed cloud reader context required');
-  const expected = Object.freeze({ ...authenticationIdentity });
+  const expected = context.authentication;
   await context.assertWithinDeadline();
   const assertOriginal = async () => {
     await context.assertInputs();
@@ -304,7 +303,13 @@ export async function openInstalledGcpCloudSerialReader(
     {
       root: join(context.executionDirectory, `gcp-cloud-capture-${randomUUID()}`),
       region: context.owner.region,
-      authentication: { credentialBytes: bytes, project: context.owner.account, ...expected, assertOriginal },
+      authentication: {
+        credentialBytes: bytes,
+        project: context.owner.account,
+        accountSha256: expected.accountSha256,
+        audienceSha256: expected.audienceSha256,
+        assertOriginal,
+      },
     },
     signal,
     fetcher,

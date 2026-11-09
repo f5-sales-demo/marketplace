@@ -979,3 +979,10 @@ bounded. The live read establishes one probe-name absence, with zero cloud
 submissions. Live serial/guest evidence, original apply-provider and insert
 attribution, the default controller and every subsequent acceptance gate
 remain open.
+
+Attempt 398 adds [original capture authentication and provider process inspection](gcp-capture-identity-and-process-reader-20261109.md).
+Context version 2 binds the original authenticated principal/audience to its
+admitted ADC snapshot. Ten real local process cases and 860 shared tests pass;
+provider candidates remain explicitly unqualified for apply. Original Google
+provider/reader live qualification, the full controller and all subsequent
+acceptance gates remain open.

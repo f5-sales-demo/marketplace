@@ -3,7 +3,13 @@ import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { OriginalInputBinding } from './original-input-monitor';
 
 type Inputs = Readonly<Record<string, OriginalInputBinding>>;
+export interface CaptureAuthenticationIdentity {
+  readonly accountSha256: string;
+  readonly audienceSha256: string;
+  readonly snapshotSha256: string;
+}
 export interface InstalledCaptureAdmission {
+  readonly authentication: Readonly<CaptureAuthenticationIdentity>;
   readonly owner: CeOwner;
   readonly executionDirectory: string;
   readonly budget: Readonly<{ start: number; deadline: number }>;
@@ -18,7 +24,7 @@ export interface InstalledCaptureAdmission {
   readProviderInputs(): Promise<Inputs>;
 }
 export interface InstalledCaptureContext extends InstalledCaptureAdmission {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly kind: 'original-installed-gcp-capture-context';
 }
 const fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'] as const;
@@ -82,6 +88,14 @@ export function createInstalledCaptureContext(admission: InstalledCaptureAdmissi
     throw new Error('Trusted original GCP capture admission required');
   const inputs = freezeAdmittedCaptureInputs(admission.inputs);
   const environment = Object.freeze({ ...admission.environment });
+  const authentication = Object.freeze({ ...admission.authentication });
+  if (
+    ['accountSha256', 'audienceSha256', 'snapshotSha256'].some(
+      (key) => !/^[a-f0-9]{64}$/.test(authentication[key as keyof CaptureAuthenticationIdentity] ?? ''),
+    ) ||
+    authentication.snapshotSha256 !== inputs.adc?.sha256
+  )
+    throw new Error('Original authenticated principal and admitted ADC snapshot required');
   if (
     !inputs.adc ||
     !inputs.platform ||
@@ -99,12 +113,13 @@ export function createInstalledCaptureContext(admission: InstalledCaptureAdmissi
     readProviders = admission.readProviderInputs;
   let originalProviders: Inputs | undefined;
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'original-installed-gcp-capture-context',
     owner: Object.freeze(structuredClone(admission.owner)),
     executionDirectory: admission.executionDirectory,
     budget: Object.freeze({ ...admission.budget }),
     environment,
+    authentication,
     inputs,
     assertInputs,
     assertWithinDeadline,

@@ -409,6 +409,11 @@ export function createInstalledRuntimeResolver(
           capture = captureFactory?.(
             request,
             createInstalledCaptureContext({
+              authentication: {
+                accountSha256: authenticated.accountSha256,
+                audienceSha256: authenticated.audienceSha256,
+                snapshotSha256: authenticated.snapshotSha256,
+              },
               owner,
               executionDirectory,
               budget: { start, deadline },

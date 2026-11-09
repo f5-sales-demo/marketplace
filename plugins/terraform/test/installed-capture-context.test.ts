@@ -28,6 +28,7 @@ function admission() {
       XCSH_API_URL: 'https://example.test',
       XCSH_API_TOKEN: 'EXAMPLE_API_TOKEN',
     },
+    authentication: { accountSha256: 'c'.repeat(64), audienceSha256: 'd'.repeat(64), snapshotSha256: 'a'.repeat(64) },
     inputs: {
       adc: {
         path: '/example/adc.private.json',
@@ -123,4 +124,35 @@ test('concurrent provider handoffs cannot silently accept different original ide
   const results = await Promise.allSettled([context.readProviderInputs(), context.readProviderInputs()]);
   expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
   expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+});
+
+test('capture context freezes the original authenticated principal, audience and admitted snapshot', () => {
+  const original = admission();
+  const context = createInstalledCaptureContext(original);
+  original.authentication.accountSha256 = 'e'.repeat(64);
+  original.authentication.audienceSha256 = 'f'.repeat(64);
+  original.authentication.snapshotSha256 = '0'.repeat(64);
+  expect(context.schemaVersion).toBe(2);
+  expect(context.authentication).toEqual({
+    accountSha256: 'c'.repeat(64),
+    audienceSha256: 'd'.repeat(64),
+    snapshotSha256: 'a'.repeat(64),
+  });
+  expect(Object.isFrozen(context.authentication)).toBe(true);
+});
+
+test('missing authentication identities and a foreign admitted ADC snapshot cannot enter capture', () => {
+  for (const change of [
+    { authentication: undefined },
+    { authentication: { accountSha256: 'invalid', audienceSha256: 'd'.repeat(64), snapshotSha256: 'a'.repeat(64) } },
+    {
+      authentication: { accountSha256: 'c'.repeat(64), audienceSha256: 'd'.repeat(64), snapshotSha256: 'f'.repeat(64) },
+    },
+  ]) {
+    expect(() =>
+      createInstalledCaptureContext({ ...admission(), ...change } as Parameters<
+        typeof createInstalledCaptureContext
+      >[0]),
+    ).toThrow('authenticated');
+  }
 });

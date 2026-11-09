@@ -264,6 +264,11 @@ test('installed reader consumes admitted ADC and provider inputs instead of ambi
   }
   const start = linuxMonotonicMs();
   const context = createInstalledCaptureContext({
+    authentication: {
+      accountSha256: hash(info.email),
+      audienceSha256: hash(credential.client_id),
+      snapshotSha256: inputs.adc.sha256,
+    },
     owner: {
       provider: 'gcp',
       engine: 'terraform',
@@ -287,12 +292,7 @@ test('installed reader consumes admitted ADC and provider inputs instead of ambi
     },
   });
   try {
-    const reader = await openInstalledGcpCloudSerialReader(
-      context,
-      { accountSha256: hash(info.email), audienceSha256: hash(credential.client_id) },
-      undefined,
-      f.fetcher,
-    );
+    const reader = await openInstalledGcpCloudSerialReader(context, undefined, f.fetcher);
     expect((await reader.instance('us-central1-a', 'example-node')).present).toBe(true);
     expect(providerReads).toBeGreaterThan(6);
     expect((await readdir(f.root)).some((name) => name.startsWith('gcp-cloud-capture-'))).toBe(true);
