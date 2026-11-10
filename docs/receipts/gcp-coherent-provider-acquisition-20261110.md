@@ -27,7 +27,11 @@ a zero-exit child with an `input-changed` classification before the fix. Attempt
 The acquisition and window cases failed first. All 38 Python process/FIFO tests
 pass. The shared suites pass 1,074 tests and 4,906 assertions; all three native
 typechecks, runtime builds and dependency checks pass. Ruff, Mypy, configured
-Pylint and the changed-source privacy scan pass.
+Pylint and the changed-source privacy scan pass. The full root and canonical
+suites pass 164 tests and 5,471 assertions. The provider task-preservation fixture
+now supplies the required presentation API and asserts actual hook registration
+for AWS/Azure and its intentional absence for KVM. Its original task-preservation
+assertions remain unchanged.
 
 A fresh standard-runner source fixture used the actual compiled installed reader
 and the latest Google provider. It retained 9,709 trace records, two providers
