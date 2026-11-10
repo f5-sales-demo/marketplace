@@ -1093,3 +1093,18 @@ runner-policy update was incorporated through the repository update-branch
 workflow without changing feature bytes. Provider/RPC/reviewed-resource and
 create/audit/incarnation joins, full capture and every subsequent acceptance
 gate remain open. No installed execution or release authority is granted.
+
+Attempt 410 qualifies [original runner admission and producer closure](gcp-runner-admission-and-closing-producer-20261109.md).
+The installed bridge freezes the selected execution environment and admits exact
+runner commands before adding fixed apply tracing. A documented native-thread
+exit regression and a fresh authenticated standard-runner fixture qualify
+bounded same-original-group closure and retained final bytes. The final shared
+run passes 1,020 tests and all three native typechecks. The successful fixture
+proves no-change planning, typed teardown, empty destroy, stable empty state,
+two non-submitting resumes and 26 independent group absences without signals or
+cloud mutations. Failed predecessors retain their capture flags and locks;
+separate typed recovery proves 21 original/recovery group absences for each.
+Synthetic unused Platform fields do not establish Platform or installed-tool
+acceptance. Explicit reviewed template request reasons and original
+provider/RPC/resource/create/audit/incarnation joins, full capture and every
+subsequent acceptance gate remain open.

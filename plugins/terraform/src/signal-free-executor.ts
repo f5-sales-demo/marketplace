@@ -4,6 +4,7 @@ import { lstat, mkdir, open, readFile, realpath, stat, writeFile } from 'node:fs
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { type TerraformFailureCategory, terraformFailureCategories } from './failure';
+import { originalLoaderAlternatives } from './installed-gcp-invocation';
 import { linuxMonotonicMs } from './linux-clock';
 import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from './original-output-stream';
 import {
@@ -210,18 +211,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
   return async ({ cwd, args: inputArgs, env: inputEnvironment, signal }) => {
     const args = [...inputArgs];
     const env = { ...inputEnvironment };
-    if (
-      [
-        'PYTHONPATH',
-        'PYTHONHOME',
-        'PYTHONSTARTUP',
-        'PYTHONINSPECT',
-        'PYTHONUSERBASE',
-        'LD_PRELOAD',
-        'LD_LIBRARY_PATH',
-        'DYLD_INSERT_LIBRARIES',
-      ].some((key) => env[key] !== undefined)
-    )
+    if (originalLoaderAlternatives.some((key) => env[key] !== undefined))
       throw new Error('Original execution loader substitution refused');
     const began = now();
     if (began < policy.originalStartMs || began >= executionDeadline)

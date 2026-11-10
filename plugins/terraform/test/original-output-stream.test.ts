@@ -1,11 +1,16 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { chmod, link, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdtemp, open, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { linuxMonotonicMs } from '../src/linux-clock';
-import type { OriginalExecutionOutput } from '../src/original-output-stream';
-import { type ExecutionCaptureAdmission, signalFreeTerraformExecutor } from '../src/signal-free-executor';
+import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from '../src/original-output-stream';
+import {
+  type ExecutionCaptureAdmission,
+  signalFreeBootstrapSource,
+  signalFreeTerraformExecutor,
+} from '../src/signal-free-executor';
 
 const python = process.env.CE_TEST_PYTHON ?? Bun.which('python3') ?? '';
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
@@ -249,4 +254,178 @@ test('original child descriptor redirection refuses during live capture without 
     },
   );
   await expect(run.execute()).rejects.toThrow('Original descriptor capture refused');
+});
+
+test('missing original producer descriptors are accepted only after the same independently verified group closure', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-original-output-exit-'));
+  const script = join(root, 'gate.py'),
+    ready = join(root, 'ready.json'),
+    target = join(root, 'fixture.py');
+  await writeFile(script, signalFreeBootstrapSource, { mode: 0o400 });
+  await writeFile(target, 'print("final")\n', { mode: 0o400 });
+  const stdoutPath = join(root, 'stdout.private'),
+    stderrPath = join(root, 'stderr.private');
+  const stdout = await open(stdoutPath, 'wx', 0o600),
+    stderr = await open(stderrPath, 'wx', 0o600);
+  const child = Bun.spawn([python, '-I', '-B', script, ready, python, target], {
+    cwd: root,
+    env: {},
+    stdin: 'pipe',
+    stdout: stdout.fd,
+    stderr: stderr.fd,
+  });
+  let admitted: Awaited<ReturnType<typeof bindOriginalExecutionOutput>> | undefined;
+  let release: (() => Promise<void>) | undefined;
+  const lock = join(root, '.original-output-test-lock');
+  let lag = true,
+    closureChecks = 0;
+  try {
+    const deadline = linuxMonotonicMs() + 3000;
+    while (!(await Bun.file(ready).exists())) {
+      if (linuxMonotonicMs() >= deadline) throw new Error('Original gate readiness timeout');
+      await Bun.sleep(10);
+    }
+    const original = JSON.parse(await readFile(ready, 'utf8'));
+    release = await acquireProcessLock(lock, child.pid, { trackProcessGroup: true });
+    admitted = await bindOriginalExecutionOutput({
+      identity: { pid: original.pid, group: original.group, start: original.start, boot: original.boot },
+      stdout: { path: stdoutPath, writer: stdout },
+      stderr: { path: stderrPath, writer: stderr },
+      maximum: 65536,
+      assertInputs: async () => {},
+      originalGroupClosed: async () => {
+        if (child.exitCode === null) return false;
+        // A stale controller notification is not EOF proof. The second query
+        // independently verifies the same original group rather than adopting a PID.
+        if (lag) {
+          lag = false;
+          return false;
+        }
+        await assertExecutorGroupClosed(lock);
+        closureChecks++;
+        return true;
+      },
+    });
+    child.stdin.write('go\n');
+    await child.stdin.flush();
+    await child.stdin.end();
+    expect(await child.exited).toBe(0);
+    const chunk = await admitted.output.read('stdout');
+    expect(chunk?.bytes.toString()).toBe('final\n');
+    expect(closureChecks).toBeGreaterThan(0);
+    expect((await admitted.output.finish()).originalGroupClosed).toBe(true);
+    await release();
+    release = undefined;
+  } finally {
+    await child.stdin.end();
+    await child.exited;
+    await admitted?.close();
+    await stdout.close();
+    await stderr.close();
+    // A failed capture keeps its original claim and private files.
+  }
+});
+
+test('failed stream captures retain a bounded private cause before returning their fixed refusal', async () => {
+  let path = '';
+  const run = await fixture(
+    'print("original")\n',
+    async (a) => {
+      path = a.stdoutPath;
+    },
+    async (output) => {
+      await output.read('stdout');
+      await writeFile(path, 'modified\n', { mode: 0o600 });
+      await expect(output.read('stdout')).rejects.toThrow('prefix');
+      const failure = JSON.parse(await readFile(join(dirname(path), 'output-capture-failure.private.json'), 'utf8'));
+      expect(failure.schemaVersion).toBe(1);
+      expect(failure.kind).toBe('original-output-capture-failure');
+      expect(failure.phase).toBe('retained-prefix');
+      expect(failure.message).toBe('Original output retained prefix changed');
+      expect(failure.offsets.stdout).toBe(9);
+      expect(JSON.stringify(failure)).not.toContain('modified');
+      expect(failure.messageTruncated).toBe(false);
+      await expect(output.finish()).rejects.toThrow('refused');
+      throw new Error('Original private capture refusal retained');
+    },
+  );
+  await expect(run.execute()).rejects.toThrow('Original private capture refusal retained');
+});
+
+test('documented main-thread exit waits for independent original group closure before retained final capture', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-output-thread-exit-'));
+  const source = join(root, 'fixture.c'),
+    executable = join(root, 'fixture');
+  await writeFile(
+    source,
+    '#include <pthread.h>\n#include <stdio.h>\n#include <unistd.h>\nstatic void *worker(void *v) { (void)v; usleep(400000); return NULL; }\nint main(void) { pthread_t thread; if (pthread_create(&thread, NULL, worker, NULL)) return 2; puts("original"); fflush(stdout); pthread_exit(NULL); }\n',
+    { mode: 0o600 },
+  );
+  const compiler = Bun.which('cc');
+  if (!compiler) throw new Error('Linux C compiler required for process regression');
+  const compilation = Bun.spawn([compiler, '-pthread', source, '-o', executable], { stdout: 'pipe', stderr: 'pipe' });
+  await Promise.all([new Response(compilation.stdout).text(), new Response(compilation.stderr).text()]);
+  expect(await compilation.exited).toBe(0);
+  let output: OriginalExecutionOutput | undefined,
+    stop = false,
+    failure: unknown;
+  let pump: Promise<void> | undefined;
+  const chunks: Buffer[] = [];
+  const read = async () => {
+    if (!output) throw new Error('Original output unavailable');
+    for (let chunk = await output.read('stdout'); chunk; chunk = await output.read('stdout')) chunks.push(chunk.bytes);
+  };
+  const start = linuxMonotonicMs();
+  const execute = signalFreeTerraformExecutor({
+    python: { path: python, sha256: hash(await readFile(python)) },
+    executable: { path: executable, sha256: hash(await readFile(executable)) },
+    originalStartMs: start,
+    originalDeadlineMs: start + 7_200_000,
+    assertOriginal: async () => {},
+    beforeRelease: async (a) => {
+      output = a.output;
+      pump = (async () => {
+        while (!stop) {
+          await read();
+          await Bun.sleep(10);
+        }
+      })().catch((error) => {
+        failure = error;
+      });
+    },
+    finalCapture: async (f) => {
+      stop = true;
+      await pump;
+      if (failure) throw failure;
+      await read();
+      expect(f.originalGroupClosed).toBe(true);
+      if (!output) throw new Error('Original output unavailable');
+      expect((await output.finish()).originalGroupClosed).toBe(true);
+    },
+  });
+  expect((await execute({ cwd: root, args: ['fixture'], env: {} })).code).toBe(0);
+  expect(Buffer.concat(chunks).toString()).toBe('original\n');
+});
+
+test('live descriptor loss remains refused even when the original actor later exits naturally', async () => {
+  let collection: Promise<unknown> | undefined;
+  const run = await fixture(
+    'import os,time\nfrom pathlib import Path\nos.close(2)\nPath("ready").write_text("yes")\ntime.sleep(0.4)\n',
+    async (a) => {
+      collection = (async () => {
+        const deadline = linuxMonotonicMs() + 3000;
+        while (!(await Bun.file(join(a.directory, 'ready')).exists())) {
+          if (linuxMonotonicMs() >= deadline) throw new Error('Original fixture readiness timeout');
+          await Bun.sleep(10);
+        }
+        return a.output.read('stderr');
+      })().catch((error) => error);
+    },
+    async (output) => {
+      expect(await collection).toBeInstanceOf(Error);
+      await expect(output.finish()).rejects.toThrow('refused');
+      throw new Error('Original live descriptor loss retained');
+    },
+  );
+  await expect(run.execute()).rejects.toThrow('Original live descriptor loss retained');
 });

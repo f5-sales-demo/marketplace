@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.50
+- **`terraform`** bumped to v2.4.51
 
 - **`terraform` 2.4.49** inspects bounded HTTP dump blocks inside original RPC traces,
   retaining explicit source/insert admission holds and fixed credential lifetimes (#1559).

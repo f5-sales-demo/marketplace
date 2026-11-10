@@ -18,6 +18,7 @@ import {
   type InstalledCaptureInvocation,
   InstalledCaptureInvocations,
 } from './installed-final-capture';
+import { createInstalledGcpInvocationCompiler, selectInstalledGcpEnvironment } from './installed-gcp-invocation';
 import pins from './installed-runtime-pins.json';
 import { linuxMonotonicMs } from './linux-clock';
 import {
@@ -334,6 +335,7 @@ export function createInstalledRuntimeResolver(
     let providers: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
     let providerInputs: Readonly<Record<string, OriginalInputBinding>> | undefined;
     let executor: Executor | undefined;
+    let compileInvocation: ReturnType<typeof createInstalledGcpInvocationCompiler> | undefined;
     let capture: InstalledGcpCapture | undefined;
     let active = 0;
     const groups: string[] = [];
@@ -414,6 +416,20 @@ export function createInstalledRuntimeResolver(
                 : join(executionDirectory, name);
           bindings[`workspace:${name}`] = (await owned(path)).binding;
         }
+        const invocationEnvironment = selectInstalledGcpEnvironment({
+          ...env,
+          HOME: env.HOME ?? homedir(),
+          PATH: env.PATH ?? process.env.PATH,
+          GOOGLE_APPLICATION_CREDENTIALS: snapshotPath,
+          ...originalEnvironment,
+        });
+        const invocationEnvironmentPath = join(directory, `runtime-environment-${randomUUID()}.private.json`);
+        await writeFile(invocationEnvironmentPath, JSON.stringify(invocationEnvironment), { flag: 'wx', mode: 0o400 });
+        bindings.runtimeEnvironment = (await owned(invocationEnvironmentPath)).binding;
+        compileInvocation = createInstalledGcpInvocationCompiler({
+          directory: executionDirectory,
+          environment: invocationEnvironment,
+        });
         bindings.adc = (await owned(snapshotPath)).binding;
         bindings.platform = (await owned(environmentPath)).binding;
         monitor = await monitorOriginalInputs(bindings);
@@ -593,7 +609,8 @@ export function createInstalledRuntimeResolver(
     };
     const execute: Executor = async (invocation) => {
       if (invocation.cwd !== executionDirectory) throw new Error('Original Terraform execution directory changed');
-      if (!executor || !originalEnvironment) throw new Error('Original installed ADC lease has not been acquired');
+      if (!executor || !originalEnvironment || !compileInvocation)
+        throw new Error('Original installed ADC lease has not been acquired');
       if (
         invocation.env.XCSH_API_URL !== originalEnvironment.XCSH_API_URL ||
         invocation.env.XCSH_API_TOKEN !== originalEnvironment.XCSH_API_TOKEN
@@ -603,7 +620,7 @@ export function createInstalledRuntimeResolver(
         throw new Error('Installed Terraform invocation is outside the owning runner');
       active++;
       try {
-        return await executor(invocation);
+        return await executor(compileInvocation(invocation));
       } finally {
         active--;
       }

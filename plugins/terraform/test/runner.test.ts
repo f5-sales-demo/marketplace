@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError } from '../src/failure';
+import { createInstalledGcpInvocationCompiler } from '../src/installed-gcp-invocation';
 import { type Invocation, startTerraformGate, TerraformRunner, terraformExecutor } from '../src/runner';
 import actionFixture from './fixtures/site-upgrade-action.json';
 
@@ -1501,4 +1502,42 @@ test('destroy receipt recovery refuses private metadata, changed binaries, consu
     expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(0);
     expect(f.calls.filter((c) => c.args[0] === 'plan')).toHaveLength(1);
   }
+});
+
+test('owning runner isolates ambient controls before the installed compiler admits its actual plan and apply', async () => {
+  const f = await fixture();
+  const directory = join(f.root, 'ce-test');
+  const identity = {
+    PATH: '/usr/bin:/bin',
+    HOME: f.root,
+    GOOGLE_APPLICATION_CREDENTIALS: join(f.root, 'example-adc.private.json'),
+    XCSH_API_URL: 'https://tenant.example.com',
+    XCSH_API_TOKEN: 'example-private-token',
+  };
+  const compile = createInstalledGcpInvocationCompiler({ directory, environment: identity });
+  const runner = new TerraformRunner(f.root, (request) =>
+    f.runner.execute(compile({ ...request, env: { ...request.env, ...identity } })),
+  );
+  await runner.resume('ce-test');
+  const ambient = { TF_LOG: 'TRACE', TF_CLI_ARGS_apply: '-auto-approve', PRIVATE_OTHER_TOKEN: 'example-other-secret' };
+  const plan = await runner.plan(ambient);
+  expect(f.calls.every((c) => c.env.PRIVATE_OTHER_TOKEN === undefined)).toBe(true);
+  expect(f.calls.every((c) => c.env.TF_LOG === undefined)).toBe(true);
+  await runner.apply(plan, ambient);
+  const call = f.calls.at(-1);
+  expect(call?.args).toEqual([
+    'apply',
+    '-json',
+    '-parallelism=1',
+    '-input=false',
+    '-lock=true',
+    '-lock-timeout=60s',
+    'saved.tfplan',
+  ]);
+  expect(call?.env.TF_LOG).toBe('JSON');
+  expect(call?.env.TF_CLI_ARGS_apply).toBeUndefined();
+  expect(call?.env.PRIVATE_OTHER_TOKEN).toBeUndefined();
+  expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
+  await expect(runner.apply(plan, ambient)).rejects.toThrow('consumed');
+  expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
 });

@@ -1,7 +1,8 @@
 import { createHash, type Hash } from 'node:crypto';
 import { type BigIntStats, constants } from 'node:fs';
 import { type FileHandle, lstat, open, readFile, realpath, stat } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { linuxMonotonicMs } from './linux-clock';
 
 type Channel = 'stdout' | 'stderr';
 type Identity = Readonly<{ pid: number; group: number; start: string; boot: string }>;
@@ -61,9 +62,55 @@ export async function bindOriginalExecutionOutput(input: {
   let refused = false;
   let closed = false;
   let busy = false;
+  let phase = 'admission';
+  let failureRecord: Promise<void> | undefined;
   const close = async () => {
     closed = true;
     await Promise.all(Object.values(streams).map((s) => s.reader.close()));
+  };
+  const retainFailure = (error: unknown) => {
+    if (!failureRecord)
+      failureRecord = (async () => {
+        const stream = streams.stdout;
+        if (!stream) throw new Error('Original private failure directory unavailable');
+        const parent = await lstat(dirname(stream.path), { bigint: true });
+        if (
+          !parent.isDirectory() ||
+          parent.isSymbolicLink() ||
+          parentKeys.some((key) => parent[key] !== stream.parent[key])
+        )
+          throw new Error('Original private failure directory changed');
+        const message = error instanceof Error ? error.message : 'Unknown original capture failure';
+        const payload = JSON.stringify({
+          schemaVersion: 1,
+          kind: 'original-output-capture-failure',
+          identity,
+          phase,
+          errorName: error instanceof Error ? error.name.slice(0, 64) : 'unknown',
+          code:
+            error instanceof Error && typeof (error as NodeJS.ErrnoException).code === 'string'
+              ? (error as NodeJS.ErrnoException).code?.slice(0, 64)
+              : null,
+          message: message.slice(0, 4096),
+          messageTruncated: message.length > 4096,
+          messageSha256: digest(Buffer.from(message)),
+          offsets: { stdout: streams.stdout?.offset ?? 0, stderr: streams.stderr?.offset ?? 0 },
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+        const file = await open(
+          join(dirname(stream.path), 'output-capture-failure.private.json'),
+          constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+          0o400,
+        );
+        try {
+          await file.writeFile(payload);
+          await file.sync();
+        } finally {
+          await file.close();
+        }
+      })();
+    return failureRecord;
   };
   const assertOpen = () => {
     if (closed) throw new OutputRefusal('Original output capture closed');
@@ -77,9 +124,45 @@ export async function bindOriginalExecutionOutput(input: {
       throw new OutputRefusal('Original output group closure unavailable');
     }
   };
-  const guard = async (stream: Stream) => {
+  const waitForOriginalClosingGroup = async () => {
+    if (await groupClosed()) return true;
+    phase = 'original-closing';
+    if ((await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() !== identity.boot)
+      throw new OutputRefusal('Original output producer boot changed');
+    try {
+      const raw = await readFile(`/proc/${identity.pid}/stat`, 'utf8');
+      const fields = raw
+        .slice(raw.lastIndexOf(') ') + 2)
+        .trim()
+        .split(/\s+/);
+      if (
+        fields[19] !== identity.start ||
+        Number(fields[1]) !== process.pid ||
+        Number(fields[2]) !== identity.group ||
+        Number(fields[3]) !== identity.group
+      )
+        throw new OutputRefusal('Original output closing producer identity changed');
+      if (!['Z', 'X', 'x'].includes(fields[0])) return false;
+    } catch (error) {
+      if (!(error instanceof Error) || !['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        throw error;
+    }
+    // A dying or already missing original leader can outlive its /proc/fd view.
+    // Wait for that exact group's independent closure, never for a replacement.
+    // The original input/deadline guard remains active and this bound cannot reset.
+    const deadline = linuxMonotonicMs() + 1000;
+    while (linuxMonotonicMs() < deadline) {
+      await input.assertInputs();
+      if (await groupClosed()) return true;
+      await Bun.sleep(25);
+    }
+    return false;
+  };
+  const guard = async (stream: Stream, afterOriginalExit = false): Promise<BigIntStats> => {
     assertOpen();
+    phase = 'input-lifetime';
     await input.assertInputs();
+    phase = 'file-metadata';
     const [current, writer, opened, parent] = await Promise.all([
       lstat(stream.path, { bigint: true }),
       stream.writer.stat({ bigint: true }),
@@ -97,29 +180,43 @@ export async function bindOriginalExecutionOutput(input: {
       throw new OutputRefusal('Original output file or parent identity changed');
     if (current.size < BigInt(stream.offset)) throw new OutputRefusal('Original output retained prefix truncated');
     if (current.size > BigInt(maximum)) throw new OutputRefusal('Original output capture limit exceeded');
+    phase = 'original-group';
     if (!(await groupClosed())) {
-      const raw = await readFile(`/proc/${identity.pid}/stat`, 'utf8');
-      const fields = raw
-        .slice(raw.lastIndexOf(') ') + 2)
-        .trim()
-        .split(/\s+/);
-      const [boot, producer] = await Promise.all([
-        readFile('/proc/sys/kernel/random/boot_id', 'utf8'),
-        stat(`/proc/${identity.pid}/fd/${stream.descriptor}`, { bigint: true }),
-      ]);
-      if (
-        boot.trim() !== identity.boot ||
-        fields[19] !== identity.start ||
-        Number(fields[1]) !== process.pid ||
-        Number(fields[2]) !== identity.group ||
-        Number(fields[3]) !== identity.group ||
-        stableKeys.some((key) => producer[key] !== stream.original[key])
-      )
-        throw new OutputRefusal('Original output producer or descriptor identity changed');
+      if (afterOriginalExit) throw new OutputRefusal('Original output producer closure changed');
+      try {
+        phase = 'producer-metadata';
+        const raw = await readFile(`/proc/${identity.pid}/stat`, 'utf8');
+        const fields = raw
+          .slice(raw.lastIndexOf(') ') + 2)
+          .trim()
+          .split(/\s+/);
+        const [boot, producer] = await Promise.all([
+          readFile('/proc/sys/kernel/random/boot_id', 'utf8'),
+          stat(`/proc/${identity.pid}/fd/${stream.descriptor}`, { bigint: true }),
+        ]);
+        if (
+          boot.trim() !== identity.boot ||
+          fields[19] !== identity.start ||
+          Number(fields[1]) !== process.pid ||
+          Number(fields[2]) !== identity.group ||
+          Number(fields[3]) !== identity.group ||
+          stableKeys.some((key) => producer[key] !== stream.original[key])
+        )
+          throw new OutputRefusal('Original output producer or descriptor identity changed');
+      } catch (error) {
+        const missing =
+          error instanceof Error && ['ENOENT', 'ESRCH', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '');
+        if (!missing || !(await waitForOriginalClosingGroup())) throw error;
+        // Losing /proc during natural exit is not EOF proof. Only a fresh
+        // independent query of that same original group allows a final read;
+        // repeat every input/file/parent/descriptor check without adopting a PID.
+        return guard(stream, true);
+      }
     }
     return current;
   };
   const readAt = async (stream: Stream, offset: number, length: number) => {
+    phase = 'retained-read';
     const bytes = Buffer.allocUnsafe(length);
     let read = 0;
     while (read < length) {
@@ -130,11 +227,14 @@ export async function bindOriginalExecutionOutput(input: {
     return bytes;
   };
   const verifyPrefix = async (stream: Stream) => {
+    phase = 'retained-prefix';
     const prefix = createHash('sha256');
     for (let offset = 0; offset < stream.offset; offset += maximumChunk)
       prefix.update(await readAt(stream, offset, Math.min(maximumChunk, stream.offset - offset)));
-    if (prefix.digest('hex') !== stream.hash.copy().digest('hex'))
+    if (prefix.digest('hex') !== stream.hash.copy().digest('hex')) {
+      phase = 'retained-prefix';
       throw new OutputRefusal('Original output retained prefix changed');
+    }
   };
   const exclusive = async <T>(action: () => Promise<T>): Promise<T> => {
     assertOpen();
@@ -148,6 +248,11 @@ export async function bindOriginalExecutionOutput(input: {
     } catch (error) {
       if (error instanceof OutputNotReady) throw error;
       refused = true;
+      try {
+        await retainFailure(error);
+      } catch (persistence) {
+        throw new AggregateError([error, persistence], 'Original private capture failure unresolved');
+      }
       if (error instanceof OutputRefusal) throw error;
       throw new OutputRefusal('Original output capture identity or lifetime unavailable');
     } finally {
