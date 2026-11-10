@@ -480,7 +480,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Herdr",
-        "version": "1.3.3"
+        "version": "1.3.4"
       },
       "minimumRuntimeVersion": "23.5.1",
       "source": "./plugins/herdr",
@@ -620,7 +620,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Ghostty",
-        "version": "1.2.1"
+        "version": "1.2.2"
       },
       "minimumRuntimeVersion": "23.5.1",
       "source": "./plugins/ghostty",
