@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { type TerraformFailureCategory, terraformFailureCategories } from './failure';
 import { linuxMonotonicMs } from './linux-clock';
+import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from './original-output-stream';
 import {
   assertFinalReaderReserve,
   type FinalReaderReserve,
@@ -15,6 +16,7 @@ import type { Executor } from './runner';
 
 type Reason = 'startup' | 'deadline' | 'cancelled' | 'input-changed' | 'output-limit';
 export interface ExecutionCaptureAdmission {
+  readonly output: OriginalExecutionOutput;
   readonly directory: string;
   readonly args: readonly string[];
   readonly identity: Readonly<{ pid: number; group: number; start: string; boot: string }>;
@@ -274,6 +276,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     let groupClosed = false;
     let captureClosed = false;
     let captureStartup: Promise<void> | undefined;
+    let originalOutput: Awaited<ReturnType<typeof bindOriginalExecutionOutput>> | undefined;
     const fail = (value: Reason) => {
       if (!reason) reason = value;
       finalStarted ??= now();
@@ -366,22 +369,52 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
           await check();
           if (now() >= startupDeadline) fail('startup');
           if (!reason && beforeRelease) {
-            const admission: ExecutionCaptureAdmission = Object.freeze({
-              directory: cwd,
-              args: Object.freeze([...args]),
-              identity: Object.freeze({
-                pid: evidence.pid,
-                group: evidence.group,
-                start: evidence.start,
-                boot: evidence.boot,
-              }),
-              stdoutPath,
-              stderrPath,
-              originalStartMs: policy.originalStartMs,
-              originalDeadlineMs: policy.originalDeadlineMs,
-              startupDeadlineMs: startupDeadline,
+            captureStartup = Promise.resolve().then(async () => {
+              if (!originalIdentity) throw new Error('Original execution identity unavailable');
+              originalOutput = await bindOriginalExecutionOutput({
+                identity: originalIdentity,
+                stdout: { path: stdoutPath, writer: stdout },
+                stderr: { path: stderrPath, writer: stderr },
+                maximum,
+                assertInputs: async () => {
+                  await python.require();
+                  await executable.require();
+                  await assertOriginal();
+                  const readerDeadline =
+                    inherited?.finalDeadlineMs ??
+                    (finalStarted === undefined ? executionDeadline : finalStarted + 300_000);
+                  if (now() >= readerDeadline) throw new Error('Original output capture deadline exhausted');
+                },
+                originalGroupClosed: async () => {
+                  if (actualExitCode === null) return false;
+                  try {
+                    await assertExecutorGroupClosed(lock);
+                    return true;
+                  } catch (error) {
+                    if (error instanceof Error && error.message === 'Original executor process group remains live')
+                      return false;
+                    throw error;
+                  }
+                },
+              });
+              const admission: ExecutionCaptureAdmission = Object.freeze({
+                output: originalOutput.output,
+                directory: cwd,
+                args: Object.freeze([...args]),
+                identity: Object.freeze({
+                  pid: evidence.pid,
+                  group: evidence.group,
+                  start: evidence.start,
+                  boot: evidence.boot,
+                }),
+                stdoutPath,
+                stderrPath,
+                originalStartMs: policy.originalStartMs,
+                originalDeadlineMs: policy.originalDeadlineMs,
+                startupDeadlineMs: startupDeadline,
+              });
+              await beforeRelease(admission);
             });
-            captureStartup = Promise.resolve().then(() => beforeRelease(admission));
             let startupTimer: ReturnType<typeof setTimeout> | undefined;
             try {
               await Promise.race([
@@ -576,6 +609,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     } finally {
       // Only the verified path above releases the claim. Errors retain it even
       // when readers and the original group closed but required receipts did not.
+      await originalOutput?.close();
       await stdout.close();
       await stderr.close();
       python.close();

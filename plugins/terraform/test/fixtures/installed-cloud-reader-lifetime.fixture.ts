@@ -160,6 +160,14 @@ async function installedFixture(past = false) {
     },
   });
   const admission: ExecutionCaptureAdmission = {
+    output: Object.freeze({
+      read: async () => {
+        throw new Error('Synthetic fixture has no original output capability');
+      },
+      finish: async () => {
+        throw new Error('Synthetic fixture has no original output capability');
+      },
+    }),
     directory: context.executionDirectory,
     args: ['apply', 'reviewed.plan'],
     stdoutPath: join(f.root, 'apply.stdout.private'),

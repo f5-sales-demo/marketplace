@@ -69,6 +69,14 @@ async function fixture() {
       ),
   });
   const admission: ExecutionCaptureAdmission = {
+    output: Object.freeze({
+      read: async () => {
+        throw new Error('Synthetic fixture has no original output capability');
+      },
+      finish: async () => {
+        throw new Error('Synthetic fixture has no original output capability');
+      },
+    }),
     directory: root,
     args: ['apply', 'saved.tfplan'],
     identity: parent,

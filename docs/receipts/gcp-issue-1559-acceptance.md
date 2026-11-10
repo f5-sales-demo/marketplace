@@ -1079,3 +1079,17 @@ retains its capture and a separate reviewed recovery proves empty destroy and
 ten group absences. No cloud mutation occurs. Original stream/producer admission,
 reviewed apply and insert-incarnation joins, full capture and every subsequent
 acceptance gate remain open.
+
+Attempt 409 qualifies [original executor output capture](gcp-original-output-stream-20261109.md).
+The source-owned reader binds actual writer handles, original child descriptors,
+file/parent identities and bounded channel offsets before gate release. Nine
+real-process cases include live appends, prefix rewriting and descriptor
+redirection; 1,008 shared tests and all three native typechecks pass. A fresh
+authenticated original Google read feeds both parsers through the capability;
+9,592 valid records match the reviewed transaction and retained channel hashes.
+Independent cleanup proves empty destroy, stable empty state and ten group
+absences without signals or cloud mutations. Current main's single governed
+runner-policy update was incorporated through the repository update-branch
+workflow without changing feature bytes. Provider/RPC/reviewed-resource and
+create/audit/incarnation joins, full capture and every subsequent acceptance
+gate remain open. No installed execution or release authority is granted.
