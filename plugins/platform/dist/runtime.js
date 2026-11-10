@@ -13,7 +13,7 @@ var __esm = (fn, res, err) => () => {
 
 // plugins/platform/src/ce/deployment-store.ts
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
 function key(owner) {
@@ -93,6 +93,31 @@ class CeDeploymentStore {
     }
     if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
       throw new Error('CE deployment belongs to another execution engine or scope');
+  }
+  async reserve(name, value) {
+    if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
+    await this.verify();
+    const bytes = JSON.stringify(value);
+    try {
+      const handle = await open(this.#path(name), 'wx', 384);
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      const parent = await open(this.directory, 'r');
+      try {
+        await parent.sync();
+      } finally {
+        await parent.close();
+      }
+      return true;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if ((await this.#read(name)).toString() !== bytes) throw new Error('CE request reservation identity differs');
+      return false;
+    }
   }
   async write(name, value, signal) {
     signal?.throwIfAborted();
@@ -3020,6 +3045,7 @@ function parseRegistrationObservation(response, siteName, nodes, clusterSize, ex
     return {
       node,
       registration: item.name,
+      registrationUid: object13(object13(item.object).system_metadata ?? {}).uid,
       instanceId: infra.instance_id,
       state,
       status: state === 'ONLINE' ? 'healthy' : 'degraded',
@@ -3649,15 +3675,26 @@ class CeRuntime {
   fetcher;
   resourceMutation;
   recordBinding;
+  reserveRegistrationApproval;
   #base;
   #credential;
   #mutationOwner;
-  constructor(contract, engine, apiUrl, credential, fetcher = fetch, resourceMutation, recordBinding) {
+  constructor(
+    contract,
+    engine,
+    apiUrl,
+    credential,
+    fetcher = fetch,
+    resourceMutation,
+    recordBinding,
+    reserveRegistrationApproval,
+  ) {
     this.contract = contract;
     this.engine = engine;
     this.fetcher = fetcher;
     this.resourceMutation = resourceMutation;
     this.recordBinding = recordBinding;
+    this.reserveRegistrationApproval = reserveRegistrationApproval;
     this.#base = new URL(apiUrl);
     if (
       this.#base.protocol !== 'https:' ||
@@ -6073,12 +6110,20 @@ class CeRuntime {
     };
   }
   async approveRegistrations(binding, expectedInstances, checkpoint, signal, admittedNodes = binding.nodes) {
+    binding = structuredClone(binding);
+    expectedInstances = structuredClone(expectedInstances);
+    admittedNodes = [...admittedNodes];
     this.#binding(binding, true);
     const observation = await this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
     if (!Array.isArray(observation.nodes)) return observation;
     for (const value of observation.nodes) {
       const node = object16(value);
-      if (node.state !== 'NEW' || typeof node.registration !== 'string' || typeof node.node !== 'string') continue;
+      if (
+        !['NEW', 'PENDING'].includes(String(node.state)) ||
+        typeof node.registration !== 'string' ||
+        typeof node.node !== 'string'
+      )
+        continue;
       this.#owned(await this.observeSite(binding, signal), binding);
       const path = `/api/register/namespaces/system/registrations/${node.registration}`;
       const source = await this.#request(path, {}, signal);
@@ -6100,7 +6145,32 @@ class CeRuntime {
         'state',
       );
       if (passport.cluster_name !== binding.siteName) throw new Error('Registration passport belongs to another site');
-      if (state !== 'NEW') continue;
+      if (state !== node.state) continue;
+      let registrationUid;
+      if (state === 'PENDING') {
+        const metadata = object16(nested('object.metadata', 'metadata'));
+        const system = object16(nested('object.system_metadata', 'system_metadata'));
+        const infra = object16(nested('object.spec.gc_spec.infra', 'spec.gc_spec.infra', 'spec.infra'));
+        const parent = nested('object.status.parent_current_state', 'status.parent_current_state');
+        registrationUid = String(system.uid ?? '');
+        if (
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(registrationUid) ||
+          node.registration !== `r-${registrationUid}` ||
+          node.registrationUid !== registrationUid ||
+          metadata.name !== node.registration ||
+          metadata.namespace !== 'system' ||
+          system.creator_class !== 'prism' ||
+          parent !== 'WAITING_FOR_REGISTRATION' ||
+          infra.hostname !== node.node ||
+          infra.instance_id !== expectedInstances[node.node] ||
+          infra.instance_id !== node.instanceId ||
+          infra.provider !== binding.owner.provider.toUpperCase() ||
+          passport.cluster_size !== binding.nodes.length
+        )
+          throw new Error('Initial pending registration identity is incomplete or foreign');
+        if (!this.reserveRegistrationApproval)
+          return { ...observation, status: 'unknown', reason: 'registration-request-provenance-unavailable' };
+      }
       const record = {
         siteName: binding.siteName,
         node: node.node,
@@ -6108,6 +6178,15 @@ class CeRuntime {
         instanceId: node.instanceId,
         action: 'approve-registration',
       };
+      if (this.reserveRegistrationApproval) {
+        const reserved = await this.reserveRegistrationApproval(binding, {
+          ...record,
+          ...(registrationUid ? { registrationUid } : {}),
+          initialState: state,
+          passportSha256: createHash5('sha256').update(JSON.stringify(passport)).digest('hex'),
+        });
+        if (!reserved) continue;
+      }
       await checkpoint({ ...record, state: 'requested' });
       await this.#request(
         `/api/register/namespaces/system/registration/${node.registration}/approve`,
@@ -7449,6 +7528,7 @@ var init_verified_contract = __esm(() => {
 });
 
 // plugins/platform/src/ce/service.ts
+import { createHash as createHash9 } from 'node:crypto';
 import { readdir, readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join4 } from 'node:path';
@@ -7603,6 +7683,18 @@ function createCePlatformService(
             expectedInterfaces: structuredClone(expected ?? retained),
           });
         },
+        async (binding, identity) => {
+          const store = await storage(binding.owner);
+          const reservation = {
+            schemaVersion: 1,
+            owner: structuredClone(binding.owner),
+            tenantOrigin: new URL(credentials.url).origin,
+            contractFingerprint: artifact.fingerprint,
+            identity: structuredClone(identity),
+          };
+          const key = createHash9('sha256').update(String(identity.registration)).digest('hex');
+          return store.reserve(`registration-approval-${key}.json`, reservation);
+        },
       );
     },
   };
@@ -7703,7 +7795,7 @@ var init_security = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash9, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash10, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -7728,7 +7820,7 @@ function createSitePlan(request, tenantOrigin) {
     throw new PublicCeError('The exact existing resource version is required');
   const { planSha256: _hash, ...params } = request;
   const draft = { schemaVersion: 3, ...params, tenantOrigin };
-  const planSha256 = createHash9('sha256').update(canonical5(draft)).digest('hex');
+  const planSha256 = createHash10('sha256').update(canonical5(draft)).digest('hex');
   return { ...draft, planId: `f5xc-ce-v2-${planSha256.slice(0, 24)}`, planSha256 };
 }
 function ceBindingSchema(pi) {
@@ -7901,7 +7993,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash10, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash11, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod as chmod2,
   lstat as lstat3,
@@ -7943,7 +8035,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash10('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash11('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,

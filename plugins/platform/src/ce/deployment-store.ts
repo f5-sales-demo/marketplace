@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { CeOwner } from './runtime';
 
@@ -79,6 +79,32 @@ export class CeDeploymentStore {
     }
     if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
       throw new Error('CE deployment belongs to another execution engine or scope');
+  }
+  /** Immutable reservation: existing matching bytes never authorize a second request. */
+  async reserve(name: string, value: unknown): Promise<boolean> {
+    if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
+    await this.verify();
+    const bytes = JSON.stringify(value);
+    try {
+      const handle = await open(this.#path(name), 'wx', 0o600);
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      const parent = await open(this.directory, 'r');
+      try {
+        await parent.sync();
+      } finally {
+        await parent.close();
+      }
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      if ((await this.#read(name)).toString() !== bytes) throw new Error('CE request reservation identity differs');
+      return false;
+    }
   }
   async write(name: string, value: unknown, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted();

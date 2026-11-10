@@ -149,6 +149,7 @@ export class CeRuntime {
     readonly fetcher: Fetcher = fetch,
     readonly resourceMutation?: CeResourceMutation,
     readonly recordBinding?: (binding: SiteBinding, siteUid: string, expected?: ExpectedCeInterface[]) => Promise<void>,
+    readonly reserveRegistrationApproval?: (binding: SiteBinding, identity: Json) => Promise<boolean>,
   ) {
     this.#base = new URL(apiUrl);
     if (
@@ -2925,12 +2926,20 @@ export class CeRuntime {
     signal?: AbortSignal,
     admittedNodes: string[] = binding.nodes,
   ): Promise<Json> {
+    binding = structuredClone(binding);
+    expectedInstances = structuredClone(expectedInstances);
+    admittedNodes = [...admittedNodes];
     this.#binding(binding, true);
     const observation = await this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
     if (!Array.isArray(observation.nodes)) return observation;
     for (const value of observation.nodes) {
       const node = object(value);
-      if (node.state !== 'NEW' || typeof node.registration !== 'string' || typeof node.node !== 'string') continue;
+      if (
+        !['NEW', 'PENDING'].includes(String(node.state)) ||
+        typeof node.registration !== 'string' ||
+        typeof node.node !== 'string'
+      )
+        continue;
       this.#owned(await this.observeSite(binding, signal), binding);
       const path = `/api/register/namespaces/system/registrations/${node.registration}`;
       const source = await this.#request(path, {}, signal);
@@ -2952,7 +2961,32 @@ export class CeRuntime {
         'state',
       );
       if (passport.cluster_name !== binding.siteName) throw new Error('Registration passport belongs to another site');
-      if (state !== 'NEW') continue;
+      if (state !== node.state) continue;
+      let registrationUid: string | undefined;
+      if (state === 'PENDING') {
+        const metadata = object(nested('object.metadata', 'metadata'));
+        const system = object(nested('object.system_metadata', 'system_metadata'));
+        const infra = object(nested('object.spec.gc_spec.infra', 'spec.gc_spec.infra', 'spec.infra'));
+        const parent = nested('object.status.parent_current_state', 'status.parent_current_state');
+        registrationUid = String(system.uid ?? '');
+        if (
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(registrationUid) ||
+          node.registration !== `r-${registrationUid}` ||
+          node.registrationUid !== registrationUid ||
+          metadata.name !== node.registration ||
+          metadata.namespace !== 'system' ||
+          system.creator_class !== 'prism' ||
+          parent !== 'WAITING_FOR_REGISTRATION' ||
+          infra.hostname !== node.node ||
+          infra.instance_id !== expectedInstances[node.node] ||
+          infra.instance_id !== node.instanceId ||
+          infra.provider !== binding.owner.provider.toUpperCase() ||
+          passport.cluster_size !== binding.nodes.length
+        )
+          throw new Error('Initial pending registration identity is incomplete or foreign');
+        if (!this.reserveRegistrationApproval)
+          return { ...observation, status: 'unknown', reason: 'registration-request-provenance-unavailable' };
+      }
       const record = {
         siteName: binding.siteName,
         node: node.node,
@@ -2960,6 +2994,15 @@ export class CeRuntime {
         instanceId: node.instanceId,
         action: 'approve-registration',
       };
+      if (this.reserveRegistrationApproval) {
+        const reserved = await this.reserveRegistrationApproval(binding, {
+          ...record,
+          ...(registrationUid ? { registrationUid } : {}),
+          initialState: state,
+          passportSha256: createHash('sha256').update(JSON.stringify(passport)).digest('hex'),
+        });
+        if (!reserved) continue;
+      }
       await checkpoint({ ...record, state: 'requested' });
       await this.#request(
         `/api/register/namespaces/system/registration/${node.registration}/approve`,

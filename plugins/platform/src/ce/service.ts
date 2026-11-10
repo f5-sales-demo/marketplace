@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -201,6 +202,18 @@ export function createCePlatformService(
             binding: structuredClone(binding),
             expectedInterfaces: structuredClone(expected ?? retained),
           } satisfies CeStoredSiteBinding);
+        },
+        async (binding, identity) => {
+          const store = await storage(binding.owner);
+          const reservation = {
+            schemaVersion: 1,
+            owner: structuredClone(binding.owner),
+            tenantOrigin: new URL(credentials.url).origin,
+            contractFingerprint: artifact.fingerprint,
+            identity: structuredClone(identity),
+          };
+          const key = createHash('sha256').update(String(identity.registration)).digest('hex');
+          return store.reserve(`registration-approval-${key}.json`, reservation);
         },
       );
     },

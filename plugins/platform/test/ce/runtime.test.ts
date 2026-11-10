@@ -2389,3 +2389,278 @@ for (const engine of ['native', 'terraform'] as const)
       expect(requests.every((url) => !url.includes('foreign'))).toBe(true);
       expect(result.sessions[0].stateChangedAt).toBe('2026-09-10T12:00:00Z');
     });
+
+const pendingRegistrationUid = '11111111-2222-4333-8444-555555555555';
+const pendingRegistrationName = `r-${pendingRegistrationUid}`;
+
+type InitialPendingSource = {
+  object: {
+    metadata: { name: string; namespace: string };
+    system_metadata: { uid: string; creator_class: string };
+    spec: {
+      gc_spec: {
+        passport: Record<string, unknown>;
+        infra: { hostname: string; instance_id: string; provider: string };
+      };
+    };
+    status: { current_state: string; parent_current_state: string };
+  };
+};
+
+function initialPendingFixture(change?: (source: InitialPendingSource) => void) {
+  const passport = { cluster_name: binding.siteName, cluster_size: 1, vendor_field: 'preserve-original' };
+  const source: InitialPendingSource = {
+    object: {
+      metadata: { name: pendingRegistrationName, namespace: 'system' },
+      system_metadata: { uid: pendingRegistrationUid, creator_class: 'prism' },
+      spec: { gc_spec: { passport, infra: { hostname: 'node-one', instance_id: 'i-fixture', provider: 'AWS' } } },
+      status: { current_state: 'PENDING', parent_current_state: 'WAITING_FOR_REGISTRATION' },
+    },
+  };
+  change?.(source);
+  const posts: Record<string, unknown>[] = [];
+  const fetcher = async (url: URL | RequestInfo, init?: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (path.includes('securemesh_site_v2s'))
+      return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+    if (path.includes('registrations_by_site'))
+      return json({
+        items: [
+          {
+            name: pendingRegistrationName,
+            get_spec: { passport, infra: { hostname: 'node-one', instance_id: 'i-fixture' } },
+            object: { system_metadata: { uid: pendingRegistrationUid }, status: { current_state: 'PENDING' } },
+          },
+        ],
+      });
+    if (path.endsWith('/approve')) {
+      posts.push(JSON.parse(String(init?.body)));
+      // Acknowledgement deliberately leaves PENDING: a resumed caller must not replay it.
+      return json({});
+    }
+    return json(source);
+  };
+  return { fetcher, posts, passport };
+}
+
+test('initial PENDING admission preserves passport and reserves once across runtime recreation', async () => {
+  const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+  const root = await mkdtemp(join(tmpdir(), 'ce-pending-reservation-'));
+  try {
+    const store = await CeDeploymentStore.open(root, binding.owner);
+    const observed = initialPendingFixture();
+    const records: Record<string, unknown>[] = [];
+    const runtime = () =>
+      new CeRuntime(
+        fixture(),
+        'native',
+        'https://tenant.test',
+        'test-credential',
+        observed.fetcher,
+        undefined,
+        undefined,
+        async (scope, identity) => {
+          expect(scope.owner).toEqual(store.owner);
+          return store.reserve('initial-registration.json', { owner: scope.owner, identity });
+        },
+      );
+    const checkpoint = async (record: Record<string, unknown>) => {
+      records.push(record);
+    };
+    const result = await runtime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, checkpoint);
+    expect(result.status).toBe('degraded');
+    expect(observed.posts).toEqual([
+      { namespace: 'system', name: pendingRegistrationName, state: 'APPROVED', passport: observed.passport },
+    ]);
+    expect(records.map((row) => row.state)).toEqual(['requested', 'submitted']);
+    await runtime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, checkpoint);
+    expect(observed.posts).toHaveLength(1);
+    expect(records).toHaveLength(2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('initial PENDING admission without durable reservation is unknown and cannot post', async () => {
+  const observed = initialPendingFixture();
+  const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', observed.fetcher);
+  const result = await runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
+  expect(result).toMatchObject({ status: 'unknown', reason: 'registration-request-provenance-unavailable' });
+  expect(observed.posts).toHaveLength(0);
+});
+
+for (const [name, change] of [
+  [
+    'foreign UID',
+    (s: InitialPendingSource) => {
+      s.object.system_metadata.uid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    },
+  ],
+  [
+    'foreign publisher',
+    (s: InitialPendingSource) => {
+      s.object.system_metadata.creator_class = 'foreign';
+    },
+  ],
+  [
+    'foreign namespace',
+    (s: InitialPendingSource) => {
+      s.object.metadata.namespace = 'other';
+    },
+  ],
+  [
+    'foreign node',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.hostname = 'other';
+    },
+  ],
+  [
+    'foreign instance',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.instance_id = 'i-other';
+    },
+  ],
+  [
+    'foreign provider',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.provider = 'Azure';
+    },
+  ],
+  [
+    'noninitial parent',
+    (s: InitialPendingSource) => {
+      s.object.status.parent_current_state = 'ONLINE';
+    },
+  ],
+] as const) {
+  test(`initial PENDING admission rejects ${name} before reservation or request`, async () => {
+    const observed = initialPendingFixture(change);
+    let reservations = 0;
+    const runtime = new CeRuntime(
+      fixture(),
+      'native',
+      'https://tenant.test',
+      'test-credential',
+      observed.fetcher,
+      undefined,
+      undefined,
+      async () => {
+        reservations++;
+        return true;
+      },
+    );
+    await expect(runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {})).rejects.toThrow(
+      'Initial pending registration identity',
+    );
+    expect(reservations).toBe(0);
+    expect(observed.posts).toHaveLength(0);
+  });
+}
+
+test('immutable reservations reject substitution and concurrent callers reserve exactly once', async () => {
+  const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+  const root = await mkdtemp(join(tmpdir(), 'ce-request-reservation-'));
+  try {
+    const store = await CeDeploymentStore.open(root, binding.owner);
+    const result = await Promise.all(Array.from({ length: 8 }, () => store.reserve('request.json', { uid: 'one' })));
+    expect(result.filter(Boolean)).toHaveLength(1);
+    await expect(store.reserve('request.json', { uid: 'other' })).rejects.toThrow('reservation identity differs');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const provider of ['aws', 'azure'] as const) {
+  for (const engine of ['native', 'terraform'] as const) {
+    test(`public service reserves initial PENDING approval across recreation (${provider}/${engine})`, async () => {
+      const root = await mkdtemp(join(tmpdir(), 'ce-pending-service-'));
+      const scope: SiteBinding = { ...binding, owner: { ...binding.owner, provider, engine } };
+      const observed = initialPendingFixture((source) => {
+        source.object.spec.gc_spec.infra.provider = provider.toUpperCase();
+      });
+      const previous = globalThis.fetch;
+      globalThis.fetch = (async (url, init) => {
+        if (new URL(String(url)).pathname.includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: scope.siteName,
+              namespace: 'system',
+              labels: {
+                ...labels,
+                'xcsh-ce-provider': provider,
+                'xcsh-ce-engine': engine,
+              },
+            },
+          });
+        return observed.fetcher(url, init);
+      }) as typeof fetch;
+      try {
+        const service = () =>
+          createCePlatformService(
+            {
+              XCSH_API_URL: 'https://tenant.example.test',
+              XCSH_API_TOKEN: 'fixture-token',
+              XCSH_CE_DEPLOYMENTS_DIR: root,
+            },
+            async () => fixture(),
+          );
+        const first = await service().runtime(engine);
+        await first.approveRegistrations(scope, { 'node-one': 'i-fixture' }, async () => {});
+        const resumed = await service().runtime(engine);
+        await resumed.approveRegistrations(scope, { 'node-one': 'i-fixture' }, async () => {});
+        expect(observed.posts).toHaveLength(1);
+        const storage = await service().storage(scope.owner);
+        const key = createHash('sha256').update(pendingRegistrationName).digest('hex');
+        const reservation = await storage.read(`registration-approval-${key}.json`);
+        expect(reservation).toMatchObject({
+          schemaVersion: 1,
+          owner: scope.owner,
+          tenantOrigin: 'https://tenant.example.test',
+          contractFingerprint: fixture().fingerprint,
+          identity: { registrationUid: pendingRegistrationUid, initialState: 'PENDING' },
+        });
+      } finally {
+        globalThis.fetch = previous;
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+}
+
+for (const failure of ['checkpoint-before-request', 'response-lost'] as const) {
+  test(`initial PENDING ${failure} remains reserved and is never replayed`, async () => {
+    const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+    const root = await mkdtemp(join(tmpdir(), 'ce-pending-interruption-'));
+    const observed = initialPendingFixture();
+    try {
+      const store = await CeDeploymentStore.open(root, binding.owner);
+      const makeRuntime = () =>
+        new CeRuntime(
+          fixture(),
+          'native',
+          'https://tenant.test',
+          'test-credential',
+          async (url, init) => {
+            const response = await observed.fetcher(url, init);
+            if (failure === 'response-lost' && new URL(String(url)).pathname.endsWith('/approve'))
+              throw new Error('simulated transport interruption');
+            return response;
+          },
+          undefined,
+          undefined,
+          async (_scope, identity) => store.reserve('approval.json', identity),
+        );
+      await expect(
+        makeRuntime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {
+          if (failure === 'checkpoint-before-request') throw new Error('simulated checkpoint interruption');
+        }),
+      ).rejects.toThrow();
+      expect(observed.posts).toHaveLength(failure === 'response-lost' ? 1 : 0);
+      const resumed = await makeRuntime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
+      expect(resumed.status).toBe('degraded');
+      expect(observed.posts).toHaveLength(failure === 'response-lost' ? 1 : 0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}
