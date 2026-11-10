@@ -130,3 +130,18 @@ test('documented numeric operation lookup binds its returned original id and rej
   expect(f.calls.at(-1)).toEndWith(`/operations/${operation.id}`);
   await expect(f.reader.insertOperation('us-central1-a', '18446744073709551616', 'example-node')).rejects.toThrow();
 });
+
+test('operation creation timestamps reject coercible dates and invalid calendar days after retaining raw bytes', async () => {
+  for (const insertTime of ['1', '2026-02-30T00:00:00Z', '2026-11-09', '2026-11-09T00:00:00']) {
+    const f = await fixture([{ ...operation, insertTime }]);
+    await expect(f.reader.insertOperation('us-central1-a', operation.name, 'example-node')).rejects.toThrow();
+    expect((await readdir(f.root)).some((name) => name.endsWith('.body.private.bin'))).toBe(true);
+  }
+});
+
+test('documented RFC3339 operation timestamps preserve UTC offsets and subsecond precision', async () => {
+  const insertTime = '2026-11-09T00:00:00.123456789-08:00';
+  const f = await fixture([{ ...operation, insertTime }]);
+  const candidate = await f.reader.insertOperation('us-central1-a', operation.name, 'example-node');
+  expect(JSON.parse(await readFile(candidate.path, 'utf8')).insertTime).toBe(insertTime);
+});

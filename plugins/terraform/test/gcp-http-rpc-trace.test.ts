@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { GoogleHttpRpcTraceParser } from '../src/gcp-http-rpc-trace';
+import { assertOriginalGoogleHttpRpcBodies, GoogleHttpRpcTraceParser } from '../src/gcp-http-rpc-trace';
 
 const scope = {
   rpc: 'ReadDataSource' as const,
@@ -277,4 +277,115 @@ test('latest forwarded HTTP module is selected by authenticated runtime profile 
   const legacy = new GoogleHttpRpcTraceParser(scope);
   expect(() => legacy.push(Buffer.from(latest))).toThrow();
   expect(() => new GoogleHttpRpcTraceParser(scope, { ...binding, terraformVersion: '1.18.0' })).toThrow();
+});
+
+test('original HTTP bodies are single-use capabilities of the emitting parser, not copied candidates', () => {
+  const body = '{"name":"example-node","metadata":{"items":[{"key":"user-data","value":"example-private-bootstrap"}]}}';
+  const op = '{"id":"18446744073709551614","targetId":"18446744073709551613"}';
+  const parser = new GoogleHttpRpcTraceParser(scope);
+  const [candidate] = parser.push(Buffer.from(received + request({ body }) + response(op) + served));
+  parser.finish();
+  expect(JSON.stringify(candidate)).not.toContain('example-private-bootstrap');
+  expect(() => parser.consumeBodies({ ...candidate })).toThrow('original');
+  const independent = new GoogleHttpRpcTraceParser(scope);
+  expect(() => independent.consumeBodies(candidate)).toThrow('original');
+  const bodies = parser.consumeBodies(candidate);
+  expect(bodies.schemaVersion).toBe(1);
+  expect(bodies.kind).toBe('original-google-http-rpc-bodies');
+  expect(bodies.requestBody).toBe(body);
+  expect(bodies.responseBody).toBe(op);
+  expect(bodies.requestBodySha256).toBe(candidate.requestBodySha256);
+  expect(bodies.responseBodySha256).toBe(candidate.responseBodySha256);
+  expect(bodies.rpcRequestId).toBe(candidate.rpcRequestId);
+  expect(bodies.planSha256).toBe(candidate.planSha256);
+  expect(bodies.originalInsertQualified).toBe(false);
+  expect(Object.isFrozen(bodies)).toBe(true);
+  expect(() => parser.consumeBodies(candidate)).toThrow('original');
+});
+
+test('failed original trace cannot supply earlier apparently complete HTTP bodies', () => {
+  const parser = new GoogleHttpRpcTraceParser(scope);
+  const [candidate] = parser.push(Buffer.from(complete));
+  expect(() => parser.push(Buffer.from(received))).toThrow('replayed');
+  expect(() => parser.consumeBodies(candidate)).toThrow('failed');
+});
+
+test('HTTP body evidence keeps the existing framing and rejects partial RPC completion', () => {
+  const parser = new GoogleHttpRpcTraceParser(scope);
+  expect(parser.push(Buffer.from(received + request() + response()))).toHaveLength(0);
+  expect(() => parser.consumeBodies({} as never)).toThrow('original');
+  const [candidate] = parser.push(Buffer.from(served));
+  const bodies = parser.consumeBodies(candidate);
+  expect(bodies.requestBody).toBe('');
+  expect(bodies.responseBody).toBe('{"items":[{"name":"example-zone"}]}');
+  expect(parser.finish().complete).toBe(true);
+});
+
+test('released body capabilities are revoked on a later original stream failure or incomplete finish', () => {
+  for (const fail of [
+    (parser: GoogleHttpRpcTraceParser) => parser.push(Buffer.from(received)),
+    (parser: GoogleHttpRpcTraceParser) => {
+      parser.push(Buffer.from('{'));
+      parser.finish();
+    },
+  ]) {
+    const parser = new GoogleHttpRpcTraceParser(scope);
+    const [candidate] = parser.push(Buffer.from(complete));
+    const bodies = parser.consumeBodies(candidate);
+    expect(() => assertOriginalGoogleHttpRpcBodies(bodies)).not.toThrow();
+    expect(() => fail(parser)).toThrow();
+    expect(() => assertOriginalGoogleHttpRpcBodies(bodies)).toThrow('original');
+  }
+});
+
+test('same-zone HA insert traces select the original reviewed node name without accepting another node', () => {
+  const input = {
+    ...scope,
+    rpc: 'ApplyResourceChange' as const,
+    resourceType: 'google_compute_instance',
+    method: 'POST' as const,
+    url: 'https://compute.googleapis.com/compute/v1/projects/example-project/zones/us-central1-a/instances?alt=json',
+    instanceName: 'example-node-b',
+  };
+  const transaction = (name: string, id: string) => {
+    const fields = {
+      tf_rpc: input.rpc,
+      tf_resource_type: input.resourceType,
+      tf_data_source_type: undefined,
+      tf_req_id: id,
+    };
+    const req = request({ body: JSON.stringify({ name }) }).replace(
+      'GET /compute/v1/projects/example-project/zones?alt=json&prettyPrint=false',
+      'POST /compute/v1/projects/example-project/zones/us-central1-a/instances?alt=json',
+    );
+    return (
+      rpc('Received request', fields) +
+      req +
+      response('{"id":"123"}') +
+      rpc('Served request', fields)
+    ).replaceAll('8.7.0', '8.10.0');
+  };
+  const binding = {
+    terraformVersion: '1.17.1',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  const parser = new GoogleHttpRpcTraceParser(input, binding);
+  input.instanceName = 'example-node-a';
+  const candidates = parser.push(
+    Buffer.from(
+      transaction('example-node-a', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1') +
+        transaction('example-node-b', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2') +
+        transaction('example-node-c', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee3'),
+    ),
+  );
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0].rpcRequestId).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2');
+  expect(parser.finish().matchingTransactions).toBe(1);
+  expect(JSON.parse(parser.consumeBodies(candidates[0]).requestBody).name).toBe('example-node-b');
+});
+
+test('instance-name selection cannot be applied to unverified request shapes or injected names', () => {
+  for (const instanceName of ['', 'invalid/name', 'two\nlines'])
+    expect(() => new GoogleHttpRpcTraceParser({ ...scope, instanceName })).toThrow();
+  expect(() => new GoogleHttpRpcTraceParser({ ...scope, instanceName: 'example-node' })).toThrow();
 });

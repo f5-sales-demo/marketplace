@@ -11,6 +11,8 @@ export interface GoogleHttpRpcTraceScope {
   readonly url: string;
   readonly requestReason: string;
   readonly planSha256: string;
+  /** Compiled reviewed instance identity for same-zone serialized inserts. */
+  readonly instanceName?: string;
 }
 export interface GoogleHttpRpcTraceCandidate {
   readonly rpcRequestId: string;
@@ -30,6 +32,19 @@ export interface GoogleHttpRpcTraceCandidate {
   readonly applyRpcQualified: false;
   readonly originalInsertQualified: false;
 }
+/** Private controller evidence; never part of a tool result or legacy candidate. */
+export interface OriginalGoogleHttpRpcBodies extends GoogleHttpRpcTraceCandidate {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-google-http-rpc-bodies';
+  /** Existing forwarded JSON body framing is retained; record hashes bind the exact log bytes. */
+  readonly googleProviderVersion: string;
+  readonly requestBody: string;
+  readonly responseBody: string;
+}
+const issuedBodies = new WeakSet<OriginalGoogleHttpRpcBodies>();
+export function assertOriginalGoogleHttpRpcBodies(value: OriginalGoogleHttpRpcBodies): void {
+  if (!value || !issuedBodies.has(value)) throw new Error('An original parser-issued HTTP body capability is required');
+}
 interface ActiveRpc {
   id: string;
   fingerprint: string;
@@ -47,12 +62,14 @@ interface HttpRequest {
   method: string;
   url: string;
   bodyHash: string;
+  body: string;
   recordsHash: string;
   matching: boolean;
 }
 interface Transaction {
   request: HttpRequest;
   status: number;
+  body: string;
   bodyHash: string;
   recordsHash: string;
 }
@@ -112,9 +129,12 @@ function jsonBody(body: string, contentType: string | undefined, required: boole
 export class GoogleHttpRpcTraceParser {
   readonly #scope: Readonly<GoogleHttpRpcTraceScope>;
   readonly #base: string;
+  readonly #googleVersion: string;
+  #releasedBody: OriginalGoogleHttpRpcBodies | undefined;
   readonly #providerModule: string;
   readonly #buffer = Buffer.allocUnsafe(maximumLine);
   readonly #seen = new Set<string>();
+  readonly #bodies = new WeakMap<GoogleHttpRpcTraceCandidate, OriginalGoogleHttpRpcBodies>();
   #lineBytes = 0;
   #streamBytes = 0;
   #failed = false;
@@ -127,6 +147,7 @@ export class GoogleHttpRpcTraceParser {
 
   constructor(scope: GoogleHttpRpcTraceScope, binding?: InstalledGcpVersionBinding) {
     const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
+    this.#googleVersion = googleVersion;
     this.#providerModule = `provider.terraform-provider-google_v${googleVersion}_x5`;
     const url = new URL(scope.url);
     const project = /^\/compute\/v1\/projects\/([a-z][a-z0-9-]{4,62})(?:\/|$)/.exec(url.pathname);
@@ -146,6 +167,16 @@ export class GoogleHttpRpcTraceParser {
       !project
     )
       throw new Error('Fixed reviewed Google trace scope required');
+    if (
+      scope.instanceName !== undefined &&
+      (typeof scope.instanceName !== 'string' ||
+        !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(scope.instanceName) ||
+        scope.rpc !== 'ApplyResourceChange' ||
+        scope.resourceType !== 'google_compute_instance' ||
+        scope.method !== 'POST' ||
+        !/^\/compute\/v1\/projects\/[a-z][a-z0-9-]{4,62}\/zones\/[a-z][a-z0-9-]{0,62}\/instances$/.test(url.pathname))
+    )
+      throw new Error('Original named Compute insert scope required');
     text(scope.requestReason);
     this.#scope = Object.freeze({ ...scope });
     this.#base = `${url.origin}/compute/v1/projects/${project[1]}/`;
@@ -176,6 +207,7 @@ export class GoogleHttpRpcTraceParser {
       return output;
     } catch (error) {
       this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
       throw error;
     }
   }
@@ -271,7 +303,7 @@ export class GoogleHttpRpcTraceParser {
     if (!transaction) return;
     this.#matches++;
     if (this.#matches !== 1) throw new Error('Replayed matching original HTTP transaction');
-    return Object.freeze({
+    const candidate = Object.freeze({
       rpcRequestId: id,
       rpc: this.#scope.rpc,
       resourceType: this.#scope.resourceType,
@@ -286,9 +318,34 @@ export class GoogleHttpRpcTraceParser {
       receivedRecordSha256: active.receivedHash,
       servedRecordSha256: createHash('sha256').update(raw).update('\n').digest('hex'),
       planSha256: this.#scope.planSha256,
-      applyRpcQualified: false,
-      originalInsertQualified: false,
+      applyRpcQualified: false as const,
+      originalInsertQualified: false as const,
     });
+    this.#bodies.set(
+      candidate,
+      Object.freeze({
+        ...candidate,
+        schemaVersion: 1 as const,
+        kind: 'original-google-http-rpc-bodies' as const,
+        googleProviderVersion: this.#googleVersion,
+        requestBody: transaction.request.body,
+        responseBody: transaction.body,
+      }),
+    );
+    return candidate;
+  }
+  /** Consume one private body capability from this exact parser invocation.
+   * Original candidates remain hash-only. Cloning, cross-parser use, replay or
+   * a failed original stream cannot supply body evidence to the controller.
+   */
+  consumeBodies(candidate: GoogleHttpRpcTraceCandidate): OriginalGoogleHttpRpcBodies {
+    if (this.#failed) throw new Error('Original HTTP/RPC trace failed');
+    const bodies = this.#bodies.get(candidate);
+    if (!bodies) throw new Error('An unconsumed original HTTP candidate is required');
+    this.#bodies.delete(candidate);
+    this.#releasedBody = bodies;
+    issuedBodies.add(bodies);
+    return bodies;
   }
   #completeDump(dump: Dump) {
     const parsed = headers(dump.lines),
@@ -302,15 +359,22 @@ export class GoogleHttpRpcTraceParser {
         throw new Error('Original Google HTTP target differs');
       if (parsed.values.get('x-goog-request-reason')?.[0] !== this.#scope.requestReason)
         throw new Error('Original reviewed HTTP request reason differs');
-      const matching =
-        this.#active?.eligible === true && line[1] === this.#scope.method && url.href === this.#scope.url;
+      let matching = this.#active?.eligible === true && line[1] === this.#scope.method && url.href === this.#scope.url;
+      const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], false);
+      if (matching && this.#scope.instanceName !== undefined) {
+        const named = decodeEvidenceObject(Buffer.from(parsed.body)).name;
+        if (typeof named !== 'string' || !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(named))
+          throw new Error('Original insert body instance name required');
+        matching = named === this.#scope.instanceName;
+      }
       if (matching && (this.#matched || this.#matches)) throw new Error('Replayed matching original HTTP request');
       this.#pending = {
         method: line[1],
         url: url.href,
         matching,
         recordsHash,
-        bodyHash: jsonBody(parsed.body, parsed.values.get('content-type')?.[0], false),
+        bodyHash,
+        body: parsed.body,
       };
       return;
     }
@@ -318,13 +382,14 @@ export class GoogleHttpRpcTraceParser {
     if (!status || !this.#pending) throw new Error('Original HTTP response identity required');
     const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], true);
     if (this.#pending.matching)
-      this.#matched = { request: this.#pending, status: Number(status[1]), bodyHash, recordsHash };
+      this.#matched = { request: this.#pending, status: Number(status[1]), bodyHash, recordsHash, body: parsed.body };
     this.#pending = undefined;
   }
   finish() {
     this.#open();
     if (this.#lineBytes || this.#active || this.#dump || this.#pending || this.#matches !== 1) {
       this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
       throw new Error('Original HTTP/RPC trace truncated or missing matching evidence');
     }
     this.#closed = true;

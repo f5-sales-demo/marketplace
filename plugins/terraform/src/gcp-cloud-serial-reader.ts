@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
+import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import {
   compileGcpInsertAuditQuery,
   type GcpInsertAuditWindow,
@@ -214,7 +215,7 @@ export async function openGcpCloudSerialReader(
         value.name !== node ||
         value.zone !== zoneUrl ||
         typeof value.creationTimestamp !== 'string' ||
-        !Number.isFinite(Date.parse(value.creationTimestamp)) ||
+        !isEvidenceRfc3339(value.creationTimestamp) ||
         !Array.isArray(value.networkInterfaces) ||
         linuxMonotonicMs() - began > 60000
       )
@@ -318,7 +319,7 @@ export async function openGcpCloudSerialReader(
         value.targetLink !== `${scope}/instances/${node}` ||
         !['PENDING', 'RUNNING', 'DONE'].includes(value.status as string) ||
         typeof value.insertTime !== 'string' ||
-        !Number.isFinite(Date.parse(value.insertTime)) ||
+        !isEvidenceRfc3339(value.insertTime) ||
         (value.targetId !== undefined && !uint64(value.targetId))
       )
         throw new Error('Exact scoped Compute insert operation identity required');
@@ -427,7 +428,7 @@ export async function openGcpCloudSerialReader(
             ids.has(entry.insertId) ||
             typeof entry.timestamp !== 'string' ||
             !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,9})?Z$/.test(entry.timestamp) ||
-            !Number.isFinite(Date.parse(entry.timestamp)) ||
+            !isEvidenceRfc3339(entry.timestamp) ||
             Date.parse(entry.timestamp) < Date.parse(window.after) ||
             Date.parse(entry.timestamp) > Date.parse(window.before) ||
             entry.logName !== `projects/${authentication.project}/logs/cloudaudit.googleapis.com%2Factivity` ||

@@ -517,3 +517,10 @@ test('audit transport and persistence failures both survive a changed evidence d
   expect((failure as AggregateError).errors).toHaveLength(2);
   await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('retired');
 });
+
+test('VM creation timestamps cannot coerce arbitrary dates into original incarnation evidence', async () => {
+  for (const creationTimestamp of ['1', '2026-02-30T00:00:00Z', '2026-11-09']) {
+    const f = await fixture([{ ...vm, creationTimestamp }]);
+    await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow();
+  }
+});

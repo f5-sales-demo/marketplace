@@ -1183,3 +1183,17 @@ No cloud resources changed. Full installed capture, original managed-action/
 request/audit/incarnation joins, credential expiry and every subsequent live,
 runtime and delivery gate remain open. Root disk pressure and safe older-global
 Terraform upgrade remain open.
+
+Attempt 421 adds [private insert bodies and source correlation](gcp-insert-body-source-correlation-20261110.md).
+The latest-profile projection and reviewed resource/RPC/provider-window join
+retain unqualified flags; audit, operation, VM and bootstrap ownership remain
+required. Same-zone HA selects the original planned node without accepting
+another node or a repeated matching request. Pre-existing coercible VM/operation
+timestamps now refuse, and the delivered Python fixture annotation repairs CI.
+Shared1,093tests5,008assertions and all three native types/builds/dependencies pass.
+Fresh standard-runner read capture retains private bodies with matching hashes
+and refuses consumption replay. No-change planning, typed teardown, empty destroy,
+stable empty state, two non-submitting resumes and 28 independent group absences
+pass without cloud mutations. Full managed insert/installed capture, observer
+mappings, credential expiry and every remaining live/runtime/delivery gate stay
+open. Source tests and authenticated read capture do not establish CE acceptance.
