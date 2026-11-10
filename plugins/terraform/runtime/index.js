@@ -299,9 +299,9 @@ var gcp_capture_source_pins_default = {
   kind: 'gcp-original-capture-sources',
   files: {
     '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
-    'guest_pty.py': '781d4d2e183acd29b50cb42e6c9ad81347bf6751cbb408d30c62a4600375304b',
+    'guest_pty.py': '274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3',
     'gcp_guest_session.py': 'babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786',
-    'gcp_provider_process.py': 'e8a940f4fd562d001bad8e1a2efe37f57b0aa018bdab1d82c8dd99bf22c5cbea',
+    'gcp_provider_process.py': 'c078a9dc6ad7c6df1630b918af24a8a4bd62b9ac4b38239eaa3fd490429330e0',
     'gcp_provider_reader.py': '9433efeb003687274779ce3e4f53499cb5d454e340c1ec68d5d5ff221ef7c094',
   },
 };

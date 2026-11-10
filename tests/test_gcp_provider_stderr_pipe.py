@@ -556,3 +556,98 @@ def test_prospective_kernel_stat_cannot_be_joined_to_a_different_start(original)
         patches.setattr(module, "process_identity", changed)
         with pytest.raises(ValueError, match="identity changed"):
             monitor.inspect_candidate(row["child"])
+
+
+def test_unavailable_actor_retains_exact_failed_kernel_read_without_authority(original):
+    """Synthetic stopped-state bytes do not send a signal to the real fixture."""
+    _, _, row, _ = original
+    path = Path("/proc") / str(row["child"]) / "stat"
+    actual = path.read_text()
+    split = actual.rfind(")") + 2
+    stopped = actual[:split] + "T" + actual[split + 1 :]
+    read = Path.read_text
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(
+            Path,
+            "read_text",
+            lambda current, *args, **kwargs: (
+                stopped if current == path else read(current, *args, **kwargs)
+            ),
+        )
+        with pytest.raises(pty.ActorIdentityUnavailableError) as captured:
+            pty.process_identity(row["child"])
+    snapshot = captured.value.snapshot
+    assert snapshot["pid"] == row["child"]
+    assert snapshot["kernelStat"] == stopped
+    assert snapshot["state"] == "T"
+    assert snapshot["uid"] == os.getuid()
+    assert not snapshot["identityQualified"]
+
+
+def test_prospective_identity_failure_retains_pid_state_and_original_error(original):
+    """Failure diagnostics never issue an unavailable process or pipe witness."""
+    monitor, _, row, root = original
+    path = Path("/proc") / str(row["child"]) / "stat"
+    actual = path.read_text()
+    split = actual.rfind(")") + 2
+    stopped = actual[:split] + "T" + actual[split + 1 :]
+    read = Path.read_text
+    count = 0
+
+    def changed(current, *args, **kwargs):
+        nonlocal count
+        if current == path:
+            count += 1
+            if count >= 3:
+                return stopped
+        return read(current, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "read_text", changed)
+        with pytest.raises(ValueError, match="unavailable or stopped"):
+            monitor.acquire_stderr()
+    receipts = [
+        json.loads(p.read_text()) for p in root.glob("acquisition-*.private.json")
+    ]
+    assert receipts
+    failed = receipts[-1]
+    assert failed["outcome"] == "identity-unavailable-before-issuance"
+    assert failed["identityFailure"]["kernelStat"] == stopped
+    assert failed["identityFailure"]["pid"] == row["child"]
+    assert failed["identityFailure"]["state"] == "T"
+    assert not failed["samplingComplete"]
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_prospective_identity_and_persistence_failures_both_survive(original):
+    """Diagnostic persistence cannot replace the failed original identity."""
+    monitor, _, row, _ = original
+    raw = (Path("/proc") / str(row["child"]) / "stat").read_text()
+    failure = pty.ActorIdentityUnavailableError(row["child"], raw, os.getuid())
+    inspect = module.process_identity
+    persist = module.record
+
+    def unavailable(pid):
+        if pid == row["child"]:
+            raise failure
+        return inspect(pid)
+
+    def reject_diagnostic(path, value):
+        if (
+            isinstance(value, dict)
+            and value.get("outcome") == "identity-unavailable-before-issuance"
+        ):
+            message = "private diagnostic persistence failed"
+            raise OSError(message)
+        return persist(path, value)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "process_identity", unavailable)
+        patches.setattr(module, "record", reject_diagnostic)
+        with pytest.raises(ExceptionGroup) as captured:
+            monitor.acquire_stderr()
+    assert failure in captured.value.exceptions
+    assert any(isinstance(error, OSError) for error in captured.value.exceptions)
+    assert monitor.retired
+    assert not monitor.admitted

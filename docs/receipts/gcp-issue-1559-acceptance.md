@@ -1237,3 +1237,13 @@ local cleanup, empty stable state, empty destroy, two non-submitting resumes and
 22 independent group absences pass, with original failed locks preserved. No cloud
 resource changed. Precise failure retention, bootstrap ownership, source lifetime,
 full installed capture and every remaining live/runtime/delivery gate remain open.
+
+Attempt 425 adds [prospective identity failure evidence](gcp-prospective-identity-failure-20261110.md).
+Exact failed kernel bytes/PID/state/UID/time are private and unqualified; retirement
+and non-issuance remain mandatory. Identity and persistence failures both survive.
+Python63/shared1,115/root164 tests and configured checks pass. A changed source-read
+run passes with independent28group absences, empty stable state, typed teardown and
+two non-submitting resumes. No managed cloud resource changed. Prior failed flags
+and locks remain preserved. Initial schema-provider lifetime qualification, actual
+expiry, bootstrap ownership, full capture and every remaining live/delivery gate
+remain open; a passing short read does not close those requirements.

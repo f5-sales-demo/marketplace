@@ -16,7 +16,13 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, NoReturn, cast
 from uuid import uuid4
 
-from .guest_pty import ActorIdentity, pinned, process_identity, record
+from .guest_pty import (
+    ActorIdentity,
+    ActorIdentityUnavailableError,
+    pinned,
+    process_identity,
+    record,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -476,6 +482,24 @@ class OriginalProviderCandidates:
                     )
                     incomplete.append(pid)
                     continue
+                except ActorIdentityUnavailableError as error:
+                    try:
+                        record(
+                            self.root
+                            / ("acquisition-" + uuid4().hex + ".private.json"),
+                            {
+                                **prospective,
+                                "outcome": "identity-unavailable-before-issuance",
+                                "samplingComplete": False,
+                                "identityFailure": dict(error.snapshot),
+                            },
+                        )
+                    except Exception as persistence_error:
+                        message = "Prospective identity failure and persistence failed"
+                        raise ExceptionGroup(
+                            message, [error, persistence_error]
+                        ) from None
+                    raise
                 self.check_inputs()
                 self.require_parent()
                 record(

@@ -16,12 +16,13 @@ import time
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, NoReturn, TypedDict, TypeGuard
 
 import psutil
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from typing import IO
 
 PROMPT = re.compile(
@@ -37,6 +38,27 @@ class ActorIdentity(TypedDict):
     group: int
     start: str
     boot: str
+
+
+class ActorIdentityUnavailableError(ValueError):
+    """Private failed-read evidence; never a verified actor identity."""
+
+    def __init__(self, pid: int, raw: str, uid: int) -> None:
+        """Retain exactly the kernel bytes that triggered the refusal."""
+        super().__init__("Original actor is unavailable or stopped")
+        fields = raw[raw.rfind(")") + 2 :].split()
+        self.snapshot: Mapping[str, object] = MappingProxyType(
+            {
+                "schemaVersion": 1,
+                "kind": "actor-identity-unavailable",
+                "pid": pid,
+                "kernelStat": raw,
+                "state": fields[0] if fields else None,
+                "uid": uid,
+                "capturedMonotonicMs": now_ms(),
+                "identityQualified": False,
+            }
+        )
 
 
 RETAINED: dict[str, object] = {}
@@ -97,14 +119,14 @@ def record(path: Path, value: object) -> None:
 def process_identity(pid: int) -> ActorIdentity:
     """Join original kernel and psutil identity before execution."""
     folder = Path("/proc") / str(pid)
-    if folder.stat().st_uid != os.getuid():
+    uid = folder.stat().st_uid
+    if uid != os.getuid():
         msg = "Original actor owner changed"
         _source_error(msg)
     raw = (folder / "stat").read_text()
     fields = raw[raw.rfind(")") + 2 :].split()
     if len(fields) < PROC_STAT_MIN_FIELDS or fields[0] not in ("R", "S", "D", "I"):
-        msg = "Original actor is unavailable or stopped"
-        _source_error(msg)
+        raise ActorIdentityUnavailableError(pid, raw, uid)
     sdk = psutil.Process(pid)
     ticks = os.sysconf("SC_CLK_TCK")
     btime = int(
