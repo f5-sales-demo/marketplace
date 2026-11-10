@@ -361,3 +361,198 @@ def test_verified_reader_does_not_execute_unadmitted_cached_bytecode(tmp_path: P
     monitor, transport = reader.load_reader_modules(scripts)
     assert monitor.source_witness
     assert transport.source_witness
+
+
+def test_coherent_acquisition_publishes_only_joint_process_and_fifo(original):
+    """No candidate is admitted while its prospective FIFO is being inspected."""
+    monitor, _, row, root = original
+    inspect = monitor.inspect_prospective_stderr
+
+    def guarded(candidate):
+        assert not monitor.admitted
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", guarded)
+        acquisition = monitor.acquire_stderr()
+    assert not acquisition.incomplete_pids
+    assert len(acquisition.witnesses) == 1
+    witness = acquisition.witnesses[0]
+    assert witness.provider.pid == row["child"]
+    monitor.require_stderr(witness)
+    receipts = [
+        json.loads(path.read_text()) for path in root.glob("acquisition-*.private.json")
+    ]
+    assert receipts[0]["schemaVersion"] == 2
+    assert receipts[0]["samplingComplete"]
+    assert not receipts[0]["applyPhaseQualified"]
+
+
+def test_prospective_exit_retains_incomplete_without_issuing_capability(original):
+    """A cooperative exit before joint acquisition is evidence, not authority."""
+    monitor, command, row, root = original
+    inspect = monitor.inspect_prospective_stderr
+    replaced = []
+
+    def departed(candidate):
+        if candidate.pid == row["child"]:
+            replaced.append(command("replace")["child"])
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", departed)
+        acquisition = monitor.acquire_stderr()
+    assert acquisition.incomplete_pids == (row["child"],)
+    assert not acquisition.witnesses
+    assert not monitor.admitted
+    assert not monitor.retired
+    receipts = [
+        json.loads(path.read_text()) for path in root.glob("acquisition-*.private.json")
+    ]
+    assert not receipts[0]["samplingComplete"]
+    assert receipts[0]["prospectivePid"] == row["child"]
+    assert receipts[0]["outcome"] == "departed-before-issuance"
+    assert not receipts[0]["applyPhaseQualified"]
+    assert replaced[0] != row["child"]
+
+
+def test_unrelated_missing_input_during_acquisition_cannot_be_excused(original):
+    """A live prospective actor cannot hide missing evidence or source bytes."""
+    monitor, _, _, root = original
+
+    def missing(_candidate):
+        message = "unrelated evidence missing"
+        raise FileNotFoundError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", missing)
+        with pytest.raises(FileNotFoundError, match="unrelated evidence"):
+            monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+    assert list(root.glob("failure-*.private.json"))
+
+
+def test_issued_capability_loss_is_not_a_prospective_exit(original):
+    """Coherent issuance preserves strict original-incarnation reinspections."""
+    monitor, command, _, _ = original
+    witness = monitor.acquire_stderr().witnesses[0]
+    command("replace")
+    with pytest.raises(ValueError, match="Original provider"):
+        monitor.require_stderr(witness)
+    assert monitor.retired
+
+
+def test_ambiguous_prospective_fifo_retires_without_issuance(original):
+    """Ambiguity remains failed before or after capability publication."""
+    monitor, command, _, _ = original
+    command("duplicate")
+    with pytest.raises(ValueError, match="ambiguous"):
+        monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_failed_acquisition_persistence_never_issues_capability(original):
+    """Publication follows durable evidence and retains both persistence errors."""
+    monitor, _, _, _ = original
+
+    def failed(_path, _value):
+        message = "fixture persistence unavailable"
+        raise OSError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "record", failed)
+        with pytest.raises(ExceptionGroup, match="capture and persistence"):
+            monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_coherent_window_profile_has_distinct_version_without_rewriting_legacy():
+    """Changed acquisition evidence cannot masquerade as the old window schema."""
+    assert (
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 3,
+                "kind": "original-provider-stderr-coherent-window",
+                "windowMs": 45000,
+            }
+        )
+        == "stderr-coherent-window"
+    )
+    with pytest.raises(ValueError, match="Original provider"):
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 2,
+                "kind": "original-provider-stderr-coherent-window",
+                "windowMs": 45000,
+            }
+        )
+
+
+def test_coherent_window_does_not_rediscover_then_issue_a_fifo(original):
+    """A fresh joint acquisition is used directly rather than recaptured."""
+    monitor, _, row, _ = original
+    tick = [1000]
+
+    def obsolete():
+        message = "legacy discovery must not be used"
+        raise AssertionError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "discover", obsolete)
+        result = reader.capture_stderr_window(
+            monitor,
+            deadline=46000,
+            verify=lambda: None,
+            emit=lambda _value: None,
+            coherent=True,
+            clock=lambda: tick[0],
+            pause=lambda: tick.__setitem__(0, 46000),
+        )
+    assert result["observations"][0]["candidate"]["pid"] == row["child"]
+    assert result["samplingWindowComplete"]
+
+
+def test_coherent_window_prospective_gap_is_explicitly_incomplete(original):
+    """A missing prospective sample remains failed, even if another PID runs."""
+    monitor, command, _, _ = original
+    inspect = monitor.inspect_prospective_stderr
+    events = []
+
+    def departed(candidate):
+        command("replace")
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", departed)
+        with pytest.raises(ValueError, match="acquisition incomplete"):
+            reader.capture_stderr_window(
+                monitor,
+                deadline=46000,
+                verify=lambda: None,
+                emit=events.append,
+                coherent=True,
+                clock=lambda: 1000,
+                pause=lambda: None,
+            )
+    assert events[-1]["kind"] == "failed"
+    assert not events[-1]["samplingWindowComplete"]
+
+
+def test_prospective_kernel_stat_cannot_be_joined_to_a_different_start(original):
+    """Independent SDK agreement cannot excuse reuse since the first stat read."""
+    monitor, _, row, _ = original
+    identify = module.process_identity
+
+    def changed(pid):
+        value = identify(pid)
+        if pid == row["child"]:
+            return {**value, "start": str(int(value["start"]) + 1)}
+        return value
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "process_identity", changed)
+        with pytest.raises(ValueError, match="identity changed"):
+            monitor.inspect_candidate(row["child"])

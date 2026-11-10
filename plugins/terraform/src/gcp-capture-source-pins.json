@@ -5,7 +5,7 @@
     "__init__.py": "e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb",
     "guest_pty.py": "781d4d2e183acd29b50cb42e6c9ad81347bf6751cbb408d30c62a4600375304b",
     "gcp_guest_session.py": "babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786",
-    "gcp_provider_process.py": "0d36dd1ff892c007541e1fe5ca1890302a4cbcc395c4e62087751ef6f8d37709",
-    "gcp_provider_reader.py": "e04ddb6f9d976d9f3b762537318f5dcadd8a0a7a4e3a37ec7c87ae7e36b20e3a"
+    "gcp_provider_process.py": "e8a940f4fd562d001bad8e1a2efe37f57b0aa018bdab1d82c8dd99bf22c5cbea",
+    "gcp_provider_reader.py": "8b2e0147e5892b95b873d1b52322c04edba7585428a67ef9640375afa97a5ded"
   }
 }

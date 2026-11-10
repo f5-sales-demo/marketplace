@@ -61,7 +61,7 @@ export interface InstalledProviderCohort {
 }
 
 export interface InstalledProviderWindowReady {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly kind: 'original-provider-stderr-ready';
   readonly executor: Identity;
   readonly reader: Identity;
@@ -90,8 +90,8 @@ export interface InstalledProviderWindowObservation {
 }
 export interface InstalledProviderWindow
   extends Omit<InstalledProviderCohort, 'schemaVersion' | 'kind' | 'candidates'> {
-  readonly schemaVersion: 2;
-  readonly kind: 'original-provider-stderr-window';
+  readonly schemaVersion: 3;
+  readonly kind: 'original-provider-stderr-coherent-window';
   readonly windowStartedMs: number;
   readonly windowDeadlineMs: number;
   readonly finishedMs: number;
@@ -267,8 +267,8 @@ export async function openInstalledProviderReader(
           childDirectory = { path: directory, identity: await lstat(directory) };
           const final = reserve ? inspectFinalReaderReserve(reserve) : undefined;
           const request = {
-            schemaVersion: startup ? 2 : 1,
-            ...(startup ? { kind: 'original-provider-stderr-window', windowMs: 45000 } : {}),
+            schemaVersion: startup ? 3 : 1,
+            ...(startup ? { kind: 'original-provider-stderr-coherent-window', windowMs: 45000 } : {}),
             inputs: allInputs,
             executables: { bootstrap: inputs.python, terraform: inputs.terraform, provider: google },
             originalStartMs: context.budget.start,
@@ -378,7 +378,7 @@ export async function openInstalledProviderReader(
               if (
                 !originalReader ||
                 Object.keys(value).sort().join(',') !== keys ||
-                value.schemaVersion !== 2 ||
+                value.schemaVersion !== 3 ||
                 value.kind !== 'original-provider-stderr-ready' ||
                 value.requestSha256 !== hash(bytes) ||
                 !equalIdentity(value.executor, admission.identity) ||
@@ -424,8 +424,8 @@ export async function openInstalledProviderReader(
           const originalReader = readerIdentity;
           if (!originalReader) throw new Error('Original provider reader identity absent');
           if (
-            value.schemaVersion !== (startup ? 2 : 1) ||
-            value.kind !== (startup ? 'original-provider-stderr-window' : 'original-provider-cohort') ||
+            value.schemaVersion !== (startup ? 3 : 1) ||
+            value.kind !== (startup ? 'original-provider-stderr-coherent-window' : 'original-provider-cohort') ||
             value.requestSha256 !== hash(bytes) ||
             !equalIdentity(value.executor, admission.identity) ||
             !equalIdentity(value.reader, readerIdentity) ||
@@ -592,7 +592,8 @@ export async function openInstalledProviderReader(
         rejectReady = reject;
       });
       const complete = readInternal(undefined, { resolve: resolveReady, reject: rejectReady }).then((result) => {
-        if (result.kind !== 'original-provider-stderr-window') throw new Error('Original provider window required');
+        if (result.kind !== 'original-provider-stderr-coherent-window')
+          throw new Error('Original provider window required');
         return result;
       });
       complete.catch(rejectReady);

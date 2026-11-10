@@ -233,6 +233,7 @@ class ProviderWindowResult(TypedDict):
 
 
 WINDOW_SCHEMA_VERSION = 2
+COHERENT_WINDOW_SCHEMA_VERSION = 3
 WINDOW_MS = 45000
 WINDOW_PROVIDER_LIMIT = 64
 
@@ -251,7 +252,35 @@ def provider_request_profile(request: dict[str, object]) -> str:
         and request["windowMs"] == WINDOW_MS
     ):
         return "stderr-window"
+    if (
+        version == COHERENT_WINDOW_SCHEMA_VERSION
+        and request.get("kind") == "original-provider-stderr-coherent-window"
+        and exact_integer(request.get("windowMs"))
+        and request["windowMs"] == WINDOW_MS
+    ):
+        return "stderr-coherent-window"
     reject("Original provider observation profile required")
+
+
+def collect_window_cohort(
+    monitor: OriginalProviderCandidates, *, coherent: bool, verify: Callable[[], None]
+) -> tuple[bool, bool, tuple[ProviderCandidate, ...], dict[int, ProviderStderrPipe]]:
+    """Collect one original cohort with explicitly versioned acquisition semantics."""
+    acquired: dict[int, ProviderStderrPipe] = {}
+
+    def discover_joint() -> tuple[ProviderCandidate, ...]:
+        acquisition = monitor.acquire_stderr()
+        if acquisition.incomplete_pids:
+            reject("Prospective original provider acquisition incomplete")
+        acquired.update({value.provider.pid: value for value in acquisition.witnesses})
+        return tuple(value.provider for value in acquisition.witnesses)
+
+    available, closed, candidates = collect_cohort(
+        dict(monitor.parent),
+        discover_joint if coherent else monitor.discover,
+        assert_inputs=verify,
+    )
+    return available, closed, candidates, acquired
 
 
 def capture_stderr_window(
@@ -260,6 +289,7 @@ def capture_stderr_window(
     deadline: int,
     verify: Callable[[], None],
     emit: Callable[[dict[str, object]], None],
+    coherent: bool = False,
     clock: Callable[[], int] = lambda: time.monotonic_ns() // 1000000,
     pause: Callable[[], None] = lambda: time.sleep(0.25),
 ) -> ProviderWindowResult:
@@ -275,8 +305,8 @@ def capture_stderr_window(
         verify()
         emit({"kind": "ready", "windowStartedMs": started, "windowDeadlineMs": ended})
         while clock() < ended:
-            available, closed, candidates = collect_cohort(
-                dict(monitor.parent), monitor.discover, assert_inputs=verify
+            available, closed, candidates, acquired = collect_window_cohort(
+                monitor, coherent=coherent, verify=verify
             )
             captured = clock()
             if captured >= ended:
@@ -287,7 +317,11 @@ def capture_stderr_window(
                 if candidate.pid not in witnesses:
                     if len(witnesses) >= WINDOW_PROVIDER_LIMIT:
                         reject("Original provider window candidate limit exceeded")
-                    witness = monitor.capture_stderr(candidate)
+                    witness = (
+                        acquired[candidate.pid]
+                        if coherent
+                        else monitor.capture_stderr(candidate)
+                    )
                     witnesses[candidate.pid] = witness
                     observations[candidate.pid] = {
                         "candidate": asdict(candidate),
@@ -303,7 +337,10 @@ def capture_stderr_window(
                         "lastObservedMs": captured,
                         "presentAtLastSample": True,
                     }
-                monitor.require_stderr(witnesses[candidate.pid])
+                    if not coherent:
+                        monitor.require_stderr(witnesses[candidate.pid])
+                else:
+                    monitor.require_stderr(witnesses[candidate.pid])
                 observations[candidate.pid]["lastObservedMs"] = captured
                 observations[candidate.pid]["presentAtLastSample"] = True
             verify()
@@ -430,7 +467,7 @@ def record_stderr_window(
                 root / "provider-ready.private.json",
                 {
                     **value,
-                    "schemaVersion": 2,
+                    "schemaVersion": request["schemaVersion"],
                     "kind": "original-provider-stderr-ready",
                     "requestSha256": sys.argv[4],
                     "executor": request["executor"],
@@ -445,7 +482,7 @@ def record_stderr_window(
                 root / "provider-window-failed.private.json",
                 {
                     **value,
-                    "schemaVersion": 2,
+                    "schemaVersion": request["schemaVersion"],
                     "requestSha256": sys.argv[4],
                     "executor": request["executor"],
                     "reader": reader,
@@ -455,14 +492,20 @@ def record_stderr_window(
                 },
             )
 
-    result = capture_stderr_window(monitor, deadline=deadline, verify=verify, emit=emit)
+    result = capture_stderr_window(
+        monitor,
+        deadline=deadline,
+        verify=verify,
+        emit=emit,
+        coherent=provider_request_profile(request) == "stderr-coherent-window",
+    )
     verify()
     transport.record(
         root / "provider-result.private.json",
         {
             **result,
-            "schemaVersion": 2,
-            "kind": "original-provider-stderr-window",
+            "schemaVersion": request["schemaVersion"],
+            "kind": request["kind"],
             "requestSha256": sys.argv[4],
             "executor": request["executor"],
             "reader": reader,
@@ -586,7 +629,7 @@ def main() -> None:
         )
         return monitor.discover()
 
-    if provider_request_profile(request) == "stderr-window":
+    if provider_request_profile(request) in ("stderr-window", "stderr-coherent-window"):
         record_stderr_window(
             monitor_module, transport, request, root, reader, deadline, verify
         )

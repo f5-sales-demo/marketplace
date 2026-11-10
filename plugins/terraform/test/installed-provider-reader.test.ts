@@ -143,11 +143,11 @@ async function fixture() {
         signalsSent: false,
         cloudSubmissions: 0,
       };
-      if (request.schemaVersion === 2) {
+      if (request.schemaVersion === 3) {
         const windowStartedMs = windowClock;
         const windowDeadlineMs = Math.min(windowStartedMs + 45000, request.deadlineMs);
         const ready: Record<string, unknown> = {
-          schemaVersion: 2,
+          schemaVersion: 3,
           kind: 'original-provider-stderr-ready',
           requestSha256: hash(bytes),
           executor: request.executor,
@@ -171,8 +171,8 @@ async function fixture() {
         });
         await barrier;
         Object.assign(result, {
-          schemaVersion: 2,
-          kind: 'original-provider-stderr-window',
+          schemaVersion: 3,
+          kind: 'original-provider-stderr-coherent-window',
           windowStartedMs,
           windowDeadlineMs,
           finishedMs: prematureWindow ? now : windowDeadlineMs,
@@ -350,13 +350,14 @@ test('installed FIFO window becomes ready before the original sampling command c
   });
   const ready = await running.ready;
   expect(ready.kind).toBe('original-provider-stderr-ready');
+  expect(ready.schemaVersion).toBe(3);
   expect(ready.executor).toEqual(parent);
   expect(ready.reader).toEqual(sdk);
   expect(ready.windowDeadlineMs - ready.windowStartedMs).toBe(45000);
   expect(completed).toBe(false);
   run.releaseWindow();
   const result = await running.complete;
-  expect(result.kind).toBe('original-provider-stderr-window');
+  expect(result.kind).toBe('original-provider-stderr-coherent-window');
   expect(result.observations.map((value) => value.candidate.pid)).toEqual([3456, 4567]);
   expect(result.samplingWindowComplete).toBe(true);
   expect(result.applyPhaseQualified).toBe(false);
@@ -449,6 +450,7 @@ test('subsequent windows keep the original operation budget after its initial st
   await first.complete;
   const second = reader.startStderrWindow();
   const ready = await second.ready;
+  expect(ready.schemaVersion).toBe(3);
   expect(ready.executor).toEqual(parent);
   expect(ready.reader.pid).not.toBe(sdk.pid);
   expect(ready.windowStartedMs).toBe(run.admission.originalStartMs + 45000);

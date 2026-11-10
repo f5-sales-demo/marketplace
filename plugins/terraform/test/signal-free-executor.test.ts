@@ -471,3 +471,61 @@ test('late group closure refusal retains the earlier callback failure', async ()
   );
   expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'claim.json')).exists()).toBe(true);
 });
+
+test('input guard failure after natural success retains exact private cause and original identity', async () => {
+  const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n');
+  const cause = new Error('synthetic original guard failure');
+  run.checks.push(async () => {
+    if (await Bun.file(join(run.root, 'executed')).exists()) throw cause;
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(1);
+  const capture = run.captures[0];
+  expect(capture.actualExitCode).toBe(0);
+  expect(capture.reason).toBe('input-changed');
+  const evidence = capture.inputFailureEvidence;
+  expect(evidence).toBeDefined();
+  if (!evidence) throw new Error('Required original failure evidence missing');
+  const raw = await readFile(evidence.path);
+  expect(hash(raw)).toBe(evidence.sha256);
+  expect((await lstat(evidence.path)).mode & 0o777).toBe(0o400);
+  const diagnostic = JSON.parse(raw.toString());
+  expect(diagnostic.kind).toBe('original-executor-input-failure');
+  expect(diagnostic.phase).toBe('original-input-check');
+  expect(diagnostic.identity).toEqual(capture.identity);
+  expect(diagnostic.error.message).toBe(cause.message);
+  expect(diagnostic.error.stack).toBe(cause.stack);
+  expect(diagnostic.finalStartedMs).toBe(capture.finalStartedMs);
+  expect(JSON.stringify(capture)).not.toContain(cause.message);
+});
+
+test('input failure persistence retains both errors and final capture before refusing closure', async () => {
+  const cause = new Error('synthetic input failure with unavailable receipt');
+  const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'input-failure.private.json'));
+    },
+  });
+  run.checks.push(async () => {
+    if (await Bun.file(join(run.root, 'executed')).exists()) throw cause;
+  });
+  let retained: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    retained = error;
+  }
+  expect(retained).toBeInstanceOf(AggregateError);
+  if (!(retained instanceof AggregateError)) throw new Error('Required aggregated failure missing');
+  expect(retained.errors[0]).toBe(cause);
+  expect(retained.errors[1].code).toBe('EEXIST');
+  expect(run.captures).toHaveLength(1);
+  expect(run.captures[0].originalGroupClosed).toBe(true);
+  expect(run.captures[0].reason).toBe('input-changed');
+  const completion = JSON.parse(
+    await readFile(join(dirname(run.captures[0].stdoutPath), 'completion.private.json'), 'utf8'),
+  );
+  expect(completion.originalGroupClosed).toBe(true);
+  expect(completion.captureClosed).toBe(true);
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json')).exists()).toBe(true);
+});

@@ -43,6 +43,7 @@ export interface FinalExecutionCapture {
   originalGroupClosed: boolean;
   signalsSent: false;
   reason?: Reason;
+  readonly inputFailureEvidence?: Readonly<{ schemaVersion: 1; path: string; sha256: string }>;
 }
 interface ExecutableBinding {
   path: string;
@@ -261,6 +262,9 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     let submitted = false;
     let originalIdentity: ExecutionCaptureAdmission['identity'] | undefined;
     let reason: Reason | undefined;
+    let inputFailureEvidence: FinalExecutionCapture['inputFailureEvidence'];
+    let inputFailureObserved = false;
+    const inputPersistenceErrors: unknown[] = [];
     let finalStarted: number | undefined;
     let actualExitCode: number | null = null;
     let groupClosed = false;
@@ -271,15 +275,49 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       if (!reason) reason = value;
       finalStarted ??= now();
     };
+    const retainInputFailure = async (phase: string, error: unknown) => {
+      fail('input-changed');
+      if (inputFailureObserved) return;
+      inputFailureObserved = true;
+      const path = join(root, 'input-failure.private.json');
+      const raw = JSON.stringify({
+        schemaVersion: 1,
+        kind: 'original-executor-input-failure',
+        phase,
+        identity: originalIdentity,
+        pid: child?.pid,
+        originalStartMs: policy.originalStartMs,
+        originalDeadlineMs: policy.originalDeadlineMs,
+        invocationStartedMs: began,
+        finalStartedMs: finalStarted,
+        observedMs: now(),
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : { type: typeof error, value: typeof error === 'string' ? error : undefined },
+        signalsSent: false,
+      });
+      try {
+        await writeFile(path, raw, { mode: 0o400, flag: 'wx' });
+        inputFailureEvidence = Object.freeze({ schemaVersion: 1, path, sha256: hash(Buffer.from(raw)) });
+      } catch (persistenceError) {
+        inputPersistenceErrors.push(
+          new AggregateError([error, persistenceError], 'Original input failure and persistence unresolved'),
+        );
+      }
+    };
     const check = async () => {
       if (signal?.aborted) fail('cancelled');
       if (now() >= Math.min(began + timeout, executionDeadline)) fail('deadline');
+      let inputPhase = 'python-executable-check';
       try {
         await python.require();
+        inputPhase = 'command-executable-check';
         await executable.require();
+        inputPhase = 'original-input-check';
         await assertOriginal();
-      } catch {
-        fail('input-changed');
+      } catch (error) {
+        await retainInputFailure(inputPhase, error);
       }
       for (const [path, original] of [
         [stdoutPath, outIdentity],
@@ -288,10 +326,9 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
         let current: typeof original;
         try {
           current = await lstat(path, { bigint: true });
-        } catch {
-          // Lost or inaccessible evidence must still reach the original final
-          // capture window. Throwing here would skip that capture entirely.
-          fail('input-changed');
+        } catch (error) {
+          // Persist the cause without suppressing the original final reserve.
+          await retainInputFailure(path === stdoutPath ? 'stdout-path-inspection' : 'stderr-path-inspection', error);
           continue;
         }
         if (
@@ -300,7 +337,10 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
           current.uid !== original.uid ||
           current.nlink !== 1n
         )
-          fail('input-changed');
+          await retainInputFailure(
+            path === stdoutPath ? 'stdout-identity-check' : 'stderr-identity-check',
+            new Error('Original output file identity changed'),
+          );
         if (current.size > maximum) fail('output-limit');
       }
     };
@@ -460,7 +500,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
           groupClosed = true;
         } catch (error) {
           if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
-            fail('input-changed');
+            await retainInputFailure('original-group-closure', error);
         }
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture: FinalExecutionCapture = {
@@ -479,6 +519,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
         originalGroupClosed: groupClosed,
         signalsSent: false,
         reason,
+        ...(inputFailureEvidence ? { inputFailureEvidence } : {}),
       };
       const finalErrors: unknown[] = [];
       try {
@@ -540,12 +581,15 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             actualExitCode,
             originalGroupClosed: groupClosed,
             captureClosed,
+            reason,
+            ...(inputFailureEvidence ? { inputFailureEvidence } : {}),
           }),
           { mode: 0o400, flag: 'wx' },
         );
       } catch (error) {
         finalErrors.push(error);
       }
+      finalErrors.push(...inputPersistenceErrors);
       if (!groupClosed || actualExitCode === null) {
         const closureError = new Error('Original executor closure unresolved; lock remains held');
         if (finalErrors.length)

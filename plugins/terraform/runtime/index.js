@@ -301,8 +301,8 @@ var gcp_capture_source_pins_default = {
     '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
     'guest_pty.py': '781d4d2e183acd29b50cb42e6c9ad81347bf6751cbb408d30c62a4600375304b',
     'gcp_guest_session.py': 'babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786',
-    'gcp_provider_process.py': '0d36dd1ff892c007541e1fe5ca1890302a4cbcc395c4e62087751ef6f8d37709',
-    'gcp_provider_reader.py': 'e04ddb6f9d976d9f3b762537318f5dcadd8a0a7a4e3a37ec7c87ae7e36b20e3a',
+    'gcp_provider_process.py': 'e8a940f4fd562d001bad8e1a2efe37f57b0aa018bdab1d82c8dd99bf22c5cbea',
+    'gcp_provider_reader.py': '8b2e0147e5892b95b873d1b52322c04edba7585428a67ef9640375afa97a5ded',
   },
 };
 
@@ -2070,6 +2070,9 @@ function originalExecutor(input, reserve) {
     let submitted = false;
     let originalIdentity;
     let reason;
+    let inputFailureEvidence;
+    let inputFailureObserved = false;
+    const inputPersistenceErrors = [];
     let finalStarted;
     let actualExitCode = null;
     let groupClosed = false;
@@ -2080,15 +2083,49 @@ function originalExecutor(input, reserve) {
       if (!reason) reason = value;
       finalStarted ??= now();
     };
+    const retainInputFailure = async (phase, error) => {
+      fail('input-changed');
+      if (inputFailureObserved) return;
+      inputFailureObserved = true;
+      const path = join6(root, 'input-failure.private.json');
+      const raw = JSON.stringify({
+        schemaVersion: 1,
+        kind: 'original-executor-input-failure',
+        phase,
+        identity: originalIdentity,
+        pid: child?.pid,
+        originalStartMs: policy.originalStartMs,
+        originalDeadlineMs: policy.originalDeadlineMs,
+        invocationStartedMs: began,
+        finalStartedMs: finalStarted,
+        observedMs: now(),
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : { type: typeof error, value: typeof error === 'string' ? error : undefined },
+        signalsSent: false,
+      });
+      try {
+        await writeFile2(path, raw, { mode: 256, flag: 'wx' });
+        inputFailureEvidence = Object.freeze({ schemaVersion: 1, path, sha256: hash4(Buffer.from(raw)) });
+      } catch (persistenceError) {
+        inputPersistenceErrors.push(
+          new AggregateError([error, persistenceError], 'Original input failure and persistence unresolved'),
+        );
+      }
+    };
     const check = async () => {
       if (signal?.aborted) fail('cancelled');
       if (now() >= Math.min(began + timeout, executionDeadline)) fail('deadline');
+      let inputPhase = 'python-executable-check';
       try {
         await python.require();
+        inputPhase = 'command-executable-check';
         await executable.require();
+        inputPhase = 'original-input-check';
         await assertOriginal();
-      } catch {
-        fail('input-changed');
+      } catch (error) {
+        await retainInputFailure(inputPhase, error);
       }
       for (const [path, original] of [
         [stdoutPath, outIdentity],
@@ -2097,8 +2134,8 @@ function originalExecutor(input, reserve) {
         let current;
         try {
           current = await lstat6(path, { bigint: true });
-        } catch {
-          fail('input-changed');
+        } catch (error) {
+          await retainInputFailure(path === stdoutPath ? 'stdout-path-inspection' : 'stderr-path-inspection', error);
           continue;
         }
         if (
@@ -2107,7 +2144,10 @@ function originalExecutor(input, reserve) {
           current.uid !== original.uid ||
           current.nlink !== 1n
         )
-          fail('input-changed');
+          await retainInputFailure(
+            path === stdoutPath ? 'stdout-identity-check' : 'stderr-identity-check',
+            new Error('Original output file identity changed'),
+          );
         if (current.size > maximum) fail('output-limit');
       }
     };
@@ -2258,7 +2298,7 @@ function originalExecutor(input, reserve) {
           groupClosed = true;
         } catch (error) {
           if (!(error instanceof Error) || error.message !== 'Original executor process group remains live')
-            fail('input-changed');
+            await retainInputFailure('original-group-closure', error);
         }
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture = {
@@ -2277,6 +2317,7 @@ function originalExecutor(input, reserve) {
         originalGroupClosed: groupClosed,
         signalsSent: false,
         reason,
+        ...(inputFailureEvidence ? { inputFailureEvidence } : {}),
       };
       const finalErrors = [];
       try {
@@ -2334,12 +2375,15 @@ function originalExecutor(input, reserve) {
             actualExitCode,
             originalGroupClosed: groupClosed,
             captureClosed,
+            reason,
+            ...(inputFailureEvidence ? { inputFailureEvidence } : {}),
           }),
           { mode: 256, flag: 'wx' },
         );
       } catch (error) {
         finalErrors.push(error);
       }
+      finalErrors.push(...inputPersistenceErrors);
       if (!groupClosed || actualExitCode === null) {
         const closureError = new Error('Original executor closure unresolved; lock remains held');
         if (finalErrors.length)

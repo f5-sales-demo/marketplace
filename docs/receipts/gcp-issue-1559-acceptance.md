@@ -1168,3 +1168,18 @@ empty state, empty destroy, two non-submitting resumes and 24 independently
 absent process groups. Failing-first audit, identity and recovery cases pass.
 Coherent provider sampling, managed original-insert joins, full capture and all
 subsequent live, runtime and delivery gates remain required.
+
+Attempt 420 qualifies [coherent original provider acquisition and private failure causes](gcp-coherent-provider-acquisition-20261110.md).
+The schema 3 installed reader publishes joint process/FIFO capabilities only after
+coherent checks; prospective departures remain explicitly incomplete and issued
+witness changes still refuse. The first kernel stat and SDK process start must
+match. Exact future input failure causes remain private; attempt 418 remains
+unknown. All 38 Python process/FIFO tests and 1,074 shared tests pass, with all
+three native typechecks/builds/dependencies. The latest standard-runner source
+fixture retained 9,709 records, matching original read-provider/FIFO evidence
+across two windows, no-change planning, typed teardown, empty destroy, stable
+empty state, two non-submitting resumes and 28 independent group absences.
+No cloud resources changed. Full installed capture, original managed-action/
+request/audit/incarnation joins, credential expiry and every subsequent live,
+runtime and delivery gate remain open. Root disk pressure and safe older-global
+Terraform upgrade remain open.

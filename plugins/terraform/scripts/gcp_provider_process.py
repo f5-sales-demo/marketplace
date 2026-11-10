@@ -10,7 +10,7 @@ import os
 import re
 import stat
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, NoReturn, cast
@@ -49,6 +49,14 @@ class ProviderStderrPipe:
     inode: int
     provider_flags: int
     parent_flags: int
+
+
+@dataclass(frozen=True)
+class ProviderAcquisition:
+    """Jointly issued witnesses and explicitly incomplete prospective samples."""
+
+    witnesses: tuple[ProviderStderrPipe, ...]
+    incomplete_pids: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -197,8 +205,10 @@ class OriginalProviderCandidates:
             message = "Original provider capture and persistence failed"
             raise ExceptionGroup(message, [error, persistence_error]) from None
 
-    def capture(self, pid: int) -> ProviderCandidate:
-        """Retain a fresh independent kernel and SDK process witness."""
+    def inspect_candidate(
+        self, pid: int
+    ) -> tuple[ProviderCandidate, dict[str, object]]:
+        """Inspect a prospective process without publishing a capability."""
         raw = (Path("/proc") / str(pid) / "stat").read_text()
         fields = raw[raw.rfind(")") + 2 :].split()
         if (
@@ -207,6 +217,8 @@ class OriginalProviderCandidates:
         ):
             _reject("Original provider executor ownership differs")
         first = process_identity(pid)
+        if first["group"] != int(fields[2]) or first["start"] != fields[19]:
+            _reject("Original provider identity changed since kernel stat")
         image = (Path("/proc") / str(pid) / "exe").resolve(strict=True)
         if image != self.provider:
             _reject("Original provider executable identity differs")
@@ -223,22 +235,25 @@ class OriginalProviderCandidates:
             self.parent["pid"],
             self.provider_sha256,
         )
-        record(
-            self.root / ("provider-" + uuid4().hex + ".private.json"),
-            {
-                "schemaVersion": 1,
-                "kind": "original-provider-candidate",
-                "executor": dict(self.parent),
-                "identity": first,
-                "providerSha256": self.provider_sha256,
-                "parent": self.parent["pid"],
-                "kernelStat": raw,
-                "independentKernelSdkIdentity": sdk_kernel,
-                "capturedMonotonicMs": time.monotonic_ns() // 1000000,
-                "applyPhaseQualified": False,
-                "signalsSent": False,
-            },
-        )
+        evidence = {
+            "schemaVersion": 1,
+            "kind": "original-provider-candidate",
+            "executor": dict(self.parent),
+            "identity": first,
+            "providerSha256": self.provider_sha256,
+            "parent": self.parent["pid"],
+            "kernelStat": raw,
+            "independentKernelSdkIdentity": sdk_kernel,
+            "capturedMonotonicMs": time.monotonic_ns() // 1000000,
+            "applyPhaseQualified": False,
+            "signalsSent": False,
+        }
+        return candidate, evidence
+
+    def capture(self, pid: int) -> ProviderCandidate:
+        """Retain and issue the legacy independent process witness."""
+        candidate, evidence = self.inspect_candidate(pid)
+        record(self.root / ("provider-" + uuid4().hex + ".private.json"), evidence)
         self.admitted[id(candidate)] = candidate
         return candidate
 
@@ -342,9 +357,11 @@ class OriginalProviderCandidates:
             _reject("Original provider stderr changed during kernel capture")
         return (first.st_dev, first.st_ino, int(flags[0], 8))
 
-    def inspect_stderr(self, candidate: ProviderCandidate) -> ProviderStderrPipe:
+    def inspect_pipe(
+        self, candidate: ProviderCandidate, require_candidate: Callable[[], None]
+    ) -> ProviderStderrPipe:
         """Corroborate fd2 with exactly one original parent's read descriptor."""
-        self.require(candidate)
+        require_candidate()
         writer = self.descriptor(candidate.pid, 2)
         if writer[2] & os.O_ACCMODE != os.O_WRONLY:
             _reject("Original provider stderr write end required")
@@ -369,7 +386,7 @@ class OriginalProviderCandidates:
         if len(readers) != 1:
             _reject("Original provider stderr parent reader missing or ambiguous")
         parent_fd, reader = readers[0]
-        self.require(candidate)
+        require_candidate()
         if (
             self.descriptor(candidate.pid, 2) != writer
             or self.descriptor(candidate.parent, parent_fd) != reader
@@ -379,6 +396,107 @@ class OriginalProviderCandidates:
         return ProviderStderrPipe(
             candidate, parent_fd, *writer[:2], writer[2], reader[2]
         )
+
+    def inspect_stderr(self, candidate: ProviderCandidate) -> ProviderStderrPipe:
+        """Reinspect a legacy issued candidate with strict capability checks."""
+        return self.inspect_pipe(candidate, lambda: self.require(candidate))
+
+    def inspect_prospective_stderr(
+        self, candidate: ProviderCandidate
+    ) -> ProviderStderrPipe:
+        """Acquire both pipe ends before issuing any process or FIFO capability."""
+
+        def require_candidate() -> None:
+            current, _ = self.inspect_candidate(candidate.pid)
+            if asdict(current) != asdict(candidate):
+                _reject("Prospective original provider identity changed")
+
+        return self.inspect_pipe(candidate, require_candidate)
+
+    def acquire_stderr(self) -> ProviderAcquisition:
+        """Preserve all joint acquisitions and departures without choosing a PID."""
+        if self.retired:
+            _reject("Original provider capture is retired")
+        witnesses: list[ProviderStderrPipe] = []
+        incomplete: list[int] = []
+        try:
+            self.check_inputs()
+            self.require_parent()
+            for folder in Path("/proc").iterdir():
+                if not folder.name.isdecimal():
+                    continue
+                try:
+                    raw = (folder / "stat").read_text()
+                    fields = raw[raw.rfind(")") + 2 :].split()
+                    if (
+                        int(fields[1]) != self.parent["pid"]
+                        or int(fields[2]) != self.parent["group"]
+                        or (folder / "exe").resolve(strict=True) != self.provider
+                    ):
+                        continue
+                except (FileNotFoundError, ProcessLookupError):
+                    continue
+                pid = int(folder.name)
+                prospective = {
+                    "schemaVersion": 2,
+                    "kind": "original-provider-joint-acquisition",
+                    "executor": dict(self.parent),
+                    "prospectivePid": pid,
+                    "kernelStat": raw,
+                    "capturedMonotonicMs": time.monotonic_ns() // 1000000,
+                    "applyPhaseQualified": False,
+                    "signalsSent": False,
+                }
+                record(
+                    self.root / ("prospective-" + uuid4().hex + ".private.json"),
+                    {**prospective, "outcome": "pending", "samplingComplete": False},
+                )
+                try:
+                    candidate, evidence = self.inspect_candidate(pid)
+                    if candidate.start != fields[19]:
+                        _reject("Prospective original provider identity changed")
+                    witness = self.inspect_prospective_stderr(candidate)
+                except (FileNotFoundError, ProcessLookupError):
+                    # An unrelated missing input must never excuse a live actor.
+                    try:
+                        folder.lstat()
+                    except FileNotFoundError:
+                        pass
+                    else:
+                        raise
+                    self.check_inputs()
+                    self.require_parent()
+                    record(
+                        self.root / ("acquisition-" + uuid4().hex + ".private.json"),
+                        {
+                            **prospective,
+                            "outcome": "departed-before-issuance",
+                            "samplingComplete": False,
+                        },
+                    )
+                    incomplete.append(pid)
+                    continue
+                self.check_inputs()
+                self.require_parent()
+                record(
+                    self.root / ("acquisition-" + uuid4().hex + ".private.json"),
+                    {
+                        **prospective,
+                        "outcome": "jointly-acquired",
+                        "samplingComplete": True,
+                        "processEvidence": evidence,
+                        "witness": asdict(witness),
+                    },
+                )
+                self.admitted[id(candidate)] = candidate
+                self.admitted[id(witness)] = witness
+                witnesses.append(witness)
+            self.check_inputs()
+            self.require_parent()
+        except Exception as error:
+            self.failure(error)
+            raise
+        return ProviderAcquisition(tuple(witnesses), tuple(incomplete))
 
     def capture_stderr(self, candidate: ProviderCandidate) -> ProviderStderrPipe:
         """Persist and issue an exact original provider/parent FIFO capability."""
