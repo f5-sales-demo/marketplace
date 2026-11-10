@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 104,
+  "implementationIssue": 1837,
+  "behavior": "Same-identity site update preserves trusted expected interface identities after owned PUT and readback. Different tenant, contract or site UID clears retained interfaces.",
+  "redRegression": {
+    "passed": 0,
+    "failed": 1,
+    "cause": "same-identity update replaced expectedInterfaces with an empty array"
+  },
+  "focused": {
+    "passed": 110,
+    "failed": 0,
+    "assertions": 443
+  },
+  "fullCeSuite": {
+    "passed": 2163,
+    "failed": 0,
+    "assertions": 12920
+  },
+  "fourTypeChecksPassed": true,
+  "fourRuntimeBuildsPassed": true,
+  "publicMappingsAndReadinessTests": {
+    "passed": 12,
+    "failed": 0,
+    "assertions": 53
+  },
+  "producerPin": "12.2.0",
+  "installedQualification": false,
+  "liveQualification": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}

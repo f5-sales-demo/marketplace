@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import platformExtension from '../src/index';
 
@@ -7,12 +7,18 @@ const originalFetch = globalThis.fetch;
 const previousUrl = process.env.XCSH_API_URL;
 const previousToken = process.env.XCSH_API_TOKEN;
 const previousTenant = process.env.XCSH_TENANT;
+const previousGithubToken = process.env.GH_TOKEN;
+beforeEach(() => {
+  // The release transport is simulated; never consult workstation GitHub auth.
+  process.env.GH_TOKEN = 'fixture-contract-credential';
+});
 afterEach(() => {
   globalThis.fetch = originalFetch;
   for (const [name, value] of Object.entries({
     XCSH_API_URL: previousUrl,
     XCSH_API_TOKEN: previousToken,
     XCSH_TENANT: previousTenant,
+    GH_TOKEN: previousGithubToken,
   })) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;

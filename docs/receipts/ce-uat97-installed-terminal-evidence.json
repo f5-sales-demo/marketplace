@@ -1,0 +1,41 @@
+{
+  "candidateRevision": 97,
+  "sourceCommit": "540f81b77e9f68b354fef6295c1eb8d9b1edece7",
+  "lanes": [
+    {
+      "lane": "minimum",
+      "runtime": "23.8.0",
+      "extensions": 4,
+      "tools": 38,
+      "installedMissingHealthReturnsUnknown": true,
+      "publicTerminalTeardownPassed": true,
+      "publicTerminalResumePassed": true
+    },
+    {
+      "lane": "current",
+      "runtime": "23.9.5",
+      "extensions": 4,
+      "tools": 38,
+      "installedMissingHealthReturnsUnknown": true,
+      "publicTerminalTeardownPassed": true,
+      "publicTerminalResumePassed": true
+    },
+    {
+      "lane": "latest",
+      "runtime": "23.9.3",
+      "extensions": 4,
+      "tools": 38,
+      "installedMissingHealthReturnsUnknown": true,
+      "publicTerminalTeardownPassed": true,
+      "publicTerminalResumePassed": true
+    }
+  ],
+  "archiveRuntimeDigestsVerified": true,
+  "sourceCheckoutUnavailable": true,
+  "cloudResponses": "synthetic",
+  "platformResponses": "synthetic",
+  "realTerraformExecution": true,
+  "liveCleanupQualified": false,
+  "azureUpgradeStageRetirementQualified": false,
+  "fullCeAcceptance": false
+}
