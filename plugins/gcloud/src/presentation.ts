@@ -92,7 +92,20 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
           title: result.isError ? 'Complete corrective guidance' : 'CLI evidence',
           text: b.text ?? '',
         }));
-      if (result.isError) return { summary: 'Google Cloud operation failed', sections: [...base, ...texts] };
+      const fallback = (summary: string) => ({
+        summary,
+        sections: [...base, ...(options.expanded ? [] : texts)],
+      });
+      if (result.isError) return fallback('Google Cloud operation failed');
+      if (
+        tool.name === 'gcloud_help' &&
+        result.content.length > 0 &&
+        result.content.every((block) => block.type === 'text' && typeof block.text === 'string')
+      )
+        return {
+          expandedEvidence: 'provided' as const,
+          sections: [...base, ...texts, ...p.data(details, 'Complete help metadata')],
+        };
       const collection = (
         {
           gcloud_projects_list: 'projects',
@@ -258,7 +271,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
           /* Opaque evidence retains automatic fallback. */
         }
       }
-      return { sections: [...base, ...texts] };
+      return fallback('Google Cloud result requires inspection');
     },
   });
 }
