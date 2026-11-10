@@ -76,21 +76,17 @@ test('call and execution use the same exact argv and Bash/Zsh preserve hostile l
   };
   spawn = spyOn(Bun, 'spawnSync').mockReturnValue(response({ ok: true, result: {} }));
   await tool.execute('case', input);
+  const executed = spawn.mock.calls[0][0];
   const declared = tool.presentation
     .call(input, { expanded: false, isPartial: false })
-    .sections.find((s: any) => s.argv);
-  expect(declared.argv).toEqual(spawn.mock.calls[0][0]);
+    .sections.find((s: any) => s.title === 'Desktop command');
+  expect(declared).toEqual(presentation.command(executed, 'Desktop command'));
   spawn.mockRestore();
-  const harmless = presentation.command([
-    'python3',
-    '-c',
-    'import json,sys; print(json.dumps(sys.argv[1:]))',
-    ...declared.argv,
-  ]);
+  const harmless = presentation.command(['python3', '-c', 'import json,sys; print(json.dumps(sys.argv[1:]))']);
   for (const shell of ['bash', 'zsh']) {
-    const r = Bun.spawnSync([shell, '-c', harmless.text]);
+    const r = Bun.spawnSync([shell, '-c', `${harmless.text} ${declared.text}`]);
     expect(r.exitCode).toBe(0);
-    expect(JSON.parse(new TextDecoder().decode(r.stdout))).toEqual(declared.argv);
+    expect(JSON.parse(new TextDecoder().decode(r.stdout))).toEqual(executed);
   }
 });
 test('window previews retain selected domain fields, zeros, false and empty titles', () => {
