@@ -4,7 +4,7 @@ set -euo pipefail
 source_root=$(cd "$(dirname "$0")/.." && pwd)
 expected_bun_version="1.4.4"
 expected_lockfile_version="2"
-expected_bun_types_range="^1.4.2"
+expected_bun_types_range="^1.4.4"
 
 pass() {
   printf 'PASS: %s\n' "$1"

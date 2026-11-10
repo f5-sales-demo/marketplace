@@ -179,6 +179,32 @@ else
   pass "a physical installation missing TypeBox fails"
 fi
 
+# Resolve the provider used by the AI runtime, including isolated Bun graphs.
+NESTED_SDK="$WORK/nested-sdk"
+copy_runtime_state "$NESTED_SDK"
+NESTED_MODULES="$NESTED_SDK/plugins/aws/node_modules"
+cp -R "$AWS_NODE_MODULES" "$NESTED_MODULES"
+mkdir -p "$NESTED_MODULES/@sinclair/typebox" "$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk"
+printf '{"version":"0.34.52"}\n' >"$NESTED_MODULES/@sinclair/typebox/package.json"
+nested_runtime=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"]' "$NESTED_SDK/plugins/aws/package.json")
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/pi-ai/package.json"
+printf '{"version":"0.124.0"}\n' >"$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk/package.json"
+printf '{"version":"0.125.0"}\n' >"$NESTED_MODULES/@anthropic-ai/sdk/package.json"
+if REPO_ROOT="$NESTED_SDK" bash "$CHECK" >/dev/null 2>&1; then
+  pass "isolated AI provider dependency wins over an unrelated hoisted SDK"
+else
+  fail "isolated AI provider dependencies must resolve in their runtime context"
+fi
+printf '{"version":"0.124.0"}\n' >"$NESTED_MODULES/@anthropic-ai/sdk/package.json"
+printf '{"version":"0.125.0"}\n' >"$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk/package.json"
+if REPO_ROOT="$NESTED_SDK" bash "$CHECK" >/dev/null 2>&1; then
+  fail "an obsolete isolated provider must fail even when a matching SDK is hoisted"
+else
+  pass "an obsolete isolated provider cannot hide behind a matching hoisted SDK"
+fi
+
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$REPO_ROOT/scripts/resolve-plugin-runtime-package.cjs" "$BAD_INSTALL/scripts/resolve-plugin-runtime-package.cjs"
