@@ -36,12 +36,7 @@ for manifest in "$source_root"/plugins/*/package.json; do
   if ! declared=$(jq -er '.devDependencies["bun-types"] // empty' "$manifest"); then
     continue
   fi
-  plugin="${manifest%/package.json}"
-  plugin="${plugin##*/}"
-  case "$plugin" in
-  aws | azure | platform | terraform) types_version="1.4.4" ;;
-  *) types_version="1.4.2" ;;
-  esac
+  types_version="$expected_bun_version"
   expected_bun_types_range="^$types_version"
   [ "$declared" = "$expected_bun_types_range" ] ||
     fail "${manifest#"$source_root"/} must declare bun-types $expected_bun_types_range, got $declared"
