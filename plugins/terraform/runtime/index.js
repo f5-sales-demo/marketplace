@@ -1198,6 +1198,15 @@ var profiles = [
   {
     terraformVersion: '1.17.1',
     googleVersion: '8.10.0',
+    xcshVersion: '15.15.7',
+    providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+    terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+    googleProviderSha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+    xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+  },
+  {
+    terraformVersion: '1.17.1',
+    googleVersion: '8.10.0',
     xcshVersion: '15.15.6',
     providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
     terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',

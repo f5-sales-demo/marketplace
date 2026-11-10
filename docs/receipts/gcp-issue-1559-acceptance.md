@@ -1209,3 +1209,18 @@ no-change planning, teardown, empty state and 28 independent group absences.
 Shared1,103tests5,047assertions and 41Python provider regressions pass. No managed
 cloud resource changed. Every remaining full live/runtime/delivery gate stays
 open, with original failed flags/locks and immutable historical assets intact.
+
+Attempt 423 adds [latest xcsh provider qualification](gcp-latest-xcsh-provider-20261110.md).
+New artifacts select Terraform1.17.1/Google8.10.0/xcsh15.15.7; prior current and
+legacy version/lock profiles remain unchanged. Authenticated archives, standard
+init/lock/validate/schema and the Ubuntu user Terraform1.17.1 command are verified.
+Shared1,105tests5,056assertions, root164tests5,471assertions and all three native
+types/builds/dependencies pass. The older JavaScript compiler's dependency-type
+discrepancy remains recorded for investigation. Fresh default-reader source
+capture and independent cleanup pass with no managed cloud changes, 28 group
+absences, empty stable state and two non-submitting resumes. A historical audit
+query returned no entries; no positive attribution or expiry evidence is inferred.
+All full capture, live CE, runtime, review, publication and installed gates remain
+open. The older global Terraform command has been upgraded through a versioned
+user installation with its previous link and executable preserved. Disk pressure
+still needs review against current measurements.

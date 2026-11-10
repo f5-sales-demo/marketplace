@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
+  GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   resolveGcpTerraformArtifacts,
 } from '../../src/ce/terraform-public-artifacts';
@@ -9,7 +10,7 @@ test('new GCP deployments select the currently verified latest stable Terraform 
   expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).toEqual({
     terraform: '1.17.1',
     google: '8.10.0',
-    xcsh: '15.15.6',
+    xcsh: '15.15.7',
   });
 });
 
@@ -29,4 +30,13 @@ test('stored deployment artifacts keep their exact original versions and lock by
   }
   expect(Object.isFrozen(latest.versions)).toBe(true);
   expect(Object.isFrozen(legacy.versions)).toBe(true);
+});
+
+test('prior current profile retains its original versions and lock bytes after a provider patch', () => {
+  const prior = GCP_PREVIOUS_TERRAFORM_ARTIFACTS;
+  if (!prior) throw new Error('Previous GCP artifacts required');
+  expect(prior.versions).toEqual({ terraform: '1.17.1', google: '8.10.0', xcsh: '15.15.6' });
+  expect(prior.expectedLockSha256).toBe('sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034');
+  expect(resolveGcpTerraformArtifacts(structuredClone(prior))).toBe(prior);
+  expect(prior).not.toBe(GCP_PUBLIC_TERRAFORM_ARTIFACTS);
 });

@@ -10494,7 +10494,7 @@ function resolveGcpTerraformArtifacts(input) {
   }
   throw new Error('Original packaged GCP artifact version or lock differs');
 }
-var GCP_LEGACY_TERRAFORM_ARTIFACTS, GCP_PUBLIC_TERRAFORM_ARTIFACTS, packagedProfiles;
+var GCP_LEGACY_TERRAFORM_ARTIFACTS, GCP_PREVIOUS_TERRAFORM_ARTIFACTS, GCP_PUBLIC_TERRAFORM_ARTIFACTS, packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
   GCP_LEGACY_TERRAFORM_ARTIFACTS = {
     configurationVersion: 2,
@@ -10549,7 +10549,7 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
   };
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+  GCP_PREVIOUS_TERRAFORM_ARTIFACTS = {
     configurationVersion: 2,
     versions: {
       terraform: '1.17.1',
@@ -10602,9 +10602,60 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
   };
-  packagedProfiles = [GCP_LEGACY_TERRAFORM_ARTIFACTS, GCP_PUBLIC_TERRAFORM_ARTIFACTS].filter(
-    (profile) => profile !== undefined,
-  );
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.1', google: '8.10.0', xcsh: '15.15.7' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.15.7"
+  constraints = "15.15.7"
+  hashes = [
+    "h1:ZzVyH47TI2iuDchgBC8rfK1mERE5Zx1OZd92/GfwxdY=",
+    "h1:me9KdbvJMPVojT5jh/skY9pCpbLxfl6qGQPUeykbr5c=",
+    "zh:1d5d72740ffda5b14fd92b51c5078bd2d7f48eff71e876e34c2d6c73fdf7f3ca",
+    "zh:2581a16c4f4997818f23e02336e730cfe005e7b935c5236490fea4bec27afe37",
+    "zh:2d20771e496cd467ee684d43b4ed10fb7844c5c8de1562def63e02ce20890b79",
+    "zh:632fbf84bc600b3657d2fa0a0cf6cef9511d0b8a219ed4a6e8b5be8acfb40a63",
+    "zh:6402187ed75dbb5c010405617a4cbe62a1146c2604859144e9779004dcfd023c",
+    "zh:71d6e5d3855d382f30f76a74bb392d97f483e1758feb56da374ae22ceeeeb726",
+    "zh:87df39d0a5db723c36cfcb57c6f6e3df18aaca0e8a555a541abe4714883b72c1",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:c14d573d0659a32c56a93746b0d7da121b40b2d0c46a86a4c1b5dea50b002845",
+    "zh:cf70fee6a41250ac91aff9d9f3b56b0b332952f3037c1651959151f085c559fa",
+    "zh:f4c3d62299b5ddd49937f9bcd31adea4a2ac00988c1db7a670102957c24fa6f3",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.10.0"
+  constraints = "8.10.0"
+  hashes = [
+    "h1:KK+bSy5WlYDU1ikIxpXhdSw1E/tv1DHKWc5PwOe1RrQ=",
+    "h1:y/h4PR7S15y5Nv55/6tfQ40YuHr6T+U8h/dbxiMMllc=",
+    "zh:0dbda00be503fb47cebbb67011fa6c49bb00a3bbc3491ec0e9d4e14b1ce1b0dc",
+    "zh:22e291cb672fd02af19a9269de4c30abd51448fd1373554844921b5bad32f94a",
+    "zh:46e589f030ff42d55dc6fc865de5df2b9d1ce54ea244df5ce927034cc5ff897f",
+    "zh:4c54ccd68260d01338a86a618ec33e97e83df6b1c5bd94e528c7a779e8fcabdf",
+    "zh:715a5f898ff0557966d7ceac23da2bf7d521d37b989ce6788de8666c8125f8c4",
+    "zh:7201f7c897afc32f85f61b0f2f02dd9cc58ad0d939b30382b49bad0e752c442d",
+    "zh:7656d49394d9a2e8ec7a1cc7bd732bff110e63e0667598533c4645ec90862440",
+    "zh:8b3166f24ffd12225fffd71102ea7690b6a4d703d67bfc9a425c3c08c41f48f0",
+    "zh:a9a1730a087ded8366adc73cc87ed88160c6d700b8836cecdd5c1c181adf396f",
+    "zh:d7dca048608213e6a8510051720bccc9d2e235fb87f3d67d4f7d8afbcdfc4bd6",
+    "zh:db82d70bcf064b848fb78009ec9bd616cba3d50abe100014e0ade885e5ed8c15",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+  };
+  packagedProfiles = [
+    GCP_LEGACY_TERRAFORM_ARTIFACTS,
+    GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
+    GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  ].filter((profile) => profile !== undefined);
   Object.freeze(packagedProfiles);
   for (const profile of packagedProfiles) {
     Object.freeze(profile.versions);

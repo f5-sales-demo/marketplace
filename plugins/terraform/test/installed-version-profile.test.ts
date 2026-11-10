@@ -23,3 +23,19 @@ test('latest and historical deployment versions resolve only their own authentic
   ])
     expect(() => resolveInstalledGcpVersionProfile(input)).toThrow();
 });
+
+test('fresh latest xcsh patch has a distinct authenticated profile and preserves the prior tuple', () => {
+  const latest = resolveInstalledGcpVersionProfile({
+    terraformVersion: '1.17.1',
+    providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+  });
+  expect(latest.xcshVersion).toBe('15.15.7');
+  expect(latest.xcProviderSha256).toBe('d30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7');
+  const previous = resolveInstalledGcpVersionProfile({
+    terraformVersion: '1.17.1',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  });
+  expect(previous.xcshVersion).toBe('15.15.6');
+  expect(previous.xcProviderSha256).toBe('99173b9eb36d1deeeb3297374f5b86f4a37631b9ba88a9e9da82ced549ad35b3');
+  expect(latest).not.toBe(previous);
+});
