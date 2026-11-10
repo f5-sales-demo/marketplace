@@ -1,13 +1,14 @@
 import type { AzExecApi } from '../az/exec';
-import { fingerprintObservation, safeHexEqual } from './canonical';
-import type { AzureCeAction, AzureCeObservation, AzureCePlan } from './types';
+import { safeHexEqual } from './canonical';
+import { fingerprintCurrentObservation } from './recovery';
+import type { AzureCeAction, AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
 
 export function assertObservationFresh(
   plan: AzureCePlan,
   current: AzureCeObservation,
   expectedFingerprint = plan.observationFingerprint,
 ): void {
-  const fingerprint = fingerprintObservation(current, plan.intent.brownfield.resourceIds);
+  const fingerprint = fingerprintCurrentObservation(plan, current);
   if (!safeHexEqual(expectedFingerprint, fingerprint)) {
     throw new Error(
       `Stale Azure CE plan: observations changed (expected ${expectedFingerprint}, current ${fingerprint})`,
@@ -17,24 +18,50 @@ export function assertObservationFresh(
 
 export function assertApplyAllowed(
   plan: AzureCePlan,
-  request: { planId: string; planSha256: string; hasUI: boolean; env: Record<string, string | undefined> },
+  request: {
+    planId: string;
+    planSha256: string;
+    hasUI: boolean;
+    env: Record<string, string | undefined>;
+    authorization?: AzureCeCheckpoint['authorization'];
+    executionEngine?: 'native' | 'terraform';
+  },
 ): void {
+  const executionEngine = request.executionEngine ?? 'native';
+  if (plan.engine !== executionEngine)
+    throw new Error(`${plan.engine === 'terraform' ? 'Terraform' : 'Native'} CE plan execution engine differs`);
   if (request.planId !== plan.planId) throw new Error('The requested plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested plan hash does not match the persisted plan');
-  if (!request.hasUI && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1') {
+  if (!request.hasUI && request.authorization?.apply !== true && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1') {
     throw new Error('Headless Azure CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
   }
-  if (plan.intent.operation === 'teardown' && !request.hasUI && request.env.XCSH_CE_ALLOW_DESTROY !== '1') {
+  if (
+    plan.intent.operation === 'teardown' &&
+    !request.hasUI &&
+    request.authorization?.destroy !== true &&
+    request.env.XCSH_CE_ALLOW_DESTROY !== '1'
+  ) {
     throw new Error('Headless teardown requires XCSH_CE_ALLOW_DESTROY=1');
   }
+  if (plan.actions.some((action) => action.kind === 'marketplace-terms-accept'))
+    throw new Error('Marketplace terms must be signed only by the exact initial Terraform foundation action');
+  assertAzureCeRoutingExecutable(plan);
+}
+
+/** Refuse plans whose routing cannot yet converge without operator repair. */
+export function assertAzureCeRoutingExecutable(plan: AzureCePlan): void {
+  if (plan.intent.operation !== 'deploy') return;
+  if (plan.routing.mode === 'route-server' && plan.routing.destinationCidrs.length === 0)
+    throw new Error('Azure Route Server execution requires at least one expected learned prefix');
   if (
-    plan.actions.some((action) => action.kind === 'marketplace-terms-accept') &&
-    !request.hasUI &&
-    request.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS !== '1'
-  ) {
-    throw new Error('Headless Marketplace terms acceptance requires XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1');
-  }
+    plan.routing.mode === 'udr' &&
+    plan.routing.destinationCidrs.length > 0 &&
+    plan.intent.brownfield.routeChanges.length === 0
+  )
+    throw new Error(
+      'Azure UDR destinations require explicit routeChanges with the target subnet association; an unattached route table is not executable',
+    );
 }
 
 export function resolveActionArgs(
@@ -63,37 +90,86 @@ const CREATE_KINDS = new Set([
   'route-server-peer-create',
 ]);
 const OWNED_MUTATION_KINDS = new Set(['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'nic-update']);
+const PARENT_OWNED_MUTATION_KINDS = new Set(['route-server-peer-update']);
+
+function creationOwnershipParent(resourceId: string): string | undefined {
+  for (const pattern of [
+    /^(.*\/providers\/microsoft\.network\/virtualnetworks\/[^/]+)\/subnets\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/networksecuritygroups\/[^/]+)\/securityrules\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/routetables\/[^/]+)\/routes\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/virtualhubs\/[^/]+)\/bgpconnections\/[^/]+$/i,
+  ]) {
+    const match = pattern.exec(resourceId);
+    if (match) return match[1];
+  }
+}
+
+async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
+  const id = action.resourceId ?? '';
+  if (!id.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
+    throw new Error('Brownfield mutation target is outside the selected subscription');
+  const result = await api.exec('az', [
+    'resource',
+    'show',
+    '--ids',
+    id,
+    '--subscription',
+    plan.subscription.id,
+    '--output',
+    'json',
+  ]);
+  if (result.exitCode !== 0) throw new Error('Brownfield ownership observation unavailable');
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(result.stdout) as Record<string, unknown>;
+  } catch {
+    throw new Error('Malformed brownfield ownership observation');
+  }
+  if (!raw || typeof raw.id !== 'string' || raw.id.toLowerCase() !== id.toLowerCase() || raw.nextLink)
+    throw new Error('Brownfield ownership identity is missing or substituted');
+  if (raw.tags !== undefined && (!raw.tags || typeof raw.tags !== 'object' || Array.isArray(raw.tags)))
+    throw new Error('Malformed brownfield ownership tags');
+  const tags = (raw.tags ?? {}) as Record<string, unknown>;
+  if (tags['xcsh-execution-engine'] !== undefined && tags['xcsh-execution-engine'] !== plan.engine)
+    throw new Error('Brownfield resource belongs to another execution engine');
+  if (
+    tags['xcsh-managed-by'] === 'azure-ce' &&
+    (tags['xcsh-deployment-id'] !== plan.deploymentName || tags['xcsh-execution-engine'] !== plan.engine)
+  )
+    throw new Error('Brownfield resource belongs to another or unknown CE deployment owner');
+}
 
 export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
   if (!action.mutates || action.kind === 'marketplace-terms-accept') return;
+  // Platform ingress is scoped and revalidated by CeDeploymentStore and CeIngressLifecycle,
+  // not by an Azure resource ID.
+  if (action.kind === 'f5-ingress-configure') return;
+  if (!action.resourceId) throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
+  if (!action.resourceId.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
+    throw new Error('Mutation target is outside the selected subscription');
   if (['route-association-update', 'brownfield-restore'].includes(action.kind)) {
     const allowed = plan.ownershipInventory.some(
       (item) => item.action === 'modify-approved' && item.resourceId.toLowerCase() === action.resourceId?.toLowerCase(),
     );
     if (!allowed)
       throw new Error(`Brownfield resource is outside the approved allowlist: ${action.resourceId ?? '<missing>'}`);
+    await assertBrownfieldOwnership(plan, action, api);
     return;
-  }
-  if (!action.resourceId) {
-    if (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length === 0) return;
-    if (
-      action.kind === 'vm-start' ||
-      action.kind === 'vm-stop' ||
-      action.kind === 'vm-deallocate' ||
-      action.kind === 'vm-resize' ||
-      action.kind === 'vm-delete'
-    )
-      return;
-    throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
   }
   if (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0) {
     const allowed = plan.ownershipInventory.some(
       (item) => item.action === 'modify-approved' && item.resourceId.toLowerCase() === action.resourceId?.toLowerCase(),
     );
     if (!allowed) throw new Error(`Brownfield route target is outside the approved allowlist: ${action.resourceId}`);
+    await assertBrownfieldOwnership(plan, action, api);
     return;
   }
-  if (!CREATE_KINDS.has(action.kind) && action.kind !== 'resource-delete' && !OWNED_MUTATION_KINDS.has(action.kind))
+  if (
+    !CREATE_KINDS.has(action.kind) &&
+    action.kind !== 'resource-delete' &&
+    !OWNED_MUTATION_KINDS.has(action.kind) &&
+    !PARENT_OWNED_MUTATION_KINDS.has(action.kind)
+  )
     return;
   const isGroup = !action.resourceId.toLowerCase().includes('/providers/');
   const args = isGroup
@@ -114,11 +190,41 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
     throw new Error(`Ownership response was invalid for ${action.resourceId}`);
   }
   const observedId = String(raw.id ?? '').toLowerCase();
-  if (observedId && observedId !== action.resourceId.toLowerCase())
+  if (!observedId || observedId !== action.resourceId.toLowerCase())
     throw new Error(`Azure substituted a different resource ID for ${action.resourceId}`);
-  const tags = (raw.tags as Record<string, string> | undefined) ?? {};
+  let tags = (raw.tags as Record<string, string> | undefined) ?? {};
+  const parentId =
+    CREATE_KINDS.has(action.kind) || PARENT_OWNED_MUTATION_KINDS.has(action.kind)
+      ? creationOwnershipParent(action.resourceId)
+      : undefined;
+  if (parentId) {
+    const parentResult = await api.exec('az', [
+      'resource',
+      'show',
+      '--ids',
+      parentId,
+      '--subscription',
+      plan.subscription.id,
+      '--output',
+      'json',
+    ]);
+    if (parentResult.exitCode !== 0) throw new Error(`Unable to verify ownership for ${parentId}`);
+    try {
+      const parent = JSON.parse(parentResult.stdout) as Record<string, unknown>;
+      if (String(parent.id ?? '').toLowerCase() !== parentId.toLowerCase())
+        throw new Error(`Azure substituted a different resource ID for ${parentId}`);
+      tags = (parent.tags as Record<string, string> | undefined) ?? {};
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(`Ownership response was invalid for ${parentId}`);
+      throw error;
+    }
+  }
   const owned = tags['xcsh-managed-by'] === 'azure-ce' && tags['xcsh-deployment-id'] === plan.deploymentName;
+  if (owned && tags['xcsh-execution-engine'] !== plan.engine)
+    throw new Error('Azure resource belongs to another or unknown execution engine');
   if (!owned) throw new Error(`Refusing to mutate unmanaged resource ${action.resourceId}`);
+  if (action.expectedOwnerPlanSha256 && tags['xcsh-plan-sha256'] !== action.expectedOwnerPlanSha256)
+    throw new Error(`Azure resource belongs to a different immutable owner plan: ${action.resourceId}`);
   if (CREATE_KINDS.has(action.kind) && tags['xcsh-plan-sha256'] !== plan.planSha256)
     throw new Error(`Existing resource belongs to a different Azure CE plan: ${action.resourceId}`);
 }

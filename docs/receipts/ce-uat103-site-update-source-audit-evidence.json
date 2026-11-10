@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-22T13:14:42.784398+00:00",
+  "candidateRevision": 103,
+  "sourceCommit": "74eb2261bd080900b158b1d09a8829928ef10269",
+  "kind": "source-public-site-update-path-audit",
+  "publicTool": "f5xc_ce_v2_site",
+  "action": "update",
+  "implementation": "present-unqualified",
+  "callChain": [
+    "plugins/platform/src/tools/f5xc-ce-v2-site.ts execute update",
+    "plugins/platform/src/ce/runtime.ts replaceSite",
+    "plugins/platform/src/ce/verified-contract.ts siteReplaceRequest /validateObservedSiteReplace",
+    "plugins/platform/src/ce/wire-schema.ts observedInterfaceIdentityEcho"
+  ],
+  "guards": [
+    "exact system namespace and deployment owner binding",
+    "tenant-bound canonical plan hash and mutation authorization",
+    "expected site UID and resource version",
+    "unchanged node/MAC/device joins",
+    "is_primary and is_management echoed only from matching observed interfaces",
+    "echo schema exception restricted to replacement request with verified readOnly boolean fields",
+    "post-PUT owned UID and requested configuration convergence"
+  ],
+  "automated": {
+    "testsPassed": 107,
+    "assertions": 456,
+    "files": 4
+  },
+  "sourceRejectionIsUnconditional": false,
+  "installedPublicUpdateQualified": false,
+  "livePublicUpdateQualified": false,
+  "siteUpdateSchemaGate": "retain until exact installed public update and independently verified convergence; source repair exists",
+  "cloudWrites": false,
+  "releaseReady": false
+}
