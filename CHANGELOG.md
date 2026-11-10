@@ -11,7 +11,7 @@ and this project adheres to
 ## [Unreleased]
 
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
-- **`herdr`** v1.3.3 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
+- **`herdr`** v1.3.4 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
 - **`sales-engineer`** v1.2.2 inspects local status prerequisites without credential reads or demo preparation, reports unknown readiness and preserves scoped, redacted evidence across shipped workflows (#1764).
 - **`brand`** v1.2.1 — resolve shipped review guidance and report safe reference status with explicit incomplete outcomes
@@ -20,7 +20,7 @@ and this project adheres to
 - **`osint-framework`** v1.2.1: scoped catalog summaries, twelve-row previews and explicit evidence completion.
 - **`meddpicc`** v7.8.1 scopes status to identified deal files, validates before engine status/scoring, quotes exact deal arguments, and reports evidence, completion, twelve-row previews and unavailable results (#1586).
 
-- **`ghostty`** v1.2.1 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
+- **`ghostty`** v1.2.2 reports missing Python as an actionable setup dependency, rejects malformed status envelopes and preserves complete lifecycle evidence and literal corrective guidance (#1749).
 - **`docs-tools`** v1.3.1 — resolve the shipped reviewer skill, preserve explicit scope, and report incomplete reviews with complete findings
 - **`docs-pipeline`** v1.2.1 recognizes content repositories without local Astro configuration, reports independent readiness indicators and incomplete outcomes, and separates status inspection from preview startup (#1757).
 
@@ -29,9 +29,9 @@ and this project adheres to
 - **`herdr`** v1.3.2 preserves installation evidence and reports degraded runtime status when the server returns malformed or non-object JSON (#1599).
 - **`terraform`** v2.3.1 reports a missing Terraform executable as setup required while preserving unexpected probe failures (#1601).
 
-- **`kvm`** v3.2.1 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
+- **`kvm`** v3.2.2 shows host readiness, deployment acceptance, named VM states, capacity units and complete corrective guidance through shared presentation. Exact controller commands share execution arguments, lists preview twelve rows, and partial outcomes remain pending (#1735).
 
-- **`asm-migration`** v2.3.2 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.
+- **`asm-migration`** v2.3.3 — classify a missing Bun executable as an actionable setup dependency, preserve unexpected probe failures, and verify strict presentation types.
 
 - **`asm-migration`** v2.3.1 shows native request scope, policy and contract identity, conversion completeness, twelve-row warning and resource previews, deployment and rollback outcomes, and complete corrective guidance once through shared presentation (#1600).
 
@@ -41,18 +41,18 @@ and this project adheres to
 
 - **`cloudstatus`** v1.9.2 separates collection and source update times, retains component identities and complete update evidence once, preserves multi-source failures, and refines default summaries and twelve-row previews.
 
-- **`gitlab`** v1.5.2 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).
+- **`gitlab`** v1.5.3 shows issue identity, twelve-row lists, partial search coverage and complete guidance through shared presentation. Exact CLI commands share execution argument builders; expanded evidence preserves full output and stderr once, with automatic fallback for malformed results (#1694).
 
-- **`github`** v3.3.1 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
+- **`github`** v3.3.2 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
 
-- **`platform`** v6.2.1 shows site identity, twelve-row network tables, exact plan hashes and artifacts, bootstrap scope and unavailable telemetry through shared presentation. Expanded views preserve complete safe evidence once; HTTP operations no longer imply executable CLI commands (#1688).
+- **`platform`** v6.2.2 shows site identity, twelve-row network tables, exact plan hashes and artifacts, bootstrap scope and unavailable telemetry through shared presentation. Expanded views preserve complete safe evidence once; HTTP operations no longer imply executable CLI commands (#1688).
 
-- **`aws`** v2.3.2 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
+- **`aws`** v2.3.3 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
 
-- **`azure`** v4.6.1 shows subscription identity, twelve-row resource previews, pagination and Customer Edge summaries through shared rendering; declares exact CLI argv and preserves output flags, tag filters, help cancellation and safe expanded evidence. CE status preserves unknown F5 health and unavailable Azure read coverage (#1677).
+- **`azure`** v4.6.2 shows subscription identity, twelve-row resource previews, pagination and Customer Edge summaries through shared rendering; declares exact CLI argv and preserves output flags, tag filters, help cancellation and safe expanded evidence. CE status preserves unknown F5 health and unavailable Azure read coverage (#1677).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
-- **`salesforce`** v2.3.15 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
+- **`salesforce`** v2.3.16 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
 
 - **`salesforce`** v2.3.14 — show connection status, schema catalog counts and filtering guidance, fiscal-year bookings with explicit unknown currency, and actionable anomaly explanations in the default shared-renderer output.
 
@@ -72,7 +72,7 @@ and this project adheres to
 
 - **`salesforce`** v2.3.6 keeps result tables, scope and consequential states concise, with live host symbols, quiet missing cells and complete literal evidence in expansion (#1567).
 
-- **`gcloud`** v1.6.1 shows configuration identity, twelve-row lists and CE readiness summaries through shared rendering. Exact command argv retains JSON projections; authentication failures preserve corrective guidance. Requires xcsh 23.8.0 (#1684).
+- **`gcloud`** v1.6.2 shows configuration identity, twelve-row lists and CE readiness summaries through shared rendering. Exact command argv retains JSON projections; authentication failures preserve corrective guidance. Requires xcsh 23.8.0 (#1684).
 
 - Add GCP CE project identity, exact F5 image discovery, cloud inventory and hashed
   readiness planning to the Google Cloud plugin, with topology, sizing and engine
