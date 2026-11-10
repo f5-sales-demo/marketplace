@@ -5,6 +5,7 @@ plugin_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 scenario_file="$plugin_dir/benchmarks/ce-prompt-scenarios.json"
 scenario_id=${1:-single-node-greenfield}
 model=${2:-google-antigravity/gemini-3-flash}
+thinking=${3:-minimal}
 trace_file=$(mktemp "${TMPDIR:-/tmp}/azure-ce-prompt-trace.XXXXXX.jsonl")
 trap 'rm -f "$trace_file"' EXIT
 
@@ -12,7 +13,7 @@ prompt=$(jq -er --arg id "$scenario_id" '.scenarios[] | select(.id == $id) | .pr
 
 xcsh \
   --model "$model" \
-  --thinking minimal \
+  --thinking "$thinking" \
   --mode json \
   --plugin-dir "$plugin_dir" \
   --no-session \

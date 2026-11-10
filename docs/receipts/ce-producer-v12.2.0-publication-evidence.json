@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-10-22T05:41:36.708776+00:00",
+  "release": {
+    "commit": "5e9c71b44e140a12cbbe29ad48e1e32e16e3cd1f",
+    "tag": "v12.2.0"
+  },
+  "contractVersion": "7.1.0",
+  "immutableTagCommitVerified": true,
+  "downloadedAssetDigestsVerified": true,
+  "manifestAssetDigestsVerified": true,
+  "releaseUrl": "https://github.com/f5-sales-demo/api-specs-enriched/releases/tag/v12.2.0",
+  "assets": [
+    {
+      "name": "smsv2-contract-manifest.json",
+      "digest": "sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453"
+    },
+    {
+      "name": "smsv2-contract.json",
+      "digest": "sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08"
+    },
+    {
+      "name": "smsv2-evidence-receipt.json",
+      "digest": "sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932"
+    },
+    {
+      "name": "openapi.json",
+      "digest": "sha256:f599b99d0824aa52599896dcfc1dad9dca69a94396acc64eedca837c17517cd9"
+    }
+  ],
+  "freshOwnedQualification": false,
+  "consumerRepinned": false,
+  "azureHealthScope": "site global representative node only",
+  "originalCeSampleFreshnessQualified": false,
+  "sixInterfaceTransitionQualified": false,
+  "fullCeAcceptance": false,
+  "downloadedOpenapiDigestVerified": true,
+  "publishedEndpointSchemaStateEnumMappingVerified": true,
+  "zipSha256": "8f5083fa677cbe5efd0e1e09523c317eda0b0027b53e115af639ba1434aafee0",
+  "githubImmutableReleaseVerified": true,
+  "publicationReceiptCommitAndAssetDigestsVerified": true
+}

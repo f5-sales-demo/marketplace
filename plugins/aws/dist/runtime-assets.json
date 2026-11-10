@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "plugin": "aws",
+  "assets": [
+    {
+      "sourcePath": "plugins/aws/terraform/provider-lock.hcl",
+      "runtimePath": "assets/plugins/aws/terraform/provider-lock.hcl",
+      "sha256": "b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843"
+    },
+    {
+      "sourcePath": "plugins/terraform/locks/xcsh-provider.hcl",
+      "runtimePath": "assets/plugins/terraform/locks/xcsh-provider.hcl",
+      "sha256": "6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782"
+    }
+  ]
+}
