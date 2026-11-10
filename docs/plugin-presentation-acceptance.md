@@ -17,7 +17,7 @@ surfaces.
 
 ## Reproducible synthetic checks
 
-Use the repository-pinned Bun 1.4.2. Run:
+Use the repository-pinned Bun 1.4.4. Run:
 
 ```sh
 PUPPETEER_SKIP_DOWNLOAD=true bun install --frozen-lockfile --cwd scripts/agent-validation-runtime

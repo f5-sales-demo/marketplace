@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
-    "bun-types": "^1.4.2",
+    "bun-types": "^1.4.4",
     "@f5-sales-demo/xcsh": "23.8.0",
     "@f5-sales-demo/pi-utils": "23.8.0"
   },
