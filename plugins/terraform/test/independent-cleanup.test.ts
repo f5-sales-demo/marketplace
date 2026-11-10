@@ -79,6 +79,44 @@ test('original input inventory binds present bytes and missing local state', asy
   expect(await inputDigests(root)).not.toEqual(before);
   expect(await readFile(join(root, 'main.tf.json'), 'utf8')).toBe('main.tf.json');
 });
+test('cleanup request retains one origin when the clock advances between timestamp fields', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cleanup-clock-'));
+  roots.push(root);
+  for (const name of [
+    'main.tf.json',
+    '.terraform.lock.hcl',
+    'deployment.tfrc',
+    'deployment.json',
+    'plan-receipt.json',
+    'saved.tfplan',
+  ])
+    await writeFile(join(root, name), name, { mode: 0o600 });
+  const RealDate = globalThis.Date,
+    origin = RealDate.now();
+  const identity = await executableIdentity(process.execPath);
+  class AdvancingDate extends RealDate {
+    constructor(value?: number) {
+      super(value ?? origin);
+    }
+    static now() {
+      return origin + 1;
+    }
+  }
+  globalThis.Date = AdvancingDate as DateConstructor;
+  try {
+    const request = await cleanupRequest(root, {
+      manifestSha256: 'a'.repeat(64),
+      evidenceSha256: 'b'.repeat(64),
+      finalPlanSha256: 'c'.repeat(64),
+      planReceiptSha256: 'd'.repeat(64),
+      terraform: identity,
+    });
+    expect(RealDate.parse(request.deadline) - RealDate.parse(request.startedAt)).toBe(300000);
+    expect(RealDate.parse(request.startedAt)).toBe(origin + 1);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+});
 test('missing, malformed and replayed independent response cannot authorize deletion', () => {
   for (const response of [undefined, {}, { schemaVersion: 1, status: 'verified', nonce: 'old' }])
     expect(() => validateIndependentCleanup(response, {} as never)).toThrow();

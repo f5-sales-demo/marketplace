@@ -1615,11 +1615,12 @@ function verifyRetainedCleanup(value, bindings, expectedSha256) {
   return evidence;
 }
 async function cleanupRequest(directory, bindings) {
+  const origin = Date.now();
   return {
     schemaVersion: 1,
     nonce: randomBytes(32).toString('hex'),
-    startedAt: new Date().toISOString(),
-    deadline: new Date(Date.now() + 300000).toISOString(),
+    startedAt: new Date(origin).toISOString(),
+    deadline: new Date(origin + 300000).toISOString(),
     parentPid: process.pid,
     directory,
     ...bindings,

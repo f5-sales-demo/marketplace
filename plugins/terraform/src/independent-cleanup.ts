@@ -151,11 +151,12 @@ export async function cleanupRequest(
     'manifestSha256' | 'evidenceSha256' | 'finalPlanSha256' | 'planReceiptSha256' | 'terraform'
   >,
 ): Promise<CleanupRequest> {
+  const origin = Date.now();
   return {
     schemaVersion: 1,
     nonce: randomBytes(32).toString('hex'),
-    startedAt: new Date().toISOString(),
-    deadline: new Date(Date.now() + 300000).toISOString(),
+    startedAt: new Date(origin).toISOString(),
+    deadline: new Date(origin + 300000).toISOString(),
     parentPid: process.pid,
     directory,
     ...bindings,
