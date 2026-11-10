@@ -4,7 +4,7 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { PlanReceipt } from '../../../terraform/src/runner';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import { readAzureTerraformNetworkPowerRunnerHistory } from './terraform-network-power-runner-history';
@@ -12,7 +12,7 @@ import { readAzureTerraformNetworkRetirementLineage } from './terraform-network-
 import { prepareAzureTerraformNetworkTerminalStagingProjection } from './terraform-network-terminal-staging-projection';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
 import { compileAzureTerraformTeardown } from './terraform-teardown';
-import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
+import { captureAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -93,19 +93,19 @@ async function qualifyRetiredMainCustody<Projected extends boolean>(
     })),
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
-  const originalSha256 = canonicalSha256({ value: original }),
-    ownerSha256 = canonicalSha256({ value: owner }),
-    teardownSha256 = canonicalSha256({ value: teardown }),
-    checkpointSha256 = canonicalSha256({ value: checkpoint }),
-    siteSha256 = canonicalSha256({ value: site });
+  const originalMatches = canonicalSnapshot({ value: original }),
+    ownerMatches = canonicalSnapshot({ value: owner }),
+    teardownMatches = canonicalSnapshot({ value: teardown }),
+    terminalMatches = captureAzureTerraformTerminalSnapshot(checkpoint),
+    siteMatches = canonicalSnapshot({ value: site });
   const seal = () => {
     deadline.throwIfAborted();
-    require(canonicalSha256({ value: request }) === originalSha256 &&
-      canonicalSha256({ value: store.owner }) === ownerSha256 &&
+    require(originalMatches({ value: request }) &&
+      ownerMatches({ value: store.owner }) &&
       store.directory === directory &&
-      canonicalSha256({ value: context.destroyTeardown }) === teardownSha256 &&
-      matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, checkpointSha256) &&
-      canonicalSha256({ value: context.site }) === siteSha256 &&
+      teardownMatches({ value: context.destroyTeardown }) &&
+      terminalMatches(context.terminalCleanup) &&
+      siteMatches({ value: context.site }) &&
       context.terraform === terraform &&
       context.publicSession === publicSession &&
       context.loaders === loaders &&

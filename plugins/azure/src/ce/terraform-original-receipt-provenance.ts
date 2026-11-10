@@ -4,7 +4,7 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -38,10 +38,12 @@ export async function readAzureTerraformOriginalReceiptProvenance(
       { target: loaders, key: 'loadSource', value: loaders.loadSource },
       { target: loaders, key: 'loadOutcome', value: loaders.loadOutcome },
     ];
+  const requestMatches = canonicalSnapshot(plan),
+    ownerMatches = canonicalSnapshot(owner);
   const seal = () => {
     deadline.throwIfAborted();
-    require(same(request, plan) &&
-      same(store.owner, owner) &&
+    require(requestMatches(request) &&
+      ownerMatches(store.owner) &&
       store.directory === directory &&
       bindings.every((row) => Reflect.get(row.target, row.key) === row.value), 'owning request or dependency changed');
   };

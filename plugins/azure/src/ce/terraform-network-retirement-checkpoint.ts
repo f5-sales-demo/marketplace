@@ -1,5 +1,5 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import {
   type AzureTerraformNetworkAcceptanceVerifier,
   AzureTerraformNetworkCheckpoint,
@@ -38,10 +38,13 @@ export async function readAzureTerraformNetworkRetirementCheckpoint(
     loadSource = loaders.loadSource,
     loadOutcome = loaders.loadOutcome;
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+  const requestMatches = canonicalSnapshot(plan),
+    siteMatches = canonicalSnapshot(site),
+    ownerMatches = canonicalSnapshot(owner);
   const unchanged = () =>
-    require(same(request, plan) &&
-      same(siteRequest, site) &&
-      same(store.owner, owner) &&
+    require(requestMatches(request) &&
+      siteMatches(siteRequest) &&
+      ownerMatches(store.owner) &&
       store.directory === directory &&
       store.read === read &&
       store.verify === verify &&

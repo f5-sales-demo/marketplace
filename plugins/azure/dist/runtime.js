@@ -35988,11 +35988,14 @@ async function readAzureTerraformNetworkRetirementCheckpoint(
     { directory, read, verify } = store,
     { loadSource, loadOutcome } = loaders;
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+  const requestMatches = canonicalSnapshot(plan),
+    siteMatches = canonicalSnapshot(site),
+    ownerMatches = canonicalSnapshot(owner);
   const unchanged = () =>
     require87(
-      same56(request, plan) &&
-        same56(siteRequest, site) &&
-        same56(store.owner, owner) &&
+      requestMatches(request) &&
+        siteMatches(siteRequest) &&
+        ownerMatches(store.owner) &&
         store.directory === directory &&
         store.read === read &&
         store.verify === verify &&
@@ -49469,6 +49472,15 @@ function matchesAzureTerraformTerminalSnapshot(value, expectedSha256, mode = 'wr
     ? canonicalSha256(mode === 'raw' ? value : { value }) === expectedSha256
     : sealed[mode] === expectedSha256;
 }
+function captureAzureTerraformTerminalSnapshot(value, mode = 'wrapped') {
+  const wrap = (input) => (mode === 'raw' ? input : { value: input });
+  const expectedSha256 = canonicalSha256(wrap(value));
+  const matches = canonicalSnapshot(wrap(value));
+  return (current) => {
+    const sealed = current && typeof current === 'object' ? snapshots.get(current) : undefined;
+    return sealed === undefined ? matches(wrap(current)) : sealed[mode] === expectedSha256;
+  };
+}
 var snapshots;
 var init_terraform_terminal_snapshot = __esm(() => {
   init_canonical();
@@ -52023,12 +52035,15 @@ async function readAzureTerraformNetworkReplacementReceiptProvenance(
     { target: loaders, key: 'loadOutcome', value: loaders.loadOutcome },
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+  const requestMatches = canonicalSnapshot(plan),
+    ownerMatches = canonicalSnapshot(owner),
+    siteMatches = canonicalSnapshot(site);
   const seal = () => {
     deadline.throwIfAborted();
     require111(
-      canonicalEqual(request, plan) &&
-        canonicalEqual(store.owner, owner) &&
-        canonicalEqual(siteRequest, site) &&
+      requestMatches(request) &&
+        ownerMatches(store.owner) &&
+        siteMatches(siteRequest) &&
         store.directory === directory &&
         bindings.every(({ target, key, value }) => Reflect.get(target, key) === value),
       'owning context changed',
@@ -52398,11 +52413,13 @@ async function readAzureTerraformOriginalReceiptProvenance(request, store, loade
       { target: loaders, key: 'loadSource', value: loaders.loadSource },
       { target: loaders, key: 'loadOutcome', value: loaders.loadOutcome },
     ];
+  const requestMatches = canonicalSnapshot(plan),
+    ownerMatches = canonicalSnapshot(owner);
   const seal = () => {
     deadline.throwIfAborted();
     require113(
-      same76(request, plan) &&
-        same76(store.owner, owner) &&
+      requestMatches(request) &&
+        ownerMatches(store.owner) &&
         store.directory === directory &&
         bindings.every((row) => Reflect.get(row.target, row.key) === row.value),
       'owning request or dependency changed',
@@ -59407,20 +59424,20 @@ async function qualifyRetiredMainCustody(request, store, context, signal, projec
     })),
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
-  const originalSha256 = canonicalSha256({ value: original }),
-    ownerSha256 = canonicalSha256({ value: owner }),
-    teardownSha256 = canonicalSha256({ value: teardown }),
-    checkpointSha256 = canonicalSha256({ value: checkpoint }),
-    siteSha256 = canonicalSha256({ value: site });
+  const originalMatches = canonicalSnapshot({ value: original }),
+    ownerMatches = canonicalSnapshot({ value: owner }),
+    teardownMatches = canonicalSnapshot({ value: teardown }),
+    terminalMatches = captureAzureTerraformTerminalSnapshot(checkpoint),
+    siteMatches = canonicalSnapshot({ value: site });
   const seal = () => {
     deadline.throwIfAborted();
     require131(
-      canonicalSha256({ value: request }) === originalSha256 &&
-        canonicalSha256({ value: store.owner }) === ownerSha256 &&
+      originalMatches({ value: request }) &&
+        ownerMatches({ value: store.owner }) &&
         store.directory === directory &&
-        canonicalSha256({ value: context.destroyTeardown }) === teardownSha256 &&
-        matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, checkpointSha256) &&
-        canonicalSha256({ value: context.site }) === siteSha256 &&
+        teardownMatches({ value: context.destroyTeardown }) &&
+        terminalMatches(context.terminalCleanup) &&
+        siteMatches({ value: context.site }) &&
         context.terraform === terraform &&
         context.publicSession === publicSession &&
         context.loaders === loaders &&
@@ -61565,14 +61582,14 @@ async function qualifyServices(request, store, context, parentWitness, fresh, si
     { target: loaders, key: 'loadSource', value: loaders.loadSource },
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
-  const terminalSha256 = canonicalSha256({ value: terminal });
+  const terminalMatches = captureAzureTerraformTerminalSnapshot(terminal);
   const seal = () => {
     deadline.throwIfAborted();
     require135(
       same96(request, original) &&
         same96(store.owner, owner) &&
         store.directory === root &&
-        matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
+        terminalMatches(context.terminalCleanup) &&
         same96(context.destroyTeardown, teardown) &&
         same96(context.site, site) &&
         context.terraform === terraform &&
@@ -62661,16 +62678,16 @@ async function retirePackets(
     original = structuredClone(request),
     terminal = structuredClone(context.terminalCleanup);
   const { read, verify, write } = store;
-  const originalSha256 = canonicalSha256({ value: original }),
-    ownerSha256 = canonicalSha256({ value: owner }),
-    terminalSha256 = canonicalSha256({ value: terminal });
+  const requestMatches = canonicalSnapshot({ value: original }),
+    ownerMatches = canonicalSnapshot({ value: owner }),
+    terminalMatches = captureAzureTerraformTerminalSnapshot(terminal);
   const guard = () => {
     active.throwIfAborted();
     require138(
       store.directory === root &&
-        canonicalSha256({ value: store.owner }) === ownerSha256 &&
-        canonicalSha256({ value: request }) === originalSha256 &&
-        matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
+        ownerMatches({ value: store.owner }) &&
+        requestMatches({ value: request }) &&
+        terminalMatches(context.terminalCleanup) &&
         store.read === read &&
         store.verify === verify &&
         store.write === write,

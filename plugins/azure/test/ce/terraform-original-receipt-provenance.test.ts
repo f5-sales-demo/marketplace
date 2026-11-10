@@ -103,3 +103,25 @@ test('original public outcome absence stays unresolved and cannot be inferred fr
     await f.close();
   }
 });
+
+test('an outcome callback cannot mutate the caller and its private plan copy together', async () => {
+  const f = await originalNativeWorkflowFixture();
+  try {
+    const result = await f.run();
+    let mutated = false;
+    await expect(
+      readAzureTerraformOriginalReceiptProvenance(f.plan, f.storage, {
+        loadSource: async () => structuredClone(f.plan),
+        loadOutcome: async (plan) => {
+          mutated = true;
+          f.plan.siteName = 'changed-after-admission';
+          plan.siteName = 'changed-after-admission';
+          return structuredClone(result);
+        },
+      }),
+    ).rejects.toThrow('owning request or dependency changed');
+    expect(mutated).toBe(true);
+  } finally {
+    await f.close();
+  }
+});

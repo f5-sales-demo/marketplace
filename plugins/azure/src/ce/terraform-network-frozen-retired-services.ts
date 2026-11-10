@@ -11,7 +11,7 @@ import type { readAzureTerraformNetworkParentInventory } from './terraform-netwo
 import { recheckAzureTerraformNetworkPostPlaintextParentCustody } from './terraform-network-post-plaintext-parent-custody';
 import { azureTerraformNetworkRetiredPowerDeployment } from './terraform-network-power';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
-import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
+import { captureAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -89,13 +89,13 @@ async function qualifyServices(
     { target: loaders, key: 'loadSource', value: loaders.loadSource },
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
-  const terminalSha256 = canonicalSha256({ value: terminal });
+  const terminalMatches = captureAzureTerraformTerminalSnapshot(terminal);
   const seal = () => {
     deadline.throwIfAborted();
     require(same(request, original) &&
       same(store.owner, owner) &&
       store.directory === root &&
-      matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
+      terminalMatches(context.terminalCleanup) &&
       same(context.destroyTeardown, teardown) &&
       same(context.site, site) &&
       context.terraform === terraform &&

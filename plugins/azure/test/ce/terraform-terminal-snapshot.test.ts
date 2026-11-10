@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { recheckAzureTerraformNetworkRetiredBootstrapPackets } from '../../src/ce/terraform-network-sensitive-packet-retirement';
 import {
+  captureAzureTerraformTerminalSnapshot,
   matchesAzureTerraformTerminalSnapshot,
   sealAzureTerraformTerminalSnapshot,
 } from '../../src/ce/terraform-terminal-snapshot';
@@ -89,4 +90,24 @@ test('sealed digest is equality only and provides no retirement authority', asyn
       {} as never,
     ),
   ).rejects.toThrow('genuine owning completed bootstrap observation required');
+});
+
+test('captured terminal equality rechecks mutable callers and accepts only identical sealed bytes', () => {
+  const source = { nested: { owner: 'owned' }, optional: undefined };
+  const matches = captureAzureTerraformTerminalSnapshot(source);
+  const clone = structuredClone(source);
+  const sealed = sealAzureTerraformTerminalSnapshot(source);
+  expect(matches(source)).toBe(true);
+  expect(matches(clone)).toBe(true);
+  expect(matches(sealed)).toBe(true);
+  source.nested.owner = 'foreign';
+  clone.nested.owner = 'foreign';
+  expect(matches(source)).toBe(false);
+  expect(matches(clone)).toBe(false);
+  expect(matches(sealed)).toBe(true);
+  expect(matches(sealAzureTerraformTerminalSnapshot(source))).toBe(false);
+  clone.nested.owner = 'owned';
+  expect(matches(clone)).toBe(true);
+  expect(matches(undefined)).toBe(false);
+  expect(() => matches({ nested: { owner: 1n } })).toThrow();
 });

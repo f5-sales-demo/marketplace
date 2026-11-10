@@ -1,5 +1,5 @@
 import { types as utilTypes } from 'node:util';
-import { canonicalSha256, canonicalStringify } from './canonical';
+import { canonicalSha256, canonicalSnapshot, canonicalStringify } from './canonical';
 
 const snapshots = new WeakMap<object, { wrapped: string; raw: string }>();
 function require(value: unknown, message: string): asserts value {
@@ -61,4 +61,21 @@ export function matchesAzureTerraformTerminalSnapshot(
   return sealed === undefined
     ? canonicalSha256(mode === 'raw' ? value : { value }) === expectedSha256
     : sealed[mode] === expectedSha256;
+}
+
+/** Capture exact terminal bytes once for repeated in-memory equality checks.
+ * Sealed independent copies use their verified digest; mutable values are
+ * serialized afresh at every boundary. Native custody and absence remain separate.
+ */
+export function captureAzureTerraformTerminalSnapshot(
+  value: unknown,
+  mode: 'wrapped' | 'raw' = 'wrapped',
+): (current: unknown) => boolean {
+  const wrap = (input: unknown) => (mode === 'raw' ? input : { value: input });
+  const expectedSha256 = canonicalSha256(wrap(value));
+  const matches = canonicalSnapshot(wrap(value));
+  return (current: unknown): boolean => {
+    const sealed = current && typeof current === 'object' ? snapshots.get(current) : undefined;
+    return sealed === undefined ? matches(wrap(current)) : sealed[mode] === expectedSha256;
+  };
 }

@@ -4,7 +4,7 @@ import { lstat, open as openFile, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { verifyAzureCePlan } from './artifacts';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import type { AzureTerraformNetworkAcceptanceVerifier } from './terraform-network-checkpoint';
 import { readAzureTerraformNetworkCompletionOne } from './terraform-network-completion-history';
 import {
@@ -51,11 +51,14 @@ export async function readAzureTerraformNetworkReplacementReceiptProvenance(
     { target: loaders, key: 'loadOutcome', value: loaders.loadOutcome },
   ];
   const deadline = AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]);
+  const requestMatches = canonicalSnapshot(plan),
+    ownerMatches = canonicalSnapshot(owner),
+    siteMatches = canonicalSnapshot(site);
   const seal = () => {
     deadline.throwIfAborted();
-    require(canonicalEqual(request, plan) &&
-      canonicalEqual(store.owner, owner) &&
-      canonicalEqual(siteRequest, site) &&
+    require(requestMatches(request) &&
+      ownerMatches(store.owner) &&
+      siteMatches(siteRequest) &&
       store.directory === directory &&
       bindings.every(({ target, key, value }) => Reflect.get(target, key) === value), 'owning context changed');
   };

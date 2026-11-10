@@ -5,7 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
-import { canonicalEqual, canonicalSha256 } from './canonical';
+import { canonicalEqual, canonicalSha256, canonicalSnapshot } from './canonical';
 import type { AzureTerraformNetworkEmptyMainBindingContext } from './terraform-network-empty-main-binding';
 import { recheckAzureTerraformNetworkFreshParentAbsence } from './terraform-network-fresh-parent-absence';
 import {
@@ -14,7 +14,7 @@ import {
 } from './terraform-network-frozen-retired-services';
 import type { readAzureTerraformNetworkParentInventory } from './terraform-network-parent-inventory';
 import { readAzureTerraformParentPrivateFile } from './terraform-parent-file-custody';
-import { matchesAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
+import { captureAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
 import type { AzureCePlan } from './types';
 
 const nonBootstrapMarkerName = 'azure-terraform-network-packet-retirement.json';
@@ -208,15 +208,15 @@ async function retirePackets(
   const read = store.read,
     verify = store.verify,
     write = store.write;
-  const originalSha256 = canonicalSha256({ value: original }),
-    ownerSha256 = canonicalSha256({ value: owner }),
-    terminalSha256 = canonicalSha256({ value: terminal });
+  const requestMatches = canonicalSnapshot({ value: original }),
+    ownerMatches = canonicalSnapshot({ value: owner }),
+    terminalMatches = captureAzureTerraformTerminalSnapshot(terminal);
   const guard = () => {
     active.throwIfAborted();
     require(store.directory === root &&
-      canonicalSha256({ value: store.owner }) === ownerSha256 &&
-      canonicalSha256({ value: request }) === originalSha256 &&
-      matchesAzureTerraformTerminalSnapshot(context.terminalCleanup, terminalSha256) &&
+      ownerMatches({ value: store.owner }) &&
+      requestMatches({ value: request }) &&
+      terminalMatches(context.terminalCleanup) &&
       store.read === read &&
       store.verify === verify &&
       store.write === write, 'owning context changed');
