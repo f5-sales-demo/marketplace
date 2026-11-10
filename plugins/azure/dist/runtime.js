@@ -46381,6 +46381,9 @@ var init_bgp_service_membership = __esm(() => {
 // plugins/platform/src/ce/component-status.ts
 var init_component_status = () => {};
 
+// plugins/platform/src/ce/initial-registration-retirement.ts
+var init_initial_registration_retirement = () => {};
+
 // plugins/platform/src/ce/interface-evidence.ts
 var init_interface_evidence = () => {};
 // plugins/platform/src/ce/origin-teardown.ts
@@ -46400,6 +46403,7 @@ var init_site_labels = __esm(() => {
 
 // plugins/platform/src/ce/teardown-inventory.ts
 var init_teardown_inventory = __esm(() => {
+  init_initial_registration_retirement();
   init_runtime();
 });
 
@@ -46413,6 +46417,7 @@ var init_runtime = __esm(() => {
   init_component_status();
   init_forwarding_route();
   init_ingress_lifecycle();
+  init_initial_registration_retirement();
   init_interface_evidence();
   init_node_health();
   init_origin_teardown();

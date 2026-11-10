@@ -1,6 +1,10 @@
 import { readdir } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import {
+  type InitialRegistrationRetirement,
+  validateInitialRegistrationRetirement,
+} from '../../../platform/src/ce/initial-registration-retirement';
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { TerraformSession } from '../../../terraform/src/service';
@@ -22,6 +26,7 @@ interface Retirement {
   siteUid: string | null;
   physicalSiteUid: string | null;
   tokens: Array<{ name: string; node: string; uid: string }>;
+  registrations?: InitialRegistrationRetirement[];
 }
 export interface AwsPendingTeardownPlan {
   schemaVersion: 1;
@@ -29,6 +34,7 @@ export interface AwsPendingTeardownPlan {
   engine: 'terraform';
   sourcePlanSha256: string;
   sourceJournalSha256: string;
+  initialRegistrationInstances?: Record<string, string>;
   drain: CePlatformDrainPlan;
   retirement: Retirement[];
   planId: string;
@@ -40,7 +46,12 @@ const object = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>;
 };
 const uid = (value: unknown): value is string => typeof value === 'string' && !!value.trim();
-async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string) {
+async function journal(
+  base: AwsCePlan,
+  storage: Store,
+  siteFingerprint: string,
+  initialInstances?: Record<string, string>,
+) {
   verifyAwsCePlan(base);
   const selected = siteBindings(base);
   if (
@@ -107,8 +118,30 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
   )
     throw new Error('Pending retirement admission journal differs or registration has advanced');
   const files = await readdir(storage.directory);
-  if (files.some((file) => /^(terraform-(registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file)))
-    throw new Error('Post-admission retirement contract is required');
+  const registrationRecords: unknown[] = [];
+  if (
+    initialInstances &&
+    (Object.keys(initialInstances).join(',') !== selected[0].binding.nodes[0] ||
+      !/^i-[0-9a-f]{8,17}$/.test(initialInstances[selected[0].binding.nodes[0]]))
+  )
+    throw new Error('Initial registration cloud identity binding differs');
+  for (const file of files.filter((file) =>
+    /^(terraform-(registration-|routing-|connect-|direct-|initial-)|ingress-plan-)/.test(file),
+  )) {
+    if (!initialInstances || file !== `terraform-registration-${selected[0].site.name}.json`)
+      throw new Error('Post-admission retirement contract is required');
+    const record = object(await storage.read(file));
+    if (
+      record.siteName !== selected[0].site.name ||
+      record.node !== selected[0].binding.nodes[0] ||
+      record.instanceId !== initialInstances[selected[0].binding.nodes[0]] ||
+      !/^r-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(String(record.registration)) ||
+      record.action !== 'approve-registration' ||
+      !['requested', 'submitted'].includes(String(record.state))
+    )
+      throw new Error('Initial registration request provenance differs');
+    registrationRecords.push(record);
+  }
   const siteRecords = [];
   for (const { binding } of selected) {
     let value: unknown;
@@ -132,7 +165,13 @@ async function journal(base: AwsCePlan, storage: Store, siteFingerprint: string)
   if (launchedSite && siteRecords.length !== selected.length)
     throw new Error('Launched pending site requires its owning logical checkpoint');
   // Only a digest leaves private storage; bootstrap content is never copied into a public plan.
-  return canonicalSha256({ auth, workflow, admission, siteRecords });
+  return canonicalSha256({
+    auth,
+    workflow,
+    admission,
+    siteRecords,
+    ...(initialInstances ? { initialInstances, registrationRecords } : {}),
+  });
 }
 async function reconcilePendingF5Site(base: AwsCePlan, runtime: CeRuntime, storage: Store, signal?: AbortSignal) {
   let value: unknown;
@@ -227,7 +266,11 @@ function fresh(receipt: Observation, base: AwsCePlan, site: string, ingress: str
     throw new Error('Fresh pending admission inventory is unavailable');
   return receipt;
 }
-function identities(base: AwsCePlan, receipt: Extract<Observation, { status: 'observed' }>): Retirement[] {
+function identities(
+  base: AwsCePlan,
+  receipt: Extract<Observation, { status: 'observed' }>,
+  initialInstances?: Record<string, string>,
+): Retirement[] {
   const selected = siteBindings(base),
     seen = new Set<string>();
   if (receipt.sites.length !== selected.length) throw new Error('Pending site inventory is incomplete');
@@ -263,13 +306,25 @@ function identities(base: AwsCePlan, receipt: Extract<Observation, { status: 'ob
         return { name: row.name, node: String(row.node), uid: row.uid };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
+    const registrations = (receipt.registrations ?? []).filter((row) => row.siteName === binding.siteName);
+    for (const registration of registrations) {
+      validateInitialRegistrationRetirement(binding, registration);
+      if (matches[0].siteUid === null || matches[0].physicalSiteUid === null)
+        throw new Error('Initial registration requires original logical and physical site identities');
+      if (!initialInstances || registration.instanceId !== initialInstances[registration.node])
+        throw new Error('Initial registration does not match the original cloud instance');
+      unique(registration.uid);
+    }
     return {
       siteName: binding.siteName,
       siteUid: matches[0].siteUid,
       physicalSiteUid: matches[0].physicalSiteUid,
       tokens,
+      ...(registrations.length ? { registrations } : {}),
     };
   });
+  if (retirement.reduce((n, row) => n + (row.registrations?.length ?? 0), 0) !== (receipt.registrations?.length ?? 0))
+    throw new Error('Unexpected initial registration');
   if (retirement.reduce((n, row) => n + row.tokens.length, 0) !== receipt.resources.length)
     throw new Error('Unexpected pending resource');
   return retirement.sort((a, b) => a.siteName.localeCompare(b.siteName));
@@ -280,6 +335,7 @@ function compile(
   site: string,
   ingress: string,
   retirement: Retirement[],
+  initialInstances?: Record<string, string>,
 ): AwsPendingTeardownPlan {
   const draft = {
     schemaVersion: 1 as const,
@@ -287,6 +343,7 @@ function compile(
     engine: 'terraform' as const,
     sourcePlanSha256: base.planSha256,
     sourceJournalSha256: journalSha,
+    ...(initialInstances ? { initialRegistrationInstances: structuredClone(initialInstances) } : {}),
     drain: {
       schemaVersion: 1 as const,
       owner: siteBindings(base)[0].binding.owner,
@@ -302,14 +359,25 @@ function compile(
   const planSha256 = canonicalSha256(draft);
   return { ...draft, planId: `aws-ce-pending-teardown-${planSha256.slice(0, 24)}`, planSha256 };
 }
-function subset(base: AwsCePlan, planned: Retirement[], receipt: Observation, site: string, ingress: string) {
-  const actual = identities(base, fresh(receipt, base, site, ingress));
+function subset(
+  base: AwsCePlan,
+  planned: Retirement[],
+  receipt: Observation,
+  site: string,
+  ingress: string,
+  initialInstances?: Record<string, string>,
+) {
+  const actual = identities(base, fresh(receipt, base, site, ingress), initialInstances);
   for (const row of actual) {
     const target = planned.find((target) => target.siteName === row.siteName);
     if (
       !target ||
       (row.siteUid !== null && row.siteUid !== target.siteUid) ||
       (row.physicalSiteUid !== null && row.physicalSiteUid !== target.physicalSiteUid) ||
+      (row.registrations ?? []).some(
+        (registration) =>
+          !(target.registrations ?? []).some((expected) => canonicalSha256(expected) === canonicalSha256(registration)),
+      ) ||
       row.tokens.some(
         (token) => !target.tokens.some((expected) => canonicalSha256(token) === canonicalSha256(expected)),
       )
@@ -324,12 +392,63 @@ export async function prepareAwsPendingTeardown(
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
+  initialInstanceReader?: (signal?: AbortSignal) => Promise<Record<string, string>>,
 ) {
   base = structuredClone(base);
   signal?.throwIfAborted();
   if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
-  const before = await journal(base, storage, runtime.contract.fingerprint);
+  verifyAwsCePlan(base);
+  const selected = siteBindings(base);
+  await storage.verify();
+  if (
+    base.engine !== 'terraform' ||
+    base.intent.topology.nodeCount !== 1 ||
+    selected.length !== 1 ||
+    canonicalSha256(storage.owner) !== canonicalSha256(selected[0].binding.owner)
+  )
+    throw new Error('Pending retirement requires the owning Terraform deployment');
+  const auth = object(await storage.read('terraform-authorization.json'));
+  const workflow = object(await storage.read('terraform-workflow.json'));
+  if (
+    auth.schemaVersion !== 1 ||
+    auth.engine !== 'terraform' ||
+    auth.planSha256 !== base.planSha256 ||
+    auth.mutations !== true ||
+    auth.f5StateOwner !== 'terraform' ||
+    workflow.schemaVersion !== 1 ||
+    workflow.engine !== 'terraform' ||
+    workflow.planSha256 !== base.planSha256 ||
+    !['network-pending', 'registration-pending'].includes(String(workflow.stage))
+  )
+    throw new Error('Pending retirement authorization or workflow differs');
+  let initialInstances: Record<string, string> | undefined;
+  let initial = await (runtime.preRegistrationInventory ?? runtime.pendingAdmissionInventory).call(
+    runtime,
+    siteBindings(base).map((row) => row.binding),
+    ['default'],
+    contract,
+    signal,
+  );
+  const registrationFiles = (await readdir(storage.directory)).some((file) =>
+    file.startsWith('terraform-registration-'),
+  );
+  if (
+    initialInstanceReader &&
+    ((initial.status === 'unknown' && initial.reason === 'initial-registration-cloud-binding-required') ||
+      (initial.status === 'observed' && registrationFiles))
+  ) {
+    initialInstances = structuredClone(await initialInstanceReader(signal));
+    initial = await runtime.preRegistrationInventory(
+      siteBindings(base).map((row) => row.binding),
+      ['default'],
+      contract,
+      signal,
+      initialInstances,
+    );
+  }
+  const before = await journal(base, storage, runtime.contract.fingerprint, initialInstances);
   await reconcilePendingF5Site(base, runtime, storage, signal);
+  // Reconciliation can change visible identities. Collect again before compiling a plan.
   const receipt = fresh(
     await (runtime.preRegistrationInventory ?? runtime.pendingAdmissionInventory).call(
       runtime,
@@ -337,12 +456,16 @@ export async function prepareAwsPendingTeardown(
       ['default'],
       contract,
       signal,
+      initialInstances,
     ),
     base,
     runtime.contract.fingerprint,
     contract.fingerprint,
   );
-  const retirement = identities(base, receipt);
+  const retirement = identities(base, receipt, initialInstances);
+  for (const site of retirement)
+    for (const registration of site.registrations ?? [])
+      runtime.contract.registrationDeletionRequest(registration.name);
   if (retirement.some((site) => site.physicalSiteUid !== null && site.siteUid === null))
     throw new Error('Pre-registration physical site has no owning logical identity');
   let admissionMissing = false;
@@ -365,9 +488,9 @@ export async function prepareAwsPendingTeardown(
       throw new Error('Pending live site UID differs from its checkpoint');
   }
   await verifyF5State(base, storage, retirement);
-  if (before !== (await journal(base, storage, runtime.contract.fingerprint)))
+  if (before !== (await journal(base, storage, runtime.contract.fingerprint, initialInstances)))
     throw new Error('Pending admission journal changed during preparation');
-  const plan = compile(base, before, runtime.contract.fingerprint, contract.fingerprint, retirement);
+  const plan = compile(base, before, runtime.contract.fingerprint, contract.fingerprint, retirement, initialInstances);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }
@@ -377,6 +500,11 @@ interface Driver {
   ingressContractFingerprint: string;
   observe(signal?: AbortSignal): Promise<Observation>;
   reconcilePlatform(signal?: AbortSignal): Promise<void>;
+  deleteRegistration?(
+    site: Retirement,
+    registration: InitialRegistrationRetirement,
+    signal?: AbortSignal,
+  ): Promise<{ status: 'absent' | 'pending' }>;
   revokeToken(site: Retirement, token: Retirement['tokens'][number], signal?: AbortSignal): Promise<void>;
   retireCloud(
     signal?: AbortSignal,
@@ -399,8 +527,10 @@ export async function coordinateAwsPendingTeardown(
     if (
       driver.engine !== 'terraform' ||
       (plan.retirement.some((site) => site.physicalSiteUid !== null) && !driver.observeSiteDeletion) ||
+      (plan.retirement.some((site) => site.registrations?.length) && !driver.deleteRegistration) ||
       authorized !== plan.planSha256 ||
-      (await journal(base, storage, driver.siteContractFingerprint)) !== plan.sourceJournalSha256 ||
+      (await journal(base, storage, driver.siteContractFingerprint, plan.initialRegistrationInstances)) !==
+        plan.sourceJournalSha256 ||
       canonicalSha256(plan) !==
         canonicalSha256(
           compile(
@@ -409,30 +539,42 @@ export async function coordinateAwsPendingTeardown(
             driver.siteContractFingerprint,
             driver.ingressContractFingerprint,
             plan.retirement,
+            plan.initialRegistrationInstances,
           ),
         )
     )
       throw new Error('Pending teardown authorization, plan or journal differs');
     await verifyF5State(base, storage, plan.retirement);
     // Revalidate immutable planned identities independently of the current subset.
-    identities(base, {
-      status: 'observed',
-      owner: plan.drain.owner,
-      siteContractFingerprint: driver.siteContractFingerprint,
-      ingressContractFingerprint: driver.ingressContractFingerprint,
-      startedAt: '',
-      observedAt: '',
-      sources: [],
-      sites: plan.retirement.map(({ siteName, siteUid, physicalSiteUid }) => ({ siteName, siteUid, physicalSiteUid })),
-      resources: plan.retirement.flatMap((site) =>
-        site.tokens.map((token) => ({
-          ...token,
-          kind: 'tokens' as const,
-          namespace: 'system',
-          siteName: site.siteName,
+    identities(
+      base,
+      {
+        status: 'observed',
+        owner: plan.drain.owner,
+        siteContractFingerprint: driver.siteContractFingerprint,
+        ingressContractFingerprint: driver.ingressContractFingerprint,
+        startedAt: '',
+        observedAt: '',
+        sources: [],
+        sites: plan.retirement.map(({ siteName, siteUid, physicalSiteUid }) => ({
+          siteName,
+          siteUid,
+          physicalSiteUid,
         })),
-      ),
-    });
+        ...(plan.initialRegistrationInstances
+          ? { registrations: plan.retirement.flatMap((site) => site.registrations ?? []) }
+          : {}),
+        resources: plan.retirement.flatMap((site) =>
+          site.tokens.map((token) => ({
+            ...token,
+            kind: 'tokens' as const,
+            namespace: 'system',
+            siteName: site.siteName,
+          })),
+        ),
+      },
+      plan.initialRegistrationInstances,
+    );
   };
   const observe = async () => {
     await validate();
@@ -442,6 +584,7 @@ export async function coordinateAwsPendingTeardown(
       await driver.observe(signal),
       driver.siteContractFingerprint,
       driver.ingressContractFingerprint,
+      plan.initialRegistrationInstances,
     );
   };
   // Reject invalid authorization, changed journals and unknown/substituted live identities before persisting retirement.
@@ -464,6 +607,24 @@ export async function coordinateAwsPendingTeardown(
   )
     throw new Error('Pending cloud retirement lacks the bound no-change receipt');
   await observe();
+  // Every originally planned registration requires an exact GET absence witness,
+  // including a record that disappears from the site-scoped list before DELETE.
+  for (const target of plan.retirement)
+    for (const registration of target.registrations ?? []) {
+      await observe();
+      if (!driver.deleteRegistration) throw new Error('Initial registration retirement executor is unavailable');
+      const result = await driver.deleteRegistration(target, registration, signal);
+      if (result.status !== 'absent')
+        return {
+          status: 'pending-platform-retirement' as const,
+          sourcePlanSha256: base.planSha256,
+          planSha256: plan.planSha256,
+          cloudInventory: 'unknown' as const,
+        };
+    }
+  current = await observe();
+  if (current.some((site) => site.registrations?.length))
+    throw new Error('Initial registration retirement has not converged');
   await driver.reconcilePlatform(signal);
   for (const target of plan.retirement) {
     current = await observe();
@@ -529,6 +690,9 @@ export async function runAwsPendingTeardown(
   signal?: AbortSignal,
 ) {
   if (runtime.engine !== 'terraform') throw new Error('Pending teardown runtime engine differs');
+  for (const site of plan.retirement)
+    for (const registration of site.registrations ?? [])
+      runtime.contract.registrationDeletionRequest(registration.name);
   await verifyAwsTeardownCredentials(base, api, signal);
   const bindings = siteBindings(base),
     binding = (site: Retirement) => {
@@ -551,11 +715,29 @@ export async function runAwsPendingTeardown(
           ['default'],
           contract,
           signal,
+          plan.initialRegistrationInstances,
+        ),
+      deleteRegistration: (site, registration, signal) =>
+        runtime.deleteInitialRegistration(
+          binding(site),
+          registration,
+          (record) => storage.write(`pending-registration-delete-${registration.uid}.json`, record),
+          signal,
+          site.siteUid ?? undefined,
         ),
       revokeToken: (site, token, signal) =>
         runtime.deleteBootstrapTokenExact(binding(site), token.node, token.name, token.uid, signal),
       reconcilePlatform: (signal) => runtime.reconcileTerraformResources(storage.owner, signal),
-      retireCloud: (signal) => runAwsTerraformCloudTeardown(base, session, storage, api, env, signal),
+      retireCloud: (signal) =>
+        runAwsTerraformCloudTeardown(
+          base,
+          session,
+          storage,
+          api,
+          env,
+          signal,
+          plan.initialRegistrationInstances ? Object.values(plan.initialRegistrationInstances) : undefined,
+        ),
       deleteSite: (site, signal) => runtime.deleteSiteExact(binding(site), String(site.siteUid), signal),
       observeSiteDeletion: (site, signal) =>
         runtime.observeSiteDeletion(

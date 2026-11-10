@@ -11,6 +11,7 @@ import { VerifiedCeContract } from '../../src/ce/verified-contract';
 import sixInterfaces from '../fixtures/aws-ha-six-interface-links.json';
 import routingSchemaCompact from '../fixtures/aws-routing-schema.json';
 import recordedInterfaces from '../fixtures/aws-site-publisher-links.json';
+import registrationDeleteApi from '../fixtures/registration-delete-api.json';
 import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schemaCompact from '../fixtures/smsv2-create-schema.json';
@@ -27,9 +28,16 @@ type ContractFixtureConstructor = new (
   schemas: Record<string, unknown>,
   networking: { network: Record<string, unknown>; marketplace: Record<string, unknown> } | undefined,
   publication: 'published-release',
+  kvm?: unknown,
+  readonlyApi?: Record<string, unknown>,
+  registrationApi?: Record<string, unknown>,
 ) => VerifiedCeContract;
 
-function fixture(withRouting = false, fixtureContract: Record<string, unknown> = contract): VerifiedCeContract {
+function fixture(
+  withRouting = false,
+  fixtureContract: Record<string, unknown> = contract,
+  registrationApi: Record<string, unknown> = registrationDeleteApi,
+): VerifiedCeContract {
   const Constructor = VerifiedCeContract as unknown as ContractFixtureConstructor;
   return new Constructor(
     schema.provenance.commit,
@@ -43,6 +51,9 @@ function fixture(withRouting = false, fixtureContract: Record<string, unknown> =
         }
       : undefined,
     'published-release',
+    undefined,
+    undefined,
+    registrationApi,
   );
 }
 const binding: SiteBinding = {
@@ -2400,7 +2411,7 @@ type InitialPendingSource = {
     spec: {
       gc_spec: {
         passport: Record<string, unknown>;
-        infra: { hostname: string; instance_id: string; provider: string };
+        infra: { hostname: string; instance_id: string; provider: string; zone?: string };
       };
     };
     status: { current_state: string; parent_current_state: string };
@@ -2440,7 +2451,7 @@ function initialPendingFixture(change?: (source: InitialPendingSource) => void) 
     }
     return json(source);
   };
-  return { fetcher, posts, passport };
+  return { fetcher, posts, passport, source };
 }
 
 test('initial PENDING admission preserves passport and reserves once across runtime recreation', async () => {
@@ -2664,3 +2675,134 @@ for (const failure of ['checkpoint-before-request', 'response-lost'] as const) {
     }
   });
 }
+
+for (const mode of [
+  'deleted',
+  'ack-only',
+  'list-omission',
+  'changed-passport',
+  'advanced',
+  'unauthorized',
+  'service-failure',
+  'already-absent',
+] as const) {
+  test(`exact initial registration deletion retains ${mode} semantics`, async () => {
+    const { parseInitialRegistrationRetirement } = await import('../../src/ce/initial-registration-retirement');
+    const observed = initialPendingFixture((value) => {
+      value.object.spec.gc_spec.infra.zone = binding.owner.region;
+    });
+    const initial = observed.source;
+    const identity = parseInitialRegistrationRetirement(initial, binding, {
+      siteName: binding.siteName,
+      node: binding.nodes[0],
+      instanceId: 'i-fixture',
+      name: pendingRegistrationName,
+      uid: pendingRegistrationUid,
+    });
+    if (mode === 'changed-passport') initial.object.spec.gc_spec.passport.changed = true;
+    if (mode === 'advanced') initial.object.status.current_state = 'APPROVED';
+    let deleted = mode === 'already-absent';
+    let posts = 0,
+      logicalReads = 0;
+    const checkpoints: string[] = [];
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path.includes('/securemesh_site_v2s/')) {
+        logicalReads++;
+        if (deleted) return json({}, 404);
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: 'logical-uid' },
+        });
+      }
+      if (path.includes('/registrations_by_site/') && (deleted || mode === 'list-omission')) return json({ items: [] });
+      if (path.includes('/registrations/')) {
+        if (init?.method === 'DELETE') {
+          expect(new URL(String(url)).searchParams.get('fail_if_referred')).toBe('true');
+          expect(checkpoints).toEqual(['requested']);
+          posts++;
+          deleted = mode !== 'ack-only';
+          return json({});
+        }
+        if (deleted) return json({}, 404);
+        if (mode === 'unauthorized') return json({}, 403);
+        if (mode === 'service-failure') return json({}, 503);
+      }
+      return observed.fetcher(url, init);
+    });
+    const checkpoint = async (record: Record<string, unknown>) => {
+      checkpoints.push(String(record.state));
+    };
+    if (['list-omission', 'changed-passport', 'advanced', 'unauthorized', 'service-failure'].includes(mode)) {
+      await expect(
+        runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+      ).rejects.toThrow();
+      expect(posts).toBe(0);
+    } else {
+      expect(
+        await runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+      ).toHaveProperty('status', mode === 'ack-only' ? 'pending' : 'absent');
+      expect(posts).toBe(mode === 'already-absent' ? 0 : 1);
+      if (deleted) {
+        const before = logicalReads;
+        expect(
+          await runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+        ).toHaveProperty('status', 'absent');
+        expect(logicalReads).toBe(before);
+        expect(posts).toBe(mode === 'already-absent' ? 0 : 1);
+      }
+    }
+  });
+}
+
+type RegistrationDeleteDefinition = {
+  operationId: string;
+  parameters: Array<{
+    name: string;
+    in: string;
+    required?: boolean;
+    schema: { type: string };
+  }>;
+  responses: Record<string, unknown>;
+  requestBody?: { required: boolean };
+};
+for (const kind of [
+  'operation',
+  'missing-path',
+  'query-type',
+  'duplicate',
+  'required-input',
+  'required-location',
+  'required-body',
+] as const) {
+  test(`pinned initial registration DELETE rejects ${kind} mapping`, () => {
+    const changed = structuredClone(registrationDeleteApi) as unknown as {
+      paths: Record<string, { delete: RegistrationDeleteDefinition }>;
+    };
+    const operation = changed.paths['/api/register/namespaces/{namespace}/registrations/{name}'].delete;
+    if (kind === 'operation') operation.operationId = 'unqualified';
+    if (kind === 'missing-path') operation.parameters = operation.parameters.filter((row) => row.name !== 'namespace');
+    if (kind === 'query-type') {
+      const query = operation.parameters.find((row) => row.name === 'fail_if_referred');
+      if (!query) throw Error('Published query fixture missing');
+      query.schema.type = 'string';
+    }
+    if (kind === 'duplicate') operation.parameters.push(operation.parameters[0]);
+    if (kind === 'required-input')
+      operation.parameters.push({ name: 'unresolved', in: 'query', required: true, schema: { type: 'string' } });
+    if (kind === 'required-location')
+      operation.parameters.push({ name: 'namespace', in: 'header', required: true, schema: { type: 'string' } });
+    if (kind === 'required-body') operation.requestBody = { required: true };
+    expect(() => fixture(false, contract, changed).registrationDeletionRequest(pendingRegistrationName)).toThrow();
+  });
+}
+test('pinned deletion mapping is isolated from caller mutation and requires a resolved registration UUID', () => {
+  const changed = structuredClone(registrationDeleteApi);
+  const mapped = fixture(false, contract, changed);
+  changed.paths['/api/register/namespaces/{namespace}/registrations/{name}'].delete.operationId = 'unqualified';
+  expect(mapped.registrationDeletionRequest(pendingRegistrationName)).toEqual({
+    method: 'DELETE',
+    path: `/api/register/namespaces/system/registrations/${pendingRegistrationName}?fail_if_referred=true`,
+  });
+  expect(() => mapped.registrationDeletionRequest('__REGISTRATION_ID__')).toThrow();
+});

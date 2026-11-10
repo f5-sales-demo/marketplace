@@ -757,3 +757,167 @@ test('public preparation resumes the exact pending contract after admission disa
     original,
   );
 });
+
+async function initialRegistrationFixture() {
+  const f = await fixture();
+  const uid = '11111111-2222-4333-8444-555555555555';
+  const instances = { [f.binding.nodes[0]]: 'i-0123456789abcdef0' };
+  const registration = {
+    siteName: f.binding.siteName,
+    node: f.binding.nodes[0],
+    name: `r-${uid}`,
+    uid,
+    instanceId: instances[f.binding.nodes[0]],
+    passportSha256: 'e'.repeat(64),
+  };
+  let deleted = false,
+    omitList = false;
+  const observe = async () => {
+    const result = await f.driver.observe();
+    return {
+      ...result,
+      sites: result.sites.map((site) => ({ ...site, physicalSiteUid: site.siteUid ? 'physical-uid' : null })),
+      registrations: deleted || omitList ? [] : [registration],
+    };
+  };
+  const runtime = {
+    ...f.runtime,
+    contract: {
+      ...f.runtime.contract,
+      registrationDeletionRequest: (name: string) => ({
+        method: 'DELETE' as const,
+        path: `/api/register/namespaces/system/registrations/${name}?fail_if_referred=true`,
+      }),
+    },
+    preRegistrationInventory: async (
+      _bindings: unknown,
+      _namespaces: unknown,
+      _contract: unknown,
+      _signal: unknown,
+      original?: Record<string, string>,
+    ) =>
+      original
+        ? observe()
+        : { ...(await observe()), status: 'unknown', reason: 'initial-registration-cloud-binding-required' },
+  };
+  const driver = {
+    ...f.driver,
+    observe,
+    deleteRegistration: async () => {
+      expect(f.mutations).toContain('cloud');
+      if (!deleted) {
+        f.mutations.push('registration');
+        deleted = true;
+      }
+      return { status: 'absent' as const };
+    },
+    observeSiteDeletion: async () => ({ status: 'deleted' as const }),
+  };
+  return {
+    ...f,
+    runtime,
+    driver,
+    instances,
+    registration,
+    omitList: () => {
+      omitList = true;
+    },
+    substitute: () => {
+      registration.uid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+      registration.name = `r-${registration.uid}`;
+    },
+  };
+}
+
+test('initial PENDING retirement revokes token, retires original cloud node, verifies registration deletion, then retires site', async () => {
+  const f = await initialRegistrationFixture();
+  await f.storage.write(`terraform-registration-${f.binding.siteName}.json`, {
+    action: 'approve-registration',
+    siteName: f.binding.siteName,
+    node: f.binding.nodes[0],
+    registration: f.registration.name,
+    instanceId: f.registration.instanceId,
+    state: 'requested',
+  });
+  const plan = await prepareAwsPendingTeardown(
+    f.base,
+    f.runtime as never,
+    f.contract as never,
+    f.storage,
+    undefined,
+    async () => f.instances,
+  );
+  expect(plan.initialRegistrationInstances).toEqual(f.instances);
+  expect(plan.retirement[0].registrations?.[0].uid).toBe(f.registration.uid);
+  expect(JSON.stringify(plan)).not.toContain('private-cloud-init');
+  const result = await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never);
+  expect(result.status).toBe('resources-retired-awaiting-inventory');
+  expect(f.mutations).toEqual(['token', 'cloud', 'registration', 'site']);
+  await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never);
+  expect(f.mutations.filter((value) => value === 'registration')).toHaveLength(1);
+});
+test('initial retirement still obtains an exact-object witness when the planned registration disappears from the list', async () => {
+  const f = await initialRegistrationFixture();
+  const plan = await prepareAwsPendingTeardown(
+    f.base,
+    f.runtime as never,
+    f.contract as never,
+    f.storage,
+    undefined,
+    async () => f.instances,
+  );
+  f.omitList();
+  await coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, f.driver as never);
+  expect(f.mutations).toContain('registration');
+});
+test('initial retirement refuses unbound or substituted registration execution before any mutation', async () => {
+  for (const variant of ['missing-executor', 'substituted'] as const) {
+    const f = await initialRegistrationFixture();
+    const plan = await prepareAwsPendingTeardown(
+      f.base,
+      f.runtime as never,
+      f.contract as never,
+      f.storage,
+      undefined,
+      async () => f.instances,
+    );
+    if (variant === 'substituted') f.substitute();
+    const driver = variant === 'missing-executor' ? { ...f.driver, deleteRegistration: undefined } : f.driver;
+    await expect(
+      coordinateAwsPendingTeardown(f.base, plan, plan.planSha256, f.storage, driver as never),
+    ).rejects.toThrow();
+    expect(f.mutations).toHaveLength(0);
+  }
+});
+test('initial retirement rejects unresolved cloud identifiers before compiling an execution plan', async () => {
+  const f = await initialRegistrationFixture();
+  await expect(
+    prepareAwsPendingTeardown(f.base, f.runtime as never, f.contract as never, f.storage, undefined, async () => ({
+      [f.binding.nodes[0]]: 'i-unresolved',
+    })),
+  ).rejects.toThrow('cloud identity binding');
+  expect(f.mutations).toHaveLength(0);
+});
+
+test('pending retirement authorization and service failures never invoke the original cloud reader', async () => {
+  for (const reason of ['authorization', 'unavailable'] as const) {
+    const f = await initialRegistrationFixture();
+    let reads = 0;
+    const runtime = {
+      ...f.runtime,
+      preRegistrationInventory: async () => ({
+        ...(await f.driver.observe()),
+        status: 'unknown',
+        reason,
+      }),
+    };
+    await expect(
+      prepareAwsPendingTeardown(f.base, runtime as never, f.contract as never, f.storage, undefined, async () => {
+        reads++;
+        return f.instances;
+      }),
+    ).rejects.toThrow();
+    expect(reads).toBe(0);
+    expect(f.mutations).toHaveLength(0);
+  }
+});

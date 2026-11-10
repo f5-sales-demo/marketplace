@@ -17,6 +17,12 @@ import {
 } from './forwarding-route';
 import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
+import {
+  type InitialRegistrationRetirement,
+  initialRegistrationLocators,
+  parseInitialRegistrationRetirement,
+  validateInitialRegistrationRetirement,
+} from './initial-registration-retirement';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
 import {
@@ -512,6 +518,7 @@ export class CeRuntime {
     namespaces: string[],
     contract: VerifiedIngressContract,
     signal?: AbortSignal,
+    initialInstances?: Record<string, string>,
   ) {
     for (const binding of bindings) this.#binding(binding);
     return collectCePreRegistrationInventory(
@@ -520,6 +527,7 @@ export class CeRuntime {
       namespaces,
       { site: this.contract.fingerprint, ingress: contract.fingerprint },
       signal,
+      initialInstances,
     );
   }
   drainPlatform(
@@ -2918,6 +2926,55 @@ export class CeRuntime {
       routes,
       versions,
     };
+  }
+  /** Idempotent DELETE of an exact initial request after its owning cloud node is retired. */
+  async deleteInitialRegistration(
+    binding: SiteBinding,
+    identity: InitialRegistrationRetirement,
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+    expectedSiteUid?: string,
+  ): Promise<{ status: 'absent' | 'pending' }> {
+    binding = structuredClone(binding);
+    identity = structuredClone(identity);
+    this.#binding(binding, true);
+    validateInitialRegistrationRetirement(binding, identity);
+    const path = `/api/register/namespaces/system/registrations/${identity.name}`;
+    const instances = { [identity.node]: identity.instanceId };
+    const listed = () =>
+      this.#request(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`, {}, signal);
+    let source: Json;
+    try {
+      source = await this.#request(path, {}, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError) || error.category !== 'not-found') throw error;
+      return { status: initialRegistrationLocators(await listed(), binding, instances).length ? 'pending' : 'absent' };
+    }
+    const ownedSite = await this.observeOwnedSite(binding, signal);
+    if (!expectedSiteUid || object(ownedSite.system_metadata).uid !== expectedSiteUid)
+      throw new Error('Initial registration logical site UID changed before deletion');
+    const locators = initialRegistrationLocators(await listed(), binding, instances);
+    if (locators.length !== 1 || locators[0].uid !== identity.uid)
+      throw new Error('Initial registration deletion list and object disagree');
+    const current = parseInitialRegistrationRetirement(source, binding, identity);
+    if (JSON.stringify(current) !== JSON.stringify(identity))
+      throw new Error('Initial registration passport changed before deletion');
+    const record = { action: 'delete-initial-registration', ...identity };
+    await checkpoint({ ...record, state: 'requested' });
+    try {
+      const deletion = this.contract.registrationDeletionRequest(identity.name);
+      await this.#request(deletion.path, { method: deletion.method }, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError) || error.category !== 'not-found') throw error;
+    }
+    await checkpoint({ ...record, state: 'submitted' });
+    try {
+      await this.#request(path, {}, signal);
+      return { status: 'pending' };
+    } catch (error) {
+      if (!(error instanceof CeApiError) || error.category !== 'not-found') throw error;
+    }
+    return { status: initialRegistrationLocators(await listed(), binding, instances).length ? 'pending' : 'absent' };
   }
   async approveRegistrations(
     binding: SiteBinding,

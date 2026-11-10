@@ -66,6 +66,7 @@ export class VerifiedCeContract {
   readonly #contract: Json;
   readonly #schemas: Json;
   readonly #readOnlyOperationalApi?: Json;
+  readonly #registrationDeletionApi?: Json;
   readonly #validate: (spec: unknown) => void;
   readonly #routing?: ReturnType<typeof routingValidators>;
   readonly #routingSchemas?: { network: Json; marketplace: Json };
@@ -78,16 +79,56 @@ export class VerifiedCeContract {
     publication: 'published-release',
     readonly kvmImageResolution?: Smsv2KvmImageResolution,
     readOnlyOperationalApi?: Json,
+    registrationDeletionApi?: Json,
   ) {
     this.publication = publication;
     this.#contract = contract;
     this.#schemas = schemas;
     this.#readOnlyOperationalApi = readOnlyOperationalApi ? structuredClone(readOnlyOperationalApi) : undefined;
+    this.#registrationDeletionApi = registrationDeletionApi ? structuredClone(registrationDeletionApi) : undefined;
     this.#validate = createWireValidator(schemas);
     if (networking) {
       this.#routing = routingValidators(networking.network, networking.marketplace);
       this.#routingSchemas = networking;
     }
+  }
+  registrationDeletionRequest(name: string): { method: 'DELETE'; path: string } {
+    const path = '/api/register/namespaces/{namespace}/registrations/{name}';
+    const operation = object(object(object(this.#registrationDeletionApi).paths)[path]).delete;
+    const definition = object(operation);
+    const parameters = definition.parameters;
+    if (
+      !/^r-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(name) ||
+      definition.operationId !== 'ves.io.schema.registration.CustomAPI.Delete' ||
+      !Array.isArray(parameters) ||
+      !Object.hasOwn(object(definition.responses), '200')
+    )
+      throw new Error('Pinned registration deletion operation is unavailable or differs');
+    if (
+      (definition.requestBody && object(definition.requestBody).required === true) ||
+      parameters
+        .map(object)
+        .some(
+          (parameter) =>
+            parameter.required === true &&
+            !['path:namespace', 'path:name', 'query:fail_if_referred'].includes(`${parameter.in}:${parameter.name}`),
+        )
+    )
+      throw new Error('Pinned registration deletion requires unsupported additional inputs');
+    for (const [key, location, type] of [
+      ['namespace', 'path', 'string'],
+      ['name', 'path', 'string'],
+      ['fail_if_referred', 'query', 'boolean'],
+    ]) {
+      const matches = parameters.map(object).filter((parameter) => parameter.name === key && parameter.in === location);
+      if (
+        matches.length !== 1 ||
+        object(matches[0].schema).type !== type ||
+        (location === 'path' && matches[0].required !== true)
+      )
+        throw new Error('Pinned registration deletion parameters differ');
+    }
+    return { method: 'DELETE', path: `/api/register/namespaces/system/registrations/${name}?fail_if_referred=true` };
   }
   static async published(fetcher: PublishedApiFetcher = fetch, signal?: AbortSignal): Promise<VerifiedCeContract> {
     const api = await loadPublishedCeApi(fetcher, signal);
@@ -149,6 +190,13 @@ export class VerifiedCeContract {
             ...Object.fromEntries(forwardingRouteSchemas.map((name) => [name, schemas[name]])),
             ...nodeHealthSchemaClosure(schemas),
           },
+        },
+      },
+      {
+        paths: {
+          '/api/register/namespaces/{namespace}/registrations/{name}': object(api.paths)[
+            '/api/register/namespaces/{namespace}/registrations/{name}'
+          ],
         },
       },
     );

@@ -1,3 +1,8 @@
+import {
+  type InitialRegistrationRetirement,
+  initialRegistrationLocators,
+  parseInitialRegistrationRetirement,
+} from './initial-registration-retirement';
 import { CeApiError, type CeOwner, type SiteBinding } from './runtime';
 
 type Json = Record<string, unknown>;
@@ -320,8 +325,9 @@ export async function collectCePreRegistrationInventory(
   namespaces: string[],
   contracts: { site: string; ingress: string },
   signal?: AbortSignal,
+  initialInstances?: Record<string, string>,
 ) {
-  return collectPendingInventory(port, input, namespaces, contracts, true, signal);
+  return collectPendingInventory(port, input, namespaces, contracts, true, signal, initialInstances);
 }
 async function collectPendingInventory(
   port: Port,
@@ -330,6 +336,7 @@ async function collectPendingInventory(
   contracts: { site: string; ingress: string },
   allowGeneratedPhysical: boolean,
   signal?: AbortSignal,
+  initialInstances?: Record<string, string>,
 ) {
   const bindings = structuredClone(input);
   namespaces = structuredClone(namespaces);
@@ -337,6 +344,7 @@ async function collectPendingInventory(
   const { owner, labels, nodes } = validateScope(bindings, namespaces, contracts);
   signal?.throwIfAborted();
   const sources: string[] = [];
+  let initialCloudProofRequired = false;
   const base = {
     owner,
     siteContractFingerprint: contracts.site,
@@ -393,6 +401,7 @@ async function collectPendingInventory(
   const snapshot = async () => {
     const sites: Array<{ siteName: string; siteUid: string | null; physicalSiteUid: string | null }> = [];
     const resources: CeTeardownResource[] = [];
+    const registrations: InitialRegistrationRetirement[] = [];
     const uids = new Set<string>(),
       names = new Set<string>();
     for (const binding of bindings) {
@@ -418,8 +427,49 @@ async function collectPendingInventory(
         uids.add(physicalSiteUid);
       }
       sites.push({ siteName: binding.siteName, siteUid, physicalSiteUid });
-      if (collection(await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`)).length)
-        throw new Error('Registration is present');
+      const listed = await read(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`);
+      if (collection(listed).length) {
+        if (!allowGeneratedPhysical || !initialInstances || siteUid === null || physicalSiteUid === null) {
+          if (
+            allowGeneratedPhysical &&
+            !initialInstances &&
+            siteUid !== null &&
+            physicalSiteUid !== null &&
+            Array.isArray(listed.items) &&
+            listed.items.length === 1 &&
+            binding.nodes.length === 1
+          ) {
+            const candidate = object(listed.items[0]),
+              spec = object(candidate.get_spec),
+              infra = object(spec.infra);
+            const state = object(object(candidate.object).status).current_state;
+            const passport = object(spec.passport);
+            const system = object(object(candidate.object).system_metadata);
+            // This only classifies missing proof. It supplies no instance binding or deletion authority.
+            initialCloudProofRequired =
+              state === 'PENDING' &&
+              passport.cluster_name === binding.siteName &&
+              passport.cluster_size === 1 &&
+              infra.hostname === binding.nodes[0] &&
+              typeof infra.instance_id === 'string' &&
+              /^i-[0-9a-f]{8,17}$/.test(infra.instance_id) &&
+              typeof system.uid === 'string' &&
+              /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(system.uid) &&
+              candidate.name === `r-${system.uid}`;
+          }
+          throw new Error('Registration is present without original Terraform cloud identity');
+        }
+        for (const locator of initialRegistrationLocators(listed, binding, initialInstances)) {
+          const registration = parseInitialRegistrationRetirement(
+            await read(`/api/register/namespaces/system/registrations/${locator.name}`),
+            binding,
+            locator,
+          );
+          if (uids.has(registration.uid)) throw new Error('Duplicate initial registration UID');
+          uids.add(registration.uid);
+          registrations.push(registration);
+        }
+      }
     }
     const query = new URLSearchParams({ label_filter: `xcsh-ce-deployment=${owner.deploymentId}` });
     const tokens = collection(await read(`/api/register/namespaces/system/tokens?${query}`));
@@ -470,7 +520,7 @@ async function collectPendingInventory(
         throw new Error('Post-admission resource is present');
     sites.sort((a, b) => a.siteName.localeCompare(b.siteName));
     resources.sort((a, b) => a.name.localeCompare(b.name));
-    return { sites, resources };
+    return { sites, resources, ...(initialInstances ? { registrations } : {}) };
   };
   try {
     const first = await snapshot(),
@@ -483,7 +533,12 @@ async function collectPendingInventory(
     return {
       ...base,
       status: 'unknown' as const,
-      reason: error instanceof CeApiError ? error.category : 'ownership-or-collection-incomplete',
+      reason:
+        error instanceof CeApiError
+          ? error.category
+          : initialCloudProofRequired
+            ? 'initial-registration-cloud-binding-required'
+            : 'ownership-or-collection-incomplete',
       sources,
       observedAt: new Date().toISOString(),
     };
