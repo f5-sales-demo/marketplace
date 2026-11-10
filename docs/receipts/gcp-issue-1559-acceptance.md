@@ -1224,3 +1224,14 @@ All full capture, live CE, runtime, review, publication and installed gates rema
 open. The older global Terraform command has been upgraded through a versioned
 user installation with its previous link and executable preserved. Disk pressure
 still needs review against current measurements.
+
+Attempt 424 adds [audit batch provenance and source correlation](gcp-audit-source-correlation-20261110.md).
+Original query/page bytes, reader identity, principal, operation name, numeric VM
+and request reason have failing-first coverage. Missing reason remains a refusal;
+full insert flags remain false. Shared1,115tests5,095assertions and all three native
+typechecks/builds/dependencies pass. Fresh source-read capture failed in prospective
+SDK actor identity inspection; the exact actor/state remains unretained. Typed
+local cleanup, empty stable state, empty destroy, two non-submitting resumes and
+22 independent group absences pass, with original failed locks preserved. No cloud
+resource changed. Precise failure retention, bootstrap ownership, source lifetime,
+full installed capture and every remaining live/runtime/delivery gate remain open.

@@ -560,3 +560,66 @@ test('same numeric VM cannot rotate ownership labels or service accounts during 
     await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow('identity changed');
   }
 });
+
+test('only the original reader audit batch can read its immutable query and page bytes', async () => {
+  const value = { entries: [auditEntry()] };
+  const f = await fixture([value]);
+  const batch = await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow);
+  const evidence = await f.reader.readAuditEvidence(batch);
+  expect(JSON.parse(evidence.query.toString()).filter).toContain('v1.compute.instances.insert');
+  expect(evidence.pages).toHaveLength(1);
+  expect(evidence.pages[0].raw.toString()).toBe(JSON.stringify(value));
+  expect(evidence.pages[0].scope.node).toBe('example-node');
+  expect(evidence.pages[0].authentication.accountSha256).toBe(hash(info.email));
+  evidence.query.fill(0);
+  evidence.pages[0].raw.fill(0);
+  const again = await f.reader.readAuditEvidence(batch);
+  expect(again.pages[0].raw.toString()).toBe(JSON.stringify(value));
+  expect(JSON.parse(again.query.toString()).filter).toContain('v1.compute.instances.insert');
+  await expect(f.reader.readAuditEvidence({ ...batch })).rejects.toThrow('original');
+  const other = await fixture();
+  await expect(other.reader.readAuditEvidence(batch)).rejects.toThrow('original');
+});
+
+test('same-byte audit query replacement cannot inherit the original batch binding', async () => {
+  const f = await fixture([{ entries: [auditEntry()] }]);
+  const batch = await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow);
+  const bytes = await readFile(batch.queryPath);
+  const replacement = `${batch.queryPath}.replacement`;
+  await writeFile(replacement, bytes, { flag: 'wx', mode: 0o400 });
+  await rename(replacement, batch.queryPath);
+  await expect(f.reader.readAuditEvidence(batch)).rejects.toThrow('changed');
+  await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow('retired');
+});
+
+test('changed page bytes or rotated credentials cannot complete audit evidence access', async () => {
+  for (const rotate of [false, true]) {
+    const f = await fixture([{ entries: [auditEntry()] }]);
+    const batch = await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow);
+    if (rotate) f.change();
+    else {
+      await chmod(batch.pages[0].path, 0o600);
+      await writeFile(batch.pages[0].path, '{}');
+    }
+    await expect(f.reader.readAuditEvidence(batch)).rejects.toThrow();
+    await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow('retired');
+  }
+});
+
+test('audit query replacement during pagination refuses publication of a completed batch', async () => {
+  let computes = 0;
+  let replace = async () => {};
+  const f = await fixture([{ entries: [auditEntry()], nextPageToken: 'next' }, {}], async () => {
+    if (++computes === 2) await replace();
+  });
+  replace = async () => {
+    const name = (await readdir(f.root)).find((name) => name.endsWith('.query.private.json'));
+    if (!name) throw new Error('Original query fixture required');
+    const path = join(f.root, name);
+    const replacement = `${path}.replacement`;
+    await writeFile(replacement, await readFile(path), { flag: 'wx', mode: 0o400 });
+    await rename(replacement, path);
+  };
+  await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('changed');
+  expect((await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'))).toHaveLength(2);
+});

@@ -60,6 +60,20 @@ export interface GcpInsertOperationCandidate extends GcpCloudReadEvidence {
   readonly applyPhaseQualified: false;
   readonly originalInsertQualified: false;
 }
+export interface GcpInsertAuditBatch {
+  readonly schemaVersion: 1;
+  readonly kind: 'compute-instance-insert-audit-batch';
+  readonly complete: true;
+  readonly queryPath: string;
+  readonly window: GcpInsertAuditWindow;
+  readonly project: string;
+  readonly zone: string;
+  readonly node: string;
+  readonly querySha256: string;
+  readonly pages: readonly GcpCloudReadEvidence[];
+  readonly entries: readonly Readonly<Json>[];
+  readonly originalInsertQualified: false;
+}
 export interface GcpCloudSerialReaderOptions {
   readonly root: string;
   readonly region: string;
@@ -106,6 +120,7 @@ export async function openGcpCloudSerialReader(
   const client = await openGoogleAdcComputeReader(authentication, signal, fetcher);
   const admitted = new WeakSet<OriginalGcpVm>();
   const issuedEvidence = new WeakSet<GcpCloudReadEvidence>();
+  const auditQueries = new WeakMap<GcpInsertAuditBatch, OriginalInputBinding>();
   const evidenceInputs = new Map<
     string,
     { binding: OriginalInputBinding; scope: Readonly<{ project: string; zone: string; node: string }> }
@@ -395,6 +410,8 @@ export async function openGcpCloudSerialReader(
         await queryDirectory.close();
       }
       await requireRoot();
+      const originalQuery = await readOwnedInstalledInput(queryPath, 65536);
+      if (originalQuery.binding.sha256 !== querySha256) throw new Error('Original audit query bytes changed');
       const pages: GcpCloudReadEvidence[] = [],
         entries: Readonly<Json>[] = [];
       const tokens = new Set<string>(),
@@ -426,7 +443,7 @@ export async function openGcpCloudSerialReader(
           throw error;
         }
         // Raw data is durable before any decode or scope/continuation decision.
-        pages.push(await retain(response, 'insert-audit', zone, node, querySha256));
+        pages.push(issue(await retain(response, 'insert-audit', zone, node, querySha256)));
         bytes += response.raw.byteLength;
         if (!response.complete || response.truncated || response.status !== 200 || bytes > 4 * 1024 * 1024)
           throw new Error('Complete bounded original audit response required');
@@ -482,7 +499,11 @@ export async function openGcpCloudSerialReader(
       }
       signalForCommand.throwIfAborted();
       if (linuxMonotonicMs() - began >= 60_000) throw new Error('Original audit command deadline exhausted');
-      return Object.freeze({
+      const finalQuery = await readOwnedInstalledInput(queryPath, 65536);
+      assertSameOriginalInput(originalQuery.binding, finalQuery.binding);
+      await authentication.assertOriginal();
+      await requireRoot();
+      const batch: GcpInsertAuditBatch = Object.freeze({
         schemaVersion: 1 as const,
         kind: 'compute-instance-insert-audit-batch' as const,
         complete: true as const,
@@ -496,6 +517,10 @@ export async function openGcpCloudSerialReader(
         entries: Object.freeze(entries),
         originalInsertQualified: false as const,
       });
+      const issuedQuery = await readOwnedInstalledInput(queryPath, 65536);
+      assertSameOriginalInput(originalQuery.binding, issuedQuery.binding);
+      auditQueries.set(batch, originalQuery.binding);
+      return batch;
     });
   };
   const readEvidence = async (evidence: GcpCloudReadEvidence) => {
@@ -525,7 +550,34 @@ export async function openGcpCloudSerialReader(
       });
     });
   };
-  return Object.freeze({ instance, serial, insertOperation, insertAudit, readEvidence });
+  /** Private original bytes only. A batch is not create authority or insert admission. */
+  const readAuditEvidence = async (batch: GcpInsertAuditBatch) => {
+    const binding = auditQueries.get(batch);
+    if (!binding) throw new Error('An original reader-issued audit batch is required');
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const query = await readOwnedInstalledInput(batch.queryPath, 65536);
+      assertSameOriginalInput(binding, query.binding);
+      if (query.binding.sha256 !== batch.querySha256) throw new Error('Original audit query bytes changed');
+      const pages = [];
+      for (const page of batch.pages) {
+        const read = await readEvidence(page);
+        if (read.scope.project !== batch.project || read.scope.zone !== batch.zone || read.scope.node !== batch.node)
+          throw new Error('Original audit page scope changed');
+        pages.push(read);
+      }
+      // Recheck earlier pages after later reads and guards; a successful first
+      // read cannot excuse mutation while the remaining evidence is inspected.
+      for (const page of batch.pages) await readEvidence(page);
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await readOwnedInstalledInput(batch.queryPath, 65536);
+      assertSameOriginalInput(binding, final.binding);
+      return Object.freeze({ query: Buffer.from(query.bytes), pages: Object.freeze(pages) });
+    });
+  };
+  return Object.freeze({ instance, serial, insertOperation, insertAudit, readEvidence, readAuditEvidence });
 }
 
 export interface InstalledCloudFinalCapture {

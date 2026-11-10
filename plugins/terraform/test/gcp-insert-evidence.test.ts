@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openGcpCloudSerialReader } from '../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser } from '../src/gcp-http-rpc-trace';
+import { joinOriginalGcpInsertAuditEvidence } from '../src/gcp-insert-audit-evidence';
 import { inspectOriginalGcpInsertBodies, joinOriginalGcpInsertSource } from '../src/gcp-insert-evidence';
 import { joinOriginalGcpVmEvidence } from '../src/gcp-vm-evidence';
 
 const binding = {
   terraformVersion: '1.17.1',
-  providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
 };
 const zone = 'us-central1-a',
   project = 'example-project',
@@ -364,7 +365,7 @@ test('source correlation rejects malformed numeric and time evidence instead of 
     expect(() => joinOriginalGcpInsertSource(changed as never)).toThrow();
 });
 
-async function vmJoinFixture(change: Record<string, unknown> = {}) {
+async function vmJoinFixture(change: Record<string, unknown> = {}, audit?: (vm: Record<string, unknown>) => unknown[]) {
   const source = joinOriginalGcpInsertSource(sourceJoinFixture());
   if (source.targetId === null) throw new Error('Original numeric fixture target required');
   const initial = requestFixture();
@@ -400,7 +401,9 @@ async function vmJoinFixture(change: Record<string, unknown> = {}) {
         expires_in: 3599,
       });
     if (path === '/v1/projects/example-project') return Response.json({ projectId: project, lifecycleState: 'ACTIVE' });
+    if (path === '/v2/entries:list' && audit) return Response.json({ entries: audit(vm) });
     const value = replies.shift();
+    if (!value && path === `/compute/v1/projects/${project}/zones/${zone}/instances/${node}`) return Response.json(vm);
     if (!value) throw new Error('Unexpected scoped fixture read');
     if (value === op) {
       op.insertTime = new Date(Date.now()).toISOString();
@@ -485,4 +488,141 @@ test('copied or foreign reader evidence cannot substitute an original operation 
   await expect(joinOriginalGcpVmEvidence({ ...input, instance: { ...input.instance } })).rejects.toThrow();
   const foreign = await vmJoinFixture();
   await expect(joinOriginalGcpVmEvidence({ ...input, operation: foreign.operation })).rejects.toThrow();
+});
+
+async function auditJoinFixture(change?: (entries: Record<string, unknown>[]) => unknown[]) {
+  const input = await vmJoinFixture({}, (vm) => {
+    const entry = (insertId: string) => ({
+      insertId,
+      logName: `projects/${project}/logs/cloudaudit.googleapis.com%2Factivity`,
+      timestamp: vm.creationTimestamp,
+      resource: { type: 'gce_instance', labels: { project_id: project, zone, instance_id: vm.id } },
+      protoPayload: {
+        '@type': 'type.googleapis.com/google.cloud.audit.AuditLog',
+        serviceName: 'compute.googleapis.com',
+        methodName: 'v1.compute.instances.insert',
+        resourceName: `projects/${project}/zones/${zone}/instances/${node}`,
+        authenticationInfo: { principalEmail: 'principal@example.com' },
+        status: {},
+      },
+    });
+    const first = {
+      ...entry('first-audit'),
+      operation: { id: operationFixture().name, producer: 'compute.googleapis.com', first: true },
+      protoPayload: {
+        ...entry('first-audit').protoPayload,
+        request: { '@type': 'example.insert', name: node, labels: requestFixture().labels, canIpForward: true },
+        response: { ...operationFixture(), insertTime: vm.creationTimestamp },
+        requestMetadata: { requestAttributes: { reason: scope.requestReason } },
+      },
+    };
+    const last = {
+      ...entry('last-audit'),
+      operation: { id: operationFixture().name, producer: 'compute.googleapis.com', last: true },
+      protoPayload: { ...entry('last-audit').protoPayload, request: { '@type': 'example.insert' } },
+    };
+    return change ? change([first, last]) : [first, last];
+  });
+  const audit = await input.reader.insertAudit(zone, node, {
+    after: new Date(input.absent.startedAt - 1000).toISOString(),
+    before: new Date(Date.now() + 1000).toISOString(),
+  });
+  return { ...input, audit };
+}
+
+test('original audit first/last entries join operation name, numeric incarnation and principal without omitted bootstrap fields', async () => {
+  const input = await auditJoinFixture();
+  const candidate = await joinOriginalGcpInsertAuditEvidence(input);
+  expect(candidate.auditCorroborated).toBe(true);
+  expect(candidate.instanceId === input.source.targetId).toBe(true);
+  expect(candidate.operationName).toBe(input.source.operationName);
+  expect(candidate.auditQuerySha256).toBe(input.audit.querySha256);
+  expect(candidate.requestReasonSha256).toBe(input.source.requestReasonSha256);
+  expect(candidate.originalInsertQualified).toBe(false);
+  expect(candidate.applyRpcQualified).toBe(false);
+  expect(JSON.stringify(candidate)).not.toContain('principal@example.com');
+  expect(JSON.stringify(candidate)).not.toContain('example-private-bootstrap');
+});
+
+test('omitted audit reason remains a concrete refusal rather than inferred request attribution', async () => {
+  const input = await auditJoinFixture(([first, last]) => {
+    const payload = first.protoPayload as Record<string, unknown>;
+    return [{ ...first, protoPayload: { ...payload, requestMetadata: { requestAttributes: {} } } }, last];
+  });
+  await expect(joinOriginalGcpInsertAuditEvidence(input)).rejects.toThrow('request reason');
+});
+
+test('numeric audit operation id, foreign principal, replaced VM and failed terminal status refuse', async () => {
+  const changes = [
+    (entries: Record<string, unknown>[]) =>
+      entries.map((entry) => ({ ...entry, operation: { ...(entry.operation as object), id: operationFixture().id } })),
+    (entries: Record<string, unknown>[]) =>
+      entries.map((entry) => ({
+        ...entry,
+        protoPayload: {
+          ...(entry.protoPayload as object),
+          authenticationInfo: { principalEmail: 'foreign@example.com' },
+        },
+      })),
+    (entries: Record<string, unknown>[]) =>
+      entries.map((entry) => ({
+        ...entry,
+        resource: { type: 'gce_instance', labels: { project_id: project, zone, instance_id: '18446744073709551612' } },
+      })),
+    ([first, last]: Record<string, unknown>[]) => [
+      first,
+      { ...last, protoPayload: { ...(last.protoPayload as object), status: { code: 7 } } },
+    ],
+    ([first, last]: Record<string, unknown>[]) => [
+      first,
+      { ...last, operation: { ...(last.operation as object), last: false } },
+    ],
+  ];
+  for (const change of changes) {
+    const input = await auditJoinFixture(change);
+    await expect(joinOriginalGcpInsertAuditEvidence(input)).rejects.toThrow();
+  }
+});
+
+test('copied audit batch or audit from a different reader cannot corroborate an original insert', async () => {
+  const input = await auditJoinFixture();
+  await expect(joinOriginalGcpInsertAuditEvidence({ ...input, audit: { ...input.audit } })).rejects.toThrow('original');
+  const other = await auditJoinFixture();
+  await expect(joinOriginalGcpInsertAuditEvidence({ ...input, audit: other.audit })).rejects.toThrow('original');
+});
+
+test('audit response cannot substitute another target path or zone behind matching numeric ids', async () => {
+  for (const changed of [
+    { targetLink: operationFixture().targetLink.replace(node, 'foreign-node') },
+    { zone: operationFixture().zone.replace(zone, 'us-central1-b') },
+    { selfLink: `${operationFixture().selfLink}?foreign=1` },
+  ]) {
+    const input = await auditJoinFixture(([first, last]) => {
+      const payload = first.protoPayload as Record<string, unknown>;
+      return [
+        { ...first, protoPayload: { ...payload, response: { ...(payload.response as object), ...changed } } },
+        last,
+      ];
+    });
+    await expect(joinOriginalGcpInsertAuditEvidence(input)).rejects.toThrow();
+  }
+});
+
+test('absent first audit metadata reports the missing request reason while sparse final metadata remains supported', async () => {
+  const missing = await auditJoinFixture(([first, last]) => {
+    const payload = first.protoPayload as Record<string, unknown>;
+    return [{ ...first, protoPayload: { ...payload, requestMetadata: undefined } }, last];
+  });
+  await expect(joinOriginalGcpInsertAuditEvidence(missing)).rejects.toThrow('request reason');
+  const sparse = await auditJoinFixture(([first, last]) => [
+    first,
+    {
+      ...last,
+      protoPayload: {
+        ...(last.protoPayload as object),
+        requestMetadata: { callerSuppliedUserAgent: 'example-terraform' },
+      },
+    },
+  ]);
+  expect((await joinOriginalGcpInsertAuditEvidence(sparse)).auditCorroborated).toBe(true);
 });
