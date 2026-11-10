@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.68** retains private startup callback and deadline causes
+  without changing submission refusal or the original final capture reserve.
+
 - **`terraform` 2.4.67** preserves denied descriptor evidence and later actor
   snapshots without qualifying capture or replacing the original failure.
 

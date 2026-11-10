@@ -2111,6 +2111,39 @@ function originalExecutor(input, reserve) {
       if (!reason) reason = value;
       finalStarted ??= now();
     };
+    const startupEvidence = [];
+    const startupPersistenceErrors = [];
+    const startupFields = () =>
+      startupEvidence.length ? { startupFailureEvidence: Object.freeze([...startupEvidence]) } : {};
+    const retainStartupFailure = async (phase, error) => {
+      fail('startup');
+      const path = join6(root, `startup-${phase}-failure.private.json`);
+      const raw = JSON.stringify({
+        schemaVersion: 1,
+        kind: 'original-executor-startup-failure',
+        phase,
+        identity: originalIdentity,
+        pid: child?.pid,
+        originalStartMs: policy.originalStartMs,
+        originalDeadlineMs: policy.originalDeadlineMs,
+        invocationStartedMs: began,
+        finalStartedMs: finalStarted,
+        observedMs: now(),
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : { type: typeof error, value: typeof error === 'string' ? error : undefined },
+        signalsSent: false,
+      });
+      try {
+        await writeFile2(path, raw, { mode: 256, flag: 'wx' });
+        startupEvidence.push(Object.freeze({ schemaVersion: 1, phase, path, sha256: hash4(Buffer.from(raw)) }));
+      } catch (persistenceError) {
+        startupPersistenceErrors.push(
+          new AggregateError([error, persistenceError], 'Original startup failure and persistence unresolved'),
+        );
+      }
+    };
     const retainInputFailure = async (phase, error) => {
       fail('input-changed');
       if (inputFailureObserved) return;
@@ -2226,65 +2259,69 @@ function originalExecutor(input, reserve) {
           await check();
           if (now() >= startupDeadline) fail('startup');
           if (!reason && beforeRelease) {
-            captureStartup = Promise.resolve().then(async () => {
-              if (!originalIdentity) throw new Error('Original execution identity unavailable');
-              originalOutput = await bindOriginalExecutionOutput({
-                identity: originalIdentity,
-                stdout: { path: stdoutPath, writer: stdout },
-                stderr: { path: stderrPath, writer: stderr },
-                maximum,
-                assertInputs: async () => {
-                  await python.require();
-                  await executable.require();
-                  await assertOriginal();
-                  const readerDeadline =
-                    inherited?.finalDeadlineMs ??
-                    (finalStarted === undefined ? executionDeadline : finalStarted + 300000);
-                  if (now() >= readerDeadline) throw new Error('Original output capture deadline exhausted');
-                },
-                originalGroupClosed: async () => {
-                  if (actualExitCode === null) return false;
-                  try {
-                    await assertExecutorGroupClosed(lock);
-                    return true;
-                  } catch (error) {
-                    if (error instanceof Error && error.message === 'Original executor process group remains live')
-                      return false;
-                    throw error;
-                  }
-                },
+            captureStartup = Promise.resolve()
+              .then(async () => {
+                if (!originalIdentity) throw new Error('Original execution identity unavailable');
+                originalOutput = await bindOriginalExecutionOutput({
+                  identity: originalIdentity,
+                  stdout: { path: stdoutPath, writer: stdout },
+                  stderr: { path: stderrPath, writer: stderr },
+                  maximum,
+                  assertInputs: async () => {
+                    await python.require();
+                    await executable.require();
+                    await assertOriginal();
+                    const readerDeadline =
+                      inherited?.finalDeadlineMs ??
+                      (finalStarted === undefined ? executionDeadline : finalStarted + 300000);
+                    if (now() >= readerDeadline) throw new Error('Original output capture deadline exhausted');
+                  },
+                  originalGroupClosed: async () => {
+                    if (actualExitCode === null) return false;
+                    try {
+                      await assertExecutorGroupClosed(lock);
+                      return true;
+                    } catch (error) {
+                      if (error instanceof Error && error.message === 'Original executor process group remains live')
+                        return false;
+                      throw error;
+                    }
+                  },
+                });
+                const admission = Object.freeze({
+                  output: originalOutput.output,
+                  directory: cwd,
+                  args: Object.freeze([...args]),
+                  identity: Object.freeze({
+                    pid: evidence.pid,
+                    group: evidence.group,
+                    start: evidence.start,
+                    boot: evidence.boot,
+                  }),
+                  stdoutPath,
+                  stderrPath,
+                  originalStartMs: policy.originalStartMs,
+                  originalDeadlineMs: policy.originalDeadlineMs,
+                  startupDeadlineMs: startupDeadline,
+                });
+                await beforeRelease(admission);
+              })
+              .catch(async (error) => {
+                await retainStartupFailure('callback', error);
+                throw error;
               });
-              const admission = Object.freeze({
-                output: originalOutput.output,
-                directory: cwd,
-                args: Object.freeze([...args]),
-                identity: Object.freeze({
-                  pid: evidence.pid,
-                  group: evidence.group,
-                  start: evidence.start,
-                  boot: evidence.boot,
-                }),
-                stdoutPath,
-                stderrPath,
-                originalStartMs: policy.originalStartMs,
-                originalDeadlineMs: policy.originalDeadlineMs,
-                startupDeadlineMs: startupDeadline,
-              });
-              await beforeRelease(admission);
-            });
+            const startupDeadlineError = new Error('Original capture startup deadline exhausted');
             let startupTimer;
             try {
               await Promise.race([
                 captureStartup,
                 new Promise((_resolve, reject) => {
-                  startupTimer = setTimeout(
-                    () => reject(new Error('Original capture startup deadline exhausted')),
-                    Math.max(0, startupDeadline - now()),
-                  );
+                  startupTimer = setTimeout(() => reject(startupDeadlineError), Math.max(0, startupDeadline - now()));
                 }),
               ]);
-            } catch {
+            } catch (error) {
               fail('startup');
+              if (error === startupDeadlineError) await retainStartupFailure('deadline', error);
             } finally {
               if (startupTimer) clearTimeout(startupTimer);
             }
@@ -2330,6 +2367,7 @@ function originalExecutor(input, reserve) {
         }
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture = {
+        ...startupFields(),
         invocationStartedMs: began,
         finalStartedMs: inherited?.finalStartedMs ?? finalStarted,
         finalDeadlineMs: inherited?.finalDeadlineMs ?? finalStarted + 300000,
@@ -2361,7 +2399,7 @@ function originalExecutor(input, reserve) {
               return;
             });
             if (now() >= capture.finalDeadlineMs) throw new Error('Original final capture deadline exhausted');
-            await policy.finalCapture(Object.freeze(capture));
+            await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
           })(),
           new Promise((_resolve, reject) => {
             captureTimer = setTimeout(
@@ -2399,6 +2437,7 @@ function originalExecutor(input, reserve) {
           join6(root, 'completion.private.json'),
           JSON.stringify({
             ...capture,
+            ...startupFields(),
             finishedMs: now(),
             actualExitCode,
             originalGroupClosed: groupClosed,
@@ -2411,7 +2450,7 @@ function originalExecutor(input, reserve) {
       } catch (error) {
         finalErrors.push(error);
       }
-      finalErrors.push(...inputPersistenceErrors);
+      finalErrors.push(...inputPersistenceErrors, ...startupPersistenceErrors);
       if (!groupClosed || actualExitCode === null) {
         const closureError = new Error('Original executor closure unresolved; lock remains held');
         if (finalErrors.length)

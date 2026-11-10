@@ -529,3 +529,81 @@ test('input failure persistence retains both errors and final capture before ref
   expect(completion.captureClosed).toBe(true);
   expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json')).exists()).toBe(true);
 });
+
+test('startup callback failure retains private original cause without exposing it or submitting', async () => {
+  const cause = new Error('synthetic private startup credential detail');
+  const run = await fixture('print("must-not-run")\n', {
+    beforeRelease: async () => {
+      throw cause;
+    },
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(1);
+  expect(JSON.stringify(result)).not.toContain(cause.message);
+  const capture = run.captures[0];
+  const evidence = capture.startupFailureEvidence;
+  expect(evidence).toHaveLength(1);
+  if (!evidence) throw new Error('Startup evidence required');
+  expect(evidence[0].phase).toBe('callback');
+  const raw = await readFile(evidence[0].path);
+  expect(hash(raw)).toBe(evidence[0].sha256);
+  expect((await lstat(evidence[0].path)).mode & 0o777).toBe(0o400);
+  const diagnostic = JSON.parse(raw.toString());
+  expect(diagnostic.kind).toBe('original-executor-startup-failure');
+  expect(diagnostic.error.message).toBe(cause.message);
+  expect(diagnostic.error.stack).toBe(cause.stack);
+  expect(diagnostic.identity).toEqual(capture.identity);
+  expect(diagnostic.finalStartedMs).toBe(capture.finalStartedMs);
+  expect(capture.reason).toBe('startup');
+  expect(capture.submitted).toBe(false);
+  expect(JSON.stringify(capture)).not.toContain(cause.message);
+});
+
+test('late callback error and startup deadline keep separate evidence without resetting the reserve', async () => {
+  const cause = new Error('synthetic late original reader failure');
+  const run = await fixture('print("must-not-run")\n', {
+    startupTimeoutMs: 1500,
+    beforeRelease: async () => {
+      await Bun.sleep(1800);
+      throw cause;
+    },
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(1);
+  const capture = run.captures[0];
+  expect(capture.startupFailureEvidence).toHaveLength(2);
+  const evidence = capture.startupFailureEvidence;
+  if (!evidence) throw new Error('Startup evidence required');
+  expect(evidence.map((item) => item.phase).sort()).toEqual(['callback', 'deadline']);
+  const diagnostics = await Promise.all(evidence.map(async (item) => JSON.parse(await readFile(item.path, 'utf8'))));
+  expect(diagnostics.find((item) => item.phase === 'callback').error.message).toBe(cause.message);
+  expect(diagnostics.every((item) => item.finalStartedMs === capture.finalStartedMs)).toBe(true);
+  expect(capture.finalDeadlineMs).toBe(capture.finalStartedMs + 300_000);
+  const completion = JSON.parse(await readFile(join(dirname(capture.stdoutPath), 'completion.private.json'), 'utf8'));
+  expect(completion.startupFailureEvidence).toEqual(evidence);
+  expect(completion.submitted).toBe(false);
+});
+
+test('startup diagnostic persistence preserves original cause and refusal after final capture', async () => {
+  const cause = new Error('synthetic original startup failure');
+  const run = await fixture('print("must-not-run")\n', {
+    beforeRelease: async (admission) => {
+      await mkdir(join(dirname(admission.stdoutPath), 'startup-callback-failure.private.json'));
+      throw cause;
+    },
+  });
+  let retained: unknown;
+  try {
+    await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  } catch (error) {
+    retained = error;
+  }
+  expect(retained).toBeInstanceOf(AggregateError);
+  if (!(retained instanceof AggregateError)) throw new Error('Aggregated startup failure required');
+  expect(retained.errors[0]).toBe(cause);
+  expect(retained.errors[1].code).toBe('EEXIST');
+  expect(run.captures).toHaveLength(1);
+  expect(run.captures[0].submitted).toBe(false);
+  expect(run.captures[0].reason).toBe('startup');
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json')).exists()).toBe(true);
+});

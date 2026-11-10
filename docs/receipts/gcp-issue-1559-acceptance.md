@@ -1284,3 +1284,17 @@ Configured lint, three native typechecks and runtime builds also pass.
 The historical state at denial remains unknown; no privilege bypass or accepted
 live capture is inferred. Every remaining full capture, lifetime, expiry, live,
 runtime and delivery gate stays open.
+
+Attempt 430 retained a [pre-submission audit quota failure](gcp-startup-cause-and-nonsubmission-20261110.md).
+Cloud Logging returned 429 RESOURCE_EXHAUSTED during capture startup; durable
+executor completion proves no Terraform submission. The reader's empty capture
+remains failed. A separate, identical-configuration empty destroy verification,
+two non-submitting resumes and 14 independent process-group absences completed
+cleanup, preserving original absent state and failed locks. No cloud mutation
+occurred. The earlier descriptor permission cause remains unresolved.
+
+Attempt 431 adds private startup callback and deadline cause evidence. Three
+failing-first tests, all 27 executor regressions and all 1,328 shared/canonical
+tests pass, along with three native typechecks and runtime builds. Immediate, late and persistence failures preserve
+the original refusal and reserve. Full capture, lifetime, expiry, live/runtime
+acceptance and delivery remain open.
