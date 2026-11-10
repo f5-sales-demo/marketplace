@@ -38,7 +38,7 @@ async function fixture() {
   };
   const firstDriver = await terraformNetworkSerialPowerFixture(
     false,
-    async (request) => evidence(request, '1.16.5'),
+    async (request) => evidence(request, '1.17.1'),
     seed,
   );
   const first = await terraformNetworkMainRunnerFixture(false, seed, firstDriver);
@@ -65,7 +65,7 @@ async function fixture() {
   const nextSeed = { ...seed, plan: next, inventory, source: completed.finalSource, store: first.store };
   const secondDriver = await terraformNetworkSerialPowerFixture(
     false,
-    async (request) => evidence(request, '1.16.5'),
+    async (request) => evidence(request, '1.17.1'),
     nextSeed,
   );
   const second = await terraformNetworkMainRunnerFixture(false, nextSeed, secondDriver, true, first);

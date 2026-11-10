@@ -587,7 +587,7 @@ test('power terminal cleanup rejects forged attempt and maintenance chains', asy
 function stateConfiguration(f: Awaited<ReturnType<typeof fixture>>, node: { siteName: string }) {
   const configuration = JSON.stringify({
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
     },
     provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },
@@ -930,7 +930,7 @@ for (const family of ['nlb', 'static-tgw'] as const)
         ? cloud.original
         : JSON.stringify({
             terraform: {
-              required_version: '= 1.16.5',
+              required_version: '= 1.17.1',
               required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
             },
             provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },

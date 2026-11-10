@@ -55,7 +55,7 @@ function evidence(request: CleanupRequest, version: string): IndependentCleanupE
 
 for (const ha of [false, true])
   test(`actual serial power runner retirement ${ha ? 'HA' : 'single'}`, async () => {
-    const f = await terraformNetworkSerialPowerFixture(ha, async (request) => evidence(request, '1.16.5'));
+    const f = await terraformNetworkSerialPowerFixture(ha, async (request) => evidence(request, '1.17.1'));
     const checked: string[] = [];
     const assertRetired = async (node: number, operation: string) => {
       const stage = `network-${f.plan.planSha256.slice(0, 24)}-node-${node}-${operation}`;
@@ -92,7 +92,7 @@ for (const ha of [false, true])
   }, 240000);
 
 test('lost actual retirement response resumes before NIC movement without VM replay', async () => {
-  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
   const open = f.terraform.open;
   let lost = false;
   f.terraform.open = async (...args) => {
@@ -130,7 +130,7 @@ for (const field of [
   'extra',
 ]) {
   test(`serial refuses wrong or incomplete retirement ${field} before checkpoint advancement`, async () => {
-    const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+    const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
     f.dependencies.retirePower = async (...args) => {
       const result = await retireAzureTerraformNetworkCompletedPowerStageInDriver(...args);
       return {
@@ -147,7 +147,7 @@ for (const field of [
   }, 120000);
 }
 test('acknowledgment cannot authorize serial NIC advancement', async () => {
-  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
   f.dependencies.retirePower = async () => ({ ok: true }) as never;
   await expect(f.run()).rejects.toThrow('complete exact selected power runner retirement');
   expect(f.calls).toEqual(['1:deallocate']);
@@ -156,7 +156,7 @@ test('acknowledgment cannot authorize serial NIC advancement', async () => {
   expect(f.vmPowerActions).toEqual(['deallocate', 'start']);
 }, 120000);
 test('serial driver retains actual ownership through ignored retirement abort and settlement', async () => {
-  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
   const open = f.terraform.open,
     controller = new AbortController();
   let release!: () => void, started!: () => void;

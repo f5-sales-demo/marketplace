@@ -143,7 +143,7 @@ export async function terraformRevisionFixture() {
   const observed = await collectAwsPowerDirectRoutes(f.base, f.values, f.api);
   const original = JSON.stringify({
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
     },
     provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },
@@ -596,7 +596,7 @@ for (const drift of ['native', 'foreign-owner', 'unresolved-instance', 'unresolv
     const f = await terraformRevisionFixture();
     const services = structuredClone(f.observed.services);
     if (drift === 'native') services.engine = 'native';
-    if (drift === 'foreign-owner') services.accountId = '999999999999';
+    if (drift === 'foreign-owner') services.accountId = String(BigInt(f.base.accountId) + 1n);
     if (drift === 'unresolved-instance') services.instanceId = '__INSTANCE_1__';
     if (drift === 'unresolved-sli') services.routes[0].networkInterfaceId = '__ENI_1_1__';
     if (drift === 'slo-target') services.routes[0].networkInterfaceId = services.sloNetworkInterfaceId;

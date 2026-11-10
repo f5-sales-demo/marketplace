@@ -26,8 +26,8 @@ test('pins lifecycle mutations and release to the qualified Terraform runtime', 
     const { plan } = lifecyclePlan(operation);
     for (const includeMutation of [true, false]) {
       const deployment = await azureTerraformLifecycleDeployment(plan, 1, includeMutation);
-      expect(deployment.terraformVersion).toBe('1.16.5');
-      expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+      expect(deployment.terraformVersion).toBe('1.17.1');
+      expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.17.1');
       if (!includeMutation) expect(JSON.parse(deployment.configuration).resource).toBeUndefined();
     }
   }

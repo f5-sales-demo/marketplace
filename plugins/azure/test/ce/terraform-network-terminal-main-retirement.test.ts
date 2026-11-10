@@ -193,7 +193,7 @@ test('native terminal main orchestration freezes custody and resumes after perma
       originalRecords.set(name, await original.storage.read(name));
     const driver = await terraformNetworkSerialPowerFixture(
       true,
-      async (request) => lineageCleanupEvidence(request, '1.16.5'),
+      async (request) => lineageCleanupEvidence(request, '1.17.1'),
       {
         plan: network,
         inventory,

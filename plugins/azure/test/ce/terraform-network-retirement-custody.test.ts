@@ -35,7 +35,7 @@ async function fixture(ha = false, mode: 'completed' | 'source-only' | 'delayed-
       ? async () => {
           throw Error('synthetic independent child cleanup delayed');
         }
-      : async (request) => evidence(request, '1.16.5'),
+      : async (request) => evidence(request, '1.17.1'),
     seed,
   );
   if (mode === 'source-only') {

@@ -30,7 +30,7 @@ export async function terraformNetworkBoundReplacementFixture(
   let f =
     seed?.driver ??
     (nativePower
-      ? await terraformNetworkSerialPowerFixture(ha, async (request) => lineageCleanupEvidence(request, '1.16.5'), {
+      ? await terraformNetworkSerialPowerFixture(ha, async (request) => lineageCleanupEvidence(request, '1.17.1'), {
           plan: network,
           inventory,
           source: birth.source,

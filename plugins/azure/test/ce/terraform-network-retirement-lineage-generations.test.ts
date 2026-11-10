@@ -106,7 +106,7 @@ test('independently authentic staged forks cannot authorize each other shared-ma
     const seed = { ...f.seed, plan: fork, inventory: before, source: f.histories[0].finalSource, store: f.first.store };
     const driver = await terraformNetworkSerialPowerFixture(
       false,
-      async (request) => lineageCleanupEvidence(request, '1.16.5'),
+      async (request) => lineageCleanupEvidence(request, '1.17.1'),
       seed,
     );
     await driver.run(controller.signal);

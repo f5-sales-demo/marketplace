@@ -33,8 +33,8 @@ it('pins foundation and current workspaces to the qualified Terraform runtime', 
     await azureTerraformFoundationDeployment(plan()),
     await azureTerraformCurrentDeployment(plan()),
   ]) {
-    expect(deployment.terraformVersion).toBe('1.16.5');
-    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+    expect(deployment.terraformVersion).toBe('1.17.1');
+    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.17.1');
   }
 });
 

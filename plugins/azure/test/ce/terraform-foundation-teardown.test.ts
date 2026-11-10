@@ -38,7 +38,7 @@ afterEach(async () => {
 });
 const hash = (v: string) => createHash('sha256').update(v).digest('hex');
 const contract = { fingerprint: `sha256:${'b'.repeat(64)}` } as VerifiedIngressContract;
-async function fixture(version = '1.16.5') {
+async function fixture(version = '1.17.1') {
   const plan = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
   const root = await mkdtemp(join(tmpdir(), 'azure-foundation-retirement-'));
   directories.push(root);
@@ -699,7 +699,7 @@ test('public Azure preparation rejects a foreign initialization intent before pl
   const f = await fixture();
   const partial = await interruptedFoundation(f);
   const record = JSON.parse(await readFile(partial.intentPath, 'utf8'));
-  record.manifest.scope.account = 'foreign-example-account';
+  record.manifest.scope.account = 'example-foreign-account';
   await writeFile(partial.intentPath, JSON.stringify(record), { mode: 0o600 });
   await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
   expect(f.observations()).toBe(0);

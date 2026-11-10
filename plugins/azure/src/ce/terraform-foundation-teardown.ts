@@ -13,7 +13,7 @@ import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { runAzureTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
-import { azureTerraformFoundationDeployment } from './terraform-foundation';
+import { AZURE_CE_TERRAFORM_VERSION, azureTerraformFoundationDeployment } from './terraform-foundation';
 import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -48,7 +48,8 @@ export interface AzureFoundationTeardownPlan {
 }
 async function deployment(base: AzureCePlan, version: string): Promise<Deployment> {
   // Historical 1.16.1 is admitted only for retirement of its exact frozen foundation.
-  if (!['1.16.1', '1.16.5'].includes(version)) throw Error('Azure foundation retirement runtime is unqualified');
+  if (!['1.16.1', '1.16.5', AZURE_CE_TERRAFORM_VERSION].includes(version))
+    throw Error('Azure foundation retirement runtime is unqualified');
   const value = await azureTerraformFoundationDeployment(base);
   const config = JSON.parse(value.configuration);
   config.terraform.required_version = `= ${version}`;

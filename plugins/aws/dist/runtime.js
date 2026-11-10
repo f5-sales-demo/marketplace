@@ -3476,6 +3476,9 @@ var init_create_recovery = __esm(() => {
   };
 });
 
+// plugins/terraform/src/ce-execution-contract.ts
+var CE_TERRAFORM_VERSION = '1.17.1';
+
 // plugins/aws/src/ce/execution-contract.ts
 function assertAwsDeploymentCompilerOperation(intent) {
   if (intent.operation === 'start' || intent.operation === 'stop')
@@ -3483,9 +3486,12 @@ function assertAwsDeploymentCompilerOperation(intent) {
       `Whole-site ${intent.operation} requires aws_ce_power with the exact original deployment and saved power plan; the deployment compiler lacks immutable service and maintenance bindings`,
     );
 }
-var AWS_CE_TERRAFORM_VERSION = '1.16.5',
+var AWS_CE_TERRAFORM_VERSION,
   AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0',
   AWS_CE_PROVIDER_LOCK_SHA256 = 'b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843';
+var init_execution_contract = __esm(() => {
+  AWS_CE_TERRAFORM_VERSION = CE_TERRAFORM_VERSION;
+});
 
 // plugins/aws/src/ce/ingress-settings.ts
 function nlbSettings(intent) {
@@ -6194,6 +6200,7 @@ var init_planner = __esm(() => {
   init_provider_lock();
   init_canonical();
   init_create_recovery();
+  init_execution_contract();
   init_interface_addressing();
   init_static_routing();
   init_transport_routes();
@@ -10567,6 +10574,7 @@ var init_apply = __esm(() => {
   init_create_recovery();
   init_delete_recovery();
   init_discovery();
+  init_execution_contract();
   init_interface_addressing();
   init_native_routing_checkpoint();
   init_native_site_replacement();
@@ -11258,8 +11266,10 @@ async function awsTerraformFoundationDeployment(plan, bootstrapByNode = {}, plac
 var ref = (address) => `\${${address}}`,
   literal2;
 var init_terraform_foundation = __esm(() => {
+  init_execution_contract();
   init_interface_addressing();
   init_static_routing();
+  init_execution_contract();
   init_artifacts();
   init_planner();
   init_terraform_brownfield_placement();
@@ -20034,6 +20044,7 @@ var hash9 = (value) => createHash18('sha256').update(value).digest('hex');
 var init_terraform_direct_power = __esm(() => {
   init_artifacts();
   init_canonical();
+  init_execution_contract();
 });
 
 // plugins/aws/src/ce/terraform-static-power.ts
@@ -20178,6 +20189,7 @@ var hash10 = (value) => createHash19('sha256').update(value).digest('hex');
 var init_terraform_static_power = __esm(() => {
   init_artifacts();
   init_canonical();
+  init_execution_contract();
 });
 
 // plugins/aws/src/ce/terraform-whole-site-power.ts
@@ -20312,6 +20324,7 @@ var object29 = (v) => {
   digest4 = (s) => createHash20('sha256').update(s).digest('hex');
 var init_terraform_whole_site_power = __esm(() => {
   init_canonical();
+  init_execution_contract();
   init_whole_site_power();
 });
 
@@ -20598,6 +20611,7 @@ var hash11 = (v) => createHash21('sha256').update(v).digest('hex');
 var init_whole_site_power_services = __esm(() => {
   init_artifacts();
   init_canonical();
+  init_execution_contract();
 });
 
 // plugins/aws/src/ce/terraform-power-retirement.ts
@@ -21114,6 +21128,7 @@ var object31 = (v) => {
 var init_terraform_power_retirement = __esm(() => {
   init_bgp_power_controller();
   init_canonical();
+  init_execution_contract();
   init_terraform_direct_power();
   init_terraform_static_power();
   init_terraform_whole_site_power();

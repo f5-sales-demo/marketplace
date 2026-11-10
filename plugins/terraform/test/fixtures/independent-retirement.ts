@@ -22,7 +22,7 @@ export function independentRetirementFixture(
     terraformExecutablePathSha256: 'a'.repeat(64),
     interpreterSha256: 'a'.repeat(64),
     workerSha256: 'a'.repeat(64),
-    terraformVersion: '1.16.5',
+    terraformVersion: '1.17.1',
     stateJsonSha256: 'a'.repeat(64),
     originalPlanJsonSha256: 'a'.repeat(64),
     refreshedPlanSha256: 'a'.repeat(64),

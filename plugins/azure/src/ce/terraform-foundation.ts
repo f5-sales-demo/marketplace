@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { CE_TERRAFORM_VERSION } from '../../../terraform/src/ce-execution-contract';
 import type { Deployment } from '../../../terraform/src/runner';
 import { assertAzureCeRoutingExecutable } from './apply';
 import { verifyAzureCePlan } from './artifacts';
@@ -8,7 +9,7 @@ import { renderAzureRelayTerraformResources } from './relay-terraform';
 import type { AzureCePlan } from './types';
 import { AZURE_CE_WORKLOAD_FIXTURE_IMAGE, AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE } from './workload-fixture';
 
-export const AZURE_CE_TERRAFORM_VERSION = '1.16.5';
+export const AZURE_CE_TERRAFORM_VERSION = CE_TERRAFORM_VERSION;
 export const AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0';
 export const AZURE_CE_TLS_PROVIDER_VERSION = '4.4.0';
 export const AZURE_CE_AZAPI_PROVIDER_VERSION = '2.12.0';

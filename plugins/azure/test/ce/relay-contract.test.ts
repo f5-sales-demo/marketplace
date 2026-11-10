@@ -877,7 +877,7 @@ test('Terraform relay foundation keeps CE admission and two relay peers with no 
       expect(config.output.ce_relay_instances.value[key].os_disk_id).toBe(relay.osDiskId);
     }
     expect(config.output.ce_route_server_peers.value).toEqual({});
-    expect(config.terraform.required_version).toBe('= 1.16.5');
+    expect(config.terraform.required_version).toBe('= 1.17.1');
   }
 });
 

@@ -3383,6 +3383,9 @@ var XCSH_PROVIDER_VERSION = '15.12.1',
   XCSH_PROVIDER_LOCK_SHA256 = '6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782';
 var init_provider_lock = () => {};
 
+// plugins/terraform/src/ce-execution-contract.ts
+var CE_TERRAFORM_VERSION = '1.17.1';
+
 // plugins/azure/src/ce/apply.ts
 function assertObservationFresh(plan, current, expectedFingerprint = plan.observationFingerprint) {
   const fingerprint = fingerprintCurrentObservation(plan, current);
@@ -4414,7 +4417,7 @@ async function azureTerraformCurrentDeployment(plan) {
     backendIdentity: `local:${plan.deploymentName}`,
   };
 }
-var AZURE_CE_TERRAFORM_VERSION = '1.16.5',
+var AZURE_CE_TERRAFORM_VERSION,
   AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0',
   AZURE_CE_TLS_PROVIDER_VERSION = '4.4.0',
   AZURE_CE_AZAPI_PROVIDER_VERSION = '2.12.0',
@@ -4427,6 +4430,7 @@ var init_terraform_foundation = __esm(() => {
   init_relay_plan();
   init_relay_terraform();
   init_workload_fixture();
+  AZURE_CE_TERRAFORM_VERSION = CE_TERRAFORM_VERSION;
 });
 
 // plugins/azure/src/ce/terraform-upgrade.ts
@@ -48607,7 +48611,8 @@ async function optional19(store, name) {
   }
 }
 async function deployment(base, version) {
-  if (!['1.16.1', '1.16.5'].includes(version)) throw Error('Azure foundation retirement runtime is unqualified');
+  if (!['1.16.1', '1.16.5', AZURE_CE_TERRAFORM_VERSION].includes(version))
+    throw Error('Azure foundation retirement runtime is unqualified');
   const value = await azureTerraformFoundationDeployment(base);
   const config = JSON.parse(value.configuration);
   config.terraform.required_version = `= ${version}`;

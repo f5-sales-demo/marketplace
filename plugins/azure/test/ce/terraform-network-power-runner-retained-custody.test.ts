@@ -63,7 +63,7 @@ for (const damage of [
   'missing-publication',
 ]) {
   test(`completed child custody rejects ${damage} after initial authenticated inspection`, async () => {
-    const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+    const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
     expect((await f.run()).status).toBe('complete');
     const open = f.terraform.open;
     let changed = false;
@@ -119,7 +119,7 @@ for (const damage of [
   }, 120000);
 }
 test('unpublished completed retirement remains partial rather than using completed byte shortcut', async () => {
-  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.16.5'));
+  const f = await terraformNetworkSerialPowerFixture(false, async (request) => evidence(request, '1.17.1'));
   expect((await f.run()).status).toBe('complete');
   const identity = canonicalSha256({ planSha256: f.plan.planSha256, node: 1, operation: 'deallocate' }).slice(0, 24);
   await rm(join(f.store.directory, `azure-power-completed-retirement-${identity}-retired.json`));
@@ -138,7 +138,7 @@ test('unpublished completed retirement remains partial rather than using complet
 }, 120000);
 
 test('all six completed retired children qualify without commands inside existing inspection deadline', async () => {
-  const f = await terraformNetworkSerialPowerFixture(true, async (request) => evidence(request, '1.16.5'));
+  const f = await terraformNetworkSerialPowerFixture(true, async (request) => evidence(request, '1.17.1'));
   expect((await f.run()).status).toBe('complete');
   const commands = [...f.commands],
     actions = [...f.vmPowerActions];

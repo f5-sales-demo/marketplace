@@ -34,7 +34,7 @@ export async function terraformNetworkLineageFixture(ha = false, generations = 2
   };
   const firstDriver = await terraformNetworkSerialPowerFixture(
     ha,
-    async (request) => lineageCleanupEvidence(request, '1.16.5'),
+    async (request) => lineageCleanupEvidence(request, '1.17.1'),
     seed,
   );
   await firstDriver.run(signal);
@@ -69,7 +69,7 @@ export async function terraformNetworkLineageFixture(ha = false, generations = 2
     const nextSeed = { ...seed, plan: next, inventory, source: history.finalSource, store: first.store };
     const driver = await terraformNetworkSerialPowerFixture(
       ha,
-      async (request) => lineageCleanupEvidence(request, '1.16.5'),
+      async (request) => lineageCleanupEvidence(request, '1.17.1'),
       nextSeed,
     );
     await driver.run(signal);

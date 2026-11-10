@@ -285,15 +285,15 @@ function terraformIntegration(pi) {
 // plugins/terraform/src/f5-resources.ts
 // plugins/terraform/src/f5-cancellation.ts
 // plugins/terraform/src/f5-retirement.ts
-// plugins/terraform/src/provider-lock.ts
-import {
-  createHash,
-  createHash as createHash2,
-  createHash as createHash3,
-  createHash as createHash4,
-} from 'node:crypto';
-import { readFile as readFile2 } from 'node:fs/promises';
+import { createHash as createHash2, createHash as createHash3, createHash as createHash4 } from 'node:crypto';
 import { join as join2, join as join3, join as join4 } from 'node:path';
+
+// plugins/terraform/src/ce-execution-contract.ts
+var CE_TERRAFORM_VERSION = '1.17.1';
+
+// plugins/terraform/src/provider-lock.ts
+import { createHash } from 'node:crypto';
+import { readFile as readFile2 } from 'node:fs/promises';
 
 var XCSH_PROVIDER_VERSION = '15.12.1';
 var XCSH_PROVIDER_LOCK_SHA256 = '6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782';
@@ -334,10 +334,10 @@ async function f5StageDeployment(owner) {
     stage: 'f5-resources',
     engine: 'terraform',
     scope: { cloud: owner.provider, account: owner.account, region: owner.region },
-    terraformVersion: '1.16.5',
+    terraformVersion: CE_TERRAFORM_VERSION,
     configuration: JSON.stringify({
       terraform: {
-        required_version: '= 1.16.5',
+        required_version: `= ${CE_TERRAFORM_VERSION}`,
         required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
       },
       provider: { xcsh: {} },

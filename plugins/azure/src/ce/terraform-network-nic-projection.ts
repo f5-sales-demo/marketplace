@@ -7,7 +7,7 @@ import {
 } from './network-update-terraform';
 import type { AzureCePlan } from './types';
 
-// Qualified against the installed Terraform 1.16.5 / AzureRM 5.4.0 schema.
+// Qualified against the installed Terraform 1.17.1 / AzureRM 5.4.0 schema.
 // A lock/schema change needs fresh qualification before this mapping may execute.
 export const AZURE_TERRAFORM_NETWORK_NIC_LOCK_SHA256 =
   '901676ec098461ba0766d62124a4b011ae29e8554dda8c5be71371b1a0684b1b';
