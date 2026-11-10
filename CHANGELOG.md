@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.56** uses a documented synthetic project identifier in
+  the audit ownership rejection fixture and preserves privacy enforcement (#1559).
+
 - **`terraform` 2.4.55** adds bounded scoped insert audit reads and rejects
   duplicate authentication and VM identity fields; cleanup verification resumes
   from an applied destroy checkpoint without permitting another apply (#1559).

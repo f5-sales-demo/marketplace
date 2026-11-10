@@ -407,7 +407,10 @@ test('foreign, replayed, malformed or incomplete audit results retain raw bytes 
       entries: [
         {
           ...auditEntry(),
-          resource: { ...auditEntry().resource, labels: { project_id: 'foreign-project', zone: 'us-central1-a' } },
+          resource: {
+            ...auditEntry().resource,
+            labels: { project_id: 'example-foreign-project', zone: 'us-central1-a' },
+          },
         },
       ],
     },
