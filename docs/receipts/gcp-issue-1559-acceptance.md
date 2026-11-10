@@ -1320,3 +1320,15 @@ and three native typechecks/builds pass. Compiled native HTTP source reads retai
 two scoped responses with zero mutations. Full bootstrap qualification remains
 false until positive live mapping and original VM joins pass. Full capture,
 expiry, native/Terraform lifecycle, installed runtime and delivery remain open.
+
+Attempt 434 qualifies [latest Google 8.11 artifacts and original source read](gcp-google811-source-20261110.md).
+Authenticated Linux/Darwin archives, standard init/lock/validate/schema, new
+versioned default and historical profile preservation pass. The reader binds both
+Terraform and Google executable hashes instead of selecting a Google family from
+Terraform alone. The initial 8.11 request-reason refusal preceded executor startup;
+its evidence remains. Schema-qualified mapping and a changed source campaign
+passed with 9,744 records, original provider/RPC/FIFO joins across two windows,
+typed teardown, empty destroy, two non-submitting resumes and 28 independent
+group absences. No managed cloud resource changed. Full managed insert,
+bootstrap/default capture, actual expiry, native/Terraform live acceptance and
+delivery remain open.

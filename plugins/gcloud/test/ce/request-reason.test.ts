@@ -79,3 +79,13 @@ test('changed scope, reason schema, unknown fields, malformed IDs and unsupporte
   native.engine = 'native';
   expect(() => createGcpTerraformRequestReason(native)).toThrow();
 });
+
+test('Google8.11 request-reason emits the exact schema-qualified original header and leaves older mappings unchanged', () => {
+  const i = scoped(),
+    reason = createGcpTerraformRequestReason(i);
+  expect(translateGcpTerraformCompute(i, '8.11.0', reason).configuration.provider.google).toEqual([
+    { project: i.project, region: i.region, request_reason: reason.reason },
+  ]);
+  for (const version of ['8.7.0', '8.10.0']) assertGcpTerraformRequestReason(reason, i, version);
+  expect(() => assertGcpTerraformRequestReason(reason, i, '8.12.0')).toThrow();
+});

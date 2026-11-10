@@ -26,7 +26,7 @@ export const GCP_PREVIOUS_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'
   expectedLockSha256: 'sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
 };
 
-export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined = {
+export const GCP_GOOGLE810_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined = {
   configurationVersion: 2,
   versions: { terraform: '1.17.1', google: '8.10.0', xcsh: '15.15.7' },
   providerLock:
@@ -34,9 +34,19 @@ export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> 
   expectedLockSha256: 'sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
 };
 
+/** Authenticated Google8.11 packages; process and live mapping gates remain separate. */
+export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined = {
+  configurationVersion: 2,
+  versions: { terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' },
+  providerLock:
+    '# This file is maintained automatically by "terraform init".\n# Manual edits may be lost in future updates.\n\nprovider "registry.terraform.io/f5-sales-demo/xcsh" {\n  version     = "15.15.7"\n  constraints = "15.15.7"\n  hashes = [\n    "h1:ZzVyH47TI2iuDchgBC8rfK1mERE5Zx1OZd92/GfwxdY=",\n    "h1:me9KdbvJMPVojT5jh/skY9pCpbLxfl6qGQPUeykbr5c=",\n    "zh:1d5d72740ffda5b14fd92b51c5078bd2d7f48eff71e876e34c2d6c73fdf7f3ca",\n    "zh:2581a16c4f4997818f23e02336e730cfe005e7b935c5236490fea4bec27afe37",\n    "zh:2d20771e496cd467ee684d43b4ed10fb7844c5c8de1562def63e02ce20890b79",\n    "zh:632fbf84bc600b3657d2fa0a0cf6cef9511d0b8a219ed4a6e8b5be8acfb40a63",\n    "zh:6402187ed75dbb5c010405617a4cbe62a1146c2604859144e9779004dcfd023c",\n    "zh:71d6e5d3855d382f30f76a74bb392d97f483e1758feb56da374ae22ceeeeb726",\n    "zh:87df39d0a5db723c36cfcb57c6f6e3df18aaca0e8a555a541abe4714883b72c1",\n    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",\n    "zh:c14d573d0659a32c56a93746b0d7da121b40b2d0c46a86a4c1b5dea50b002845",\n    "zh:cf70fee6a41250ac91aff9d9f3b56b0b332952f3037c1651959151f085c559fa",\n    "zh:f4c3d62299b5ddd49937f9bcd31adea4a2ac00988c1db7a670102957c24fa6f3",\n  ]\n}\n\nprovider "registry.terraform.io/hashicorp/google" {\n  version     = "8.11.0"\n  constraints = "8.11.0"\n  hashes = [\n    "h1:R1e8efd3fnpQeN17HzPLfvFAvBv4qTsQEVEEHDa+QXE=",\n    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",\n    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",\n    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",\n    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",\n    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",\n    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",\n    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",\n    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",\n    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",\n    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",\n    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",\n    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",\n    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",\n  ]\n}\n',
+  expectedLockSha256: 'sha256:c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+};
+
 const packagedProfiles = [
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
+  GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
 ].filter((profile): profile is Omit<GcpTerraformInputs, 'intent'> => profile !== undefined);
 Object.freeze(packagedProfiles);

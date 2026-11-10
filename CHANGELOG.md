@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud` 1.7.42 / `terraform` 2.4.70** select authenticated Google 8.11.0
+  artifacts and explicit binary-bound reader profiles while preserving historical
+  provider locks and refusing ambiguous provider-family selection.
+
 - **`gcloud` 1.7.41 / `platform` 6.3.17 / `terraform` 2.4.69** retain original
   private bootstrap HTTP bodies and partial captures with exact site/token scopes
   and shared strict JSON identity checks; full GCP capture qualification remains open.
@@ -236,7 +240,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.41 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.42 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Resize candidates reject non-integer and non-finite

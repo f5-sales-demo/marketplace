@@ -302,7 +302,7 @@ var gcp_capture_source_pins_default = {
     'guest_pty.py': '274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3',
     'gcp_guest_session.py': 'babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786',
     'gcp_provider_process.py': 'fc797026ec40b36316cd1f3984103b65d90303e5782af449d0ab8e9084dd5431',
-    'gcp_provider_reader.py': '90b731da556eff39ac3a844af7c136c6c8905abdc7aa3c09205ababe153b259e',
+    'gcp_provider_reader.py': '3cf397d812f84cd6383b8aa73cc0d6803ca8d270cb80e37faff9776c32a559b5',
   },
 };
 
@@ -1194,6 +1194,15 @@ var installed_runtime_pins_default = {
 
 // plugins/terraform/src/installed-version-profile.ts
 var profiles = [
+  {
+    terraformVersion: '1.17.1',
+    googleVersion: '8.11.0',
+    xcshVersion: '15.15.7',
+    providerLockSha256: 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+    terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+    googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+    xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+  },
   {
     terraformVersion: '1.17.1',
     googleVersion: '8.10.0',

@@ -419,3 +419,30 @@ class ProviderProcessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+def test_google811_reader_pins_preserve_google810_and_legacy():
+    """A new authenticated executable pair cannot rewrite a historical cohort."""
+    current = {
+        "bootstrap": reader.PINS["bootstrap"],
+        "terraform": "1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc",
+        "provider": "f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5",
+    }
+    assert (
+        reader.select_provider_pins(
+            {key: {"sha256": value} for key, value in current.items()}
+        )
+        == current
+    )
+    assert (
+        reader.select_provider_pins(
+            {key: {"sha256": value} for key, value in reader.LATEST_PINS.items()}
+        )
+        == reader.LATEST_PINS
+    )
+    assert (
+        reader.select_provider_pins(
+            {key: {"sha256": value} for key, value in reader.PINS.items()}
+        )
+        == reader.PINS
+    )

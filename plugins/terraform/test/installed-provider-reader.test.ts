@@ -18,14 +18,17 @@ afterEach(async () => {
 const parent = { pid: 1234, group: 1234, start: '100', boot: '00000000-0000-4000-8000-000000000001' };
 const sdk = { pid: 2345, group: 2345, start: '101', boot: parent.boot };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-async function fixture(latest = false) {
+async function fixture(latest: boolean | '811' = false) {
   const terraformHash = latest
     ? '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc'
     : pins.terraformSha256;
-  const googleHash = latest
-    ? 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9'
-    : pins.googleProviderSha256;
-  const googleVersion = latest ? '8.10.0' : '8.7.0';
+  const googleHash =
+    latest === '811'
+      ? 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5'
+      : latest
+        ? 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9'
+        : pins.googleProviderSha256;
+  const googleVersion = latest === '811' ? '8.11.0' : latest ? '8.10.0' : '8.7.0';
 
   const root = await mkdtemp(join(tmpdir(), 'ce-installed-provider-'));
   roots.push(root);
@@ -532,4 +535,21 @@ test('version4 rejects wrong policy, unqualified boundary times and empty observ
     run.releaseWindow();
     await expect(pending.complete).rejects.toThrow();
   }
+});
+
+test('Google8.11 reader selects its original provider hash and fixed version4 window', async () => {
+  const run = await fixture('811');
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const pending = reader.startStderrWindow();
+  const ready = await pending.ready;
+  run.releaseWindow();
+  const result = await pending.complete;
+  expect(ready.schemaVersion).toBe(4);
+  expect(result.schemaVersion).toBe(4);
+  expect(result.observations[0].candidate.executable_sha256).toBe(
+    'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+  );
 });

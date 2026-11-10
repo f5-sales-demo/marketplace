@@ -147,8 +147,16 @@ export async function openInstalledProviderReader(
     args: Object.freeze([...input.args]),
   });
   const inputs = freezeAdmittedCaptureInputs(context.inputs);
-  const versionProfile = resolveInstalledGcpExecutableProfile(inputs.terraform?.sha256 ?? '');
-  const windowVersion = versionProfile.googleVersion === '8.10.0' ? 4 : 3;
+  const providers = await context.readProviderInputs();
+  const googleBindings = Object.entries(providers).filter(([name]) =>
+    /^registry\.terraform\.io\/hashicorp\/google:terraform-provider-google_v\d+\.\d+\.\d+_x5$/.test(name),
+  );
+  if (googleBindings.length !== 1) throw new Error('One original Google provider executable binding required');
+  const versionProfile = resolveInstalledGcpExecutableProfile(
+    inputs.terraform?.sha256 ?? '',
+    googleBindings[0][1].sha256,
+  );
+  const windowVersion = ['8.10.0', '8.11.0'].includes(versionProfile.googleVersion) ? 4 : 3;
   const windowKind =
     windowVersion === 4 ? 'original-provider-stderr-verified-window' : 'original-provider-stderr-coherent-window';
   const script = inputs['script:gcp_provider_reader.py'];
@@ -163,7 +171,6 @@ export async function openInstalledProviderReader(
     inputs.terraform?.sha256 !== versionProfile.terraformSha256
   )
     throw new Error('All original installed provider reader sources and executable pins required');
-  const providers = await context.readProviderInputs();
   const google =
     providers[`registry.terraform.io/hashicorp/google:terraform-provider-google_v${versionProfile.googleVersion}_x5`];
   if (!google || google.sha256 !== versionProfile.googleProviderSha256 || Object.keys(providers).length !== 6)

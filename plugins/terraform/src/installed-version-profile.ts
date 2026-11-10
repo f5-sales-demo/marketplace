@@ -2,6 +2,15 @@
 const profiles = [
   {
     terraformVersion: '1.17.1',
+    googleVersion: '8.11.0',
+    xcshVersion: '15.15.7',
+    providerLockSha256: 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+    terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+    googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+    xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+  },
+  {
+    terraformVersion: '1.17.1',
     googleVersion: '8.10.0',
     xcshVersion: '15.15.7',
     providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
@@ -45,8 +54,19 @@ export function resolveInstalledGcpVersionProfile(input: InstalledGcpVersionBind
   return profile;
 }
 
-export function resolveInstalledGcpExecutableProfile(terraformSha256: string): InstalledGcpVersionProfile {
-  const profile = profiles.find((value) => value.terraformSha256 === terraformSha256);
-  if (!profile) throw new Error('Original admitted Terraform executable profile required');
-  return profile;
+export function resolveInstalledGcpExecutableProfile(
+  terraformSha256: string,
+  googleProviderSha256?: string,
+): InstalledGcpVersionProfile {
+  const matching = profiles.filter(
+    (profile) =>
+      profile.terraformSha256 === terraformSha256 &&
+      (googleProviderSha256 === undefined || profile.googleProviderSha256 === googleProviderSha256),
+  );
+  const families = new Set(
+    matching.map((profile) => JSON.stringify([profile.googleVersion, profile.googleProviderSha256])),
+  );
+  if (!matching.length || families.size !== 1)
+    throw new Error('Original admitted Terraform and Google executable profile required; ambiguous provider family');
+  return matching[0];
 }

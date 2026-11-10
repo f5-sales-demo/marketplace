@@ -40,7 +40,7 @@ export function assertGcpTerraformRequestReason(
     reason.scope !== 'gcp-terraform-deployment' ||
     intent.engine !== 'terraform' ||
     intent.operation !== 'deploy' ||
-    !['8.7.0', '8.10.0'].includes(googleVersion) ||
+    !['8.7.0', '8.10.0', '8.11.0'].includes(googleVersion) ||
     reason.intentFingerprint !== fingerprint(intent) ||
     typeof reason.reason !== 'string' ||
     !reasonPattern.test(reason.reason)

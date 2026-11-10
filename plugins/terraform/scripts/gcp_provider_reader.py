@@ -48,9 +48,15 @@ LATEST_PINS = {
 }
 
 
+GOOGLE811_PINS = {
+    **LATEST_PINS,
+    "provider": "f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5",
+}
+
+
 def select_provider_pins(executables: dict[str, dict[str, str]]) -> dict[str, str]:
     """Select the exact admitted pair; never migrate an original reader request."""
-    for profile in (PINS, LATEST_PINS):
+    for profile in (PINS, LATEST_PINS, GOOGLE811_PINS):
         if all(
             executables.get(role, {}).get("sha256") == digest
             for role, digest in profile.items()

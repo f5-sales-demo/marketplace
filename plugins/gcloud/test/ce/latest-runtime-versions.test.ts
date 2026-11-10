@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+  GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
@@ -9,7 +10,7 @@ import {
 test('new GCP deployments select the currently verified latest stable Terraform and providers', () => {
   expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).toEqual({
     terraform: '1.17.1',
-    google: '8.10.0',
+    google: '8.11.0',
     xcsh: '15.15.7',
   });
 });
@@ -39,4 +40,13 @@ test('prior current profile retains its original versions and lock bytes after a
   expect(prior.expectedLockSha256).toBe('sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034');
   expect(resolveGcpTerraformArtifacts(structuredClone(prior))).toBe(prior);
   expect(prior).not.toBe(GCP_PUBLIC_TERRAFORM_ARTIFACTS);
+});
+
+test('Google8.10 stored profile remains byte-identical after the new default', () => {
+  const previous = GCP_GOOGLE810_TERRAFORM_ARTIFACTS;
+  if (!previous) throw new Error('Original Google8.10 profile required');
+  expect(previous.versions).toEqual({ terraform: '1.17.1', google: '8.10.0', xcsh: '15.15.7' });
+  expect(previous.expectedLockSha256).toBe('sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0');
+  expect(resolveGcpTerraformArtifacts(structuredClone(previous))).toBe(previous);
+  expect(previous).not.toBe(GCP_PUBLIC_TERRAFORM_ARTIFACTS);
 });
