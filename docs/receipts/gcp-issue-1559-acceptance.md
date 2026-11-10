@@ -1133,3 +1133,16 @@ non-submitting resumes and 26 independent group absences pass without cloud
 mutations. Original provider process and stderr pipe corroboration,
 managed action/create/request/audit/incarnation joins, full capture and every
 subsequent acceptance gate remain open. Qualification flags remain false.
+
+Attempt 413 qualifies [original provider stderr FIFO corroboration](gcp-original-provider-stderr-pipe-20261110.md).
+Six new real-process cases and fifteen existing process/reader cases pass;
+the shared suite passes 1,036 tests and all three native typechecks pass.
+A fresh standard-runner observer captures distinct original schema/execution
+provider FIFOs and joins the exact read provider to lifecycle/HTTP evidence.
+No-change planning, typed teardown, stable empty state, two non-submitting
+resumes and 27 independent group absences pass without cloud mutations.
+A pre-apply download failure retains its receipt and independent two-group
+closure; the replacement selects the task temporary directory before admission.
+Root disk pressure remains an operational repair requirement. Installed reader
+and full controller integration, managed action/request/audit/incarnation joins
+and every subsequent acceptance gate remain open. Authorization flags stay false.

@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.53** corroborates original Google provider stderr FIFO ownership
+  through kernel and SDK witnesses while retaining managed-action and installed capture holds (#1559).
+
 - **`terraform` 2.4.52** binds serialized Google provider lifecycle candidates to
   original RPC record hashes while retaining independent process and insert admission holds (#1559).
 

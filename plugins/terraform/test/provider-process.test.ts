@@ -23,6 +23,7 @@ test.skipIf(process.platform !== 'linux')(
         '-o',
         `pythonpath=${resolve(import.meta.dir, '../../..')}`,
         resolve(import.meta.dir, '../../../tests/test_gcp_provider_process.py'),
+        resolve(import.meta.dir, '../../../tests/test_gcp_provider_stderr_pipe.py'),
       ],
       { stdin: 'ignore', stdout: stdout.fd, stderr: stderr.fd, env: { ...process.env } },
     );
