@@ -819,3 +819,103 @@ def test_verified_window_fixed_command_budget_and_changed_inputs_still_refuse(or
             pause=pause,
             coherent=reader.WindowSamplingPolicy(True, True),
         )
+
+
+def test_denied_descriptor_preserves_original_error_and_unqualified_later_snapshot(
+    original,
+):
+    """A later readable stat cannot qualify the denied descriptor or actor."""
+    monitor, _, row, root = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    attempts = []
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            attempts.append(path)
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        with pytest.raises(PermissionError) as captured:
+            monitor.acquire_stderr()
+    assert captured.value.__cause__ is failure
+    assert attempts == [denied]
+    receipts = [json.loads(p.read_text()) for p in root.glob("failure-*.private.json")]
+    snapshot = receipts[-1]["descriptorAccessFailure"]
+    assert snapshot["pid"] == row["child"]
+    assert snapshot["descriptor"] == 2
+    assert snapshot["errno"] == 13
+    assert snapshot["filename"] == str(denied)
+    assert snapshot["stateAtDenial"] == "unknown"
+    assert snapshot["actorStatAfterFailure"].startswith(str(row["child"]) + " ")
+    assert snapshot["readStartedMs"] <= snapshot["deniedObservedMs"]
+    assert snapshot["deniedObservedMs"] <= snapshot["diagnosticsCompletedMs"]
+    assert not snapshot["identityQualified"]
+    assert not receipts[-1]["applyPhaseQualified"]
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_denied_descriptor_never_adopts_replacement_during_diagnostics(original):
+    """An original PID lost after denial remains unavailable in later evidence."""
+    monitor, command, row, root = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    replacement = []
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            replacement.append(command("replace")["child"])
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        with pytest.raises(PermissionError):
+            monitor.acquire_stderr()
+    receipts = [json.loads(p.read_text()) for p in root.glob("failure-*.private.json")]
+    snapshot = receipts[-1]["descriptorAccessFailure"]
+    assert snapshot["pid"] == row["child"]
+    assert replacement[0] != snapshot["pid"]
+    assert snapshot["actorStatAfterFailure"] is None
+    assert snapshot["actorStatAfterFailureErrorType"] == "FileNotFoundError"
+    assert snapshot["stateAtDenial"] == "unknown"
+    assert not monitor.admitted
+
+
+def test_denied_descriptor_and_persistence_errors_both_survive(original):
+    """Failure to save diagnostics cannot replace the original denied read."""
+    monitor, _, row, _ = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    persistence = OSError("fixture diagnostic persistence failed")
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    def unavailable(_path, value):
+        if value.get("descriptorAccessFailure"):
+            raise persistence
+
+    persist = module.record
+
+    def guarded(path, value):
+        unavailable(path, value)
+        return persist(path, value)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        patches.setattr(module, "record", guarded)
+        with pytest.raises(ExceptionGroup) as captured:
+            monitor.acquire_stderr()
+    assert any(error.__cause__ is failure for error in captured.value.exceptions)
+    assert persistence in captured.value.exceptions
+    assert monitor.retired
+    assert not monitor.admitted

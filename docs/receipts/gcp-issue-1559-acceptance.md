@@ -1268,3 +1268,19 @@ capture. Independent22group cleanup, empty stable state and two non-submitting
 resumes pass with failed locks preserved and zero managed cloud mutations.
 Provider lifetime/access, full capture/expiry/bootstrap and every remaining live
 and delivery gate remain open.
+
+Attempt 428 repairs [Python 3.12 fixture loading](gcp-provider-fixture-python312-20261110.md).
+The original fixture child identified missing module registration before dataclass
+execution. Fixed CI-matched Python 3.12 passes all 363 Terraform tests; Python 3.15
+passes 49 focused regressions. All 12 plugin hermetic suites pass. A new CI run
+then identified stale canonical tracker fingerprints after the version bump;
+the supported tracker update and revalidation now pass without changing coverage.
+
+Attempt 429 adds [denied descriptor diagnostics](gcp-descriptor-denial-evidence-20261110.md).
+Three failing-first tests verify error causality, later metadata attribution,
+replacement refusal and dual persistence failures. All 52 Python process/reader
+tests, 71 related Python tests and all 1,325 shared/canonical tests pass.
+Configured lint, three native typechecks and runtime builds also pass.
+The historical state at denial remains unknown; no privilege bypass or accepted
+live capture is inferred. Every remaining full capture, lifetime, expiry, live,
+runtime and delivery gate stays open.

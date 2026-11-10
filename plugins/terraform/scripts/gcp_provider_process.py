@@ -82,6 +82,40 @@ class ProviderExecutables:
     bootstrap: PinnedExecutable | None = None
 
 
+class ProviderDescriptorAccessDeniedError(PermissionError):
+    """Retain a denied read and later diagnostics without qualifying identity."""
+
+    def __init__(
+        self, pid: int, descriptor: int, error: PermissionError, started_ms: int
+    ) -> None:
+        """Keep original OS error fields and explicitly distinguish later reads."""
+        observed_ms = time.monotonic_ns() // 1000000
+        super().__init__(error.errno, error.strerror, error.filename)
+        raw = None
+        diagnostic_error = None
+        try:
+            raw = (Path("/proc") / str(pid) / "stat").read_text()
+        except OSError as unavailable:
+            diagnostic_error = type(unavailable).__name__
+        self.snapshot = MappingProxyType(
+            {
+                "pid": pid,
+                "descriptor": descriptor,
+                "errno": error.errno,
+                "filename": error.filename,
+                "readStartedMs": started_ms,
+                "deniedObservedMs": observed_ms,
+                "diagnosticsCompletedMs": time.monotonic_ns() // 1000000,
+                "actorStatAfterFailure": raw,
+                "actorStatAfterFailureErrorType": diagnostic_error,
+                "stateAtDenial": "unknown",
+                "identityQualified": False,
+                "samplingComplete": False,
+                "signalsSent": False,
+            }
+        )
+
+
 class OriginalProviderCandidates:
     """Retain all original candidates without latest-PID or replacement adoption."""
 
@@ -203,6 +237,11 @@ class OriginalProviderCandidates:
                     "kind": "provider-candidate-failure",
                     "executor": dict(self.parent),
                     "errorType": type(error).__name__,
+                    **(
+                        {"descriptorAccessFailure": dict(error.snapshot)}
+                        if isinstance(error, ProviderDescriptorAccessDeniedError)
+                        else {}
+                    ),
                     "applyPhaseQualified": False,
                     "signalsSent": False,
                 },
@@ -332,7 +371,7 @@ class OriginalProviderCandidates:
             raise
 
     @staticmethod
-    def descriptor(pid: int, descriptor: int) -> tuple[int, int, int]:
+    def _inspect_descriptor(pid: int, descriptor: int) -> tuple[int, int, int]:
         """Read kernel FIFO and fdinfo identities without consuming stream bytes."""
         root = Path("/proc") / str(pid)
         path = root / "fd" / str(descriptor)
@@ -362,6 +401,17 @@ class OriginalProviderCandidates:
         ):
             _reject("Original provider stderr changed during kernel capture")
         return (first.st_dev, first.st_ino, int(flags[0], 8))
+
+    @staticmethod
+    def descriptor(pid: int, descriptor: int) -> tuple[int, int, int]:
+        """Stop on denied inspection and retain a distinct later actor snapshot."""
+        started_ms = time.monotonic_ns() // 1000000
+        try:
+            return OriginalProviderCandidates._inspect_descriptor(pid, descriptor)
+        except PermissionError as error:
+            raise ProviderDescriptorAccessDeniedError(
+                pid, descriptor, error, started_ms
+            ) from error
 
     def inspect_pipe(
         self, candidate: ProviderCandidate, require_candidate: Callable[[], None]

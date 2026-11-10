@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.67** preserves denied descriptor evidence and later actor
+  snapshots without qualifying capture or replacing the original failure.
+
 - **`terraform` 2.4.66** fixes Python 3.12 reader fixture module registration
   and reports safe failing test names while keeping raw diagnostics private.
 
