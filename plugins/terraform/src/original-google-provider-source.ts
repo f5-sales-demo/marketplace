@@ -23,7 +23,7 @@ export async function corroborateOriginalGoogleRpcProvider(input: {
     if (
       createHash('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
       (['pid', 'group', 'start', 'boot'] as const).some((key) => source.executor[key] !== window.executor[key]) ||
-      window.schemaVersion !== 3 ||
+      ![3, 4].includes(window.schemaVersion) ||
       !window.samplingWindowComplete ||
       window.signalsSent !== false ||
       window.cloudSubmissions !== 0 ||

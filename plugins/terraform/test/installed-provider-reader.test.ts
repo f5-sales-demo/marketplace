@@ -18,7 +18,15 @@ afterEach(async () => {
 const parent = { pid: 1234, group: 1234, start: '100', boot: '00000000-0000-4000-8000-000000000001' };
 const sdk = { pid: 2345, group: 2345, start: '101', boot: parent.boot };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-async function fixture() {
+async function fixture(latest = false) {
+  const terraformHash = latest
+    ? '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc'
+    : pins.terraformSha256;
+  const googleHash = latest
+    ? 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9'
+    : pins.googleProviderSha256;
+  const googleVersion = latest ? '8.10.0' : '8.7.0';
+
   const root = await mkdtemp(join(tmpdir(), 'ce-installed-provider-'));
   roots.push(root);
   const source = await inspectInstalledCaptureScripts();
@@ -44,7 +52,7 @@ async function fixture() {
     inputs: {
       ...source,
       python: binding('/example/python', pins.pythonSha256),
-      terraform: binding('/example/terraform', pins.terraformSha256),
+      terraform: binding('/example/terraform', terraformHash),
       adc: binding(join(root, 'adc'), 'c'.repeat(64)),
       platform: binding(join(root, 'platform'), 'd'.repeat(64)),
     },
@@ -54,7 +62,7 @@ async function fixture() {
       Object.fromEntries(
         [
           'registry.terraform.io/hashicorp/google:LICENSE.txt',
-          'registry.terraform.io/hashicorp/google:terraform-provider-google_v8.7.0_x5',
+          `registry.terraform.io/hashicorp/google:terraform-provider-google_v${googleVersion}_x5`,
           'registry.terraform.io/f5-sales-demo/xcsh:CHANGELOG.md',
           'registry.terraform.io/f5-sales-demo/xcsh:LICENSE',
           'registry.terraform.io/f5-sales-demo/xcsh:README.md',
@@ -63,7 +71,7 @@ async function fixture() {
           name,
           binding(
             join(root, `provider-${index}`),
-            name.includes('terraform-provider-google') ? pins.googleProviderSha256 : 'e'.repeat(64),
+            name.includes('terraform-provider-google') ? googleHash : 'e'.repeat(64),
           ),
         ]),
       ),
@@ -135,7 +143,7 @@ async function fixture() {
           start: String(pid),
           boot: parent.boot,
           parent: parent.pid,
-          executable_sha256: pins.googleProviderSha256,
+          executable_sha256: googleHash,
         })),
         executorAvailable: true,
         executorGroupClosed: false,
@@ -143,11 +151,11 @@ async function fixture() {
         signalsSent: false,
         cloudSubmissions: 0,
       };
-      if (request.schemaVersion === 3) {
+      if (request.schemaVersion === 3 || request.schemaVersion === 4) {
         const windowStartedMs = windowClock;
         const windowDeadlineMs = Math.min(windowStartedMs + 45000, request.deadlineMs);
         const ready: Record<string, unknown> = {
-          schemaVersion: 3,
+          schemaVersion: request.schemaVersion,
           kind: 'original-provider-stderr-ready',
           requestSha256: hash(bytes),
           executor: request.executor,
@@ -171,8 +179,8 @@ async function fixture() {
         });
         await barrier;
         Object.assign(result, {
-          schemaVersion: 3,
-          kind: 'original-provider-stderr-coherent-window',
+          schemaVersion: request.schemaVersion,
+          kind: request.kind,
           windowStartedMs,
           windowDeadlineMs,
           finishedMs: prematureWindow ? now : windowDeadlineMs,
@@ -192,6 +200,8 @@ async function fixture() {
             presentAtLastSample: true,
           })),
         });
+        if (request.schemaVersion === 4)
+          Object.assign(result, { verificationPolicy: 'completed-before-window-end', boundaryAttempts: 0 });
         delete result.candidates;
       }
       mutate(result);
@@ -478,4 +488,48 @@ test('issued provider window retains its exact result file and rejects copied or
   await writeFile(replacement, evidence, { flag: 'wx', mode: 0o600 });
   await rename(replacement, window.evidencePath);
   await expect(readOriginalInstalledProviderWindow(window)).rejects.toThrow('changed');
+});
+
+test('latest provider uses version4 completed-observation windows while legacy remains version3', async () => {
+  const run = await fixture(true);
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const pending = reader.startStderrWindow();
+  const ready = await pending.ready;
+  run.releaseWindow();
+  const result = await pending.complete;
+  expect(ready.schemaVersion).toBe(4);
+  expect(result.schemaVersion).toBe(4);
+  expect(result.kind).toBe('original-provider-stderr-verified-window');
+  expect(result.verificationPolicy).toBe('completed-before-window-end');
+});
+
+test('version4 rejects wrong policy, unqualified boundary times and empty observations', async () => {
+  for (const change of [
+    (r: Record<string, unknown>) => {
+      r.verificationPolicy = 'started-before-boundary';
+    },
+    (r: Record<string, unknown>) => {
+      r.boundaryAttempts = 2;
+    },
+    (r: Record<string, unknown>) => {
+      r.observations = [];
+    },
+    (r: Record<string, unknown>) => {
+      (r.observations as Array<Record<string, unknown>>)[0].lastObservedMs = r.windowDeadlineMs;
+    },
+  ]) {
+    const run = await fixture(true);
+    run.mutate(change);
+    const reader = await openInstalledProviderReader(run.context, run.admission, {
+      executorFactory: run.factory,
+      clock: run.clock,
+    });
+    const pending = reader.startStderrWindow();
+    await pending.ready;
+    run.releaseWindow();
+    await expect(pending.complete).rejects.toThrow();
+  }
 });

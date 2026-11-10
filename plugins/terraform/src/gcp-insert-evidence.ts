@@ -345,8 +345,8 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
   )
     throw new Error('Original lifecycle RPC and insert source records differ');
   if (
-    window.schemaVersion !== 3 ||
-    window.kind !== 'original-provider-stderr-coherent-window' ||
+    ![3, 4].includes(window.schemaVersion) ||
+    !['original-provider-stderr-coherent-window', 'original-provider-stderr-verified-window'].includes(window.kind) ||
     window.samplingWindowComplete !== true ||
     ![window.windowStartedMs, window.windowDeadlineMs, window.finishedMs].every(
       (value) => Number.isSafeInteger(value) && value >= 0,

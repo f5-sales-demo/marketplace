@@ -6,6 +6,6 @@
     "guest_pty.py": "274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3",
     "gcp_guest_session.py": "babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786",
     "gcp_provider_process.py": "c078a9dc6ad7c6df1630b918af24a8a4bd62b9ac4b38239eaa3fd490429330e0",
-    "gcp_provider_reader.py": "9433efeb003687274779ce3e4f53499cb5d454e340c1ec68d5d5ff221ef7c094"
+    "gcp_provider_reader.py": "90b731da556eff39ac3a844af7c136c6c8905abdc7aa3c09205ababe153b259e"
   }
 }

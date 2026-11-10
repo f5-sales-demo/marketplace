@@ -10,10 +10,10 @@ import os
 import stat
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypedDict, TypeGuard, cast
+from typing import TYPE_CHECKING, NoReturn, NotRequired, TypedDict, TypeGuard, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -307,10 +307,14 @@ class ProviderWindowResult(TypedDict):
     observations: list[ProviderWindowObservation]
     executorAvailable: bool
     executorGroupClosed: bool
+    verificationPolicy: NotRequired[str]
+    boundaryAttempts: NotRequired[int]
 
 
 WINDOW_SCHEMA_VERSION = 2
 COHERENT_WINDOW_SCHEMA_VERSION = 3
+VERIFIED_WINDOW_SCHEMA_VERSION = 4
+COMMAND_MS = 60000
 WINDOW_MS = 45000
 WINDOW_PROVIDER_LIMIT = 64
 
@@ -336,6 +340,13 @@ def provider_request_profile(request: dict[str, object]) -> str:
         and request["windowMs"] == WINDOW_MS
     ):
         return "stderr-coherent-window"
+    if (
+        version == VERIFIED_WINDOW_SCHEMA_VERSION
+        and request.get("kind") == "original-provider-stderr-verified-window"
+        and exact_integer(request.get("windowMs"))
+        and request["windowMs"] == WINDOW_MS
+    ):
+        return "stderr-verified-window"
     reject("Original provider observation profile required")
 
 
@@ -365,70 +376,174 @@ def collect_window_cohort(
     return available, closed, candidates, acquired
 
 
+@dataclass(frozen=True)
+class WindowSamplingPolicy:
+    """Versioned observation policy; legacy bool callers preserve version3."""
+
+    coherent: bool
+    verified_boundary: bool = False
+
+
+@dataclass
+class WindowSample:
+    """A proposed sample that has not passed its final input verification."""
+
+    witnesses: dict[int, ProviderStderrPipe]
+    observations: dict[int, ProviderWindowObservation]
+    candidate_ids: tuple[int, ...]
+
+
+@dataclass
+class WindowSamplingState:
+    """Commit only observations admitted by the selected fixed policy."""
+
+    policy: WindowSamplingPolicy
+    witnesses: dict[int, ProviderStderrPipe] = field(default_factory=dict)
+    observations: dict[int, ProviderWindowObservation] = field(default_factory=dict)
+    boundary_attempts: int = 0
+
+    def propose(
+        self,
+        monitor: OriginalProviderCandidates,
+        candidates: tuple[ProviderCandidate, ...],
+        acquired: dict[int, ProviderStderrPipe],
+        captured: int,
+    ) -> WindowSample:
+        """Retain original witness checks without admitting an unfinished sample."""
+        witnesses = (
+            dict(self.witnesses) if self.policy.verified_boundary else self.witnesses
+        )
+        observations = (
+            {
+                pid: cast("ProviderWindowObservation", dict(value))
+                for pid, value in self.observations.items()
+            }
+            if self.policy.verified_boundary
+            else self.observations
+        )
+        for value in observations.values():
+            value["presentAtLastSample"] = False
+        for candidate in candidates:
+            if candidate.pid not in witnesses:
+                if len(witnesses) >= WINDOW_PROVIDER_LIMIT:
+                    reject("Original provider window candidate limit exceeded")
+                witness = (
+                    acquired[candidate.pid]
+                    if self.policy.coherent
+                    else monitor.capture_stderr(candidate)
+                )
+                witnesses[candidate.pid] = witness
+                observations[candidate.pid] = {
+                    "candidate": asdict(candidate),
+                    "stderr": {
+                        "providerFd": 2,
+                        "parentFd": witness.parent_fd,
+                        "device": str(witness.device),
+                        "inode": str(witness.inode),
+                        "providerFlags": witness.provider_flags,
+                        "parentFlags": witness.parent_flags,
+                    },
+                    "firstObservedMs": captured,
+                    "lastObservedMs": captured,
+                    "presentAtLastSample": True,
+                }
+                if not self.policy.coherent:
+                    monitor.require_stderr(witness)
+            else:
+                monitor.require_stderr(witnesses[candidate.pid])
+            observations[candidate.pid]["lastObservedMs"] = captured
+            observations[candidate.pid]["presentAtLastSample"] = True
+        return WindowSample(
+            witnesses, observations, tuple(value.pid for value in candidates)
+        )
+
+    def commit(self, proposed: WindowSample, verified: int) -> None:
+        """Timestamp v4 evidence at completed verification, never its start."""
+        if self.policy.verified_boundary:
+            for pid in proposed.candidate_ids:
+                value = proposed.observations[pid]
+                if pid not in self.observations:
+                    value["firstObservedMs"] = verified
+                value["lastObservedMs"] = verified
+        self.witnesses = proposed.witnesses
+        self.observations = proposed.observations
+
+    def boundary(
+        self,
+        verified: int,
+        proposed: WindowSample | None,
+        emit: Callable[[dict[str, object]], None],
+    ) -> None:
+        """Preserve late attempts separately without admitting their observations."""
+        self.boundary_attempts += 1
+        emit(
+            {
+                "kind": "boundary-attempt",
+                "verifiedAtMs": verified,
+                "samplingWindowComplete": False,
+                "observations": list(proposed.observations.values())
+                if proposed
+                else [],
+            }
+        )
+
+    def closed(self) -> None:
+        """Original independently closed group has no currently present providers."""
+        for value in self.observations.values():
+            value["presentAtLastSample"] = False
+
+
 def capture_stderr_window(
     monitor: OriginalProviderCandidates,
     *,
     deadline: int,
     verify: Callable[[], None],
     emit: Callable[[dict[str, object]], None],
-    coherent: bool = False,
+    coherent: bool | WindowSamplingPolicy = False,
     clock: Callable[[], int] = lambda: time.monotonic_ns() // 1000000,
     pause: Callable[[], None] = lambda: time.sleep(0.25),
 ) -> ProviderWindowResult:
-    """Retain every original FIFO candidate in one bounded sampling window."""
+    """Retain a fixed45s sampling window with an independently fixed command end."""
     started = clock()
     ended = min(deadline, started + WINDOW_MS)
     if started >= ended:
         reject("Original provider window budget exhausted")
-    witnesses: dict[int, ProviderStderrPipe] = {}
-    observations: dict[int, ProviderWindowObservation] = {}
+    command_end = min(deadline, started + COMMAND_MS)
+    state = WindowSamplingState(
+        coherent
+        if isinstance(coherent, WindowSamplingPolicy)
+        else WindowSamplingPolicy(coherent)
+    )
     available, closed = False, False
     try:
         verify()
         emit({"kind": "ready", "windowStartedMs": started, "windowDeadlineMs": ended})
         while clock() < ended:
             available, closed, candidates, acquired = collect_window_cohort(
-                monitor, coherent=coherent, verify=verify, deadline=ended
+                monitor, coherent=state.policy.coherent, verify=verify, deadline=ended
             )
             captured = clock()
             if captured >= ended:
+                if state.policy.verified_boundary:
+                    state.boundary(captured, None, emit)
                 break
-            for value in observations.values():
-                value["presentAtLastSample"] = False
-            for candidate in candidates:
-                if candidate.pid not in witnesses:
-                    if len(witnesses) >= WINDOW_PROVIDER_LIMIT:
-                        reject("Original provider window candidate limit exceeded")
-                    witness = (
-                        acquired[candidate.pid]
-                        if coherent
-                        else monitor.capture_stderr(candidate)
-                    )
-                    witnesses[candidate.pid] = witness
-                    observations[candidate.pid] = {
-                        "candidate": asdict(candidate),
-                        "stderr": {
-                            "providerFd": 2,
-                            "parentFd": witness.parent_fd,
-                            "device": str(witness.device),
-                            "inode": str(witness.inode),
-                            "providerFlags": witness.provider_flags,
-                            "parentFlags": witness.parent_flags,
-                        },
-                        "firstObservedMs": captured,
-                        "lastObservedMs": captured,
-                        "presentAtLastSample": True,
-                    }
-                    if not coherent:
-                        monitor.require_stderr(witnesses[candidate.pid])
-                else:
-                    monitor.require_stderr(witnesses[candidate.pid])
-                observations[candidate.pid]["lastObservedMs"] = captured
-                observations[candidate.pid]["presentAtLastSample"] = True
+            proposed = state.propose(monitor, candidates, acquired, captured)
             verify()
-            if clock() >= ended:
-                reject("Original provider window capture exceeded its budget")
-            emit({"kind": "sample", "capturedMonotonicMs": captured})
+            verified = clock()
+            if verified >= ended:
+                if not state.policy.verified_boundary:
+                    reject("Original provider window capture exceeded its budget")
+                state.boundary(verified, proposed, emit)
+                break
+            state.commit(proposed, verified)
+            emit(
+                {
+                    "kind": "sample",
+                    "capturedMonotonicMs": verified
+                    if state.policy.verified_boundary
+                    else captured,
+                }
+            )
             if closed:
                 break
             pause()
@@ -436,23 +551,29 @@ def capture_stderr_window(
         available, closed = inspect_executor(dict(monitor.parent))
         if not available and not closed:
             reject("Original executor unavailable while its group remains live")
+        if state.policy.verified_boundary and clock() >= command_end:
+            reject("Original provider command finalisation budget exhausted")
+        if state.policy.verified_boundary and not state.observations:
+            reject("Original verified provider observation required")
         if closed:
-            for value in observations.values():
-                value["presentAtLastSample"] = False
+            state.closed()
         result: ProviderWindowResult = {
             "windowStartedMs": started,
             "windowDeadlineMs": ended,
             "finishedMs": clock(),
             "samplingWindowComplete": True,
-            "observations": list(observations.values()),
+            "observations": list(state.observations.values()),
             "executorAvailable": available,
             "executorGroupClosed": closed,
         }
+        if state.policy.verified_boundary:
+            result["verificationPolicy"] = "completed-before-window-end"
+            result["boundaryAttempts"] = state.boundary_attempts
     except Exception:
         emit(
             {
                 "kind": "failed",
-                "observations": list(observations.values()),
+                "observations": list(state.observations.values()),
                 "samplingWindowComplete": False,
             }
         )
@@ -561,6 +682,8 @@ def record_stderr_window(
                     "cloudSubmissions": 0,
                 },
             )
+        elif value["kind"] == "boundary-attempt":
+            transport.record(root / "provider-window-boundary.private.json", value)
         elif value["kind"] == "failed":
             transport.record(
                 root / "provider-window-failed.private.json",
@@ -581,7 +704,11 @@ def record_stderr_window(
         deadline=deadline,
         verify=verify,
         emit=emit,
-        coherent=provider_request_profile(request) == "stderr-coherent-window",
+        coherent=WindowSamplingPolicy(
+            provider_request_profile(request)
+            in ("stderr-coherent-window", "stderr-verified-window"),
+            provider_request_profile(request) == "stderr-verified-window",
+        ),
     )
     verify()
     transport.record(
@@ -713,7 +840,11 @@ def main() -> None:
         )
         return monitor.discover()
 
-    if provider_request_profile(request) in ("stderr-window", "stderr-coherent-window"):
+    if provider_request_profile(request) in (
+        "stderr-window",
+        "stderr-coherent-window",
+        "stderr-verified-window",
+    ):
         record_stderr_window(
             monitor_module, transport, request, root, reader, deadline, verify
         )

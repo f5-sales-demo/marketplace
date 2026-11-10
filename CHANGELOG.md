@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.64
+- **`terraform`** bumped to v2.4.65
 
 - **`gcloud` 1.7.38 / `platform` 6.3.16 / `terraform` 2.4.57** reconcile
   Bun 1.4.4 and type dependencies with current main while retaining exact

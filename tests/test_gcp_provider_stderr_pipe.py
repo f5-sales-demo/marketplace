@@ -651,3 +651,171 @@ def test_prospective_identity_and_persistence_failures_both_survive(original):
     assert any(isinstance(error, OSError) for error in captured.value.exceptions)
     assert monitor.retired
     assert not monitor.admitted
+
+
+def test_verified_window_commits_only_completed_observations_and_preserves_late_attempt(
+    original,
+):
+    """A 45-second boundary never admits a partially verified last sample."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    stage = [0]
+    final_checks = [0]
+    events = []
+
+    def verify():
+        if stage[0] == 1:
+            tick[0] = 1200
+        elif stage[0] == 2:
+            final_checks[0] += 1
+            if final_checks[0] >= 3:
+                tick[0] = 46010
+
+    def pause():
+        tick[0] = 45900
+        stage[0] = 2
+
+    def emit(value):
+        events.append(value)
+        if value["kind"] == "ready":
+            stage[0] = 1
+
+    result = reader.capture_stderr_window(
+        monitor,
+        deadline=100000,
+        verify=verify,
+        emit=emit,
+        clock=lambda: tick[0],
+        pause=pause,
+        coherent=reader.WindowSamplingPolicy(True, True),
+    )
+    assert result["windowDeadlineMs"] == 46000
+    assert result["observations"][0]["firstObservedMs"] == 1200
+    assert result["observations"][0]["lastObservedMs"] == 1200
+    assert result["boundaryAttempts"] == 1
+    assert result["verificationPolicy"] == "completed-before-window-end"
+    boundary = next(value for value in events if value["kind"] == "boundary-attempt")
+    assert not boundary["samplingWindowComplete"]
+    assert boundary["verifiedAtMs"] == 46010
+
+
+def test_verified_window_never_completes_without_an_admitted_observation(original):
+    """A slow first sample cannot become an empty successful window."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    ready = [False]
+
+    def emit(value):
+        if value["kind"] == "ready":
+            ready[0] = True
+
+    def verify():
+        if ready[0]:
+            tick[0] = 46010
+
+    with pytest.raises(ValueError, match="observation"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=emit,
+            clock=lambda: tick[0],
+            pause=lambda: None,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )
+
+
+def test_legacy_window_keeps_its_strict_late_verification_refusal(original):
+    """Version3 meaning is unchanged by the new completed-observation policy."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    ready = [False]
+    count = [0]
+
+    def emit(value):
+        if value["kind"] == "ready":
+            ready[0] = True
+
+    def verify():
+        if ready[0]:
+            count[0] += 1
+            if count[0] >= 3:
+                tick[0] = 46010
+
+    with pytest.raises(ValueError, match="budget"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=emit,
+            clock=lambda: tick[0],
+            pause=lambda: None,
+        )
+
+
+def test_verified_window_profile_has_distinct_fixed_version_and_duration():
+    assert (
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 4,
+                "kind": "original-provider-stderr-verified-window",
+                "windowMs": 45000,
+            }
+        )
+        == "stderr-verified-window"
+    )
+    with pytest.raises(ValueError, match="profile"):
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 4,
+                "kind": "original-provider-stderr-verified-window",
+                "windowMs": 45001,
+            }
+        )
+
+
+def test_verified_window_fixed_command_budget_and_changed_inputs_still_refuse(original):
+    """Boundary finalisation cannot renew the command or excuse source mutation."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    late = [False]
+    count = [0]
+
+    def verify():
+        if late[0]:
+            count[0] += 1
+            if count[0] >= 3:
+                tick[0] = 61010
+
+    def pause():
+        late[0] = True
+        tick[0] = 45900
+
+    with pytest.raises(ValueError, match="budget"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=lambda _v: None,
+            clock=lambda: tick[0],
+            pause=pause,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )
+    tick[0] = 1000
+    late[0] = False
+
+    def changed():
+        if late[0]:
+            message = "original input changed at boundary"
+            raise ValueError(message)
+
+    with pytest.raises(ValueError, match="input changed"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=changed,
+            emit=lambda _v: None,
+            clock=lambda: tick[0],
+            pause=pause,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )

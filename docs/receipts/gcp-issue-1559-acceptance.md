@@ -1258,3 +1258,13 @@ or deadline weakening. Typed local cleanup, empty stable state, two non-submitti
 resumes and 22 independent group absences pass, with failed locks preserved and
 zero managed cloud mutations. Sampling policy, full lifetime/bootstrap/capture and
 all remaining live/runtime/delivery gates stay open.
+
+Attempt 427 adds [completed-observation window version4](gcp-verified-window-policy-20261110.md).
+The 45-second observation boundary and fixed command budget remain; late attempts
+are separate and unqualified, while version3 semantics remain unchanged. Python68,
+shared1,121 and root164 tests plus configured source checks pass. The new live run
+failed at descriptor permission inspection; no elevation or bypass, no accepted
+capture. Independent22group cleanup, empty stable state and two non-submitting
+resumes pass with failed locks preserved and zero managed cloud mutations.
+Provider lifetime/access, full capture/expiry/bootstrap and every remaining live
+and delivery gate remain open.

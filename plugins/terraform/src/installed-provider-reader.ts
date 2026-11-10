@@ -67,7 +67,7 @@ export interface InstalledProviderCohort {
 }
 
 export interface InstalledProviderWindowReady {
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 3 | 4;
   readonly kind: 'original-provider-stderr-ready';
   readonly executor: Identity;
   readonly reader: Identity;
@@ -96,8 +96,10 @@ export interface InstalledProviderWindowObservation {
 }
 export interface InstalledProviderWindow
   extends Omit<InstalledProviderCohort, 'schemaVersion' | 'kind' | 'candidates'> {
-  readonly schemaVersion: 3;
-  readonly kind: 'original-provider-stderr-coherent-window';
+  readonly schemaVersion: 3 | 4;
+  readonly kind: 'original-provider-stderr-coherent-window' | 'original-provider-stderr-verified-window';
+  readonly verificationPolicy?: 'completed-before-window-end';
+  readonly boundaryAttempts?: number;
   readonly windowStartedMs: number;
   readonly windowDeadlineMs: number;
   readonly finishedMs: number;
@@ -146,6 +148,9 @@ export async function openInstalledProviderReader(
   });
   const inputs = freezeAdmittedCaptureInputs(context.inputs);
   const versionProfile = resolveInstalledGcpExecutableProfile(inputs.terraform?.sha256 ?? '');
+  const windowVersion = versionProfile.googleVersion === '8.10.0' ? 4 : 3;
+  const windowKind =
+    windowVersion === 4 ? 'original-provider-stderr-verified-window' : 'original-provider-stderr-coherent-window';
   const script = inputs['script:gcp_provider_reader.py'];
   if (
     !script ||
@@ -273,8 +278,8 @@ export async function openInstalledProviderReader(
           childDirectory = { path: directory, identity: await lstat(directory) };
           const final = reserve ? inspectFinalReaderReserve(reserve) : undefined;
           const request = {
-            schemaVersion: startup ? 3 : 1,
-            ...(startup ? { kind: 'original-provider-stderr-coherent-window', windowMs: 45000 } : {}),
+            schemaVersion: startup ? windowVersion : 1,
+            ...(startup ? { kind: windowKind, windowMs: 45000 } : {}),
             inputs: allInputs,
             executables: { bootstrap: inputs.python, terraform: inputs.terraform, provider: google },
             originalStartMs: context.budget.start,
@@ -384,7 +389,7 @@ export async function openInstalledProviderReader(
               if (
                 !originalReader ||
                 Object.keys(value).sort().join(',') !== keys ||
-                value.schemaVersion !== 3 ||
+                value.schemaVersion !== windowVersion ||
                 value.kind !== 'original-provider-stderr-ready' ||
                 value.requestSha256 !== hash(bytes) ||
                 !equalIdentity(value.executor, admission.identity) ||
@@ -430,8 +435,8 @@ export async function openInstalledProviderReader(
           const originalReader = readerIdentity;
           if (!originalReader) throw new Error('Original provider reader identity absent');
           if (
-            value.schemaVersion !== (startup ? 3 : 1) ||
-            value.kind !== (startup ? 'original-provider-stderr-coherent-window' : 'original-provider-cohort') ||
+            value.schemaVersion !== (startup ? windowVersion : 1) ||
+            value.kind !== (startup ? windowKind : 'original-provider-cohort') ||
             value.requestSha256 !== hash(bytes) ||
             !equalIdentity(value.executor, admission.identity) ||
             !equalIdentity(value.reader, readerIdentity) ||
@@ -480,6 +485,7 @@ export async function openInstalledProviderReader(
               'finishedMs',
               'samplingWindowComplete',
               'observations',
+              ...(windowVersion === 4 ? ['verificationPolicy', 'boundaryAttempts'] : []),
             ]
               .sort()
               .join(',');
@@ -489,6 +495,14 @@ export async function openInstalledProviderReader(
               value.windowStartedMs !== windowReady.windowStartedMs ||
               value.windowDeadlineMs !== windowReady.windowDeadlineMs ||
               value.samplingWindowComplete !== true ||
+              (windowVersion === 4 &&
+                (value.verificationPolicy !== 'completed-before-window-end' ||
+                  !Number.isSafeInteger(value.boundaryAttempts) ||
+                  (value.boundaryAttempts as number) < 0 ||
+                  (value.boundaryAttempts as number) > 1 ||
+                  (value.finishedMs as number) - windowReady.windowStartedMs >= 60000 ||
+                  !Array.isArray(value.observations) ||
+                  value.observations.length === 0)) ||
               !Number.isSafeInteger(value.finishedMs) ||
               (value.finishedMs as number) < windowReady.windowStartedMs ||
               (value.finishedMs as number) > clock() ||
@@ -508,6 +522,7 @@ export async function openInstalledProviderReader(
                 (observation.firstObservedMs as number) < ready.windowStartedMs ||
                 (observation.lastObservedMs as number) < (observation.firstObservedMs as number) ||
                 (observation.lastObservedMs as number) > ready.windowDeadlineMs ||
+                (windowVersion === 4 && (observation.lastObservedMs as number) >= ready.windowDeadlineMs) ||
                 typeof observation.presentAtLastSample !== 'boolean'
               )
                 throw new Error('Original provider window observation differs');
@@ -612,8 +627,7 @@ export async function openInstalledProviderReader(
         rejectReady = reject;
       });
       const complete = readInternal(undefined, { resolve: resolveReady, reject: rejectReady }).then((result) => {
-        if (result.kind !== 'original-provider-stderr-coherent-window')
-          throw new Error('Original provider window required');
+        if (result.kind === 'original-provider-cohort') throw new Error('Original provider window required');
         return result;
       });
       complete.catch(rejectReady);
