@@ -2399,17 +2399,18 @@ function inspectActionInvocations(plan, expected) {
     throw new Error('Terraform action identity, trigger or configuration differs');
   return [{ ...expected }];
 }
-async function privateDirectory(path) {
-  await mkdir2(path, { recursive: true, mode: 448 });
+async function privateDirectory(path, create = true) {
+  if (create) await mkdir2(path, { recursive: true, mode: 448 });
   const stat = await lstat4(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath2(path)) !== path
+    (await realpath2(path)) !== path ||
+    (!create && (stat.mode & 63) !== 0)
   )
     throw new Error('Terraform storage ownership is invalid');
-  await chmod(path, 448);
+  if (create) await chmod(path, 448);
 }
 async function privateRead(path) {
   const stat = await lstat4(path);
@@ -3035,7 +3036,7 @@ class TerraformRunner {
     if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
     const directory = join8(this.root, deploymentId);
-    await privateDirectory(directory);
+    await privateDirectory(directory, false);
     const manifest = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
     if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
       throw new Error('Terraform deployment ownership is invalid');
