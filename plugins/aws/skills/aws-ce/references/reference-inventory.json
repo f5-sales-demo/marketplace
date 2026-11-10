@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-17T02:02:48.844468+00:00",
+  "purpose": "Focused AWS CE guidance; no toolkit installation or MCP configuration",
+  "sources": [
+    {
+      "name": "aws-compute",
+      "version": "v2",
+      "sourceUrl": "https://docs.aws.amazon.com/cli/latest/reference/agent-toolkit/get-skill-file.html",
+      "filePath": "references/provisioning.md",
+      "retrieval": [
+        "aws",
+        "agent-toolkit",
+        "get-skill-file",
+        "--skill-name",
+        "aws-compute",
+        "--skill-version",
+        "v2",
+        "--file-path",
+        "references/provisioning.md"
+      ],
+      "normalizedSha256": "b9b81fa276ed58cce4e9ce47365d222aa1a43a021c73c56a4a85edfd5e00efc7",
+      "selectedGuidance": "Pinned image, architecture, metadata, and resource prerequisites"
+    },
+    {
+      "name": "aws-compute",
+      "version": "v2",
+      "sourceUrl": "https://docs.aws.amazon.com/cli/latest/reference/agent-toolkit/get-skill-file.html",
+      "filePath": "references/systems-manager.md",
+      "retrieval": [
+        "aws",
+        "agent-toolkit",
+        "get-skill-file",
+        "--skill-name",
+        "aws-compute",
+        "--skill-version",
+        "v2",
+        "--file-path",
+        "references/systems-manager.md"
+      ],
+      "normalizedSha256": "f527eda53471523dcd2f0a58a25d364a29ce4b95d242acad47b5c207661b0f07",
+      "selectedGuidance": "Existing managed-node prerequisites and completed Run Command evidence"
+    },
+    {
+      "name": "aws-iam",
+      "version": "v3",
+      "sourceUrl": "https://docs.aws.amazon.com/cli/latest/reference/agent-toolkit/get-skill-file.html",
+      "filePath": "SKILL.md",
+      "retrieval": [
+        "aws",
+        "agent-toolkit",
+        "get-skill-file",
+        "--skill-name",
+        "aws-iam",
+        "--skill-version",
+        "v3",
+        "--file-path",
+        "SKILL.md"
+      ],
+      "normalizedSha256": "3628be12dba19fc336fe17e55f62468993ccfd79f422b23bdc974a0a08954c1f",
+      "selectedGuidance": "Scoped PassRole and actual role identity"
+    },
+    {
+      "name": "transitgateway",
+      "version": "v1",
+      "sourceUrl": "https://docs.aws.amazon.com/cli/latest/reference/agent-toolkit/get-skill-file.html",
+      "filePath": "SKILL.md",
+      "retrieval": [
+        "aws",
+        "agent-toolkit",
+        "get-skill-file",
+        "--skill-name",
+        "transitgateway",
+        "--skill-version",
+        "v1",
+        "--file-path",
+        "SKILL.md"
+      ],
+      "normalizedSha256": "9651eeade3ce21cd06959e68e956ab5e753b8cfef8a1658176d714b2712caf4d",
+      "selectedGuidance": "Appliance mode, explicit AZ targets, and routing symmetry"
+    },
+    {
+      "name": "aws-observability",
+      "version": "v8",
+      "sourceUrl": "https://docs.aws.amazon.com/cli/latest/reference/agent-toolkit/get-skill-file.html",
+      "filePath": "SKILL.md",
+      "retrieval": [
+        "aws",
+        "agent-toolkit",
+        "get-skill-file",
+        "--skill-name",
+        "aws-observability",
+        "--skill-version",
+        "v8",
+        "--file-path",
+        "SKILL.md"
+      ],
+      "normalizedSha256": "e26a6e27ff8f5c5754c018095ef854cfbe7cfef6f882a2607769ffdf95d79c3f",
+      "selectedGuidance": "Bounded existing-service evidence and separate configuration/traffic claims"
+    },
+    {
+      "sourceUrl": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html",
+      "version": "live-document",
+      "normalizedSha256": "8e544a6d46eff8b1ea11314d6271058b54588dcfca00629adebc56e20dd9efcb"
+    },
+    {
+      "sourceUrl": "https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html",
+      "version": "live-document",
+      "normalizedSha256": "30dbed5d7b1170543a520bf58bdfef29d098cd20751908eaf942b5a7ce97d903"
+    },
+    {
+      "sourceUrl": "https://docs.aws.amazon.com/vpc/latest/tgw/transit-gateway-appliance-scenario.html",
+      "version": "live-document",
+      "normalizedSha256": "1caf496b7d8b289cae64998883b683e85496409b26ee6991457023689fc5e0d6",
+      "resolvedSourceUrl": "https://docs.aws.amazon.com/vpc/latest/tgw/how-transit-gateways-work.html"
+    },
+    {
+      "sourceUrl": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html",
+      "version": "live-document",
+      "normalizedSha256": "cfcf69c3ce15d6d06bf2e1aa53217c8ad085e95f891b566fb4fed221c00b8cc9"
+    },
+    {
+      "sourceUrl": "https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-aws-clickops",
+      "version": "live-document",
+      "normalizedSha256": "4f2336551eb1e47e45203f95b86bf9fc2315dab3a2759f0da6a21ac18197c35a"
+    },
+    {
+      "sourceUrl": "https://github.com/f5-sales-demo/api-specs-enriched/releases/tag/v12.0.9",
+      "version": "v12.0.9",
+      "commit": "e04c5d45f7a4e103e2dc84bf52b767182b4de3bc",
+      "asset": "smsv2-contract.json",
+      "sha256": "2dd4d33693c9e228bfb304d7558a2f50ca9cc0146407f8fb9b5f0ca7d7c56f3c",
+      "haNodeConfiguration": "single-non-ha-only"
+    }
+  ]
+}
