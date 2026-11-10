@@ -21,9 +21,9 @@ test('stored deployment artifacts keep their exact original versions and lock by
   if (!latest) throw new Error('Latest GCP artifacts required');
   expect(resolveGcpTerraformArtifacts(structuredClone(latest))).toBe(latest);
   for (const changed of [
-    { ...legacy, providerLock: legacy.providerLock + ' ' },
+    { ...legacy, providerLock: `${legacy.providerLock} ` },
     { ...legacy, versions: { ...legacy.versions, google: '8.10.0' } },
-    { ...legacy, expectedLockSha256: 'sha256:' + 'f'.repeat(64) },
+    { ...legacy, expectedLockSha256: `sha256:${'f'.repeat(64)}` },
   ]) {
     expect(() => resolveGcpTerraformArtifacts(changed)).toThrow();
   }
