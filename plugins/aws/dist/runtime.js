@@ -29331,24 +29331,30 @@ function createAwsCeStatusTool(pi, makeApi = makeExecApi) {
         let storage;
         try {
           const platform = await awsPlatformService(pi, signal);
-          storage = await platform.storage({
-            deploymentId: plan.deploymentName,
-            engine: plan.engine,
-            provider: 'aws',
-            account: plan.accountId,
-            region: plan.region,
-          });
+          storage = await platform.storage(
+            {
+              deploymentId: plan.deploymentName,
+              engine: plan.engine,
+              provider: 'aws',
+              account: plan.accountId,
+              region: plan.region,
+            },
+            { readOnly: true },
+          );
           if (plan.engine === 'terraform') {
             try {
               const workflow = await readAwsTerraformWorkflowStatus(
                 plan,
-                await platform.storage({
-                  deploymentId: plan.deploymentName,
-                  engine: 'terraform',
-                  provider: 'aws',
-                  account: plan.accountId,
-                  region: plan.region,
-                }),
+                await platform.storage(
+                  {
+                    deploymentId: plan.deploymentName,
+                    engine: 'terraform',
+                    provider: 'aws',
+                    account: plan.accountId,
+                    region: plan.region,
+                  },
+                  { readOnly: true },
+                ),
               );
               workflowProgress = workflow.progress;
               const owner = {

@@ -24,27 +24,30 @@ function key(owner) {
 function sameOwner(a, b) {
   return ['deploymentId', 'engine', 'provider', 'account', 'region'].every((field) => a[field] === b[field]);
 }
-async function directory(path) {
-  await mkdir(path, { recursive: true, mode: 448 });
+async function directory(path, readOnly = false) {
+  if (!readOnly) await mkdir(path, { recursive: true, mode: 448 });
   const stat = await lstat(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath(path)) !== path
+    (await realpath(path)) !== path ||
+    (readOnly && (stat.mode & 63) !== 0)
   )
     throw new Error('CE deployment storage ownership is invalid');
-  await chmod(path, 448);
+  if (!readOnly) await chmod(path, 448);
 }
 
 class CeDeploymentStore {
   directory;
   owner;
-  constructor(directory, owner) {
+  #readOnly;
+  constructor(directory, owner, readOnly = false) {
     this.directory = directory;
     this.owner = owner;
+    this.#readOnly = readOnly;
   }
-  static async open(root, owner) {
+  static async open(root, owner, options = {}) {
     if (
       !isAbsolute(root) ||
       !['native', 'terraform'].includes(owner.engine) ||
@@ -52,10 +55,15 @@ class CeDeploymentStore {
       [owner.account, owner.region, owner.deploymentId].some((value) => !value || /[\r\n]/.test(value))
     )
       throw new Error('Invalid CE storage binding');
-    await directory(root);
+    const readOnly = options.readOnly === true;
+    await directory(root, readOnly);
     const path = join(root, key(owner));
-    await directory(path);
-    const store = new CeDeploymentStore(path, structuredClone(owner));
+    await directory(path, readOnly);
+    const store = new CeDeploymentStore(path, structuredClone(owner), readOnly);
+    if (readOnly) {
+      await store.verify();
+      return store;
+    }
     try {
       await writeFile(join(path, 'owner.json'), JSON.stringify({ schemaVersion: 2, owner }), {
         flag: 'wx',
@@ -94,7 +102,11 @@ class CeDeploymentStore {
     if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
       throw new Error('CE deployment belongs to another execution engine or scope');
   }
+  #assertWritable() {
+    if (this.#readOnly) throw new Error('CE deployment storage is read-only');
+  }
   async reserve(name, value) {
+    this.#assertWritable();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
     const bytes = JSON.stringify(value);
@@ -131,6 +143,7 @@ class CeDeploymentStore {
     }
   }
   async write(name, value, signal) {
+    this.#assertWritable();
     signal?.throwIfAborted();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
@@ -155,6 +168,7 @@ class CeDeploymentStore {
     }
   }
   async remove(name) {
+    this.#assertWritable();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
     await rm(this.#path(name), { force: true });
@@ -8005,7 +8019,7 @@ function createCePlatformService(
   const root = () =>
     environment().XCSH_CE_DEPLOYMENTS_DIR ??
     join5(environment().XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments');
-  const storage = (owner) => CeDeploymentStore.open(root(), owner);
+  const storage = (owner, options) => CeDeploymentStore.open(root(), owner, options);
   return {
     async providerEnvironment(contextName) {
       const credentials = await context(environment(), contextName);
@@ -8019,7 +8033,7 @@ function createCePlatformService(
       for (const item of await readdir2(root(), { withFileTypes: true })) {
         if (!item.isDirectory() || !/^[a-f0-9]{64}$/.test(item.name)) continue;
         const manifest = JSON.parse(await readFile4(join5(root(), item.name, 'owner.json'), 'utf8'));
-        const store = await storage(manifest.owner);
+        const store = await storage(manifest.owner, { readOnly: true });
         if (store.directory !== join5(root(), item.name)) throw new Error('Stored owner directory differs');
         let record;
         try {

@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
+import { lstat, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Type } from '@sinclair/typebox';
+import { createCePlatformService } from '../../../platform/src/ce/service';
 import { saveAwsPlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { createAwsCeDiagnoseTool } from '../../src/tools/aws-ce-diagnose';
@@ -135,4 +139,77 @@ test('public Terraform status and passive diagnosis use current workspace IDs wi
   const missing = await createAwsCeStatusTool(pi, () => api).execute('missing', params, undefined, undefined, ctx);
   expect((missing.details.status as any).f5.registration.status).toBe('unknown');
   expect(registrationCalls).toBe(2);
+});
+
+test('actual platform-backed public status leaves unprepared deployment storage absent', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'aws-status-readonly-'));
+  try {
+    const root = join(base, 'deployments');
+    const initial = foundationPlan();
+    const { planId: _id, planSha256: _sha, ...draft } = initial;
+    const topology = { nodeCount: 1 };
+    const material = {
+      ...draft,
+      topology,
+      siteName: initial.intent.siteName,
+      routing: { profile: 'direct-eni' },
+      intent: { ...initial.intent, topology, routing: { profile: 'direct-eni' } },
+      deploymentName: initial.intent.deploymentName,
+      accountId: initial.intent.accountId,
+      region: initial.intent.region,
+    };
+    const sha = canonicalSha256(material);
+    const plan = { ...material, planSha256: sha, planId: 'aws-ce-' + sha.slice(0, 24) };
+    const artifacts: string[] = [];
+    const ctx = {
+      cwd: base,
+      sessionManager: {
+        getSessionId: () => 'readonly-status',
+        getArtifactsDir: () => null,
+        getArtifactPath: async () => null,
+        saveArtifact: async (value: string) => {
+          artifacts.push(value);
+          return String(artifacts.length);
+        },
+      },
+    };
+    await saveAwsPlan(ctx.sessionManager, plan, {} as never);
+    const service = createCePlatformService({ XCSH_CE_DEPLOYMENTS_DIR: root });
+    const pi = {
+      typebox: { Type },
+      events: {
+        emit: (_channel: string, request: { resolve: (value: typeof service) => void }) => request.resolve(service),
+      },
+    } as never;
+    const api = {
+      exec: async (_command: string, args: string[]) => ({
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          args[0] === 'sts'
+            ? { Account: plan.accountId }
+            : args[1] === 'describe-instances'
+              ? { Reservations: [] }
+              : { NetworkInterfaces: [] },
+        ),
+      }),
+    };
+    const before = await readdir(base);
+    const result = await createAwsCeStatusTool(pi, () => api).execute(
+      'readonly',
+      {
+        planId: plan.planId,
+        planSha256: plan.planSha256,
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+    expect(result.isError).not.toBe(true);
+    expect((result.details.status as { f5: { health: { status: string } } }).f5.health.status).toBe('unknown');
+    expect(await readdir(base)).toEqual(before);
+    await expect(lstat(root)).rejects.toThrow();
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
 });

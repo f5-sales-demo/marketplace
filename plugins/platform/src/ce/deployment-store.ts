@@ -13,24 +13,32 @@ function sameOwner(a: CeOwner, b: CeOwner): boolean {
     (field) => a[field as keyof CeOwner] === b[field as keyof CeOwner],
   );
 }
-async function directory(path: string): Promise<void> {
-  await mkdir(path, { recursive: true, mode: 0o700 });
+async function directory(path: string, readOnly = false): Promise<void> {
+  if (!readOnly) await mkdir(path, { recursive: true, mode: 0o700 });
   const stat = await lstat(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath(path)) !== path
+    (await realpath(path)) !== path ||
+    (readOnly && (stat.mode & 0o077) !== 0)
   )
     throw new Error('CE deployment storage ownership is invalid');
-  await chmod(path, 0o700);
+  if (!readOnly) await chmod(path, 0o700);
+}
+export interface CeStorageOptions {
+  readOnly?: boolean;
 }
 export class CeDeploymentStore {
+  #readOnly: boolean;
   private constructor(
     readonly directory: string,
     readonly owner: CeOwner,
-  ) {}
-  static async open(root: string, owner: CeOwner): Promise<CeDeploymentStore> {
+    readOnly = false,
+  ) {
+    this.#readOnly = readOnly;
+  }
+  static async open(root: string, owner: CeOwner, options: CeStorageOptions = {}): Promise<CeDeploymentStore> {
     if (
       !isAbsolute(root) ||
       !['native', 'terraform'].includes(owner.engine) ||
@@ -38,10 +46,15 @@ export class CeDeploymentStore {
       [owner.account, owner.region, owner.deploymentId].some((value) => !value || /[\r\n]/.test(value))
     )
       throw new Error('Invalid CE storage binding');
-    await directory(root);
+    const readOnly = options.readOnly === true;
+    await directory(root, readOnly);
     const path = join(root, key(owner));
-    await directory(path);
-    const store = new CeDeploymentStore(path, structuredClone(owner));
+    await directory(path, readOnly);
+    const store = new CeDeploymentStore(path, structuredClone(owner), readOnly);
+    if (readOnly) {
+      await store.verify();
+      return store;
+    }
     try {
       await writeFile(join(path, 'owner.json'), JSON.stringify({ schemaVersion: 2, owner }), {
         flag: 'wx',
@@ -80,8 +93,12 @@ export class CeDeploymentStore {
     if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
       throw new Error('CE deployment belongs to another execution engine or scope');
   }
+  #assertWritable(): void {
+    if (this.#readOnly) throw new Error('CE deployment storage is read-only');
+  }
   /** Immutable reservation: existing matching bytes never authorize a second request. */
   async reserve(name: string, value: unknown): Promise<boolean> {
+    this.#assertWritable();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
     const bytes = JSON.stringify(value);
@@ -121,6 +138,7 @@ export class CeDeploymentStore {
     }
   }
   async write(name: string, value: unknown, signal?: AbortSignal): Promise<void> {
+    this.#assertWritable();
     signal?.throwIfAborted();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
@@ -146,6 +164,7 @@ export class CeDeploymentStore {
     }
   }
   async remove(name: string): Promise<void> {
+    this.#assertWritable();
     if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
     await this.verify();
     await rm(this.#path(name), { force: true });

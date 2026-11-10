@@ -181,7 +181,7 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
       )
         throw new Error('Terraform deployment and cloud ownership differ');
       const shared = await platform();
-      const store = await shared.storage(owner);
+      const store = await shared.storage(owner, { readOnly: Boolean(resume) });
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
@@ -198,7 +198,7 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
-        await shared.storage(owner);
+        await shared.storage(owner, { readOnly: true });
       };
       return {
         async readArtifactRetirement(receipt, evidenceSha256, signal) {

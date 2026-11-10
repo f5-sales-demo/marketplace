@@ -43331,7 +43331,7 @@ function createAzureCeStatusTool(pi, makeApi = makeExecApi) {
             const service = await azurePlatformService(pi, signal);
             observedCheckpoint = await readAzureTerraformWorkflowStatus(
               plan,
-              await service.storage(azureUpgradeBinding(plan).owner),
+              await service.storage(azureUpgradeBinding(plan).owner, { readOnly: true }),
             );
           } catch (error) {
             if (signal?.aborted) throw error;
