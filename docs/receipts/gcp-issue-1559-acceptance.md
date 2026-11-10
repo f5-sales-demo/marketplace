@@ -1230,7 +1230,9 @@ Original query/page bytes, reader identity, principal, operation name, numeric V
 and request reason have failing-first coverage. Missing reason remains a refusal;
 full insert flags remain false. Shared1,115tests5,095assertions and all three native
 typechecks/builds/dependencies pass. Fresh source-read capture failed in prospective
-SDK actor identity inspection; the exact actor/state remains unretained. Typed
+SDK actor identity inspection; the failed identity state remains unretained.
+Retained prospective PID snapshots join the initial provider startup and exit,
+followed by a distinct provider for the actual read. Typed
 local cleanup, empty stable state, empty destroy, two non-submitting resumes and
 22 independent group absences pass, with original failed locks preserved. No cloud
 resource changed. Precise failure retention, bootstrap ownership, source lifetime,

@@ -26,7 +26,9 @@ historical profiles and assets remain unchanged.
 A fresh scoped source-read campaign retained the new query/page evidence checks,
 then failed in the independent SDK reader during prospective process identity
 inspection. Its original error reports an unavailable or stopped actor; the exact
-actor and state were not retained. The overall capture remains unaccepted and no
+state at the failed identity read was not retained. Subsequent inspection joins
+the retained prospective PID and earlier running snapshots to Terraform's initial
+provider startup and exit, followed by a distinct provider for the actual read. The overall capture remains unaccepted and no
 unchanged retry was submitted. Typed local recovery, empty destroy, stable empty
 state and two read-only resumes without submission passed. Independent verification
 found all 22 original and recovery process groups absent. Failed source and reader
